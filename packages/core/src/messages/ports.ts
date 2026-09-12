@@ -63,6 +63,12 @@ export interface BroadcastBatchPorts {
   contact(contactId: string): Promise<ContactRow | null>;
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
+  /**
+   * The message this broadcast already sent this person, if a run died between
+   * the wire and its own bookkeeping: its id, or null. A resumed batch reads it
+   * rather than sending twice.
+   */
+  alreadySent(id: string, contactId: string): Promise<string | null>;
   mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
   deliver: Door;
   /** How many are still queued; throws when it cannot be counted. */

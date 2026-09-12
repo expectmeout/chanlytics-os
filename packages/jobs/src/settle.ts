@@ -16,6 +16,7 @@
  * a job whose outcome is unknown.
  */
 import type { Db } from "./ledger";
+import { scheduleJob } from "./schedule";
 
 export interface TerminalJob {
   id: string;
@@ -28,10 +29,14 @@ export interface TerminalJob {
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
   what: "message" | "broadcast";
-  /** True only when a row was found still in flight and marked failed. */
+  /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** Why nothing could be written, when nothing could be. Never swallowed. */
   error?: string;
+  /** A broadcast mid-send was handed to a fresh run rather than failed: what it had reached, and what is left. */
+  resumed?: boolean;
+  reached?: number;
+  remaining?: number;
 }
 
 /**
@@ -76,17 +81,40 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");
     if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
-    // broadcastSend schedules its own next batch, so one lost link strands the
-    // whole run. Conditional on 'sending', so a broadcast that finished between
-    // the read and here is left exactly as it finished.
-    const { data, error } = await db
+    // broadcastSend schedules its own next batch, so one lost link used to
+    // strand the whole run: the broadcast sat 'failed' with half its people
+    // reached and the rest queued for ever. The rest are HANDED TO A FRESH RUN
+    // instead. The batch itself never sends twice (it reads the message row a
+    // dying run left, core/messages/broadcast.ts alreadySent), which is what
+    // makes a second run safe where a second outbound_send is not. Conditional
+    // on 'sending', so a broadcast that finished between the read and here is
+    // left exactly as it finished; a fresh job that cannot be written falls
+    // back to the honest failure, with the reason.
+    const { data: row, error: readErr } = await db
       .from("broadcasts")
-      .update({ state: "failed", finished_at: new Date().toISOString() })
+      .select("id, state")
       .eq("id", broadcastId)
       .eq("tenant_id", job.tenant_id)
-      .eq("state", "sending")
-      .select("id");
-    return [{ what: "broadcast", changed: !!data?.length, ...(error ? { error: error.message } : {}) }];
+      .maybeSingle();
+    if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
+    if (!row || row.state !== "sending") return [{ what: "broadcast", changed: false }];
+    const { data: people } = await db.from("broadcast_recipients").select("state").eq("broadcast_id", broadcastId);
+    const reached = (people ?? []).filter((p) => p.state === "sent").length;
+    const remaining = (people ?? []).filter((p) => p.state === "queued").length;
+    try {
+      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: new Date(), payload: { broadcast_id: broadcastId } });
+      return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
+    } catch (e) {
+      const { data, error } = await db
+        .from("broadcasts")
+        .update({ state: "failed", finished_at: new Date().toISOString() })
+        .eq("id", broadcastId)
+        .eq("tenant_id", job.tenant_id)
+        .eq("state", "sending")
+        .select("id");
+      const why = e instanceof Error ? e.message : String(e);
+      return [{ what: "broadcast", changed: !!data?.length, reached, remaining, error: error ? `${why}; then ${error.message}` : why }];
+    }
   }
 
   // blob_thread_erase leaves nothing behind that says it is still going: the
@@ -107,10 +135,12 @@ export function saySettled(results: Settled[]): string | null {
       lines.push(r.what === "message"
         ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
         : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
+    } else if (r.changed && r.resumed) {
+      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Nobody is sent it twice.`);
     } else if (r.changed) {
       lines.push(r.what === "message"
         ? "The message has been marked failed, so it is no longer shown as on its way."
-        : "The broadcast has been marked failed; the people it had already reached still got it.");
+        : `The broadcast has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
     }
     // changed:false with no error means the row had already moved on by itself.
     // There is nothing to tell anyone about work that completed.

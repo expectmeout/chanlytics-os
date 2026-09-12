@@ -41,8 +41,15 @@ interface RecipientRow {
   state: string;
   reason: string | null;
   sent_at: string | null;
-  messages: { conversation_id: string; status: string } | null;
+  messages: { conversation_id: string; status: string; meta?: unknown } | null;
   contacts?: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null } | null;
+}
+
+/** When a status arrived, from the stamp the guard keeps on the row (00111); null before it, or for a status not reached. */
+export function statusAt(meta: unknown, status: string): string | null {
+  const at = (meta && typeof meta === "object" && !Array.isArray(meta) ? (meta as Record<string, unknown>).status_at : null) as Record<string, unknown> | null | undefined;
+  const v = at && typeof at === "object" ? at[status] : null;
+  return typeof v === "string" ? v : null;
 }
 
 function emptyCounts(): BroadcastCounts {
@@ -75,11 +82,11 @@ function countRecipients(recipients: RecipientRow[], ids: string[]): { counts: M
 /** A reply is an inbound within this long of the send; a question two weeks later is its own thread, not a reply. The SQL series (campaign_series) keeps the same window. */
 const REPLY_WINDOW_MS = 72 * 3_600_000;
 
-/** Which threads heard from the customer within the reply window after the broadcast reached them. */
-async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>): Promise<Set<string>> {
+/** Which threads heard from the customer within the reply window after the broadcast reached them, and when the first reply came. */
+async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>): Promise<Map<string, string>> {
   const convIds = [...threads.keys()];
   const since = [...threads.values()].sort()[0];
-  const replied = new Set<string>();
+  const replied = new Map<string, string>();
   for (let i = 0; i < convIds.length; i += IN_CHUNK) {
     const { data: inbound, error } = await ctx.supabase
       .from("messages")
@@ -91,7 +98,10 @@ async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<
     if (error) throw new Error(error.message);
     for (const m of inbound ?? []) {
       const sentAt = threads.get(m.conversation_id);
-      if (sentAt && m.created_at > sentAt && Date.parse(m.created_at) - Date.parse(sentAt) <= REPLY_WINDOW_MS) replied.add(m.conversation_id);
+      if (sentAt && m.created_at > sentAt && Date.parse(m.created_at) - Date.parse(sentAt) <= REPLY_WINDOW_MS) {
+        const first = replied.get(m.conversation_id);
+        if (!first || m.created_at < first) replied.set(m.conversation_id, m.created_at);
+      }
     }
   }
   return replied;
@@ -119,6 +129,28 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
   };
 }
 
+/** The rows with the numbers their people earned, read in chunks so a playbook's whole history fits in one call. */
+async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRow[]): Promise<BroadcastDto[]> {
+  if (rows.length === 0) return [];
+  const ids = rows.map((r) => r.id);
+  const recipients: RecipientRow[] = [];
+  for (let i = 0; i < ids.length; i += IN_CHUNK) {
+    const { data, error: rErr } = await ctx.supabase
+      .from("broadcast_recipients")
+      .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta)")
+      .eq("tenant_id", tenantId)
+      .in("broadcast_id", ids.slice(i, i + IN_CHUNK));
+    if (rErr) throw new Error(rErr.message);
+    recipients.push(...((data ?? []) as unknown as RecipientRow[]));
+  }
+  const { counts, threadsOf } = countRecipients(recipients, ids);
+  for (const [broadcastId, threads] of threadsOf) {
+    counts.get(broadcastId)!.replied = (await repliedThreads(ctx, tenantId, threads)).size;
+  }
+  return rows.map((r) => toDto(r, counts.get(r.id) ?? emptyCounts()));
+}
+
+/** The recent fifty, newest first: the Broadcasts page's history. */
 export async function listBroadcasts(ctx: RouteContext, tenantId: string): Promise<BroadcastDto[]> {
   const { data: rows, error } = await ctx.supabase
     .from("broadcasts")
@@ -127,21 +159,24 @@ export async function listBroadcasts(ctx: RouteContext, tenantId: string): Promi
     .order("created_at", { ascending: false })
     .limit(RECENT);
   if (error) throw new Error(error.message);
-  if (!rows || rows.length === 0) return [];
+  return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
+}
 
-  const ids = rows.map((r) => r.id);
-  const { data: recipients, error: rErr } = await ctx.supabase
-    .from("broadcast_recipients")
-    .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status)")
+/**
+ * Every run a playbook ever made, newest first, uncapped: a card's totals
+ * used to be summed over the recent fifty broadcasts of ANY kind, so a
+ * playbook that had run daily for two months was counted from whatever was
+ * left of it in that window.
+ */
+export async function listRuns(ctx: RouteContext, tenantId: string): Promise<BroadcastDto[]> {
+  const { data: rows, error } = await ctx.supabase
+    .from("broadcasts")
+    .select(ROW_COLUMNS)
     .eq("tenant_id", tenantId)
-    .in("broadcast_id", ids);
-  if (rErr) throw new Error(rErr.message);
-
-  const { counts, threadsOf } = countRecipients((recipients ?? []) as unknown as RecipientRow[], ids);
-  for (const [broadcastId, threads] of threadsOf) {
-    counts.get(broadcastId)!.replied = (await repliedThreads(ctx, tenantId, threads)).size;
-  }
-  return (rows as BroadcastRow[]).map((r) => toDto(r, counts.get(r.id) ?? emptyCounts()));
+    .not("playbook_id", "is", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+  return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
 }
 
 /** One broadcast and every person on it, in the words of what happened to them. */
@@ -157,7 +192,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const { data: recipients, error: rErr } = await ctx.supabase
     .from("broadcast_recipients")
-    .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status), contacts(display_name, wa_profile_name, phone_e164)")
+    .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164)")
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", id)
     .order("sent_at", { ascending: false, nullsFirst: false });
@@ -166,7 +201,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const { counts, threadsOf } = countRecipients(rows, [id]);
   const threads = threadsOf.get(id);
-  const replied = threads ? await repliedThreads(ctx, tenantId, threads) : new Set<string>();
+  const replied = threads ? await repliedThreads(ctx, tenantId, threads) : new Map<string, string>();
   counts.get(id)!.replied = replied.size;
 
   const people: BroadcastRecipientDto[] = rows.map((r) => ({
@@ -179,6 +214,9 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
     message_status: r.messages?.status ?? null,
     conversation_id: r.messages?.conversation_id ?? null,
     replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),
+    delivered_at: statusAt(r.messages?.meta, "delivered"),
+    read_at: statusAt(r.messages?.meta, "read"),
+    replied_at: r.messages?.conversation_id ? replied.get(r.messages.conversation_id) ?? null : null,
   }));
   return { broadcast: toDto(row as BroadcastRow, counts.get(id) ?? emptyCounts()), recipients: people };
 }

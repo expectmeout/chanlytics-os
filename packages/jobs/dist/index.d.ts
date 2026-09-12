@@ -203,10 +203,14 @@ interface TerminalJob {
 interface Settled {
     /** The kind of row, in the words the product uses for it. */
     what: "message" | "broadcast";
-    /** True only when a row was found still in flight and marked failed. */
+    /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
     changed: boolean;
     /** Why nothing could be written, when nothing could be. Never swallowed. */
     error?: string;
+    /** A broadcast mid-send was handed to a fresh run rather than failed: what it had reached, and what is left. */
+    resumed?: boolean;
+    reached?: number;
+    remaining?: number;
 }
 /**
  * Settle what this job was in the middle of. Never throws: a settlement that

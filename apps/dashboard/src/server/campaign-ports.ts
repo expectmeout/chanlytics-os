@@ -14,6 +14,7 @@ import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
 import { listPeople } from "./people";
 import { withVisits } from "./calendar";
+import { tenantFacts } from "./tenant";
 
 /** PostgREST takes a payload this size in one statement. */
 const INSERT_CHUNK = 500;
@@ -73,6 +74,7 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
   return {
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
+    timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
     people: async (now) => (await withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)).people.map((r) => toPersonRowVM(r, now)),
     savedList: async (id) => {
       const { data: seg, error: sErr } = await ctx.supabase.from("segments").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
@@ -103,6 +105,7 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
 
 export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRunPorts {
   return {
+    timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
     release: (id) => changed(ctx.supabase.from("broadcasts").update({ state: "scheduled" }).eq("id", id).eq("state", "pending_approval").select("id")),
     hold: async (id) => {
       await ctx.supabase.from("broadcasts").update({ state: "pending_approval" }).eq("id", id);

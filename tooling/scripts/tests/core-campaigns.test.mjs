@@ -41,6 +41,8 @@ function fakes(over = {}) {
   const log = [];
   const answers = {
     template: template(), bookingLink: "https://book.example/m", people, savedList: null, number: numberHealth({ quality: "GREEN", event: null, limit: "TIER_1K" }),
+    // 14:00 UTC is 10:00 in New York: inside the hours a send may go out in.
+    timezone: "America/New_York",
     create: "b1", enrol: undefined, fail: undefined, schedule: undefined, record: "d1", release: true, hold: undefined, withdraw: 1, cancel: true,
     ...over,
   };
@@ -148,7 +150,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
     name, template: "month_offer/en_US", category: "marketing", audience: { kind: "everyone", id: null, label: EVERYONE_LABEL },
     values: specs.map(paramLabel), recipients: 2, scheduled_for: NOW.toISOString(),
   }]);
-  assert.deepEqual(r, { id: "b1", name, state: "scheduled", recipient_count: 2, scheduled_for: NOW.toISOString(), decision_id: "d1" });
+  assert.deepEqual(r, { id: "b1", name, state: "scheduled", recipient_count: 2, scheduled_for: NOW.toISOString(), moved_from: null, decision_id: "d1" });
 });
 
 test("what could not be written says so: no row is an error; people not written fails the row, then the error; a job the ledger refused fails the row and asks the person to try again; nothing on the ledger", async () => {
@@ -181,7 +183,42 @@ test("approve: a run not waiting is refused; one that changed under the approver
     ["schedule", "b1", NOW],
     ["record", "broadcast", "b1", "send_broadcast", { name: row.name, playbook_id: "p1", recipients: 3, approved: true, scheduled_for: NOW.toISOString() }],
   ]);
-  assert.deepEqual(r, { id: "b1", state: "scheduled", recipient_count: 3, decision_id: "d1" });
+  assert.deepEqual(r, { id: "b1", state: "scheduled", recipient_count: 3, scheduled_for: NOW.toISOString(), moved_from: null, decision_id: "d1" });
+});
+
+test("never at 3 AM: a send asked for outside nine to twenty by the business's clock moves to the next nine, and the receipt says so", async () => {
+  // 03:00 UTC is 23:00 the evening before in New York: outside the window, so
+  // "now" itself moves to 09:00 New York (13:00 UTC) the same calendar day.
+  const night = new Date("2026-09-07T03:00:00Z");
+  const nine = new Date("2026-09-07T13:00:00Z");
+  const f = fakes();
+  const r = await createBroadcast(f.ports, { userId: "u1", body: { template_id: T1, audience: everyone }, now: night });
+  assert.equal(r.scheduled_for, nine.toISOString(), "nine in the morning, by the business's clock");
+  assert.equal(r.moved_from, night.toISOString(), "and it says what was asked for");
+  assert.deepEqual(f.of("schedule")[0], ["schedule", "b1", nine]);
+  assert.equal(f.of("create")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
+  assert.equal(f.of("record")[0][4].moved_from, night.toISOString(), "the ledger keeps the move");
+  // Asked for 05:30 New York (09:30 UTC): the same morning's nine.
+  const early = new Date("2026-09-07T09:30:00Z");
+  const r2 = await createBroadcast(fakes().ports, { userId: "u1", body: { template_id: T1, audience: everyone, scheduled_for: early.toISOString() }, now: NOW.getTime() < early.getTime() ? NOW : new Date(early.getTime() - 3_600_000) });
+  assert.equal(r2.scheduled_for, nine.toISOString());
+  assert.equal(r2.moved_from, early.toISOString());
+  // Asked for 21:30 New York (01:30 UTC next day): nine the next morning.
+  const late = new Date("2026-09-08T01:30:00Z");
+  const r3 = await createBroadcast(fakes().ports, { userId: "u1", body: { template_id: T1, audience: everyone, scheduled_for: late.toISOString() }, now: NOW });
+  assert.equal(r3.scheduled_for, new Date("2026-09-08T13:00:00Z").toISOString());
+  // Inside the window nothing moves, and the receipt says so too.
+  const r4 = await createBroadcast(fakes().ports, { userId: "u1", body: { template_id: T1, audience: everyone }, now: NOW });
+  assert.equal(r4.scheduled_for, NOW.toISOString());
+  assert.equal(r4.moved_from, null);
+  assert.ok(!("moved_from" in fakes().of("record")), "nothing recorded about a move that did not happen");
+  // An approval at night goes at nine as well.
+  const a = fakes();
+  const ap = await approveRun(a.ports, { row: { id: "b1", tenant_id: "t1", state: "pending_approval", name: "Win-back", recipient_count: 3, playbook_id: "p1" }, now: night });
+  assert.deepEqual(a.of("schedule")[0], ["schedule", "b1", nine]);
+  assert.equal(ap.scheduled_for, nine.toISOString());
+  assert.equal(ap.moved_from, night.toISOString());
+  assert.equal(a.of("record")[0][4].moved_from, night.toISOString());
 });
 
 test("cancel: scheduled withdraws the job; sending stops at the next batch; waiting is skipped; anything ended says how; a row that changed under them says so; each on the ledger", async () => {

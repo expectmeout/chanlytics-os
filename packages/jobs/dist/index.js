@@ -18627,6 +18627,11 @@ async function sendBroadcastBatch(ports, cmd) {
       await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
       continue;
     }
+    const prior = await ports.alreadySent(b.id, c.id);
+    if (prior) {
+      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior });
+      continue;
+    }
     const target = await ports.target(c.phone_e164);
     if (!target) {
       await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
@@ -23388,6 +23393,12 @@ async function broadcastSend(ctx, job) {
         return data;
       },
       target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false }),
+      // The message a dying run left this person: written by deliver after the
+      // wire accepted it, with this broadcast's id in its meta.
+      alreadySent: async (id, contactId) => {
+        const { data } = await db.from("messages").select("id").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle();
+        return data?.id ?? null;
+      },
       mark: async (id, contactId, patch) => {
         await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", id).eq("contact_id", contactId);
       },
@@ -23484,8 +23495,20 @@ async function settleJob(db, job, certain) {
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");
     if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
-    const { data, error } = await db.from("broadcasts").update({ state: "failed", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).eq("state", "sending").select("id");
-    return [{ what: "broadcast", changed: !!data?.length, ...error ? { error: error.message } : {} }];
+    const { data: row, error: readErr } = await db.from("broadcasts").select("id, state").eq("id", broadcastId).eq("tenant_id", job.tenant_id).maybeSingle();
+    if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
+    if (!row || row.state !== "sending") return [{ what: "broadcast", changed: false }];
+    const { data: people } = await db.from("broadcast_recipients").select("state").eq("broadcast_id", broadcastId);
+    const reached = (people ?? []).filter((p) => p.state === "sent").length;
+    const remaining = (people ?? []).filter((p) => p.state === "queued").length;
+    try {
+      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: /* @__PURE__ */ new Date(), payload: { broadcast_id: broadcastId } });
+      return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
+    } catch (e) {
+      const { data, error } = await db.from("broadcasts").update({ state: "failed", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).eq("state", "sending").select("id");
+      const why = e instanceof Error ? e.message : String(e);
+      return [{ what: "broadcast", changed: !!data?.length, reached, remaining, error: error ? `${why}; then ${error.message}` : why }];
+    }
   }
   return [];
 }
@@ -23494,8 +23517,10 @@ function saySettled(results) {
   for (const r of results) {
     if (r.error) {
       lines.push(r.what === "message" ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.` : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
+    } else if (r.changed && r.resumed) {
+      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Nobody is sent it twice.`);
     } else if (r.changed) {
-      lines.push(r.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : "The broadcast has been marked failed; the people it had already reached still got it.");
+      lines.push(r.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : `The broadcast has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
     }
   }
   return lines.length ? lines.join(" ") : null;

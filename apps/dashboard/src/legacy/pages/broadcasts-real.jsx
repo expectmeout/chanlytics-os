@@ -38,6 +38,29 @@ const BC_NONE = [];
 // or read), who was held back and why, who it could not reach. Fetched when
 // a row is opened; every line is a recipient row.
 const BC_STATUS_WORDS = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
+// A clock for a recipient's line: "10:32", or "Sep 12 10:32" when it was not today.
+const bcClock = (iso) => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  const sameDay = d.toDateString() === new Date().toDateString();
+  return sameDay ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+};
+// What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52".
+const bcReceipt = (r) => {
+  const parts = [];
+  const sent = bcClock(r.sent_at);
+  parts.push(sent ? `sent ${sent}` : BC_STATUS_WORDS[r.message_status] || r.message_status || "sent");
+  const delivered = bcClock(r.delivered_at);
+  const read = bcClock(r.read_at);
+  if (delivered) parts.push(`delivered ${delivered}`);
+  else if (r.message_status === "delivered" || r.message_status === "read") parts.push("delivered");
+  if (read) parts.push(`read ${read}`);
+  else if (r.message_status === "read") parts.push("read");
+  if (r.message_status === "failed") parts.push("not delivered");
+  if (r.replied) parts.push(bcClock(r.replied_at) ? `replied ${bcClock(r.replied_at)}` : "replied");
+  return parts.join(" · ");
+};
 const BroadcastDetail = ({ id, heldReasons, onClose }) => {
   const [d, setD] = React.useState(undefined);
   React.useEffect(() => {
@@ -70,7 +93,7 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
       <div className="bc-detail-groups">
         <div className="bc-detail-group">
           <div className="cl-prof-rail-label">Got it · {got.length}</div>
-          {got.map((r) => <Person key={r.contact_id} r={r} words={`${BC_STATUS_WORDS[r.message_status] || r.message_status || "sent"}${r.replied ? " · replied" : ""}`} />)}
+          {got.map((r) => <Person key={r.contact_id} r={r} words={bcReceipt(r)} />)}
           {got.length === 0 && <span className="cl-prof-aut-hint">Nobody yet.</span>}
         </div>
         <div className="bc-detail-group">
@@ -176,7 +199,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     setName("");
     setWhen("");
     const n = r.data.recipient_count;
-    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {scheduled && when ? "scheduled" : "sending now, 25 at a time"}</> });
+    // Outside nine to twenty by the business's clock, the send moved to the next
+    // nine o'clock, and the receipt says so: an owner scheduling at midnight is
+    // told when it really goes.
+    const moved = r.data.moved_from ? ` — moved to ${new Date(r.data.scheduled_for).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}: messages go out between 9:00 and 20:59 by your clock` : "";
+    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {r.data.moved_from ? "scheduled" : scheduled && when ? "scheduled" : "sending now, 25 at a time"}{moved}</> });
   };
   const addStarters = async () => {
     if (!window.__templates || !window.__templates.addStarters || addingStarters) return;

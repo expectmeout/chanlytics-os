@@ -39,7 +39,7 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   assert.ok(webhook.includes("about: callAbout,") && webhook.includes("} phoned · ${") && webhook.includes('callAbout = { type: "conversation", id: res.conversation_id };'), "a call is said by name, about its call — or its thread when it needs a call back");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/notifications.ts").includes("dedupeFeed([...applyReadState("), "the bridge shows the feed once");
   const server = readCode("apps/dashboard/src/server/broadcasts.ts");
-  assert.ok(server.includes("const REPLY_WINDOW_MS = 72 * 3_600_000;") && server.includes("<= REPLY_WINDOW_MS) replied.add("));
+  assert.ok(server.includes("const REPLY_WINDOW_MS = 72 * 3_600_000;") && server.includes("<= REPLY_WINDOW_MS) {") && server.includes("replied.set(m.conversation_id, m.created_at)"), "a reply is an inbound inside the window, and the FIRST one is kept with its time (slice C)");
   const mig = readRaw("supabase/migrations/00064_campaign_reply_window.sql");
   assert.ok(mig.includes("and i.created_at <= s.sent_at + interval '72 hours')  as replied") && mig.includes("create or replace function public.campaign_series"), "the SQL series keeps the same window");
   assert.ok(readCode("packages/contracts/src/campaign-report.ts").includes("wrote back within 3 days"));
