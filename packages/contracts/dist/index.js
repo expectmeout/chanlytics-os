@@ -107,6 +107,10 @@ function handoffE164(raw) {
   if (!typed) return null;
   return "+" + typed.replace(/[^0-9]/g, "");
 }
+function phoneTail(raw) {
+  const digits2 = (raw ?? "").replace(/\D/g, "");
+  return digits2 ? digits2.slice(-4) : null;
+}
 function formatPhoneDisplay(e164) {
   if (!e164) return null;
   const digits2 = String(e164).replace(/[^\d]/g, "");
@@ -662,9 +666,31 @@ function tidyCallSummary(text) {
 
 // src/retention.ts
 var RETENTION_DAYS = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
-  call_recordings: 90
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14
 };
+var RATE_HITS_RETENTION_HOURS = 2;
+var EVENT_EVIDENCE_KINDS = [
+  "webhook.auth",
+  "webhook.delivery",
+  "ingest.allowlist_skip",
+  "ingest.unreachable_sender",
+  "ingest.unroutable",
+  "usage.llm_tokens",
+  "usage.ask_tokens"
+];
+function retentionWords() {
+  const d = RETENTION_DAYS;
+  return `Call audio is kept for ${d.call_recordings} days and then removed; transcripts stay with the conversation. Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for ${d.events_evidence} days. Assistant threads untouched for ${d.ask_threads} days, and notifications after ${d.notifications} days, are removed; the sweeps' run history is kept for ${d.cron_history} days and rate-limit counters for ${RATE_HITS_RETENTION_HOURS} hours. Everything else stays while the workspace exists.`;
+}
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 
@@ -8011,6 +8037,7 @@ export {
   ESCALATION_REASONS,
   ESCALATION_REASON_LABELS,
   ESCALATION_STATES,
+  EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
   EVERYONE_LABEL,
   FORWARDING_MODES,
@@ -8078,6 +8105,7 @@ export {
   PendingWorkspaceSchema,
   PolicyLimitsSchema,
   QUIET_AFTER_MS,
+  RATE_HITS_RETENTION_HOURS,
   RECENT_MAX,
   RECIPIENT_STATES,
   RECORDING_PURGED_WORDS,
@@ -8325,6 +8353,7 @@ export {
   personName,
   personStanding,
   personStateFor,
+  phoneTail,
   placeholdersOf,
   placeholdersSequential,
   planBilling,
@@ -8363,6 +8392,7 @@ export {
   resolveParams,
   resolveSystemPrompt,
   resolveTheme,
+  retentionWords,
   reviewIsNew,
   reviewReplyModeOf,
   reviewReplyPrompt,

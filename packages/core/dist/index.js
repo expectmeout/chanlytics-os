@@ -4249,8 +4249,16 @@ var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 var RETENTION_DAYS = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
-  call_recordings: 90
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -9118,8 +9126,16 @@ function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new
 }
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var RETENTION_DAYS2 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
-  call_recordings: 90
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
@@ -14262,8 +14278,16 @@ var BrainOutputSchema3 = external_exports3.object({
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
 var RETENTION_DAYS3 = {
-  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
-  call_recordings: 90
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
+  call_recordings: 90,
+  /** The evidence kinds on the events ledger (EVENT_EVIDENCE_KINDS); every other kind is the record and is kept (purge_events, 00115). */
+  events_evidence: 30,
+  /** Assistant threads untouched for this long, with their messages (purge_ask, 00040). */
+  ask_threads: 90,
+  /** The bell's rows and their marks (purge_notifications, 00057). */
+  notifications: 90,
+  /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
+  cron_history: 14
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;

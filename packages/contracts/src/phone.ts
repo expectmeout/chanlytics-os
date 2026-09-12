@@ -93,6 +93,16 @@ export function handoffE164(raw: string | null | undefined): string | null {
 }
 
 /** Human-readable phone for display: NANP gets +1 (XXX) XXX-XXXX; others get spaced groups. */
+/**
+ * The last four digits, for a log line: enough to follow one number through
+ * a batch, never enough to call it back. A log is not a ledger; the number
+ * and the words are on the rows, under RLS, and nowhere else.
+ */
+export function phoneTail(raw: string | null | undefined): string | null {
+  const digits = (raw ?? "").replace(/\D/g, "");
+  return digits ? digits.slice(-4) : null;
+}
+
 export function formatPhoneDisplay(e164: string | null | undefined): string | null {
   if (!e164) return null;
   const digits = String(e164).replace(/[^\d]/g, "");

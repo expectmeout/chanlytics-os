@@ -15,7 +15,7 @@
  */
 import { isThreadUnknown, threadNamespace, type ThreadState } from "../store.js";
 import { normalizeInbound, withCarrierConsent, type CarrierConsent, type WaChangeValue, type WaRawMessage } from "../workspace/channels.js";
-import { shortCode, optInConfirmation } from "../workspace/contracts.js";
+import { shortCode, optInConfirmation, phoneTail } from "../workspace/contracts.js";
 import { describeLead, type IngestResult } from "../workspace/db.js";
 import type { Json, RoutedChannel } from "../workspace/db.js";
 import { waCfgFor } from "../tenant-runtime.js";
@@ -68,7 +68,7 @@ export async function handleInbound(
   const t0 = Date.now();
   // Bound once, here, where the tenant becomes known. Every line below carries
   // it, which is the only way that stays true as this function changes.
-  const L = logger({ tenant_id: tenantId, wamid: m.id, from, type: m.type });
+  const L = logger({ tenant_id: tenantId, wamid: m.id, from_tail: phoneTail(from), type: m.type });
   // The thread store is keyed per TENANT. A phone number is not a globally
   // unique identity, and this object holds history, pause, dedupe and the
   // reply cap — all four of which two businesses would otherwise share.
