@@ -18,6 +18,13 @@ import { parseTenantConfig } from "@chanlytics/contracts";
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const skip = !URL_ || !KEY ? "no service-role credentials in env" : false;
+// The DR fallback is held against the LIVE config. The database workflow
+// replays the migrations on this machine, and 00012's seed is not the live
+// config (its phone_display was retired from production on 2026-09-09, and the
+// owner edits the prompt from Settings); those two tests answer only there.
+const liveOnly = !skip && /^http:\/\/(127\.0\.0\.1|localhost):\d+\/?$/.test(URL_)
+  ? "the live config is production's; a replayed seed is not it"
+  : false;
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FALLBACK_SRC = path.join(here, "../../../apps/edge/lib/tenant-fallback.ts");
@@ -48,7 +55,7 @@ function fallbackBrainFromSource() {
   return new Function(`return (${body});`)();
 }
 
-test("GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte", { skip }, async () => {
+test("GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte", { skip: skip || liveOnly }, async () => {
   // WHAT A FAILURE HERE MEANS. tenant-fallback.ts is what the receptionist
   // answers with when the control plane cannot be read. If it has drifted from
   // the live config, a disaster-recovery event serves the OLD words -- which is
@@ -70,7 +77,7 @@ test("GOLDEN: seeded Melany brain === the quarantined DR fallback, byte for byte
   assert.deepEqual(seeded.fallbacks, fallback.fallbacks, FIX);
 });
 
-test("the DR refresh is idempotent: running it twice leaves no diff", { skip }, async () => {
+test("the DR refresh is idempotent: running it twice leaves no diff", { skip: skip || liveOnly }, async () => {
   // The script is only trustworthy if it converges. If a second run produced a
   // diff, every refresh would be a fresh review of formatting noise and the
   // real change would hide in it.

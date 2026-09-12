@@ -99,7 +99,7 @@ test("customer numbers stay out of edge logs", () => {
   assert.ok(!/JSON\.stringify\(\{ phone,/.test(pause), "the pause mirror logged the whole number");
   assert.ok(pause.includes("phone_tail"));
   const inbound = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(inbound.includes("logger({ from_tail: from.slice(-4), agent_id: agentId })"));
+  assert.ok(inbound.includes("logger({ from_tail: phoneTail(from), agent_id: agentId })"));
   const notify = readCode("apps/edge/lib/notify.ts");
   // Every log line that mentions a subject passes it through the redactor.
   const unredacted = notify.split("\n").filter((l) => /console\.(error|log|warn)\(/.test(l) && /subject/.test(l) && !/redactNumbers\(/.test(l));
