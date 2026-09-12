@@ -55,7 +55,7 @@ const KNOWN = {
 const POLICY = { booking: { mode: "ask" }, faq: { mode: "auto" } };
 
 test("the preview is the edge's composition, argument for argument: the rows, the facts, the zone, the closures, the openings", () => {
-  // Run, not read: whatsapp/inbound.ts and retell-inbound.ts make these calls
+  // Run, not read: whatsapp/inbound.ts and lib/call-start.ts make these calls
   // with these arguments, and the browser's own composition used to leave four
   // of them out.
   const openings = "Open times (from the calendar):\n- Tue Sep 15: 9:00 AM–12:00 PM";
