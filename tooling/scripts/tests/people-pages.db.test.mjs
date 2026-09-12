@@ -51,7 +51,7 @@ test("people_list: a query matches a name, a WhatsApp name or three digits; a li
   assert.deepEqual((await list({ p_query: "ada" })).sort(), ["Ada Lovelace", "Cy Adams"], "a name, case-insensitively, anywhere in it");
   assert.deepEqual(await list({ p_query: "bo" }), ["Bo 💅"], "their name on WhatsApp");
   assert.deepEqual(await list({ p_query: "(555) 010-0003" }), ["Cy Adams"], "digits, however typed");
-  assert.deepEqual(await list({ p_query: "01" }), await list({}), "fewer than three digits is not a number search");
+  assert.deepEqual(await list({ p_query: "01" }), [], "fewer than three digits is not a number search: two digits match no name and no number");
   assert.deepEqual(await list({ p_query: "   " }), await list({}), "blank is everyone");
   const all = await list({});
   assert.deepEqual(await list({ p_limit: 2 }), all.slice(0, 2));
