@@ -359,6 +359,13 @@
       "rate": null,
       "spend": false
     },
+    "GET export": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "export",
+      "spend": false
+    },
     "GET google/callback": {
       "kind": "read",
       "scope": "account",

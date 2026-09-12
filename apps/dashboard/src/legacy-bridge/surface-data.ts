@@ -187,7 +187,7 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, HELD_REASONS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, eligibleForPlaybook, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -631,6 +631,8 @@ export interface BroadcastsSurface {
   /** The business's own words for the slots that name it, and whether a booking link is on file. */
   businessName: string;
   bookingLink: boolean;
+  /** Why offers go by WhatsApp only, said once on the page (contracts OFFERS_BY_WHATSAPP_NOTE). */
+  offersNote: string;
   fetchedAt: number;
 }
 
@@ -699,6 +701,7 @@ export const broadcastsOverride: SurfaceOverride = {
       heldReasons: HELD_REASONS,
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
+      offersNote: OFFERS_BY_WHATSAPP_NOTE,
       optIn: {
         phrase: OFFERS_OPT_IN_PHRASES.en,
         phraseEs: OFFERS_OPT_IN_PHRASES.es,

@@ -148,7 +148,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <span className="bc-row-label">Send</span>
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
           {templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it in Settings › Connections.</span>
+            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it under Campaigns › Messages.</span>
           )}
           {templates.map((t) => (
             <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
@@ -162,7 +162,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           {starterRow
             ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : " — it's above if you'd rather use it"}</>
             : starterAny
-              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Settings › Connections`}</>
+              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Campaigns › Messages`}</>
               : <>
                   The <b>{starter.title}</b> starter is written for this moment.{" "}
                   {canEdit && window.__templates && window.__templates.addStarters

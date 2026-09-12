@@ -22,6 +22,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import { fetchRecording } from "./workspace/channels.js";
 import { setCallRecording } from "./workspace/db.js";
+import { RECORDING_RETENTION_DAYS } from "./workspace/contracts.js";
 
 export const RECORDING_MAX_ATTEMPTS = 3;
 /** The webhook's budget: the agent allows 20 s for the whole event and the upsert has already spent some. */
@@ -35,6 +36,66 @@ const REC_EXT: Record<string, string> = {
 };
 
 export type CopyOutcome = "stored" | "retry" | "failed";
+
+/** What the purge needs from the world: the clock, and the bucket's remove. */
+export interface PurgePorts {
+  now: Date;
+  /** storage.from("media").remove(paths): a path already gone is the desired end state, not a failure. */
+  remove(paths: string[]): Promise<{ removed: string[]; error: string | null }>;
+}
+
+export interface PurgeOutcome {
+  candidates: number;
+  purged: number;
+  error: string | null;
+}
+
+/**
+ * Recordings past their retention are removed, on the schedule the privacy
+ * page states -- which, until this, nothing enforced: the page promised
+ * ninety days and the bucket kept everything. The audio goes; the row keeps
+ * the transcript and the summary, and its recording becomes a marker that says
+ * the audio was removed on schedule and when, so the call reads honestly
+ * ("Recording removed after 90 days") instead of as "still processing".
+ *
+ * One storage call for the batch, then the rows, oldest first. A removal
+ * that fails leaves every row as it was, so the next tick tries the same
+ * batch again; a row whose path was never written is marked without a
+ * removal, because there is nothing to remove. Bounded per tick: a backlog
+ * drains over successive runs.
+ */
+export async function purgeExpiredRecordings(
+  db: SupabaseClient<Database>,
+  ports: PurgePorts,
+  limit = 50,
+): Promise<PurgeOutcome> {
+  const cutoff = new Date(ports.now.getTime() - RECORDING_RETENTION_DAYS * 86_400_000).toISOString();
+  const { data, error } = await db
+    .from("calls")
+    .select("id, tenant_id, recording")
+    .filter("recording->>fetch_state", "eq", "stored")
+    .lt("started_at", cutoff)
+    .order("started_at", { ascending: true })
+    .limit(limit);
+  if (error) return { candidates: 0, purged: 0, error: error.message };
+  const rows = (data ?? []) as { id: string; tenant_id: string; recording: { storage_path?: string; mime?: string | null } | null }[];
+  if (!rows.length) return { candidates: 0, purged: 0, error: null };
+  const paths = rows.map((r) => r.recording?.storage_path).filter((p): p is string => typeof p === "string" && p.length > 0);
+  if (paths.length) {
+    const r = await ports.remove(paths);
+    if (r.error) return { candidates: rows.length, purged: 0, error: r.error };
+  }
+  for (const row of rows) {
+    // Replaces the whole value: the path and the size go with the audio.
+    await setCallRecording(db, row.tenant_id, row.id, {
+      fetch_state: "purged",
+      purged_at: ports.now.toISOString(),
+      retention_days: RECORDING_RETENTION_DAYS,
+      mime: row.recording?.mime ?? null,
+    });
+  }
+  return { candidates: rows.length, purged: rows.length, error: null };
+}
 
 /** A refusal the provider will not change its mind about. A 404 is NOT one:
  *  the CDN publishes the file a little after call_ended. */

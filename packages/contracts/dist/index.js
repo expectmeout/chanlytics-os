@@ -363,6 +363,7 @@ var PURPOSE_REFUSALS = {
   // go out under a consent the carriers were never told about.
   sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there."
 };
+var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
@@ -602,6 +603,14 @@ function tidyCallSummary(text) {
   );
   return folded.charAt(0).toUpperCase() + folded.slice(1);
 }
+
+// src/retention.ts
+var RETENTION_DAYS = {
+  /** Call audio in the private media bucket. The transcript and the summary stay with the call. */
+  call_recordings: 90
+};
+var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
+var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
 
 // src/viewmodels.ts
 function messageAt(m) {
@@ -997,10 +1006,10 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
   if (outcomeWords) bullets.push(outcomeWords);
   if (dto.follow_up?.trim()) bullets.push(`To do: ${dto.follow_up.trim()}`);
   if (dto.caller_name?.trim()) bullets.push(`Gave their name as ${dto.caller_name.trim()}`);
-  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
+  const recState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
   if (!missed) {
     bullets.push(
-      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : "No recording for this call"
+      recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
     );
   }
   if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
@@ -2520,7 +2529,7 @@ function toLiveCallVM(dto, now = /* @__PURE__ */ new Date()) {
   const endedMs = dto.ended_at ? new Date(dto.ended_at).getTime() : null;
   const summary = (dto.summary ?? "").trim() || null;
   const summaryState = missed ? "missed" : summary ? "ready" : live || endedMs !== null && nowMs - endedMs < ANALYSIS_GRACE_MS ? "pending" : "none";
-  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording ? "pending" : "none";
+  const recordingState = dto.recording?.fetch_state === "stored" ? "ready" : dto.recording?.fetch_state === "failed" ? "failed" : dto.recording?.fetch_state === "purged" ? "purged" : dto.recording ? "pending" : "none";
   return {
     callId: dto.id,
     cvId: `cv-${dto.id}`,
@@ -7765,6 +7774,7 @@ export {
   NEW_WINDOW_MS,
   NoteSchema,
   NotificationsConfigSchema,
+  OFFERS_BY_WHATSAPP_NOTE,
   OFFERS_OPT_IN_PHRASES,
   OFFERS_YES_SOURCES,
   OPT_IN_PATTERN,
@@ -7802,6 +7812,8 @@ export {
   QUIET_AFTER_MS,
   RECENT_MAX,
   RECIPIENT_STATES,
+  RECORDING_PURGED_WORDS,
+  RECORDING_RETENTION_DAYS,
   REGISTRATION_COST_WORDS,
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
@@ -7810,6 +7822,7 @@ export {
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
   REPORT_RANGES,
+  RETENTION_DAYS,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_AUTO_REPLY_MAX_AGE_MS,
   REVIEW_NEWS_MAX_AGE_MS,

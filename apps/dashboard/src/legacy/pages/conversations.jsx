@@ -132,14 +132,18 @@ const CvRealPlayback = ({ c }) => {
   );
 };
 
+// "purged": the audio was removed on the schedule the privacy policy states;
+// the transcript below is what remains, and the call's own line says the days.
 const CvNoPlayback = ({ state }) => (
   <div className="cv-playback">
-    <button className="cv-play" disabled title={state === "pending" ? "Still processing" : "No recording"}>
+    <button className="cv-play" disabled title={state === "pending" ? "Still processing" : state === "purged" ? "Removed on schedule" : "No recording"}>
       <Icon name="play" size={13} />
     </button>
     <div className="cv-play-track"><div className="cv-play-fill" style={{ width: "0%" }} /></div>
     <span className="mono tabular cv-play-time">
-      {state === "pending" ? "Recording still processing — check back in a minute" : "No recording for this call"}
+      {state === "pending" ? "Recording still processing — check back in a minute"
+        : state === "purged" ? "Recording removed on schedule — the transcript is kept"
+          : "No recording for this call"}
     </span>
   </div>
 );
