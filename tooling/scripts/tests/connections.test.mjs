@@ -199,6 +199,8 @@ test("texting's states, in the owner's words, with the carriers' vocabulary kept
 
 test("the wiring: the page draws rows from the same facts Setup reads, the old cards are gone, the edge says the audience", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
+  assert.ok(page.includes('r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && ('), "Remove is offered only when there is a listing to remove");
+  assert.ok(!page.includes("It is an operator action for now"), "the off-channel sentence lives on the row (channels.ts), not in a note beneath it");
   const shell = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(page.includes("window.__connections.rows({") && page.includes("lineRequestedAt: S ? S.dto.requests.line : null,") && page.includes("google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,") && page.includes("calendar: S ? S.dto.calendar : null,"));
   assert.ok(!page.includes("INT_NOT_AVAILABLE") && !page.includes("<GoogleCard />") && !page.includes("<ConnectWhatsAppRow />"), "one row model, no hand-built cards");
@@ -269,4 +271,17 @@ test("every verb a row can offer is a verb the page runs", () => {
   // That the row carries no verb at all is asserted on the RETURNED row above,
   // where it is a fact rather than an absence of a substring -- this comment
   // block itself names the retired verb, so a source scan here would match it.
+});
+
+test("a WhatsApp number Meta flagged needs attention on Connections, in the words Broadcasts uses; a good one stays On; nothing is said when Meta has said nothing", () => {
+  const flagged = connectionRows({ ...base(), channels: [channel("whatsapp", { quality: "RED", quality_event: "FLAGGED", messaging_limit: "TIER_250" })] }, NOW).find((r) => r.kind === "whatsapp");
+  assert.deepEqual([flagged.state, flagged.stateWords], ["attention", "Needs attention"]);
+  assert.match(flagged.sentence, /WhatsApp flagged this number's quality · up to 250 new conversations a day$/);
+  const good = connectionRows({ ...base(), channels: [channel("whatsapp", { quality: "GREEN", messaging_limit: "TIER_1K" })] }, NOW).find((r) => r.kind === "whatsapp");
+  assert.deepEqual([good.state, good.stateWords], ["connected", "On"]);
+  assert.match(good.sentence, / · Number quality: good · up to 1,000 new conversations a day$/);
+  const quiet = connectionRows({ ...base(), channels: [channel("whatsapp")] }, NOW).find((r) => r.kind === "whatsapp");
+  assert.ok(!/quality/i.test(quiet.sentence), "nothing invented when Meta has said nothing");
+  const off = connectionRows({ ...base(), channels: [channel("whatsapp", { status: "disabled", quality: "RED" })] }, NOW).find((r) => r.kind === "whatsapp");
+  assert.deepEqual([off.state, off.stateWords], ["off", "Off"], "off is off, whatever Meta said before");
 });

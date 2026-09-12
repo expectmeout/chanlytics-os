@@ -83,6 +83,10 @@ export interface ChannelVM {
   /** "Receiving · last message 2h ago" and the like. */
   healthLabel: string;
   lastInboundMs: number | null;
+  /** What WhatsApp has said about the number (the row's config), for numberHealth: null until Meta has said something. */
+  quality: string | null;
+  qualityEvent: string | null;
+  messagingLimit: string | null;
   /** When the row was made. Carried so `channelFor` can break a tie the same way on
    *  either shape; the DTO has always had it. */
   created_at: string;
@@ -112,8 +116,16 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
   let health: ChannelHealth;
   let healthLabel: string;
   if (!on) {
+    // What the code does with a switched-off channel, not what a kinder
+    // product would: the control plane routes nothing to it (routing.ts), so
+    // a text is neither answered nor recorded and the platform is told
+    // (alertUnroutable) -- and a call is picked up by the receptionist with
+    // no facts to answer with and is not recorded. This sentence said the
+    // opposite of both until 12 Sep 2026.
     health = "off";
-    healthLabel = "Switched off — messages are recorded and you are emailed; the receptionist stays silent";
+    healthLabel = dto.kind === "voice"
+      ? "Switched off — calls are picked up without your facts and are not recorded; Chanlytics is told, you are not"
+      : `Switched off — ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
   } else if (last === null) {
     health = "unused";
     healthLabel = `On — no ${meta.noun} has arrived yet`;
@@ -135,6 +147,9 @@ export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
     health,
     healthLabel,
     lastInboundMs: last,
+    quality: dto.quality ?? null,
+    qualityEvent: dto.quality_event ?? null,
+    messagingLimit: dto.messaging_limit ?? null,
     created_at: dto.created_at,
   };
 }

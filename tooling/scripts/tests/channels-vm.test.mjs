@@ -51,3 +51,12 @@ test("an unknown kind is shown by its name, not dropped and not invented", () =>
   assert.equal(vm.number, null);
   assert.equal(vm.health, "unused");
 });
+
+test("a switched-off channel says what the code does with what still arrives: a text is dropped and the platform told, a call is picked up without facts", () => {
+  const offWa = toChannelVM({ id: "c1", kind: "whatsapp", number_e164: "+19177724072", status: "disabled", created_at: "2026-09-01T00:00:00Z", last_inbound_at: null }, new Date("2026-09-12T12:00:00Z"));
+  assert.equal(offWa.healthLabel, "Switched off — messages to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not");
+  const offVoice = toChannelVM({ id: "c2", kind: "voice", number_e164: "+13083368109", status: "disabled", created_at: "2026-09-01T00:00:00Z", last_inbound_at: null }, new Date("2026-09-12T12:00:00Z"));
+  assert.equal(offVoice.healthLabel, "Switched off — calls are picked up without your facts and are not recorded; Chanlytics is told, you are not");
+  const said = toChannelVM({ id: "c3", kind: "whatsapp", number_e164: "+19177724072", status: "active", created_at: "2026-09-01T00:00:00Z", last_inbound_at: null, quality: "RED", quality_event: "FLAGGED", messaging_limit: "TIER_250" }, new Date("2026-09-12T12:00:00Z"));
+  assert.deepEqual([said.quality, said.qualityEvent, said.messagingLimit], ["RED", "FLAGGED", "TIER_250"], "what Meta said rides the view model");
+});

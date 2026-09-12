@@ -5811,7 +5811,7 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
   let healthLabel;
   if (!on) {
     health = "off";
-    healthLabel = "Switched off \u2014 messages are recorded and you are emailed; the receptionist stays silent";
+    healthLabel = dto.kind === "voice" ? "Switched off \u2014 calls are picked up without your facts and are not recorded; Chanlytics is told, you are not" : `Switched off \u2014 ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
   } else if (last === null) {
     health = "unused";
     healthLabel = `On \u2014 no ${meta.noun} has arrived yet`;
@@ -5833,6 +5833,9 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     health,
     healthLabel,
     lastInboundMs: last,
+    quality: dto.quality ?? null,
+    qualityEvent: dto.quality_event ?? null,
+    messagingLimit: dto.messaging_limit ?? null,
     created_at: dto.created_at
   };
 }
@@ -6015,16 +6018,16 @@ function listingLine(l) {
   return `${l.name} \xB7 ${ratingWords(l.rating)} \xB7 ${reviewsWords(l.review_count)} on Google`;
 }
 function checkedWords(l, nowMs) {
-  if (l.check_error && l.checked_at) return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} \u2014 tried again every hour`;
-  if (l.check_error) return "Google could not be read yet \u2014 tried again every hour";
+  if (l.check_error && l.checked_at) return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} \u2014 read again once a day`;
+  if (l.check_error) return "Google could not be read yet \u2014 read again once a day";
   if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
   return "Not read yet";
 }
 function connectionWords(c, nowMs) {
   const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
   if (!c.location_name) return `${who} \xB7 choose the location to finish`;
-  if (c.sync_error && c.last_synced_at) return `${who} \xB7 could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} \u2014 tried again every hour`;
-  if (c.sync_error) return `${who} \xB7 could not sync yet \u2014 tried again every hour`;
+  if (c.sync_error && c.last_synced_at) return `${who} \xB7 could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} \u2014 read again once a day`;
+  if (c.sync_error) return `${who} \xB7 could not sync yet \u2014 read again once a day`;
   if (c.last_synced_at) return `${who} \xB7 synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
   return `${who} \xB7 not synced yet`;
 }
@@ -6674,7 +6677,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const connected = i.google.connected === true;
     const reach = connected ? "Business Profile connected \u2014 every review, replies from Reports" : "New reviews reach your bell and Reports";
     if (g && g.check_error) {
-      row2({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is tried again every hour.`, details: [], verb: { label: "Open Reports", to: "reports" } });
+      row2({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} \u2014 it is read again once a day.`, details: [], verb: { label: "Open Reports", to: "reports" } });
     } else if (g) {
       row2({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach], verb: { label: "Open Reports", to: "reports" } });
     } else if (i.google.places !== false) {
@@ -7063,7 +7066,10 @@ function connectionRows(i, nowMs = Date.now()) {
   const channel = (kind) => channelFor(i.channels, kind);
   const wa = channel("whatsapp");
   if (wa) {
-    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: wa.on ? "connected" : "off", stateWords: wa.on ? "On" : "Off", sentence: wa.healthLabel, verb: { label: "Messages", to: "messages", who: "operator" } }));
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
+    const flagged = wa.on && h.tone === "danger";
+    const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
+    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: !wa.on ? "off" : flagged ? "attention" : "connected", stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On", sentence: `${wa.healthLabel}${health}`, verb: { label: "Messages", to: "messages", who: "operator" } }));
   } else if (i.whatsapp === void 0) {
     out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: null, state: "none", stateWords: "Not connected", sentence: "Checking whether Chanlytics can connect a number\u2026", verb: null }));
   } else if (i.whatsapp?.ready) {

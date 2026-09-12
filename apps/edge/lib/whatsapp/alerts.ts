@@ -79,6 +79,12 @@ const UNROUTABLE_WORDS = {
     what: (key: string, count: number) => `${count} text(s) just arrived for ${key} and could not be handled.`,
     fix: "Check the line row, its vault token and its sms channel row; the customer's text was NOT recorded.",
   },
+  voice: {
+    subject: "Calls are arriving for a voice channel that is switched off",
+    what: (key: string, count: number) =>
+      `${count} call(s) just arrived for agent ${key}, which the control plane will not route (the voice channel row is missing or its status is not 'active'); the receptionist picked up without the business's facts and the call was NOT recorded.`,
+    fix: "Re-enable the voice channel in tenant_channels, or confirm this agent is not ours.",
+  },
 } as const;
 
 export async function alertUnroutable(kind: keyof typeof UNROUTABLE_WORDS, key: string | undefined, count: number, why?: string): Promise<void> {

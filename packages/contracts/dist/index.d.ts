@@ -7723,6 +7723,10 @@ interface ChannelVM {
     /** "Receiving · last message 2h ago" and the like. */
     healthLabel: string;
     lastInboundMs: number | null;
+    /** What WhatsApp has said about the number (the row's config), for numberHealth: null until Meta has said something. */
+    quality: string | null;
+    qualityEvent: string | null;
+    messagingLimit: string | null;
     /** When the row was made. Carried so `channelFor` can break a tie the same way on
      *  either shape; the DTO has always had it. */
     created_at: string;
@@ -8030,19 +8034,6 @@ declare function shortcutGroups(list?: readonly Shortcut[]): Array<{
     group: string;
     items: Shortcut[];
 }>;
-
-/**
- * Connections — everything a workspace can be joined to, as one row shape.
- *
- * The Integrations page used to be three hand-built cards and a paragraph
- * of names "not yet". Every connection is the same question asked of the
- * same facts: can this deployment do it at all, where does this workspace
- * stand with it, what is the one sentence, what is the one verb, since
- * when. So every connection is one row, and "later" is a state a row can
- * be in rather than a list at the bottom. Setup says what to do next;
- * this says what is joined. Both derive from the same facts and cannot
- * disagree. Pure: the page feeds it window globals, the tests fixtures.
- */
 
 type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
 declare const CONNECTION_KINDS: readonly ConnectionKind[];

@@ -157,8 +157,8 @@ test("the words: a rating, its stars, the listing's line, when it was read", () 
   assert.equal(listingLine(listing()), "Northside Movers · 4.8 ★ · 213 reviews on Google");
   assert.equal(listingLine(listing({ rating: null, review_count: 0 })), "Northside Movers · no reviews on Google yet");
   assert.equal(checkedWords(listing(), NOW), "Checked 3h ago");
-  assert.equal(checkedWords(listing({ check_error: "PERMISSION_DENIED" }), NOW), "Google could not be read since 3h ago — tried again every hour");
-  assert.equal(checkedWords(listing({ checked_at: null, check_error: "x" }), NOW), "Google could not be read yet — tried again every hour");
+  assert.equal(checkedWords(listing({ check_error: "PERMISSION_DENIED" }), NOW), "Google could not be read since 3h ago — read again once a day");
+  assert.equal(checkedWords(listing({ checked_at: null, check_error: "x" }), NOW), "Google could not be read yet — read again once a day");
   assert.equal(checkedWords(listing({ checked_at: null }), NOW), "Not read yet");
   assert.equal(reviewSnippet("  a   b  "), "a b");
   assert.equal(reviewSnippet("x".repeat(100)).length, 90);
@@ -263,7 +263,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   const trouble = setup({ ready: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-06T12:00:00Z", check_error: "PERMISSION_DENIED" } });
   assert.equal(row(trouble, "google").state, "waiting_them");
   assert.equal(row(trouble, "google").stateWords, "Waiting on Google");
-  assert.equal(row(trouble, "google").sentence, "Northside Movers is on record, but Google could not be read since 1d ago — it is tried again every hour.");
+  assert.equal(row(trouble, "google").sentence, "Northside Movers is on record, but Google could not be read since 1d ago — it is read again once a day.");
   assert.equal(row(find, "google").later, false);
   const later = setup({ ready: true, places: true, listing: null }, { later: ["google"] });
   assert.equal(row(later, "google").later, true, "put off for later, like any optional row");

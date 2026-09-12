@@ -214,7 +214,7 @@ const conn = (over = {}) => ({ google_email: "owner@example.com", account_title:
 test("the connection in words, and the view model that says replies are possible and where the reviews come from", () => {
   assert.equal(connectionWords(conn(), NOW), "Connected as owner@example.com · synced 3h ago");
   assert.equal(connectionWords(conn({ location_name: null }), NOW), "Connected as owner@example.com · choose the location to finish");
-  assert.equal(connectionWords(conn({ sync_error: "PERMISSION_DENIED" }), NOW), "Connected as owner@example.com · could not sync since 3h ago — tried again every hour");
+  assert.equal(connectionWords(conn({ sync_error: "PERMISSION_DENIED" }), NOW), "Connected as owner@example.com · could not sync since 3h ago — read again once a day");
   assert.equal(connectionWords(conn({ google_email: null, last_synced_at: null }), NOW), "Connected · not synced yet");
   const listing = { place_id: "ChIJN1t_tDeuEmsRUsoyG83frY4", name: "Northside Movers", address: null, maps_uri: null, business_status: "OPERATIONAL", rating: 4.8, review_count: 213, linked_at: "2026-08-01T12:00:00Z", checked_at: "2026-09-07T12:00:00Z", check_error: null };
   const review = { id: "11111111-1111-4111-8111-111111111111", review_id: "r-ana", origin: "profile", rating: 5, author: "Ana P.", author_uri: null, author_photo_uri: null, body: "Fast.", language_code: null, published_at: "2026-09-07T13:00:00Z", reply_text: "Thank you!", replied_at: "2026-09-07T14:00:00Z", maps_uri: null, first_seen_at: "2026-09-07T14:00:00Z" };

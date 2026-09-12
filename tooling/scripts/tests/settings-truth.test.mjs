@@ -78,7 +78,7 @@ test("F36/F37: alerts that go to Chanlytics say so; switching a number off is de
   assert.ok(!pane.includes("emails you every message instead"), "REGRESSION: promised an email nothing sends");
   // The channels sentence moved with the pane it belongs to; the alerts
   // above it are the notifications pane and stay in the settings shell.
-  assert.ok(readRaw("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("neither answered nor recorded — Chanlytics is told they are arriving, you are not"));
+  assert.ok(readCode("packages/contracts/src/channels.ts").includes("neither answered nor recorded; Chanlytics is told they are arriving, you are not"), "the row's own sentence says what the code does (channels-vm.test.mjs runs it)");
 });
 
 test("F50: gates match doors — the business form is owner-only like PUT /settings; a delay edit sends no mode; an invite has no role menu", () => {
