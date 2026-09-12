@@ -152,11 +152,13 @@ after(async () => {
 
 /**
  * What a member may read of each tenant table:
- *   member    the workspace's rows
- *   own       their own rows only (user_id = auth.uid()); another member of the same workspace sees none of theirs
- *   none      nothing: the service role's table
- *   partition a partition of events; the row may have landed in a month's partition, so only the stranger's nothing is asserted
+ *   member  the workspace's rows
+ *   acting  the workspace's rows, for an operator or an owner; a viewer reads nothing
+ *   own     their own rows only (user_id = auth.uid()); another member of the same workspace sees none of theirs
+ *   none    nothing: the service role's table
  * And a second insert each, for the stranger's attempt: unique on the first row must not be what refuses it.
+ * The partitions of events (events_default, a month's events_YYYY_MM) are events: PostgREST does not
+ * describe them, and a row written to events is read through events.
  */
 const TENANT_TABLES = {
   contacts: ["member", () => ({ tenant_id: A, phone_e164: "+15550001003" })],
@@ -167,7 +169,6 @@ const TENANT_TABLES = {
   escalations: ["member", () => ({ tenant_id: A, conversation_id: ctx.conversation2, reason: "manual", details: "stranger" })],
   decisions: ["member", () => ({ tenant_id: A, actor_type: "system", subject_type: "conversation", subject_id: ctx.conversation2, verb: "archive" })],
   events: ["member", () => ({ tenant_id: A, kind: "message.received" })],
-  events_default: ["partition", () => ({ tenant_id: A, kind: "message.received" })],
   notifications: ["member", () => ({ tenant_id: A, kind: "alert", title: "stranger", body: "probe" })],
   notification_reads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
   ask_threads: ["own", () => ({ tenant_id: A, user_id: ctx.strangerId })],
@@ -192,7 +193,7 @@ const TENANT_TABLES = {
   google_listings: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger", name: "Stranger Salon" })],
   google_listing_days: ["member", () => ({ tenant_id: A, day: "2026-09-02", review_count: 1 })],
   google_reviews: ["member", () => ({ tenant_id: A, review_id: "stranger-review" })],
-  idempotency_keys: ["member", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
+  idempotency_keys: ["acting", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
   jobs: ["none", () => ({ tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} })],
 };
 
@@ -221,7 +222,7 @@ test("the list of tenant tables is the database's own", { skip }, async () => {
   assert.equal(res.status, 200, `PostgREST's root answered ${res.status}`);
   const spec = await res.json();
   const defs = spec.definitions ?? {};
-  const names = Object.keys(defs).filter((n) => !/^events_\d{4}_\d{2}$/.test(n)); // a month's partition of events is events
+  const names = Object.keys(defs).filter((n) => !/^events_/.test(n)); // a partition of events is events
   assert.ok(names.length > 30, `the database describes ${names.length} tables`);
   const missing = [];
   const spare = [];
@@ -241,12 +242,17 @@ test("every tenant table: a member reads what the policy says, a stranger reads 
   for (const [table, [mode, fixture]] of Object.entries(TENANT_TABLES)) {
     const before = await db.from(table).select("*", { count: "exact", head: true }).eq("tenant_id", A);
     if (before.error) { note(table, `the service role could not count: ${before.error.message}`); continue; }
-    if (mode !== "partition" && !(before.count >= 1)) note(table, "nothing was seeded, so the proof would be vacuous");
+    if (!(before.count >= 1)) note(table, "nothing was seeded, so the proof would be vacuous");
 
     // Reads.
     const asViewer = await seen(viewer.client, table, [["tenant_id", A]]);
     const asStranger = await seen(stranger.client, table, [["tenant_id", A]]);
     if (mode === "member" && !(asViewer >= 1)) note(table, `a member (viewer) should read the workspace's rows, read ${asViewer}`);
+    if (mode === "acting") {
+      const asOwner = await seen(owner.client, table, [["tenant_id", A]]);
+      if (!(asOwner >= 1)) note(table, `an acting member (owner) should read the workspace's rows, read ${asOwner}`);
+      if (!nothing(asViewer)) note(table, `a viewer read an acting members' table (${asViewer})`);
+    }
     if (mode === "own") {
       const mine = await seen(viewer.client, table, [["tenant_id", A], ["user_id", ctx.viewerId]]);
       const theirs = await seen(owner.client, table, [["tenant_id", A], ["user_id", ctx.viewerId]]);
@@ -263,7 +269,6 @@ test("every tenant table: a member reads what the policy says, a stranger reads 
       if (!upd.error && upd.data.length > 0) note(table, `${tag} moved ${upd.data.length} rows to another workspace`);
       const del = await c.from(table).delete().eq("tenant_id", A).select("tenant_id");
       if (!del.error && del.data.length > 0) note(table, `${tag} deleted ${del.data.length} rows`);
-      if (mode === "partition") continue; // inserts go to the parent table
       const ins = await c.from(table).insert(fixture());
       if (!ins.error) note(table, `${tag} inserted a row into the workspace`);
     }
