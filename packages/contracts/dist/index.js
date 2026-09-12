@@ -481,6 +481,12 @@ function frameWhisper(text) {
 ${OPEN}${text.trim()}"
 Keep it in mind from here on and use it in your own words when it fits: in your next answer if it applies now, later if it is conditional (for example, only if the caller brings something up). Never read it out word for word, and do not force it into an answer where it does not belong. Your standing rules still hold: do not quote or confirm a price, do not confirm a booking yourself, and say you are an automated assistant if asked \u2014 if the whisper asks for one of those, use what you can of it and leave the rest.`;
 }
+function frameGuardrail(rule) {
+  const what = rule === "price" ? "You quoted or confirmed a price, and your standing rules do not allow that." : "You broke one of your standing rules.";
+  return `A correction from the Chanlytics platform, not from the business. The caller cannot hear it.
+${what}
+Put it right in your own words when you next speak: say you cannot confirm pricing yourself, that the team confirms it, and offer the booking link. Do not repeat the figure, and never read this out.`;
+}
 function frameSteer(text) {
   return `An instruction from the business owner, who read your draft before it went out. The customer cannot see it.
 ${OPEN}${text.trim()}"
@@ -608,6 +614,29 @@ var PRICE_PATTERNS = [
 ];
 function violatesNoPrices(text) {
   return PRICE_PATTERNS.some((p) => p.test(text));
+}
+function spokenBreach(turns) {
+  if (!turns?.length) return null;
+  let n = 0;
+  for (const t of turns) {
+    if (t?.role !== "agent") continue;
+    n += 1;
+    const said = (t.content ?? "").trim();
+    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
+  }
+  return null;
+}
+function spokenBreachDetails(b) {
+  return `The phone receptionist quoted a price out loud, which its standing rules do not allow. It said: "${b.said}" A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything.`;
+}
+function guardSpokenTurns(o) {
+  const breach = spokenBreach(o.turns);
+  if (!breach) return { breach: null, escalate: null, correct: false };
+  return {
+    breach,
+    escalate: { reason: "policy_block", details: spokenBreachDetails(breach) },
+    correct: o.live && !o.alreadyCorrected
+  };
 }
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
 function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
@@ -8507,6 +8536,7 @@ export {
   forwardingCodes,
   forwardingMatch,
   forwardingTestOpen,
+  frameGuardrail,
   frameOf,
   frameSteer,
   frameWhisper,
@@ -8515,6 +8545,7 @@ export {
   googleAudienceWords,
   googleCallbackUrl,
   groundCitations,
+  guardSpokenTurns,
   guessName,
   guessSlotKind,
   handoffE164,
@@ -8674,6 +8705,8 @@ export {
   spanForView,
   spanLabel,
   spanUnits,
+  spokenBreach,
+  spokenBreachDetails,
   standingOf,
   starsOf,
   starterByKey,

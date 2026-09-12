@@ -29,6 +29,7 @@ import {
   callSummaryLine,
   verifyRetellSignature,
   parseTranscriptText,
+  updateLiveCall,
   type RetellCall,
 } from "../lib/workspace/channels.js";
 import {
@@ -43,12 +44,26 @@ import {
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
 import { markForwardingVerified } from "../lib/forwarding.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
-import { callOutcomeWords, formatPhoneDisplay } from "../lib/workspace/contracts.js";
+import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns, frameGuardrail } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
 
 export const config = { maxDuration: 60 };
 
 const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
+
+/**
+ * Calls this instance has already corrected, so a receptionist is told once
+ * rather than on every remaining turn.
+ *
+ * Per lambda instance, and imprecise in the right direction, exactly as the
+ * unroutable alert's window is: a call whose turns land on two instances is
+ * corrected twice, never never. The durable half needs no memory at all —
+ * `upsertEscalation` keeps one open escalation per conversation, so a repeat
+ * refreshes what the owner reads instead of stacking.
+ */
+const corrected = new Set<string>();
+/** A long-lived instance must not accumulate call ids for ever. */
+const CORRECTED_MAX = 500;
 
 /**
  * Which credential a delivery passed, as a row.
@@ -254,6 +269,39 @@ export async function POST(request: Request): Promise<Response> {
           const opened = await upsertEscalation(db, routed.tenantId, res.conversation_id, "callback", todo.slice(0, 400));
           callAbout = { type: "conversation", id: res.conversation_id };
           console.log("call_callback_needed", JSON.stringify({ tenant: routed.tenantId, call: res.call_id, escalation: opened }));
+        }
+
+        // A STANDING RULE BROKEN OUT LOUD.
+        //
+        // On text, layerTwo swaps the words before the customer sees them.
+        // A call has already been heard by the time its turns reach us, so
+        // the only thing left to change is what the agent says NEXT — and the
+        // owner is told either way, which is the half that does not depend on
+        // the provider's per-turn delivery being switched on.
+        const guard = guardSpokenTurns({
+          turns: n.transcriptObject,
+          live: n.status === "ongoing",
+          alreadyCorrected: corrected.has(n.retellCallId),
+        });
+        if (guard.escalate && guard.breach && res.conversation_id) {
+          const said = await upsertEscalation(db, routed.tenantId, res.conversation_id, guard.escalate.reason, guard.escalate.details);
+          // The words the agent said are the owner's to read in the Inbox,
+          // never the platform's log: the turn number and the outcome are
+          // what a search needs.
+          console.warn("voice_policy_block_price", JSON.stringify({ tenant: routed.tenantId, call: res.call_id, turn: guard.breach.turn, escalation: said }));
+        }
+        if (guard.correct && guard.breach && process.env.RETELL_API_KEY) {
+          if (corrected.size >= CORRECTED_MAX) corrected.clear();
+          corrected.add(n.retellCallId);
+          const put = await updateLiveCall({ apiKey: process.env.RETELL_API_KEY }, n.retellCallId, {
+            additionalContext: frameGuardrail(guard.breach.rule),
+            // Never by decree. Every whisper this product sends is worked
+            // into the next answer rather than spoken on command, and a
+            // correction the caller hears being read out is a second mistake
+            // on top of the first.
+            triggerResponse: false,
+          });
+          console.log("voice_guardrail_correction", JSON.stringify({ call: n.retellCallId, rule: guard.breach.rule, ok: put.ok, status: put.status }));
         }
 
         // The email and the memory note below happen ONCE per call. Retell

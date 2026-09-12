@@ -16,6 +16,115 @@ export function violatesNoPrices(text: string): boolean {
   return PRICE_PATTERNS.some((p) => p.test(text));
 }
 
+/* ------------------------------------------- the same rule, said out loud */
+
+/**
+ * THE SAME RULE, WHERE THERE IS NO DRAFT TO REPLACE.
+ *
+ * On text, layerTwo runs `violatesNoPrices` over the model's draft and swaps
+ * the words before the customer ever sees them: real prevention, and it works
+ * only because a draft sits between the model and the person reading it.
+ *
+ * A call has no such gap. The provider hosts the agent and it speaks
+ * directly, so by the time a transcript turn reaches us the caller has
+ * already heard it. The guardrails on that side were prompt lines and nothing
+ * else, which is why voice rated lowest on the systems map: an instruction is
+ * not an enforcement, and a model may disregard one.
+ *
+ * So this is the honest equivalent rather than a pretend one. The same
+ * detector reads the agent's turns as they arrive; a breach cannot be
+ * unspoken, but it can be corrected in what the agent says NEXT, and the
+ * owner can be told while the call is still live. Detection is per turn
+ * because the provider delivers per turn; when that delivery is switched off
+ * on the agent, the same check still runs on the final transcript and the
+ * owner is told after the fact instead. Degrading is the point: it never
+ * silently does nothing.
+ *
+ * Only `price` is detected, and that is deliberate. A currency figure is a
+ * clean signal. "You are booked for Tuesday" and "I am a real person" are
+ * not: the phrases that would catch them also catch the agent DECLINING to
+ * book and the agent CORRECTLY saying it is an automated assistant, and a
+ * guardrail that fires on the compliant answer is worse than none, because
+ * it teaches an owner to ignore it. The type is open so a second rule can
+ * join it the day there is a signal worth trusting.
+ */
+export type SpokenRule = "price";
+
+export interface SpokenBreach {
+  rule: SpokenRule;
+  /** The agent's own words, trimmed for the record. */
+  said: string;
+  /** Which of the agent's turns it was, counting only the agent's. */
+  turn: number;
+}
+
+/** One spoken turn, as the provider delivers it. */
+export interface SpokenTurn {
+  role: string;
+  content: string;
+}
+
+/**
+ * The FIRST thing the agent said that broke a standing rule, or null.
+ *
+ * ONLY the agent's own speech is read. The caller may say any figure they
+ * like, and a correction arrives back in the transcript as a turn of role
+ * "injected" — so a check that scanned every turn would find the rule it had
+ * just quoted, correct the call again, and keep doing it for the length of
+ * the call.
+ */
+export function spokenBreach(turns: ReadonlyArray<SpokenTurn> | null | undefined): SpokenBreach | null {
+  if (!turns?.length) return null;
+  let n = 0;
+  for (const t of turns) {
+    if (t?.role !== "agent") continue;
+    n += 1;
+    const said = (t.content ?? "").trim();
+    if (said && violatesNoPrices(said)) return { rule: "price", said: said.slice(0, 300), turn: n };
+  }
+  return null;
+}
+
+/** What the owner reads in the Inbox. Names the words, and what they cost. */
+export function spokenBreachDetails(b: SpokenBreach): string {
+  return (
+    "The phone receptionist quoted a price out loud, which its standing rules do not allow. " +
+    `It said: "${b.said}" ` +
+    "A call cannot be taken back the way a draft can, so check what the caller was told before confirming anything."
+  );
+}
+
+export interface SpokenGuardVerdict {
+  breach: SpokenBreach | null;
+  /** What the owner is told. The same reason a blocked text draft raises. */
+  escalate: { reason: "policy_block"; details: string } | null;
+  /** Whether the LIVE call should be corrected: only while it is still running, and only once. */
+  correct: boolean;
+}
+
+/**
+ * What to do about the agent's turns so far.
+ *
+ * The escalation is raised whether or not the call is still live, because the
+ * owner needs to know either way; the correction is attempted only while
+ * there is a call left to correct, and only once, because a receptionist
+ * being told the same thing every turn is worse than being told once.
+ */
+export function guardSpokenTurns(o: {
+  turns: ReadonlyArray<SpokenTurn> | null | undefined;
+  /** The call is still in progress. */
+  live: boolean;
+  alreadyCorrected: boolean;
+}): SpokenGuardVerdict {
+  const breach = spokenBreach(o.turns);
+  if (!breach) return { breach: null, escalate: null, correct: false };
+  return {
+    breach,
+    escalate: { reason: "policy_block", details: spokenBreachDetails(breach) },
+    correct: o.live && !o.alreadyCorrected,
+  };
+}
+
 /** The WhatsApp 24h customer-service window (Blueprint §4/§6). Pure — imported
  *  by BOTH the reply endpoint (enforcement) and the composer (honest display). */
 export const WA_WINDOW_MS = 24 * 3600 * 1000;
