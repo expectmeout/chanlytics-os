@@ -7,6 +7,7 @@
  * Google is its own: the key that signs the OAuth state.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { deployment } from "./deployment";
 import type { Database } from "@chanlytics/db";
 import type { GoogleAudience, GoogleConnectionDto, GoogleDayDto, GoogleListingDto, GoogleReviewDto } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
@@ -56,6 +57,8 @@ export async function googleFor(db: SupabaseClient<Database>, tenantId: string):
 /** One call to the edge's google endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeGoogle(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
+  // The deployment gate the other provider doors keep: a preview never reaches Google under the business's name.
+  if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/google`, {
       method: "POST",

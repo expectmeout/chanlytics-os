@@ -54,7 +54,7 @@ const writes = (ctx) => ctx.supabase.seen.filter((s) => ["insert", "update", "de
 /** The database's answer about this session, and everything else the back office reads through its own rpc. */
 const admin = (yes, more = {}) => ({ is_platform_admin: () => yes, ...more });
 
-test("the eight declare their policy: the back office on the platform scope with no workspace role, its three actions on their own support ceilings; billing's three of the workspace, counted together", () => {
+test("the eight declare their policy: the back office on the platform scope with no workspace role, its three actions on their own support ceilings; billing's two writes counted together, its read on its own ceiling", () => {
   const office = { kind: "read", scope: "platform", role: null, rate: null, spend: false };
   const act = (rate) => ({ kind: "write", scope: "platform", role: null, rate, spend: false });
   assert.deepEqual(overview.GET.policy, office);
@@ -62,7 +62,8 @@ test("the eight declare their policy: the back office on the platform scope with
   assert.deepEqual(refile.POST.policy, act("platform_line_refile"));
   assert.deepEqual(release.POST.policy, act("platform_line_release"));
   assert.deepEqual(retry.POST.policy, act("platform_line_retry"));
-  assert.deepEqual(invoices.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "billing", spend: false });
+  // A read of the invoices takes from its own ceiling: pressing Show invoices never locks an owner out of Checkout for the hour.
+  assert.deepEqual(invoices.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "billing_read", spend: false });
   assert.deepEqual(resume.POST.policy, { kind: "write", scope: "workspace", role: "owner", rate: "billing", spend: false });
   assert.deepEqual(sync.POST.policy, { kind: "write", scope: "workspace", role: "operator", rate: "billing", spend: false });
 });

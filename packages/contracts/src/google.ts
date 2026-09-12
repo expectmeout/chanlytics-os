@@ -85,7 +85,6 @@ export interface GoogleDto {
   days: GoogleDayDto[];
   /** The Autonomy row for reviews: what the receptionist does under a new one. */
   reply_mode: ReviewReplyMode;
-  role: string;
 }
 
 /** What a search found: what the owner confirms with one tap. */

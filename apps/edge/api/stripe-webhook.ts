@@ -14,7 +14,7 @@ import type Stripe from "stripe";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { logger } from "../lib/log.js";
-import { applySubscription, keepEvent, notePayment, noteTrialEnding, stripe, tenantOf } from "../lib/billing.js";
+import { applySubscription, forgetCustomer, keepEvent, notePayment, noteTrialEnding, stripe, tenantOf } from "../lib/billing.js";
 
 export const config = { maxDuration: 30 };
 
@@ -77,6 +77,15 @@ export async function POST(request: Request): Promise<Response> {
         if (!(await keepEvent(db, event.id, event.type, row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
         if (row) await notePayment(db, row, event.type === "invoice.paid" ? "paid" : "failed");
         return json(200, { ok: true });
+      }
+      case "customer.deleted": {
+        // The ids the row kept point at nothing now: forgotten, so the portal
+        // does not trip on them and Checkout starts a fresh customer.
+        const c = event.data.object;
+        const row = await tenantOf(db, c.metadata, c.id);
+        if (!(await keepEvent(db, event.id, event.type, row?.tenant_id ?? null))) return json(200, { ok: true, duplicate: true });
+        if (row) await forgetCustomer(db, row);
+        return json(200, { ok: true, forgotten: !!row });
       }
       default:
         // Kept, so a type we do not act on is still on record once.

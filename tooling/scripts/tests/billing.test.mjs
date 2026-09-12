@@ -189,7 +189,8 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   for (const [file, role] of [["checkout", "owner"], ["portal", "owner"], ["invoices", "owner"], ["resume", "owner"], ["sync", "operator"]]) {
     const r = readCode(`apps/dashboard/app/api/v1/billing/${file}/route.ts`);
     // checkout and portal declare their policy on the export (route()); the rest still perform it by hand.
-    const declared = r.includes(`role: "${role}",`) && r.includes('rate: "billing",');
+    // invoices is a read: its own bucket, so pressing it never locks Checkout for the hour.
+    const declared = r.includes(`role: "${role}",`) && r.includes(file === "invoices" ? 'rate: "billing_read",' : 'rate: "billing",');
     const performed = r.includes(`requireRole(member, "${role}")`) && r.includes('takeRate(ctx.userId, "billing")');
     assert.ok(declared || performed, file);
   }
