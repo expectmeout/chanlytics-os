@@ -14,7 +14,7 @@ import { mapCategory, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "./workspace/db.js";
 import { emitEvent } from "./workspace/db.js";
 import { notify, type NotifyTarget } from "./notify.js";
-import { parseTenantConfig, type NotificationsConfig } from "./workspace/contracts.js";
+import { parseTenantConfig, WABA_FIELDS as WABA_FIELD_LIST, type NotificationsConfig, type WabaEventKind } from "./workspace/contracts.js";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function notificationsFor(db: SupabaseClient<Database>, tenantId: string): Promise<NotificationsConfig | null> {
@@ -22,7 +22,8 @@ export async function notificationsFor(db: SupabaseClient<Database>, tenantId: s
   return parseTenantConfig(data?.config ?? null)?.notifications ?? null;
 }
 
-export const WABA_FIELDS = new Set(["phone_number_quality_update", "account_update", "message_template_status_update", "account_review_update", "message_template_quality_update", "template_category_update"]);
+/** The fields the product handles, from contracts: one event kind each, `channel.<field>`. */
+export const WABA_FIELDS = new Set<string>(WABA_FIELD_LIST);
 
 export interface WabaChange {
   field: string;
@@ -109,7 +110,7 @@ export async function handleWabaChange(
     return "unrouted";
   }
   const described = describeWabaChange(change, routed.number);
-  await emitEvent(db, routed.tenantId, `channel.${change.field}`, "system", "channel", routed.channelId, { waba_id: wabaId, ...change.value } as unknown as Json).catch((e: unknown) => {
+  await emitEvent(db, routed.tenantId, `channel.${change.field}` as WabaEventKind, "system", "channel", routed.channelId, { waba_id: wabaId, ...change.value } as unknown as Json).catch((e: unknown) => {
     console.error("waba_event_write_failed", e instanceof Error ? e.message : e);
   });
   // The channel row remembers the newest rating, so Settings can show it.

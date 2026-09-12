@@ -5,7 +5,8 @@
     "env-manifest.test.mjs",
     "hygiene.test.mjs",
     "ops-hygiene.test.mjs",
-    "runtime-freshness.test.mjs"
+    "runtime-freshness.test.mjs",
+    "event-kinds.test.mjs"
   ],
   "counts": {
     "a2p-refile.test.mjs": 22,

@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { PurposeBearing, SchemaSet } from '@chanlytics/contracts';
+import { PurposeBearing, EventKind, SchemaSet } from '@chanlytics/contracts';
 
 type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
@@ -3550,7 +3550,7 @@ declare function recordEchoAndPause(db: Db$3, p: {
  * way to tell a write that happened from one that was silently skipped.
  */
 declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<boolean>;
-declare function emitEvent(db: Db$3, tenantId: string, kind: string, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function emitEvent(db: Db$3, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 

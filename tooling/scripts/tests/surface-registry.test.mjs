@@ -86,7 +86,7 @@ test("the real set is exactly the converted surfaces", () => {
     .filter(([, v]) => v === "real")
     .map(([k]) => k)
     .sort();
-  assert.deepEqual(real, ["admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/platform", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "messages", "outbound", "reports", "segments", "today"]);
+  assert.deepEqual(real, ["admin/activity", "admin/autonomy", "admin/billing", "admin/integrations", "admin/memory", "admin/notifications", "admin/platform", "admin/profile", "admin/setup", "admin/team", "admin/workspace", "broadcasts", "calendar", "clients", "conversations", "inbox", "live", "messages", "outbound", "reports", "segments", "today"]);
   // The back office tab, asked the way the shell asks: by page and pane. It
   // was never listed, fell through to the page's "demo", and a platform admin
   // who clicked Back office got the Not-in-this-release card.

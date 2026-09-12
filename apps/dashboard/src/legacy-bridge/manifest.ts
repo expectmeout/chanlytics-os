@@ -86,6 +86,7 @@ import "@/legacy/pages/integrations-real.jsx";
 import "@/legacy/pages/business-record.jsx";
 // The back office: rendered by the settings shell, for the people who run Chanlytics.
 import "@/legacy/pages/platform.jsx";
+import "@/legacy/pages/activity.jsx";
 import "@/legacy/pages/app-shell.jsx";
 
 export {};

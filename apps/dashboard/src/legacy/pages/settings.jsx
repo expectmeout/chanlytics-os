@@ -101,6 +101,8 @@ const SET_TABS = [
   { id: "integrations",  label: "Connections",   icon: "external", group: "Workspace" },
   { id: "notifications", label: "Notifications", icon: "bell",     group: "Workspace" },
   { id: "billing",       label: "Billing",       icon: "money",    group: "Workspace" },
+  // Both ledgers, readable by the owner: who did what, and what happened.
+  { id: "activity",      label: "Activity",      icon: "clock",    group: "Workspace" },
 ];
 /** Routes that still answer but no longer earn a place in the rail. */
 const SET_TABS_UNLISTED = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
@@ -2747,6 +2749,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         {active.id === "notifications" && (window.__SETTINGS === undefined ? <PaneNotifications /> : <PaneNotificationsReal flash={flash} />)}
         {active.id === "billing" && (window.__SETTINGS === undefined ? <PaneBilling flash={flash} /> : <window.PaneBillingReal flash={flash} />)}
         {active.id === "platform" && window.PanePlatform && <window.PanePlatform />}
+        {active.id === "activity" && window.PaneActivity && <window.PaneActivity />}
       </div>
 
       {toastNode}

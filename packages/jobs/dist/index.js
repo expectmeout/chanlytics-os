@@ -4061,7 +4061,165 @@ var coerce = {
 var NEVER = INVALID;
 
 // ../contracts/dist/index.js
+var EVENT_KINDS = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected"
+];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
+var DECISION_VERBS = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export"
+];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
 var BRAIN_INTENTS = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -4598,6 +4756,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 
 // ../core/dist/index.js
 var __defProp2 = Object.defineProperty;
@@ -8635,7 +8794,165 @@ var coerce2 = {
   date: ((arg) => ZodDate2.create({ ...arg, coerce: true }))
 };
 var NEVER2 = INVALID2;
+var EVENT_KINDS2 = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected"
+];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
+var DECISION_VERBS2 = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export"
+];
 var DAY_MS6 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS6;
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -9161,6 +9478,7 @@ function isTimezone2(raw) {
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
+var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 var CALL_ANALYSIS_FIELDS = [
   {
@@ -13237,7 +13555,165 @@ var coerce22 = {
   date: ((arg) => ZodDate22.create({ ...arg, coerce: true }))
 };
 var NEVER22 = INVALID22;
+var EVENT_KINDS22 = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected"
+];
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
+var DECISION_VERBS22 = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export"
+];
 function isOptedOutContact(c) {
   return c.consent === "opted_out" || c.dnc === true;
 }
@@ -13821,6 +14297,7 @@ function isTimezone22(raw) {
 }
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
+var ACTIVITY_KINDS22 = [...DECISION_VERBS22, ...EVENT_KINDS22];
 var __defProp3 = Object.defineProperty;
 var __export3 = (target, all) => {
   for (var name in all)
@@ -17851,7 +18328,165 @@ var coerce3 = {
   date: ((arg) => ZodDate3.create({ ...arg, coerce: true }))
 };
 var NEVER3 = INVALID3;
+var EVENT_KINDS3 = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected"
+];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
+var DECISION_VERBS3 = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export"
+];
 var DAY_MS7 = 864e5;
 var WEEK_MS5 = 7 * DAY_MS7;
 var BRAIN_INTENTS3 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -18376,6 +19011,7 @@ function isTimezone3(raw) {
 }
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -22727,7 +23363,165 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var EVENT_KINDS4 = [
+  "message.received",
+  "message.sent",
+  "contact.consent_changed",
+  "usage.llm_tokens",
+  "usage.wa_conversation",
+  "ingest.allowlist_skip",
+  /** The sender cannot receive a reply — a short code. Recorded, never answered. */
+  "ingest.unreachable_sender",
+  "message.send_failed",
+  "message.send_blocked",
+  "message.send_raced_cancel",
+  "conversation.reopened",
+  "conversation.pause_expired",
+  "contact.erased",
+  "contact.blob_erased",
+  "setup.requested",
+  "voice.provisioned",
+  "line.answering",
+  "line.failed",
+  "line.released",
+  "line.forwarding_verified",
+  /**
+   * Somebody at Chanlytics acted on a workspace they are not a member of.
+   *
+   * The back office's write half. Recorded BEFORE the action, and the action is
+   * refused if it cannot be recorded: a cross-tenant write that nobody can be
+   * held to is worse than one that did not happen. What happened next is the
+   * line's own event, written by the edge, immediately after this one.
+   */
+  "platform.acted",
+  /** The carriers answered: texting is on, the business is through, or it came back. */
+  "line.texting_on",
+  "line.texting_approved",
+  "line.texting_rejected",
+  /** The business on record for the carriers, saved or changed. */
+  "business.recorded",
+  /** The workspace's listing on Google: linked, removed, and a read that found new reviews or ratings. */
+  "google.linked",
+  "google.unlinked",
+  "google.reviews",
+  /** The owner's Business Profile: connected, disconnected, and a review answered from here. */
+  "google.connected",
+  "google.disconnected",
+  "google.replied",
+  "workspace.created",
+  /** The owner's controls changed: which config fields moved (never their values); a policy row's class, mode and the limit keys that moved. */
+  "settings.changed",
+  "policy.changed",
+  "billing.updated",
+  "billing.paused",
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected"
+];
 var OFFERS_OPT_IN_PHRASES4 = { en: "YES OFFERS", es: "SI OFERTAS" };
+var DECISION_VERBS4 = [
+  "approve",
+  "edit",
+  "decline",
+  "snooze",
+  "wake",
+  "take_over",
+  "hand_back",
+  "resolve",
+  "archive",
+  "reply",
+  "cancel_send",
+  "pause_agent",
+  "resume_agent",
+  /**
+   * What one member can do to another.
+   *
+   * The ledger recorded every conversation verb and nothing about the team —
+   * the one table where "who did this" is hardest to reconstruct afterwards
+   * and matters most. Promoting someone to owner hands them billing, the
+   * ability to remove everyone else, and the receptionist's voice.
+   *
+   * These must stay in step with decisions_verb_check (migration 00023): the
+   * database rejects a verb this list allows, and a verb the database allows
+   * but this omits cannot be written by any typed caller.
+   */
+  "invite",
+  "revoke_invite",
+  "change_role",
+  "remove_member",
+  /**
+   * The only irreversible verb. privacy.html promises deletion on verified
+   * request; this is the record that it happened, on subject_type 'contact',
+   * and it survives the data it destroyed. Written twice per erasure: once by
+   * the owner (actor_type 'user') and once by the job that finishes the Blob
+   * leg (actor_type 'system').
+   */
+  "erase",
+  /**
+   * A sentence handed to the phone receptionist mid-call, heard by it alone
+   * and worked into its next answer (Retell update-live-call). Subject
+   * 'call'. The ledger keeps the words: they are the operator's, and they
+   * changed what a customer was told.
+   */
+  "whisper",
+  /**
+   * A business connected its own channel (Embedded Signup): subject
+   * 'channel', payload the number, the WABA and the registration outcome.
+   * The one verb whose consequence is a credential in Vault.
+   */
+  "connect_channel",
+  /**
+   * A customer's answer about marketing messages, recorded by the person
+   * who heard it: subject 'contact', payload the answer, how it was given,
+   * and what it was before. The record a broadcast stands on.
+   */
+  "consent_change",
+  /**
+   * A broadcast: one approved template to the people who said yes. The
+   * decision to send (subject 'broadcast', payload the template, the
+   * audience and the count) and the decision to stop one.
+   */
+  "send_broadcast",
+  "cancel_broadcast",
+  /** A playbook started or paused: subject 'playbook'. Its runs are send_broadcast rows. */
+  "start_playbook",
+  "pause_playbook",
+  /**
+   * An answer to a review on Google, in the business's own words: subject
+   * 'review' (the row's id), payload the words and when Google took them.
+   * Replaces the previous answer; Google keeps one per review.
+   */
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export"
+];
 var DAY_MS8 = 864e5;
 var WEEK_MS6 = 7 * DAY_MS8;
 var BRAIN_INTENTS4 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
@@ -23252,6 +24046,7 @@ function isTimezone4(raw) {
 }
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
+var ACTIVITY_KINDS4 = [...DECISION_VERBS4, ...EVENT_KINDS4];
 async function getOrCreateContact(db, tenantId, phoneE164) {
   const { data, error } = await db.from("contacts").insert({ tenant_id: tenantId, phone_e164: phoneE164, last_seen_at: (/* @__PURE__ */ new Date()).toISOString() }).select("id, consent, dnc, marketing_consent").single();
   if (!error && data) return data;

@@ -51,6 +51,9 @@ function matches(row, filters) {
         const [o, v] = val;
         if (o === "is") return v === null ? cell(row, col) != null : cell(row, col) !== v;
         if (o === "eq") return cell(row, col) !== v;
+        // PostgREST's `.not(col, "like", "usage.%")`: modelled for the activity
+        // log, which leaves the evidence families out unless asked by name.
+        if (o === "like") return !new RegExp(`^${String(v).replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/%/g, ".*")}$`).test(String(cell(row, col) ?? ""));
         throw new Error(`fakeDb: not(${col}, ${o}) is not modelled`);
       })()
     // PostgREST's `.or("a.is.null,a.lt.x")`: any ONE of the clauses. Modelled
