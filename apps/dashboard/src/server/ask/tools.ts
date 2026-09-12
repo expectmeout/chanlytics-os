@@ -18,6 +18,7 @@ import {
   personName,
   replyWhy,
   toCallVM,
+  abandonedCall,
   toInboxThreadVM,
   toPersonVM,
   toReportVM,
@@ -104,8 +105,8 @@ export const READ_TOOLS: ToolDef[] = [
   },
   {
     name: "list_calls",
-    description: "Phone calls. filter: missed (today's missed calls), today, live (on the line now), recent (newest first).",
-    input_schema: obj({ filter: { type: "string", enum: ["missed", "today", "live", "recent"] } }, ["filter"]),
+    description: "Phone calls. filter: missed (today's missed calls), abandoned (today's inbound callers who reached the receptionist and hung up within seconds, so they got nothing), today, live (on the line now), recent (newest first).",
+    input_schema: obj({ filter: { type: "string", enum: ["missed", "abandoned", "today", "live", "recent"] } }, ["filter"]),
   },
   {
     name: "get_call",
@@ -472,10 +473,12 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
   const calls = await loadCalls(t);
   const today = dayKey(t.now.toISOString(), timezone);
   const vms = calls.map((c) => toCallVM(c, t.now));
+  const abandoned = new Set(calls.filter(abandonedCall).map((c) => c.id));
   const picked = vms.filter((v, i) => {
     const c = calls[i];
     switch (filter) {
       case "missed": return v.outcome === "missed" && dayKey(c.started_at, timezone) === today;
+      case "abandoned": return abandoned.has(c.id) && dayKey(c.started_at, timezone) === today;
       case "today": return dayKey(c.started_at, timezone) === today;
       case "live": return v.outcome === "live";
       default: return true;
@@ -491,6 +494,7 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
       at: v.at,
       duration: v.duration ?? null,
       outcome: v.outcome,
+      ...(abandoned.has(v.callId) ? { abandoned: true } : {}),
       summary: v.summary.headline,
       conversation_id: v.threadId ? v.threadId.replace(/^th-/, "") : null,
       contact_id: v.clientId,

@@ -25,6 +25,7 @@ const { runAskTurn, foldHistory, proposalsAnswer, askPorts } = await import(at("
 const { runRound } = await import(at("apps/dashboard/src/server/ask/round.ts"));
 const { runTool, newToolContext, READ_TOOLS } = await import(at("apps/dashboard/src/server/ask/tools.ts"));
 const { buildProposal, ACT_TOOLS } = await import(at("apps/dashboard/src/server/ask/proposals.ts"));
+const { buildSnapshot } = await import(at("apps/dashboard/src/server/ask/snapshot.ts"));
 const { workspaceFacts } = await import(at("apps/dashboard/src/server/ask/prompt.ts"));
 const { GatewayRefused } = await import(at("apps/dashboard/src/server/ask/gateway.ts"));
 
@@ -35,6 +36,7 @@ const P1 = "abababab-abab-4aba-8aba-abababababa1";
 const M1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
 const E1 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee5";
 const K1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc9";
+const K2 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc8";
 const TPL = "dddddddd-dddd-4ddd-8ddd-ddddddddddd1";
 const USER = "u1";
 const TZ = "America/New_York";
@@ -318,6 +320,26 @@ test("the thirteen reads run against the database in memory: each answers in its
   assert.deepEqual([failed.isError, JSON.parse(failed.result).error], [true, "that read failed; say so and answer with what you have"]);
   assert.equal((await run("get_report", { days: 12 })).result, JSON.stringify({ error: "days must be 7, 30 or 90" }));
   assert.equal((await run("get_thread", { conversation_id: "nope" })).result, JSON.stringify({ error: "conversation_id must be an id a tool returned" }));
+});
+
+test("the caller who hung up in seconds: list_calls finds them under their own word, and the day's snapshot carries them into the first round", async () => {
+  // Filed `handled`, because it was. Nothing in the product said the salon
+  // had lost a booking an hour ago from a number it already has.
+  const quick = call(K2, { retell_call_id: "r2", started_at: iso(NOW.getTime() - 3600_000), ended_at: iso(NOW.getTime() - 3594_000), duration_ms: 6_000, summary: null });
+  const tc = newToolContext(ctxFor(tables({ calls: [call(K1), quick] })), A, "operator", TZ, NOW);
+  const listed = async (filter) => JSON.parse((await runTool(tc, { name: "list_calls", input: { filter } })).result);
+
+  assert.deepEqual((await listed("abandoned")).calls.map((c) => [c.call_id, c.abandoned]), [[K2, true]], "the two-hundred-second call ended the same way and is not one of these");
+  assert.deepEqual((await listed("missed")).calls, [], "REGRESSION: reaching the receptionist and leaving is not a dial that never connected");
+  const today = (await listed("today")).calls;
+  assert.deepEqual(today.map((c) => c.call_id).sort(), [K1, K2].sort());
+  assert.equal(today.find((c) => c.call_id === K1).abandoned, undefined, "an ordinary call carries no flag at all, so the block costs nothing on a normal day");
+
+  const snap = await buildSnapshot(tc, TZ, null);
+  assert.deepEqual([snap.counts.abandoned_today, snap.counts.missed_today, snap.counts.calls_today], [1, 0, 2]);
+  assert.equal(snap.calls_today.find((c) => c.call_id === K2).abandoned, true);
+  assert.equal(snap.calls_today.find((c) => c.call_id === K1).abandoned, undefined);
+  assert.match(snap.note, /marked abandoned/, "the model reads the block cold, so the block says what the mark means");
 });
 
 test("the proposal builders run against the database in memory: each kind is a card with its door and its undo, or a refusal in the model's words", async () => {
