@@ -253,7 +253,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
     setBusy(true);
     const r = await fn();
     setBusy(false);
-    flash({ msg: r.ok ? said(r.data) : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? said(r.data) : <>{r.message}</> });
   };
   const toggle = () => act(
     () => (p.state === "paused" ? V.resume(p.id) : V.pause(p.id)),

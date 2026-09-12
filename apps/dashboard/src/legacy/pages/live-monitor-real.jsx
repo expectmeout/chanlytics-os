@@ -182,7 +182,7 @@ const LrWhisper = ({ c }) => {
       setText("");
       flash({ msg: <>Whispered — the receptionist works it into its next answer</> });
     } else {
-      flash({ msg: <>Not whispered — {r.message}</> });
+      flash({ tone: "danger", msg: <>Not whispered — {r.message}</> });
     }
   };
 
@@ -213,8 +213,8 @@ const LrWhisper = ({ c }) => {
     rec.onerror = (ev) => {
       setListening(false);
       recRef.current = null;
-      if (ev && ev.error === "not-allowed") flash({ msg: <>The browser needs microphone permission to whisper by voice.</> });
-      else if (ev && ev.error !== "aborted" && ev.error !== "no-speech") flash({ msg: <>Couldn&rsquo;t hear you — try again or type it.</> });
+      if (ev && ev.error === "not-allowed") flash({ tone: "warn", msg: <>The browser needs microphone permission to whisper by voice.</> });
+      else if (ev && ev.error !== "aborted" && ev.error !== "no-speech") flash({ tone: "warn", msg: <>Couldn&rsquo;t hear you — try again or type it.</> });
     };
     rec.onend = () => {
       setListening(false);
@@ -300,7 +300,7 @@ const LrControls = ({ c }) => {
     const r = await window.__handOverCall(c.callId);
     setBusy(null);
     if (r.ok) flash({ msg: <>Asked the receptionist to pass the call to {r.line || line || "the business's line"} — it should ring in a moment</> });
-    else flash({ msg: <>Not passed — {r.message}</> });
+    else flash({ tone: "danger", msg: <>Not passed — {r.message}</> });
   };
   const end = async () => {
     if (busy || !window.__endCall) return;
@@ -309,7 +309,7 @@ const LrControls = ({ c }) => {
     const r = await window.__endCall(c.callId);
     setBusy(null);
     if (r.ok) flash({ msg: <>Call ended</> });
-    else flash({ msg: <>Not ended — {r.message}</> });
+    else flash({ tone: "danger", msg: <>Not ended — {r.message}</> });
   };
   return (
     <div className="lm-call-controls" data-testid="live-controls">

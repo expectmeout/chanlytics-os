@@ -7093,6 +7093,22 @@ function shortcutGroups(list = SHORTCUTS) {
   }
   return out;
 }
+var TOAST_TONES = ["ok", "info", "warn", "danger"];
+var TOAST_MS = { ok: 6e3, info: 6e3, warn: 8e3, danger: 1e4 };
+var TOAST_UNDO_MS = 15e3;
+var TOAST_MIN_MS = 2e3;
+var TOAST_ICONS = { ok: "check", info: "info", warn: "alert", danger: "error" };
+function toastShape(p) {
+  const tone = TOAST_TONES.includes(p.tone) ? p.tone : "ok";
+  const asked = typeof p.ms === "number" && Number.isFinite(p.ms) && p.ms > 0 ? p.ms : null;
+  const ms2 = Math.max(TOAST_MIN_MS, Math.round(asked ?? (p.undo ? Math.max(TOAST_UNDO_MS, TOAST_MS[tone]) : TOAST_MS[tone])));
+  return {
+    tone,
+    icon: typeof p.icon === "string" && p.icon ? p.icon : TOAST_ICONS[tone],
+    role: tone === "danger" ? "alert" : "status",
+    ms: ms2
+  };
+}
 
 // src/connections.ts
 var CONNECTION_KINDS = ["whatsapp", "phone", "sms", "google_profile", "google_listing", "calendar", "instagram", "email", "deposits"];
@@ -8484,6 +8500,11 @@ export {
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
   THEME_OPTIONS,
+  TOAST_ICONS,
+  TOAST_MIN_MS,
+  TOAST_MS,
+  TOAST_TONES,
+  TOAST_UNDO_MS,
   TODAY_QUEUE_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
@@ -8813,6 +8834,7 @@ export {
   toReportVM,
   toTodayVM,
   toVisitDto,
+  toastShape,
   todayAway,
   todayDay,
   todayDayFacts,

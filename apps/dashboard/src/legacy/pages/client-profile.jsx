@@ -510,7 +510,7 @@ const PersonName = ({ p, canEdit, flash }) => {
     setBusy(true);
     const r = await window.__setPersonDetails(p.id, { name: next });
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message || "Could not save the name."}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not save the name."}</> }); return; }
     setEditing(false);
     flash({ msg: next ? <>Named <b>{next}</b></> : <>Name cleared — the number shows again</> });
   };
@@ -557,7 +557,7 @@ const PersonNotes = ({ p, canEdit, flash }) => {
     setBusy(true);
     const r = await window.__setPersonDetails(p.id, { notes: value.trim() });
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message || "Could not save the notes."}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not save the notes."}</> }); return; }
     flash({ msg: value.trim() ? <>Notes saved — the receptionist reads them from now on</> : <>Notes cleared</> });
   };
   if (!canEdit) {
@@ -609,7 +609,7 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
     setBusy(true);
     const r = await fn();
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message || "Could not change the list."}</> }); return; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not change the list."}</> }); return; }
     flash({ msg });
   };
   if (saved.length === 0) {

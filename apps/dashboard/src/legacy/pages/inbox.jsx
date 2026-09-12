@@ -89,11 +89,18 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const realVerb = (t, verb, payload, okMsg, undoable) => {
     if (!window.__inboxVerb) return Promise.resolve(false);
     return window.__inboxVerb(t, verb, payload).then((r) => {
-      if (!r.ok) { ppFlash({ msg: <>{r.message}</> }); return false; }
+      if (!r.ok) { ppFlash({ tone: "danger", msg: <>{r.message}</> }); return false; }
       const mid = undoable && r.data && r.data.message_id;
+      // The receipt says exactly how long the send can still be stopped; the
+      // toast, and its Undo, live that long -- not the six seconds a plain
+      // confirmation gets, which used to take the Undo away with nine to spare.
+      const untilMs = mid && r.data.cancelable_until ? Date.parse(r.data.cancelable_until) - Date.now() : null;
+      const secs = untilMs && untilMs > 0 ? Math.round(untilMs / 1000) : null;
       ppFlash({
-        msg: <><b>{t.who}</b> — {okMsg}</>,
+        msg: <><b>{t.who}</b> — {okMsg}{secs ? <> · sends in {secs} s unless you undo</> : null}</>,
+        ms: untilMs && untilMs > 0 ? untilMs : undefined,
         undo: mid ? () => window.__cancelSend(mid).then((c) => ppFlash({
+          tone: c.ok ? "ok" : "danger",
           msg: c.ok ? <>Send canceled — nothing was delivered</> : <>{c.message}</>,
         })) : null,
       });
@@ -248,7 +255,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
         // claiming a hold that never happened.
         st.held = false;
         setVetoTick((n) => n + 1);
-        ppFlash({ msg: <>{r.message}</> });
+        ppFlash({ tone: "danger", msg: <>{r.message}</> });
       }
     });
   };
@@ -398,10 +405,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
             t,
             "reply-template",
             typeof text.template === "object" ? { template: text.template } : undefined,
-            typeof text.template === "object" ? `${text.template.name} sends in 15 seconds` : "booking link sends in 15 seconds",
+            typeof text.template === "object" ? `${text.template.name} on its way` : "booking link on its way",
             true,
           )
-        : realVerb(t, "reply", { text: String(text || "") }, "reply sends in 15 seconds", true);
+        : realVerb(t, "reply", { text: String(text || "") }, "reply on its way", true);
     }
     if (window.IX_STORE && (viaApproval || t.state === "drafts")) {
       window.IX_STORE.set(id, { action: viaApproval ? "Approved & sent" : "Sent", at: IX_NOW, kind: "decided" });

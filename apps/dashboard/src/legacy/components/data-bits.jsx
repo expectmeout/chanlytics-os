@@ -116,29 +116,63 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
 // no scroll container can clip it. QUEUE, not a slot: rapid decisions stack up
 // to 3 toasts, each with its own dismiss timer, so no undo gets eaten by the
 // next action. Oldest drops first when the cap is hit.
+//
+// TONE. What a toast says is one thing; whether it is good news, a note, a
+// warning or a failure is another, and the icon and its colour say the second
+// so an owner can tell "saved" from "not saved" from across the room. Every
+// toast used to wear a green check, the failures included. The tone also sets
+// the lifetime — a failure stays longer than a confirmation — and a toast with
+// an Undo lives as long as the undo does: the shared undo window, or the exact
+// `ms` a caller knows (the reply's cancel window, from its own receipt), never
+// the six seconds a plain confirmation gets. Hovering or focusing a toast holds
+// it; leaving resumes what was left. The shape is decided in contracts
+// (toastShape) and reaches here through the chrome bridge; the standalone
+// mockup has no bridge and keeps the old one-tone behaviour.
 // Usage: const [toastNode, flash] = usePPToast();
-//   flash({ msg, undo?, links?: [{label,to}], icon? }) · render {toastNode} anywhere.
-const usePPToast = (ms = 6000) => {
+//   flash({ msg, tone?: "ok"|"info"|"warn"|"danger", undo?, action?: {label,onClick}, links?: [{label,to}], ms?, icon? })
+const toastShapeOf = (p) => (window.__chrome && window.__chrome.toast)
+  ? window.__chrome.toast(p)
+  : { tone: p.tone || "ok", icon: p.icon || "check", role: "status", ms: p.ms || 6000 };
+const usePPToast = () => {
   const [toasts, setToasts] = React.useState([]);
   const timers = React.useRef({});
-  React.useEffect(() => () => Object.values(timers.current).forEach((t) => window.clearTimeout(t)), []);
+  React.useEffect(() => () => Object.values(timers.current).forEach((t) => window.clearTimeout(t.handle)), []);
   const close = (id) => {
-    window.clearTimeout(timers.current[id]);
+    const t = timers.current[id];
+    if (t) window.clearTimeout(t.handle);
     delete timers.current[id];
-    setToasts((ts) => ts.filter((t) => t.id !== id));
+    setToasts((ts) => ts.filter((x) => x.id !== id));
+  };
+  const arm = (id, ms) => {
+    timers.current[id] = { handle: window.setTimeout(() => close(id), ms), endsAt: Date.now() + ms, left: null };
+  };
+  // A toast under the pointer, or holding focus, keeps its clock.
+  const hold = (id) => {
+    const t = timers.current[id];
+    if (!t || t.handle === null) return;
+    window.clearTimeout(t.handle);
+    t.handle = null;
+    t.left = Math.max(1000, t.endsAt - Date.now());
+  };
+  const release = (id) => {
+    const t = timers.current[id];
+    if (!t || t.handle !== null) return;
+    arm(id, t.left);
   };
   const flash = (payload) => {
+    const shape = toastShapeOf(payload);
     const id = ++usePPToast._seq;
     setToasts((ts) => {
-      const next = [...ts, { ...payload, id }];
+      const next = [...ts, { ...payload, ...shape, id }];
       while (next.length > 3) {
         const gone = next.shift();
-        window.clearTimeout(timers.current[gone.id]);
+        const t = timers.current[gone.id];
+        if (t) window.clearTimeout(t.handle);
         delete timers.current[gone.id];
       }
       return next;
     });
-    timers.current[id] = window.setTimeout(() => close(id), ms);
+    arm(id, shape.ms);
   };
   const node = toasts.length ? ReactDOM.createPortal(
     // stopPropagation: portal events bubble through the REACT tree, so a toast
@@ -146,12 +180,22 @@ const usePPToast = (ms = 6000) => {
     // the overlay's close-on-click and kill the undo.
     <div className="pp-toast-stack" onClick={(e) => e.stopPropagation()}>
       {toasts.map((toast) => (
-        <div key={toast.id} className="pp-toast" role="status">
-          <Icon name={toast.icon || "check"} size={13} />
+        <div
+          key={toast.id}
+          className={`pp-toast pp-toast-${toast.tone}`}
+          data-tone={toast.tone}
+          role={toast.role}
+          onMouseEnter={() => hold(toast.id)}
+          onMouseLeave={() => release(toast.id)}
+          onFocus={() => hold(toast.id)}
+          onBlur={() => release(toast.id)}
+        >
+          <Icon name={toast.icon} size={13} />
           <span className="pp-toast-msg">{toast.msg}</span>
           {(toast.links || []).map((l, i) => (
             <button key={i} className="pp-toast-cta" onClick={() => { close(toast.id); window.CHANLY.nav(l.to); }}>{l.label}</button>
           ))}
+          {toast.action && <button className="pp-toast-cta" onClick={() => { close(toast.id); toast.action.onClick(); }}>{toast.action.label}</button>}
           {toast.undo && <button className="pp-toast-cta" onClick={() => { toast.undo(); close(toast.id); }}>Undo</button>}
           <button className="pp-toast-x" onClick={() => close(toast.id)} aria-label="Dismiss"><Icon name="x" size={11} /></button>
         </div>

@@ -302,7 +302,7 @@ const Topbar = ({
         const dec = (id) => window.IX_STORE && window.IX_STORE.get(id);
         const needs = T.filter(t => t.state === "needs" && !dec(t.id)).length;
         const held = T.filter(t => t.veto && !dec(t.id)).length;
-        flash({ msg: <>Welcome back — <b>{held} send{held === 1 ? "" : "s"}</b> stayed frozen, <b>{needs} decision{needs === 1 ? "" : "s"}</b> waiting. Timers are running again.</> });
+        flash({ tone: "info", msg: <>Welcome back — <b>{held} send{held === 1 ? "" : "s"}</b> stayed frozen, <b>{needs} decision{needs === 1 ? "" : "s"}</b> waiting. Timers are running again.</> });
       }
       prevAwayRef.current = nowAway;
     };

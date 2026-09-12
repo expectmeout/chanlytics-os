@@ -251,11 +251,11 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
     await real.setAlerts(!alerts.on);
     const next = real.alerts();
     setAlerts(next);
-    flash({ msg: next.on ? <>This device will be alerted when something needs you</> : next.permission === "denied" ? <>Alerts are blocked in your browser settings</> : <>Alerts off on this device</> });
+    flash({ tone: next.permission === "denied" ? "warn" : "info", msg: next.on ? <>This device will be alerted when something needs you</> : next.permission === "denied" ? <>Alerts are blocked in your browser settings</> : <>Alerts off on this device</> });
   };
   const signOut = () => {
     close();
-    if (window.__DEMO_MODE || !window.__shell) { flash({ msg: <>Nothing to sign out of in the demo.</> }); return; }
+    if (window.__DEMO_MODE || !window.__shell) { flash({ tone: "info", msg: <>Nothing to sign out of in the demo.</> }); return; }
     window.__shell.signOut();
   };
   return (

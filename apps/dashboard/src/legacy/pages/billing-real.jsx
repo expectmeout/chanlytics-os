@@ -48,26 +48,26 @@ const PaneBillingReal = ({ flash }) => {
     setBusy(which);
     const r = which === "checkout" ? await api.checkout() : await api.portal();
     // On success the browser is already on its way to Stripe.
-    if (!r.ok) { setBusy(null); flash({ msg: <>{r.message}</> }); }
+    if (!r.ok) { setBusy(null); flash({ tone: "danger", msg: <>{r.message}</> }); }
   };
   const resume = async () => {
     setBusy("resume");
     const r = await api.resume();
     setBusy(null);
-    flash({ msg: r.ok ? <>Resumed — the receptionist is back.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Resumed — the receptionist is back.</> : <>{r.message}</> });
   };
   const sync = async () => {
     setBusy("sync");
     const r = await api.sync();
     setBusy(null);
-    flash({ msg: r.ok ? <>Read from Stripe just now.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Read from Stripe just now.</> : <>{r.message}</> });
   };
   const showInvoices = async () => {
     setBusy("invoices");
     const r = await api.invoices();
     setBusy(null);
     setInvoices(r.ok ? r.invoices : []);
-    if (!r.ok) flash({ msg: <>{r.message}</> });
+    if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
   };
   const subscribed = vm.mode === "stripe" && vm.status !== "none";
 

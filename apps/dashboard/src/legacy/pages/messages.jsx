@@ -179,7 +179,7 @@ const MessagesReal = () => {
     setBusy(true);
     const r = await fn();
     setBusy(false);
-    flash({ msg: r.ok ? said(r) : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? said(r) : <>{r.message}</> });
   };
   const rename = (t, draft) => {
     const title = draft.replace(/\s+/g, " ").trim() || null;

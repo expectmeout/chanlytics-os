@@ -197,11 +197,8 @@
   }
 
   /* Toasts: wrap contents + respect the home-bar safe area */
-  .pp-toast {
-    flex-wrap: wrap;
-    row-gap: 6px;
-    bottom: calc(14px + env(safe-area-inset-bottom));
-  }
+  .pp-toast { flex-wrap: wrap; row-gap: 6px; }
+  .pp-toast-stack { bottom: calc(14px + env(safe-area-inset-bottom)); }
   .pp-toast .pp-toast-msg { flex: 1 1 100%; }
 
   /* Clients bulk bar: two-row wrap, full-width, above the safe area */
@@ -339,7 +336,7 @@
   .tb-menu { display: none; }
   /* Room under every surface for the bar, and the toast sits above it */
   .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
-  .pp-toast { bottom: calc(76px + env(safe-area-inset-bottom)); }
+  .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
 
   /* The thread header on a phone: Back, avatar and name on one line, the
      actions on their own row; a phone number as a name does not wrap thrice */

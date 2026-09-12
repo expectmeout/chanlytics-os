@@ -269,7 +269,7 @@ const CalendarReal = () => {
     cal.ensure(view, anchor).then((ok) => {
       if (!on) return;
       setPending(false);
-      if (!ok) flash({ msg: <>Those days could not be read right now.</> });
+      if (!ok) flash({ tone: "danger", msg: <>Those days could not be read right now.</> });
     });
     return () => { on = false; };
   }, [view, anchor, covered]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -316,7 +316,7 @@ const CalendarReal = () => {
   };
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(vm.bookingLink); flash({ msg: <>Booking link copied.</> }); }
-    catch { flash({ msg: <>Could not copy — the link is {vm.bookingLink}</> }); }
+    catch { flash({ tone: "warn", msg: <>Could not copy — the link is {vm.bookingLink}</> }); }
   };
   const openDay = (key) => { setAnchorKey(key); setView("day"); };
   const first = frames[0];

@@ -113,7 +113,7 @@ const ListsReal = ({ initialId = null }) => {
     setBusy(true);
     const r = await fn();
     setBusy(false);
-    if (!r.ok) { flash({ msg: <>{r.message || "Could not change the list."}</> }); return r; }
+    if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not change the list."}</> }); return r; }
     if (msg) flash({ msg });
     return r;
   };

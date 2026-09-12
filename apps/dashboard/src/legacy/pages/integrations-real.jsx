@@ -30,14 +30,14 @@ const GoogleChoose = ({ busy, setBusy, flash }) => {
     setBusy(true);
     const r = await window.__google.choose(p.account_name, p.location_name);
     setBusy(false);
-    flash({ msg: r.ok ? <><b>{p.title}</b> is your listing on Google{r.read ? " — every review is on Reports now" : " — the reviews follow within the hour"}.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{p.title}</b> is your listing on Google{r.read ? " — every review is on Reports now" : " — the reviews follow within the hour"}.</> : <>{r.message}</> });
   };
   const disconnect = async () => {
     if (!window.__google || busy) return;
     setBusy(true);
     const r = await window.__google.disconnect();
     setBusy(false);
-    flash({ msg: r.ok ? <>Google is disconnected. The public listing stays; replies and the full history do not.</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Google is disconnected. The public listing stays; replies and the full history do not.</> : <>{r.message}</> });
   };
   return (
     <div className="set-row set-row-stack" data-testid="google-choose">
@@ -153,7 +153,7 @@ const PaneIntegrationsReal = () => {
         setBusy(true);
         const res = await window.__waConnect.start();
         setBusy(false);
-        flash({ msg: res.ok ? <>WhatsApp {res.number || "number"} is connected — the receptionist answers on it now</> : <>{res.message}</> });
+        flash({ tone: res.ok ? "ok" : "danger", msg: res.ok ? <>WhatsApp {res.number || "number"} is connected — the receptionist answers on it now</> : <>{res.message}</> });
         return;
       }
       case "verb:google-connect":
@@ -165,7 +165,7 @@ const PaneIntegrationsReal = () => {
         const res = await window.__google.refresh();
         setBusy(false);
         const news = res.fresh ? `${res.fresh} new review${res.fresh === 1 ? "" : "s"}` : res.counted ? `${res.counted} new rating${res.counted === 1 ? "" : "s"}` : "";
-        flash({ msg: res.ok ? (news ? <>Read just now — {news}. The bell has {res.fresh === 1 || (!res.fresh && res.counted === 1) ? "it" : "them"}.</> : <>Read just now — nothing new since the last read.</>) : <>{res.message}</> });
+        flash({ tone: res.ok ? "ok" : "danger", msg: res.ok ? (news ? <>Read just now — {news}. The bell has {res.fresh === 1 || (!res.fresh && res.counted === 1) ? "it" : "them"}.</> : <>Read just now — nothing new since the last read.</>) : <>{res.message}</> });
         return;
       }
       case "verb:google-disconnect":

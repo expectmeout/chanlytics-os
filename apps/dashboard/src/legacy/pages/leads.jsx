@@ -410,7 +410,7 @@ const LeadsPage = ({ onOpenClient = () => {}, initialSrc = null, initialLead = n
     window.addEventListener("leads:arrived", sync);
     return () => window.removeEventListener("leads:arrived", sync);
   }, []);
-  const [toastNode, ppFlash] = window.usePPToast(6500);
+  const [toastNode, ppFlash] = window.usePPToast();
   const searchRef = React.useRef(null);
   // Snapshot of the decision queue at mount — keeps decided cards visible in place.
   const [queueIds] = useLdState(() => LEADS.filter(l => l.stage === "ready").map(l => l.id));
