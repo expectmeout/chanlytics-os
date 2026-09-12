@@ -1,4 +1,4 @@
-/* global React */
+/* global React, Confirm */
 // Chanlytics — the business on record, as one form.
 //
 // Lives beside Settings › Integrations rather than inside it: this is the
@@ -190,11 +190,7 @@ const BusinessRecordForm = ({ line, flash }) => {
             <span className="set-row-hint" data-testid="biz-rejected">Save your corrections here — Chanlytics sends the registration back to the carriers for you, at no cost.</span>
           )}
           {arm && (
-            <span className="set-row-hint" data-testid="biz-arm">
-              {API.costWords[path]}{" "}
-              <button className="cl-bucket-link" onClick={file} disabled={busy} data-testid="biz-file-yes">Yes, file it</button>{" "}
-              <button className="cl-bucket-link" onClick={() => setArm(false)}>Not yet</button>
-            </span>
+            <Confirm question="File with the carriers?" detail={API.costWords[path]} yes="Yes, file it" no="Not yet" busy={busy} onYes={file} onNo={() => setArm(false)} testid="biz-file" />
           )}
         </div>
       ) : (

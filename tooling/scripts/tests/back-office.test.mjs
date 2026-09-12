@@ -651,7 +651,7 @@ test("the page reads the cost out; it does not decide it", () => {
   assert.ok(!/\$\d/.test(page), "no money figure lives in the page");
   assert.ok(!/reg_mock === true \?|sms_state === "rejected" \?/.test(page), "and no judgement about which refile this is");
   // Arm-then-confirm: a cross-tenant write is never one click.
-  assert.ok(page.includes('data-testid={`platform-act-${a.action}`}') && page.includes('data-testid={`platform-do-${arm.action}`}'));
+  assert.ok(page.includes('data-testid={`platform-act-${a.action}`}') && page.includes('testid={`platform-${arm.action}`}'));
   assert.ok(page.includes("P.act(a.action, tenantId, line.id)"), "the action is a name, not a request body");
   // After one lands, both reads are stale.
   assert.ok(page.includes("onChanged={() => { setDetail(null); load(); setReload((n) => n + 1); }}"));
@@ -692,11 +692,22 @@ globalThis.window = {
   canDo: () => true,
   // The shared toast, as data-bits provides it: [node, flash].
   usePPToast: () => [null, () => {}],
+  // The shell registers listeners on the window it is given.
+  addEventListener() {},
+  removeEventListener() {},
 };
 globalThis.Icon = () => null;
 // The shared attention row, and the pane that draws it.
 const ATTN = () => null;
 globalThis.window.AttnRow = ATTN;
+// A line's act is confirmed through the shared Confirm (data-bits.jsx): pure,
+// so the walker below expands it like any other nested component.
+globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.ReactDOM ??= { createPortal: (node) => node };
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+globalThis.Confirm = globalThis.window.Confirm;
+// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+globalThis.window.usePPToast = () => [null, () => {}];
 await import("../../../apps/dashboard/src/legacy/pages/platform.jsx");
 const Pane = globalThis.window.PanePlatform;
 
@@ -943,14 +954,14 @@ test("acting on a line is never one click, and says the cost before it is", asyn
 
   // Arming shows the cost and does NOT act.
   await row.press(byId(row.tree, "platform-act-refile").props.onClick);
-  const arm = byId(row.tree, "platform-arm-refile");
+  const arm = byId(row.tree, "platform-refile-confirm");
   assert.ok(arm, "a cross-tenant write is never one click");
   assert.match(textOf(arm), /Nothing is spent/, "this one is an edit, so it says so");
   assert.ok(!textOf(arm).includes("19.50"), "REGRESSION: quoting the rehearsal's price for a free edit");
   assert.equal(calls.length, 0, "arming is not doing");
 
   // Confirming acts, once, with the workspace and line it was shown for.
-  await row.press(byId(row.tree, "platform-do-refile").props.onClick);
+  await row.press(byId(row.tree, "platform-refile-yes").props.onClick);
   assert.deepEqual(calls, ["act:refile:a:l1"]);
   assert.equal(reloaded, 1, "and the reads it made stale are re-read");
 });
@@ -961,7 +972,7 @@ test("a rehearsal offers a different action, at a price, and says it cannot be u
   const mock = { ...SETUP_FIXTURE.lines.rows[0], sms_state: "approved", reg_mock: true };
   const row = mount(globalThis.window.PlatformLine, { line: mock, tenantId: "a", onDone: () => {}, flash: () => {} });
   await row.press(byId(row.tree, "platform-act-refile").props.onClick);
-  const said = textOf(byId(row.tree, "platform-arm-refile"));
+  const said = textOf(byId(row.tree, "platform-refile-confirm"));
   assert.match(said, /\$19\.50/, "a real filing spends, and says how much");
   assert.match(said, /cannot be undone/);
   assert.ok(said.indexOf("$19.50") < said.indexOf("cannot be undone"), "money first");

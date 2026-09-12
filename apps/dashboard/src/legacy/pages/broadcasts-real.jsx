@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell */
+/* global React, Icon, StatStrip, StatCell, Confirm */
 // Campaigns › Broadcasts, real: one approved template to the people who said
 // yes. Same chrome as the seeded page (broadcasts.jsx); every number is a
 // row's. Nothing here scores, estimates or invents: no credits, no revenue,
@@ -112,6 +112,38 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
   );
 };
 
+// One open broadcast: its name, its numbers, its state, and the verbs. The
+// stop is armed and named for what it does -- stopping a send, skipping a run
+// nobody approved and cancelling one still to come are three acts, and none
+// of them is one click (the audit's D13). Drawn on its own by confirm.test.mjs.
+const BC_STOP_WORDS = {
+  sending: { verb: "Stop", question: (row) => `Stop ${row.name}?`, detail: "Messages already out stay out; the rest do not go.", yes: "Yes, stop it" },
+  pending_approval: { verb: "Skip", question: (row) => `Skip ${row.name}?`, detail: "Nothing sends, and the run closes.", yes: "Yes, skip it" },
+  scheduled: { verb: "Cancel", question: (row) => `Cancel ${row.name}?`, detail: "Nothing will send.", yes: "Yes, cancel it" },
+};
+const bcStopWords = (state) => BC_STOP_WORDS[state] || BC_STOP_WORDS.scheduled;
+const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approve, cancel }) => {
+  const stop = bcStopWords(row.state);
+  return (
+    <div className="bc-sched" data-testid="bc-open">
+      <div className="bc-sched-main">
+        <span className="bc-sched-name"><button className="cl-bucket-link" onClick={onOpen} data-testid="bc-open-who">{row.name}</button></span>
+        <span className="bc-sched-meta">
+          {row.when} · {row.audience.label} · {row.recipient_count}
+          {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
+        </span>
+      </div>
+      <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
+      {canSend && !armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve">Approve</button>}
+      {canSend && !armed && <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">{stop.verb}</button>}
+      {canSend && armed && (
+        <Confirm question={stop.question(row)} detail={stop.detail} yes={stop.yes} danger busy={stopping} onYes={() => cancel(row)} onNo={() => onArm(false)} testid="bc-stop" />
+      )}
+    </div>
+  );
+};
+window.BroadcastOpenRow = BroadcastOpenRow;
+
 const BroadcastsReal = ({ initialSegment = null }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
@@ -130,6 +162,9 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [when, setWhen] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
+  // The row whose stop is armed, and the one whose stop is on its way.
+  const [armId, setArmId] = React.useState(null);
+  const [stopping, setStopping] = React.useState(null);
   const [addingStarters, setAddingStarters] = React.useState(false);
   // Starters in review at WhatsApp: the honest line while nothing is approved yet.
   const starterPending = (window.__TEMPLATES_ALL || BC_NONE).filter((t) => bcIsStarter(t.name) && t.meta_status === "pending").length;
@@ -213,8 +248,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
   const cancel = async (row) => {
-    if (!window.__broadcasts) return;
+    if (!window.__broadcasts || stopping) return;
+    setStopping(row.id);
     const r = await window.__broadcasts.cancel(row.id);
+    setStopping(null);
+    setArmId(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
   };
   const approve = async (row) => {
@@ -385,18 +423,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         )}
         {open.map((row) => (
           <React.Fragment key={row.id}>
-          <div className="bc-sched" data-testid="bc-open">
-            <div className="bc-sched-main">
-              <span className="bc-sched-name"><button className="cl-bucket-link" onClick={() => setOpenId(openId === row.id ? null : row.id)} data-testid="bc-open-who">{row.name}</button></span>
-              <span className="bc-sched-meta">
-                {row.when} · {row.audience.label} · {row.recipient_count}
-                {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
-              </span>
-            </div>
-            <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
-            {canSend && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve">Approve</button>}
-            {canSend && <button className="btn btn-sm" onClick={() => cancel(row)}>{row.state === "sending" ? "Stop" : row.state === "pending_approval" ? "Skip" : "Cancel"}</button>}
-          </div>
+          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => setOpenId(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approve={approve} cancel={cancel} />
           {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
           </React.Fragment>
         ))}

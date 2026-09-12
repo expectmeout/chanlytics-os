@@ -359,7 +359,7 @@ test("the dashboard: owners link and search, operators read, members look; the p
   const settings = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
   assert.ok(settings.includes('"verb:google-check": "google-check"') && settings.includes('data-testid="google-remove"'), "the listing row keeps its verbs' names");
   assert.ok(search.includes('console.error("google_search_failed"') && !search.includes("typeof b.error === \"string\" ? b.error :"), "Google's words go to the log, not the owner");
-  assert.ok(settings.includes('"verb:google-connect": "google-connect"') && settings.includes('data-testid="google-disconnect-yes"'), "the second door keeps its verbs' names");
+  assert.ok(settings.includes('"verb:google-connect": "google-connect"') && settings.includes('testid="google-disconnect"'), "the second door keeps its verbs' names");
   const rate = readCode("apps/dashboard/src/server/rate-limit.ts");
   for (const b of ["google_search", "google_link", "google_refresh"]) assert.ok(rate.includes(`${b}: {`), b);
 });

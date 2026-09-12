@@ -82,6 +82,13 @@ globalThis.window = {
   addEventListener() {},
   removeEventListener() {},
 };
+// The end is confirmed through the shared Confirm (data-bits.jsx), drawn for real.
+globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.ReactDOM ??= { createPortal: (node) => node };
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+globalThis.Confirm = globalThis.window.Confirm;
+// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
 const Page = globalThis.window.LiveMonitorPage;
 

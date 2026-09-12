@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, Confirm */
 // Chanlytics — the back office. Every workspace, and what is up with each one.
 //
 // The only surface in this product that deliberately crosses tenant
@@ -49,7 +49,7 @@ const PlatformLine = ({ line, tenantId, onDone, flash }) => {
     const r = await P.act(a.action, tenantId, line.id);
     setBusy(false);
     setArm(null);
-    flash({ tone: "danger", msg: <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
     if (r.ok) onDone();
   };
 
@@ -66,13 +66,7 @@ const PlatformLine = ({ line, tenantId, onDone, flash }) => {
           {line.last_error ? ` — ${line.last_error}` : ""}
         </span>
         {arm && (
-          <span className="set-row-hint pf-arm" data-testid={`platform-arm-${arm.action}`}>
-            <b>{P.warning(arm)}</b> {arm.sentence}{" "}
-            <button className="cl-bucket-link" onClick={() => run(arm)} disabled={busy} data-testid={`platform-do-${arm.action}`}>
-              {busy ? "Working…" : `Yes, ${arm.label.toLowerCase()}`}
-            </button>{" "}
-            <button className="cl-bucket-link" onClick={() => setArm(null)} disabled={busy}>Not now</button>
-          </span>
+          <Confirm block question={P.warning(arm)} detail={arm.sentence} yes={`Yes, ${arm.label.toLowerCase()}`} no="Not now" danger={!!arm.permanent} busy={busy} onYes={() => run(arm)} onNo={() => setArm(null)} testid={`platform-${arm.action}`} />
         )}
       </div>
       {actions.length > 0 && !arm && (

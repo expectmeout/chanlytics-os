@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell */
+/* global React, Icon, StatStrip, StatCell, Confirm */
 // Chanlytics — Settings
 // Six panes: Workspace · Autonomy · Integrations · AI memory · Notifications · Billing.
 // Controls are wired, not painted: guardrails write back to SEG_GUARDRAILS
@@ -691,6 +691,9 @@ const TeamSection = ({ flash }) => {
   // outcome it is only predicting.
   const realRoster = Array.isArray(realTeam);
   const [teamBusy, setTeamBusy] = useSetState(false);
+  // Removing a teammate, or revoking an invitation, is armed first (the
+  // audit's D13: it fired straight from a menu item). The row asks.
+  const [armRemove, setArmRemove] = useSetState(null);
 
   const invite = async () => {
     const mail = email.trim().toLowerCase();
@@ -747,13 +750,16 @@ const TeamSection = ({ flash }) => {
       if (m.role === "owner" && S.ownerCount() <= 1) { flash({ msg: <>Can't remove the only owner</> }); return; }
       const snap = { ...m };
       S.removeMember(m.id);
+      setArmRemove(null);
       flash({ msg: <><b>{m.name}</b> {m.status === "invited" ? "invite revoked" : "removed from the team"}</>, undo: () => S.addMember(snap) });
       return;
     }
     setTeamBusy(true);
     const r = await window.__teamRemove(m.id);
     setTeamBusy(false);
+    setArmRemove(null);
     flash({
+      tone: r.ok ? "ok" : "danger",
       msg: r.ok
         ? <><b>{m.name}</b> {(r.data && r.data.revokedInvite) ? "invitation revoked" : "removed from the team"}</>
         : <>{r.message}</>,
@@ -829,6 +835,18 @@ const TeamSection = ({ flash }) => {
             <span className="set-team-body">
               <span className="set-team-name">{m.name}{isMe && <span className="set-team-you">You</span>}</span>
               <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
+              {armRemove === m.id && (
+                <Confirm
+                  question={pending ? `Revoke the invitation to ${m.email}?` : `Remove ${m.name} from the team?`}
+                  detail={pending ? "The link in their email stops working." : "They lose access at once; what they decided stays on the record."}
+                  yes={pending ? "Yes, revoke" : "Yes, remove"}
+                  danger
+                  busy={teamBusy}
+                  onYes={() => remove(m)}
+                  onNo={() => setArmRemove(null)}
+                  testid="team-remove"
+                />
+              )}
             </span>
             <RolePill role={m.role} />
             {canManage && !isMe ? (
@@ -843,7 +861,7 @@ const TeamSection = ({ flash }) => {
                   { divider: true },
                 ]),
                 ...(pending && !realRoster ? [{ label: "Resend invite", icon: "mail", onClick: () => flash({ msg: <>Invite resent to <b>{m.email}</b></> }) }] : []),
-                { label: pending ? "Revoke invite" : "Remove", icon: "x", danger: true, onClick: () => remove(m) },
+                { label: pending ? "Revoke invite" : "Remove", icon: "x", danger: true, onClick: () => setArmRemove(m.id) },
               ]} />
             ) : <span className="set-team-spacer" />}
           </div>
@@ -2459,11 +2477,11 @@ const PaneNotificationsReal = ({ flash }) => {
     ? "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change"
     : isOwner ? undefined : "Only an owner can change who is alerted";
 
-  const save = (nextEmails, msg) => {
+  const save = (nextEmails, msg, undo = null) => {
     if (!window.__saveSettings || !settings) return;
     const next = { ...cfg, notifications: { ...notif, escalation_emails: nextEmails } };
     setBusy(true);
-    window.__saveSettings(next, settings.version, () => { setBusy(false); flash({ msg }); })
+    window.__saveSettings(next, settings.version, () => { setBusy(false); flash({ msg, undo }); })
       .then((r) => { if (r.ok) return; setBusy(false); flash({ tone: "danger", msg: <>{r.message}</> }); });
   };
   const add = () => {
@@ -2474,7 +2492,8 @@ const PaneNotificationsReal = ({ flash }) => {
     setEmail("");
     save([...emails, v], <><b>{v}</b> will be alerted from the next escalation</>);
   };
-  const remove = (v) => save(emails.filter((e) => e !== v), <><b>{v}</b> removed — no more alerts to that address</>);
+  // Reversible, so it is not armed: the toast offers the address back.
+  const remove = (v) => save(emails.filter((e) => e !== v), <><b>{v}</b> removed — no more alerts to that address</>, () => save(emails, <><b>{v}</b> is alerted again</>));
 
   return (
     <>
@@ -2760,3 +2779,4 @@ window.SET_TABS = SET_TABS;
 window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the shell names the crumb; the rail above decides who sees it
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
+window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)

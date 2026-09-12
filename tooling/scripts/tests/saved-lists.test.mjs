@@ -60,7 +60,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.ok(p.includes('data-testid="saved-lists"') && p.includes('data-testid="new-list"') && p.includes('data-testid="new-list-name"'));
   assert.ok(!p.includes("Saved lists need a segments table (Tier 2)"), "the demo-only block is gone");
   assert.ok(p.includes("if (savedId) {") && p.includes('data-testid="saved-filter"'), "a saved list filters the table like a computed one");
-  assert.ok(p.includes("Delete “{list.name}”? The people stay."), "deleting a list is asked once, in words that say what stays");
+  assert.ok(p.includes('question={`Delete “${list.name}”?`} detail="The people stay."'), "deleting a list is asked once, through the one Confirm, in words that say what stays");
   assert.ok(p.includes('window.__ME.role === "operator"'), "operators keep lists too");
   const prof = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
@@ -80,7 +80,7 @@ test("People › Lists is real: the lists kept by hand and the computed ones wit
   }
   assert.ok(p.includes('window.addEventListener("segments:new", show);'), "the shell's New list button opens the name box");
   assert.ok(p.includes("window.CHANLY.nav(`broadcasts/${current.id}`)"), "a list's onward step is a broadcast");
-  assert.ok(p.includes("Delete “{label}”? The people stay."));
+  assert.ok(p.includes('question={`Delete “${label}”?`} detail="The people stay."'), "the Lists page asks through the one Confirm too");
   assert.ok(!/sgParseRules|agent builds|SG_STORE/.test(p), "no list is built from prose by an invented agent");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('{real ? "New list" : "New segment"}'));

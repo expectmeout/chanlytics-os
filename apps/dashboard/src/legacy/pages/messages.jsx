@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell */
+/* global React, Icon, StatStrip, StatCell, Confirm */
 // Campaigns › Messages: what the receptionist and the campaigns send on
 // WhatsApp, shown as the customer sees it. One card per message — the
 // starter set in the library's order, then what the workspace wrote or
@@ -94,7 +94,7 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
               <button className="cl-bucket-link" onClick={() => setRenaming(false)}>Cancel</button>
             </span>
           ) : arm ? (
-            <span className="set-row-hint">Delete “{tplTitle(row)}” in {cur.lang.label} from WhatsApp? Sends that use it fail from now on. <button className="cl-bucket-link danger" disabled={busy} onClick={() => { closeMenu(); onDelete(row); }} data-testid="template-delete-yes">Yes, delete</button> <button className="cl-bucket-link" onClick={() => setArm(false)}>No</button></span>
+            <Confirm question={`Delete “${tplTitle(row)}” in ${cur.lang.label}?`} detail="It leaves WhatsApp; sends that use it fail from now on." yes="Yes, delete" danger busy={busy} onYes={() => { closeMenu(); onDelete(row); }} onNo={() => setArm(false)} testid="template-delete" />
           ) : (
             <>
               <button className="cl-bucket-link" disabled={busy} onClick={() => { setDraft(row.title || ""); setRenaming(true); }} title="Call it something in your own words — WhatsApp keeps its name" data-testid="template-rename">Rename</button>

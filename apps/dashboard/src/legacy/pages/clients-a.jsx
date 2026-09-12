@@ -808,13 +808,11 @@ const DeleteListButton = ({ list, onDeleted }) => {
     if (r.ok) onDeleted();
   };
   if (!arm) {
-    return <button className="cl-bucket-link" style={{ marginLeft: 8 }} onClick={() => setArm(true)} data-testid="delete-list">Delete list…</button>;
+    return <button className="cl-bucket-link danger" style={{ marginLeft: 8 }} onClick={() => setArm(true)} data-testid="delete-list">Delete list…</button>;
   }
   return (
-    <span className="cl-section-sub" style={{ marginLeft: 8 }}>
-      Delete “{list.name}”? The people stay.{" "}
-      <button className="cl-bucket-link" disabled={busy} onClick={go}>Yes, delete</button>{" "}
-      <button className="cl-bucket-link" disabled={busy} onClick={() => setArm(false)}>No</button>
+    <span style={{ marginLeft: 8 }}>
+      <Confirm question={`Delete “${list.name}”?`} detail="The people stay." yes="Yes, delete" danger busy={busy} onYes={go} onNo={() => setArm(false)} testid="delete-list" />
     </span>
   );
 };

@@ -40,7 +40,7 @@ test.describe("Delete this person", () => {
     await page.getByRole("button", { name: "Delete this person…" }).click();
     const confirm = page.getByTestId("delete-confirm");
     await expect(confirm).toBeVisible();
-    const del = confirm.getByRole("button", { name: "Delete", exact: true });
+    const del = confirm.getByRole("button", { name: "Delete this person", exact: true });
     await expect(del).toBeDisabled();
     await confirm.getByRole("textbox").fill("not the name");
     await expect(del).toBeDisabled();
