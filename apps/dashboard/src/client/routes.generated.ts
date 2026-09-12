@@ -68,6 +68,8 @@ export const ROUTES = {
   "POST broadcasts/[id]/approve": { method: "POST", path: "/api/v1/broadcasts/[id]/approve" },
   "POST broadcasts/[id]/cancel": { method: "POST", path: "/api/v1/broadcasts/[id]/cancel" },
   "POST calendar/preview": { method: "POST", path: "/api/v1/calendar/preview" },
+  "POST calls/[id]/end": { method: "POST", path: "/api/v1/calls/[id]/end" },
+  "POST calls/[id]/hand-over": { method: "POST", path: "/api/v1/calls/[id]/hand-over" },
   "POST calls/[id]/whisper": { method: "POST", path: "/api/v1/calls/[id]/whisper" },
   "POST capabilities/[kind]": { method: "POST", path: "/api/v1/capabilities/[kind]" },
   "POST channels/whatsapp/connect": { method: "POST", path: "/api/v1/channels/whatsapp/connect" },
@@ -194,6 +196,8 @@ export type Routes = {
   "POST broadcasts/[id]/approve": typeof import("../../app/api/v1/broadcasts/[id]/approve/route").POST;
   "POST broadcasts/[id]/cancel": typeof import("../../app/api/v1/broadcasts/[id]/cancel/route").POST;
   "POST calendar/preview": typeof import("../../app/api/v1/calendar/preview/route").POST;
+  "POST calls/[id]/end": typeof import("../../app/api/v1/calls/[id]/end/route").POST;
+  "POST calls/[id]/hand-over": typeof import("../../app/api/v1/calls/[id]/hand-over/route").POST;
   "POST calls/[id]/whisper": typeof import("../../app/api/v1/calls/[id]/whisper/route").POST;
   "POST capabilities/[kind]": typeof import("../../app/api/v1/capabilities/[kind]/route").POST;
   "POST channels/whatsapp/connect": typeof import("../../app/api/v1/channels/whatsapp/connect/route").POST;

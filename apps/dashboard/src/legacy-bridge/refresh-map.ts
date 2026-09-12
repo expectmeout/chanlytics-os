@@ -50,6 +50,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST messages/[id]/steer": thread,
   "POST messages/[id]/cancel-send": thread,
   "POST calls/[id]/whisper": () => [liveOverride],
+  "POST calls/[id]/end": () => [liveOverride],
+  "POST calls/[id]/hand-over": () => [liveOverride],
   // People.
   "DELETE contacts/[id]": () => [peopleOverride, inboxOverride, conversationsOverride, todayOverride],
   "PUT contacts/[id]/receptionist": people,

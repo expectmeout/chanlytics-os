@@ -2,16 +2,18 @@
 // Chanlytics — Live, on a real workspace.
 //
 // The mockup's console (live-monitor.jsx) promised Live Listen, Take Over and
-// End Call over an invented caller. The phone provider offers none of those
-// for a hosted agent, so this page shows what is true: the calls in progress
-// under the heartbeat rule, a clock running from each call's real start, the
-// transcript when the provider sends turns and an honest wait when it does
-// not, and the calls that just ended with their summary as it arrives. The
-// seeded console stays for demo sessions only.
+// End Call over an invented caller. The phone provider's own dashboard has all
+// three; its API has two -- a sentence into the call, and an end -- and keeps
+// the audio and the microphone to itself. So this page shows what is true:
+// the calls in progress under the heartbeat rule, a clock running from each
+// call's real start, the transcript when the provider sends turns and an
+// honest wait when it does not, and the calls that just ended with their
+// summary as it arrives. The seeded console stays for demo sessions only.
 //
 // Reads window.__LIVE (written by liveOverride in the bridge) and re-renders
-// on "surface:live". One write: a whisper — a sentence only the receptionist
-// hears, the single control the provider offers over a hosted agent's call.
+// on "surface:live". Three writes: a whisper -- a sentence only the
+// receptionist hears -- an end, and a hand-over, which is the transfer a
+// caller gets when they ask for a person, asked for by the owner.
 
 const { useState: useLrState, useEffect: useLrEffect, useReducer: useLrReducer, useRef: useLrRef } = React;
 
@@ -112,6 +114,13 @@ const LrTranscript = ({ c }) => {
                 <span className="lm-whisper-line-label">You whispered</span>
                 <span className="lm-whisper-line-text">&ldquo;{m.text}&rdquo;</span>
               </div>
+            ) : m.speaker === "platform" ? (
+              // Chanlytics spoke, not the owner: a correction, or the
+              // hand-over. Said as what it was, never as the owner's words.
+              <div key={i} className="lm-whisper-line" data-testid="live-platform-line">
+                <span className="lm-whisper-line-label">Chanlytics told the receptionist</span>
+                <span className="lm-whisper-line-text">{m.text}</span>
+              </div>
             ) : (
               <div key={i} className={`tl-msg ${m.speaker === "client" ? "client" : "agent"}`}>
                 <div className="tl-msg-bubble">
@@ -139,10 +148,9 @@ const lrRecordingLine = (c) =>
         : c.summaryState === "pending" ? "Recording on its way"
           : "No recording";
 
-// The one control the phone provider offers over a hosted agent's call: a
-// sentence only the receptionist hears, worked into its next answer. Not a
-// take-over, not a listen-in — those buttons stayed in the demo because
-// nothing real stands behind them.
+// A sentence only the receptionist hears, worked into its next answer. The
+// listen-in stayed in the demo: the provider streams the transcript, never
+// the audio, so the words below are what you follow.
 // Speech recognition in the browser, where it exists (Chrome, Edge, Safari;
 // not Firefox). The owner is usually listening to the call, not typing:
 // hold the button, say the whisper, let go — the words are transcribed on
@@ -272,6 +280,65 @@ const LrWhisper = ({ c }) => {
   );
 };
 
+// What the provider's API offers over a hosted agent's live call, besides a
+// sentence into it: stopping it, and telling the receptionist something NOW.
+// The second is the hand-over -- the receptionist is told the owner is
+// picking up and transfers the caller to the business's own line with the
+// tool it already has, so the owner's phone rings the way it does when a
+// caller asks for a person. The line is a fact the workspace keeps in
+// Settings; without one the button says so and the server refuses besides.
+// Ending a call is armed first: the caller is cut off, and there is no undo.
+const LrControls = ({ c }) => {
+  const [busy, setBusy] = useLrState(null);
+  const [arm, setArm] = useLrState(false);
+  const [toastNode, flash] = window.usePPToast();
+  const facts = (window.__FACTS && window.__FACTS.facts) || {};
+  const line = (facts.handoff_number && facts.handoff_number.value) || null;
+  const handOver = async () => {
+    if (busy || !window.__handOverCall) return;
+    setBusy("hand");
+    const r = await window.__handOverCall(c.callId);
+    setBusy(null);
+    if (r.ok) flash({ msg: <>Asked the receptionist to pass the call to {r.line || line || "the business's line"} — it should ring in a moment</> });
+    else flash({ msg: <>Not passed — {r.message}</> });
+  };
+  const end = async () => {
+    if (busy || !window.__endCall) return;
+    setArm(false);
+    setBusy("end");
+    const r = await window.__endCall(c.callId);
+    setBusy(null);
+    if (r.ok) flash({ msg: <>Call ended</> });
+    else flash({ msg: <>Not ended — {r.message}</> });
+  };
+  return (
+    <div className="lm-call-controls" data-testid="live-controls">
+      <button
+        className="btn btn-sm"
+        onClick={handOver}
+        disabled={!!busy || !line}
+        title={line ? `Rings ${line}, the business's own line` : "Add the business's own line under Settings to pass calls to it"}
+        data-testid="live-hand-over"
+        {...window.gate("approve")}
+      >
+        <Icon name="phone" size={12} /> {busy === "hand" ? "Passing…" : "Pass the call to me"}
+      </button>
+      {arm ? (
+        <span className="set-row-hint">
+          End the call? The caller is cut off.{" "}
+          <button className="cl-bucket-link" onClick={end} data-testid="live-end-yes">Yes, end it</button>{" "}
+          <button className="cl-bucket-link" onClick={() => setArm(false)}>No</button>
+        </span>
+      ) : (
+        <button className="btn btn-ghost btn-sm" onClick={() => setArm(true)} disabled={!!busy} data-testid="live-end" {...window.gate("approve")}>
+          {busy === "end" ? "Ending…" : "End the call"}
+        </button>
+      )}
+      {toastNode}
+    </div>
+  );
+};
+
 const LrPanel = ({ c, elapsed }) => {
   if (!c) {
     return (
@@ -308,6 +375,7 @@ const LrPanel = ({ c, elapsed }) => {
           </div>
         </div>
         <div className="lm-head-actions">
+          {c.live && <LrControls c={c} />}
           {c.clientId && (
             <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.client(c.clientId))}>
               <Icon name="users" size={12} /> Open client

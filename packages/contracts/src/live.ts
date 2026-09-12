@@ -14,7 +14,7 @@
  * `heartbeatMs`, so a call nobody has heard from leaves the list even before
  * the next fetch says so.
  */
-import { whisperText } from "./whisper";
+import { injectedTurn } from "./whisper";
 import { CALL_HEARTBEAT_MS, isLiveCall } from "./policy";
 import { formatPhoneDisplay } from "./phone";
 import { DISCONNECTION_LABELS, initialsOf, shortTime, type CallDto } from "./viewmodels";
@@ -31,8 +31,8 @@ export const ANALYSIS_GRACE_MS = 10 * 60 * 1000;
 export const RECENT_MAX = 8;
 
 export interface LiveTurnVM {
-  /** "whisper" is the owner's own words, handed to the agent mid-call. */
-  speaker: "agent" | "client" | "whisper";
+  /** "whisper" is the owner's own words, handed to the agent mid-call; "platform" is what Chanlytics told it -- a correction, or the hand-over. */
+  speaker: "agent" | "client" | "whisper" | "platform";
   text: string;
   /** "0:42" from the provider's word timings, or "—". */
   t: string;
@@ -112,9 +112,10 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
     .map((turn) => {
       const start = turn.start ?? turn.words?.[0]?.start;
       if (turn.role === "injected") {
-        // The owner's words, not the frame around them; whispers carry no
-        // word timing from the provider.
-        return { speaker: "whisper", text: whisperText(turn.content), t: "—" };
+        // The owner's words, not the frame around them -- or the platform's,
+        // said as the platform's; injected turns carry no word timing.
+        const said = injectedTurn(turn.content);
+        return { speaker: said.speaker, text: said.text, t: "—" };
       }
       return {
         speaker: turn.role === "agent" ? "agent" : "client",

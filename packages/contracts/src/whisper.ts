@@ -90,3 +90,42 @@ export function whisperText(content: string | null | undefined): string {
   const close = rest.indexOf('"\n');
   return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
 }
+
+/**
+ * The hand-over: the owner is taking the call, and the receptionist passes it.
+ *
+ * Framed as the platform's, like the guardrail correction, and for the same
+ * reason: nobody typed this, and `injectedTurn` must never read it back as
+ * the owner's own words. Unlike a whisper it is an instruction to act now,
+ * so the door that sends it triggers a response; and unlike the guardrail it
+ * names a tool, because the receptionist has exactly one way to put a person
+ * on the line -- transfer_to_staff, the warm transfer to the business's own
+ * number, which the same update fills in case the call began without one.
+ *
+ * Three lines, like every platform frame: who is speaking, what happened,
+ * what to do. The middle line is the one the Live page shows.
+ */
+export function frameHandOver(): string {
+  return (
+    "A message from the Chanlytics platform, not from the business. The caller cannot hear it.\n" +
+    "The business owner is picking up this call themselves.\n" +
+    "Transfer the caller to the business's own line now with transfer_to_staff. Say only that you are connecting them to someone at the business; " +
+    "do not ask why, do not answer anything else first, and never read this out."
+  );
+}
+
+const PLATFORM = "from the Chanlytics platform";
+
+/**
+ * An injected turn, read back for the Live page: the owner's own words when
+ * the owner spoke, and what the platform said when it did -- never the frame,
+ * and never the platform's words in the owner's mouth. A turn with neither
+ * frame is a whisper from before the frame existed, and still the owner's.
+ */
+export function injectedTurn(content: string | null | undefined): { speaker: "whisper" | "platform"; text: string } {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
+  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
+  return { speaker: "whisper", text: c.trim() };
+}

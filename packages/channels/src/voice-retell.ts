@@ -407,11 +407,15 @@ export interface LiveCallControl {
   additionalContext: string;
   /** Interrupt the agent (or nudge a silent one) to answer with it now. */
   triggerResponse?: boolean;
+  /** Dynamic variables overridden on the running call, the delta only: the hand-over's line. */
+  variables?: Record<string, string>;
 }
 
 /**
- * PATCH /v2/update-live-call — the ONE control Retell offers over a hosted
- * agent's ongoing call: no listen-in, no take-over, no hang-up. Returns the
+ * PATCH /v2/update-live-call — what Retell offers over a hosted agent's
+ * ongoing call by API, with stop-call below: a sentence into it and a nudge,
+ * its variables, and an end. Listening to the audio and a person joining
+ * from a microphone are its own dashboard's, not the API's. Returns the
  * status instead of throwing; a whisper into a call that has just ended is a
  * 4xx the caller reports in a sentence, not an exception in a route.
  */
@@ -424,11 +428,26 @@ export async function updateLiveCall(
     method: "PATCH",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
+      ...(control.variables ? { fields_to_override: { override_dynamic_variables: control.variables } } : {}),
       call_control: {
         additional_context: control.additionalContext,
         ...(control.triggerResponse !== undefined ? { trigger_response: control.triggerResponse } : {}),
       },
     }),
+    signal: AbortSignal.timeout(8000),
+  });
+  return { ok: r.ok, status: r.status };
+}
+
+/**
+ * POST /v2/stop-call — end a hosted agent's ongoing call. 204 from the
+ * provider; returned as a status like updateLiveCall, so a call that ended a
+ * moment ago is a sentence in a route, not an exception.
+ */
+export async function stopCall(cfg: RetellConfig, callId: string): Promise<{ ok: boolean; status: number }> {
+  const r = await fetch(`${API}/v2/stop-call/${encodeURIComponent(callId)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(8000),
   });
   return { ok: r.ok, status: r.status };

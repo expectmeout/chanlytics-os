@@ -4207,7 +4207,9 @@ var DECISION_VERBS = [
    * that carry everyone; the thread's or the call's own row for the others.
    * The one verb an auditor asks about that the ledger did not keep.
    */
-  "export"
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call"
 ];
 var DAY_MS = 864e5;
 var WEEK_MS = 7 * DAY_MS;
@@ -5244,11 +5246,20 @@ async function updateLiveCall(cfg, callId, control) {
     method: "PATCH",
     headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json" },
     body: JSON.stringify({
+      ...control.variables ? { fields_to_override: { override_dynamic_variables: control.variables } } : {},
       call_control: {
         additional_context: control.additionalContext,
         ...control.triggerResponse !== void 0 ? { trigger_response: control.triggerResponse } : {}
       }
     }),
+    signal: AbortSignal.timeout(8e3)
+  });
+  return { ok: r.ok, status: r.status };
+}
+async function stopCall(cfg, callId) {
+  const r = await fetch(`${API}/v2/stop-call/${encodeURIComponent(callId)}`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
     signal: AbortSignal.timeout(8e3)
   });
   return { ok: r.ok, status: r.status };
@@ -7406,6 +7417,7 @@ export {
   starterAttributes,
   starterEndUserRequest,
   starterProfileRequest,
+  stopCall,
   stripKey,
   submitProfileRequest,
   submitTrustProductRequest,

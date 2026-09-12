@@ -346,6 +346,8 @@ export const DECISION_VERBS = [
    * The one verb an auditor asks about that the ledger did not keep.
    */
   "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call",
 ] as const;
 export type DecisionVerb = (typeof DECISION_VERBS)[number];
 

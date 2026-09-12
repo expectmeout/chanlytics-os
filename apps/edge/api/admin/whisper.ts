@@ -1,11 +1,11 @@
 /**
  * Whisper to the phone receptionist mid-call.
  *
- * The one control the phone provider offers over a hosted agent's live call:
- * a sentence injected into the agent's context that only the agent hears and
- * works into its next answer (Retell update-live-call). No listen-in, no
- * take-over, no hang-up exist for hosted agents, which is why the Live page
- * offers exactly this and nothing else.
+ * A sentence injected into the agent's context that only the agent hears and
+ * works into its next answer (Retell update-live-call). Beside it the API
+ * offers an end (stop-call.ts) and, through the same update, the hand-over
+ * (hand-over.ts); listening to the audio and a person joining from a
+ * microphone are the provider's own dashboard's, not the API's.
  *
  * Internal endpoint — x-diag-key, called by the dashboard's whisper route
  * AFTER RLS has proved the call belongs to the operator's workspace and the

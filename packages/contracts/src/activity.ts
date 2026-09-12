@@ -47,7 +47,7 @@ const WORDS: Record<string, string> = {
   invite: "Invited a member", revoke_invite: "Withdrew an invitation", change_role: "Changed a member's role", remove_member: "Removed a member",
   erase: "Erased a person", whisper: "Whispered to the phone receptionist", connect_channel: "Connected a channel", consent_change: "Recorded a consent answer",
   send_broadcast: "Sent a broadcast", cancel_broadcast: "Canceled a broadcast", start_playbook: "Started a playbook", pause_playbook: "Paused a playbook",
-  reply_review: "Replied to a Google review", export: "Exported data",
+  reply_review: "Replied to a Google review", export: "Exported data", end_call: "Ended a call",
   // events
   "message.received": "A customer wrote", "message.sent": "A message went out", "message.send_failed": "A message could not be sent",
   "message.send_blocked": "A message was held at the wire", "message.send_raced_cancel": "A send raced a cancel",
@@ -85,10 +85,13 @@ const num = (o: Record<string, unknown>, k: string): number | null => (typeof o[
  * reader wants and nothing else of the payload.
  */
 export function activityWords(kind: string, payload: unknown): string {
-  const base = WORDS[kind] ?? humanize(kind);
   const p = (payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {}) as Record<string, unknown>;
+  // A take-over on a call is the Inbox's verb with a different subject: the
+  // receptionist passed the caller to the business's own line.
+  const base = kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : (WORDS[kind] ?? humanize(kind));
   const bits: string[] = [];
   switch (kind) {
+    case "take_over": { if (str(p, "how") === "transfer") bits.push("passed to the business's line"); break; }
     case "consent_change": case "contact.consent_changed": {
       const purpose = str(p, "purpose") === "marketing" ? "offers" : "messages about their visit";
       const consent = str(p, "consent");

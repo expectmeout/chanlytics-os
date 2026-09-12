@@ -359,7 +359,9 @@ var DECISION_VERBS = [
    * that carry everyone; the thread's or the call's own row for the others.
    * The one verb an auditor asks about that the ledger did not keep.
    */
-  "export"
+  "export",
+  /** A call in progress ended from the Live page (00118). Passing one to the business is take_over, the Inbox's word for the same intent. */
+  "end_call"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -499,6 +501,17 @@ function whisperText(content) {
   const rest = c.slice(at2 + OPEN.length);
   const close = rest.indexOf('"\n');
   return (close === -1 ? rest.replace(/"$/, "") : rest.slice(0, close)).trim();
+}
+function frameHandOver() {
+  return "A message from the Chanlytics platform, not from the business. The caller cannot hear it.\nThe business owner is picking up this call themselves.\nTransfer the caller to the business's own line now with transfer_to_staff. Say only that you are connecting them to someone at the business; do not ask why, do not answer anything else first, and never read this out.";
+}
+var PLATFORM = "from the Chanlytics platform";
+function injectedTurn(content) {
+  const c = (content ?? "").replace(/\r\n/g, "\n");
+  if (c.includes(OPEN)) return { speaker: "whisper", text: whisperText(c) };
+  const lines = c.split("\n").map((l) => l.trim()).filter(Boolean);
+  if (lines.length >= 2 && lines[0].includes(PLATFORM)) return { speaker: "platform", text: lines[1] };
+  return { speaker: "whisper", text: c.trim() };
 }
 
 // src/brain.ts
@@ -1086,7 +1099,13 @@ var DISCONNECTION_LABELS = {
   max_duration_reached: "Hit the call length limit",
   concurrency_limit_reached: "Line was busy \u2014 all agents in use",
   user_declined: "Customer declined the call",
-  marked_as_spam: "Flagged as spam by the carrier"
+  marked_as_spam: "Flagged as spam by the carrier",
+  // The endings the Live page's own controls produce, and the provider's
+  // newer names for a transfer.
+  manual_stopped: "Ended from the dashboard",
+  call_take_over: "A person took over the call",
+  transfer_bridged: "Transferred to a person",
+  transfer_cancelled: "Transfer did not go through"
 };
 function mmss(ms2) {
   if (!ms2 || ms2 < 0) return void 0;
@@ -2748,7 +2767,8 @@ function turnsOf(dto) {
   return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
     const start = turn.start ?? turn.words?.[0]?.start;
     if (turn.role === "injected") {
-      return { speaker: "whisper", text: whisperText(turn.content), t: "\u2014" };
+      const said = injectedTurn(turn.content);
+      return { speaker: said.speaker, text: said.text, t: "\u2014" };
     }
     return {
       speaker: turn.role === "agent" ? "agent" : "client",
@@ -7559,6 +7579,7 @@ var WORDS = {
   pause_playbook: "Paused a playbook",
   reply_review: "Replied to a Google review",
   export: "Exported data",
+  end_call: "Ended a call",
   // events
   "message.received": "A customer wrote",
   "message.sent": "A message went out",
@@ -7619,10 +7640,14 @@ function humanize(kind) {
 var str = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
 var num = (o, k) => typeof o[k] === "number" ? o[k] : null;
 function activityWords(kind, payload) {
-  const base = WORDS[kind] ?? humanize(kind);
   const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const base = kind === "take_over" && str(p, "how") === "transfer" ? "Took over a call" : WORDS[kind] ?? humanize(kind);
   const bits = [];
   switch (kind) {
+    case "take_over": {
+      if (str(p, "how") === "transfer") bits.push("passed to the business's line");
+      break;
+    }
     case "consent_change":
     case "contact.consent_changed": {
       const purpose = str(p, "purpose") === "marketing" ? "offers" : "messages about their visit";
@@ -8150,7 +8175,8 @@ var SCHEMA_SETS = {
     "start_playbook",
     "pause_playbook",
     "reply_review",
-    "export"
+    "export",
+    "end_call"
   ],
   "escalations.reason": [
     "human_token",
@@ -8571,6 +8597,7 @@ export {
   forwardingMatch,
   forwardingTestOpen,
   frameGuardrail,
+  frameHandOver,
   frameOf,
   frameSteer,
   frameWhisper,
@@ -8591,6 +8618,7 @@ export {
   industryOf,
   industryWords,
   initialsOf,
+  injectedTurn,
   inviteState,
   isActivityNoise,
   isCarrier,
