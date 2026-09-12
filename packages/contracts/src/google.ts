@@ -154,8 +154,8 @@ export function listingLine(l: { name: string; rating: number | null; review_cou
 
 /** When the listing was read, in words — the fact the owner wants when a number looks stale. */
 export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_error">, nowMs: number): string {
-  if (l.check_error && l.checked_at) return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} — tried again every hour`;
-  if (l.check_error) return "Google could not be read yet — tried again every hour";
+  if (l.check_error && l.checked_at) return `Google could not be read since ${agoWords(Date.parse(l.checked_at), nowMs)} — read again once a day`;
+  if (l.check_error) return "Google could not be read yet — read again once a day";
   if (l.checked_at) return `Checked ${agoWords(Date.parse(l.checked_at), nowMs)}`;
   return "Not read yet";
 }
@@ -164,8 +164,8 @@ export function checkedWords(l: Pick<GoogleListingDto, "checked_at" | "check_err
 export function connectionWords(c: GoogleConnectionDto, nowMs: number): string {
   const who = c.google_email ? `Connected as ${c.google_email}` : "Connected";
   if (!c.location_name) return `${who} · choose the location to finish`;
-  if (c.sync_error && c.last_synced_at) return `${who} · could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} — tried again every hour`;
-  if (c.sync_error) return `${who} · could not sync yet — tried again every hour`;
+  if (c.sync_error && c.last_synced_at) return `${who} · could not sync since ${agoWords(Date.parse(c.last_synced_at), nowMs)} — read again once a day`;
+  if (c.sync_error) return `${who} · could not sync yet — read again once a day`;
   if (c.last_synced_at) return `${who} · synced ${agoWords(Date.parse(c.last_synced_at), nowMs)}`;
   return `${who} · not synced yet`;
 }

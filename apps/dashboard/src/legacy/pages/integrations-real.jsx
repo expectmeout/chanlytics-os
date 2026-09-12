@@ -81,7 +81,7 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
         )}
       </span>
       <span className={`pill ${CONNECTION_PILL[r.tone] || ""}`}>{r.tone === "ok" && <span className="dot" />}{r.stateWords}</span>
-      {r.kind === "google_listing" && owner && !armed && (
+      {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
         <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>
       )}
       {mayPress(r.verb) && !armed && (
@@ -216,13 +216,6 @@ const PaneIntegrationsReal = () => {
               {r.body === "business_record" && <window.BusinessRecordForm line={ownLine} flash={flash} />}
             </React.Fragment>
           ))}
-          {g === "connected" && list.some((r) => r.kind === "whatsapp" || r.kind === "phone") && (
-            <div className="set-row">
-              <div className="set-row-info">
-                <span className="set-row-hint">Switching a number off means messages to it are neither answered nor recorded — Chanlytics is told they are arriving, you are not. It is an operator action for now, not a button here.</span>
-              </div>
-            </div>
-          )}
           {g === "connected" && list.some((r) => r.kind === "google_listing") && (
             <div className="set-row">
               <div className="set-row-info">

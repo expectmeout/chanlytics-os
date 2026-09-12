@@ -195,6 +195,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") && wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"), "WhatsApp: with who they are");
   const inbound = readCode("apps/edge/api/retell-inbound.ts");
+  assert.ok(inbound.includes('void alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {});'), "a call for a switched-off channel tells the platform, as a text does");
   assert.ok(inbound.includes("const visits = await visitsFor(rt, { phone, name: lead.name });") && inbound.includes("if (visits) parts.push(visits);"), "phone: in the caller context");
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"]) assert.ok(page.includes(`data-testid="${id}"`), id);

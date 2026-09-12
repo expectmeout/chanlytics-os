@@ -22,6 +22,7 @@ import { pg } from "../lib/pg.js";
 import { resolveChannel, readLeadContext, describeLead } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsFor, visitsFor } from "../lib/availability.js";
+import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
 
 /**
@@ -89,6 +90,10 @@ export async function POST(request: Request): Promise<Response> {
       // costs a returning caller their recognition; the alternative costs a
       // stranger their privacy.
       L.warn("inbound_ctx_unrouted");
+      // The platform is told, as it is for a text: a call answered with no
+      // facts is a customer nobody knows about. Throttled per agent; never
+      // waited for -- Retell gives this webhook ten seconds.
+      void alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {});
     } else {
       // Both reads at once. Retell gives this webhook ten seconds before it
       // gives up on the call, and two round trips in series is how a slow

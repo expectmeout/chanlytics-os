@@ -587,7 +587,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     const connected = i.google.connected === true;
     const reach = connected ? "Business Profile connected — every review, replies from Reports" : "New reviews reach your bell and Reports";
     if (g && g.check_error) {
-      row({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} — it is tried again every hour.`, details: [], verb: { label: "Open Reports", to: "reports" } });
+      row({ id: "google", icon: "star", title, state: "waiting_them", stateWords: "Waiting on Google", required: false, sentence: `${g.name} is on record, but Google could not be read${g.checked_at ? ` since ${agoWords(Date.parse(g.checked_at), nowMs)}` : " yet"} — it is read again once a day.`, details: [], verb: { label: "Open Reports", to: "reports" } });
     } else if (g) {
       row({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach], verb: { label: "Open Reports", to: "reports" } });
     } else if (i.google.places !== false) {

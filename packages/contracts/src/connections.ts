@@ -10,6 +10,7 @@
  * this says what is joined. Both derive from the same facts and cannot
  * disagree. Pure: the page feeds it window globals, the tests fixtures.
  */
+import { numberHealth } from "./broadcasts";
 import { channelFor, type ChannelVM } from "./channels";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "./google";
 import type { LineDto } from "./setup";
@@ -191,7 +192,13 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
   // WhatsApp: the channel row when there is one; Meta's door when there is not.
   const wa = channel("whatsapp");
   if (wa) {
-    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: wa.on ? "connected" : "off", stateWords: wa.on ? "On" : "Off", sentence: wa.healthLabel, verb: { label: "Messages", to: "messages", who: "operator" } }));
+    // What Meta has said about the number, in the words Broadcasts, Playbooks
+    // and the assistant already use: a flagged number is exactly the "joined
+    // but not working" the attention state exists for.
+    const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
+    const flagged = wa.on && h.tone === "danger";
+    const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
+    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: !wa.on ? "off" : flagged ? "attention" : "connected", stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On", sentence: `${wa.healthLabel}${health}`, verb: { label: "Messages", to: "messages", who: "operator" } }));
   } else if (i.whatsapp === undefined) {
     out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: null, state: "none", stateWords: "Not connected", sentence: "Checking whether Chanlytics can connect a number…", verb: null }));
   } else if (i.whatsapp?.ready) {
