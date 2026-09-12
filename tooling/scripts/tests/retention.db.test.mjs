@@ -61,5 +61,9 @@ test("purge_events drops every evidence kind past the contract's days, keeps the
   const isEvidence = (k) => EVENT_EVIDENCE_KINDS.includes(k);
   assert.deepEqual(left.filter((e) => isEvidence(e.kind) && e.data.age === "old"), [], "every old evidence row went");
   assert.deepEqual(left.filter((e) => isEvidence(e.kind) && e.data.age === "young").map((e) => e.kind).sort(), [...EVENT_EVIDENCE_KINDS].sort(), "a day inside the contract stays");
-  assert.deepEqual(left.filter((e) => !isEvidence(e.kind)).map((e) => e.kind).sort(), RECORD, "the record is never purged");
+  // Creating the workspace wrote workspace.created too (00109); the record is
+  // everything that is not evidence, so it is on the list by the same rule.
+  const record = left.filter((e) => !isEvidence(e.kind)).map((e) => e.kind);
+  for (const k of RECORD) assert.ok(record.includes(k), `${k} is the record and stays`);
+  assert.ok(record.includes("workspace.created"), "the workspace's own first event stays");
 });
