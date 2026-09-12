@@ -39,13 +39,17 @@ test("the contract: a tested, unactivated receptionist offers Activate and says 
 });
 
 /* ---- the page itself, rendered without a browser ---- */
-const calls = { activate: [], flash: [], nav: [] };
+const calls = { activate: [], deactivate: [], refresh: 0, flash: [], nav: [] };
 globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
   location: { origin: "https://app.chanlytics.com", hash: "#/admin/setup" },
   __SETUP: { dto, role: "owner", vm, fetchedAt: NOW },
-  __setup: { activate: async (kind) => { calls.activate.push(kind); return { ok: true, message: "" }; } },
+  __setup: {
+    activate: async (kind) => { calls.activate.push(kind); return { ok: true, message: "" }; },
+    deactivate: async (kind) => { calls.deactivate.push(kind); return { ok: true, message: "" }; },
+    refresh: async () => { calls.refresh += 1; },
+  },
   __billing: {},
   __google: {},
   __forwarding: { codes: {}, testOpen: () => false, carriers: [], modes: [], carrierWords: {}, modeWords: {}, display: (x) => x, ago: () => "" },
@@ -95,4 +99,33 @@ test("the page: the row's Activate reaches the bridge with the capability's name
   assert.deepEqual(calls.activate, ["voice"]);
   assert.equal(calls.flash.length, 1, "the owner is told once");
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
+});
+
+test("the page: a row that dials is not itself a dial, an activated row offers Switch off and it reaches the bridge", async () => {
+  const before = calls.deactivate.length;
+  globalThis.window.__SETUP = { dto, role: "owner", vm: setupSteps({ ...dto, activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }], later: [] }, NOW), fetchedAt: NOW };
+  const tree = mount();
+  let row = null;
+  walk(tree, (n) => { if (!row && n.props?.testid === "setup-row-receptionist") row = n.props; });
+  assert.ok(row, "the receptionist row");
+  assert.equal(row.cta.label, "Call it");
+  assert.equal(row.onOpen, undefined, "the row itself does not dial; only its button does");
+  assert.equal(row.also.label, "Switch off");
+  await row.also.onClick();
+  assert.deepEqual(calls.deactivate.slice(before), ["voice"]);
+  let nav = null;
+  walk(tree, (n) => { if (!nav && n.props?.testid === "setup-row-team") nav = n.props; });
+  assert.equal(typeof nav.onOpen, "function", "a row that navigates is a click target");
+  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+});
+
+test("the page: a failed read draws a card with a retry, and the retry reads again", async () => {
+  globalThis.window.__SETUP = null;
+  const tree = mount();
+  let retry = null;
+  walk(tree, (n) => { if (!retry && n.props?.["data-testid"] === "setup-retry") retry = n.props; });
+  assert.ok(retry, "a retry on the failed card");
+  await retry.onClick();
+  assert.equal(calls.refresh, 1);
+  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
 });

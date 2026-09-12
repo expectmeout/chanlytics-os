@@ -81,12 +81,14 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   // Settings FIRST: it carries the version the next save has to send. Today
   // states the workspace's facts; hours, closures, rules and services are the
   // Calendar's too.
-  "PUT settings": () => [settingsOverride, todayOverride, calendarOverride],
+  // Name, hours, services, the hand-off number and the calendar feed are Setup rows too.
+  "PUT settings": () => [settingsOverride, todayOverride, calendarOverride, setupOverride],
   "PUT policies": settings,
   "POST team/invite": settings,
   "PATCH team/[id]": settings,
   "DELETE team/[id]": settings,
-  "POST channels/whatsapp/connect": settings,
+  // Connections repaints, and so does the Setup row that said "Connect".
+  "POST channels/whatsapp/connect": () => [settingsOverride, setupOverride],
   "PUT notifications": () => [notificationsOverride],
   // Setup, lines, billing, Google.
   "POST capabilities/[kind]": setup,

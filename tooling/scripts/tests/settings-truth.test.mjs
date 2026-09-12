@@ -25,7 +25,7 @@ test("F4: a save re-reads the settings surface, so the next save carries the new
   const fn = verbsBridge.slice(start, end === -1 ? undefined : end);
   assert.ok(fn.includes('(deps.client ?? api())("PUT settings", { body: { config, version }, onAccepted })'), "the save goes through the client, so the map re-reads after it");
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
-  assert.deepEqual(AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar"], "REGRESSION: the second save in a row was a 409 — settings first, for the version");
+  assert.deepEqual(AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar", "setup"], "REGRESSION: the second save in a row was a 409 — settings first, for the version");
   assert.ok(!fn.includes("await refresh();"), "the generic refresh never re-read this pane");
 });
 

@@ -279,6 +279,19 @@ const PaneSetup = () => {
   const [forwarding, setForwarding] = React.useState(false);
   const [finder, setFinder] = React.useState(false);
   const S = window.__SETUP;
+  if (S === null) {
+    // The read failed: say so, and offer the retry Connections offers, instead of "Reading…" for ever.
+    return (
+      <section className="fl-card set-card" data-testid="setup-failed">
+        <div className="fl-card-head"><span className="fl-card-title">Setup</span><span className="fl-card-sub">Couldn't be read right now</span></div>
+        <div className="set-row">
+          <div className="set-row-info"><span className="set-row-hint">The receptionist keeps answering; this page just can't read your workspace at the moment.</span></div>
+          <button className="btn btn-sm" onClick={() => window.__setup && window.__setup.refresh && window.__setup.refresh()} data-testid="setup-retry">Retry</button>
+        </div>
+        {toastNode}
+      </section>
+    );
+  }
   if (!S) {
     return (
       <section className="fl-card set-card" data-testid="setup-loading">
@@ -326,6 +339,12 @@ const PaneSetup = () => {
       if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can activate a capability.</> }); return; }
       const r = await window.__setup.activate(verb.to.slice("verb:activate:".length));
       flash({ msg: r.ok ? <>Activated — it is yours to use, and Setup says so.</> : <>{r.message}</> });
+      return;
+    }
+    if (verb.to.startsWith("verb:deactivate:")) {
+      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can switch a capability off.</> }); return; }
+      const r = await window.__setup.deactivate(verb.to.slice("verb:deactivate:".length));
+      flash({ msg: r.ok ? <>Switched off — the record stays, and you can activate it again whenever you like.</> : <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("tel:")) { window.location.href = verb.to; return; }
@@ -383,8 +402,12 @@ const PaneSetup = () => {
                 status={[r.stateWords, ...r.details]}
                 tone={SETUP_TONE[r.state] || ""}
                 cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb) } : null}
-                also={!r.required && r.state !== "ready" ? { label: r.later ? "Undo later" : "Later", onClick: () => window.__setup.later(r.id, !r.later), testid: `setup-later-${r.id}` } : null}
-                onOpen={() => act(r.verb)}
+                also={r.undo
+                  ? { label: r.undo.label, onClick: () => act(r.undo), testid: `setup-undo-${r.id}` }
+                  : !r.required && r.state !== "ready" ? { label: r.later ? "Undo later" : "Later", onClick: () => window.__setup.later(r.id, !r.later), testid: `setup-later-${r.id}` } : null}
+                // The row is a click target for a navigation, never for a dial:
+                // a mis-click on the receptionist row must not ring the shop.
+                onOpen={r.verb && !r.verb.to.startsWith("tel:") ? () => act(r.verb) : undefined}
                 testid={`setup-row-${r.id}`}
                 ctaTestid="setup-verb"
               />

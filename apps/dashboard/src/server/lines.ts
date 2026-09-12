@@ -80,6 +80,8 @@ export interface LinesStatus {
 const DEFAULT_COSTS = { local_number_month_usd: 1.15, toll_free_month_usd: 2.15 };
 let statusCache: { at: number; value: LinesStatus } | null = null;
 const STATUS_TTL_MS = 5 * 60_000;
+/** A "not ready" answer is remembered briefly: a slow edge or a credential set a minute ago must not hide "Get a line" for five. */
+const STATUS_NOT_READY_TTL_MS = 30_000;
 
 /**
  * May this deployment get lines, and with which provider. Cached for five
@@ -88,7 +90,7 @@ const STATUS_TTL_MS = 5 * 60_000;
  * "we set it up with you" rather than a verb that cannot work.
  */
 export async function linesStatus(now = Date.now()): Promise<LinesStatus> {
-  if (statusCache && now - statusCache.at < STATUS_TTL_MS) return statusCache.value;
+  if (statusCache && now - statusCache.at < (statusCache.value.ready ? STATUS_TTL_MS : STATUS_NOT_READY_TTL_MS)) return statusCache.value;
   const a = await edgeLines({ op: "status" }, 4_000);
   const b = a.body ?? {};
   const costs = b.costs && typeof b.costs === "object" ? { ...DEFAULT_COSTS, ...(b.costs as Partial<typeof DEFAULT_COSTS>) } : DEFAULT_COSTS;

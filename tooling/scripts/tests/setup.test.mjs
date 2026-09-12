@@ -6,8 +6,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute, LINE_STEP_WORDS } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { setupSteps, setupRoute, shouldLandOnSetup, SETUP_STATE_WORDS, formatPhoneDisplay, agoWords, EVENT_KINDS, serverNotificationRows, verbForRoute, LINE_STEP_WORDS, textingWords } from "@chanlytics/contracts";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const VOICE = "+13055550124";
@@ -205,7 +205,7 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   assert.deepEqual(row(noAlerts, "team").verb, { label: "Set alerts", to: "admin/notifications" });
   const alone = setupSteps(empty({ team: { members: 1, invitesOpen: 0, alertEmails: 1 } }), NOW);
   assert.equal(row(alone, "team").sentence, "Only you so far · alerts go to 1 address.");
-  assert.deepEqual(row(alone, "team").verb, { label: "Invite", to: "admin/workspace" });
+  assert.deepEqual(row(alone, "team").verb, { label: "Invite", to: "admin/team" }, "the roster lives on Team since it left the Business pane");
   const invited = setupSteps(empty({ team: { members: 1, invitesOpen: 1, alertEmails: 2 } }), NOW);
   assert.equal(row(invited, "team").state, "ready");
   assert.equal(row(invited, "team").sentence, "1 person · 1 invite open · alerts go to 2 addresses.");
@@ -338,7 +338,7 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
   }
   assert.ok(readCode("apps/dashboard/src/server/setup.ts").includes("lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
-  assert.ok(bridge.includes('refreshOnTables: ["lines", "notifications"]'));
+  assert.ok(bridge.includes('refreshOnTables: ["lines", "notifications", "tenant_channels", "capability_activations", "business_records", "billing_accounts", "google_connections"]'), "every table a row derives from repaints the page");
   for (const pin of ['"POST lines/search"', '"POST lines/buy"', '"POST lines/retry"']) assert.ok(bridge.includes(pin), pin);
   const page = readCode("apps/dashboard/src/legacy/pages/setup.jsx");
   for (const pin of ['verb.to === "verb:choose-line"', 'verb.to.startsWith("verb:retry-line:")', 'data-testid="setup-chooser"', 'data-testid="setup-buy"', "Get this number", 'window.canDo("team")']) assert.ok(page.includes(pin), pin);
@@ -468,3 +468,26 @@ test("a workspace that cannot spend AND has no card door is offered the thing th
   assert.equal(lineRow(direct).verb.to, "verb:choose-line");
 });
 
+
+test("texting on Setup: the sole proprietor waiting on the carriers' text reads that, hosting reads as with the carriers", () => {
+  const l = (sms_state) => ({ sms_state, reg_mock: false, reg_sole_prop: true });
+  assert.equal(textingWords(l("otp_waiting")).sentence, "The carriers texted your mobile — reply to that message from the handset itself and texting switches on; the code lasts a day.");
+  assert.equal(textingWords(l("hosting")).sentence, "Texting is with the carriers.");
+  assert.equal(textingWords(l("otp_waiting")).done, false);
+});
+
+test("an activated capability can be switched off from its row, and only then", () => {
+  const on = setupSteps(live(), NOW);
+  assert.deepEqual(row(on, "receptionist").undo, { label: "Switch off", to: "verb:deactivate:voice" });
+  assert.deepEqual(row(on, "whatsapp").undo, { label: "Switch off", to: "verb:deactivate:whatsapp" });
+  const off = setupSteps({ ...live(), activations: [] }, NOW);
+  assert.equal(row(off, "receptionist").undo, null, "nothing to switch off before it is on");
+  assert.equal(row(off, "whatsapp").undo, null);
+  assert.equal(row(setupSteps(empty(), NOW), "receptionist").undo, undefined, "a row that is not ready has no second act");
+});
+
+test("a save in Workspace and a WhatsApp connect repaint Setup too", async () => {
+  const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
+  assert.deepEqual(AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar", "setup"]);
+  assert.deepEqual(AFTER["POST channels/whatsapp/connect"]().map((o) => o.key), ["settings", "setup"]);
+});
