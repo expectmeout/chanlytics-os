@@ -148,3 +148,29 @@ test("the batch is judged before it is walked: a source that is not one of the f
   assert.deepEqual(reset, { done: 1, failed: [], skipped: [] });
   assert.equal(door[0].p_source, CONSENT_RESET_SOURCE);
 });
+
+test("until 00110 is applied, a YES OFFERS by text is still recorded: the door is asked again without its evidence, and once, with it, afterwards", async () => {
+  const { ingestInbound } = await import(at("packages/db/src/repositories/ingest.ts"));
+  const inbound = { tenantId: A, channel: "whatsapp", identityExternalId: "15550001", phoneE164: "+15550001", waProfileName: null, messageExternalId: "wamid.1", type: "text", body: "YES OFFERS", channelTs: "2026-09-12T00:00:00Z", optInMarketing: true };
+  const result = { message_id: "m1", conversation_id: "c1", contact_id: "p1", is_new: true, processed: false, state: "open", paused_until: null, consent: "unknown", dnc: false };
+  const old = [];
+  const before = {
+    ingest_inbound: () => result,
+    // PostgREST, on a schema without the parameter: PGRST202, naming what it could not match.
+    set_marketing_consent: (a) => { old.push(a); if ("p_evidence" in a) throw new Error("Could not find the function public.set_marketing_consent(p_consent, p_contact_id, p_evidence, p_note, p_source, p_tenant_id) in the schema cache"); return {}; },
+  };
+  const out = await ingestInbound(fakeDb({}, {}, before), inbound);
+  assert.equal(out.contact_id, "p1", "the message itself was ingested");
+  assert.deepEqual(old.map((a) => [a.p_contact_id, a.p_consent, a.p_source, a.p_evidence ?? null]), [
+    ["p1", "opted_in", "customer_message", { channel: "whatsapp", message_external_id: "wamid.1", words: "YES OFFERS" }],
+    ["p1", "opted_in", "customer_message", null],
+  ], "asked with the proof, refused by name, asked again without it");
+  const fresh = [];
+  await ingestInbound(fakeDb({}, {}, { ingest_inbound: () => result, set_marketing_consent: (a) => { fresh.push(a); return {}; } }), inbound);
+  assert.equal(fresh.length, 1, "with 00110 in place, one call");
+  assert.deepEqual(fresh[0].p_evidence, { channel: "whatsapp", message_external_id: "wamid.1", words: "YES OFFERS" });
+  // Any other refusal is not retried: it is the door's own answer.
+  const other = [];
+  await ingestInbound(fakeDb({}, {}, { ingest_inbound: () => result, set_marketing_consent: (a) => { other.push(a); throw new Error("a yes to offers must be in writing"); } }), inbound);
+  assert.equal(other.length, 1);
+});

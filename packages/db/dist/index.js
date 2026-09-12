@@ -4608,15 +4608,16 @@ async function ingestInbound(db, p) {
   if (error) throw new Error(`ingest_inbound: ${error.message}`);
   const out = data;
   if (p.optInMarketing && out?.contact_id) {
-    const { error: mErr } = await db.rpc("set_marketing_consent", {
+    const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
       p_consent: "opted_in",
       p_source: "customer_message",
-      p_note: null,
-      // The proof (00110): where it came from, which message, what they wrote.
-      p_evidence: { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null }
-    });
+      p_note: null
+    };
+    const evidence = { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null };
+    let { error: mErr } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence });
+    if (mErr && /p_evidence/.test(mErr.message)) ({ error: mErr } = await db.rpc("set_marketing_consent", args));
     if (mErr) {
       console.error(JSON.stringify({
         level: "error",
