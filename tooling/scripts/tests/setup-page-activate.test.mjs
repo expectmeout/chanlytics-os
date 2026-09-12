@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps } from "@chanlytics/contracts";
+import { setupSteps, forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -39,7 +39,7 @@ test("the contract: a tested, unactivated receptionist offers Activate and says 
 });
 
 /* ---- the page itself, rendered without a browser ---- */
-const calls = { activate: [], deactivate: [], refresh: 0, flash: [], nav: [] };
+const calls = { activate: [], deactivate: [], refresh: 0, flash: [], nav: [], search: [], buy: [], fwSet: [], fwTest: [], find: [], link: [] };
 globalThis.Icon = "Icon";
 globalThis.React = { Fragment: "Fragment" };
 globalThis.window = {
@@ -49,10 +49,22 @@ globalThis.window = {
     activate: async (kind) => { calls.activate.push(kind); return { ok: true, message: "" }; },
     deactivate: async (kind) => { calls.deactivate.push(kind); return { ok: true, message: "" }; },
     refresh: async () => { calls.refresh += 1; },
+    lines: {
+      search: async (area) => { calls.search.push(area); return { ok: true, numbers: [{ e164: "+13055550142", friendly: "(305) 555-0142", locality: "Miami", region: "FL" }, { e164: "+13055550143", friendly: "(305) 555-0143", locality: "Miami", region: "FL" }], message: "" }; },
+      buy: async (number, area) => { calls.buy.push([number, area]); return { ok: true, queued: true, message: "" }; },
+      retry: async () => ({ ok: true, queued: true, message: "" }),
+    },
+    forwarding: {
+      set: async (o) => { calls.fwSet.push(o); return { ok: true, message: "" }; },
+      test: async (id) => { calls.fwTest.push(id); return { ok: true, message: "" }; },
+    },
   },
   __billing: {},
-  __google: {},
-  __forwarding: { codes: {}, testOpen: () => false, carriers: [], modes: [], carrierWords: {}, modeWords: {}, display: (x) => x, ago: () => "" },
+  __google: {
+    find: async (words) => { calls.find.push(words ?? null); return { ok: true, candidates: [{ place_id: "ChIJ-harbor", name: "Harbor Nails", address: "12 Bay St, Miami", maps_uri: "https://maps.example/harbor" }], query: words ?? "Harbor Nails 12 Bay St", fromFacts: !words }; },
+    link: async (placeId) => { calls.link.push(placeId); return { ok: true, read: true, message: "" }; },
+  },
+  __forwarding: { codes: forwardingCodes, testOpen: forwardingTestOpen, carriers: CARRIERS, modes: FORWARDING_MODES, carrierWords: CARRIER_WORDS, modeWords: MODE_WORDS, display: formatPhoneDisplay, ago: () => "a minute ago" },
   __DEMO_MODE: false,
   usePPToast: () => [null, (m) => calls.flash.push(m)],
   appNavigate: (to) => calls.nav.push(to),
@@ -63,11 +75,21 @@ globalThis.window = {
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
 const Page = globalThis.window.PaneSetup;
 
+/** The component's cells live across renders, as React's do, so a click that sets state shows on the next mount; `fresh()` starts a component over. */
+let cells = [];
+const fresh = () => { cells = []; };
 function mount() {
-  const cells = [];
   let seq = 0;
   Object.assign(globalThis.React, {
-    createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+    // A function component is rendered in place, as React renders it, so what
+    // a row opens under itself (the chooser, the card, the finder) is in the
+    // tree; the element itself is kept too, so a row's props stay readable.
+    createElement: (type, p, ...kids) => {
+      const props = { ...(p || {}), children: kids.flat(Infinity) };
+      const node = { type, props };
+      if (typeof type === "function") node.rendered = type(props);
+      return node;
+    },
     useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
     useState: (init) => {
       const k = seq++;
@@ -79,15 +101,20 @@ function mount() {
       if (!(k in cells)) cells[k] = init;
       return [cells[k], (a) => { cells[k] = red(cells[k], a); }];
     },
-    useEffect: () => {},
+    // An effect runs once per component, on its first mount, as React runs it on arrival.
+    useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
   });
   seq = 0;
   return Page();
 }
+const byTestId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+const allByTestId = (tree, id) => { const hits = []; walk(tree, (n) => { if (n.props?.["data-testid"] === id) hits.push(n); }); return hits; };
+const tick = () => new Promise((r) => setTimeout(r, 0));
 const walk = (n, fn) => {
   if (n == null || typeof n !== "object") return;
   fn(n);
   for (const k of n.props?.children ?? []) walk(k, fn);
+  if (n.rendered) walk(n.rendered, fn);
 };
 
 test("the page: the row's Activate reaches the bridge with the capability's name, and the owner is told", async () => {
@@ -128,4 +155,93 @@ test("the page: a failed read draws a card with a retry, and the retry reads aga
   await retry.onClick();
   assert.equal(calls.refresh, 1);
   globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+});
+
+/* ---- the chooser: find numbers in an area code, pick one, get it ---- */
+const noLine = {
+  ...dto,
+  channels: { ...dto.channels, voice: { present: false, active: false, number: null, quality: null, lastInboundAt: null } },
+  lines: { rows: [], ready: true, provider: "twilio", costs: { local_number_month_usd: 1.15 } },
+  billing: { ready: false, mode: "direct", status: "active", trial_end: null, current_period_end: null, trial_days: 14 },
+};
+
+test("the page: the chooser finds numbers in an area code, a pick opens the confirm, and Get this number reaches the bridge with the number and the area", async () => {
+  fresh();
+  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  let tree = mount();
+  const lineRow = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-line") r = n.props; }); return r; })();
+  assert.equal(lineRow.cta.label, "Get a line");
+  await lineRow.cta.onClick();
+  tree = mount();
+  assert.ok(byTestId(tree, "setup-chooser"), "the chooser opens under the row");
+  byTestId(tree, "setup-area").props.onChange({ target: { value: "305" } });
+  tree = mount();
+  await byTestId(tree, "setup-find").props.onClick();
+  assert.deepEqual(calls.search, ["305"]);
+  tree = mount();
+  const numbers = allByTestId(tree, "setup-number");
+  assert.equal(numbers.length, 2, "the numbers found");
+  numbers[1].props.onClick();
+  tree = mount();
+  const confirm = byTestId(tree, "setup-confirm");
+  assert.ok(confirm, "a pick opens the confirm");
+  const before = calls.flash.length;
+  await byTestId(tree, "setup-buy").props.onClick();
+  assert.deepEqual(calls.buy, [["+13055550143", "305"]]);
+  assert.match(String(calls.flash[before].msg.props.children.join("")), /is yours — setting it up now/);
+});
+
+/* ---- forwarding: save the carrier and the mode, read the code, open the test window ---- */
+test("the page: the forwarding card saves the number, the carrier and the mode through the bridge, then shows the code and opens the test window", async () => {
+  fresh();
+  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  let tree = mount();
+  const keepRow = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-keep") r = n.props; }); return r; })();
+  assert.equal(keepRow.cta.label, "Set up forwarding");
+  await keepRow.cta.onClick();
+  tree = mount();
+  assert.ok(byTestId(tree, "setup-forwarding"), "the card opens under the row");
+  byTestId(tree, "setup-fw-number").props.onChange({ target: { value: "(305) 555-0100" } });
+  tree = mount();
+  byTestId(tree, "setup-fw-carrier-att").props.onClick();
+  tree = mount();
+  byTestId(tree, "setup-fw-mode-always").props.onClick();
+  tree = mount();
+  await byTestId(tree, "setup-fw-save").props.onClick();
+  assert.deepEqual(calls.fwSet, [{ number: "(305) 555-0100", carrier: "att", mode: "always", test_from: "" }]);
+
+  // Saved: the row carries the forwarded line, and the card shows the carrier's code and the test.
+  fresh();
+  const saved = { ...dto, lines: { ...dto.lines, rows: [...dto.lines.rows, { id: "f1", e164: "+13055550100", kind: "forwarded", provider: "carrier", area_code: 305, voice_state: "none", sms_state: "none", reg_mock: false, whatsapp_state: "none", port_state: "none", forwarding_state: "instructed", step: null, last_error: null, state_since: ago(1), created_at: ago(1), forwarding: { carrier: "att", mode: "always", destination_e164: "+13055550101", test_from: null, test_started_at: null, test_until: null, verified_at: null } }] } };
+  globalThis.window.__SETUP = { dto: saved, role: "owner", vm: setupSteps({ ...saved, later: [] }, NOW), fetchedAt: NOW };
+  tree = mount();
+  const row2 = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-keep") r = n.props; }); return r; })();
+  assert.equal(row2.cta.label, "Test it");
+  await row2.cta.onClick();
+  assert.deepEqual(calls.fwTest, ["f1"], "Test it on the row opens the window through the bridge");
+  tree = mount();
+  const code = byTestId(tree, "setup-fw-code");
+  assert.ok(code, "the card shows the code once a line is saved");
+  assert.equal(byTestId(tree, "setup-fw-dial").props.href, forwardingCodes("att", "always", "+13055550101").on.tel, "the carrier's own code, to dial");
+});
+
+/* ---- the listing finder: Google is asked with the facts on record, and one tap links ---- */
+test("the page: the finder asks Google with the facts on record on arrival, and This is it links the listing through the bridge", async () => {
+  fresh();
+  const google = { ...dto, google: { ready: true, places: true, listing: null } };
+  globalThis.window.__SETUP = { dto: google, role: "owner", vm: setupSteps({ ...google, later: [] }, NOW), fetchedAt: NOW };
+  let tree = mount();
+  const gRow = (() => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-google") r = n.props; }); return r; })();
+  assert.ok(gRow, "the Google row is drawn when Places is ready");
+  assert.equal(gRow.cta.label, "Find it");
+  await gRow.cta.onClick();
+  tree = mount();
+  assert.ok(byTestId(tree, "setup-google-finder"), "the finder opens under the row");
+  await tick();
+  assert.deepEqual(calls.find, [null], "asked with the facts on record, no words of the owner's");
+  tree = mount();
+  const place = byTestId(tree, "setup-place");
+  assert.ok(place, "what Google found");
+  await byTestId(tree, "setup-place-link").props.onClick();
+  assert.deepEqual(calls.link, ["ChIJ-harbor"]);
 });

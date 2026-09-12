@@ -438,3 +438,14 @@ test("a released line leaves a disabled route beside the active one, and the pic
   assert.match(readCode("apps/dashboard/src/server/setup.ts"), /select\("kind, status, number_e164, config, created_at"\)/, "or the tie-break has nothing to read");
   assert.match(readCode("packages/contracts/src/connections.ts"), /const channel = \(kind: string\) => channelFor\(i\.channels, kind\);/);
 });
+
+test("a failure at the vault is named as one: no Retry on the row, the refusal says why, the capability says why", async () => {
+  const { lineCredentialFailure, capabilityStatus } = await import("@chanlytics/contracts");
+  assert.equal(lineCredentialFailure("keeping the line's credentials: permission denied for schema vault"), true);
+  assert.equal(lineCredentialFailure("the subaccount's token is missing from the vault"), true);
+  assert.equal(lineCredentialFailure("Twilio 21422: number not available"), false);
+  assert.equal(lineCredentialFailure(null), false);
+  const wall = line({ voice_state: "failed", last_error: "keeping the line's credentials: permission denied for schema vault" });
+  assert.match(lineRetryRefusal(wall, NOW), /a retry cannot help until a person at Chanlytics restores them/);
+  assert.equal(lineRetryRefusal(line({ voice_state: "failed", last_error: "Twilio 21422" }), NOW), null, "a carrier failure is still the owner's to retry");
+});
