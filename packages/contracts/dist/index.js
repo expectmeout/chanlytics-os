@@ -7387,6 +7387,17 @@ function platformLineActions(l, nowMs = Date.now()) {
   }
   return out;
 }
+function platformHealthOf(rows, backlog, now = /* @__PURE__ */ new Date()) {
+  const unhealthy = (rows ?? []).filter((r) => !r.healthy).map((r) => ({ sweep: r.sweep, detail: r.detail }));
+  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
+}
+function platformHealthWords(h) {
+  if (h.backlog === null) return "The platform's health could not be read just now.";
+  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
+  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
+  if (!late && !clocks) return "Every clock is running and nothing is waiting.";
+  return [clocks, late].filter(Boolean).join(" \xB7 ");
+}
 function platformActionWarning(a) {
   const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
   return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
@@ -8644,6 +8655,8 @@ export {
   planBilling,
   planRun,
   platformActionWarning,
+  platformHealthOf,
+  platformHealthWords,
   platformLineActions,
   platformNumber,
   platformRows,

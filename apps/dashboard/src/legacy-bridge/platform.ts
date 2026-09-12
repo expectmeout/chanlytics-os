@@ -14,8 +14,8 @@
 import {
   platformRows, platformSummary, platformNumber, setupSteps,
   platformLineActions, platformActionWarning,
-  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS,
-  type PlatformTenantDto, type SetupDto, type PlatformLineAction,
+  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, platformHealthWords,
+  type PlatformTenantDto, type SetupDto, type PlatformLineAction, type PlatformHealth,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 
@@ -37,8 +37,10 @@ export interface PlatformTenantDetail {
 }
 
 export interface PlatformApi {
-  /** Every workspace, as facts. `ok: false` is the ordinary answer for anybody who is not an admin. */
-  list(): Promise<{ ok: boolean; tenants: PlatformTenantDto[]; message: string }>;
+  /** Every workspace, as facts, and whether the machinery under them is running. `ok: false` is the ordinary answer for anybody who is not an admin. */
+  list(): Promise<{ ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; message: string }>;
+  /** One sentence for the health card. Pure, from contracts. */
+  healthWords: typeof platformHealthWords;
   /** One workspace: its identity, the Setup its owner sees, and what has happened lately. */
   one(tenantId: string): Promise<{ ok: boolean; detail: PlatformTenantDetail | null; message: string }>;
   /** The judgement and the words. Pure, from contracts. */
@@ -69,8 +71,11 @@ export function installPlatform(win: Window = window): void {
   win.__platform = {
     async list() {
       const r = await api()("GET platform/overview");
-      if (!r.ok) return { ok: false, tenants: [], message: r.message };
-      return { ok: true, tenants: r.data.tenants, message: "" };
+      if (!r.ok) return { ok: false, tenants: [], health: null, message: r.message };
+      // `health` rides on this read rather than a route of its own: the same
+      // question, the same door, and the page that lists the workspaces is the
+      // one that should say whether the machinery under them is running.
+      return { ok: true, tenants: r.data.tenants, health: r.data.health ?? null, message: "" };
     },
     async one(tenantId) {
       const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
@@ -102,6 +107,7 @@ export function installPlatform(win: Window = window): void {
       return { ok: true, message: "Done. This page will show it on the next read." };
     },
     rows: platformRows,
+    healthWords: platformHealthWords,
     summary: platformSummary,
     verdicts: PLATFORM_VERDICTS,
     quietDays: PLATFORM_QUIET_DAYS,

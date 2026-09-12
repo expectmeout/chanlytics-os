@@ -91,7 +91,15 @@ test("behind the door: the overview is the database's own list; a workspace's pa
   const tables = { memberships: both("owner", "owner") };
   const rows = [{ id: A, slug: "harbor", name: "Harbor", status: "active" }, { id: B, slug: "bayside", name: "Bayside", status: "active" }];
   const out = await overview.GET.run(get(), ctxFor(tables, {}, admin(true, { platform_overview: () => rows })));
-  assert.deepEqual(out, { tenants: rows });
+  assert.deepEqual(out.tenants, rows);
+  // The platform's health rides on this same read. It goes through the
+  // SERVICE-role client, which this test has no handle on, so both of its rpcs
+  // fail here — and that is the property worth proving: the back office is
+  // opened precisely when something is wrong, so a health read that cannot
+  // answer must not take the page down with it.
+  assert.equal(out.health.backlog, null, "unread, which is not the same as zero");
+  assert.equal(out.health.ok, false, "and unread is never reported as all clear");
+  assert.deepEqual(out.health.unhealthy, []);
   await refused(tenant.GET.run(get(), ctxFor(tables, { id: "not-a-uuid" }, admin(true))), "not_found", 404, "That workspace does not exist.");
   for (const route of [refile, release, retry]) {
     await refused(route.POST.run(send("POST", { tenant_id: "x", line_id: L1 }), ctxFor(tables, {}, admin(true))), "not_found", 404, "That workspace does not exist.");

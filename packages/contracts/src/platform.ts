@@ -440,6 +440,74 @@ export function platformLineActions(
 }
 
 /** The one line a confirmation leads with: what it costs, then whether it can be undone. */
+/* ------------------------------------------------ the platform's own health */
+
+/**
+ * Whether the machinery under every workspace is running.
+ *
+ * The database has answered this for a while and nobody in the product could
+ * see it: `sweep_health()` and `jobs_backlog()` were read by the health sweep
+ * and by /api/health, both of which speak to a monitor outside the product,
+ * and referenced nowhere in the dashboard. The platform knew whether it was
+ * healthy and never told the person whose business depends on it.
+ *
+ * It is the BACK OFFICE's, not an owner's. Both functions count across every
+ * workspace, so a salon owner shown "forty jobs are late" has been told
+ * something that is not about them, cannot be acted on by them, and says
+ * something about other customers' load.
+ *
+ * The judgement lives here so the outside monitor and the back office cannot
+ * come to different conclusions from the same two rows. Their WIRE shapes
+ * still differ on purpose: /api/health's body is read by a pinger that was
+ * configured against it.
+ */
+
+/** One registered clock, as `sweep_health()` reports it. */
+export interface SweepHealthRow {
+  sweep: string;
+  healthy: boolean;
+  detail: string | null;
+  /** When it last spoke: the request it enqueued, or its last successful run. */
+  last_request_at: string | null;
+  status_code: number | null;
+  scheduled: boolean;
+  alerted_at: string | null;
+}
+
+export interface PlatformHealth {
+  ok: boolean;
+  /** The clocks that are not healthy, in the order the function returned them. */
+  unhealthy: Array<{ sweep: string; detail: string | null }>;
+  /** Due jobs nobody has claimed for two minutes. Null when it could not be read. */
+  backlog: number | null;
+  checkedAt: string;
+}
+
+/**
+ * Healthy is every clock healthy AND nothing piling up.
+ *
+ * A backlog that could not be READ is not a backlog of zero: null keeps the
+ * verdict false, because "I could not find out" and "all clear" are the two
+ * answers a health check must never confuse.
+ */
+export function platformHealthOf(
+  rows: readonly SweepHealthRow[] | null | undefined,
+  backlog: number | null,
+  now = new Date(),
+): PlatformHealth {
+  const unhealthy = (rows ?? []).filter((r) => !r.healthy).map((r) => ({ sweep: r.sweep, detail: r.detail }));
+  return { ok: unhealthy.length === 0 && backlog === 0, unhealthy, backlog, checkedAt: now.toISOString() };
+}
+
+/** One sentence for the card: what is wrong, or that nothing is. */
+export function platformHealthWords(h: PlatformHealth): string {
+  if (h.backlog === null) return "The platform's health could not be read just now.";
+  const late = h.backlog > 0 ? `${h.backlog} job${h.backlog === 1 ? "" : "s"} late` : null;
+  const clocks = h.unhealthy.length ? `${h.unhealthy.length} clock${h.unhealthy.length === 1 ? "" : "s"} not running` : null;
+  if (!late && !clocks) return "Every clock is running and nothing is waiting.";
+  return [clocks, late].filter(Boolean).join(" · ");
+}
+
 export function platformActionWarning(a: PlatformLineActionVM): string {
   const parts = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
   return parts.length ? parts.join(" ") : "Nothing is spent, and it can be done again.";

@@ -1,5 +1,5 @@
 import { read, platform } from "@/server/route";
-import { platformOverview } from "@/server/platform";
+import { platformHealth, platformOverview } from "@/server/platform";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -15,7 +15,19 @@ import { platformOverview } from "@/server/platform";
  * database, and the handle the reads below take exists only on the far side
  * of it -- so a route cannot reach them without passing it.
  */
+/**
+ * The platform's own health rides on this read rather than a route of its own.
+ *
+ * It is the same question — the state of the platform — asked by the same
+ * person through the same door, and the page that shows the workspaces is the
+ * page that should say whether the machinery under them is running. A second
+ * endpoint would mean a second round trip on open, a policy entry and a client
+ * key, to answer half of what this one already answers.
+ */
 export const GET = read({
   scope: platform,
-  handle: async ({ office }) => ({ tenants: await platformOverview(office) }),
+  handle: async ({ office }) => {
+    const [tenants, health] = await Promise.all([platformOverview(office), platformHealth(office)]);
+    return { tenants, health };
+  },
 });

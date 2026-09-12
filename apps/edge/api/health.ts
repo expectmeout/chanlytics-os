@@ -11,6 +11,7 @@
  * so a noisy pinger cannot become a load on the database.
  */
 import { pg } from "../lib/pg.js";
+import { platformHealthOf } from "../lib/workspace/contracts.js";
 import type { SweepHealthRow } from "../lib/sweep-health.js";
 
 const CACHE_MS = 10_000;
@@ -39,10 +40,19 @@ export async function judgeHealth(db: HealthDb, now = new Date()): Promise<{ sta
     return { status: 503, body: { ok: false, unhealthy: [], jobs_backlog: null, checked_at, reason: "health_unreadable" } };
   }
   const rows = (Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
-  const unhealthy = rows.filter((r) => !r.healthy).map((r) => r.sweep);
   const jobs_backlog = backlog.error ? null : typeof backlog.data === "number" ? backlog.data : null;
-  const ok = unhealthy.length === 0 && jobs_backlog === 0;
-  return { status: ok ? 200 : 503, body: { ok, unhealthy, jobs_backlog, checked_at } };
+  // ONE JUDGEMENT, shared with the back office, so an outside monitor and the
+  // person reading the page cannot reach different conclusions from the same
+  // two rows.
+  //
+  // The WIRE SHAPE IS UNCHANGED on purpose: this body is read by a pinger
+  // somebody configured against it, and `unhealthy` there is a list of names.
+  // Sharing the rule is worth doing; changing what a monitor parses is not.
+  const judged = platformHealthOf(rows, jobs_backlog, now);
+  return {
+    status: judged.ok ? 200 : 503,
+    body: { ok: judged.ok, unhealthy: judged.unhealthy.map((u) => u.sweep), jobs_backlog, checked_at },
+  };
 }
 
 function answer(status: number, body: string): Response {
