@@ -661,7 +661,6 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
 // six money cells became six measured facts, the agent queue became what the
 // receptionist is doing right now, and the timeline is the record itself.
 
-const PP_TONE_CLASS = { escalated: "escalated", queued: "approval", snoozed: "scheduled", paused: "paused", silent: "paused", answering: "" };
 
 const PersonTimeline = ({ items, initials }) => {
   let lastDay = null;
@@ -936,8 +935,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                   {p.channels.map((ch, i) => <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : "chat"} primary={i === 0} size={11} />)}
                 </span>
                 <span className="cl-tag-stack" style={{ marginLeft: 4 }}>
-                  <ClientTag signal={p.consent.state === "opted_out"}>{p.consent.state === "opted_out" ? "Opted out" : p.consent.state === "opted_in" ? "Opted in" : "Consent unknown"}</ClientTag>
-                  <ClientTag>{p.stateLabel}</ClientTag>
+                  <StatePill kind="consent" value={p.consent.state} />
+                  <StatePill kind="person" value={p.state} label={p.stateLabel} />
                 </span>
               </div>
             </div>
@@ -1001,7 +1000,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               <div className="cl-prof-queue-body">
                 <div className="cl-prof-queue-line1">
                   <span className="cl-prof-queue-agent">Receptionist</span>
-                  <span className={`cl-prof-queue-tag ${PP_TONE_CLASS[tone] || ""}`}>{p.rightNow.title}</span>
+                  <StatePill kind="standing" value={tone} label={p.rightNow.title} />
                 </div>
                 <div className="cl-prof-queue-action">{p.rightNow.detail}</div>
               </div>

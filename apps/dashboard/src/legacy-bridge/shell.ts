@@ -5,7 +5,7 @@
  * chrome's words (contracts/chrome.ts) for the sidebar's menus and the
  * shortcuts sheet.
  */
-import { THEME_OPTIONS, SHORTCUTS, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, type ShellStatus } from "@chanlytics/contracts";
+import { THEME_OPTIONS, SHORTCUTS, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, type ShellStatus } from "@chanlytics/contracts";
 import { clearSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
 
@@ -25,6 +25,8 @@ export interface ChromeWords {
   workspaceHotkey: typeof workspaceHotkey;
   /** A toast's tone, icon, role and lifetime: decided in contracts, drawn by usePPToast. */
   toast: typeof toastShape;
+  /** A state's tone and words: decided in contracts, drawn by StatePill. */
+  state: typeof stateOf;
   /** Whether a key press belongs to a field being typed in. */
   typing(target: EventTarget | null): boolean;
 }
@@ -77,6 +79,7 @@ export function installShell(win: Window = window): void {
     statusLine: shellStatusLine,
     workspaceHotkey,
     toast: toastShape,
+    state: stateOf,
     typing(target) {
       const el = target as { tagName?: string; isContentEditable?: boolean } | null;
       return isTypingTarget(el?.tagName ?? null, !!el?.isContentEditable);

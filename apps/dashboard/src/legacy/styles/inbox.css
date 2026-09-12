@@ -294,17 +294,8 @@
   flex-shrink: 0;
 }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
-.ix-needs-pill, .ix-escalated-pill {
-  font-size: 9.5px;
-  font-weight: 500;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 1px 6px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-.ix-needs-pill { color: var(--accent); background: var(--accent-soft); }
-.ix-escalated-pill { color: var(--warn); background: var(--warn-soft); }
+/* The thread's state is the shared pill (StatePill); the list keeps it small. */
+.ix-state-pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
 
 .ix-thread-subject {
   font-size: 12px;

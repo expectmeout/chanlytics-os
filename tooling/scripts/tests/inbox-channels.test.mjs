@@ -44,6 +44,7 @@ test("the wiring: the page branches on the channel and reads the reason's senten
   for (const s of ["Needs you{thread.waited ? ` · waited ${thread.waited}` : \"\"}", "<>{thread.summary}</>", "I'll call them", "Nothing needed — hand it back to the receptionist", "thread.hasChat === false", "They have only phoned — there is no WhatsApp thread yet.", 'data-testid="ix-call-back"', "`Reply to ${thread.who}…`"]) assert.ok(page.includes(s), s);
   for (const gone of ["already sent a holding reply", "let the AI resume", "Reply as the salon", "Waiting on you{thread.waitingMin"]) assert.ok(!page.includes(gone), `${gone} is gone`);
   const pills = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
-  assert.ok(pills.includes("Customer wrote last") && pills.includes('pill-warn">Needs you<') && !pills.includes("Customer's turn"));
+  // The words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.
+  assert.ok(pills.includes('<StatePill kind="thread" value="open" />') && pills.includes('<StatePill kind="thread" value="escalated" />') && !pills.includes("Customer's turn"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('whatsapp: "WhatsApp", phone: "Phone"'), "the phone chip has a label");
 });

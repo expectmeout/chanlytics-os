@@ -4145,7 +4145,7 @@ function todayDay(cal, playbooks, people = null) {
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);
   const picked = idx >= 0 ? cal.days.slice(idx, idx + 2) : [];
-  const stateOf = new Map((people?.rows ?? []).map((r) => [r.id, r.state]));
+  const stateOf2 = new Map((people?.rows ?? []).map((r) => [r.id, r.state]));
   const item = (b, allDay, phase) => ({
     id: b.id,
     start: allDay ? "All day" : clockLabel(b.t),
@@ -4155,7 +4155,7 @@ function todayDay(cal, playbooks, people = null) {
     person: b.person ? { id: b.person.id, name: b.person.name } : null,
     allDay,
     phase,
-    flag: b.person ? FLAG_WORDS[stateOf.get(b.person.id) ?? ""] ?? null : null
+    flag: b.person ? FLAG_WORDS[stateOf2.get(b.person.id) ?? ""] ?? null : null
   });
   const frames = picked.map((d) => {
     let nextTaken = false;
@@ -7116,10 +7116,10 @@ var TONE = {
   connected: "ok",
   attention: "warn",
   off: "warn",
-  waiting_you: "accent",
-  waiting_them: "accent",
-  none: "muted",
-  later: "muted"
+  waiting_you: "info",
+  waiting_them: "info",
+  none: "plain",
+  later: "plain"
 };
 var GROUP = {
   connected: "connected",
@@ -7266,12 +7266,12 @@ var PLATFORM_VERDICTS = {
   billing: { label: "Billing", tone: "danger", rank: 90 },
   rehearsal: { label: "Rehearsal", tone: "warn", rank: 80 },
   stalled: { label: "Stalled", tone: "warn", rank: 70 },
-  waiting_owner: { label: "Waiting on them", tone: "accent", rank: 60 },
+  waiting_owner: { label: "Waiting on them", tone: "info", rank: 60 },
   quiet: { label: "Quiet", tone: "warn", rank: 40 },
-  new: { label: "New", tone: "accent", rank: 20 },
+  new: { label: "New", tone: "info", rank: 20 },
   live: { label: "Live", tone: "ok", rank: 10 },
-  paused: { label: "Paused", tone: "muted", rank: 5 },
-  test: { label: "Test", tone: "muted", rank: 0 }
+  paused: { label: "Paused", tone: "plain", rank: 5 },
+  test: { label: "Test", tone: "plain", rank: 0 }
 };
 var DAY = 864e5;
 var PLATFORM_NEW_DAYS = 1;
@@ -8290,6 +8290,48 @@ var SCHEMA_SETS = {
   "tenant_channels.status": ["active", "disabled"],
   "tenants.status": ["active", "paused", "test"]
 };
+
+// src/tone.ts
+var TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
+var TONE_OF = {
+  thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
+  standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn" },
+  person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
+  consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
+  mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
+  broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
+  playbook: { running: "accent", paused: "warn", approval: "warn" },
+  template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
+  role: { owner: "info", operator: "plain", viewer: "plain" },
+  tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  escalation: { open: "warn", resolved: "ok" }
+};
+var LABEL_OF = {
+  thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
+  standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early" },
+  person: PERSON_STATE_LABELS,
+  consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
+  mode: PERSON_MODE_LABELS,
+  broadcast: BROADCAST_STATE_LABELS,
+  playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
+  template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  setup: SETUP_STATE_WORDS,
+  role: ROLE_WORDS,
+  escalation: { open: "Open", resolved: "Resolved" }
+};
+function stateTone(kind, value) {
+  return typeof value === "string" && TONE_OF[kind][value] || "plain";
+}
+function stateLabel(kind, value) {
+  const v = typeof value === "string" ? value : String(value ?? "");
+  return LABEL_OF[kind]?.[v] ?? v;
+}
+function stateOf(kind, value) {
+  return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
+}
 export {
   ABANDONED_MS,
   ACTIVITY_KINDS,
@@ -8506,6 +8548,7 @@ export {
   TOAST_TONES,
   TOAST_UNDO_MS,
   TODAY_QUEUE_MAX,
+  TONES,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WABA_FIELDS,
@@ -8805,6 +8848,9 @@ export {
   starterIndex,
   starterPreview,
   starterText,
+  stateLabel,
+  stateOf,
+  stateTone,
   telHref,
   templateComponents,
   templateNameOk,

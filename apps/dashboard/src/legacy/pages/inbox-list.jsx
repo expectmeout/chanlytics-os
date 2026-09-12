@@ -212,7 +212,10 @@ const InboxList = ({
           // Pills hide in the needs bucket (redundant there) but ALWAYS show on
           // cross-bucket search results so actionable rows stay distinguishable
           const searching = !!query.trim();
-          const showStatePill = (searching || !inNeedsBucket) && (t.state === "needs" || t.state === "escalated");
+          // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
+          // pill and the wait chip used to look for "needs", a state no real thread
+          // has, so no real thread ever showed how long it had waited.
+          const showStatePill = (searching || !inNeedsBucket) && t.state === "escalated";
           return (
             <div
               key={t.id}
@@ -236,9 +239,8 @@ const InboxList = ({
                   <span className="ix-thread-who">{t.who}</span>
                   {t.pinned && <Icon name="pin" size={10} />}
                   <div className="ix-thread-meta">
-                    {showStatePill && t.state === "needs" && <span className="ix-needs-pill">Needs you</span>}
-                    {showStatePill && t.state === "escalated" && <span className="ix-escalated-pill">Escalated</span>}
-                    {t.state === "needs" && t.waitingMin > 0 && (
+                    {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
+                    {t.state === "escalated" && t.waitingMin > 0 && (
                       <span className={`ix-wait tabular ${t.waitingMin > 30 ? "warn" : ""}`}>waiting {t.waitingMin}m</span>
                     )}
                     {t.state === "snoozed" && t.wake && (

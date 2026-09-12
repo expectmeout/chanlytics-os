@@ -283,9 +283,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
             <span>{p.schedule}</span>
           </span>
         </div>
-        {status === "paused" ? <span className="pill pill-warn">Paused</span>
-          : status === "approval" ? <span className="pill pill-accent">Needs you</span>
-          : <span className="pill pill-accent"><span className="live-dot" style={{ width: 5, height: 5 }} />Running</span>}
+        <StatePill kind="playbook" value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"} />
       </div>
 
       <div className="ob-row">

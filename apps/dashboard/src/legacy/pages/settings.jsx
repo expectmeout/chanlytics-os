@@ -18,9 +18,9 @@ const ST_PERMS = window.ROLE_PERMS || {
   viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
 };
 const ST_ROLE_META = {
-  owner:    { label: "Owner",    tone: "accent", can: "Everything — billing, team, and disconnecting channels" },
-  operator: { label: "Operator", tone: "ok",     can: "Approves decisions and tunes autonomy — not billing or team" },
-  viewer:   { label: "Viewer",   tone: "",       can: "Sees everything, changes nothing — approvals are read-only" },
+  owner:    { label: "Owner",    can: "Everything — billing, team, and disconnecting channels" },
+  operator: { label: "Operator", can: "Approves decisions and tunes autonomy — not billing or team" },
+  viewer:   { label: "Viewer",   can: "Sees everything, changes nothing — approvals are read-only" },
 };
 
 // Session stores (FL_STORE pattern — survive nav, reset on reload)
@@ -587,10 +587,8 @@ const PaneProfile = ({ flash }) => {
   );
 };
 
-const RolePill = ({ role }) => {
-  const m = ST_ROLE_META[role] || {};
-  return <span className={`pill ${m.tone ? "pill-" + m.tone : ""}`}>{m.label || role}</span>;
-};
+// A teammate's role as the one pill draws it: the tone and the words are contracts'.
+const RolePill = ({ role }) => <StatePill kind="role" value={role} />;
 
 // Team & roles — real session state (ST_STORE); owner can preview lower roles,
 // which gates this section's own controls (the app-wide gate is the next step).

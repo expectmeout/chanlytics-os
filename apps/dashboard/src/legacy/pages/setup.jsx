@@ -13,7 +13,8 @@ const useSetupTick = () => {
   }, []);
 };
 
-const SETUP_TONE = { waiting_you: "warn", waiting_them: "queued", ready: "", not_started: "" };
+// A row's tone is the state's own (contracts/tone.ts), through the bridge.
+const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.__chrome.state("setup", state).tone : "plain");
 
 const money = (usd) => (typeof usd === "number" ? `about $${usd.toFixed(2)} a month` : "a small monthly fee");
 
@@ -400,7 +401,7 @@ const PaneSetup = () => {
                 sentence={r.sentence}
                 quoted={false}
                 status={[r.stateWords, ...r.details]}
-                tone={SETUP_TONE[r.state] || ""}
+                tone={setupTone(r.state)}
                 cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb) } : null}
                 also={r.undo
                   ? { label: r.undo.label, onClick: () => act(r.undo), testid: `setup-undo-${r.id}` }

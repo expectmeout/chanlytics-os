@@ -1920,7 +1920,9 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .msg-lang.active { border-color: var(--accent); color: var(--ink); box-shadow: 0 0 0 1px var(--accent) inset; }
 .msg-lang .dot { width: 6px; height: 6px; border-radius: 999px; background: var(--ok); }
 .msg-lang .dot.warn { background: var(--warn); }
-.msg-lang .dot.review { background: var(--ink-faint); }
+.msg-lang .dot.info { background: var(--info); }
+.msg-lang .dot.danger { background: var(--danger); }
+.msg-lang .dot.plain { background: var(--ink-faint); }
 .msg-lang-missing { font-size: 11px; color: var(--ink-dim); }
 .msg-card .wa-bubble { max-width: none; }
 .msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }
