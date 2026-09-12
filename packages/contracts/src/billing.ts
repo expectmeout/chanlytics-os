@@ -46,7 +46,6 @@ export interface BillingDto {
   account: BillingAccountDto | null;
   price: BillingPriceDto | null;
   trial_days: number;
-  role: string;
 }
 
 export interface BillingInvoiceDto {

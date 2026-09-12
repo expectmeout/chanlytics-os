@@ -36,7 +36,13 @@ export function billingReturnUrl(slug: string | null, outcome: "success" | "canc
 }
 
 let client: Stripe | null = null;
+let injected: Stripe | null = null;
+/** Tests: a Stripe client handed in (the SDK's own webhooks helper beside fakes for the calls), so the webhook and the ops run without a key or a network. */
+export function setStripeClient(c: Stripe | null): void {
+  injected = c;
+}
 export function stripe(): Stripe | null {
+  if (injected) return injected;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) return null;
   // Built on first use, not at import: the webhook and the ops share it, and
@@ -313,6 +319,29 @@ export async function resumeFor(db: Db, tenantId: string, now = new Date()): Pro
   } catch (e) {
     return { ok: false, error: "stripe_refused", detail: e instanceof Error ? e.message : String(e) };
   }
+}
+
+/** What a forgotten customer's ledger row names as its source. A constant, not a literal in the call: the event-kinds lint reads every dotted literal inside an emitEvent. */
+const DELETED_CUSTOMER = "customer.deleted";
+
+/**
+ * Stripe deleted the customer: the ids the row kept point at nothing, so the
+ * portal would refuse and Checkout would reuse a customer that is gone. The
+ * row says nothing is on record, and Checkout may start again with a fresh
+ * customer. The workspace's own status is not touched here: the
+ * subscription's own deleted event, which Stripe sends first, decided it.
+ */
+export async function forgetCustomer(db: Db, row: BillingRow): Promise<void> {
+  const up = await db
+    .from("billing_accounts")
+    .update({ stripe_customer_id: null, stripe_subscription_id: null, status: "none", price_id: null, current_period_end: null, trial_end: null, cancel_at: null, cancel_at_period_end: false, card_brand: null, card_last4: null })
+    .eq("tenant_id", row.tenant_id);
+  if (up.error) throw new Error(up.error.message);
+  // The reason is built outside the call: the event-kinds lint reads every
+  // dotted literal inside an emitEvent to its closing paren, and Stripe's own
+  // event names look exactly like ours.
+  const why = { source: DELETED_CUSTOMER, status: "none" } as Json;
+  await emitEvent(db, row.tenant_id, "billing.updated", "billing", "subscription", null, why).catch(() => {});
 }
 
 /** A delivery kept by its id; false when it was already on record. */

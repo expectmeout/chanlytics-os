@@ -37,7 +37,7 @@ const PaneBillingReal = ({ flash }) => {
       <section className="fl-card set-card" data-testid="billing-failed">
         <div className="fl-card-head"><span className="fl-card-title">Billing</span><span className="fl-card-sub">Couldn&rsquo;t be read right now</span></div>
         <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Nothing changes while this page cannot read it. Try again in a moment.</span></div>
-          <button className="btn btn-sm" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button></div>
+          <button className="btn btn-sm" onClick={() => api.refresh()} data-testid="billing-retry">Retry</button></div>
       </section>
     );
   }

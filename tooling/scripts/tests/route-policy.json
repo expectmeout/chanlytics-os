@@ -62,7 +62,7 @@
       "kind": "read",
       "scope": "workspace",
       "role": "owner",
-      "rate": "billing",
+      "rate": "billing_read",
       "spend": false
     },
     "POST billing/portal": {

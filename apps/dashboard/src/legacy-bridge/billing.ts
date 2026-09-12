@@ -32,6 +32,8 @@ export interface BillingApi {
   sync(): Promise<{ ok: boolean; message: string }>;
   /** What the browser came back from Stripe with, read once and cleared: "success", "cancel" or "portal". */
   outcome(): string | null;
+  /** Read the row again: the failed card's retry, and nothing else's. */
+  refresh(): Promise<void>;
   outcomeWords: Record<string, string>;
   words: { day: typeof dayWords; money: typeof moneyWords; trial: typeof trialWords; price: typeof priceWords };
 }
@@ -50,8 +52,14 @@ export const billingOverride: SurfaceOverride = {
   // The webhook writes the row on every Stripe event; the pane repaints on each.
   refreshOnTables: ["billing_accounts"],
   apply: async () => {
-    const d = await read("GET billing");
-    window.__BILLING_ACCOUNT = { dto: d.billing, fetchedAt: Date.now() };
+    try {
+      const d = await read("GET billing");
+      window.__BILLING_ACCOUNT = { dto: d.billing, fetchedAt: Date.now() };
+    } catch (e) {
+      // Null, not undefined: the pane draws its failed card with a retry instead of "Reading your billing…" for ever.
+      window.__BILLING_ACCOUNT = null;
+      throw e;
+    }
   },
 };
 
@@ -100,5 +108,9 @@ export function installBilling(win: Window = window): void {
     },
     outcomeWords: CHECKOUT_OUTCOME_WORDS,
     words: { day: dayWords, money: moneyWords, trial: trialWords, price: priceWords },
+    async refresh() {
+      api().forget();
+      await refreshSurfaces([billingOverride]);
+    },
   };
 }

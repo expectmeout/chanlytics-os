@@ -124,8 +124,10 @@ export const RATE = {
   /** A reply reaches Google under the business's name. */
   google_reply: { limit: 20, windowMs: 3_600_000, noun: "review replies" },
   google_draft: { limit: 30, windowMs: 3_600_000, noun: "review drafts" },
-  /** A Checkout or portal session, an invoice list, a resume: each a call to Stripe for an owner. */
+  /** A Checkout or portal session, a resume, a sync: each a call to Stripe for an owner that changes something. */
   billing: { limit: 20, windowMs: 3_600_000, noun: "billing requests" },
+  /** Reading the invoices: a call to Stripe that changes nothing, and must not spend the Checkout bucket. */
+  billing_read: { limit: 60, windowMs: 3_600_000, noun: "billing reads" },
   /** A whole thread, a whole call, or everyone, as a file. */
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A page remembering its view: a sort, a tab. One small write per click at most. */

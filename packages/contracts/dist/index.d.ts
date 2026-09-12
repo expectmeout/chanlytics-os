@@ -1955,7 +1955,6 @@ interface GoogleDto {
     days: GoogleDayDto[];
     /** The Autonomy row for reviews: what the receptionist does under a new one. */
     reply_mode: ReviewReplyMode;
-    role: string;
 }
 /** What a search found: what the owner confirms with one tap. */
 interface GoogleCandidateDto {
@@ -2135,7 +2134,6 @@ interface BillingDto {
     account: BillingAccountDto | null;
     price: BillingPriceDto | null;
     trial_days: number;
-    role: string;
 }
 interface BillingInvoiceDto {
     id: string;

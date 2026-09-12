@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import { billingAccountDto, type BillingAccountDto, type BillingPriceDto } from "@chanlytics/contracts";
 import type { EdgeAnswer } from "./lines";
+import { deployment } from "./deployment";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 export const BILLING_COLUMNS = "mode, status, price_id, current_period_end, trial_end, cancel_at, cancel_at_period_end, card_brand, card_last4, last_payment_failed_at, last_paid_at, updated_at";
@@ -21,6 +22,9 @@ export async function billingFor(db: SupabaseClient<Database>, tenantId: string)
 /** One call to the edge's billing endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
+  // The deployment gate every other provider door keeps (service.ts): a
+  // preview with the edge secret set must not open a real Checkout.
+  if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/billing`, {
       method: "POST",
@@ -71,6 +75,7 @@ export function forgetBillingReadiness(): void {
 /** The words a refused op earns, by the edge's reason. */
 export const BILLING_SAID: Record<string, string> = {
   not_ready: "Billing is not available on this deployment yet.",
+  preview: "Billing is only on the production dashboard.",
   no_account: "This workspace has no billing record.",
   direct: "This workspace runs on a direct arrangement; there is nothing to pay here.",
   already_subscribed: "This workspace already has a subscription. Manage it from Stripe's portal.",
