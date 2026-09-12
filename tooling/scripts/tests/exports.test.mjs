@@ -286,13 +286,17 @@ test("GET /export: owners only, the workspace named, one JSON file that parses a
   const rpcs = { people_list: () => [{ id: "p1", display_name: "Dani", wa_profile_name: null, phone_e164: "+19175550100", consent: "opted_in", consent_source: "customer_message", dnc: false }] };
   const req = new Request(`http://localhost/api/v1/export?workspace=${T}`);
   const ctx = (role) => ({ supabase: fakeDb(tables(role), {}, rpcs), userId: "u1", email: "ada@example.com", params: {} });
-  const res = await route.GET.run(req, ctx("owner"));
+  const ownerTables = tables("owner");
+  const ctxOwner = { supabase: fakeDb(ownerTables, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} };
+  const res = await route.GET.run(req, ctxOwner);
   assert.ok(res instanceof Response, "a file, not a JSON envelope");
   assert.match(res.headers.get("content-disposition") ?? "", /^attachment; filename="workspace-Melany-s-Beauty-Salon-2026\d{4}\.json"/);
   assert.equal(res.headers.get("cache-control"), "private, no-store");
   assert.match(res.headers.get("content-type") ?? "", /^application\/json/);
   const doc = JSON.parse(await res.text());
   assert.equal(doc.workspace.name, "Melany's Beauty Salon");
+  // On the ledger, as erasure is: who took a copy of everything, and when.
+  assert.deepEqual((ownerTables.decisions ?? []).map((x) => [x.subject_type, x.subject_id, x.verb, x.payload.what, x.actor_user_id]), [["workspace", T, "export", "workspace", "u1"]], "on the ledger before the first byte");
   assert.equal(doc.workspace.timezone, TZ);
   assert.deepEqual(doc.people.map((p) => p.id), ["p1"]);
   assert.deepEqual(doc.conversations.map((c) => c.id), ["c1", "c2"], "oldest first, whatever order the table holds them in");
@@ -342,4 +346,32 @@ test("Settings offers the door the privacy page promises: one link, owners only,
   const denied = render(Card({}));
   assert.equal(denied.find((n) => n.props?.["data-testid"] === "set-export-all"), undefined);
   assert.ok(JSON.stringify(denied.map((n) => n.props?.children ?? [])).includes("Only an owner can download"));
+});
+
+test("everyone as a CSV: owners only, the file, and the ledger row that says who took it", async () => {
+  const { setRateStore, memoryStore } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/rate-limit.ts")).href);
+  setRateStore(memoryStore());
+  const csv = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/app/api/v1/contacts/export/route.ts")).href);
+  assert.deepEqual(csv.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false });
+  const T = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  const tables = (role) => ({
+    memberships: [{ user_id: "u1", tenant_id: T, role, tenants: { slug: "melanys" }, created_at: "2026-01-01T00:00:00Z" }],
+    tenants: [{ id: T, slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: TZ }],
+    policies: [], decisions: [],
+  });
+  const rpcs = { people_list: () => [{ id: "p1", display_name: "Dani", wa_profile_name: null, phone_e164: "+19175550100", consent: "opted_in", consent_source: "customer_message", dnc: false }, { id: "p2", display_name: "Bo", wa_profile_name: null, phone_e164: "+19175550101", consent: "unknown", dnc: false }] };
+  const t = tables("owner");
+  const ctx = { supabase: fakeDb(t, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} };
+  const res = await csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}`), ctx);
+  assert.ok(res instanceof Response);
+  assert.match(res.headers.get("content-disposition") ?? "", /^attachment; filename="people-Melany-s-Beauty-Salon-2026\d{4}\.csv"/);
+  // The bytes, not text(): the Fetch API strips a leading BOM when it decodes,
+  // and the BOM is the point (a spreadsheet opens accents right).
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  assert.deepEqual([...bytes.slice(0, 3)], [0xef, 0xbb, 0xbf], "a BOM first");
+  const text = new TextDecoder().decode(bytes.slice(3));
+  assert.ok(text.startsWith("name,whatsapp_name,phone"));
+  assert.equal(text.split("\r\n").length, 4, "a header, two people, the trailing newline");
+  assert.deepEqual(t.decisions.map((x) => [x.subject_type, x.subject_id, x.verb, x.payload]), [["workspace", T, "export", { what: "people", rows: 2 }]]);
+  await assert.rejects(csv.GET.run(new Request(`http://localhost/api/v1/contacts/export?workspace=${T}`), { supabase: fakeDb(tables("operator"), {}, rpcs), userId: "u1", email: "ada@example.com", params: {} }), (e) => e.status === 403);
 });

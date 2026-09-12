@@ -11,6 +11,7 @@ export const ROUTES = {
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
   "DELETE templates/[id]": { method: "DELETE", path: "/api/v1/templates/[id]" },
+  "GET activity": { method: "GET", path: "/api/v1/activity" },
   "GET ask/openings": { method: "GET", path: "/api/v1/ask/openings" },
   "GET ask/threads": { method: "GET", path: "/api/v1/ask/threads" },
   "GET ask/threads/[id]": { method: "GET", path: "/api/v1/ask/threads/[id]" },
@@ -136,6 +137,7 @@ export type Routes = {
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
   "DELETE templates/[id]": typeof import("../../app/api/v1/templates/[id]/route").DELETE;
+  "GET activity": typeof import("../../app/api/v1/activity/route").GET;
   "GET ask/openings": typeof import("../../app/api/v1/ask/openings/route").GET;
   "GET ask/threads": typeof import("../../app/api/v1/ask/threads/route").GET;
   "GET ask/threads/[id]": typeof import("../../app/api/v1/ask/threads/[id]/route").GET;

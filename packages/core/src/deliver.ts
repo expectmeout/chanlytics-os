@@ -27,7 +27,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type SendResult, type WaConfig } from "@chanlytics/channels";
-import { mayMessageFor, purposeOfTemplate, type SendPurpose } from "@chanlytics/contracts";
+import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
 import { recordOutbound, type Database, type Json } from "@chanlytics/db";
 
 export type Db = SupabaseClient<Database>;
@@ -213,7 +213,7 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   return newer && newer.length > 0 ? newer[0].id : null;
 }
 
-async function event(db: Db, d: Delivery, kind: string, messageId: string | null, data: Record<string, Json>): Promise<void> {
+async function event(db: Db, d: Delivery, kind: EventKind, messageId: string | null, data: Record<string, Json>): Promise<void> {
   await db.from("events").insert({
     tenant_id: d.tenantId, kind, category: "message",
     subject_type: "message", subject_id: messageId, data,

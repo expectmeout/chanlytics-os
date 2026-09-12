@@ -66,6 +66,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // keeps the nav and states what exists instead (settings.jsx PaneSoon).
   "admin/billing": "real",
   "admin/memory": "real",
+  "admin/activity": "real",   // both ledgers, from GET /activity, owners only
   // The back office (gate 5, #300): every workspace sorted by who needs a
   // person, read from the guarded platform routes. It was never listed here,
   // so its tab fell through to the page's "demo" and a platform admin who
@@ -105,6 +106,7 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/integrations": "settings",
   "admin/billing": "settings",
   "admin/memory": "settings",
+  "admin/activity": "settings",
   // The pane fetches its own list through the typed client on mount; it waits
   // for the settings surface like every other pane, so nothing paints early.
   "admin/platform": "settings",

@@ -145,18 +145,23 @@ var JOB_KINDS = [
   "line_provision"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
+var WABA_FIELDS = [
+  "phone_number_quality_update",
+  "account_update",
+  "message_template_status_update",
+  "account_review_update",
+  "message_template_quality_update",
+  "template_category_update"
+];
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
-  "message.status",
-  "escalation.opened",
   "contact.consent_changed",
   "usage.llm_tokens",
   "usage.wa_conversation",
   "ingest.allowlist_skip",
   /** The sender cannot receive a reply — a short code. Recorded, never answered. */
   "ingest.unreachable_sender",
-  "ingest.pg_failed",
   "message.send_failed",
   "message.send_blocked",
   "message.send_raced_cancel",
@@ -199,7 +204,31 @@ var EVENT_KINDS = [
   "policy.changed",
   "billing.updated",
   "billing.paused",
-  "billing.resumed"
+  "billing.resumed",
+  /** A call: the row (00007) and the seconds it cost. */
+  "call.recorded",
+  "usage.voice_seconds",
+  /** The assistant's model usage, per turn (ask-gateway). */
+  "usage.ask_tokens",
+  /** Retell's webhook: every delivery and every refused signature, kept thirty days (00038). */
+  "webhook.auth",
+  "webhook.delivery",
+  /** A person who came from the calendar or a hand, not from a message (00053). */
+  "contact.added",
+  /** A person renamed or annotated at the desk (00054). */
+  "contact.named",
+  "contact.noted",
+  /** An inbound the router could not place on any workspace. */
+  "ingest.unroutable",
+  /** A reply skipped because its veto window had already been spent. */
+  "policy.veto_window_skipped",
+  /** The sweep woke a snooze whose time had passed (00082). */
+  "conversation.snooze_expired",
+  /** A broadcast finished, with its tally; a playbook made a run. */
+  "broadcast.sent",
+  "playbook.run",
+  /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
+  "channel.connected"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -319,7 +348,14 @@ var DECISION_VERBS = [
    * 'review' (the row's id), payload the words and when Google took them.
    * Replaces the previous answer; Google keeps one per review.
    */
-  "reply_review"
+  "reply_review",
+  /**
+   * A copy of the workspace's data left the building: everyone as a CSV, a
+   * thread, a call, or the whole workspace. Subject "workspace" for the two
+   * that carry everyone; the thread's or the call's own row for the others.
+   * The one verb an auditor asks about that the ledger did not keep.
+   */
+  "export"
 ];
 var DECISION_SUBJECTS = [
   "conversation",
@@ -335,7 +371,9 @@ var DECISION_SUBJECTS = [
   "channel",
   "broadcast",
   "playbook",
-  "review"
+  "review",
+  /** The workspace itself: an export of everyone, or of everything. Its id is the tenant's. */
+  "workspace"
 ];
 var ACTOR_TYPES = ["user", "ai", "system", "owner_phone"];
 var TEMPLATE_STATUSES = ["approved", "pending", "rejected", "paused", "disabled"];
@@ -366,20 +404,20 @@ var PURPOSE_REFUSALS = {
 var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
 function consentChangeOf(e) {
   const d = e.data ?? {};
-  const str = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
+  const str2 = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
   return {
     id: e.id,
     contact_id: e.subject_id,
     at: e.created_at,
     purpose: d.purpose === "marketing" ? "marketing" : "conversational",
-    consent: str("consent"),
-    previous: str("previous"),
-    source: str("source"),
-    by: str("by"),
-    note: str("note"),
-    channel: str("channel"),
-    message_external_id: str("message_external_id"),
-    words: str("words")
+    consent: str2("consent"),
+    previous: str2("previous"),
+    source: str2("source"),
+    by: str2("by"),
+    note: str2("note"),
+    channel: str2("channel"),
+    message_external_id: str2("message_external_id"),
+    words: str2("words")
   };
 }
 function purposeOfTemplate(category) {
@@ -6799,9 +6837,9 @@ function googleAudienceWords(a) {
   return null;
 }
 function smsStateRow(line, nowMs) {
-  const num = line ? formatPhoneDisplay(line.e164) : null;
+  const num2 = line ? formatPhoneDisplay(line.e164) : null;
   const since = line ? agoWords(Date.parse(line.state_since), nowMs) : null;
-  const base = { kind: "sms", icon: "chat", title: "Texting", detail: num, verb: null };
+  const base = { kind: "sms", icon: "chat", title: "Texting", detail: num2, verb: null };
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
     return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
@@ -6815,7 +6853,7 @@ function smsStateRow(line, nowMs) {
         ...base,
         state: "connected",
         stateWords: "On",
-        sentence: line?.reg_sole_prop ? `Customers text ${num ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num ?? "this number"}; the receptionist answers inside your hours.`
+        sentence: line?.reg_sole_prop ? `Customers text ${num2 ?? "this number"} and the receptionist answers inside your hours. ${SOLE_PROP_CEILING_SENTENCE}` : `Customers text ${num2 ?? "this number"}; the receptionist answers inside your hours.`
       };
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
@@ -7209,6 +7247,185 @@ function consentFormVM(f) {
   };
 }
 
+// src/activity.ts
+var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
+var WORDS = {
+  // decisions
+  approve: "Approved a reply",
+  edit: "Edited a reply",
+  decline: "Declined a reply",
+  snooze: "Snoozed a thread",
+  wake: "Woke a thread",
+  take_over: "Took over a thread",
+  hand_back: "Handed a thread back to the receptionist",
+  resolve: "Resolved an escalation",
+  archive: "Archived a thread",
+  reply: "Replied from the dashboard",
+  cancel_send: "Stopped a reply before it sent",
+  pause_agent: "Paused the receptionist",
+  resume_agent: "Resumed the receptionist",
+  invite: "Invited a member",
+  revoke_invite: "Withdrew an invitation",
+  change_role: "Changed a member's role",
+  remove_member: "Removed a member",
+  erase: "Erased a person",
+  whisper: "Whispered to the phone receptionist",
+  connect_channel: "Connected a channel",
+  consent_change: "Recorded a consent answer",
+  send_broadcast: "Sent a broadcast",
+  cancel_broadcast: "Canceled a broadcast",
+  start_playbook: "Started a playbook",
+  pause_playbook: "Paused a playbook",
+  reply_review: "Replied to a Google review",
+  export: "Exported data",
+  // events
+  "message.received": "A customer wrote",
+  "message.sent": "A message went out",
+  "message.send_failed": "A message could not be sent",
+  "message.send_blocked": "A message was held at the wire",
+  "message.send_raced_cancel": "A send raced a cancel",
+  "contact.consent_changed": "A consent answer changed",
+  "contact.added": "A person was added",
+  "contact.named": "A person was named",
+  "contact.noted": "A note was written",
+  "contact.erased": "A person was erased",
+  "contact.blob_erased": "A person's stored thread was erased",
+  "conversation.reopened": "A thread reopened",
+  "conversation.pause_expired": "A pause ended",
+  "conversation.snooze_expired": "A snooze ended",
+  "call.recorded": "A call was recorded",
+  "broadcast.sent": "A broadcast finished",
+  "playbook.run": "A playbook ran",
+  "setup.requested": "Setup was requested",
+  "voice.provisioned": "The phone receptionist was provisioned",
+  "line.answering": "A line started answering",
+  "line.failed": "A line failed",
+  "line.released": "A line was released",
+  "line.forwarding_verified": "Forwarding was verified",
+  "line.texting_on": "Texting turned on",
+  "line.texting_approved": "The carriers approved texting",
+  "line.texting_rejected": "The carriers sent the registration back",
+  "business.recorded": "The business record was saved",
+  "platform.acted": "Chanlytics acted on the workspace",
+  "google.linked": "A Google listing was linked",
+  "google.unlinked": "The Google listing was unlinked",
+  "google.reviews": "New Google reviews were read",
+  "google.connected": "Google Business Profile was connected",
+  "google.disconnected": "Google Business Profile was disconnected",
+  "google.replied": "A Google review was answered",
+  "workspace.created": "The workspace was created",
+  "settings.changed": "Settings changed",
+  "policy.changed": "An autonomy setting changed",
+  "billing.updated": "Billing changed",
+  "billing.paused": "Billing paused the workspace",
+  "billing.resumed": "Billing resumed the workspace",
+  "ingest.allowlist_skip": "A message was skipped by the allowlist",
+  "ingest.unreachable_sender": "A sender could not be answered",
+  "ingest.unroutable": "A message could not be placed on a workspace",
+  "policy.veto_window_skipped": "A veto window was skipped",
+  "usage.llm_tokens": "Model usage",
+  "usage.ask_tokens": "Assistant usage",
+  "usage.voice_seconds": "Call minutes",
+  "usage.wa_conversation": "A WhatsApp conversation opened",
+  "webhook.auth": "A webhook signature was checked",
+  "webhook.delivery": "A webhook was delivered"
+};
+function humanize(kind) {
+  const [family, rest] = kind.split(".", 2);
+  const tail = (rest ?? "").replace(/_/g, " ");
+  return `${family.charAt(0).toUpperCase()}${family.slice(1)}${tail ? ` \xB7 ${tail}` : ""}`;
+}
+var str = (o, k) => typeof o[k] === "string" && o[k] ? o[k] : null;
+var num = (o, k) => typeof o[k] === "number" ? o[k] : null;
+function activityWords(kind, payload) {
+  const base = WORDS[kind] ?? humanize(kind);
+  const p = payload && typeof payload === "object" && !Array.isArray(payload) ? payload : {};
+  const bits = [];
+  switch (kind) {
+    case "consent_change":
+    case "contact.consent_changed": {
+      const purpose = str(p, "purpose") === "marketing" ? "offers" : "messages about their visit";
+      const consent = str(p, "consent");
+      bits.push(consent === "opted_in" ? `yes to ${purpose}` : consent === "opted_out" ? `no to ${purpose}` : `${purpose}: not asked`);
+      const source = str(p, "source");
+      if (source && source !== "operator") bits.push(source.replace(/_/g, " "));
+      break;
+    }
+    case "change_role": {
+      const role = str(p, "role") ?? str(p, "to");
+      if (role) bits.push(`to ${role}`);
+      break;
+    }
+    case "export": {
+      const what = str(p, "what");
+      if (what) bits.push(what === "workspace" ? "everything" : what === "people" ? "everyone as a CSV" : `a ${what}`);
+      const rows = num(p, "rows");
+      if (rows !== null) bits.push(`${rows} rows`);
+      break;
+    }
+    case "pause_agent":
+    case "resume_agent": {
+      const mode = str(p, "receptionist_mode");
+      if (mode) bits.push(mode === "inherit" ? "follows the workspace" : mode);
+      const batch = num(p, "batch");
+      if (batch) bits.push(`one of ${batch}`);
+      break;
+    }
+    case "send_broadcast": {
+      const name = str(p, "name");
+      if (name) bits.push(name);
+      const n = num(p, "recipients");
+      if (n !== null) bits.push(`${n} people`);
+      if (p.approved === true) bits.push("approved by hand");
+      break;
+    }
+    case "broadcast.sent": {
+      const sent = num(p, "sent");
+      const held = num(p, "held");
+      if (sent !== null) bits.push(`${sent} got it`);
+      if (held) bits.push(`${held} held`);
+      break;
+    }
+    case "settings.changed": {
+      const fields = Array.isArray(p.fields) ? p.fields.filter((f) => typeof f === "string") : [];
+      if (fields.length) bits.push(fields.slice(0, 4).join(", "));
+      break;
+    }
+    case "policy.changed": {
+      const cls = str(p, "class");
+      const mode = str(p, "mode");
+      if (cls) bits.push(cls);
+      if (mode) bits.push(mode);
+      break;
+    }
+    case "line.texting_rejected":
+    case "line.failed": {
+      const why = str(p, "error") ?? str(p, "reason");
+      if (why) bits.push(why.slice(0, 80));
+      break;
+    }
+    case "platform.acted": {
+      const action = str(p, "action");
+      if (action) bits.push(action);
+      break;
+    }
+    case "playbook.run": {
+      const outcome = str(p, "outcome");
+      if (outcome) bits.push(outcome);
+      const n = num(p, "recipients") ?? num(p, "count");
+      if (n !== null) bits.push(`${n} people`);
+      break;
+    }
+    default:
+      break;
+  }
+  return bits.length ? `${base} \xB7 ${bits.join(" \xB7 ")}` : base;
+}
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+function isActivityNoise(kind) {
+  return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
+}
+
 // src/business-page.ts
 var SMS_CLAUSES = [
   "Message and data rates may apply.",
@@ -7584,7 +7801,8 @@ var SCHEMA_SETS = {
     "channel",
     "broadcast",
     "playbook",
-    "review"
+    "review",
+    "workspace"
   ],
   "decisions.verb": [
     "approve",
@@ -7612,7 +7830,8 @@ var SCHEMA_SETS = {
     "cancel_broadcast",
     "start_playbook",
     "pause_playbook",
-    "reply_review"
+    "reply_review",
+    "export"
   ],
   "escalations.reason": [
     "human_token",
@@ -7711,6 +7930,8 @@ var SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test"]
 };
 export {
+  ACTIVITY_KINDS,
+  ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,
   ALERT_KINDS,
   ANALYSIS_GRACE_MS,
@@ -7912,7 +8133,9 @@ export {
   TODAY_QUEUE_MAX,
   TenantConfigSchema,
   TenantConfigWriteSchema,
+  WABA_FIELDS,
   WA_WINDOW_MS,
+  activityWords,
   afterPersonRefused,
   ago,
   agoLabel,
@@ -8033,6 +8256,7 @@ export {
   industryWords,
   initialsOf,
   inviteState,
+  isActivityNoise,
   isCarrier,
   isDayKey,
   isForwardingMode,

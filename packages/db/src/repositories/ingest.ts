@@ -4,6 +4,7 @@
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { EventKind } from "@chanlytics/contracts";
 import { normalizePhone, type PurposeBearing } from "@chanlytics/contracts";
 import type { Database, Json } from "../database.types";
 
@@ -437,7 +438,7 @@ export async function pauseConversation(
 export async function emitEvent(
   db: Db,
   tenantId: string,
-  kind: string,
+  kind: EventKind,
   category: string,
   subjectType: string | null,
   subjectId: string | null,

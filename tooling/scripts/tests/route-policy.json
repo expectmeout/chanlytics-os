@@ -2,6 +2,13 @@
   "note": "Written by route-policy.test.mjs (UPDATE_ROUTE_POLICY=1). A change here is a change to who may do what, how often, and on which workspace: review it as one.",
   "undeclared": [],
   "routes": {
+    "GET activity": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "aggregate",
+      "spend": false
+    },
     "POST ask/messages/[id]/proposals/[pid]": {
       "kind": "write",
       "scope": "account",
