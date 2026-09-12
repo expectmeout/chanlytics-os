@@ -148,6 +148,14 @@ export const SIGNUP_WORDS = {
   confirmTitle: "Confirm your email",
   confirmLead: (email: string) => `Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`,
   confirmSubmit: "Confirm and continue",
+  /**
+   * Arriving at the code step from SIGN-IN, because the address was never
+   * confirmed. It says what is true, why they are seeing it, and that their
+   * password was not the problem -- which is the thing they would otherwise
+   * assume, and would then try to reset.
+   */
+  confirmFromSignIn: (email: string) =>
+    `Your password is right. This address was never confirmed, so we've sent a new 6-digit code to ${email}.`,
 } as const;
 
 /**
@@ -193,6 +201,28 @@ export function addressAlreadyKnown(e: { code?: string; message?: string } | nul
   if (!e) return false;
   if (e.code === "email_exists" || e.code === "user_already_exists") return true;
   return /already (been )?registered|already exists/i.test(e.message ?? "");
+}
+
+/**
+ * The account exists, the password is right, and the address was never
+ * confirmed.
+ *
+ * REQUIRING CONFIRMATION CREATED THIS STATE, so requiring it obliges us to
+ * offer a way out of it. Somebody signs up, reaches the code screen, closes
+ * the tab, and comes back tomorrow: they have an account and they know their
+ * password, and sign-in refuses them. The neutral sentence about the pair not
+ * matching is the right answer for a wrong password and the wrong answer here,
+ * and without this branch there is no screen anywhere that would send them
+ * another confirmation.
+ *
+ * SAYING SO LEAKS NOTHING, which is the part worth being careful about. Only a
+ * caller who has supplied the correct password for an existing account reaches
+ * this answer, and they plainly know the account exists. Nobody else gets here.
+ */
+export function emailNotConfirmed(e: { code?: string; message?: string } | null | undefined): boolean {
+  if (!e) return false;
+  if (e.code === "email_not_confirmed") return true;
+  return /email not confirmed|not confirmed/i.test(e.message ?? "");
 }
 
 /* `signupNext` lived here: the sign-up page sent the person to /login at the

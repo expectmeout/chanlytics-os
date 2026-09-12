@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { PASSWORD_WORDS, SIGNUP_WORDS, requestCodeWords, verifyCodeWords } from "@chanlytics/contracts";
+import { PASSWORD_WORDS, SIGNUP_WORDS, emailNotConfirmed, requestCodeWords, verifyCodeWords } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
@@ -35,6 +35,9 @@ export default function LoginPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [nudge, setNudge] = useState(false);
+  // Reached the code step because the ADDRESS was never confirmed, not because
+  // they asked for a code. The two want different resends and different words.
+  const [unconfirmed, setUnconfirmed] = useState(false);
   const fieldRef = useRef<HTMLInputElement | null>(null);
 
   // autoFocus is a no-op under SSR: the input already exists in the server
@@ -74,6 +77,18 @@ export default function LoginPage() {
     const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     setBusy(false);
     if (error) {
+      // THE ONE REFUSAL THAT IS SAFE TO EXPLAIN. Requiring confirmation created
+      // a state where the password is right and the address was never proved,
+      // and the neutral sentence below would send that person off to reset a
+      // password that is not the problem. Only a caller who already supplied
+      // the correct password for an existing account gets here, so they learn
+      // nothing they did not know. Send a fresh confirmation and show it.
+      if (emailNotConfirmed(error)) {
+        await supabase.auth.resend({ type: "signup", email: email.trim() });
+        setUnconfirmed(true);
+        setStage("code");
+        return;
+      }
       // One sentence for all three cases Supabase refuses to distinguish: an
       // address nobody has, a wrong password, and an account that only ever
       // arrived through Google. Every improvement to this sentence would be an
@@ -115,9 +130,11 @@ export default function LoginPage() {
     <main className="auth-card">
       <h1>Chanlytics OS</h1>
       <p>
-        {stage === "code"
-          ? "We sent a one-time code to your work email."
-          : "Sign in to your workspace."}
+        {stage !== "code"
+          ? "Sign in to your workspace."
+          : unconfirmed
+            ? SIGNUP_WORDS.confirmFromSignIn(email.trim())
+            : "We sent a one-time code to your work email."}
       </p>
 
       {stage === "password" && <GoogleSignIn next={() => "/" + window.location.hash} />}
@@ -169,10 +186,15 @@ export default function LoginPage() {
             return null;
           }}
           onResend={async () => {
-            const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
+            // An unconfirmed account is resent a CONFIRMATION; asking for a
+            // sign-in code instead would be a different credential for a door
+            // this account has not opened yet.
+            const { error } = unconfirmed
+              ? await supabase.auth.resend({ type: "signup", email: email.trim() })
+              : await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
             return error ? requestCodeWords(error) : null;
           }}
-          onBack={() => { setStage("password"); setError(null); }}
+          onBack={() => { setStage("password"); setError(null); setUnconfirmed(false); }}
           backLabel={PASSWORD_WORDS.passwordInstead}
         />
       )}

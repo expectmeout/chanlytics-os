@@ -6859,7 +6859,14 @@ var SIGNUP_WORDS = {
    * not work. It did; the address is what is unproved. */
   confirmTitle: "Confirm your email",
   confirmLead: (email) => `Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`,
-  confirmSubmit: "Confirm and continue"
+  confirmSubmit: "Confirm and continue",
+  /**
+   * Arriving at the code step from SIGN-IN, because the address was never
+   * confirmed. It says what is true, why they are seeing it, and that their
+   * password was not the problem -- which is the thing they would otherwise
+   * assume, and would then try to reset.
+   */
+  confirmFromSignIn: (email) => `Your password is right. This address was never confirmed, so we've sent a new 6-digit code to ${email}.`
 };
 function sendFailureIsOurs(e) {
   if (!e) return false;
@@ -6871,6 +6878,11 @@ function addressAlreadyKnown(e) {
   if (!e) return false;
   if (e.code === "email_exists" || e.code === "user_already_exists") return true;
   return /already (been )?registered|already exists/i.test(e.message ?? "");
+}
+function emailNotConfirmed(e) {
+  if (!e) return false;
+  if (e.code === "email_not_confirmed") return true;
+  return /email not confirmed|not confirmed/i.test(e.message ?? "");
 }
 function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone) {
   try {
@@ -8470,6 +8482,7 @@ export {
   durationLabel,
   eligibleFor,
   eligibleForPlaybook,
+  emailNotConfirmed,
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
