@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM, optInConfirmation } from "@chanlytics/contracts";
+import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM, optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
@@ -216,4 +216,18 @@ test("the confirmation a yes receives names the program, the frequency, the rate
   assert.match(offers, /A few messages a month/);
   assert.doesNotMatch(offers, /appointment/i);
   assert.ok(optInConfirmation("  ", "marketing").startsWith("This business: "));
+});
+
+test("what staff ask in person or on the phone is one sentence, with the call to action's disclosures, for the visit question only", () => {
+  // The fifth refusal (30896, 12 Sep 2026) named the message flow: a spoken yes
+  // "recorded with the date" and no script, when the reviewers accept a verbal
+  // opt-in only with "the exact script or flow in enough detail that a reviewer
+  // can verify". The campaign quotes this sentence and the profile shows it.
+  const ask = verbalOptInScript("Melany's Beauty Salon");
+  assert.match(ask, /^Would you like Melany's Beauty Salon to text you about your appointments and reply when you write\?/, "the program, by the name the customer knows");
+  assert.match(ask, /Message frequency varies\./);
+  assert.match(ask, /Message and data rates may apply\./, "verbatim: \"standard rates\" is refused");
+  assert.match(ask, /Reply HELP for help, STOP to stop\./);
+  assert.doesNotMatch(ask, /offer|news|promot/i, "a spoken yes is never a yes to offers (offersYesRefusal)");
+  assert.ok(verbalOptInScript("  ").startsWith("Would you like us to text you"), "a workspace that has not said its name yet");
 });

@@ -141,6 +141,26 @@ export function optInConfirmation(businessName: string, purpose: SendPurpose): s
     : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
 }
 
+/**
+ * The words staff say when they ask for a yes in person or on the phone.
+ *
+ * A spoken yes is an opt-in method the campaign has to describe, and the
+ * reviewers accept one only with "the exact script or flow in enough detail
+ * that a reviewer can verify" it (error 30896 -- the fifth refusal of the live
+ * campaign, 12 Sep 2026, named the message flow, which said staff "record it
+ * with the date" and nothing about what was asked). So the question is one
+ * sentence, here: the filing quotes it as method (3) and the profile shows it
+ * beside the "In person" and "On the phone" buttons, and the two cannot drift
+ * apart. It carries what a call to action carries -- the program, the
+ * frequency, the rates line, HELP and STOP -- and it is good for messages about
+ * a visit only: a yes to offers is written or it is not recorded
+ * (offersYesRefusal), and the flow says so.
+ */
+export function verbalOptInScript(businessName: string): string {
+  const name = businessName.trim() || "us";
+  return `Would you like ${name} to text you about your appointments and reply when you write? Message frequency varies. Message and data rates may apply. Reply HELP for help, STOP to stop.`;
+}
+
 /** The words the customer sends, so a page, a QR and a carrier filing can never disagree about them. */
 export const CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 export const CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;

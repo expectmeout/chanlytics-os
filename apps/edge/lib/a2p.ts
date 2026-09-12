@@ -13,7 +13,7 @@ import {
   runA2PSaga, smsStateFor, registrationVerdict, LOW_VOLUME_USECASE, deleteCampaignRequest, updateCampaignRequest,
   encodeForm, brandTypeFor, refusalWords, type A2PPorts, type A2PRequest, type A2PState, type BusinessRecord, type CampaignError,
 } from "./workspace/channels.js";
-import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation } from "./workspace/contracts.js";
+import { formatPhoneDisplay, industryOf, businessRecordProblems, registrationPathOf, registrationPreflight, optInConfirmation, verbalOptInScript } from "./workspace/contracts.js";
 import { emitEvent } from "./workspace/db.js";
 import { platformTo, recordNotification } from "./notify.js";
 import { lineProviderFromEnv } from "./lines.js";
@@ -99,6 +99,9 @@ export function a2pStateFrom(l: LineRow): A2PState {
  * keyword that answers each — which is only true because the product now records
  * them as two different answers.
  */
+/** Twilio's bound on a campaign's message flow: 40 to 2048 characters. */
+const MESSAGE_FLOW_MAX = 2048;
+
 export function campaignFactsFor(o: {
   businessName: string;
   /**
@@ -149,6 +152,26 @@ export function campaignFactsFor(o: {
   // company and none of the eight things the guide lists.
   const privacyPolicyUrl = o.hostedUrl || o.privacyUrl;
   const termsUrl = o.hostedUrl ? `${o.hostedUrl}/terms` : o.termsUrl;
+  // The two sets of words the flow quotes, from contracts, where the wire and
+  // the profile read them: what START is answered with, and what staff ask.
+  const confirmation = optInConfirmation(name, "conversational");
+  const script = verbalOptInScript(name);
+  // The flow, given how method (1) ends. Twilio takes 40 to 2048 characters
+  // here, and a long name on a long slug -- the name four times, four URLs --
+  // does not fit with both quotes in. The spoken script is quoted always:
+  // nothing else in the filing carries it, and 30896 asks for it verbatim. The
+  // auto-reply is quoted when the whole flow fits with it and referred to
+  // otherwise, because it is filed beside the flow as this campaign's own
+  // opt-in message, so a reviewer has the words either way.
+  const flowEnding = (autoReply: string) => [
+    `${name} collects opt-in directly from the customer, for one program: replies to what they write, and confirmations and reminders about their own appointments. No promotional messages are sent under this campaign.`,
+    `(1) KEYWORD START on the sign-up page (${o.optInUrl}), public: under "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, and to reply HELP for help and STOP to stop; privacy policy and terms are linked on the page. It shows the number; the customer opts in by texting START to it from their own phone and ${autoReply}`,
+    `(2) PAPER FORM (${formUrl}), public: the same statement above an unticked box, signed and dated at the business; staff record it on the profile as "Sign-up form" with the date and keep the sheet.`,
+    `(3) IN PERSON OR ON THE PHONE: staff ask "${script}" and record a yes on the profile as "In person" or "On the phone" with the date and who heard it; a spoken yes is never used for promotions.`,
+    `A first text from a customer is answered in that conversation only and is not an opt-in; appointment messages go only to customers opted in by (1), (2) or (3). STOP at any time ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
+  ].join(" ");
+  const quoted = flowEnding(`receives the auto-reply "${confirmation}"`);
+  const messageFlow = quoted.length <= MESSAGE_FLOW_MAX ? quoted : flowEnding("receives the filed opt-in message as the auto-reply");
   return {
     // What the campaign IS, in the plainest terms, with the separation stated
     // rather than left to be inferred from the flow.
@@ -219,12 +242,26 @@ export function campaignFactsFor(o: {
     // words), so the flow no longer says it. And a reviewer wants the privacy
     // policy and the terms LINKED here (30909; 30908 says "directly referenced"
     // in message_flow), which they never were.
-    messageFlow: [
-      `Consent is given by the customer, in writing, for one program: replies to what they write, and messages about their own appointments. No promotional messages are sent under this campaign.`,
-      `WEB PAGE (${o.optInUrl}): under "Messages about your visit" it states that they will receive appointment reminders and confirmations from ${name} and a reply when they write, that message frequency varies, that message and data rates may apply, to reply HELP for help and STOP to stop; the page shows the number, and the customer consents by texting START to it from their own phone. Privacy policy and terms links are on the page.`,
-      `PAPER FORM (${formUrl}): the same question as an unticked box with the same disclosures, ticked and signed by the customer at the business; staff record it as "Sign-up form" with the date, and keep the sheet.`,
-      `Writing to the business first is consent to be answered. Appointment reminders go only to customers who said yes on the page or the form, or who told the business in person or on the phone, which staff record with the date. Every yes is confirmed by a text naming the program, frequency, rates, HELP and STOP. Replying STOP ends all messages. Privacy policy: ${privacyPolicyUrl}. Terms: ${termsUrl}.`,
-    ].join(" "),
+    //
+    // FIFTH REFUSAL, 12 September 01:23 UTC: 30896 again, and this time the
+    // field named -- MESSAGE_FLOW. Read against the reviewers' own causes (30896,
+    // 30909, 30917) the flow was claiming two things the product does not do and
+    // leaving out two things they verify by. "Every yes is confirmed by a text":
+    // only START is (whatsapp/inbound.ts); a signed box or a spoken yes is
+    // recorded on the profile, not confirmed. "Writing to the business first is
+    // consent to be answered": a method with no disclosure and no action, which
+    // reads as consent implied from an inbound message. A spoken yes "recorded
+    // with the date" and no script, when 30896 asks for "the exact script or
+    // flow in enough detail that a reviewer can verify". And the keyword's
+    // auto-reply never quoted, which 30917 lists for a keyword method.
+    //
+    // So: every method numbered and described the way they check one -- where,
+    // what is disclosed there, what action, and what the product does next; the
+    // auto-reply and the spoken script quoted from contracts, where the wire and
+    // the profile read the same words; and the first-message case said for what
+    // it is, a conversation answered, not an opt-in (mayMessageFor: a proactive
+    // send needs a recorded yes). Composed above, because it has to fit.
+    messageFlow,
 
     // Samples a reviewer reads. They must not state a fact about the business we
     // were never given -- an invented opening time is a claim made in their name.
@@ -259,8 +296,9 @@ export function campaignFactsFor(o: {
     // subscription, which is 30913 in one line, under a name the workspace dropped
     // long ago. No resubmit can reach it.
     // The words the receptionist actually sends when START arrives, from
-    // contracts, so the filing and the wire cannot disagree.
-    optInMessage: optInConfirmation(name, "conversational"),
+    // contracts, so the filing and the wire cannot disagree -- and the same
+    // words the flow quotes for method (1).
+    optInMessage: confirmation,
     // Single words only, and only ones the receptionist actually honours
     // (contracts CONVERSATION_OPT_IN_PATTERN). The two-word offers phrase lives
     // in the flow above, because a keyword field takes single words.

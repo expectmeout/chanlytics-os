@@ -869,6 +869,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // signed, or their own message. The fallback is the same rule, for a page opened
   // before the bridge installs it.
   const OFFERS_YES = window.__offersYesSources || CS_SOURCES.filter((s) => s.id === "form" || s.id === "customer_message");
+  // What to ask when the yes is spoken. The campaign files this sentence as the
+  // way a yes is given in person or on the phone (contracts verbalOptInScript),
+  // so the desk is shown the same words a reviewer reads; without the bridge
+  // the prompt stays the plain one.
+  const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
+  const askScript = typeof window.__verbalOptInScript === "function" ? window.__verbalOptInScript((ws && ws.name) || "") : null;
   // One recorder per door. Both reload the person afterwards rather than assuming,
   // because the lists and the Consent column are computed from the row.
   const recordFor = (purpose) => async (consent, source) => {
@@ -1072,6 +1078,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           label="Messages about their visit"
           value={p.consent.state}
           sources={CS_SOURCES}
+          yesHow={askScript ? `How did they tell you? In person or on the phone, ask in these words: “${askScript}”` : undefined}
           canRecord={canRecord}
           onRecord={recordFor("conversational")}
           hint={
