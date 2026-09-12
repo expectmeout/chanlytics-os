@@ -364,6 +364,24 @@ var PURPOSE_REFUSALS = {
   sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there."
 };
 var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
+function consentChangeOf(e) {
+  const d = e.data ?? {};
+  const str = (k) => typeof d[k] === "string" && d[k] !== "" ? d[k] : null;
+  return {
+    id: e.id,
+    contact_id: e.subject_id,
+    at: e.created_at,
+    purpose: d.purpose === "marketing" ? "marketing" : "conversational",
+    consent: str("consent"),
+    previous: str("previous"),
+    source: str("source"),
+    by: str("by"),
+    note: str("note"),
+    channel: str("channel"),
+    message_external_id: str("message_external_id"),
+    words: str("words")
+  };
+}
 function purposeOfTemplate(category) {
   return category === "utility" || category === "authentication" ? "conversational" : "marketing";
 }
@@ -3193,6 +3211,20 @@ function attentionRow(p, nowMs) {
   const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
   return { channel, when, sentence, quoted, status, tone: r.tone, cta };
 }
+function consentChangeWords(c) {
+  const offers = c.purpose === "marketing";
+  const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
+  let sub;
+  if (c.source === "customer_message") {
+    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : "in their own message";
+    sub = `In their own words ${where}${c.words ? `: \u201C${c.words}\u201D` : ""}`;
+  } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
+    sub = "Reset by staff";
+  } else {
+    sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
+  }
+  return { who: offers ? "Offers" : "Consent", text, sub };
+}
 var DECISION_LABELS = {
   take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
   hand_back: { who: "Handed back", text: "You returned the thread to the receptionist" },
@@ -3279,6 +3311,12 @@ function toPersonVM(d, now = /* @__PURE__ */ new Date()) {
     const t = ts(dec.created_at);
     if (t === null) continue;
     items.push({ id: `d-${dec.id}`, ts: t, ...stamp(t), kind: "decision", who: label.who, text: label.text });
+  }
+  for (const c of d.consent_history ?? []) {
+    const t = ts(c.at);
+    if (t === null) continue;
+    const w = consentChangeWords(c);
+    items.push({ id: `c-${c.id}`, ts: t, ...stamp(t), kind: "consent", who: w.who, text: w.text, ...w.sub ? { sub: w.sub } : {} });
   }
   if (d.visits?.all?.length) {
     const tz = d.visits.timezone;
@@ -7914,6 +7952,8 @@ export {
   composeSystemPrompt,
   connectionRows,
   connectionWords,
+  consentChangeOf,
+  consentChangeWords,
   consentFormVM,
   consentPageVM,
   consentSourceLabel,

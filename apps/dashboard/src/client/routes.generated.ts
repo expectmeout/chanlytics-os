@@ -110,6 +110,8 @@ export const ROUTES = {
   "PUT contacts/[id]/details": { method: "PUT", path: "/api/v1/contacts/[id]/details" },
   "PUT contacts/[id]/marketing-consent": { method: "PUT", path: "/api/v1/contacts/[id]/marketing-consent" },
   "PUT contacts/[id]/receptionist": { method: "PUT", path: "/api/v1/contacts/[id]/receptionist" },
+  "PUT contacts/consent": { method: "PUT", path: "/api/v1/contacts/consent" },
+  "PUT contacts/marketing-consent": { method: "PUT", path: "/api/v1/contacts/marketing-consent" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
@@ -229,6 +231,8 @@ export type Routes = {
   "PUT contacts/[id]/details": typeof import("../../app/api/v1/contacts/[id]/details/route").PUT;
   "PUT contacts/[id]/marketing-consent": typeof import("../../app/api/v1/contacts/[id]/marketing-consent/route").PUT;
   "PUT contacts/[id]/receptionist": typeof import("../../app/api/v1/contacts/[id]/receptionist/route").PUT;
+  "PUT contacts/consent": typeof import("../../app/api/v1/contacts/consent/route").PUT;
+  "PUT contacts/marketing-consent": typeof import("../../app/api/v1/contacts/marketing-consent/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;

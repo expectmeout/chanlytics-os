@@ -78,13 +78,21 @@ export async function ingestInbound(db: Db, p: IngestInboundParams): Promise<Ing
   // write did not land would be a worse outcome than a consent record that has
   // to be repaired. It is logged loudly instead.
   if (p.optInMarketing && out?.contact_id) {
-    const { error: mErr } = await db.rpc("set_marketing_consent", {
+    const args = {
       p_tenant_id: p.tenantId,
       p_contact_id: out.contact_id,
       p_consent: "opted_in",
       p_source: "customer_message",
       p_note: null,
-    } as never);
+    };
+    // The proof (00110): where it came from, which message, what they wrote.
+    const evidence = { channel: p.channel, message_external_id: p.messageExternalId, words: (p.body ?? "").slice(0, 80) || null };
+    let { error: mErr } = await db.rpc("set_marketing_consent", { ...args, p_evidence: evidence } as never);
+    // A database that has not been given 00110 yet has no p_evidence, and
+    // PostgREST refuses the call by naming the parameters it could not match.
+    // The answer is recorded without its proof rather than not at all; any
+    // other refusal is reported below as before.
+    if (mErr && /p_evidence/.test(mErr.message)) ({ error: mErr } = await db.rpc("set_marketing_consent", args as never));
     if (mErr) {
       console.error(JSON.stringify({
         level: "error", event: "marketing_consent_write_failed",

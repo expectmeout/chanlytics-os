@@ -96,7 +96,15 @@ test("one person in full: the row with both reply modes, the notes, where they c
     contact_identities: [{ contact_id: P1, channel: "whatsapp", external_id: "15550000001", created_at: "2026-08-01T00:00:00Z" }],
     conversations: [], calls: [],
     policies: [pol(A, null, null, "auto"), pol(A, "contact", P1, "ask")],
-    events: [{ tenant_id: A, kind: "contact.added", subject_type: "contact", subject_id: P1, data: { source: "calendar", title: "Colour" }, created_at: "2026-08-01T00:00:00Z" }],
+    events: [
+      { tenant_id: A, kind: "contact.added", subject_type: "contact", subject_id: P1, data: { source: "calendar", title: "Colour" }, created_at: "2026-08-01T00:00:00Z" },
+      // Every change to either answer, as the doors write it: the profile shows these as evidence.
+      { id: "ev-1", tenant_id: A, kind: "contact.consent_changed", subject_type: "contact", subject_id: P1, data: { consent: "opted_in", source: "customer_message", channel: "sms", message_external_id: "SM123", words: "START" }, created_at: "2026-08-02T00:00:00Z" },
+      { id: "ev-2", tenant_id: A, kind: "contact.consent_changed", subject_type: "contact", subject_id: P1, data: { purpose: "marketing", consent: "opted_in", source: "form", note: "signed 2 Sep", by: "u-ada" }, created_at: "2026-08-03T00:00:00Z" },
+      // Somebody else's change, and another kind: neither is this person's history.
+      { id: "ev-3", tenant_id: A, kind: "contact.consent_changed", subject_type: "contact", subject_id: P2, data: { consent: "opted_out", source: "customer_message" }, created_at: "2026-08-04T00:00:00Z" },
+      { id: "ev-4", tenant_id: A, kind: "message.sent", subject_type: "message", subject_id: "m-1", data: {}, created_at: "2026-08-05T00:00:00Z" },
+    ],
     tenant_config: [{ tenant_id: A, config: { brain: { booking_link: " https://book.example/melany " } } }],
     tenants: [],
   };
@@ -109,6 +117,10 @@ test("one person in full: the row with both reply modes, the notes, where they c
   assert.equal(p.notes, "Sees Sofia");
   assert.equal(p.booking_link, "https://book.example/melany");
   assert.deepEqual(p.added, { at: "2026-08-01T00:00:00Z", source: "calendar", title: "Colour" });
+  assert.deepEqual(p.consent_history.map((c) => [c.id, c.purpose, c.consent, c.source, c.channel, c.message_external_id, c.words, c.by, c.note]), [
+    ["ev-2", "marketing", "opted_in", "form", null, null, null, "u-ada", "signed 2 Sep"],
+    ["ev-1", "conversational", "opted_in", "customer_message", "sms", "SM123", "START", null, null],
+  ], "this person's consent changes, newest first, with the evidence each carries");
   assert.equal(p.identities.length, 1);
   assert.deepEqual(p.conversations, []);
   assert.equal(p.visits, undefined, "no calendar connected");
