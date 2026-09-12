@@ -6769,6 +6769,20 @@ var SIGNUP_NAME_MAX = 120;
 var SignupSchema = z4.object({
   name: z4.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
   email: z4.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+  /**
+   * The credential, and the reason it is OPTIONAL here rather than required.
+   *
+   * The waitlist posture takes details and creates nothing -- no account, so
+   * no password -- and its form shows no such field. A schema that demanded
+   * one would refuse the queue, which is the posture a launch actually runs
+   * in. So the shape admits it and the CREATING path insists on it: the
+   * route calls `passwordProblem` the moment it knows the posture is not the
+   * list, and that one function is also what the page checks with, so the
+   * browser's rule and the server's rule cannot drift.
+   *
+   * The cap here is a body-size guard, not the rule; the rule is bytes.
+   */
+  password: z4.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
   timezone: z4.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
@@ -6794,7 +6808,7 @@ function pendingWorkspaceOf(metadata) {
 var SIGNUP_WORDS = {
   title: "Create your workspace",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
-  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to make your workspace.`,
+  sent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
   /*
    * WHEN THE CODE DID NOT GO OUT, and it is our fault rather than theirs.
@@ -6837,7 +6851,15 @@ var SIGNUP_WORDS = {
   or: "or, with your work email",
   googleNext: "You'll name your workspace on the next screen.",
   googleFailed: "Google sign-in didn't complete. Try again, or use your email.",
-  firstWorkspaceCode: "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace."
+  firstWorkspaceCode: "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace.",
+  /* ------------------------------------------------------- confirming the address
+   * The code step now lives ON the sign-up page rather than on sign-in.
+   * Somebody who has just chosen a password and is then sent to a screen
+   * headed "sign in" to type six digits has been told their credential did
+   * not work. It did; the address is what is unproved. */
+  confirmTitle: "Confirm your email",
+  confirmLead: (email) => `Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`,
+  confirmSubmit: "Confirm and continue"
 };
 function sendFailureIsOurs(e) {
   if (!e) return false;
@@ -6845,8 +6867,10 @@ function sendFailureIsOurs(e) {
   if (e.status === 429) return true;
   return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
 }
-function signupNext(email) {
-  return `/login?email=${encodeURIComponent(email.trim().toLowerCase())}&sent=1`;
+function addressAlreadyKnown(e) {
+  if (!e) return false;
+  if (e.code === "email_exists" || e.code === "user_already_exists") return true;
+  return /already (been )?registered|already exists/i.test(e.message ?? "");
 }
 function deviceTimezone(resolve = () => Intl.DateTimeFormat().resolvedOptions().timeZone) {
   try {
@@ -7938,6 +7962,44 @@ function businessRecordLine(r) {
   return `${r.legal_name}${r.trade_name ? ` (${r.trade_name})` : ""} \xB7 ${r.city}, ${r.region} \xB7 on record${capped}.`;
 }
 
+// src/password.ts
+var PASSWORD_MIN = 12;
+var PASSWORD_MAX_BYTES = 72;
+function passwordProblem(raw) {
+  if (typeof raw !== "string" || raw.length === 0) return "Choose a password.";
+  if (raw.length < PASSWORD_MIN) return `A password is at least ${PASSWORD_MIN} characters.`;
+  if (new TextEncoder().encode(raw).length > PASSWORD_MAX_BYTES) {
+    return `That password is too long \u2014 ${PASSWORD_MAX_BYTES} bytes at most.`;
+  }
+  return null;
+}
+function isUsablePassword(raw) {
+  return passwordProblem(raw) === null;
+}
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
+
 // src/schema-sets.generated.ts
 var SCHEMA_SETS = {
   "ask_messages.role": ["user", "assistant"],
@@ -8239,6 +8301,9 @@ export {
   OPT_OUT_REFUSAL,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
+  PASSWORD_MAX_BYTES,
+  PASSWORD_MIN,
+  PASSWORD_WORDS,
   PENDING_WORKSPACE_KEY,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
@@ -8326,6 +8391,7 @@ export {
   WABA_FIELDS,
   WA_WINDOW_MS,
   activityWords,
+  addressAlreadyKnown,
   afterPersonRefused,
   ago,
   agoLabel,
@@ -8463,6 +8529,7 @@ export {
   isTimezone,
   isTypingTarget,
   isUngrounded,
+  isUsablePassword,
   knownTimezones,
   lastChangedWords,
   lineCredentialFailure,
@@ -8508,6 +8575,7 @@ export {
   parseTenantConfig,
   parseTenantConfigResult,
   partialAnswer,
+  passwordProblem,
   pausedVoiceFacts,
   pendingWorkspaceOf,
   peopleAggregates,
@@ -8584,7 +8652,6 @@ export {
   shortTime,
   shortcutGroups,
   shouldLandOnSetup,
-  signupNext,
   signupPosture,
   slotLabels,
   slugTemplateName,

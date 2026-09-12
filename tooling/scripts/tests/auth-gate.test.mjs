@@ -126,7 +126,7 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")), ["page.tsx"], "the terms are a page, not a route that takes input");
 });
 
-test("only these ten paths are reachable without a session", () => {
+test("only these eleven paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -142,7 +142,13 @@ test("only these ten paths are reachable without a session", () => {
   // pointing at facebook.com instead.
   // The sign-in callback joined with Sign in with Google: a provider sends the
   // browser back with a code and no session, which is the point. Exact path.
-  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/callback", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/signup", "/terms"]);
+  // Resetting a password joined with the password itself: nobody who has
+  // forgotten one has a session to show. Its second half VERIFIES a recovery
+  // code, which is what creates the session the new password is written on —
+  // so it is also deliberately absent from the signed-in redirect below, where
+  // bouncing a signed-in person would break the page's own second step.
+  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/callback", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/reset-password", "/signup", "/terms"]);
+  assert.match(middleware, /path === "\/login" \|\| path === "\/signup"/, "and the two doors a signed-in person is sent away from stay those two");
 });
 
 test("the three legal pages are static, read nothing, and point at each other", () => {
@@ -291,6 +297,28 @@ test("the email provider stays ENABLED — this key does not mean what it says",
   // email_provider_disabled and nobody can sign in. That was a live outage.
   // Invite-only is [auth] enable_signup above; this must stay true.
   assert.equal(toml("auth.email", "enable_signup"), "true");
+});
+
+test("an address is CONFIRMED, in both of the two places that decide it", () => {
+  // THE HINGE OF THE PASSWORD FLOW. With a password and no confirmation,
+  // signUp() hands back a live session immediately: a stranger who types
+  // someone else's address is signed in as them, and the real owner can never
+  // sign up because the address is taken.
+  assert.equal(toml("auth.email", "enable_confirmations"), "true");
+  // Phone confirmation is the OTHER half of hiding whether an address is known,
+  // and it is deliberately not used: the dashboard only offers it behind a
+  // phone provider that demands SMS credentials and switches on phone sign-in.
+  // The invariant is kept in code instead (addressAlreadyKnown), which is
+  // pinned by signup.test. Nothing here asserts that flag in either direction —
+  // turning it on later is pure hardening and must not fail this suite.
+  assert.equal(toml("auth.sms", "enable_signup"), "false", "nobody signs up by phone");
+});
+
+test("a password has a floor, and the floor is length rather than punctuation", () => {
+  assert.equal(toml("auth", "minimum_password_length"), "12");
+  // Empty on purpose: composition classes push people toward Passw0rd!. The
+  // strength check that earns its keep is the hosted breach list.
+  assert.equal(toml("auth", "password_requirements"), '""');
 });
 
 test("a 6-digit code is not left guessable for an hour", () => {

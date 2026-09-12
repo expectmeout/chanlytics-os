@@ -566,7 +566,7 @@ const PaneProfile = ({ flash }) => {
         <SetRow label="Your name" hint="How your team sees you — clear it and your email stands in">
           <YourName flash={flash} />
         </SetRow>
-        <SetRow label="Signed in as" hint="Chanlytics signs you in by email; there is no password to change">
+        <SetRow label="Signed in as" hint={<>Your password is set from the sign-in page — <a className="lm-link" href="/reset-password">choose a new one</a> and we&rsquo;ll email you a code</>}>
           <span className="set-me-static">{words.email || "—"}</span>
         </SetRow>
         {role && (

@@ -1,70 +1,90 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
-import { SIGNIN_RESEND_COOLDOWN_S, SIGNUP_WORDS, requestCodeWords, resendLeft, verifyCodeWords } from "@chanlytics/contracts";
+import { useEffect, useRef, useState } from "react";
+import { PASSWORD_WORDS, SIGNUP_WORDS, requestCodeWords, verifyCodeWords } from "@chanlytics/contracts";
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
+import CodeStep from "@/auth/CodeStep";
 
 // The words for each failure and the resend wait live in contracts
 // (requestCodeWords, verifyCodeWords, resendLeft), where they are executed;
 // the page only shows them.
 
 /**
- * Email OTP-code sign-in (no magic-link redirect allowlist to manage).
- * Step 1: email -> Supabase sends a 6-digit code. Step 2: verify the code.
+ * Sign-in: a password, with Google above it and a code below it.
+ *
+ * THE CODE DOOR IS NOT DECORATION AND IS NOT DEPRECATED. Every account that
+ * existed before the password shipped has no password at all -- the operators
+ * inside today, and everyone an owner has ever invited, since an invitation
+ * creates an account with no credential. A password-only sign-in page locks
+ * all of them out on the morning it deploys. It is also how a person on a
+ * borrowed machine gets in, and it is what a reset is made of.
+ *
+ * Neither form says whether an address has an account. The password door
+ * cannot: Supabase answers an unknown address, a wrong password and a
+ * Google-only account with the same error, and this page keeps it that way.
+ * The code door must not: it reaches the code step on the failure path too,
+ * so "no such account" and "code sent" look identical from outside.
  */
 export default function LoginPage() {
   const supabase = createClient();
   const [email, setEmail] = useState("");
-  const [code, setCode] = useState("");
-  const [stage, setStage] = useState<"email" | "code">("email");
+  const [password, setPassword] = useState("");
+  const [stage, setStage] = useState<"password" | "code">("password");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [cooldown, setCooldown] = useState(0);
-  const cooldownTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-  const sentAt = useRef<number | null>(null);
+  const [nudge, setNudge] = useState(false);
   const fieldRef = useRef<HTMLInputElement | null>(null);
-
-  useEffect(() => () => { if (cooldownTimer.current) clearInterval(cooldownTimer.current); }, []);
 
   // autoFocus is a no-op under SSR: the input already exists in the server
   // HTML, so React hydrates the node and never calls .focus(). Focus
-  // explicitly on mount and again when the email step hands off to the code
-  // step — otherwise every sign-in starts with a dead click into the page.
+  // explicitly on mount and again when the code step hands back — otherwise
+  // returning to this form starts with a dead click into the page.
   useEffect(() => { fieldRef.current?.focus(); }, [stage]);
 
-  const startCooldown = useCallback(() => {
-    sentAt.current = Date.now();
-    setCooldown(SIGNIN_RESEND_COOLDOWN_S);
-    if (cooldownTimer.current) clearInterval(cooldownTimer.current);
-    // The wait is counted from when the code went, not from ticks: a tab that
-    // slept counts what really passed.
-    cooldownTimer.current = setInterval(() => {
-      const left = resendLeft(sentAt.current, Date.now());
-      setCooldown(left);
-      if (left <= 0 && cooldownTimer.current) clearInterval(cooldownTimer.current);
-    }, 1000);
-  }, []);
-
-  // Arriving from sign-up: the code is already on its way to this address, so
-  // the page opens at the code step for it. Read on the client, once; the
-  // query never reaches a server log of this page's own making.
+  // Back from Google without a session: the callback says so once, here.
   useEffect(() => {
     const q = new URLSearchParams(window.location.search);
-    // Back from Google without a session: the callback says so once, here.
     if (q.get("error") === "oauth") {
       setError(SIGNUP_WORDS.googleFailed);
       window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     }
     const e = q.get("email");
-    if (e && q.get("sent") === "1") {
+    if (e) {
       setEmail(e);
-      setStage("code");
-      startCooldown();
       window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     }
-  }, [startCooldown]);
+  }, []);
+
+  /** In, whichever door opened. Deep links survive: the browser carries the
+   *  hash through the middleware's redirect, and a full navigation re-runs it. */
+  function landed() {
+    // Whoever signs in next must not inherit the previous account's cached
+    // conversations. Sign-out already clears this; sign-in is the other half.
+    clearSurfaceCache();
+    window.location.assign("/" + window.location.hash);
+  }
+
+  async function signInWithPassword(e: React.FormEvent) {
+    e.preventDefault();
+    setBusy(true);
+    setError(null);
+    setNudge(false);
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+    setBusy(false);
+    if (error) {
+      // One sentence for all three cases Supabase refuses to distinguish: an
+      // address nobody has, a wrong password, and an account that only ever
+      // arrived through Google. Every improvement to this sentence would be an
+      // oracle for who has an account; the nudge below is shown to everybody,
+      // so it helps the third case without answering for the first.
+      setError(PASSWORD_WORDS.wrong);
+      setNudge(true);
+      return;
+    }
+    landed();
+  }
 
   async function sendCode(e?: React.FormEvent) {
     e?.preventDefault();
@@ -72,8 +92,9 @@ export default function LoginPage() {
     setError(null);
     const { error } = await supabase.auth.signInWithOtp({
       email: email.trim(),
-      // Belt and braces: the project now refuses signups server-side too, so
-      // this flag is no longer the only thing making the product invite-only.
+      // Belt and braces: the project refuses signups at this endpoint server-side
+      // too, so this flag is not the only thing keeping the code door shut to
+      // addresses nobody has.
       options: { shouldCreateUser: false },
     });
     setBusy(false);
@@ -88,102 +109,82 @@ export default function LoginPage() {
     // learns nothing; someone who can gets their code.
     setError(null);
     setStage("code");
-    startCooldown();
-  }
-
-  async function verifyCode(e: React.FormEvent) {
-    e.preventDefault();
-    setBusy(true);
-    setError(null);
-    const { error } = await supabase.auth.verifyOtp({
-      email: email.trim(),
-      token: code.trim(),
-      type: "email",
-    });
-    setBusy(false);
-    if (error) setError(verifyCodeWords(error.message));
-    else {
-      // Whoever signs in next must not inherit the previous account's cached
-      // conversations. Sign-out already clears this; sign-in is the other half
-      // (a session can also expire without anyone pressing anything).
-      clearSurfaceCache();
-      // Deep links survive sign-in: the middleware redirect keeps the #/route
-      // fragment (browsers carry the hash through redirects), but
-      // router.replace("/") threw it away — anyone following a link to a
-      // specific thread landed on Today instead. A full navigation also
-      // re-runs the middleware naturally, which router.refresh() was
-      // compensating for.
-      window.location.assign("/" + window.location.hash);
-    }
   }
 
   return (
     <main className="auth-card">
       <h1>Chanlytics OS</h1>
-      <p>Sign in with Google, or with a code sent to your work email.</p>
-      {/* Deep links survive Google too: the hash rides in `next`, and the
-          callback lands on it. */}
-      {stage === "email" && <GoogleSignIn next={() => "/" + window.location.hash} />}
-      {stage === "email" ? (
-        <form onSubmit={sendCode}>
+      <p>
+        {stage === "code"
+          ? "We sent a one-time code to your work email."
+          : "Sign in to your workspace."}
+      </p>
+
+      {stage === "password" && <GoogleSignIn next={() => "/" + window.location.hash} />}
+
+      {stage === "password" ? (
+        <form onSubmit={signInWithPassword}>
           <label htmlFor="email">Email</label>
           <input
             id="email"
+            name="email"
             type="email"
-            autoComplete="email"
+            autoComplete="username"
             required
             ref={fieldRef}
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="you@business.com"
           />
-          <button disabled={busy}>{busy ? "Sending code…" : "Email me a code"}</button>
-        </form>
-      ) : (
-        <form onSubmit={verifyCode}>
-          <label htmlFor="code">Enter the 6-digit code sent to {email.trim()}</label>
+          <label htmlFor="password">{PASSWORD_WORDS.label}</label>
           <input
-            id="code"
-            inputMode="numeric"
-            autoComplete="one-time-code"
-            maxLength={6}
+            id="password"
+            name="password"
+            type="password"
+            autoComplete="current-password"
             required
-            ref={fieldRef}
-            value={code}
-            onChange={(e) => setCode(e.target.value)}
-            placeholder="123456"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••••"
           />
-          <button disabled={busy}>{busy ? "Verifying…" : "Sign in"}</button>
-          <div className="hint">
-            {cooldown > 0 ? (
-              <span>Didn&apos;t get it? Resend in {cooldown}s. </span>
-            ) : (
-              <button
-                type="button"
-                onClick={() => void sendCode()}
-                disabled={busy}
-                style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit", width: "auto" }}
-              >
-                Resend code
-              </button>
-            )}
-            <button
-              type="button"
-              onClick={() => { setStage("email"); setCode(""); setError(null); }}
-              style={{ background: "none", border: "none", color: "inherit", textDecoration: "underline", cursor: "pointer", padding: 0, font: "inherit", width: "auto", marginLeft: 8 }}
-            >
-              Use a different email
+          <button disabled={busy}>{busy ? "Signing in…" : "Sign in"}</button>
+          <div className="auth-row">
+            <button type="button" className="auth-linkbtn" onClick={() => void sendCode()} disabled={busy || !email.trim()}>
+              {PASSWORD_WORDS.codeInstead}
             </button>
+            <a href={`/reset-password${email.trim() ? `?email=${encodeURIComponent(email.trim())}` : ""}`}>
+              {PASSWORD_WORDS.forgot}
+            </a>
           </div>
         </form>
+      ) : (
+        <CodeStep
+          email={email.trim()}
+          label={`Enter the 6-digit code sent to ${email.trim()}`}
+          submitLabel="Sign in"
+          onSubmit={async (typed) => {
+            const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
+            if (error) return verifyCodeWords(error.message);
+            landed();
+            return null;
+          }}
+          onResend={async () => {
+            const { error } = await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
+            return error ? requestCodeWords(error) : null;
+          }}
+          onBack={() => { setStage("password"); setError(null); }}
+          backLabel={PASSWORD_WORDS.passwordInstead}
+        />
       )}
-      {/* role=alert: a wrong code must be ANNOUNCED, not just painted — a
+
+      {/* role=alert: a refused sign-in must be ANNOUNCED, not just painted — a
           screen-reader user otherwise hears nothing and resubmits into
-          silence. aria-live region stays mounted so repeat errors re-fire. */}
+          silence. The region stays mounted so repeat errors re-fire. */}
       <div role="alert" aria-live="assertive">
         {error && <div className="error">{error}</div>}
+        {nudge && <div className="hint">{PASSWORD_WORDS.wrongNudge}</div>}
       </div>
-      <div className="hint">New to Chanlytics? <a href="/signup">Create your workspace</a></div>
+      <div className="hint">{SIGNUP_WORDS.newHere} <a href="/signup">Create your workspace</a></div>
       <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
     </main>
   );

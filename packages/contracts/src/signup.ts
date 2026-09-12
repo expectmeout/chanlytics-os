@@ -14,6 +14,20 @@ export const SignupSchema = z
   .object({
     name: z.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long — 120 characters at most."),
     email: z.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+    /**
+     * The credential, and the reason it is OPTIONAL here rather than required.
+     *
+     * The waitlist posture takes details and creates nothing -- no account, so
+     * no password -- and its form shows no such field. A schema that demanded
+     * one would refuse the queue, which is the posture a launch actually runs
+     * in. So the shape admits it and the CREATING path insists on it: the
+     * route calls `passwordProblem` the moment it knows the posture is not the
+     * list, and that one function is also what the page checks with, so the
+     * browser's rule and the server's rule cannot drift.
+     *
+     * The cap here is a body-size guard, not the rule; the rule is bytes.
+     */
+    password: z.string().max(200).optional(),
     /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
     timezone: z.string().trim().min(1).max(64).optional(),
     /** The invite code, when sign-up is by invitation. */
@@ -82,7 +96,7 @@ export function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null {
 export const SIGNUP_WORDS = {
   title: "Create your workspace",
   lead: "Your business gets its own workspace: the receptionist, the inbox, the numbers. You become its owner.",
-  sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it on the next screen to make your workspace.`,
+  sent: (email: string) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below to finish.`,
   codeRequired: "Sign-up is by invitation right now. Enter the invite code you were given.",
   /*
    * WHEN THE CODE DID NOT GO OUT, and it is our fault rather than theirs.
@@ -126,6 +140,14 @@ export const SIGNUP_WORDS = {
   googleNext: "You'll name your workspace on the next screen.",
   googleFailed: "Google sign-in didn't complete. Try again, or use your email.",
   firstWorkspaceCode: "Sign-up is by invitation right now. Enter the invite code you were given to make your first workspace.",
+  /* ------------------------------------------------------- confirming the address
+   * The code step now lives ON the sign-up page rather than on sign-in.
+   * Somebody who has just chosen a password and is then sent to a screen
+   * headed "sign in" to type six digits has been told their credential did
+   * not work. It did; the address is what is unproved. */
+  confirmTitle: "Confirm your email",
+  confirmLead: (email: string) => `Enter the 6-digit code we sent to ${email}. It expires in 10 minutes.`,
+  confirmSubmit: "Confirm and continue",
 } as const;
 
 /**
@@ -149,10 +171,35 @@ export function sendFailureIsOurs(e: { code?: string; status?: number; message?:
   return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
 }
 
-/** Where the page goes once the code is on its way: sign-in, at the code step, for this address. */
-export function signupNext(email: string): string {
-  return `/login?email=${encodeURIComponent(email.trim().toLowerCase())}&sent=1`;
+/**
+ * Is this the platform saying the address is already registered?
+ *
+ * THE PROJECT DOES NOT HIDE THIS BY ITSELF, and it is not going to. Supabase
+ * returns an obfuscated user for a known address only when email AND phone
+ * confirmations are both on, and the phone flag lives behind a phone provider
+ * this product will never switch on: the dashboard will not save that form
+ * without SMS credentials, and its own toggle says it enables phone-based
+ * login. Adding a whole sign-in channel nobody uses, to hold one flag, is a
+ * worse bargain than keeping the invariant ourselves.
+ *
+ * So the neutrality is OURS. The caller answers an address we already have
+ * exactly as it answers a new one, and nothing downstream learns which it was.
+ * Without this, an ordinary second sign-up becomes a 500 -- a dead end for the
+ * person, and a 500-versus-200 oracle for everybody else.
+ *
+ * Matched on the code first: the code is the stable half and the wording is not.
+ */
+export function addressAlreadyKnown(e: { code?: string; message?: string } | null | undefined): boolean {
+  if (!e) return false;
+  if (e.code === "email_exists" || e.code === "user_already_exists") return true;
+  return /already (been )?registered|already exists/i.test(e.message ?? "");
 }
+
+/* `signupNext` lived here: the sign-up page sent the person to /login at the
+ * code step. The code step is on the sign-up page itself now, so the route
+ * answers `next: null` and there is nowhere to compute. Removed rather than
+ * left dead -- a helper that points at the wrong screen is how a later change
+ * quietly resurrects the wrong screen. */
 
 /** The device's zone when the runtime knows one; otherwise nothing, and the database defaults it. */
 export function deviceTimezone(resolve: () => string | undefined = () => Intl.DateTimeFormat().resolvedOptions().timeZone): string | undefined {

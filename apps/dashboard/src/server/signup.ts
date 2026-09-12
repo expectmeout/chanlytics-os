@@ -4,7 +4,7 @@ import { deployment } from "./deployment";
 import { createClient } from "@supabase/supabase-js";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createServiceClient, type Database } from "@chanlytics/db";
-import { PENDING_WORKSPACE_KEY, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
+import { PENDING_WORKSPACE_KEY, addressAlreadyKnown, sendFailureIsOurs, type SignupInput } from "@chanlytics/contracts";
 
 /**
  * Sign-up, the half that knows who exists.
@@ -64,47 +64,60 @@ export function inviteCodeMatches(given: string | undefined | null): boolean {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
-/** Supabase's own word for an address it already has. */
-export function alreadyExists(e: { code?: string; message?: string } | null | undefined): boolean {
-  if (!e) return false;
-  return e.code === "email_exists" || /already (been )?registered|already exists/i.test(e.message ?? "");
-}
-
 /**
- * Send the one credential that opens the account.
+ * Make the account, keep what the form said on it, and send the code that
+ * proves the address -- in ONE call, with the PUBLIC key.
  *
- * Returns whether the failure was OURS. An unknown or already-registered address
- * stays opaque -- that answer is an account-enumeration oracle on a public form --
- * but a send we could not make says nothing about any address, and swallowing it
- * is how somebody ends up waiting for ever with the page cheerfully telling them
- * a code is on its way.
+ * THE SERVICE ROLE HAS LEFT THIS PATH. It used to create the user with the
+ * admin API, mark the address confirmed without a shred of proof, probe
+ * Supabase's error text to find out whether the address was already known,
+ * and then make a second call to send the code. All four of those existed to
+ * work around one setting: email confirmation was off, so nothing else would
+ * send a confirmation and nothing else would keep the answer opaque.
+ *
+ * With confirmation on, `signUp` does the whole job and does it better:
+ *   - it will not hand back a session, so an unproved address owns nothing;
+ *   - an address we already have comes back OBFUSCATED, by Supabase's own
+ *     rule, so the one-sentence-either-way stance is the platform's behaviour
+ *     rather than something this file reconstructs from error strings;
+ *   - the confirmation code goes out as part of it.
+ *
+ * The only thing still worth telling the caller is a send WE could not make --
+ * the mail budget, or no provider configured. That says nothing about any
+ * address, and swallowing it is how somebody waits for ever while the page
+ * cheerfully reports a code on its way.
  */
-async function sendCode(email: string): Promise<{ ourFault: boolean }> {
+export async function signUp(input: SignupInput & { password: string }): Promise<SignupOutcome> {
   const anon = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!, {
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   });
-  const { error } = await anon.auth.signInWithOtp({ email, options: { shouldCreateUser: false } });
-  if (!error) return { ourFault: false };
-  const ourFault = sendFailureIsOurs(error as { code?: string; status?: number; message?: string });
-  console.warn("signup_code_not_sent", JSON.stringify({ ourFault, message: error.message.slice(0, 120) }));
-  return { ourFault };
-}
-
-export async function signUp(input: SignupInput): Promise<SignupOutcome> {
-  const db = serviceDb();
-  // Confirmed at creation: the code is the proof of the inbox, and a user who
-  // never enters one owns nothing. What the form said rides on the user for
-  // the create screen to open with; an address Supabase already has keeps
-  // whatever it had, because a public form must not write into an account.
-  const made = await db.auth.admin.createUser({
+  const { data, error } = await anon.auth.signUp({
     email: input.email,
-    email_confirm: true,
-    user_metadata: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } },
+    password: input.password,
+    // user_metadata, the same key the create screen reads. A prefilled form,
+    // never a permission: nothing downstream treats it as one.
+    options: { data: { [PENDING_WORKSPACE_KEY]: { name: input.name, timezone: input.timezone ?? null } } },
   });
-  if (made.error && !alreadyExists(made.error)) throw new Error(`createUser: ${made.error.message}`);
-  const created = !made.error && !!made.data.user?.id;
-  const { ourFault } = await sendCode(input.email);
-  return { created, userId: created ? made.data.user!.id : null, codeUnsent: ourFault };
+  if (error) {
+    // AN ADDRESS WE ALREADY HAVE, answered exactly as a new one is: nothing
+    // created, nothing sent, and the same sentence back. The platform will
+    // obfuscate this itself only if phone confirmations are on, which means
+    // switching on a phone provider nobody signs in with -- so the neutrality
+    // is kept here instead, where it does not depend on a console toggle.
+    // Without this branch an ordinary second sign-up is a 500, which is both a
+    // dead end for the person and an oracle for everyone else.
+    if (addressAlreadyKnown(error)) return { created: false, userId: null, codeUnsent: false };
+    if (!sendFailureIsOurs(error as { code?: string; status?: number; message?: string })) {
+      throw new Error(`signUp: ${error.message}`);
+    }
+    console.warn("signup_code_not_sent", JSON.stringify({ ourFault: true, message: error.message.slice(0, 120) }));
+    return { created: false, userId: null, codeUnsent: true };
+  }
+  // An obfuscated user -- the answer for an address we already have -- carries
+  // an EMPTY identities array. Read for the log line alone: what goes back to
+  // the caller is the same sentence either way, which is the entire point.
+  const created = (data.user?.identities?.length ?? 0) > 0;
+  return { created, userId: created ? (data.user?.id ?? null) : null, codeUnsent: false };
 }
 
 /**

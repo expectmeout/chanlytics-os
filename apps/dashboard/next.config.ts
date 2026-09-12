@@ -59,6 +59,17 @@ const nextConfig: NextConfig = {
         source: "/login",
         headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
       },
+      {
+        // The other two credential pages, for the same reason and more of it:
+        // both now hold a password field, and the reset page holds a code that
+        // opens an account.
+        source: "/signup",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
+      {
+        source: "/reset-password",
+        headers: [{ key: "Cache-Control", value: "private, no-store, max-age=0" }],
+      },
     ];
   },
 };

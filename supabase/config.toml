@@ -188,8 +188,13 @@ enable_signup = true
 enable_anonymous_sign_ins = false
 # Allow/disallow testing manual linking of accounts
 enable_manual_linking = false
-# Nobody signs in with a password here (OTP only, and invited users never set
-# one), but if one is ever set it must not be a weak one.
+# The everyday credential. Twelve characters, and length is the WHOLE rule:
+# `password_requirements` below stays empty on purpose, because composition
+# classes push people toward Passw0rd! and buy nothing a longer phrase does not
+# buy more cheaply. The real strength check is the hosted breach list
+# ("Prevent use of leaked passwords"), which no regular expression can make.
+# packages/contracts/src/password.ts holds the same floor, and the 72-BYTE
+# ceiling the hash imposes.
 minimum_password_length = 12
 # Passwords that do not meet the following requirements will be rejected as weak. Supported values
 # are: `letters_digits`, `lower_upper_letters_digits`, `lower_upper_letters_digits_symbols`
@@ -242,7 +247,18 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
-enable_confirmations = false
+#
+# TRUE, and it is the hinge the whole password flow turns on. With a password
+# and no confirmation, `signUp()` hands back a LIVE SESSION straight away: a
+# stranger who types someone else's address is signed in as them, and the real
+# owner can never sign up because the address is taken. It is the bug the
+# pending-workspace design already fixed once, in a worse form.
+#
+# It also has to be true in BOTH places -- here and [auth.sms] below. Supabase
+# only returns the obfuscated answer for an address it already has when email
+# AND phone confirmation are both on; with either off it answers "User already
+# registered", which is an account-enumeration oracle on a public form.
+enable_confirmations = true
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false
 # Minimum time before another auth email may be sent to the same address.
@@ -288,6 +304,19 @@ otp_expiry = 600
 # Allow/disallow new user signups via SMS to your project.
 enable_signup = false
 # If enabled, users need to confirm their phone number before signing in.
+#
+# FALSE, deliberately, and here is the trade. Supabase hides whether an address
+# is already registered only when email AND phone confirmations are both on --
+# the documented rule says so "even when phone provider is disabled". But the
+# dashboard puts that flag inside the Phone provider form, which will not save
+# without Twilio credentials and whose own toggle reads "this will enable phone
+# based login for your application". Adding a whole sign-in channel nobody uses,
+# to hold one flag, is a worse bargain than keeping the invariant ourselves.
+#
+# So we keep it: `addressAlreadyKnown` in contracts, applied in
+# src/server/signup.ts, answers an address we already have exactly as it answers
+# a new one. The oracle stays closed on OUR surface either way; turning this on
+# later would also close it at the platform's, which is the only thing gained.
 enable_confirmations = false
 # Template for sending OTP to users
 template = "Your code is {{ .Code }}"
