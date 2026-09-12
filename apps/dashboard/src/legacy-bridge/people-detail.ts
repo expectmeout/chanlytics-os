@@ -1,4 +1,4 @@
-import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { refreshAfter } from "./refresh-map";
@@ -139,6 +139,8 @@ declare global {
     __mayReceive?: typeof mayReceive;
     /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
     __offersYesSources?: readonly { id: string; label: string }[];
+    /** What staff ask in person or on the phone -- the sentence the campaign files as its spoken opt-in. */
+    __verbalOptInScript?: (businessName: string) => string;
     __deletePerson?: (id: string) => Promise<DeleteResult>;
     __setPersonDetails?: (id: string, body: DetailsBody) => Promise<DeleteResult>;
     __setPersonReceptionist?: (id: string, mode: "auto" | "ask" | "never" | "inherit") => Promise<DeleteResult>;
@@ -173,4 +175,7 @@ export function installPeopleCourier(): void {
   window.__mayReceive = mayReceive;
   // The rule, applied once, so the profile and the bulk menu offer the same ways.
   window.__offersYesSources = CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null);
+  // The words, not a copy of them: the filing quotes this sentence as the way a
+  // yes is asked for in person or on the phone, so the desk sees the same one.
+  window.__verbalOptInScript = verbalOptInScript;
 }

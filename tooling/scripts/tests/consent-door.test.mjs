@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal } from "@chanlytics/contracts";
+import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal, verbalOptInScript } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 test("the door: owner or operator, the three columns together, the ingest's own event, nothing for anon", () => {
@@ -98,7 +98,7 @@ test("the route: operator or owner, a yes or a no needs its source, the reset ne
 
 test("the page: TWO asks, each asking how before it writes, a STOP is not undone by the desk", () => {
   const b = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
-  assert.ok(b.includes("window.__setPersonConsent = setPersonConsent;") && b.includes("window.__consentSources = CONSENT_SOURCES;"));
+  assert.ok(b.includes("window.__setPersonConsent = setPersonConsent;") && b.includes("window.__consentSources = CONSENT_SOURCES;") && b.includes("window.__verbalOptInScript = verbalOptInScript;"));
   assert.ok(b.includes("window.__setPersonMarketingConsent = setPersonMarketingConsent;"));
   // One transport, the path chosen by purpose, so neither answer can be posted to
   // the other's door by a typo in a page.
@@ -304,6 +304,11 @@ async function renderLoadedProfile() {
     __PEOPLE: {}, __ME: { role: "operator" }, __consentSources: CONSENT_SOURCES,
     __personDetail: async () => vm, addEventListener: () => {}, removeEventListener: () => {},
     usePPToast: () => [null, () => {}],
+    // The shell's workspace list and the bridge's script, so the visit ask can
+    // show the desk what to say -- the sentence the campaign files as method (3).
+    __WORKSPACES: [{ id: "t-1", slug: "melanys", name: "Melany's Beauty Salon", status: "active", timezone: "America/New_York" }],
+    __ACTIVE_WORKSPACE: "t-1",
+    __verbalOptInScript: verbalOptInScript,
   });
   for (const g of ["Icon", "ChannelGlyph", "ClientTag", "StatCell", "StatStrip", "MoreMenu", "TempBar"]) globalThis[g] ??= g;
   globalThis.React.useCallback ??= (fn) => fn;
@@ -373,6 +378,13 @@ test("on the loaded profile, the offers ask offers only written ways to say yes;
   const all = CONSENT_SOURCES.map((s) => s.id);
   assert.deepEqual(talk.sources.map((s) => s.id), all, "a yes to messages about a visit may be given any way");
   assert.equal(talk.yesSources, undefined);
+  // And when the yes is spoken, the desk is shown what to ask: the sentence the
+  // campaign files as its spoken opt-in, in this workspace's name (30896).
+  assert.ok(talk.yesHow.includes(verbalOptInScript("Melany's Beauty Salon")), "the script, verbatim, with the workspace's name");
+  assert.match(talk.yesHow, /^How did they tell you\? In person or on the phone, ask in these words: /);
+  const spoken = mount({ ...talk, onRecord: async () => ({ ok: true }) });
+  await spoken.click(byLabel(spoken.tree, "Yes"));
+  assert.match(textOf(byId(spoken.tree, "consent-control-how")), /Would you like Melany's Beauty Salon to text you/, "on the rendered ask, not only in its props");
   assert.deepEqual(offers.sources.map((s) => s.id), all, "a NO to offers may be given any way, and is honoured");
   assert.deepEqual(offers.yesSources.map((s) => s.id), ["form", "customer_message"], "a YES to offers, only in writing");
 

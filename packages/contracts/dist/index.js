@@ -7052,6 +7052,10 @@ function optInConfirmation(businessName, purpose) {
   const name = businessName.trim() || "This business";
   return purpose === "marketing" ? `${name}: you're signed up for offers and news. A few messages a month. Msg & data rates may apply. Reply HELP for help, STOP to cancel.` : `${name}: you'll get texts about your appointments. Msg frequency varies. Msg & data rates may apply. Reply HELP for help, STOP to cancel.`;
 }
+function verbalOptInScript(businessName) {
+  const name = businessName.trim() || "us";
+  return `Would you like ${name} to text you about your appointments and reply when you write? Message frequency varies. Message and data rates may apply. Reply HELP for help, STOP to stop.`;
+}
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
 var CONVERSATION_PHRASE = "START";
@@ -8158,6 +8162,7 @@ export {
   usableDeviceTimezone,
   validateTemplateDraft,
   verbForRoute,
+  verbalOptInScript,
   verifyCodeWords,
   violatesNoPrices,
   visitDateKey,
