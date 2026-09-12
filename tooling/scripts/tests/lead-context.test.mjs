@@ -115,7 +115,7 @@ test("an opted-out contact is flagged to both agents", () => {
 
 /* ------------------------------ the wiring -------------------------------- */
 
-const voice = read("apps/edge/api/retell-inbound.ts");
+const voice = read("apps/edge/lib/call-start.ts");
 const wa = read("apps/edge/lib/whatsapp/inbound.ts");
 const brain = read("apps/edge/lib/brain.ts");
 

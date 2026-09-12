@@ -194,9 +194,8 @@ test("the wiring: the board and the profile read one match; both receptionists a
   assert.ok(edge.includes("export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }") && edge.includes("return describeVisits(visitsOf(feed.items, { id: \"caller\", name: who.name ?? \"\", phone: who.phone }, now.getTime()), rt.timezone, now.getTime());"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") && wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"), "WhatsApp: with who they are");
-  const inbound = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(inbound.includes('void alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {});'), "a call for a switched-off channel tells the platform, as a text does");
-  assert.ok(inbound.includes("const visits = await visitsFor(rt, { phone, name: lead.name });") && inbound.includes("if (visits) parts.push(visits);"), "phone: in the caller context");
+  // Phone: the visits in the caller context, and a call for a switched-off
+  // channel telling the platform as a text does: run in call-start.test.mjs.
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
   for (const id of ["cal-panel-person", "cal-panel-contact", "cal-panel-where", "cal-panel-desc"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes("From {source}. The receptionist treats this time as taken; to change or cancel it, edit it there."), "one line, no feed counts");

@@ -110,7 +110,7 @@ test("every store call site passes a namespace", () => {
   // form would compile against a string threadId and quietly write to a
   // namespace named after a phone number.
   const files = [
-    "api/whatsapp.ts", "lib/whatsapp/inbound.ts", "api/retell-webhook.ts", "api/retell-inbound.ts",
+    "api/whatsapp.ts", "lib/whatsapp/inbound.ts", "api/retell-webhook.ts", "api/retell-inbound.ts", "lib/call-start.ts",
     "api/admin/pause.ts", "api/diag.ts",
   ];
   /** Top-level arguments of a call, respecting nested parentheses —
@@ -163,13 +163,13 @@ test("the inbound-call endpoint refuses to read without a resolved tenant", () =
   // it is unchanged. Locating the read explicitly rather than comparing an
   // indexOf that returns -1: if the call is ever renamed away again, this
   // must fail loudly rather than pass because it found nothing.
-  const src = fs.readFileSync(path.join(EDGE, "api/retell-inbound.ts"), "utf8");
-  assert.ok(src.includes(`resolveChannel(db, "voice", agentId)`), "it must resolve the tenant from the agent");
+  const src = fs.readFileSync(path.join(EDGE, "lib/call-start.ts"), "utf8");
+  assert.ok(src.includes(`resolveChannelDetailed(db, "voice", o.agentId)`), "it must resolve the tenant from the agent");
   assert.ok(src.includes("if (!routed)"), "it must have an explicit no-tenant branch");
   const guard = src.indexOf("if (!routed)");
   const read = src.indexOf("readLeadContext(");
   assert.ok(read !== -1, "the caller-context read must still exist and be findable");
   assert.ok(guard !== -1 && guard < read, "the no-tenant guard must come BEFORE the read");
   // And it must read the tenant it resolved, never a bare phone lookup.
-  assert.ok(src.includes("readLeadContext(db!, routed.tenantId"), "the read must be scoped to the resolved tenant");
+  assert.ok(src.includes("readLeadContext(db, routed.tenantId"), "the read must be scoped to the resolved tenant");
 });

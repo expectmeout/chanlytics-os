@@ -63,7 +63,7 @@ test("a log line on the message path carries a phone tail, never the number or t
   // Every log call is read to its closing paren, so a field on the next line
   // counts; a value already reduced to a tail does not.
   const files = [
-    "apps/edge/api/whatsapp.ts", "apps/edge/api/inbound-sms.ts", "apps/edge/api/retell-inbound.ts",
+    "apps/edge/api/whatsapp.ts", "apps/edge/api/inbound-sms.ts", "apps/edge/api/retell-inbound.ts", "apps/edge/lib/call-start.ts",
     "apps/edge/lib/whatsapp/inbound.ts", "apps/edge/lib/whatsapp/persist.ts", "apps/edge/lib/sms.ts",
   ];
   const CALL = /(console\.(log|error|warn)\(|\bL\.(info|warn|error)\(|\blogger\(|\.child\()/g;
