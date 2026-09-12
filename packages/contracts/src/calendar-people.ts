@@ -30,12 +30,24 @@ export interface PersonLike {
   name: string;
   /** E.164, or null. */
   phone: string | null;
+  /** Their latest conversation, when they have one: the thread a booking link is texted into. */
+  thread?: string | null;
+  /** When they last wrote on WhatsApp, for the reply window. */
+  waInboundAt?: string | null;
 }
 
 export interface PersonMatch {
   id: string;
   name: string;
   via: "phone" | "name";
+  /** Present only when the person has a thread: its conversation id, and their last WhatsApp message for the reply window. */
+  thread?: string | null;
+  wa_inbound_at?: string | null;
+}
+
+/** The thread facts a match carries, when the person has one; nothing otherwise, so a match without a thread is unchanged. */
+function threadOf(p: PersonLike): Pick<PersonMatch, "thread" | "wa_inbound_at"> {
+  return p.thread ? { thread: p.thread, wa_inbound_at: p.waInboundAt ?? null } : {};
 }
 
 const EMAIL_RE = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
@@ -109,11 +121,11 @@ export function matchPerson(item: Pick<FeedItem, "title" | "description" | "loca
     for (const p of people) if (p.phone) byPhone.set(p.phone, p);
     for (const ph of c.phones) {
       const p = byPhone.get(ph);
-      if (p) return { id: p.id, name: labelOf(p), via: "phone" };
+      if (p) return { id: p.id, name: labelOf(p), via: "phone", ...threadOf(p) };
     }
   }
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
-  return p ? { id: p.id, name: labelOf(p), via: "name" } : null;
+  return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
 }
 
 /* ---------------------------------------------------------------- visits */

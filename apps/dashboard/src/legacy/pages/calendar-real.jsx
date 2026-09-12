@@ -25,26 +25,10 @@ const useCalendar = () => {
 
 const CR_HOUR_PX = 64;
 const CR_VIEWS = [["week", "Week"], ["day", "Day"], ["month", "Month"], ["agenda", "Agenda"]];
-const crHour = (t) => {
-  const h = Math.floor(t);
-  const m = Math.round((t - h) * 60);
-  const ap = h >= 12 && h < 24 ? "PM" : "AM";
-  return `${((h + 11) % 12) + 1}${m ? ":" + String(m).padStart(2, "0") : ""} ${ap}`;
-};
-const crShift = (key, n) => {
-  const [y, m, d] = key.split("-").map(Number);
-  const at = new Date(Date.UTC(y, m - 1, d + n));
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-${String(at.getUTCDate()).padStart(2, "0")}`;
-};
-const crMonthLabel = (key) => {
-  const [y, m] = key.split("-").map(Number);
-  return new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric" }).format(new Date(Date.UTC(y, m - 1, 1, 12)));
-};
-const crShiftMonth = (key, n) => {
-  const [y, m] = key.split("-").map(Number);
-  const at = new Date(Date.UTC(y, m - 1 + n, 1));
-  return `${at.getUTCFullYear()}-${String(at.getUTCMonth() + 1).padStart(2, "0")}-01`;
-};
+/** Five minutes: the board reads itself again while open, so what it draws follows the clock. */
+const CR_REFRESH_MS = 5 * 60 * 1000;
+// The date arithmetic is contracts' (shiftKey, shiftMonth, monthLabelOf, clockLabel), reached through the bridge:
+// one implementation for the page, the surface and the tests.
 const crTyping = () => { const el = document.activeElement; return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable); };
 
 // One taken block from the feed. Neutral, never an agent's colour: the
@@ -52,8 +36,10 @@ const crTyping = () => { const el = document.activeElement; return !!el && (el.t
 const CrBlock = ({ b, hours, onOpen, wide }) => {
   const y = (Math.max(hours.start, b.t) - hours.start) * CR_HOUR_PX;
   const h = Math.max(22, (Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t)) * CR_HOUR_PX - 2);
+  // Overlapping blocks take lanes side by side; a block alone keeps the column.
+  const laned = b.lanes > 1 ? { left: `calc(4px + ${b.lane} * (100% - 8px) / ${b.lanes})`, width: `calc((100% - 8px) / ${b.lanes} - 2px)`, right: "auto" } : {};
   return (
-    <button className="cal-appt feed" style={{ top: y, height: h }} onClick={() => onOpen(b)} title={`${b.title} · ${b.time}`} data-testid="cal-block">
+    <button className="cal-appt feed" style={{ top: y, height: h, ...laned }} onClick={() => onOpen(b)} title={`${b.title} · ${b.time}`} data-testid="cal-block" data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}>
       <span className="cal-appt-line1"><span className="cal-appt-who">{b.title}</span></span>
       <span className="cal-appt-service">{b.time}{wide && b.person ? ` · ${b.person.name}` : ""}</span>
     </button>
@@ -77,10 +63,18 @@ const CrWindow = ({ w, hours }) => {
 // phone puts its person in People on its own — when an owner opens this
 // board, and every hour by the sweep — and a person nobody wants is deleted
 // from their profile.
-const CrPanel = ({ b, day, source, onClose }) => {
+const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
   const contacts = b.contacts || { phones: [], emails: [] };
   const e164 = contacts.e164 || [];
   const found = [...contacts.phones, ...contacts.emails];
+  // The link into their thread, the way the People rows and the profile hand it over:
+  // a plain text while their reply window is open, the approved template once it has closed.
+  const textLink = () => {
+    if (b.person.replyOpen) {
+      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: b.person.threadId, text: `Here's the link to book your appointment: ${bookingLink}` })); } catch { /* nothing to carry */ }
+    }
+    window.CHANLY.nav(window.CHANLY.R.thread(b.person.threadId));
+  };
   return (
     <div className="ask-overlay" onClick={onClose}>
       <div className="ask-modal cal-ev" onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
@@ -94,8 +88,12 @@ const CrPanel = ({ b, day, source, onClose }) => {
             </div>
           ) : found.length > 0 ? (
             <div className="cal-ev-who" data-testid="cal-panel-contact">
-              <Icon name="users" size={12} /> {e164.length ? "Not in People yet — added within the hour" : "Not in People"}
+              <Icon name="users" size={12} /> {b.guess ? <><b>{b.guess}</b> is </> : ""}{e164.length ? "Not in People yet — added within the hour" : "Not in People"}
               <span className="cal-ev-via">{found.join(" · ")}</span>
+            </div>
+          ) : b.guess ? (
+            <div className="cal-ev-who" data-testid="cal-panel-guess">
+              <Icon name="users" size={12} /> <b>{b.guess}</b>, as the calendar names them — no number on the event, so not in People
             </div>
           ) : null}
           {b.location && <div className="cal-ev-detail" data-testid="cal-panel-where"><span className="cal-ev-detail-key">Where</span><span>{b.location}</span></div>}
@@ -108,6 +106,14 @@ const CrPanel = ({ b, day, source, onClose }) => {
               <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(`clients/${b.person.id}`)}>
                 Open in People <Icon name="arrow-right" size={10} />
               </button>
+            )}
+            {b.person && b.person.threadId && bookingLink && (
+              <button className="btn btn-ghost btn-sm" data-testid="cal-panel-text-link" title={b.person.replyOpen ? "Opens their thread with the link ready to send" : "Their reply window is closed — the thread offers the approved booking-link template"} onClick={textLink}>
+                <Icon name="calendar" size={12} /> {b.person.replyOpen ? "Text the booking link" : "Send the booking-link template"}
+              </button>
+            )}
+            {bookingLink && (
+              <button className="btn btn-ghost btn-sm" data-testid="cal-panel-copy-link" title={bookingLink} onClick={onCopyLink}>Copy the booking link</button>
             )}
           </div>
           <div className="st-modal-foot-actions">
@@ -141,7 +147,7 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
         ))}
         <div className="cal-gutter" style={{ height: gridH }}>
           {ticks.map((h) => (
-            <span key={h} className="cal-hour tabular" style={{ top: (h - hours.start) * CR_HOUR_PX }}>{crHour(h).replace(":00", "")}</span>
+            <span key={h} className="cal-hour tabular" style={{ top: (h - hours.start) * CR_HOUR_PX }}>{window.__calendar.clockLabel(h)}</span>
           ))}
         </div>
         {frames.map((d) => (
@@ -268,6 +274,15 @@ const CalendarReal = () => {
     return () => { on = false; };
   }, [view, anchor, covered]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // The board keeps itself current while it is open: every five minutes, in
+  // a visible tab, the loaded window is read again, so the now line, the
+  // next opening and the windows follow the clock.
+  React.useEffect(() => {
+    if (!cal || !cal.refresh) return undefined;
+    const id = setInterval(() => { if (document.visibilityState === "visible") cal.refresh(); }, CR_REFRESH_MS);
+    return () => clearInterval(id);
+  }, [cal]);
+
   // ← → move, T is today — unless the person is typing.
   React.useEffect(() => {
     const onKey = (e) => {
@@ -285,7 +300,7 @@ const CalendarReal = () => {
   const byKey = new Map(vm.days.map((d) => [d.key, d]));
   const frames = [];
   for (let i = 0; i < span.days; i++) {
-    const k = crShift(span.from, i);
+    const k = cal.shiftKey(span.from, i);
     frames.push(byKey.get(k) || { ...cal.frameOf(k, vm.today), loading: true, closed: { yes: false, note: null }, bands: [], blocks: [], allDay: [], windows: [] });
   }
   const shown = view === "day" ? frames.filter((f) => f.key === anchor) : frames;
@@ -295,14 +310,18 @@ const CalendarReal = () => {
   const monthKey = view === "month" ? anchor.slice(0, 7) : null;
 
   const move = (n) => {
-    if (view === "month") setAnchorKey(crShiftMonth(anchor, n));
-    else if (view === "agenda") setAnchorKey(crShift(anchor, 14 * n));
-    else setAnchorKey(crShift(anchor, 7 * n));
+    if (view === "month") setAnchorKey(cal.shiftMonth(anchor, n));
+    else if (view === "agenda") setAnchorKey(cal.shiftKey(anchor, 14 * n));
+    else setAnchorKey(cal.shiftKey(anchor, 7 * n));
+  };
+  const copyLink = async () => {
+    try { await navigator.clipboard.writeText(vm.bookingLink); flash({ msg: <>Booking link copied.</> }); }
+    catch { flash({ msg: <>Could not copy — the link is {vm.bookingLink}</> }); }
   };
   const openDay = (key) => { setAnchorKey(key); setView("day"); };
   const first = frames[0];
   const last = frames[frames.length - 1];
-  const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? crMonthLabel(anchor) : `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
+  const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? cal.monthLabel(anchor) : `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
   const statLabel = view === "day" && shown[0] ? shown[0].dow : view === "month" ? "This month" : view === "agenda" ? "Next 14 days" : "This week";
   const scope = view === "month" ? frames.filter((f) => f.key.slice(0, 7) === monthKey) : shown;
   const statEvents = scope.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
@@ -330,7 +349,7 @@ const CalendarReal = () => {
           <span className="cal-week-range" data-testid="cal-range">{label}</span>
           <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next (→)" aria-label="Next" onClick={() => move(1)} data-testid="cal-next">›</button>
           <button className="btn btn-ghost btn-sm cal-today-btn" title="Today (T)" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
-          <input className="cal-jump" type="date" aria-label="Go to a date" onChange={(e) => { if (e.target.value) setAnchorKey(e.target.value); }} data-testid="cal-jump" />
+          <input className="cal-jump" type="date" aria-label="Go to a date" value={anchor} onChange={(e) => { if (e.target.value) setAnchorKey(e.target.value); }} data-testid="cal-jump" />
           <div className="cl-tabs">
             {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} aria-pressed={view === id} onClick={() => setView(id)} data-testid={`cal-view-${id}`}>{l}</button>)}
           </div>
@@ -363,6 +382,7 @@ const CalendarReal = () => {
           {vm.rules.replace(/^Offers times /, "")}
         </span>
         <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Edit in Settings <Icon name="arrow-right" size={10} /></button>
+        {vm.bookingLink && <button className="cl-bucket-link" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link">Copy the booking link</button>}
       </div>
       {service && service.consultFirst && (
         <div className="cal-feed-card" data-testid="cal-consult-note">
@@ -405,7 +425,7 @@ const CalendarReal = () => {
         <span className="cal-legend-rules">← → move · T today · times in {vm.timezone}</span>
       </div>
 
-      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} onClose={() => setOpenId(null)} />}
+      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} bookingLink={vm.bookingLink} onCopyLink={copyLink} onClose={() => setOpenId(null)} />}
       {toastNode}
     </div>
   );
