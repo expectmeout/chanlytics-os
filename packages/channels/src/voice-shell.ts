@@ -41,17 +41,46 @@ export const HANDOFF_VAR = "{{handoff_number}}";
 
 /**
  * What the agent is told when the business's facts could not be loaded.
- * `apps/edge/api/retell-inbound.ts` keeps a literal copy (a test pins the two
- * equal): the webhook must never depend on a package import to say this.
+ *
+ * It must never be omitted and never be empty. Retell leaves an unsupplied
+ * variable in the prompt AS the literal `{{business_facts}}`, and treats ""
+ * as a real value that also skips this default -- so the two ways of saying
+ * "we have nothing" are an agent reading its own placeholder aloud, or an
+ * agent with no knowledge and no idea that it has none. This is the third
+ * option: no facts, and told so. The call-start judgement on the edge
+ * (apps/edge/lib/call-start.ts) sends this same constant as its fallback, so
+ * the shell's default and the webhook's answer cannot drift apart.
  */
 export const FACTS_UNAVAILABLE =
   "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory — you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
 
+/** What the agent is told about a caller when nothing could be read: the shell's default, and the webhook's fallback. */
 export const CALLER_UNKNOWN = "New caller - no prior interactions on record.";
 
-/** The greeting with no business named — never wrong, never a placeholder. */
-export const GREETING_DEFAULT =
-  "Thank you for calling! This call may be recorded. I'm the automated assistant — how can I help you today?";
+/**
+ * The opening line, with the business named only when we know which it is.
+ *
+ * Composed here rather than typed into Retell's dashboard, so the business
+ * NAME does not become a third hand-kept copy of a fact the product already
+ * owns -- a rename would otherwise leave the phone greeting saying the old one.
+ *
+ * A whole sentence, not the name on its own: Retell leaves a variable it
+ * cannot fill in the prompt verbatim, and "Thank you for calling
+ * {{business_name}}" read down a phone line is worse than any wording. When
+ * the business is unknown this simply greets nobody by name, which is never
+ * wrong -- and is the shell's own default, below, so the two are one sentence.
+ *
+ * Both disclosures -- recording, and that this is an automated assistant --
+ * live here rather than in the agent's config, because they are promises the
+ * product makes and should not be editable by whoever last opened Retell.
+ */
+export function greetingFor(name: string | null): string {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant — how can I help you today?`;
+}
+
+/** The greeting with no business named -- never wrong, never a placeholder. */
+export const GREETING_DEFAULT = greetingFor(null);
 
 /** Where the booking-link tool posts. Overridable for previews. */
 export const DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";

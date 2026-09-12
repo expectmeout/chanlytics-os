@@ -5300,7 +5300,11 @@ var VOICE_SHELL_BEGIN = "{{greeting}}";
 var HANDOFF_VAR = "{{handoff_number}}";
 var FACTS_UNAVAILABLE = "The business's details could not be loaded for this call. Do not state opening hours, prices, services or an address from memory \u2014 you do not have them. Say you will have someone confirm, offer to take a message, and offer to text the booking link.";
 var CALLER_UNKNOWN = "New caller - no prior interactions on record.";
-var GREETING_DEFAULT = "Thank you for calling! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?";
+function greetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+}
+var GREETING_DEFAULT = greetingFor(null);
 var DEFAULT_FN_URL = "https://chanlytics-messaging.vercel.app/api/retell-fn";
 function availabilityUrl(fnUrl) {
   return /\/api\/retell-fn$/.test(fnUrl) ? fnUrl.replace(/\/api\/retell-fn$/, "/api/retell-availability") : `${fnUrl}-availability`;
@@ -7331,6 +7335,7 @@ export {
   getPlace,
   getRetellLlm,
   grantHasScope,
+  greetingFor,
   idTokenClaims,
   importPhoneNumber,
   isAreaCode,

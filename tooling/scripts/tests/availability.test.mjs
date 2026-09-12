@@ -143,9 +143,8 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const openings = rt ? await ports.calendar.openings(rt) : null;"));
   assert.ok(wa.includes('${openings ? `\\n\\n${openings}` : ""}'), "after describeNow, in the uncached block");
-  const inbound = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(inbound.includes("const openings = await openingsFor(rt);"));
-  assert.ok(inbound.includes("business_facts: facts || FACTS_UNAVAILABLE"), "the voice-parity rule still holds");
+  // The phone's openings ride inside business_facts, and the facts rule from
+  // voice-parity: run, not read, in call-start.test.mjs.
 });
 
 test("Settings collects the rules and the feed; the feed address is whole only for an owner", () => {

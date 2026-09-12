@@ -111,9 +111,10 @@ test("both channels read the tenant's zone, and neither invents one", () => {
   // block the model reads LAST — where the weekly grid cannot outrank it.
   assert.ok(wa.includes("describeNow(rt?.timezone, new Date(), brainCfg.profile?.closures)"));
 
-  const voice = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(voice.includes('resolveSystemPrompt(rt.brain, "voice", rt.timezone, new Date(), rt.policy, rt.known)'));
-  assert.ok(voice.includes("describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)"));
+  // The phone's composition -- the same composer, one clock, the closures in
+  // the block the model reads last -- is run, byte for byte, in
+  // call-start.test.mjs. The read here serves only the zone lint below.
+  const voice = readCode("apps/edge/lib/call-start.ts");
 
   const runtime = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(

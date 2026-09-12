@@ -17,7 +17,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { composeSystemPrompt, parseTenantConfigResult, hasProfile } from "@chanlytics/contracts";
 import {
-  VOICE_SHELL_PROMPT, VOICE_SHELL_BEGIN, HANDOFF_VAR, FACTS_UNAVAILABLE,
+  VOICE_SHELL_PROMPT, VOICE_SHELL_BEGIN, HANDOFF_VAR,
   desiredVoiceShell, planVoiceConvergence, voiceShellDrift, voiceLlmCreateBody,
 } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
@@ -94,15 +94,9 @@ test("the health-advice rule is opt-in and lands last with the other rules", () 
 
 /* ------------------------------- the webhook ------------------------------ */
 
-test("the webhook sends the handoff line only when the workspace has one", () => {
-  const inbound = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(inbound.includes("handoff = rt.brain.profile?.handoff_number ?? null;"));
-  assert.ok(inbound.includes("...(handoff ? { handoff_number: handoff } : {}),"), "omitted, never \"\": Retell's default then applies");
-  assert.ok(inbound.includes("business_facts: facts || FACTS_UNAVAILABLE"), "the facts rule from voice-parity still holds");
-  // The literal the webhook keeps and the shell's default are one sentence.
-  const m = readRaw("apps/edge/api/retell-inbound.ts").match(/const FACTS_UNAVAILABLE\s*=\s*\n?\s*"([^"]+)"/);
-  assert.equal(m[1], FACTS_UNAVAILABLE, "the webhook's literal and the shell default drifted apart");
-});
+// The handoff line sent only when the workspace has one -- omitted, never "" --
+// and the shell's default being the webhook's own fallback, one constant: run
+// in call-start.test.mjs.
 
 /* -------------------------------- the shell ------------------------------- */
 

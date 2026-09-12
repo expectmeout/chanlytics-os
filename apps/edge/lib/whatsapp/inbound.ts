@@ -624,7 +624,7 @@ export async function handleInbound(
         thread.history,
         photo ? photoUserText(n.media?.caption) : bodyText,
         // Composed from the workspace's structured facts when it has them,
-        // and its hand-written prompt when it does not. retell-inbound.ts
+        // and its hand-written prompt when it does not. lib/call-start.ts
         // composes the SAME thing for the voice agent, which is the point:
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens.

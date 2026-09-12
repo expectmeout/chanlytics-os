@@ -9638,6 +9638,11 @@ var PASSWORD_WORDS2 = {
   backToSignIn: "Back to sign-in"
 };
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
+function greetingFor(name) {
+  const who = name ? ` ${name}` : "";
+  return `Thank you for calling${who}! This call may be recorded. I'm the automated assistant \u2014 how can I help you today?`;
+}
+var GREETING_DEFAULT = greetingFor(null);
 var CALL_ANALYSIS_FIELDS = [
   {
     type: "string",

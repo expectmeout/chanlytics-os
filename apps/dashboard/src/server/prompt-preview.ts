@@ -26,7 +26,7 @@ import { loadFeed } from "@/server/ask/openings";
  * "every WhatsApp message, word for word" over a prompt missing its rules.
  *
  * Now the settings read composes it, argument for argument as
- * whatsapp/inbound.ts and retell-inbound.ts do, and the browser only shows
+ * whatsapp/inbound.ts and lib/call-start.ts do, and the browser only shows
  * it. `now` is kept apart from the channel texts because the edge sends it
  * apart: an uncached block rebuilt every message, so the cached profile
  * above it survives.

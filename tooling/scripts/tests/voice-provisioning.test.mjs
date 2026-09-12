@@ -16,12 +16,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { voiceLlmCreateBody, voiceAgentCreateBody, VOICE_AGENT_DEFAULTS } from "@chanlytics/channels";
-import { readCode, readRaw } from "./_source.mjs";
+import { voiceLlmCreateBody, voiceAgentCreateBody, VOICE_AGENT_DEFAULTS, greetingFor, GREETING_DEFAULT } from "@chanlytics/channels";
+import { readRaw } from "./_source.mjs";
 
 const module_ = readRaw("packages/channels/src/voice-provision.ts");
 const endpoint = readRaw("apps/edge/api/admin/voice-provision.ts");
-const inbound = readCode("apps/edge/api/retell-inbound.ts");
 const llm = voiceLlmCreateBody({ fnSecret: "s" });
 
 test("no business fact is written into provisioning", () => {
@@ -69,17 +68,11 @@ test("the greeting is a whole sentence, not a name to interpolate", () => {
   // Retell leaves a variable it cannot fill in the prompt VERBATIM. "Thank you
   // for calling {{business_name}}" read down a phone line is worse than any
   // wording, so the webhook composes the entire line.
-  assert.ok(inbound.includes("greeting: greetingFor(businessName)"));
+  assert.equal(GREETING_DEFAULT, greetingFor(null), "the shell's default is the sentence the webhook composes, with no name in it");
   assert.ok(!JSON.stringify(llm).includes("{{business_name}}"), "the name alone is never a variable");
 });
 
 test("an unroutable call still greets, and names nobody", () => {
-  const m = inbound.match(/function greetingFor[\s\S]*?\n\}/);
-  assert.ok(m, "greetingFor must exist");
-  const greetingFor = new Function(
-    `${m[0].replace("function greetingFor(name: string | null): string", "function greetingFor(name)")}; return greetingFor;`,
-  )();
-
   const named = greetingFor("Aurora Nails");
   const unknown = greetingFor(null);
   assert.ok(named.includes("Aurora Nails"));

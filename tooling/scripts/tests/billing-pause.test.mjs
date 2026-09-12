@@ -53,9 +53,8 @@ test("the wiring: the runtime reads the switch, every path honours it, the foot 
   const jobs = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(jobs.includes('await ports.fail(b.id, "paused");') && jobs.includes("The workspace is paused until billing resumes, so nothing went out."));
   assert.ok(readCode("apps/edge/api/retell-fn.ts").includes("paused: rt.paused,"), "a text asked for on the phone goes through the same gate");
-  const call = readCode("apps/edge/api/retell-inbound.ts");
-  assert.ok(call.includes("if (rt.paused) {") && call.includes("facts = pausedVoiceFacts(rt.brain?.business_name ?? null);"));
-  assert.ok(call.indexOf("if (rt.paused) {") < call.indexOf("} else if (rt.brain) {"), "the pause replaces the prompt, never adds to it");
+  // The phone's pause script replaces the prompt, never adds to it, and the
+  // calendar is not read for it: run in call-start.test.mjs.
   const side = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
   assert.ok(side.includes("window.__billing.vm(B.dto).paused") && side.includes('line.action === "billing"') && side.includes('window.CHANLY.nav("admin/billing")'));
 });

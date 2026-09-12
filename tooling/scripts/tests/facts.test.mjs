@@ -139,7 +139,7 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
 
   for (const [file, call] of [
     ["apps/edge/lib/whatsapp/inbound.ts", "rt?.known"],
-    ["apps/edge/api/retell-inbound.ts", "rt.known"],
+    ["apps/edge/lib/call-start.ts", "rt.known"],
     ["apps/edge/api/admin/eval.ts", "rt.known"],
     ["apps/edge/api/admin/steer.ts", "rt.known"],
   ]) {
