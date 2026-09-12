@@ -1,4 +1,4 @@
-/* global React, Icon, Confirm */
+/* global React, Icon, Confirm, EmptyState */
 // People › Lists, real: the lists kept by hand and the six that keep
 // themselves current, with the people on each. Same facts as the People
 // page (window.__PEOPLE, fed by the People surface); nothing here scores,
@@ -165,7 +165,7 @@ const ListsReal = ({ initialId = null }) => {
       <div className="cl-main">
         <div className="cl-main-scroll">
         {!current && (
-          <div className="cv-empty" data-testid="lists-empty">No list to show yet. Make one on the left.</div>
+          <EmptyState kind="page" glyph="users" title="No list to show yet" body="Make one on the left." testid="lists-empty" />
         )}
         {current && (
           <>
@@ -233,7 +233,7 @@ const ListsReal = ({ initialId = null }) => {
                     </tr>
                   ))}
                   {members.length === 0 && (
-                    <tr><td colSpan={5}><div className="cl-table-empty">{kind === "saved" ? "Nobody on this list yet — add people from their profile." : "Nobody here right now."}</div></td></tr>
+                    <tr><td colSpan={5}><EmptyState kind="line" className="empty-center" title={kind === "saved" ? "Nobody on this list yet." : "Nobody here right now."} body={kind === "saved" ? "Add people from their profile." : null} /></td></tr>
                   )}
                 </tbody>
               </table>

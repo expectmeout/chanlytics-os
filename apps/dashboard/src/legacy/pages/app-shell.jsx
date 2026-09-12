@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, CLIENTS */
+/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, CLIENTS, FailedRead */
 // Chanlytics — App Shell
 // The live product frame: hash routing, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -23,22 +23,14 @@ const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox"]);
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
 
 const SurfaceUnavailable = ({ onNavigate }) => (
-  <div className="soon">
-    <div className="soon-glyph"><Icon name="alert" size={22} /></div>
-    <div className="soon-title">Can't reach your workspace</div>
-    <div className="soon-blurb">
-      This isn't a quiet day — the connection failed. Nothing here would be your real data,
-      so we're not showing anything. Your messages are still being received and answered.
-    </div>
-    <div className="soon-actions">
-      <button className="btn btn-primary btn-sm" onClick={() => window.location.reload()}>
-        <Icon name="refresh" size={12} /> Retry
-      </button>
-      <button className="btn btn-ghost btn-sm" onClick={() => onNavigate("today")}>
-        <Icon name="home" size={12} /> Back to Today
-      </button>
-    </div>
-  </div>
+  <FailedRead
+    kind="page"
+    title="Can't reach your workspace"
+    body="This isn't a quiet day — the connection failed. Nothing here would be your real data, so we're not showing anything. Your messages are still being received and answered."
+    onRetry={() => window.location.reload()}
+    also={{ label: "Back to Today", onClick: () => onNavigate("today") }}
+    testid="surface-unavailable"
+  />
 );
 
 // ---- Route helpers ----------------------------------------------------

@@ -99,9 +99,10 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   assert.ok(r.includes("days must be 7, 30 or 90."), "the same three presets as the receptionist's report");
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(s.includes('read("GET reports/campaigns", { query: { days: String(days) } })'), "fetched with the same period, beside the receptionist's numbers");
-  assert.ok(s.includes("campaigns: toCampaignReportVM(campaigns.report)"));
+  assert.ok(s.includes("campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report)"), "its own read: null when it fails, never a blank page (D9)");
   const p = readCode("apps/dashboard/src/legacy/pages/reports.jsx");
-  for (const id of ["campaign-tiles", "chart-campaigns"]) assert.ok(p.includes(`data-testid="${id}"`), id);
+  assert.ok(p.includes('data-testid="campaign-tiles"'), "campaign-tiles");
+  assert.ok(p.includes('testid="chart-campaigns"'), "chart-campaigns: the card, the empty and the failed read all carry it");
   assert.ok(p.includes('testid="chart-sources"') && p.includes('title="By playbook and broadcast"'), "the sources card");
   assert.ok(p.includes('<RpSection label="Campaigns"') && p.includes('className="rp2-tiles rp2-strip-reception"'), "the page is sectioned, and the strip is one frame");
   assert.ok(!/\$\d|revenue|booked from/i.test(p.slice(p.indexOf("const ReportsReal"))), "nothing in dollars");

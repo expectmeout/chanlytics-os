@@ -92,6 +92,8 @@ export interface LiveVM {
   recent: LiveCallVM[];
   /** The voice channel, or null when the workspace has no phone line. */
   line: LiveLineVM | null;
+  /** Whether the channels read succeeded; false means the line's state is unknown, not absent. */
+  lineRead: boolean;
   heartbeatMs: number;
   fetchedAtMs: number;
 }
@@ -219,5 +221,5 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now = 
       }
     : null;
 
-  return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
+  return { now: nowList, recent, line, lineRead: channels !== null, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
 }

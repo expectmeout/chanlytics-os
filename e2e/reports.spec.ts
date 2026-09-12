@@ -53,7 +53,7 @@ test.describe("Reports on a real workspace", () => {
     // customer wrote in the period, an honest sentence instead of an empty plot.
     const main = report.getByTestId("chart-answered");
     await expect(main.locator(".rp2-legend .rp2-key")).toHaveCount(3);
-    if (await main.locator(".rp2-empty").count()) {
+    if (await main.locator(".empty").count()) {
       await expect(main.getByText("No customer messages in this period")).toBeVisible();
     } else {
       await expect(main.locator("svg")).toBeVisible();

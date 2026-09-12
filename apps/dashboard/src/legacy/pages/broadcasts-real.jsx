@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm */
+/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
 // Campaigns › Broadcasts, real: one approved template to the people who said
 // yes. Same chrome as the seeded page (broadcasts.jsx); every number is a
 // row's. Nothing here scores, estimates or invents: no credits, no revenue,
@@ -149,6 +149,8 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [toastNode, flash] = window.usePPToast();
   const canSend = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const audiences = data.audiences || BC_NONE;
+  // Null: the templates read failed -- its own state, never "no template yet".
+  const templatesRead = data.templates !== null;
   const templates = React.useMemo(() => (data.templates || BC_NONE).slice().sort(bcOrder), [data.templates]);
   const [aud, setAud] = React.useState(() => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
@@ -288,19 +290,21 @@ const BroadcastsReal = ({ initialSegment = null }) => {
                 {a.label} <span className="bc-chip-count tabular">{sizeOf(a)}</span>
               </button>
             ))}
+            {data.listsRead === false && <FailedRead kind="line" what="your saved lists" body="The built-in audiences are current; the lists you keep by hand are missing until they read." surface="broadcasts" testid="bc-lists-failed" />}
           </div>
         </div>
         <div className="bc-row">
           <span className="bc-row-label">Send</span>
           <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-            {templates.length === 0 && (
+            {!templatesRead && <FailedRead kind="line" what="your templates" surface="broadcasts" testid="bc-templates-failed" />}
+            {templatesRead && templates.length === 0 && (
               <span className="bc-excl-hint" data-testid="bc-no-template">
                 {starterPending > 0
                   ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
                   : "No approved template yet — add the starter set, write one here, or write one in WhatsApp Manager and sync it under Campaigns › Messages."}
               </span>
             )}
-            {templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
+            {templatesRead && templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
               <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters"><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
             )}
             {templates.map((t) => (
@@ -419,7 +423,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <span className="ct-sec-meta">{open.length} queued</span>
         </div>
         {open.length === 0 && (
-          <div className="cv-empty">Nothing queued — pick a template above and choose a time, or send now.</div>
+          <EmptyState kind="line" title="Nothing queued." body="Pick a template above and choose a time, or send now." />
         )}
         {open.map((row) => (
           <React.Fragment key={row.id}>
@@ -438,7 +442,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           <div className="bc-hist-row head">
             <span>Broadcast</span><span>Audience</span><span className="num">Sent</span><span className="num">Delivered</span><span className="num">Read</span><span className="num">Replies</span>
           </div>
-          {history.length === 0 && <div className="cv-empty">No broadcast sent yet.</div>}
+          {history.length === 0 && <EmptyState kind="line" title="No broadcast sent yet." />}
           {history.map((h) => (
             <React.Fragment key={h.id}>
             <div className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0}

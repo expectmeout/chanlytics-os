@@ -238,7 +238,7 @@ test("the empty profile leads with a button, not a footnote", () => {
   // by someone who already knows the form exists.
   const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
   assert.ok(settings.includes("Add your business details"));
-  assert.ok(settings.includes("set-empty"));
+  assert.ok(settings.includes("<EmptyState"), "through the one EmptyState");
 });
 
 
@@ -291,7 +291,7 @@ test("REGRESSION: a team we could not READ is not a team of four strangers", () 
   const settings = fs.readFileSync(path.join(DASH, "legacy/pages/settings.jsx"), "utf8");
   assert.ok(settings.includes("const teamUnavailable = realTeam === null;"), "null is its own state");
   assert.ok(settings.includes("{!teamUnavailable && team.map("), "the seeded roster must not render");
-  assert.ok(settings.includes("Your team couldn"), "and it must say what happened");
+  assert.ok(settings.includes('what="your team"'), "and it must say what happened, through the one FailedRead");
   assert.ok(
     settings.includes("!teamUnavailable && canManage"),
     "no Invite button over a roster we could not read",

@@ -72,6 +72,16 @@ globalThis.window = {
   addEventListener() {},
   removeEventListener() {},
 };
+// The failed card is the shared FailedRead (data-bits.jsx), drawn for real so the Retry inside it can be pressed.
+globalThis.document ??= { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.ReactDOM ??= { createPortal: (node) => node };
+globalThis.window.addEventListener ??= () => {};
+globalThis.window.removeEventListener ??= () => {};
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+globalThis.FailedRead = globalThis.window.FailedRead;
+globalThis.EmptyState = globalThis.window.EmptyState;
+// data-bits also publishes the shell's toast hook; this harness keeps its own flash.
+globalThis.window.usePPToast = () => [null, (m) => calls.flash.push(m)];
 await import("../../../apps/dashboard/src/legacy/pages/setup.jsx");
 const Page = globalThis.window.PaneSetup;
 

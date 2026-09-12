@@ -1320,6 +1320,8 @@ interface TodayVM {
         line: string;
         rows: TodayCallRowVM[];
     } | null;
+    /** Whether the calls read succeeded; false means the rows above omit the phone, and the brief says so. */
+    callsRead: boolean;
     /** Everything that asks for a person, in one row grammar, longest wait first. */
     /** The rows, the rest as a count, and what the rows hold in words: "2 need you", "1 reply window closing", "1 call worth a listen". */
     queue: {
@@ -1354,7 +1356,7 @@ interface TodayVM {
 declare function tzClock(iso: string | null | undefined, tz: string, now: Date): string | null;
 declare function toTodayVM(m: MetricsSummaryDto, conversations: ConversationDto[], escalations: Array<EscalationDto & {
     conversation_id: string;
-}>, calls: CallDto[], now?: Date): TodayVM;
+}>, calls: CallDto[] | null, now?: Date): TodayVM;
 /** What the day module reads, as the calendar surface publishes it. Minimal on purpose: the page hands the surface in. */
 interface DayFrameLike {
     key: string;
@@ -8005,6 +8007,8 @@ interface LiveVM {
     recent: LiveCallVM[];
     /** The voice channel, or null when the workspace has no phone line. */
     line: LiveLineVM | null;
+    /** Whether the channels read succeeded; false means the line's state is unknown, not absent. */
+    lineRead: boolean;
     heartbeatMs: number;
     fetchedAtMs: number;
 }

@@ -1,4 +1,4 @@
-/* global React, Icon, useHotkey, PolicyChip */
+/* global React, Icon, useHotkey, PolicyChip, EmptyState */
 // Agent Command — the decide-at-a-glance queue on Today.
 // Redesigned for signal over chrome: one command bar (title + Now/Soon/Done +
 // Open Inbox), a single context line (AI insight · agents present · Approve all
@@ -177,7 +177,7 @@ const TodayQueue = ({ vm }) => {
         ))}
         {runs}
         {total === 0 && (
-          <div className="tq-empty"><Icon name="check" size={14} style={{ color: "var(--ok)" }} /> All caught up — the receptionist is answering on its own.</div>
+          <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
         )}
       </div>
       {vm.queue.more > 0 && (

@@ -266,7 +266,6 @@
 .rp2-bar-track { height: 10px; border-radius: 0 4px 4px 0; background: var(--bg-sunken); overflow: hidden; }
 .rp2-bar-fill { display: block; height: 100%; border-radius: 0 4px 4px 0; background: var(--rp-ai); }
 .rp2-bar-value { text-align: right; color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
-.rp2-empty { font-size: 12.5px; color: var(--ink-dim); padding: 12px 0; }
 .rp2-foot { font-size: 11.5px; color: var(--ink-dim); }
 
 /* Reply-time buckets (ordinal ramp) */

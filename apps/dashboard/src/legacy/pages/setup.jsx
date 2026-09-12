@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, FailedRead */
 // Setup — one page a new owner lands on until the receptionist is answering.
 // Every row is a fact the workspace holds (contracts/setup.ts, published by
 // the bridge as window.__SETUP); the rows use the attention row grammar
@@ -283,14 +283,10 @@ const PaneSetup = () => {
   if (S === null) {
     // The read failed: say so, and offer the retry Connections offers, instead of "Reading…" for ever.
     return (
-      <section className="fl-card set-card" data-testid="setup-failed">
-        <div className="fl-card-head"><span className="fl-card-title">Setup</span><span className="fl-card-sub">Couldn't be read right now</span></div>
-        <div className="set-row">
-          <div className="set-row-info"><span className="set-row-hint">The receptionist keeps answering; this page just can't read your workspace at the moment.</span></div>
-          <button className="btn btn-sm" onClick={() => window.__setup && window.__setup.refresh && window.__setup.refresh()} data-testid="setup-retry">Retry</button>
-        </div>
+      <>
+        <FailedRead kind="card" what="your setup" body="The receptionist keeps answering; this page just can't read your workspace at the moment." onRetry={() => window.__setup && window.__setup.refresh && window.__setup.refresh()} testid="setup-failed" retryTestid="setup-retry" />
         {toastNode}
-      </section>
+      </>
     );
   }
   if (!S) {

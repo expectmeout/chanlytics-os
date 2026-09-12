@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, FailedRead */
 // Chanlytics — Settings › Billing on a real workspace.
 //
 // The row as Stripe last wrote it, the plan as Stripe states it (never a
@@ -34,11 +34,7 @@ const PaneBillingReal = ({ flash }) => {
   }
   if (B === null) {
     return (
-      <section className="fl-card set-card" data-testid="billing-failed">
-        <div className="fl-card-head"><span className="fl-card-title">Billing</span><span className="fl-card-sub">Couldn&rsquo;t be read right now</span></div>
-        <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Nothing changes while this page cannot read it. Try again in a moment.</span></div>
-          <button className="btn btn-sm" onClick={() => api.refresh()} data-testid="billing-retry">Retry</button></div>
-      </section>
+      <FailedRead kind="card" what="your billing" body="Nothing changes while this page cannot read it." onRetry={() => api.refresh()} testid="billing-failed" retryTestid="billing-retry" />
     );
   }
   const vm = api.vm(B.dto);

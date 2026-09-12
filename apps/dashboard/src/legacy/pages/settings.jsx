@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm */
+/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
 // Chanlytics — Settings
 // Six panes: Workspace · Autonomy · Integrations · AI memory · Notifications · Billing.
 // Controls are wired, not painted: guardrails write back to SEG_GUARDRAILS
@@ -810,16 +810,7 @@ const TeamSection = ({ flash }) => {
 
       {/* A team we could not read is not a team of four strangers. */}
       {teamUnavailable && (
-        <div className="set-empty">
-          <div className="set-empty-title">Your team couldn&apos;t be loaded</div>
-          <div className="set-empty-body">
-            Everything else on this page is current — only the member list failed
-            to load. Refresh to try again.
-          </div>
-          <button className="btn btn-ghost btn-sm" onClick={() => window.location.reload()}>
-            <Icon name="refresh" size={12} /> Refresh
-          </button>
-        </div>
+        <FailedRead kind="card" what="your team" body="Everything else on this page is current — only the member list failed to load." surface="settings" testid="team-failed" />
       )}
 
       {!teamUnavailable && team.map(m => {
@@ -1819,16 +1810,9 @@ const PaneWorkspace = ({ flash }) => {
       <>
         <section className="fl-card set-card">
           <div className="fl-card-head"><span className="fl-card-title">Business</span></div>
-          <div className="set-empty">
-            <div className="set-empty-title">This workspace's settings can't be read</div>
-            <div className="set-empty-body">
-              Something saved in this workspace's configuration no longer passes the
-              checks the receptionist runs before it answers, so the receptionist is
-              silent and this form is closed — saving from here would replace what
-              is still there. Chanlytics has to repair it.
-            </div>
+          <FailedRead kind="card" title="This workspace's settings can't be read" body="Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it." testid="settings-broken">
             <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
-          </div>
+          </FailedRead>
         </section>
       </>
     );
@@ -1862,17 +1846,7 @@ const PaneWorkspace = ({ flash }) => {
             : <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>}
       </div>
       {unconfigured ? (
-        <div className="set-empty">
-          <div className="set-empty-title">This workspace has no receptionist yet</div>
-          <div className="set-empty-body">
-            Nothing has been set up for it — no business name, no phone line, no
-            booking link. Until it has those, there is nothing here to show you
-            and nothing answering your customers.
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("settings")}>
-            <Icon name="plus" size={12} /> Set up the receptionist
-          </button>
-        </div>
+        <EmptyState kind="card" glyph="agents" title="This workspace has no receptionist yet" body="Nothing has been set up for it — no business name, no phone line, no booking link. Until it has those, there is nothing here to show you and nothing answering your customers." action={{ label: "Set up the receptionist", onClick: () => setEditing(true), gate: window.gate("settings") }} />
       ) : (
       <div className="cl-prof-attr-list">
         {real
@@ -1927,18 +1901,7 @@ const PaneWorkspace = ({ flash }) => {
           the form exists; the first thing an owner needs is to be told there
           is something to fill in, and given the button. */}
       {real && !profile && (
-        <div className="set-empty">
-          <div className="set-empty-title">Tell the receptionist about your business</div>
-          <div className="set-empty-body">
-            Your hours, services and address are still written inside the assistant's
-            instructions, as prose. Fill them in as fields and the WhatsApp receptionist
-            answers from them within a minute — and the phone agent reads the same ones,
-            once it has been pointed at them.
-          </div>
-          <button className="btn btn-primary btn-sm" onClick={() => setEditing(true)} {...window.gate("autonomy")}>
-            <Icon name="plus" size={12} /> Add your business details
-          </button>
-        </div>
+        <EmptyState kind="card" glyph="edit" title="Tell the receptionist about your business" body="Your hours, services and address are still written inside the assistant's instructions, as prose. Fill them in as fields and the WhatsApp receptionist answers from them within a minute — and the phone agent reads the same ones, once it has been pointed at them." action={{ label: "Add your business details", onClick: () => setEditing(true), gate: window.gate("autonomy") }} />
       )}
     </section>
     {real && <PromptPreview />}
@@ -2156,11 +2119,7 @@ const PaneAutonomyReal = ({ flash }) => {
 
   if (window.__POLICIES === null) {
     return (
-      <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Policy matrix</span><span className="fl-card-sub">Your autonomy settings couldn't be loaded</span></div>
-        <div className="set-row"><div className="set-row-info"><span className="set-row-hint">The receptionist keeps running on the settings it already has; this page just can't show them right now.</span></div>
-          <button className="btn btn-sm" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button></div>
-      </section>
+      <FailedRead kind="card" title="Your autonomy settings couldn't be loaded" body="The receptionist keeps running on the settings it already has; this page just can't show them right now." surface="settings" testid="policies-failed" />
     );
   }
 

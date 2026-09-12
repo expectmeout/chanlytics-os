@@ -316,18 +316,6 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
   .set-day-apply { margin-left: 0; width: 100%; }
 }
 
-/* The first thing a new workspace sees in Settings. Not a footnote — every
-   business fills this in before the phone agent knows anything about it. */
-.set-empty {
-  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
-  padding: 16px; margin-top: 10px;
-  border: 1px dashed var(--line-strong);
-  border-radius: var(--radius-lg);
-  background: var(--bg-sunken);
-}
-.set-empty-title { font-size: 13px; font-weight: 600; color: var(--ink); }
-.set-empty-body { font-size: 12px; line-height: var(--leading-relaxed); color: var(--ink-muted); max-width: 62ch; }
-
 /* ── What the receptionist is told ────────────────────────────────────────
    The composed prompt, verbatim. Monospace and generously leaded because it
    is read to CHECK something — "does it still know my address", "why did it

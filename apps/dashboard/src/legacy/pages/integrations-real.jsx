@@ -1,4 +1,4 @@
-/* global React, Icon, Confirm */
+/* global React, Icon, Confirm, FailedRead */
 // Chanlytics — Settings › Integrations, one row per connection.
 //
 // Every connection is the same row (contracts/connections.ts) computed from
@@ -121,13 +121,7 @@ const PaneIntegrationsReal = () => {
 
   if (channels === null) {
     return (
-      <section className="fl-card set-card" data-testid="connections-connected">
-        <div className="fl-card-head"><span className="fl-card-title">Connected</span><span className="fl-card-sub">Couldn't be loaded right now</span></div>
-        <div className="set-row">
-          <div className="set-row-info"><span className="set-row-hint">The receptionist keeps answering; this page just can't show the connections at the moment.</span></div>
-          <button className="btn btn-sm" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button>
-        </div>
-      </section>
+      <FailedRead kind="card" what="your connections" body="The receptionist keeps answering; this page just can't show the connections at the moment." surface="settings" testid="connections-connected" />
     );
   }
 

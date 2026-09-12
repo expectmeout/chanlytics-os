@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, FailedRead */
 // Hero brief — sits at the top of Dashboard A.
 // Replaces the flat greeting+sub with a structured editorial block:
 //   eyebrow timestamp · big sentence · three anchor stats (revenue/appts/response) · forecast line
@@ -167,6 +167,7 @@ const HeroBriefReal = ({ vm }) => {
               </div>
             ))}
             <RunsDone nav={nav} />
+            {vm.callsRead === false && <FailedRead kind="line" what="the phone line's calls" body="The day's other numbers are current." surface="today" testid="brief-calls-failed" />}
             {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
               <div key={i} className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />

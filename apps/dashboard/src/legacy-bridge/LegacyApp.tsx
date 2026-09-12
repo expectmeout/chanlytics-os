@@ -23,6 +23,7 @@ import {
   isSurfaceReady,
   markHydrated,
   onSurfaceStatusChange,
+  refreshSurfaces,
   startSurfaces,
 } from "./surface-runner";
 import { hydrateSurfaceCache } from "./surface-cache";
@@ -138,6 +139,19 @@ function installRouteGate(): void {
   w.__onSurfaceReady = onSurfaceStatusChange;
 }
 installRouteGate();
+/**
+ * A page's Retry: re-read ONE surface through the runner, by its key, so the
+ * cache, the status and the pill agree with what is on screen. The pages'
+ * FailedRead presses this; a whole-page reload was the Team card's way.
+ */
+function installSurfaceRefresh(): void {
+  const w = window as unknown as { __refreshSurface?: (key: string) => Promise<void> };
+  w.__refreshSurface = async (key) => {
+    const o = SURFACES.find((s) => s.key === key);
+    if (o) await refreshSurfaces([o]);
+  };
+}
+installSurfaceRefresh();
 // Same ordering argument as the route gate: the shell decides real-vs-demo
 // during its FIRST render, so the classification must exist before React does.
 installSurfaceRegistry();

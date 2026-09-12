@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, PolicyChip, Confirm */
+/* global React, Icon, StatStrip, StatCell, PolicyChip, Confirm, EmptyState, FailedRead */
 // Campaigns › Playbooks, real: a standing rule that sends one approved
 // template to newly eligible people who said yes, under the workspace's
 // autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
@@ -48,6 +48,8 @@ const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.b
 // enabled Save is a Save that succeeds unless the server knows something
 // newer (a template no longer approved, a booking link gone).
 const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
+  // Null: the templates read failed -- its own state, never "no template yet".
+  const templatesRead = data.templates !== null;
   const templates = React.useMemo(() => (data.templates || PB_NONE).slice().sort(pbOrder), [data.templates]);
   const triggers = data.triggers || PB_NONE;
   const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link", visit_when: "Their visit's time", visit_service: "Their visit's service" };
@@ -147,7 +149,8 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       <div className="bc-row">
         <span className="bc-row-label">Send</span>
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
-          {templates.length === 0 && (
+          {!templatesRead && <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />}
+          {templatesRead && templates.length === 0 && (
             <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it under Campaigns › Messages.</span>
           )}
           {templates.map((t) => (
@@ -429,13 +432,19 @@ const PlaybooksReal = () => {
           <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} onEdit={(x) => { setComposing(false); setEditing(x); }} />
         ))}
         {rows.length === 0 && !composing && (
-          <div className="cv-empty" data-testid="pb-empty">
-            No playbook yet. {canAct ? "Start one from the button above: " : "An owner or operator can start one: "}
-            win-back for anyone quiet 30 days, welcome for anyone new this week, save our number for anyone who only ever phoned, or the month's offer for everyone who said yes.
-          </div>
+          <EmptyState
+            kind="card"
+            glyph="bolt"
+            title="No playbook yet"
+            body="Win-back for anyone quiet 30 days, welcome for anyone new this week, save our number for anyone who only ever phoned, or the month's offer for everyone who said yes."
+            action={canAct ? { label: "New playbook", onClick: () => window.dispatchEvent(new CustomEvent("playbooks:new")) } : null}
+            testid="pb-empty"
+          >
+            {!canAct && <div className="empty-body">An owner or operator can start one.</div>}
+          </EmptyState>
         )}
         {rows.length > 0 && visible.length === 0 && (
-          <div className="cv-empty">{filter === "approval" ? "No run is waiting on you." : `Nothing ${filter}.`}</div>
+          <EmptyState kind="line" title={filter === "approval" ? "No run is waiting on you." : `Nothing ${filter}.`} />
         )}
         {!canAct && rows.length > 0 && <div className="bc-excl-hint">Only an owner or operator can start, change or run a playbook.</div>}
       </div>

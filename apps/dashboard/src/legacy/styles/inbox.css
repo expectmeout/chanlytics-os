@@ -371,18 +371,9 @@
 .conf-dots.conf-low .conf-dot.on  { background: var(--accent); }
 
 /* Empty mini state */
-.ix-empty-mini {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  text-align: center;
-  padding: 56px 24px;
-  color: var(--ink-dim);
-  gap: 8px;
-}
-.ix-empty-mini .icon { color: var(--ok); margin-bottom: 4px; }
-.ix-empty-mini-title { font-size: 13px; color: var(--ink); font-weight: 500; }
-.ix-empty-mini-body { font-size: 11.5px; color: var(--ink-dim); line-height: 1.5; max-width: 220px; }
+/* The list's own empty is the shared EmptyState, centred in the narrow column. */
+.ix-empty-mini { border: 0; background: transparent; align-items: center; text-align: center; padding: 56px 24px; }
+.ix-empty-mini .empty-body { max-width: 220px; }
 
 /* ====================================================================
    THREAD PANE — middle column
@@ -1054,29 +1045,6 @@
   color: var(--ink-dim);
 }
 .ix-composer-actions { display: flex; gap: 6px; align-items: center; }
-
-/* === Empty state === */
-.ix-empty-state {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 40px;
-  text-align: center;
-  color: var(--ink-dim);
-  gap: 12px;
-}
-.ix-empty-glyph {
-  width: 56px; height: 56px;
-  border-radius: 50%;
-  background: var(--bg-sunken);
-  border: 1px solid var(--line);
-  display: flex; align-items: center; justify-content: center;
-  color: var(--ink-faint);
-}
-.ix-empty-title { font-size: 16px; color: var(--ink); font-weight: 500; }
-.ix-empty-body { font-size: 12.5px; color: var(--ink-dim); max-width: 280px; line-height: 1.55; }
 
 /* ====================================================================
    AGENT RAIL — refined
