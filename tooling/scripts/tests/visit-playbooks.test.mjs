@@ -131,7 +131,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const handler = readCode("packages/jobs/src/handlers.ts");
   assert.ok(handler.includes('.select("contact_id, facts")'), "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("kind: t.kind") && sd.includes('calendar: people.calendar?.state ?? "none"'), "the page knows which triggers need the calendar, and whether there is one");
+  assert.ok(sd.includes("kind: t.kind") && sd.includes('calendar: pb.calendar ?? "none"'), "the page knows which triggers need the calendar, and whether there is one -- from the route that counts the pools");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(page.includes("pbRowLabel(trig.cls)") && page.includes('trig.kind === "visit"') && page.includes("needs the calendar connected"), "the composer says it plainly");
   assert.ok(page.includes("one message per visit · people who asked to stop") && page.includes("the day's visits are picked from them"), "no gap and no breath are promised for a visit trigger");

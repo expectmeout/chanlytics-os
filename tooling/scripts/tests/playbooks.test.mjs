@@ -141,8 +141,8 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(queue.includes('testid="brief-run-row"') && queue.includes('r.state === "pending_approval"'), "Today's queue shows a run that waits, from the surface it already has");
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
   for (const k of ["POST playbooks", "PUT playbooks/[id]", "DELETE playbooks/[id]", "POST playbooks/[id]/run", "POST broadcasts/[id]/approve", "POST broadcasts/[id]/cancel"]) assert.deepEqual(AFTER[k]().map((o) => o.key), ["playbooks", "broadcasts"], `${k}: every write re-fetches both surfaces`);
-  const surface = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(surface.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length"), "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program");
+  const pools = readCode("apps/dashboard/src/server/playbooks.ts");
+  assert.ok(pools.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length"), "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)");
   assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride"), "booted with the rest");
 });
