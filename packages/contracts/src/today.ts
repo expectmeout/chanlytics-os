@@ -15,6 +15,8 @@ import { standingOf } from "./standing";
  */
 import {
   toCallVM,
+  abandonedCall,
+  spokenDuration,
   contactName,
   contactMeta,
   messageText,
@@ -552,6 +554,13 @@ export function toTodayVM(
         c.in_voicemail ||
         c.sentiment === "Negative" ||
         !c.summary ||
+        // Somebody rang and left with nothing. Measured before writing this:
+        // with a provider summary the row was not worth an ear at all, since
+        // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
+        // call ends that way. Without one it did arrive, as "No summary from
+        // the voice provider", which reads as our glitch rather than as the
+        // day's one lost customer whose number the business already has.
+        abandonedCall(c) ||
         (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false),
     )
     .map(({ c, vm }) => {
@@ -566,13 +575,19 @@ export function toTodayVM(
           ? "In progress right now"
           : c.in_voicemail
             ? "Reached voicemail"
-            : c.sentiment === "Negative"
-              ? "Caller sentiment: Negative — the voice provider's own read"
-              : analysisDue
-                ? "Summary on its way from the voice provider"
-                : !c.summary
-                  ? "No summary from the voice provider"
-                  : (DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early"),
+            // BEFORE the summary branches, deliberately. A caller gone in six
+            // seconds has no summary and never will have much of one, so the
+            // chain below would have said "summary on its way" and buried the
+            // only fact worth acting on.
+            : abandonedCall(c)
+              ? `Hung up after ${spokenDuration(c.duration_ms)} — they left with nothing`
+              : c.sentiment === "Negative"
+                ? "Caller sentiment: Negative — the voice provider's own read"
+                : analysisDue
+                  ? "Summary on its way from the voice provider"
+                  : !c.summary
+                    ? "No summary from the voice provider"
+                    : (DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early"),
         to: vm.live ? "live" : `conversations/cv-${c.id}`,
       };
     });

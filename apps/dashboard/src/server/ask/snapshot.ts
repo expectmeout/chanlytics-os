@@ -7,6 +7,7 @@ import {
   messageText,
   threadStanding,
   toCallVM,
+  abandonedCall,
   type AskScope,
   type CallDto,
   type ConversationDto,
@@ -37,11 +38,11 @@ const CALLS = 8;
 const HELD = 6;
 
 export interface Snapshot {
-  counts: { needs_you: number; held_drafts: number; calls_today: number; missed_today: number; messages_in_today: number };
+  counts: { needs_you: number; held_drafts: number; calls_today: number; missed_today: number; abandoned_today: number; messages_in_today: number };
   needs_you: Array<{ conversation_id: string; route: string; who: string; reason: string; since: string; quote: string | null }>;
   held_drafts: Array<{ message_id: string; conversation_id: string; route: string; who: string; text: string; sends_at: string | null }>;
   threads: Array<{ conversation_id: string; route: string; who: string; person_route: string | null; state: string; last_at: string | null; recent: Array<{ from: string; text: string; at: string }> }>;
-  calls_today: Array<{ call_id: string; route: string; who: string; person_route: string | null; at: string; duration: string | null; outcome: string; summary: string | null }>;
+  calls_today: Array<{ call_id: string; route: string; who: string; person_route: string | null; at: string; duration: string | null; outcome: string; abandoned?: true; summary: string | null }>;
   scoped: unknown;
   note: string;
 }
@@ -184,6 +185,7 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
       at: fmtTime(c.started_at, timezone),
       duration: v.duration ?? null,
       outcome: v.outcome,
+      ...(abandonedCall(c) ? { abandoned: true as const } : {}),
       summary: c.summary ? c.summary.slice(0, 160) : null,
     };
   });
@@ -207,6 +209,7 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
       held_drafts: heldRows.length,
       calls_today: callRows.length,
       missed_today: callRows.filter((c) => c.outcome === "missed").length,
+      abandoned_today: callRows.filter((c) => c.abandoned === true).length,
       messages_in_today: inbound.count ?? 0,
     },
     needs_you: needs,
@@ -214,7 +217,7 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
     threads,
     calls_today: callRows,
     scoped,
-    note: "The newest eight threads with their last three messages, every thread that needs a person, the drafts being held, and today's calls. Older or longer material needs a read.",
+    note: "The newest eight threads with their last three messages, every thread that needs a person, the drafts being held, and today's calls. A call marked abandoned is an inbound caller who reached the receptionist and hung up within seconds, so they got nothing. Older or longer material needs a read.",
   };
 }
 

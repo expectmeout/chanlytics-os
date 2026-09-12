@@ -1066,6 +1066,14 @@ function toConversationVM(dto, now = /* @__PURE__ */ new Date()) {
     messages: msgs
   };
 }
+var ABANDONED_MS = 15e3;
+function abandonedCall(dto) {
+  if (dto.direction !== "inbound") return false;
+  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  const ms2 = dto.duration_ms;
+  if (typeof ms2 !== "number" || ms2 <= 0 || ms2 >= ABANDONED_MS) return false;
+  return dto.disconnection_reason === "user_hangup";
+}
 var DISCONNECTION_LABELS = {
   user_hangup: "Customer hung up",
   agent_hangup: "Receptionist ended the call",
@@ -3938,7 +3946,13 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   }));
   const NEEDS_EAR = ["dial_no_answer", "inactivity", "concurrency_limit_reached", "marked_as_spam"];
   const callRows = callsInWindow.filter((c) => c.status !== "not_connected").map((c) => ({ c, vm: toCallVM(c, now) })).filter(
-    ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false)
+    ({ c, vm }) => vm.live || c.in_voicemail || c.sentiment === "Negative" || !c.summary || // Somebody rang and left with nothing. Measured before writing this:
+    // with a provider summary the row was not worth an ear at all, since
+    // `user_hangup` is not in NEEDS_EAR and rightly so — every ordinary
+    // call ends that way. Without one it did arrive, as "No summary from
+    // the voice provider", which reads as our glitch rather than as the
+    // day's one lost customer whose number the business already has.
+    abandonedCall(c) || (c.disconnection_reason ? NEEDS_EAR.includes(c.disconnection_reason) : false)
   ).map(({ c, vm }) => {
     const endedMs = c.ended_at ? new Date(c.ended_at).getTime() : NaN;
     const analysisDue = !c.summary && Number.isFinite(endedMs) && now.getTime() - endedMs < ANALYSIS_GRACE_MS;
@@ -3947,7 +3961,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       who: vm.who,
       at: tzTime(c.started_at, tz) ?? "",
       duration: vm.duration ?? "",
-      note: vm.live ? "In progress right now" : c.in_voicemail ? "Reached voicemail" : c.sentiment === "Negative" ? "Caller sentiment: Negative \u2014 the voice provider's own read" : analysisDue ? "Summary on its way from the voice provider" : !c.summary ? "No summary from the voice provider" : DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early",
+      note: vm.live ? "In progress right now" : c.in_voicemail ? "Reached voicemail" : abandonedCall(c) ? `Hung up after ${spokenDuration(c.duration_ms)} \u2014 they left with nothing` : c.sentiment === "Negative" ? "Caller sentiment: Negative \u2014 the voice provider's own read" : analysisDue ? "Summary on its way from the voice provider" : !c.summary ? "No summary from the voice provider" : DISCONNECTION_LABELS[c.disconnection_reason ?? ""] ?? "Ended early",
       to: vm.live ? "live" : `conversations/cv-${c.id}`
     };
   });
@@ -8235,6 +8249,7 @@ var SCHEMA_SETS = {
   "tenants.status": ["active", "paused", "test"]
 };
 export {
+  ABANDONED_MS,
   ACTIVITY_KINDS,
   ACTIVITY_NOISE_PREFIXES,
   ACTOR_TYPES,
@@ -8448,6 +8463,7 @@ export {
   TenantConfigWriteSchema,
   WABA_FIELDS,
   WA_WINDOW_MS,
+  abandonedCall,
   activityWords,
   addressAlreadyKnown,
   afterPersonRefused,
@@ -8730,6 +8746,7 @@ export {
   spanUnits,
   spokenBreach,
   spokenBreachDetails,
+  spokenDuration,
   standingOf,
   starsOf,
   starterByKey,

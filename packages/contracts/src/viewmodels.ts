@@ -795,6 +795,45 @@ export interface CallDto {
   contact: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null } | null;
 }
 
+/**
+ * A caller who reached the receptionist and left with nothing.
+ *
+ * DELIBERATELY NOT "missed". This product already uses that word for exactly
+ * one thing — `status === "not_connected"`, a dial that never connected — and
+ * the Ask assistant, the day's snapshot and the conversations page all read it
+ * that way. Today keeps those out of the attention region on purpose: an
+ * attempt is not a call.
+ *
+ * This is the inbound one nobody had a word for. Somebody rang the business,
+ * the receptionist began to speak, and they hung up a few seconds later. The
+ * product filed it as `handled`, because technically it was, and Today either
+ * dropped the row or labelled it "No summary from the voice provider" — our
+ * machine's problem, not their departure. For a salon it is the most
+ * commercially interesting event of the day, and the only lost one that leaves
+ * a phone number behind.
+ *
+ * Fifteen seconds because the greeting carries a recording notice and the AI
+ * disclosure and takes most of ten: a caller gone before that heard a machine
+ * start talking and nothing else.
+ *
+ * The reason must be the CUSTOMER leaving. The receptionist ending a call, a
+ * transfer to a person, and a call that ran out of time are all endings
+ * somebody chose.
+ */
+export const ABANDONED_MS = 15_000;
+
+export function abandonedCall(
+  dto: Pick<CallDto, "direction" | "status" | "duration_ms" | "disconnection_reason" | "in_voicemail">,
+): boolean {
+  if (dto.direction !== "inbound") return false;
+  // A dial that never connected is the other thing entirely, and a call that
+  // reached voicemail already has its own row.
+  if (dto.status === "not_connected" || dto.in_voicemail) return false;
+  const ms = dto.duration_ms;
+  if (typeof ms !== "number" || ms <= 0 || ms >= ABANDONED_MS) return false;
+  return dto.disconnection_reason === "user_hangup";
+}
+
 /** Why the call ended, in words a salon owner uses. */
 export const DISCONNECTION_LABELS: Record<string, string> = {
   user_hangup: "Customer hung up",
@@ -842,7 +881,8 @@ function mmss(ms: number | null | undefined): string | undefined {
   return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
 }
 
-function spokenDuration(ms: number | null): string {
+/** A call's length in words, the way the product says it everywhere: "2 min 5 sec", "6 sec". */
+export function spokenDuration(ms: number | null): string {
   if (!ms) return "Duration not recorded";
   const total = Math.round(ms / 1000);
   const m = Math.floor(total / 60);
