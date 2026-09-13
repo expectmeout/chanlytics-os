@@ -146,7 +146,7 @@ own row — correct.
 
 Four consistency nits, none of them a live leak:
 
-1. ~~**Four deny-all tables do not revoke their grants.**~~ **Closed 13 September** (`f9a7b00`, migration `00119`; reaches production on the next `db push`). `billing_events`, `jobs`,
+1. ~~**Four deny-all tables do not revoke their grants.**~~ **Closed 13 September** (`f9a7b00`; **applied to production 13 September**. The file is `00119_the_floor_is_uniform.sql` on this branch and was renumbered to `00120` when it landed, because the branch it stacked on added a `00119` of its own). `billing_events`, `jobs`,
    `platform_admins` and `sweep_status` have RLS on and no policy, which denies
    everything — but they never `revoke all ... from anon, authenticated`, so
    Supabase's default privileges leave both roles nominally holding
@@ -284,7 +284,10 @@ are written and their briefs are ready.
   against the database the migrations replay, ignoring exactly one line
   (`PostgrestVersion`, which the generator reads off the running PostgREST) and
   exiting 2 when the CLI cannot be reached, so a check that cannot run never
-  passes. Still owed: its first green CI run, and one deliberate red.
+  passes. **Its first CI run landed green on [#460](https://github.com/expectmeout/chanlytics-os/pull/460)** — the step is
+  unconditional in the workflow, so a green job is the check passing, and the
+  committed types do match the replayed migrations. Still owed: one deliberate
+  red, to see the check fail on purpose.
 - No coverage instrumentation, no dependency audit, no SAST beyond eslint and
   gitleaks, no migration linter, no rollback test. Playwright is Chromium-only.
 - `pnpm check:dist` is wired to `package.json:10` and called by nothing — a
@@ -372,13 +375,13 @@ estimates.
 | 1 | **Walk gate 9** — signup → first answered call, on production, as a new user with a phone in hand | The only launch gate with an empty state cell. Nine gates were defined; eight shipped. Nobody has ever walked the real product with fresh eyes, and its own PRD calls it "the highest-information hour available before launch." Everything below this list may be reordered by what that hour finds. | ~1 day |
 | 2 | **The SMS carrier verdict** | The single largest functional gap, and mostly not ours to close. Five refusals, no sixth verdict. Every line of code behind it is written and tested. | Blocked externally |
 | 3 | **Execute the edge handlers** | 33 of 41 handlers on the live customer path are pinned by text and never run. `apps/dashboard/app/api/v1` already proves the pattern works — 82 route modules invoked against a fake database. The same treatment applied to `whatsapp.ts`, `inbound-sms.ts`, `retell-webhook.ts`, `jobs/tick.ts` and the 8 crons would move the weakest layer to the strongest. **Approved 13 Sep; six of eight sessions done that day** — the Retell webhook, the lines door, all eight crons and seventeen back-office doors now execute (41 pins deleted). **Left:** the WhatsApp door, the SMS door + job tick, and the two other Retell doors — plan: `docs/plans/2026-09-13-the-edge-handlers-run.md`, tasks A, B and D. | ~3 days left |
-| 4 | **Guard `database.types.ts`** | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Done 13 Sep** (`97f803f`); its first CI run is still owed. | done |
+| 4 | **Guard `database.types.ts`** | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Done 13 Sep** (`97f803f`); first CI run green on #460. | done |
 | 5 | **An e2e spec for the conversation thread** | The product's central surface has no browser test. Reply, take-over, escalation resolution, the message lifecycle. | 2–3 days |
 | 6 | **Make `database.yml` a required check** | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Approved 13 Sep, not yet done** — plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md`; the final setting flip is yours. | ~1 hour |
 | 7 | **Automate the `events` partition** | It can wedge permanently and self-perpetuatingly, with up to 35 days of detection lag, and the remediation is manual. Alert on `events_default` row count; add a partition-level purge. | 1–2 days |
 | 8 | **Set `EDGE_CALL_SECRET`** and delete the 4 retired endpoints | One shared key currently opens 22 admin doors; four deployed doors have no caller. | ~half day |
 | 9 | **Drain the waitlist** | People are joining a list nothing reads. | 1–2 days |
-| 10 | **The four `revoke` migrations and the eight `TO authenticated` clauses** | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Done 13 Sep** (`f9a7b00`, migration `00119` — nine clauses, not eight). | ~2 hours |
+| 10 | **The four `revoke` migrations and the eight `TO authenticated` clauses** | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Done 13 Sep** (`f9a7b00` — nine clauses, not eight); replayed green in CI and applied to production the same day, as `00120` after a renumber. | ~2 hours |
 | 11 | **Add `next build` to CI** | A build failure should not first appear on Vercel. | ~1 hour |
 
 Not on this list, deliberately: outbound calling, email as a channel, and the six
