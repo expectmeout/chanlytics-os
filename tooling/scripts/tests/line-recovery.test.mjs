@@ -130,7 +130,7 @@ test("SUPPORT: the back office offers the same retry, which it offered for nothi
 /* ----------------------------- the two doors ------------------------------ */
 
 test("the retry rule accepts a line the wall killed, and refuses one that is still running", () => {
-  // BEHAVIOUR, not text. This test used to read `apps/edge/api/admin/lines.ts` and
+  // BEHAVIOUR, not text. This test used to read the lines door's source and
   // assert five regexes against an `if` statement buried in a 400-line handler —
   // it passed whether or not the rule was right, and it was one of thirty-six such
   // assertions added in a single day. The rule now returns a value, so it has a
@@ -384,13 +384,10 @@ test("a read that FAILS must not be reported as 'we do not own it'", () => {
   assert.ok(!/catch/.test(body), "REGRESSION: swallowing the read turns a failure into a purchase");
 });
 
-test("release gives back a number the row lost the receipt for", () => {
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.match(edge, /const sid = line\.number_sid \?\? \(line\.e164 \? \(await choice\.provider\.ownedNumber\(acct, line\.e164\)\)\?\.sid \?\? null : null\);/);
-  assert.match(edge, /released\.number_found_by_lookup = true;/, "and says so, because it means a saga was killed mid-purchase");
-  assert.ok(!/if \(line\.number_sid\) \{ await choice\.provider\.releaseNumber/.test(edge),
-    "REGRESSION: deleting the row while still paying for the number");
-});
+// `release` giving back a number the row lost the receipt for is run in
+// lines-door.test.mjs: the door looks the number up at the carrier by its
+// digits, releases the SID that answered, says `number_found_by_lookup`, and
+// keeps the row when the lookup is refused.
 
 /* --------------- and the bug the old escape route created ---------------- */
 

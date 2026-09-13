@@ -127,11 +127,12 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
 
   // And the ABSOLUTE form the carriers are handed is built the same way the
   // opt-in URL is, from one origin, at the one moment a filing is composed.
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(edge.includes("hostedUrl: `${origin}/b/${tenant.slug}`"), "the filing names it");
-  assert.ok(edge.includes("optInUrl: `${origin}/yes/${tenant.slug}`"), "beside the opt-in page, from the same origin");
+  // The door's filing is run in lines-door.test.mjs, where the captured campaign
+  // names `/b/<slug>` as the privacy policy and `/yes/<slug>` in the flow, both
+  // on DASHBOARD_ORIGIN; the sweep that finishes a filing is pinned here until
+  // it runs too.
   const cron = readCode("apps/edge/api/cron/registrations.ts");
-  assert.ok(cron.includes("hostedUrl: `${origin}/b/${tenant.data.slug}`"), "and so does the sweep that finishes a filing");
+  assert.ok(cron.includes("hostedUrl: `${origin}/b/${tenant.data.slug}`"), "the sweep files the same page, from the same origin");
 });
 
 test("a business with no website of its own files the page we publish", () => {
@@ -294,9 +295,9 @@ test("nothing is filed until they are answered, and the words reach the row", ()
   // The workspace's name is what the campaign will say, so it is what gets
   // checked -- not the record's, which is what the brand says.
   assert.match(edge, /workspaceName: o\.workspaceName,/);
-  // And the door tells it whether anybody can say yes.
-  const door = readCode("apps/edge/api/admin/lines.ts");
-  assert.match(door, /hasOptInNumber: \(saysYes\.data \?\? \[\]\)\.length > 0 \|\| !!row\.data\.e164,/);
+  // And the door tells it whether anybody can say yes -- run in
+  // lines-door.test.mjs: a line with no number and no active texting row is
+  // refused with the sentence, and an active row beside it is enough.
 });
 
 test("what the program keeps and what for, on the page filed as the privacy policy", () => {

@@ -151,23 +151,12 @@ test("no provider call is made for a line with nothing to take off, and none is 
   assert.ok(!db.seen.some((q) => q.table !== "lines"), "only the line's own row is touched");
 });
 
-test("the route's three answers: a real filing is final, a rehearsal is replaceable, and a refile is never itself a rehearsal", () => {
-  const route = readCode("apps/edge/api/admin/lines.ts");
-  // "Final" now means a filing that STANDS -- one the carriers accepted. A
-  // rejected one is a correction request and has its own path; see the case
-  // below.
-  assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "a real filing that stands keeps its dead end");
-  assert.ok(route.includes('error: "already_registered"'));
-  assert.ok(route.includes('error: "mock_registration"'), "a rehearsal says what it is instead");
-  assert.ok(route.includes("if (!refile) {"), "and asks to be told before replacing it");
-  // Which check a rehearsal's removal is handed is the compiler's to hold now --
-  // `check` is required -- and what it does with a failing one is run below.
-  assert.ok(route.includes("row.data = off.row;"), "the saga runs against the cleared row, not the stale one");
-  assert.ok(
-    route.includes("const mock = !refile && body.mock === true;"),
-    "there is no reason to replace one rehearsal with another, so a refile is always real",
-  );
-
+test("the owner's route may not refile: making a filing real is an operator's call", () => {
+  // The route's three answers -- a real filing that stands is final, a
+  // rehearsal says what it is and asks for `refile`, a refile is never itself
+  // a rehearsal and runs the saga against the cleared row -- are run in
+  // lines-door.test.mjs.
+  //
   // The owner's side: the register route may NOT refile. Making a filing real
   // charges the workspace, so it is an operator's call with the business record
   // in front of them, not a side effect of somebody pressing resubmit.
@@ -251,16 +240,9 @@ test("a rejection is answered by CORRECTING the campaign, not paying for a new o
   assert.ok(lib.includes("export async function resubmitRejectedCampaign("));
   assert.ok(!lib.includes("unfileRejectedCampaign"), "REGRESSION: the delete-and-pay-again path is gone");
   assert.ok(lib.includes('sms_state: "registering",'), "and the row says it is back with the carriers");
-
-  const route = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(route.includes("const again = await resubmitRejectedCampaign(db, row.data, facts, filingCheck);"),
-    "and it is handed what the pre-flight needs, not just what to send");
-  assert.ok(route.includes("businessName: tenant.name,"),
-    "the workspace's CURRENT name reaches the campaign -- the corrections are the point");
-  assert.ok(!route.includes("const t = await db.from(\"tenants\").select(\"name, slug\")"),
-    "and it comes from the read this request already made, not a second one");
-  assert.ok(route.includes('const rejected = row.data.sms_state === "rejected";'));
-  assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "a filing that stands is still final");
+  // The door's side is run in lines-door.test.mjs: `refile` on a rejected line
+  // POSTs the INSTANCE url once, as the subaccount, with the workspace's
+  // CURRENT name in the description, and asks the spend rule of nobody.
   assert.ok(readRaw("apps/edge/lib/a2p.ts").includes("vetting fee is assessed only once per Campaign"),
     "and the reason is quoted where the next person will change it back");
 });
@@ -371,20 +353,11 @@ test("a rejection reaches every person who can act on it, in words about what ha
     "the button says it refuses rather than that it sends whatever is there");
 });
 
-test("a refile refused by the pre-flight is a 409 about this workspace, not a 502 about the carriers", () => {
-  // "Try again in a moment" is the one thing that cannot help a name mismatch, and
-  // it is what a 502 tells every layer above to say.
-  const door = readCode("apps/edge/api/admin/lines.ts");
-  assert.match(door, /if \(again\.problems\?\.length\) \{\n\s+return json\(409, \{ ok: false, error: again\.error \?\? "record_incomplete", problems: again\.problems \}\);/);
-  assert.match(door, /const status = result\.ok \? 200 : result\.problems\?\.length \? 409 : 502;/,
-    "and the first-filing path draws the same line");
-  // One read of "can anybody say yes", above the branch, because BOTH ways out of
-  // this handler state it to the carriers. It used to sit on the first-filing path
-  // only, which is a fair summary of the whole defect.
-  const hoisted = door.indexOf("const filingCheck = {");
-  const branch = door.indexOf("if (row.data.brand_sid && row.data.campaign_sid) {");
-  assert.ok(hoisted !== -1 && branch !== -1 && hoisted < branch, "the check's facts are gathered before the branch that chooses a door");
-});
+// A refile refused by the pre-flight is a 409 about this workspace, not a 502
+// about the carriers -- "try again in a moment" is the one thing that cannot
+// help a name mismatch -- and "can anybody say yes" is read once, above the
+// branch, for both ways out. Run in lines-door.test.mjs on every door to the
+// carriers: resubmit, replace, rehearsal made real, and the first filing.
 
 
 /* -------------------------------------------------------------------------- *
@@ -454,10 +427,7 @@ test("only a REFUSED campaign is replaceable, only after the pre-flight, and a r
   }
 });
 
-test("the route offers the replacement only by name, and only where a resubmit is offered", () => {
-  const route = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(route.includes("const replace = body.replace === true;"), "asked for by a flag of its own -- it costs");
-  assert.ok(route.includes("if (rejected && !replace) {"), "a refile without it is the free edit, as before");
-  assert.ok(route.includes("? await replaceRejectedCampaign(db, row.data, filingCheck)"), "with it, the refused campaign comes off for the saga to file a new one");
-  assert.ok(route.includes("if (!row.data.reg_mock && !rejected) {"), "and a filing that stands is still final, flag or no flag");
-});
+// The route offers the replacement only by name (`replace`, because it costs),
+// only where a resubmit is offered, and a filing that stands is final flag or
+// no flag: run in lines-door.test.mjs, where the same rejected row answers a
+// bare refile with one edit and a refile-with-replace with a DELETE and a POST.

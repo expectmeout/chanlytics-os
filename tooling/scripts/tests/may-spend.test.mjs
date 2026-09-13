@@ -92,10 +92,15 @@ test("a refusal says what to do about it, because it lands where somebody is try
   }
 });
 
-test("both money routes carry the second door, and so does the edge behind them", () => {
+test("both money routes carry the second door", () => {
   // requireRole asks whether this PERSON may act for the workspace.
   // requireSpend asks whether the WORKSPACE may spend our money. A money route
-  // needs both, and for months had only the first.
+  // needs both, and for months had only the first. The edge behind them is
+  // reachable with the diagnostic key alone, so it asks the same question on
+  // its own side of the wire -- run, not read, in lines-door.test.mjs: `buy`
+  // and `register` refused with the reason for every status that may not
+  // spend, and the one free filing (a rejected campaign corrected in place)
+  // let through a lapsed card.
   for (const route of ["buy", "register"]) {
     // Both doors are declared on the export; route() performs them, and its
     // pipeline refuses a workspace that may not spend BEFORE it spends a
@@ -109,20 +114,6 @@ test("both money routes carry the second door, and so does the edge behind them"
   assert.ok(guard.includes("export async function requireSpend("));
   assert.ok(guard.includes('throw new AppError("payment_required"'), "402, not 403: the fix is a card, not a different account");
   assert.ok(guard.includes('if (!data) throw new AppError("payment_required"'), "no billing row is not permission");
-
-  // The edge is reachable with the diagnostic key alone, so it must not take
-  // the dashboard's word for it.
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(edge.includes('if (op === "buy") {\n    const refused = await refuseIfCannotSpend();'));
-  assert.ok(edge.includes("whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus)"));
-  assert.ok(edge.includes('json(402, { ok: false, error: "payment_required"'));
-  // The gate asks what the FILING will be, not what the flag is called. Only
-  // the in-place resubmit of a rejected campaign is the free correction a
-  // lapsed card must not stop; a rehearsal made real files the workspace's
-  // first real brand ($19.50) and `replace` files a fresh campaign ($15).
-  assert.ok(edge.includes("const correctingInPlace = refile && onFile && row.data.sms_state === \"rejected\" && !replace;"), "the one free path is named");
-  assert.ok(edge.includes("if (!correctingInPlace) {"), "and everything else that files is gated like a first filing");
-  assert.ok(!edge.includes('body.refile !== true'), "REGRESSION: the flag is not the question");
 });
 
 test("payment_required is its own code, mapped to 402", () => {

@@ -261,8 +261,9 @@ test("a brand the carriers still hold is a WAIT, not a refusal, and the status c
   const edge = readCode("apps/edge/lib/a2p.ts");
   assert.ok(edge.includes("const waiting = !result.ok && result.pending;") && edge.includes('const smsState = result.ok || waiting ? "registering" : "failed";'));
   assert.ok(edge.includes("last_error: result.ok || waiting ? null : result.error,"), "a wait carries no error");
-  const lines = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(lines.includes('if (r.ok && r.brand === "APPROVED" && !row.data.campaign_sid) {'), "and the next status check files the campaign, so the wait finishes by itself");
+  // And the next status check files the campaign, so the wait finishes by
+  // itself: run in lines-door.test.mjs, where `registration-status` on an
+  // approved brand with no campaign POSTs the one thing that was waiting.
 });
 
 test("the two registrations are two policies, verified against Twilio's own definitions", () => {
@@ -442,16 +443,11 @@ test("the owner's form: every field the carriers ask, checked in the owner's wor
   assert.ok(page.includes("{API.costWords[path]}"), "the price is the contract's, per registration -- the two do not cost the same");
 });
 
-test("the wiring: filed as us, never twice, never real by default, and the record is asked for first", () => {
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(edge.includes('if (op === "record") {') && edge.includes('if (op === "register" || op === "registration-status") {'));
-  // Two directions, one line: a real filing costs money so it is never the
-  // default, and a refile is always real -- there is no reason to replace one
-  // rehearsal with another. See a2p-refile.test.mjs for what a refile clears.
-  assert.ok(edge.includes('const mock = !refile && body.mock === true;'), "a real filing costs money, so it is never the default");
-  assert.ok(edge.includes('if (!rec.data) {') && edge.includes('error: "no_business_record"'), "no record, no registration");
-  assert.ok(edge.includes('error: "already_registered"'), "a second filing is refused rather than paid for");
-  assert.ok(edge.includes("optInUrl: `${origin}/yes/${tenant.slug}`") && edge.includes("privacyUrl: `${origin}/privacy`"), "the reviewer is sent to pages that exist");
+test("the wiring: filed under our own profile, the table and the row, and the sweep that ends the wait", () => {
+  // The door's half -- never twice (`already_registered`), never real by
+  // default (`mock` only when asked, and never on a refile), the record asked
+  // for first (`no_business_record`), and the reviewer sent to this
+  // deployment's own pages -- is run in lines-door.test.mjs.
   const lib = readCode("apps/edge/lib/a2p.ts");
   assert.ok(lib.includes("export function primaryProfileSid()") && lib.includes('error: "no_primary_profile"'), "nothing is filed without our own approved profile");
   assert.ok(lib.includes("primaryProfileSid: primary,"), "our own profile is referenced by sid, which is the whole declaration that this business is ours");
