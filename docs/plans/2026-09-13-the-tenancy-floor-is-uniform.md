@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. One session, one migration.
 
-**Goal:** The four deny-all tables revoke their default privileges the way their three siblings do, and the eight policies written without a `TO` clause say `to authenticated` like the other sixty-four — so the floor reads the same everywhere and can be audited at a glance. Consistency, not exposure: nothing here closes a live leak, and the plan is honest about that.
+**Goal:** The four deny-all tables revoke their default privileges the way their three siblings do, and the nine policies written without a `TO` clause say `to authenticated` like the other fifty-six live ones (sixty-three of the seventy-two ever written) — so the floor reads the same everywhere and can be audited at a glance. Consistency, not exposure: nothing here closes a live leak, and the plan is honest about that.
 
-**Architecture:** One migration, `supabase/migrations/00119_the_floor_is_uniform.sql`, of four `revoke` statements and eight `alter policy … to authenticated` statements. `ALTER POLICY` changes only the roles a policy applies to and leaves every predicate byte-for-byte as written — which is why it is chosen over drop-and-recreate, even though it has no precedent in this repository yet. The tenancy suite then proves the *privilege* (a member's read is refused, not merely empty), so a future table that turns on RLS and forgets the revoke is caught.
+**Architecture:** One migration, `supabase/migrations/00119_the_floor_is_uniform.sql`, of four `revoke` statements and nine `alter policy … to authenticated` statements — thirteen in all. `ALTER POLICY` changes only the roles a policy applies to and leaves every predicate byte-for-byte as written — which is why it is chosen over drop-and-recreate, even though it has no precedent in this repository yet. The tenancy suite then proves the *privilege* (a member's read is refused, not merely empty), so a future table that turns on RLS and forgets the revoke is caught.
 
 **Tech stack:** SQL; the Database workflow (`.github/workflows/database.yml`) replays it on the PR because `supabase/**` is a trigger; `tooling/scripts/tests/tenancy.db.test.mjs` runs there with real sessions. The migration reaches production only by `supabase db push --linked` after the merged code is deployed — an ops step, not this session's.
 
@@ -12,7 +12,7 @@
 
 ---
 
-## Why (measured 13 September 2026)
+## Why (measured 13 September 2026; the policy count corrected the same day — the first census missed `invitations_member_read`, the migration did not)
 
 **The four tables.** RLS enabled, zero policies, no revoke — so `anon` and `authenticated` nominally hold Supabase's default `SELECT/INSERT/UPDATE/DELETE` with only RLS between them and the rows:
 
@@ -25,10 +25,11 @@
 
 The three siblings that belt-and-brace it, verbatim: `revoke all on public.operator_pages from public, anon, authenticated;` (`00105_operator_pages.sql:26`), `revoke all on public.waitlist from anon, authenticated;` (`00088_waitlist.sql:46`), `revoke all on public.rate_hits from anon, authenticated;` (`00059_shared_limits_runtime_stamp.sql:14`). Use the fuller `from public, anon, authenticated` form. `service_role` keeps its own grants; `operator_pages` is written by the edge under it in production today.
 
-**The eight policies**, all still live (no later `drop policy` names any of them — checked against every `drop policy` in the tree):
+**The nine policies**, all still live (no later `drop policy` names any of them — checked against every `drop policy` in the tree):
 
 | policy | table | written at |
 |---|---|---|
+| `invitations_member_read` | `invitations` | `00012_control_plane.sql:35` |
 | `policies_member_read` | `policies` | `00012_control_plane.sql:71` |
 | `policies_owner_update` | `policies` | `00012_control_plane.sql:73` |
 | `tenant_config_member_read` | `tenant_config` | `00012_control_plane.sql:105` |
@@ -61,6 +62,7 @@ Every predicate keys on `auth.uid()` (null for `anon` → zero rows), so `TO PUB
   revoke all on public.platform_admins from public, anon, authenticated;
   revoke all on public.sweep_status    from public, anon, authenticated;
 
+  alter policy invitations_member_read        on public.invitations      to authenticated;
   alter policy policies_member_read           on public.policies         to authenticated;
   alter policy policies_owner_update          on public.policies         to authenticated;
   alter policy policies_owner_insert_person   on public.policies         to authenticated;
@@ -78,7 +80,7 @@ Every predicate keys on `auth.uid()` (null for `anon` → zero rows), so `TO PUB
 - Modify: `tooling/scripts/tests/tenancy.db.test.mjs`
 
 - [ ] **Step 1: privilege, not only policy.** For every table whose mode is `"none"` (in `TENANT_TABLES` and `OTHER_TABLES`), a viewer's and a stranger's `select` must come back as a **privilege refusal** — `error.code === "42501"` — not as an empty array. Add that expectation beside the existing `nothing()` check with a sentence saying why (a table that turns on RLS and forgets the revoke reads as safe until someone grants it something). This is the assertion that would have named the four tables.
-- [ ] **Step 2 (optional, cheap):** one `supabase db query` step in `database.yml`, after the replay: `select count(*) from pg_policies where schemaname = 'public' and roles = '{public}'` must be `0`. It proves the eight and guards the next one. Skip if it complicates the workflow while `2026-09-13-the-replay-is-a-required-check.md` is also in flight.
+- [ ] **Step 2 (optional, cheap):** one `supabase db query` step in `database.yml`, after the replay: `select count(*) from pg_policies where schemaname = 'public' and roles = '{public}'` must be `0`. It proves the nine and guards the next one. Skip if it complicates the workflow while `2026-09-13-the-replay-is-a-required-check.md` is also in flight.
 
 ## Task 3 — Ship
 
