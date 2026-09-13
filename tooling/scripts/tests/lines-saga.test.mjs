@@ -28,6 +28,8 @@ import {
 } from "@chanlytics/channels";
 import { EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+import { linePorts, releaseRoutingRows } from "../../../apps/edge/lib/lines.ts";
 
 const LINE_ID = "0f3c2a1e-1111-4222-8333-444455556666";
 const freshLine = (over = {}) => ({
@@ -334,4 +336,286 @@ test("wiring: the edge endpoint, its ports, the receptionist shared with voice-p
   assert.ok(readCode("packages/db/src/realtime.ts").includes('{ table: "lines", event: "*" }'), "a callback repaints Setup");
   const index = readCode("packages/channels/src/index.ts");
   for (const m of ["./lines", "./lines-twilio", "./lines-dry", "./lines-saga"]) assert.ok(index.includes(`export * from "${m}";`), m);
+});
+
+/**
+ * A routing row is claimed only by the workspace that owns it.
+ *
+ * `tenant_channels` is unique on (kind, external_id) ACROSS workspaces, and a
+ * phone number outlives its renter: a carrier hands a released number to
+ * somebody else a few weeks later. The ensure matched on (kind, external_id)
+ * alone, so the new workspace's saga found the PREVIOUS renter's row, wrote
+ * that row's id onto its line, and called the line provisioned -- after which
+ * every text to that number resolved to a business that no longer owned it.
+ * Release made it reachable: it switched off the voice row and left the sms
+ * row active.
+ *
+ * Run rather than read: the rule is about which row comes back from a
+ * database holding two workspaces' rows, which a source scan cannot see.
+ */
+const portsOver = (db, tenantId = "t1") =>
+  linePorts(
+    db,
+    { apiKey: "k" },
+    { fnSecret: "s" },
+    { id: tenantId, name: "Ada's" },
+    freshLine({ tenant_id: tenantId }),
+    { name: "dry", provider: dryProvider(1), master: { sid: "ACdryrun", token: "dry" } },
+  );
+
+test("a routing row another workspace is STILL USING is refused, never adopted", async () => {
+  // A live claim on the key. Adopting it is what put a new workspace's texts
+  // into the previous renter's Inbox.
+  const tables = {
+    tenant_channels: [
+      { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  const ports = portsOver(fakeDb(tables), "t-new");
+  await assert.rejects(
+    () => ports.smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" }),
+    /belongs to another workspace/,
+    "the saga fails loudly and a person looks at it",
+  );
+  assert.equal(tables.tenant_channels.length, 1, "and nothing was written");
+  assert.equal(tables.tenant_channels[0].tenant_id, "t-old", "the other workspace's row is untouched");
+  assert.equal(tables.tenant_channels[0].status, "active");
+});
+
+test("a routing row another workspace RELEASED changes hands, or a recycled number is dead for ever", async () => {
+  // Release disables rather than deletes, because calls keep their history,
+  // and nothing anywhere deletes a tenant_channels row. So refusing every
+  // stranger's row would leave a carrier-recycled number unprovisionable by
+  // its new renter permanently -- the same number unreachable, arrived at
+  // from the opposite side of the same rule.
+  const tables = {
+    tenant_channels: [
+      { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "disabled", config: { line_id: "old-line" } },
+    ],
+  };
+  const got = await portsOver(fakeDb(tables), "t-new").smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG9" });
+  assert.deepEqual(got, { channelId: "ch-old", created: false }, "the row is taken, not duplicated: (kind, external_id) is unique across workspaces");
+  assert.equal(tables.tenant_channels.length, 1);
+  assert.equal(tables.tenant_channels[0].tenant_id, "t-new", "and it now belongs to the workspace that holds the number");
+  assert.equal(tables.tenant_channels[0].status, "active");
+  assert.equal(tables.tenant_channels[0].config.messaging_service_sid, "MG9", "pointed at the line that took it");
+});
+
+test("a row claimed between the read and the take is lost honestly, not overwritten", async () => {
+  // The take is pinned to the row as it was READ. A fake whose row moves
+  // underneath it stands in for the two sagas that race for one recycled
+  // number: the loser must fail, never overwrite the winner.
+  const tables = {
+    tenant_channels: [
+      { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "disabled", config: {} },
+    ],
+  };
+  const db = fakeDb(tables);
+  const realFrom = db.from.bind(db);
+  let raced = false;
+  db.from = (table) => {
+    const q = realFrom(table);
+    if (table !== "tenant_channels" || raced) return q;
+    const select = q.select.bind(q);
+    q.select = (...a) => {
+      const b = select(...a);
+      const maybeSingle = b.maybeSingle.bind(b);
+      // Somebody else takes it in the gap between the read and the take.
+      b.maybeSingle = async () => {
+        const r = await maybeSingle();
+        raced = true;
+        tables.tenant_channels[0] = { ...tables.tenant_channels[0], tenant_id: "t-other", status: "active" };
+        return r;
+      };
+      return b;
+    };
+    return q;
+  };
+  await assert.rejects(
+    () => portsOver(db, "t-new").smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" }),
+    /claimed by another workspace/,
+  );
+  assert.equal(tables.tenant_channels[0].tenant_id, "t-other", "the winner keeps it");
+});
+
+test("this workspace's own row is kept, and one switched off by a release is switched back on", async () => {
+  const tables = {
+    tenant_channels: [
+      { id: "ch-mine", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  assert.deepEqual(
+    await portsOver(fakeDb(tables)).smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" }),
+    { channelId: "ch-mine", created: false },
+    "a workspace that already texts on this number keeps its row",
+  );
+
+  // The same workspace releasing and re-buying its own number. Adopting the
+  // disabled row as-is reported the line as answering while the webhook
+  // refused to route it -- the same silence, reached from the other side.
+  const off = { tenant_channels: [{ id: "ch-off", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "disabled", config: {} }] };
+  assert.deepEqual(
+    await portsOver(fakeDb(off)).smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG2" }),
+    { channelId: "ch-off", created: false },
+  );
+  assert.equal(off.tenant_channels[0].status, "active", "switched back on, or the number is unroutable while the line says it answers");
+  assert.equal(off.tenant_channels[0].config.messaging_service_sid, "MG2", "and pointed at the line that now holds it");
+});
+
+test("a number nobody holds is written for this workspace; the voice row follows the same rule", async () => {
+  const tables = { tenant_channels: [] };
+  const made = await portsOver(fakeDb(tables)).smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" });
+  assert.equal(made.created, true);
+  assert.equal(tables.tenant_channels[0].tenant_id, "t1");
+  assert.equal(tables.tenant_channels[0].status, "active");
+
+  const theirs = { tenant_channels: [{ id: "ag-old", tenant_id: "t-old", kind: "voice", external_id: "agent-1", status: "active", config: {} }] };
+  await assert.rejects(
+    () => portsOver(fakeDb(theirs), "t-new").channel.ensure({ agentId: "agent-1", e164: "+13055550100", lineId: LINE_ID }),
+    /belongs to another workspace/,
+  );
+});
+
+/* ---- what a released line switches off, and what it must not ---- */
+
+const releasedLine = (facts) => ({ id: "line-a", facts });
+
+test("a released line switches off both of its routing rows, so a recycled number carries no stale claim", async () => {
+  const tables = {
+    lines: [{ id: "line-a", tenant_id: "t1", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms" } }],
+    tenant_channels: [
+      { id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", status: "active" },
+      { id: "ch-sms", tenant_id: "t1", kind: "sms", external_id: "+13055550100", status: "active" },
+    ],
+  };
+  const r = await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice", sms_channel_id: "ch-sms" }));
+  assert.deepEqual(r, { ok: true, released: { channel_disabled: "ch-voice", sms_channel_disabled: "ch-sms" } });
+  assert.deepEqual(tables.tenant_channels.map((c) => c.status), ["disabled", "disabled"], "switched off, never deleted: calls keep their history");
+});
+
+test("a routing row ANOTHER line still points at is kept, or one release silences the workspace", async () => {
+  // The voice row is keyed on the workspace's Retell agent, which every line
+  // of the workspace shares. Switching it off for one line switches the
+  // receptionist off for all of them -- and unrecoverably, since the others
+  // already carry facts.channel_id and their saga skips channel.ensure.
+  const tables = {
+    lines: [
+      { id: "line-a", tenant_id: "t1", e164: "+13055550100", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms-a" } },
+      { id: "line-b", tenant_id: "t1", e164: "+13055550111", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms-b" } },
+    ],
+    tenant_channels: [
+      { id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: { provider: "twilio-sip", line_id: "line-a" } },
+      { id: "ch-sms-a", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  const r = await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice", sms_channel_id: "ch-sms-a" }));
+  assert.deepEqual(r, { ok: true, released: { channel_kept: "ch-voice", sms_channel_disabled: "ch-sms-a" } });
+  const by = Object.fromEntries(tables.tenant_channels.map((c) => [c.id, c]));
+  assert.equal(by["ch-voice"].status, "active", "the other line still answers on it");
+  assert.equal(by["ch-sms-a"].status, "disabled", "but the number this line held is given up: it is keyed on the number, so it is this line's alone");
+  // A kept row must describe the line that HOLDS it. `number_e164` is what the
+  // public page, Settings, the consent page and the receptionist's own facts
+  // publish as the workspace's number, so a row keeping the RELEASED number on
+  // it advertises a number that has gone back to the carrier.
+  assert.equal(by["ch-voice"].number_e164, "+13055550111", "repointed at the line that kept it");
+  assert.equal(by["ch-voice"].config.line_id, "line-b");
+  assert.equal(by["ch-voice"].config.provider, "twilio-sip", "and the rest of its config is left alone");
+});
+
+test("another WORKSPACE's line pointing at the same id does not keep the row", async () => {
+  // The question is scoped to this workspace, or one tenant's stale facts
+  // would pin another tenant's number for ever.
+  const tables = {
+    lines: [
+      { id: "line-a", tenant_id: "t1", facts: { sms_channel_id: "ch-sms" } },
+      { id: "line-z", tenant_id: "t2", facts: { sms_channel_id: "ch-sms" } },
+    ],
+    tenant_channels: [{ id: "ch-sms", tenant_id: "t1", kind: "sms", external_id: "+13055550100", status: "active" }],
+  };
+  const r = await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ sms_channel_id: "ch-sms" }));
+  assert.deepEqual(r, { ok: true, released: { sms_channel_disabled: "ch-sms" } });
+  assert.equal(tables.tenant_channels[0].status, "disabled");
+});
+
+test("a line the saga never got that far with has nothing to switch off", async () => {
+  const tables = { lines: [], tenant_channels: [] };
+  assert.deepEqual(await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({})), { ok: true, released: {} });
+});
+
+test("a row that will not switch off stops the release rather than orphaning a live claim", async () => {
+  const tables = {
+    lines: [{ id: "line-a", tenant_id: "t1", facts: { sms_channel_id: "ch-sms" } }],
+    tenant_channels: [{ id: "ch-sms", tenant_id: "t1", kind: "sms", external_id: "+13055550100", status: "active" }],
+  };
+  const r = await releaseRoutingRows(fakeDb(tables, { "tenant_channels.update": { message: "row is locked" } }), "t1", releasedLine({ sms_channel_id: "ch-sms" }));
+  assert.equal(r.ok, false);
+  assert.match(r.error, /switching the routing row off: row is locked/);
+  // The caller does not delete the line: a number given back at the provider
+  // with a live routing row still claiming it is the state this must not reach.
+  assert.equal(tables.tenant_channels[0].status, "active");
+});
+
+test("a release that fails halfway still reports what it already did", async () => {
+  // The provider has already given the number back by this point and the voice
+  // row is already off. A 503 naming only the provider leaves an operator
+  // unaware that the workspace's routing is half dismantled while the line row
+  // still reads `answering`.
+  const tables = {
+    lines: [{ id: "line-a", tenant_id: "t1", e164: "+13055550100", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms" } }],
+    tenant_channels: [
+      { id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: {} },
+      { id: "ch-sms", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  const db = fakeDb(tables);
+  const realFrom = db.from.bind(db);
+  let offs = 0;
+  db.from = (table) => {
+    const q = realFrom(table);
+    if (table !== "tenant_channels") return q;
+    const update = q.update.bind(q);
+    q.update = (...a) => (++offs === 2 ? { eq: () => ({ eq: async () => ({ data: null, error: { message: "row is locked" } }) }) } : update(...a));
+    return q;
+  };
+  const r = await releaseRoutingRows(db, "t1", releasedLine({ channel_id: "ch-voice", sms_channel_id: "ch-sms" }));
+  assert.equal(r.ok, false);
+  assert.match(r.error, /switching the routing row off: row is locked/);
+  assert.deepEqual(r.released, { channel_disabled: "ch-voice" }, "the half that DID happen is still reported");
+});
+
+test("with three lines on one agent row, the line the number moves to is not whichever the planner returned first", async () => {
+  // What gets picked becomes the number this workspace publishes on its
+  // business page, its consent page and in the receptionist's own facts, so
+  // an unordered limit(1) makes that a coin toss. The oldest, which is the
+  // line ensureVoiceAgent, line_forwarding_set and businessPageFor all settle
+  // on when a workspace has more than one.
+  const lines = [
+    { id: "line-c", tenant_id: "t1", e164: "+13055550133", created_at: "2026-03-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+    { id: "line-b", tenant_id: "t1", e164: "+13055550111", created_at: "2026-01-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+    { id: "line-a", tenant_id: "t1", e164: "+13055550100", created_at: "2026-02-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+  ];
+  const chan = () => [{ id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: {} }];
+  for (const order of [lines, [...lines].reverse()]) {
+    const tables = { lines: [...order], tenant_channels: chan() };
+    await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice" }));
+    assert.equal(tables.tenant_channels[0].number_e164, "+13055550111", "the oldest, whatever order the rows came back in");
+    assert.equal(tables.tenant_channels[0].config.line_id, "line-b");
+  }
+});
+
+test("a holder with no number of its own does not erase the number the row publishes", async () => {
+  // `lines.e164` is nullable: a line killed before its purchase answered has
+  // none. Writing that null would blank the number on the public page while
+  // reporting the keep as a success.
+  const tables = {
+    lines: [
+      { id: "line-a", tenant_id: "t1", e164: "+13055550100", created_at: "2026-01-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+      { id: "line-b", tenant_id: "t1", e164: null, created_at: "2026-02-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+    ],
+    tenant_channels: [{ id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: {} }],
+  };
+  const r = await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice" }));
+  assert.deepEqual(r, { ok: true, released: { channel_kept: "ch-voice" } });
+  assert.equal(tables.tenant_channels[0].number_e164, "+13055550100", "left alone rather than nulled");
+  assert.equal(tables.tenant_channels[0].config.line_id, "line-b", "but the row still names a line that exists");
 });

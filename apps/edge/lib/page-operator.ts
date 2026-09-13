@@ -44,10 +44,13 @@ export async function pageOperator(ports: PagePorts, key: string, subject: strin
     // is cheaper than a silence nobody chose.
     console.error(JSON.stringify({ level: "error", event: "operator_page_memory_unreadable", key, error: readErr.message }));
   }
-  const { error: writeErr } = await ports.db.from("operator_pages").upsert(
-    { key, last_at: new Date(now).toISOString(), count: (row?.count ?? 0) + 1 },
-    { onConflict: "key" },
-  );
+  // The count is left alone when the read failed. `(row?.count ?? 0) + 1` cannot
+  // tell "no row yet" from "the row is there and I could not read it", and on
+  // the second it wrote 1 over the running total -- so the history a person
+  // reads on /api/diag to judge how long a condition has been firing was reset
+  // by the very database trouble most likely to be firing it.
+  const memory = { key, last_at: new Date(now).toISOString(), ...(readErr ? {} : { count: (row?.count ?? 0) + 1 }) };
+  const { error: writeErr } = await ports.db.from("operator_pages").upsert(memory, { onConflict: "key" });
   if (writeErr) console.error(JSON.stringify({ level: "error", event: "operator_page_memory_unwritable", key, error: writeErr.message }));
   if (row?.alerted_at && now - Date.parse(row.alerted_at) < PAGE_WINDOW_MS) return "suppressed";
   const to = platformTo();

@@ -27,7 +27,7 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb, fakeLog } from "./_fake-db.mjs";
-import { claimLineForResume, sweepStuckLines, retryRequestedBy, automaticResumesOf, MAX_AUTOMATIC_RESUMES } from "../../../apps/edge/lib/line-resume.ts";
+import { claimLineForResume, sweepStuckLines, retryRequestedBy, automaticResumesOf, countAutomaticResume, MAX_AUTOMATIC_RESUMES } from "../../../apps/edge/lib/line-resume.ts";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const NOW = 1_800_000_000_000;
@@ -448,4 +448,23 @@ test("a failure at the vault is named as one: no Retry on the row, the refusal s
   const wall = line({ voice_state: "failed", last_error: "keeping the line's credentials: permission denied for schema vault" });
   assert.match(lineRetryRefusal(wall, NOW), /a retry cannot help until a person at Chanlytics restores them/);
   assert.equal(lineRetryRefusal(line({ voice_state: "failed", last_error: "Twilio 21422" }), NOW), null, "a carrier failure is still the owner's to retry");
+});
+
+test("counting a try is one function, because two callers resume a line and only one of them used to count", async () => {
+  // The sweep here and the ledger's handler (line-provision-job.ts) both take
+  // a line and resume it on nobody's behalf. MAX_AUTOMATIC_RESUMES is only a
+  // ceiling if BOTH count against it, and the ledger path did not: the header
+  // claiming they matched was the only thing that said so. The count is now
+  // the one function they share.
+  const tables = { lines: [line({ voice_state: "provisioning", facts: { automatic_resumes: 1 } })] };
+  const counted = await countAutomaticResume(fakeDb(tables), tables.lines[0]);
+  assert.equal(counted.ok, true);
+  assert.equal(tables.lines[0].facts.automatic_resumes, 2, "written to the row");
+  assert.equal(counted.row.facts.automatic_resumes, 2, "and handed back, so the caller resumes from what it wrote");
+  assert.equal(automaticResumesOf(counted.row), 2);
+
+  // A try nobody could write is a try that must not run: the caller is told
+  // rather than thrown at, and leaves the line for the next tick.
+  const stuck = await countAutomaticResume(fakeDb({ lines: [line()] }, { "lines.update": { message: "row is locked" } }), line());
+  assert.deepEqual(stuck, { ok: false, error: "row is locked" });
 });

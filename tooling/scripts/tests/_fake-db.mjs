@@ -42,6 +42,7 @@ function matches(row, filters) {
     : op === "is" ? (val === null ? cell(row, col) == null : cell(row, col) === val)
     : op === "gt" ? cell(row, col) != null && cell(row, col) > val
     : op === "gte" ? cell(row, col) != null && cell(row, col) >= val
+    : op === "lte" ? cell(row, col) != null && cell(row, col) <= val
     : op === "neq" ? cell(row, col) !== val
     : op === "in" ? val.includes(cell(row, col))
     // PostgREST's `.not(col, "is", null)`: "has one". Modelled for Setup's count of
@@ -198,6 +199,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       in(col, vals) { q.filters.push(["in", col, vals]); return proxy; },
       is(col, val) { q.filters.push(["is", col, val]); return proxy; },
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
+      lte(col, val) { q.filters.push(["lte", col, val]); return proxy; },
       or(expr) { q.filters.push(["or", null, expr]); return proxy; },
       not(col, operator, val) { q.filters.push(["not", col, [operator, val]]); return proxy; },
       // nullsFirst matters: a workspace that has never been swept must go

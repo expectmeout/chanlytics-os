@@ -21,7 +21,7 @@ import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
-import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
+import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
 import { scheduleJob } from "../../lib/workspace/jobs.js";
 import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
@@ -227,10 +227,9 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       return json(502, { ok: false, error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`, released });
     }
-    if (typeof line.facts.channel_id === "string") {
-      await db.from("tenant_channels").update({ status: "disabled" }).eq("id", line.facts.channel_id).eq("tenant_id", tenantId);
-      released.channel_disabled = line.facts.channel_id;
-    }
+    const rows = await releaseRoutingRows(db, tenantId, line);
+    Object.assign(released, rows.released);
+    if (!rows.ok) return json(503, { ok: false, error: rows.error, released });
     const del = await db.from("lines").delete().eq("id", line.id);
     if (del.error) return json(503, { ok: false, error: del.error.message, released });
     await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, { e164: line.e164, provider: choice.name, ...released }).catch(() => {});

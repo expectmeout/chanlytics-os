@@ -78,3 +78,33 @@ test("no provider or no credentials is a refusal the job carries, not a guess", 
   const noProvider = await provisionLineJob(db, "l1", "owner", { ...deps(async () => ({ ok: true })), provider: () => null });
   assert.equal(noProvider.error, "no_line_provider");
 });
+
+test("the ledger's automatic resume is COUNTED, so the ceiling it is bounded by can actually be reached", async () => {
+  // The header claimed these resumes were "counted and bounded exactly as the
+  // sweep's are" and only the sweep counted. `facts.automatic_resumes` stayed
+  // 0 on this path for ever, so the ceiling below never tripped: a line that
+  // can never finish -- a carrier slow every time, a step that always times
+  // out -- was retried by the ledger indefinitely, and each retry is another
+  // run of provider calls, another "your phone line hit a snag" bell for the
+  // owner, and another platform email.
+  const tables = { lines: [line("failed")], tenants: [tenant] };
+  const db = fakeDb(tables);
+  const r = await provisionLineJob(db, "l1", "sweep", deps(async () => ({ ok: true })));
+  assert.deepEqual(r, { ok: true, did: "resumed" });
+  assert.equal(tables.lines[0].facts.automatic_resumes, 1, "the try is on the row");
+
+  // And it accumulates, rather than each run starting the count again.
+  tables.lines[0].voice_state = "failed";
+  await provisionLineJob(db, "l1", "sweep", deps(async () => ({ ok: true })));
+  assert.equal(tables.lines[0].facts.automatic_resumes, 2);
+});
+
+test("at the ceiling the ledger stops resuming and hands the line to a person", async () => {
+  const tables = { lines: [line("failed", { facts: { automatic_resumes: 3 } })], tenants: [tenant] };
+  const r = await provisionLineJob(fakeDb(tables), "l1", "sweep", deps(async () => { throw new Error("must not run"); }));
+  assert.equal(r.ok, false);
+  assert.equal(r.did, "nothing");
+  assert.equal(r.why, "exhausted");
+  assert.match(r.error, /a person retries it from Setup/);
+});
+

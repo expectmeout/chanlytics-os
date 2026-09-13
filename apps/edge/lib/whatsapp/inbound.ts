@@ -651,7 +651,7 @@ export async function handleInbound(
   // a customer at the cap is never abandoned to a log line.
   const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
   if (tokenCap > 0 && db && tenantId) {
-    const used = await ports.budget.tokensLast24h(db, tenantId);
+    const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (used >= tokenCap) {
       thread.history.push({ role: "user", content: bodyText });
       await ports.store.save(ns, from, thread);

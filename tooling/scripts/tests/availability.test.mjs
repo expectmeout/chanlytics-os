@@ -136,8 +136,13 @@ test("the edge reads the feed once per five minutes and tells both receptionists
   assert.ok(lib.includes("const CACHE_MS = 5 * 60 * 1000;"));
   assert.ok(lib.includes("AbortSignal.timeout(FETCH_TIMEOUT_MS)"));
   assert.ok(lib.includes('u.replace(/^webcal:\\/\\//i, "https://")'));
-  assert.ok(lib.includes("feeds.set(tenantId, { text, at: Date.now(), parsed: null });"), "a failure is cached briefly too");
-  assert.ok(lib.includes("if (hit?.parsed && hit.text === text) return hit.parsed;"), "parsed once per fetch");
+  assert.ok(lib.includes("feeds.set(key, { text, at, parsed: null, tz, daysAhead });"), "a failure is cached briefly too");
+  assert.ok(lib.includes("if (hit?.parsed && sameTerms(hit)) return hit.parsed;"), "parsed once per fetch, on the terms it was asked for");
+  // Keyed on the workspace ALONE, an owner correcting a wrong feed address was
+  // not a cache miss: the receptionist answered from the old calendar, and a
+  // cached failure kept a fixed address reading as broken, for five minutes.
+  assert.ok(lib.includes("const cacheKey = (tenantId: string, url: string) =>"), "the address is part of the key");
+  assert.ok(lib.includes("c.text === text && c.tz === tz && c.daysAhead === daysAhead"), "and the horizon is part of the parse's");
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes("calendar: parsed?.calendar ?? null,"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");

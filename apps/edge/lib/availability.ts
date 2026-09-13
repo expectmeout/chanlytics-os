@@ -19,16 +19,39 @@ import type { TenantRuntime } from "./tenant-runtime.js";
 const CACHE_MS = 5 * 60 * 1000;
 const FETCH_TIMEOUT_MS = 6000;
 
-interface Cached { text: string | null; at: number; parsed: ParsedFeed | null }
+/**
+ * `parsed` is the parse of `text` UNDER `tz` and `daysAhead`: both shape it
+ * (`seasonHorizon` bounds how far ahead events are kept), so both are held
+ * beside it and a caller asking on different terms re-parses instead of being
+ * handed the first caller's window. The hourly People sweep asks for the
+ * workspace's real `max_days_ahead` and the receptionist asks for the same,
+ * but a run where one arrived first used to pin the other to its horizon.
+ */
+interface Cached { text: string | null; at: number; parsed: ParsedFeed | null; tz: string; daysAhead: number }
 const feeds = new Map<string, Cached>();
+
+/**
+ * The cache key is the workspace AND the feed it named. Keyed on the workspace
+ * alone, changing the iCal address was not a miss: an owner who fixed a wrong
+ * link, or moved to a new calendar, kept being answered from the old one for
+ * five more minutes -- and a failure is cached too, so a corrected address
+ * still read as broken.
+ */
+const cacheKey = (tenantId: string, url: string) => `${tenantId}\n${url}`;
+
+/** Keyed per tenant AND url, so an owner editing the address leaves entries behind. Expired ones go. */
+function prune(now: number): void {
+  for (const [k, v] of feeds) if (now - v.at >= CACHE_MS) feeds.delete(k);
+}
 
 /** webcal:// is https:// in a hat. */
 function httpsUrl(u: string): string {
   return u.replace(/^webcal:\/\//i, "https://");
 }
 
-async function fetchFeed(tenantId: string, url: string): Promise<string | null> {
-  const hit = feeds.get(tenantId);
+async function fetchFeed(tenantId: string, url: string, tz: string, daysAhead: number): Promise<string | null> {
+  const key = cacheKey(tenantId, url);
+  const hit = feeds.get(key);
   if (hit && Date.now() - hit.at < CACHE_MS) return hit.text;
   let text: string | null = null;
   try {
@@ -56,7 +79,9 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
   }
   // A failure is cached too, briefly: one broken feed must not add a six
   // second wait to every message for as long as it stays broken.
-  feeds.set(tenantId, { text, at: Date.now(), parsed: null });
+  const at = Date.now();
+  prune(at);
+  feeds.set(key, { text, at, parsed: null, tz, daysAhead });
   return text;
 }
 
@@ -66,12 +91,13 @@ async function fetchFeed(tenantId: string, url: string): Promise<string | null> 
  * is the work the five-minute cache exists to avoid.
  */
 async function parsedFeedOf(tenantId: string, url: string, tz: string, daysAhead: number, now: Date): Promise<ParsedFeed | null> {
-  const text = await fetchFeed(tenantId, url);
+  const text = await fetchFeed(tenantId, url, tz, daysAhead);
   if (text === null || !tz) return null;
-  const hit = feeds.get(tenantId);
-  if (hit?.parsed && hit.text === text) return hit.parsed;
+  const hit = feeds.get(cacheKey(tenantId, url));
+  const sameTerms = (c: Cached) => c.text === text && c.tz === tz && c.daysAhead === daysAhead;
+  if (hit?.parsed && sameTerms(hit)) return hit.parsed;
   const parsed = parseIcs(text, tz, { horizon: seasonHorizon(now, daysAhead) });
-  if (hit && hit.text === text) hit.parsed = parsed;
+  if (hit && hit.text === text) { hit.parsed = parsed; hit.tz = tz; hit.daysAhead = daysAhead; }
   return parsed;
 }
 
