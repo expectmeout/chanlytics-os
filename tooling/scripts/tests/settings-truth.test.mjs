@@ -67,8 +67,14 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
   assert.ok(wa.includes("const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);"));
   assert.ok(!wa.includes("t.pausedUntil = Date.now() + PAUSE_MS;"), "the WhatsApp-app echo honoured nothing");
-  assert.ok(alerts.includes("the receptionist is paused on this thread for ${pauseHours}h."), "and the handoff email states the same number");
-  assert.equal((inbound.match(/, pauseHours[,)]/g) ?? []).length + (inbound.match(/\n\s+pauseHours,\n/g) ?? []).length, 14, "every handoff email carries it — fourteen since the unrecorded copy got its own; two also carry the thread route");
+  assert.ok(alerts.includes("the receptionist is paused on this thread for ${ctx.pausedHours}h."), "and the handoff email states the same number");
+  // Stated only by a branch that actually paused the thread. The email used to
+  // promise the pause unconditionally, so nine of the eleven handoffs told the
+  // owner the receptionist was out of a thread it was still answering.
+  assert.ok(alerts.includes("ctx.pausedHours\n        ? `Reply from the Inbox"), "and only when this branch paused it");
+  assert.ok(inbound.includes('"non-text message", acked ? pauseHours : null)'), "the acknowledgement states it only when it actually acknowledged");
+  assert.equal((inbound.match(/, pauseHours\)\)/g) ?? []).length, 2, "and the escalating reply does, held or sent");
+  assert.ok(inbound.includes("const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>"), "and the rest default to promising nothing");
 });
 
 test("F36/F37: alerts that go to Chanlytics say so; switching a number off is described as it is", () => {

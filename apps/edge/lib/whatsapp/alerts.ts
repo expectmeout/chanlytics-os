@@ -25,35 +25,74 @@ const REASON_WORDS: Record<string, string> = {
   wa_send_failed: "the reply failed to send",
   carriers: "texted before the carriers approved the line",
   "no model": "the receptionist has no model to answer with",
+  // The handler passes these four too, and each used to reach the subject line
+  // as its raw internal token: "Jane Smith needs a person — location". The map
+  // is the one place these are translated, so it has to hold every reason its
+  // callers name.
+  location: "shared a location",
+  contacts: "sent a contact card",
+  paused: "the workspace is paused",
+  "message not recorded": "their message could not be recorded",
+  "opt-in not confirmed": "the confirmation of their yes could not be sent",
 };
+
+/**
+ * Everything about the handoff other than the words: who is told, on which
+ * wire the conversation is, where the bell sends the reader, and whether this
+ * branch actually took the receptionist out of the thread.
+ *
+ * An object rather than five more positional arguments, because the handler
+ * repeated the same tail at a dozen call sites and every new fact here meant
+ * a dozen edits -- which is how `channel` came to be known at every one of
+ * them and stated at none.
+ */
+export interface HandoffContext {
+  target: NotifyTarget;
+  /** The wire the customer wrote on. WhatsApp unless the text came in on a carrier's. */
+  channel?: "whatsapp" | "sms";
+  /**
+   * How long the receptionist is out of this thread, when THIS branch paused
+   * it. Null is the common case and must stay the default: the email used to
+   * promise a pause unconditionally, so an owner told "the receptionist is
+   * paused on this thread for 24h" by a branch that paused nothing took their
+   * time replying and the bot answered the customer's next message on top of
+   * them.
+   */
+  pausedHours?: number | null;
+  /** Where the bell sends the reader: the thread when it is known, else the Inbox. */
+  route?: string;
+  /** The customer's name when the channel gave one; the number stands in otherwise. */
+  who?: string | null;
+  /** The conversation the row is about, so the bell can say a thing once. */
+  about?: { type: string; id: string } | null;
+}
 
 export async function alertStaff(
   threadId: string,
   userText: string,
   botText: string,
   reason: string,
-  target: NotifyTarget,
-  pauseHours = 24,
-  /** Where the bell sends the reader: the thread when it is known, else the Inbox. */
-  route = "inbox",
-  /** The customer's name when the channel gave one; the number stands in otherwise. */
-  who: string | null = null,
-  /** The conversation the row is about, so the bell can say a thing once. */
-  about: { type: string; id: string } | null = null,
+  ctx: HandoffContext,
 ): Promise<void> {
-  const name = who?.trim() || formatPhoneDisplay(`+${threadId}`) || `+${threadId}`;
+  const name = ctx.who?.trim() || formatPhoneDisplay(`+${threadId}`) || `+${threadId}`;
   const why = REASON_WORDS[reason] ?? reason;
-  await notify(target, {
+  // The owner of a workspace with both wires connected opens the thread this
+  // names. Saying "WhatsApp" for a text sends them to an app the conversation
+  // is not in.
+  const where = ctx.channel === "sms" ? "Text" : "WhatsApp";
+  await notify(ctx.target, {
     kind: "handoff",
-    route,
-    about,
+    route: ctx.route ?? "inbox",
+    about: ctx.about ?? null,
     subject: `${name} needs a person — ${why}`,
     body:
       `They wrote: “${userText}”\n` +
       `${botText}\n\n` +
-      `WhatsApp · +${threadId}\n` +
-      `Reply from the Inbox — the receptionist is paused on this thread for ${pauseHours}h.`,
-    redactedBody: `A WhatsApp conversation needed a person (${why}), and nobody could be told.`,
+      `${where} · +${threadId}\n` +
+      (ctx.pausedHours
+        ? `Reply from the Inbox — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
+        : `Reply from the Inbox.`),
+    redactedBody: `A ${where.toLowerCase()} conversation needed a person (${why}), and nobody could be told.`,
   });
 }
 

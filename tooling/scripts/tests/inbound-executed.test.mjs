@@ -62,7 +62,10 @@ function world(over = {}) {
       ingest: over.ingest ?? (async (_db, _tenant, n) => ingested(n)),
       sink: (_db, _tenant, ing, _rt, channel) => ({
         on: !!ing,
-        deliver: async (to, body, meta) => { seen.sent.push({ to, body, meta: meta ?? null, channel }); return { outcome: "sent", messageId: "m-out", externalId: "wamid.out" }; },
+        deliver: async (to, body, meta) => {
+          seen.sent.push({ to, body, meta: meta ?? null, channel });
+          return over.delivered ?? { outcome: "sent", messageId: "m-out", externalId: "wamid.out" };
+        },
         processed: async () => { seen.processed += 1; },
         allowlistSkip: async () => {},
         unreachableSender: async () => { seen.unreachable += 1; },
@@ -74,13 +77,15 @@ function world(over = {}) {
       }),
       queueReply: async () => false,
     },
-    alertStaff: async (thread, userText, botText, reason, _target, pauseHours, route, who) => { seen.alerts.push({ thread, userText, botText, reason, pauseHours, route, who }); },
+    alertStaff: async (thread, userText, botText, reason, ctx) => {
+      seen.alerts.push({ thread, userText, botText, reason, pauseHours: ctx.pausedHours ?? null, route: ctx.route, who: ctx.who, channel: ctx.channel });
+    },
     page: async (_ports, key, subject, body) => { seen.pages.push({ key, subject, body }); return "sent"; },
     sender: () => async () => ({ ok: true, wamid: "x", status: 200 }),
     brain: async () => { throw new Error("the model must not be reached in this test"); },
     env: { pgReads: false, pgDedupe: false, allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
   };
-  const run = (m, extra = {}) => handleInbound(m, value, "t1", routed, false, false, null, { ...ports, ...extra });
+  const run = (m, extra = {}) => handleInbound(m, value, "t1", routed, !!over.isEnvDefault, false, over.carrier ?? null, { ...ports, ...extra });
   const thread = () => memory.get(`t1/${FROM}`);
   return { run, seen, thread };
 }
@@ -196,4 +201,126 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
   await w.run(text("START", "wamid.2"));
   assert.equal(w.seen.sent.length, 1);
   assert.equal(w.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
+});
+
+/* -------------------------------------------------------------------------
+ * What the owner is told, and whether it is true.
+ * ---------------------------------------------------------------------- */
+
+test("a handoff names the wire the customer wrote on, and promises a pause only where one happened", async () => {
+  // The email hardcoded "WhatsApp" and hardcoded the pause, so an owner with
+  // both wires connected opened the wrong app, and one told "the receptionist
+  // is paused on this thread for 24h" by a branch that paused nothing replied
+  // at their leisure and was talked over by the bot's next reply.
+  const held = world({ rt: runtime({ policy: { reply: { mode: "ask", limits: {} } } }) });
+  await held.run(text("can I book Friday?"));
+  assert.equal(held.seen.alerts.length, 1);
+  assert.equal(held.seen.alerts[0].pauseHours, null, "'ask' never pauses the thread, so the email must not say it did");
+  assert.equal(held.seen.alerts[0].channel, "whatsapp");
+  assert.equal(held.seen.pauses.length, 0);
+
+  // The escalating reply DOES pause, and says so.
+  const paged = world();
+  await paged.run(text("hi"));
+  assert.equal(paged.seen.alerts[0].pauseHours, 24);
+  assert.equal(paged.seen.pauses.length, 1);
+
+  const sms = world({
+    carrier: { channel: "sms", send: async () => ({ ok: true, wamid: "s1", status: 200 }), body: (t) => t, held: null, consent: null },
+  });
+  await sms.run(text("are you open?"));
+  assert.equal(sms.seen.alerts[0].channel, "sms", "a text is not a WhatsApp message, and the owner opens the thread this names");
+});
+
+test("a redelivered pin drop escalates and emails once, not once per redelivery", async () => {
+  // Meta redelivers undelivered webhooks with backoff for days. The dedupe gate
+  // used to sit BELOW this branch, so on the memory path every redelivery
+  // re-opened the handoff and sent the owner another email.
+  const w = world();
+  const pin = { from: FROM, id: "wamid.loc", type: "location", timestamp: String(Math.floor(Date.now() / 1000)), location: { latitude: 25.7, longitude: -80.2 } };
+  await w.run(pin);
+  await w.run(pin);
+  assert.equal(w.seen.escalations.length, 1, "one escalation for one pin drop");
+  assert.equal(w.seen.alerts.length, 1, "and one email");
+  assert.equal(w.seen.sent.length, 0, "a pin drop is readable: no apology");
+});
+
+test("a redelivered STOP does not open the handoff twice", async () => {
+  const w = world();
+  await w.run(text("STOP"));
+  await w.run(text("STOP"));
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["opt_out"]);
+  assert.equal(w.seen.alerts.length, 1);
+});
+
+test("an acknowledgement that did not send neither pauses the thread nor is reported as sent", async () => {
+  // The outcome used to be discarded: a refusal or a failure at the wire still
+  // paused the receptionist for a day and still told the owner the customer had
+  // been acknowledged.
+  const w = world({ delivered: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: null, messageId: null } });
+  await w.run({ from: FROM, id: "wamid.vn", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a1", mime_type: "audio/ogg" } });
+  assert.equal(w.seen.sent.length, 1, "it was attempted");
+  assert.equal(w.seen.pauses.length, 0, "but nothing reached the customer, so the receptionist is not muted");
+  assert.equal(w.thread().pausedUntil, 0);
+  assert.equal(w.seen.alerts[0].pauseHours, null);
+  assert.match(w.seen.alerts[0].botText, /could not be sent/);
+  assert.match(w.seen.escalations[0].details, /could not be sent/);
+});
+
+test("an opt-in confirmation that did not send is not remembered as said, and somebody is told", async () => {
+  // The turn was pushed into the memory and persisted BEFORE the send, and the
+  // outcome then dropped — so the bot believed it had named the program, the
+  // frequency, the rates, HELP and STOP to somebody who heard nothing.
+  const w = world({ delivered: { outcome: "failed", reason: "provider", status: 500, errorBody: null, messageId: null } });
+  await w.run(text("START"));
+  assert.deepEqual(w.thread().history.map((h) => h.role), ["user"], "only what the customer actually said");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["send_failed"]);
+  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
+  assert.equal(w.seen.processed, 1, "the message is still handled");
+});
+
+test("a workspace whose settings could not be READ is not told it has no persona", async () => {
+  // loadTenantRuntime's DR stub carries loadFailed and no brain, so an outage
+  // read as "No brain profile configured" and sent the owner to Settings to fix
+  // a database blip.
+  const w = world({ rt: runtime({ brain: null, policy: {}, loadFailed: true }) });
+  await w.run(text("hi"));
+  assert.equal(w.seen.escalations.length, 1);
+  assert.match(w.seen.escalations[0].details, /could not be reached/);
+  assert.doesNotMatch(w.seen.escalations[0].details, /No brain profile configured/);
+  assert.equal(w.seen.alerts[0].reason, "the workspace's settings could not be reached");
+});
+
+test("the rate cap, the budget and a paused workspace all keep the customer's words", async () => {
+  // The thread pause above them pushed the turn; these three saved the thread
+  // without it, so when the cap reset the receptionist answered the message
+  // before the one it never saw.
+  const capped = world({ rt: runtime({ policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }) });
+  await capped.run(text("actually make it 3pm, not 2pm"));
+  assert.deepEqual(capped.seen.escalations.map((e) => e.reason), ["rate_cap"]);
+  assert.equal(capped.seen.sent.length, 0);
+  assert.ok(
+    capped.thread().history.some((h) => h.content === "actually make it 3pm, not 2pm"),
+    "the correction has to survive the cap, or tomorrow's reply confirms 2pm",
+  );
+
+  const paused = world({ rt: runtime({ paused: true }) });
+  await paused.run(text("are you open?"));
+  assert.deepEqual(paused.seen.escalations.map((e) => e.reason), ["paused"]);
+  assert.ok(paused.thread().history.some((h) => h.content === "are you open?"));
+});
+
+test("the pilot allowlist matches however the number is written", async () => {
+  // Meta delivers `from` as bare digits and the natural way to write the env
+  // var is the E.164 spelling with its "+", so a raw string compare matched
+  // nothing — including the tester the list was written for, whose messages
+  // were persisted, marked handled and never answered.
+  const spelt = world({ isEnvDefault: true, env: { allowlist: `+${FROM}` } });
+  await spelt.run(text("hi"));
+  assert.equal(spelt.seen.sent.length, 1, "the allowlisted tester is answered whichever spelling the env var uses");
+
+  const other = world({ isEnvDefault: true, env: { allowlist: "+13055550999" } });
+  await other.run(text("hi"));
+  assert.equal(other.seen.sent.length, 0, "and the list still gates everyone else");
+  assert.equal(other.seen.processed, 1, "recorded and marked handled, as before");
 });

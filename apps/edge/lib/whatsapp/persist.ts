@@ -26,24 +26,48 @@ import type { BrainMeta } from "../workspace/contracts.js";
 import type { ThreadState } from "../store.js";
 import { logger, errField } from "../log.js";
 
-/** Sentinel for "Postgres couldn't answer" — distinct from "empty thread", so
- *  a database blip falls back to Blob instead of giving the bot amnesia and
- *  re-greeting a customer mid-conversation. */
-export const PG_MISS: ThreadState = { history: [], seen: [], pausedUntil: -1, replies: [] };
+/**
+ * "Postgres couldn't answer" — distinct from "empty thread", so a database blip
+ * falls back to Blob instead of giving the bot amnesia and re-greeting a
+ * customer mid-conversation.
+ *
+ * A FIELD on a fresh object, never a shared sentinel compared by identity.
+ * store.ts carries the same note for the same reason, having already made this
+ * mistake once: callers mutate what they are handed (`thread.seen.push(...)`,
+ * `t.pausedUntil = ...`, `t.optedOut = ...`), so one exported instance
+ * accumulated every customer's history, pause and dedupe list on a
+ * process-global object and leaked it to the next customer inside a warm
+ * lambda. `pausedUntil: -1` is the second line of defence it was before.
+ */
+export const pgMiss = (): ThreadState => ({ history: [], seen: [], pausedUntil: -1, replies: [], pgMiss: true });
 
-/** Postgres-sourced thread state, or PG_MISS if it can't be produced. */
+/** True when Postgres could not produce this thread, so the Blob copy answers instead. */
+export function isPgMiss(s: ThreadState): boolean {
+  return s.pgMiss === true;
+}
+
+/** Postgres-sourced thread state, or a miss if it can't be produced. */
 export async function pgThread(
   db: ReturnType<typeof pg>,
   tenantId: string | null,
   ing: IngestResult | null,
 ): Promise<ThreadState> {
-  if (!db || !tenantId || !ing) return PG_MISS;
+  if (!db || !tenantId || !ing) return pgMiss();
   try {
     const s = await readThreadState(db, tenantId, ing.conversation_id, ing.paused_until);
-    return { history: s.history, seen: s.seen, pausedUntil: s.pausedUntil, replies: s.replies };
+    return {
+      history: s.history,
+      seen: s.seen,
+      pausedUntil: s.pausedUntil,
+      replies: s.replies,
+      // Carried so the handler does not have to infer "we have written to this
+      // person before" from the history, where a voice call note — an inbound
+      // row whose sender is "system" — reads as an assistant turn.
+      repliedBefore: s.repliedBefore,
+    };
   } catch (e) {
     console.error("pg_thread_read_failed", e instanceof Error ? e.message : e);
-    return PG_MISS;
+    return pgMiss();
   }
 }
 
@@ -209,11 +233,15 @@ export function pgSink(
      * promise the setting made is what broke, and a setting that quietly stops
      * applying is the failure mode this project keeps finding.
      */
-    vetoFallback: (delayMs: number) =>
+    vetoFallback: (delayMs: number, source: "veto_window" | "low_confidence" = "veto_window") =>
       on
         ? pgSafe("veto_fallback_evt", () =>
             emitEvent(db!, tenantId!, "policy.veto_window_skipped", "policy", "conversation", ing!.conversation_id, {
               delay_ms: delayMs,
+              // WHICH hold did not happen. The confidence dial rides this same
+              // window, and labelling its hold a veto window sent owners who
+              // have no veto window configured looking for one.
+              source,
               // Scheduling is one insert now, so there is one cause left to name.
               reason: "scheduling_failed",
             } as Json))
@@ -244,6 +272,11 @@ export function pgSink(
       on && n.media
         ? pgSafe("media_fetch", async () => {
             const cfg = waCfg(rt);
+            // Nothing threw, so pgSafe logs nothing: without this line a tenant
+            // whose vault read failed, or an SMS-only one, has every photo and
+            // voice note their customers send stamped "failed" forever with no
+            // trace of why.
+            if (!cfg) console.error(JSON.stringify({ level: "error", event: "media_no_credentials", tenant_id: tenantId, message: ing!.message_id }));
             const got = cfg ? await fetchMediaBytes(cfg, n.media!.provider_media_id) : null;
             const mediaOut = { ...n.media } as Record<string, unknown>;
             if (got) {
@@ -260,8 +293,14 @@ export function pgSink(
             } else {
               mediaOut.fetch_state = "failed";
             }
-            await db!.from("messages").update({ media: mediaOut as Json })
+            // Checked, like the upload two lines above. A discarded error here
+            // resolves as if everything worked while the row keeps
+            // `fetch_state: "pending"` forever: the bytes are in storage, the
+            // Inbox shows an attachment that is still downloading, and no
+            // reconciliation can tell it from a genuinely in-flight fetch.
+            const { error: rowErr } = await db!.from("messages").update({ media: mediaOut as Json })
               .eq("id", ing!.message_id).eq("tenant_id", tenantId!);
+            if (rowErr) throw new Error(rowErr.message);
             return got;
           })
         : Promise.resolve(null),

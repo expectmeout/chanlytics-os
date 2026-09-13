@@ -160,7 +160,7 @@ test("Twilio's calls, pinned: the Messaging Service, the sender pool, the messag
 test("the pilot allowlist gates the deployment's own number, never a tenant that brought its own", () => {
   const code = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(
-    code.includes("if (isEnvDefault && allow.length && !allow.includes(from)) {"),
+    code.includes("if (isEnvDefault && allow.length && !allow.includes(digits(from))) {"),
     "REGRESSION: the pilot allowlist muted every tenant on every channel — a business that connected its own number had its customers persisted, marked processed and never answered",
   );
   const raw = readRaw("apps/edge/lib/whatsapp/inbound.ts");

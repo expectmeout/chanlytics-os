@@ -31,10 +31,14 @@ test("the clock names the day when it is not today", () => {
 
 test("the wiring: words on the edge, a bounded reply on both sides, the layout fixes, and nothing of the workshop on a customer's screen", () => {
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
-  assert.ok(alerts.includes("subject: `${name} needs a person — ${why}`") && alerts.includes("about,") && alerts.includes('"passed to a human": "asked for a person"'), "a handoff is said in the owner's words, about its thread");
+  assert.ok(alerts.includes("subject: `${name} needs a person — ${why}`") && alerts.includes("about: ctx.about ?? null,") && alerts.includes('"passed to a human": "asked for a person"'), "a handoff is said in the owner's words, about its thread");
   assert.ok(!alerts.includes("WhatsApp handoff needed"));
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok((inbound.match(/n\.profileName \?\? null/g) ?? []).length >= 11, "every handoff carries the name and the thread");
+  // One closure builds the context now, so the name and the thread are stated
+  // once rather than retyped at a dozen call sites — and every call site goes
+  // through it, which is what is asserted instead of a count.
+  assert.ok(inbound.includes("who: n.profileName ?? null,") && inbound.includes("about: ing ? { type: \"conversation\", id: ing.conversation_id } : null,"), "every handoff carries the name and the thread");
+  assert.ok((inbound.match(/\btell\(/g) ?? []).length >= 12, "and reaches the owner through the one closure");
   const webhook = readCode("apps/edge/api/retell-webhook.ts");
   assert.ok(webhook.includes("about: callAbout,") && webhook.includes("} phoned · ${") && webhook.includes('callAbout = { type: "conversation", id: res.conversation_id };'), "a call is said by name, about its call — or its thread when it needs a call back");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/notifications.ts").includes("dedupeFeed([...applyReadState("), "the bridge shows the feed once");
