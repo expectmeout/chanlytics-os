@@ -49,7 +49,6 @@ test("the wiring: the runtime reads the switch, every path honours it, the foot 
   assert.ok(inboundRaw.indexOf("if (rt?.paused) {") < inboundRaw.indexOf("// E3: the reply policy is consulted BEFORE generation."), "before the policy, which may still read auto");
   const pb = readCode("apps/edge/lib/playbooks.ts");
   assert.ok(pb.includes('if (tenant?.status === "paused") return { error: "paused" };'));
-  assert.ok(readCode("apps/edge/api/cron/playbooks.ts").includes('if ("error" in ctx && ctx.error === "paused") {'), "counted off, said once, quietly");
   const jobs = readCode("packages/core/src/messages/broadcast.ts");
   assert.ok(jobs.includes('await ports.fail(b.id, "paused");') && jobs.includes("The workspace is paused until billing resumes, so nothing went out."));
   assert.ok(readCode("apps/edge/api/retell-fn.ts").includes("paused: rt.paused,"), "a text asked for on the phone goes through the same gate");

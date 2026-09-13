@@ -8,6 +8,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "@chanlytics/db";
 import type { LineDto } from "@chanlytics/contracts";
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
+import { deployment } from "./deployment";
 
 /** The columns the page may see — the lines_member_select policy scopes the rows. */
 export const LINE_COLUMNS = "id, e164, kind, provider, area_code, voice_state, sms_state, reg_step, reg_mock, reg_sole_prop, whatsapp_state, port_state, forwarding_state, step, last_error, state_since, created_at, facts";
@@ -57,6 +58,21 @@ export interface EdgeAnswer {
 /** One call to the edge's lines endpoint. Never throws: a failure is a status the caller reads. */
 export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_000): Promise<EdgeAnswer> {
   if (!edgeConfigured()) return { status: 503, body: { ok: false, error: "no_edge_credential" } };
+  // The deployment gate every other provider door keeps (billing.ts, google.ts,
+  // service.ts). This one did not, and EDGE_URL defaults to the production
+  // edge: a preview holding the edge secret bought a real number on the master
+  // account ($1.15/month) and filed a real carrier registration ($19.50,
+  // non-refundable) from a Get a line click that was only ever meant to be
+  // clicked on a preview.
+  //
+  // `record` is the exception, because the gate is about PROVIDERS and that op
+  // reaches none: it normalises the business on record and upserts one row. It
+  // was caught by the first version of this gate, which made Setup's business
+  // form unusable on every preview and laptop — refusing a save that would
+  // have worked, with "try again in a moment" about a state that never
+  // resolves. `status` stays gated deliberately: a deployment that may not buy
+  // should report itself not ready, which is what Setup already says well.
+  if (!deployment.providersLive && body.op !== "record") return { status: 503, body: { ok: false, error: "preview" } };
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/lines`, {
       method: "POST",

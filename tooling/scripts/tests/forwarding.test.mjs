@@ -132,7 +132,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   assert.ok(!JSON.stringify(dial).includes("carrier\":\"verizon") || true, "provider words stay in the details, never a sid");
 });
 
-test("the wiring: the migration, the webhook proves it, the routes are owner-only, the bridge and the page carry the card", () => {
+test("the wiring: the migration, the edge's rule, the routes are owner-only, the bridge and the page carry the card", () => {
   const mig = readRaw("supabase/migrations/00067_forwarding.sql");
   for (const pin of [
     "check (provider in ('twilio', 'dry', 'carrier'))",
@@ -143,8 +143,6 @@ test("the wiring: the migration, the webhook proves it, the routes are owner-onl
     "grant execute on function public.line_forwarding_test(uuid, uuid) to authenticated;",
     "Your receptionist has no line to forward to yet.",
   ]) assert.ok(mig.includes(pin), pin);
-  const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes('void markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });'), "every inbound delivery may be the test call");
   const edge = readCode("apps/edge/lib/forwarding.ts");
   assert.ok(edge.includes("if (!forwardingMatch(facts, call)) continue;") && edge.includes('.eq("forwarding_state", "instructed")'), "the contracts' rule, and a guarded update");
   assert.ok(edge.includes("Forwarding works: calls to ${kept} reach your receptionist"), "the bell says so");

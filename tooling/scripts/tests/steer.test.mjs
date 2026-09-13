@@ -52,9 +52,23 @@ test("the steer endpoint: the door, the draft's state, new before old, the price
   const queued = s.indexOf("const newId = await queueDraft(");
   const retired = s.indexOf('.update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })');
   assert.ok(queued > 0 && retired > queued, "the new draft is queued before the old one is retired");
-  assert.ok(s.includes('error: { reason: "steer_rolled_back" }'), "and taken back if the old one could not be retired");
+  assert.ok(s.includes('reason: lost ? "steer_lost_race" : "steer_rolled_back"'), "and taken back if the old one could not be retired");
   assert.ok(s.includes('cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id)'));
   assert.ok(s.includes('source: "steered",') && s.includes("extra: { steer: text, steered_from: m.id, escalate: r.escalate },"));
+
+  // Counted, not merely attempted: the model takes seconds, and a draft the
+  // tick sent in those seconds makes the retire match no rows and report no
+  // error, leaving the rewrite to go out behind it.
+  const retire = s.slice(s.indexOf('.update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })'));
+  assert.ok(retire.slice(0, 200).includes('.select("id")'), "the update reports the rows it touched");
+  assert.ok(s.includes("if (cancelErr || !retired?.length) {"), "zero rows is the race, not a success");
+  assert.ok(s.includes('json(409, { ok: false, error: "already_sent" })'), "and the rewrite is taken back rather than sent behind the reply");
+  // And it goes out on the wire the draft it replaces was written for.
+  assert.ok(s.includes('const channel: "whatsapp" | "sms" = m.channel === "sms" ? "sms" : "whatsapp";'));
+  assert.ok(s.includes(".select(\"id, tenant_id, conversation_id, contact_id, sender, status, meta, channel\")"), "the draft's channel is read");
+  assert.ok(s.includes('.eq("kind", channel)'), "the tenant's channel is resolved by the draft's kind, not always WhatsApp");
+  assert.ok(s.includes("    channel,\n"), "and the rewrite is queued on it");
+  assert.ok(!s.includes('error: "no_whatsapp_channel"'), "a texting-only workspace can steer too");
   for (const forbidden of ["sendText(", "waSendText("]) assert.ok(!s.includes(forbidden), "nothing is sent from here");
 });
 
@@ -67,6 +81,7 @@ test("the dashboard route keeps its doors and records the decision only after th
   const recorded = r.indexOf('recordDecision(ctx, m.tenant_id, "message", m.id, "edit", { steer: text, new_message_id: r.messageId })');
   assert.ok(steered > 0 && recorded > steered);
   assert.ok(r.includes('"The rewrite would have quoted a price, so the original draft stays."'));
+  assert.ok(r.includes('"That reply went out while it was being rewritten, so nothing was changed."'), "and the race has its own sentence, not a token");
   const svc = readCode("apps/dashboard/src/server/service.ts");
   assert.ok(svc.includes("`${edgeUrl()}/api/admin/steer`"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");

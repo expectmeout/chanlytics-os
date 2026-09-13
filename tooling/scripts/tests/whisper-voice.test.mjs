@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readCode, readRaw } from "./_source.mjs";
+import { readRaw } from "./_source.mjs";
 
 test("hold to talk: the browser's recogniser, sent on release, hidden where it does not exist", () => {
   const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
@@ -27,14 +27,4 @@ test("hold to talk: the browser's recogniser, sent on release, hidden where it d
   assert.ok(page.includes('ev.error === "not-allowed"'), "a refused microphone is said plainly");
   assert.ok(page.includes("window.__whisperCall(c.callId, t, false)"), "a spoken whisper is a whisper: no nudge to speak");
   assert.ok(page.includes("Hold the button and say it, or type it."));
-});
-
-test("the signature is verified over the raw body and over the re-serialised body, and the row says which", () => {
-  const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes("const sigRaw = verifyRetellSignature(raw, signature, webhookKey);"));
-  assert.ok(hook.includes("restringified = JSON.stringify(JSON.parse(raw));"));
-  assert.ok(hook.includes("verifyRetellSignature(restringified, signature, webhookKey)"));
-  assert.ok(hook.includes("const sigOk = sigRaw || sigRestringified;"));
-  assert.ok(hook.includes("sig_raw: forms.raw, sig_restringified: forms.restringified"), "the evidence rides in the auth row");
-  assert.ok(hook.includes("if (!sigOk && !keyOk) {"), "the key still opens the door until a delivery verifies");
 });

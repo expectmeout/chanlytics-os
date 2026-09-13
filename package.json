@@ -7,6 +7,8 @@
     "test": "node --conditions=react-server --import tsx --test tooling/scripts/tests/*.test.mjs",
     "test:db": "node --import tsx --test tooling/scripts/tests/*.db.test.mjs tooling/scripts/tests/*.integration.test.mjs",
     "gen:schema-sets": "node tooling/scripts/gen-schema-sets.mjs",
+    "gen:db-types": "node tooling/scripts/check-db-types.mjs",
+    "check:db-types": "node tooling/scripts/check-db-types.mjs --check",
     "check:dist": "node tooling/scripts/check-dist.mjs",
     "lint": "eslint .",
     "e2e": "playwright test",

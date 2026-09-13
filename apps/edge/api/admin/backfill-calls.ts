@@ -39,7 +39,7 @@ export async function GET(request: Request): Promise<Response> {
   const maxCalls = Number(url.searchParams.get("max") || 200);
 
   const db = pg();
-  if (!db) return json(400, { ok: false, error: "PG_WRITES not enabled" });
+  if (!db) return json(503, { ok: false, error: "no_database" });
   const apiKey = process.env.RETELL_API_KEY;
   if (!apiKey) return json(400, { ok: false, error: "RETELL_API_KEY missing" });
 

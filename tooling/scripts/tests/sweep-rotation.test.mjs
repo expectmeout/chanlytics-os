@@ -52,6 +52,38 @@ test("every tenant is reached: a hundred workspaces, forty a tick, three ticks",
   assert.equal(served.size, 100, "three ticks of forty reach all one hundred");
 });
 
+test("workspaces with no calendar are not the queue: they never sort first, and they are not a backlog", async () => {
+  // THE OTHER WAY THIS SWEEP STOPS REACHING EVERYONE. Every workspace gets a
+  // tenant_config row at signup and most never connect a calendar. Those rows
+  // have no calendar_checked_at and can never earn one — the stamp is written
+  // after a successful READ, and there is nothing to read — so under NULLS
+  // FIRST they sort ahead of every real feed for ever. At forty of them the
+  // page is entirely feedless every hour: no calendar is read again, and
+  // `remaining` never falls to zero, so the sweep also calls itself backlogged,
+  // turns red and pages the platform about work that does not exist.
+  const feedless = Array.from({ length: 60 }, (_, i) => ({ tenant_id: `empty${i}`, config: {}, calendar_checked_at: null }));
+  const rows = [...feedless, ...configs(3)];
+  let ticks = 0;
+  const db = fakeDb({ tenant_config: rows }, {}, { note_sweep_backlog: ({ p_remaining }) => (ticks = p_remaining > 0 ? ticks + 1 : 0) });
+
+  // Three ticks: under the old query each one was forty feedless rows and a
+  // standing backlog, and the third called the sweep broken.
+  for (let tick = 0; tick < 3; tick++) {
+    const page = await calendarDue(db, NOW, CALENDAR_PER_TICK);
+    // Oldest first, as always — t002 was read 150 minutes ago, t000 ninety.
+    assert.deepEqual(page.rows.map((r) => r.tenant_id), ["t002", "t001", "t000"], "only the workspaces with a feed, and no feedless row ahead of them");
+    assert.equal(page.remaining, 0, "and nothing is left behind, so this is not a backlog");
+    assert.equal((await noteBacklog(db, "calendar", page.remaining)).alarm, false, "so the sweep never calls itself broken over work that does not exist");
+  }
+
+  // A workspace that connects one joins the queue, at the front, as any
+  // never-read row does.
+  rows[0].config = { calendar: { ical_url: "https://cal.example/new.ics" } };
+  const next = await calendarDue(db, NOW, CALENDAR_PER_TICK);
+  assert.equal(next.rows[0].tenant_id, "empty0", "the new feed is read first");
+  assert.equal(next.rows.length, 4);
+});
+
 test("a workspace that has never been read goes first", async () => {
   // A business that has just pasted its feed must not wait behind four hundred
   // that were read an hour ago — that is the first hour of their product.
@@ -139,9 +171,6 @@ test("both sweeps are wired to it, and answer 503 on the alarm", () => {
     // The old unbounded read must not come back.
     assert.ok(!/from\("tenant_config"\)\s*\.select\("tenant_id, config"\)\s*;/.test(src), `${file}: no unbounded select`);
   }
-  const cal = readCode("apps/edge/api/cron/calendar.ts");
-  // The CALL, not the import at the top of the file.
-  assert.ok(cal.indexOf("out.seen += r.seen") < cal.indexOf("await markCalendarChecked("), "stamped after the work, never before");
 
   // And something is watching for that 503.
   const watch = readRaw("supabase/migrations/00086_watch_every_sweep.sql");

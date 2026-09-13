@@ -19,6 +19,12 @@ import { platformLineAct } from "@/server/platform";
  * money rather than theirs. The page says which one a given line is offering,
  * and what it costs, before the button is pressed.
  *
+ * No `spend: true` here: the wrapper's spend gate reads the CALLER's workspace,
+ * and platform staff act on someone else's. The billing hold is enforced where
+ * the money is actually spent — apps/edge/api/admin/lines.ts, which reads the
+ * line's own row and gates a rehearsal made real (and a replacement) rather
+ * than exempting everything called a refile.
+ *
  * On the platform scope: the database decides who may, and the bucket is a
  * support ceiling, not the owner's. `lines_register` is three an hour because a
  * first filing spends about $19.50 and cannot be undone; correcting a REJECTED

@@ -186,15 +186,23 @@ export async function createTemplate(
   return { ok: true, data: { id: body.id, status: body.status ?? "PENDING", category: body.category } };
 }
 
-/** Gone from Meta: by name and the template's own id, so one language goes and not every language of that name. */
+/**
+ * Gone from Meta: by name and the template's own id, so one language goes and
+ * not every language of that name.
+ *
+ * `hsmId` is REQUIRED, and that is the whole point. It was optional, and a
+ * caller with nothing to pass sent `?name=` alone — which Meta reads as every
+ * language of that name, and then holds the name for thirty days. There is no
+ * caller that wants that, so the type no longer allows it to happen by
+ * omission.
+ */
 export async function deleteTemplate(
   token: string,
   wabaId: string,
   name: string,
-  hsmId?: string | null,
+  hsmId: string,
 ): Promise<{ ok: true } | { ok: false; error: string; status: number }> {
-  const qs = new URLSearchParams({ name });
-  if (hsmId) qs.set("hsm_id", hsmId);
+  const qs = new URLSearchParams({ name, hsm_id: hsmId });
   let res: Response;
   try {
     res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${encodeURIComponent(wabaId)}/message_templates?${qs.toString()}`, {

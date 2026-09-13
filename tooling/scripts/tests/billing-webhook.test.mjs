@@ -97,6 +97,58 @@ test("a replay changes nothing: the id hits the primary key, the answer is 200, 
   assert.equal(writes(db, "events").length, 0);
 });
 
+test("an apply that fails gives the claim back, so Stripe's retry is not answered with its own half-finished attempt", async () => {
+  // The dedupe row is written BEFORE the work it guards, which is what keeps
+  // two concurrent deliveries of one event from both acting. It also meant a
+  // failed apply kept the claim: the 500 asked Stripe to try again, the retry
+  // read our own row and answered "duplicate", and the change — a pause, a
+  // failed payment, a cancellation — was lost for good.
+  const state = tables();
+  const broken = fakeDb(state, { "billing_accounts.update": { message: "connection reset" } });
+  setPg(broken);
+  const failed = await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_retried");
+  assert.equal(failed.status, 500, "the write failed, so Stripe is asked to try again");
+  assert.deepEqual(state.billing_events, [], "and the claim is given back, not left standing");
+  assert.ok(broken.seen.some((q) => q.table === "billing_events" && q.op === "delete"), "given back explicitly");
+
+  // The same delivery again, against the same ledger, with the database well.
+  subs.set("sub_1", sub({ status: "paused" }));
+  const healthy = fakeDb(state);
+  setPg(healthy);
+  const retried = await deliver("customer.subscription.updated", sub({ status: "paused" }), "evt_retried");
+  assert.equal(retried.status, 200);
+  assert.deepEqual(await retried.json(), { ok: true, status: "paused", switched: "paused" }, "the retry APPLIES the change, rather than reporting a duplicate");
+  assert.equal(first(writes(healthy, "tenants").at(-1)).status, "paused", "the receptionist is actually stopped");
+  assert.equal(state.billing_events.length, 1, "and now the event is on record once");
+});
+
+test("a late word about a subscription the workspace has already left does not overwrite the one it is on", async () => {
+  // Stripe retries for days and promises no order, so a `deleted` for a
+  // subscription that was cancelled and replaced arrives long after the
+  // replacement is live. Routed by customer, it used to be applied: the row
+  // took the dead id and the paused status, the receptionist went quiet on a
+  // paying customer, and Refresh followed the dead id and did it again.
+  const db = fakeDb(tables({ billing_accounts: [row({ status: "active", stripe_subscription_id: "sub_1" })] }));
+  setPg(db);
+  const stale = await deliver("customer.subscription.deleted", sub({ id: "sub_0", status: "canceled" }));
+  assert.equal(stale.status, 200);
+  assert.deepEqual(await stale.json(), { ok: true, superseded: true });
+  assert.equal(writes(db, "billing_accounts").length, 0, "the live subscription is left alone");
+  assert.equal(writes(db, "tenants").length, 0, "the receptionist keeps answering");
+  assert.equal(writes(db, "notifications").length, 0, "and nobody is told a subscription ended");
+  assert.equal(writes(db, "billing_events").length, 1, "the delivery is still kept once, so it is not reconsidered");
+
+  // A subscription that would keep the receptionist ON is a genuine
+  // replacement — one made outside Checkout, say — and is applied.
+  const db2 = fakeDb(tables({ billing_accounts: [row({ status: "canceled", stripe_subscription_id: "sub_1" })] }));
+  setPg(db2);
+  subs.set("sub_2", sub({ id: "sub_2", status: "trialing" }));
+  const fresh = await deliver("customer.subscription.created", sub({ id: "sub_2", status: "trialing" }));
+  assert.equal(fresh.status, 200);
+  const up = writes(db2, "billing_accounts").find((q) => q.op === "update");
+  assert.equal(first(up).stripe_subscription_id, "sub_2", "the row follows the live subscription");
+});
+
 test("a paused subscription pauses the workspace and rings once; resuming turns it back on and rings again", async () => {
   const db = fakeDb(tables({ billing_accounts: [row({ status: "active" })] }));
   setPg(db);

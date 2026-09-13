@@ -42,7 +42,12 @@ test("the edge connect endpoint: diagnostic key, the four Graph calls in order, 
   assert.ok(c.includes("if (reg && !reg.ok && !alreadyRegistered(reg)) {"), "a number already registered is done, not failed");
   assert.ok(c.includes('pinMismatch(reg) ? "pin_required" : "register_failed"'), "a two-step PIN in the way is named, not a generic failure");
   assert.ok(c.includes('await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id);'), "a row without its own credentials would ride the environment token: disabled instead");
-  assert.ok(c.includes('{ onConflict: "kind,external_id" }'), "the routing key is the unique key");
+  // Was an upsert on onConflict "kind,external_id" — an UPDATE of whichever
+  // row holds the number, another workspace's included. The write is scoped to
+  // the caller's tenant now, and the unique index is what refuses the rest.
+  assert.ok(c.includes('.eq("kind", "whatsapp")\n    .eq("external_id", phoneNumberId)\n    .eq("tenant_id", tenantId)'), "the write cannot reach another workspace's row");
+  assert.ok(c.includes('if (made.error?.code === "23505") {'), "and the unique key on (kind, external_id) refuses the number twice over");
+  assert.ok(c.includes('return json(503, { ok: false, error: "channel_read_failed" });'), "a read that failed is not read as 'nobody holds this number'");
   assert.ok(!c.includes("WHATSAPP_ACCESS_TOKEN"), "the environment token plays no part in a connection");
   const g = readCode("apps/edge/lib/meta-graph.ts");
   assert.ok(g.includes('export const GRAPH_VERSION = "v25.0";'));

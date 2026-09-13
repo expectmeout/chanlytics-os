@@ -29,7 +29,7 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   conversations: "real",
   clients: "real",  // People · Clients; Leads / Deal board / Lists stay demo
   reports: "real",  // the receptionist's numbers; the share link stays demo
-  live: "real",     // calls in progress + the last few; Listen / Take over / End stay in the demo
+  live: "real",     // calls in progress + the last few, and the three writes: whisper, hand over, end. Live LISTEN stays in the demo — there is no audio path.
 
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.

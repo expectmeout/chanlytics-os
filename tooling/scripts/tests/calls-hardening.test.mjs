@@ -20,32 +20,22 @@ const { wantsRefresh, subscribesToRealtime, DEFAULT_REFRESH_TABLES } = await imp
   pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
 );
 
-const hook = readCode("apps/edge/api/retell-webhook.ts");
-const cron = readCode("apps/edge/api/cron/calls.ts");
 const sql = readRaw("supabase/migrations/00034_call_pipeline_hardening.sql");
 
-test("the thread note waits for the summary; the sweep covers calls never analysed", () => {
+test("the trigger wakes the edge for calls never analysed", () => {
   // Message bodies are immutable (P3): a note written on call_ended stayed
-  // "No summary available." forever, in the thread, in the bot's memory and
-  // in the caller's context on their next call.
-  assert.ok(hook.includes('(event === "call_analyzed" || n.summary !== null || n.inVoicemail === true)'));
-  assert.ok(!hook.includes('(event === "call_analyzed" || n.status === "ended")) {\n          const msgId'), "REGRESSION: the note was written on ended");
-  assert.ok(cron.includes('.is("message_id", null)'), "the sweep writes the line for never-analysed calls");
-  assert.ok(cron.includes("NOTE_GRACE_MS"));
-  assert.ok(sql.includes("and message_id is null"), "and the trigger wakes the edge for them");
+  // "No summary available." forever. The webhook's half -- the note waits for
+  // the summary -- runs in retell-webhook-door.test.mjs; the sweep's -- the
+  // line written after the grace period for a call the provider never
+  // analysed -- runs in cron-doors-b.test.mjs. This is the trigger's.
+  assert.ok(sql.includes("and message_id is null"), "the trigger wakes the edge for them");
 });
 
 test("the post-call email and memory note happen once: a claim on the row", () => {
   assert.ok(sql.includes("add column if not exists notified_at timestamptz"));
-  assert.ok(hook.includes("notifyClaim = await claimCallNotification(db, routed.tenantId, res.call_id)"));
-  assert.ok(hook.includes("if (notifyClaim === false) {"), "a retry sends nothing twice");
   const claim = readCode("packages/db/src/repositories/calls.ts");
   assert.ok(claim.includes('.is("notified_at", null)'));
   assert.ok(claim.includes(".select(\"id\")"), "the claim counts rows — RLS is silent on a forbidden UPDATE");
-});
-
-test("an ingest failure is a 500, so the provider retries", () => {
-  assert.ok(hook.includes('return json(500, { ok: false, error: "ingest_failed" })'));
 });
 
 test("usage is metered once under concurrency, and the audit copy keeps its analysis", () => {
@@ -64,7 +54,8 @@ test("no provider URL reaches a row the browser can read", () => {
   assert.ok(!repo.includes("provider_url: n.recordingUrl"), "ingest no longer writes it");
   const lib = readCode("apps/edge/lib/call-recording.ts");
   assert.ok(!lib.includes("provider_url"), "the copy no longer writes it");
-  assert.ok(cron.includes("getCall({ apiKey }, row.retell_call_id)"), "a retry asks the provider for a fresh one");
+  // And a retry asks the provider for a fresh one by call id: run in
+  // cron-doors-b.test.mjs, where the captured wire shows get-call before the CDN.
   const backfill = readCode("apps/edge/api/admin/backfill-calls.ts");
   assert.ok(!backfill.includes("provider_url"), "nor does the backfill");
 });
@@ -92,9 +83,11 @@ test("realtime events are routed by table: a transcript turn repaints Live, not 
   assert.ok(rt.includes(", w.table, payload.eventType)"), "the subscription hands the table and the event to the callback");
 });
 
-test("the sweep asks about calls that have simply run too long", () => {
-  assert.ok(cron.includes("started_at.lt.${new Date(Date.now() - OVERLONG_MS).toISOString()}"));
-  assert.ok(sql.includes("or started_at < now() - interval '30 minutes'"), "and the trigger wakes the edge for them");
+test("the trigger wakes the edge for calls that have simply run too long", () => {
+  // The sweep's half -- a call still producing turns but forty minutes old is
+  // asked about, and the Live page's "being checked" is made true -- runs in
+  // cron-doors-b.test.mjs. This is the trigger's.
+  assert.ok(sql.includes("or started_at < now() - interval '30 minutes'"), "the trigger wakes the edge for them");
 });
 
 test("a 404 from the CDN is not the end; a 403 is", () => {

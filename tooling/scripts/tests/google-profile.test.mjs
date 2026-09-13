@@ -275,8 +275,8 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
   for (const op of ['op === "connect"', 'op === "locations"', 'op === "choose"', 'op === "disconnect"', 'op === "reply"']) assert.ok(admin.includes(op), op);
   assert.ok(admin.includes("const loc = r.locations.find((l) => l.account_name === accountName && l.name === locationName);"), "a choice is proven against Google's list");
   assert.ok(admin.includes("if (conn.data) await disconnectProfile(db, tenantId);"), "unlinking the listing disconnects the profile first");
-  const cron = readCode("apps/edge/api/cron/google.ts");
-  assert.ok(cron.includes("connectionsDue(db, now, MAX_PER_TICK)") && cron.includes("syncProfile(db, conn,"));
+  // The sweep's half -- connected profiles due are synced, forty a tick, a
+  // rejected credential written on the row -- runs in cron-doors-b.test.mjs.
   const env = readRaw("apps/edge/.env.example");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID=", "GOOGLE_OAUTH_CLIENT_SECRET=", "GOOGLE_OAUTH_REDIRECT_URI="]) assert.ok(env.includes(v), v);
   assert.ok(env.includes("https://app.chanlytics.com/api/v1/google/callback"), "the redirect URI is written where the operator sets it");

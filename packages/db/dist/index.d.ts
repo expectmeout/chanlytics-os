@@ -5,9 +5,6 @@ type Json = string | number | boolean | null | {
     [key: string]: Json | undefined;
 } | Json[];
 type Database = {
-    __InternalSupabase: {
-        PostgrestVersion: "14.5";
-    };
     graphql_public: {
         Tables: {
             [_ in never]: never;
@@ -1002,39 +999,6 @@ type Database = {
                 };
                 Relationships: [];
             };
-            events_y2026m08: {
-                Row: {
-                    category: string;
-                    created_at: string;
-                    data: Json;
-                    id: string;
-                    kind: string;
-                    subject_id: string | null;
-                    subject_type: string | null;
-                    tenant_id: string;
-                };
-                Insert: {
-                    category?: string;
-                    created_at?: string;
-                    data?: Json;
-                    id?: string;
-                    kind: string;
-                    subject_id?: string | null;
-                    subject_type?: string | null;
-                    tenant_id: string;
-                };
-                Update: {
-                    category?: string;
-                    created_at?: string;
-                    data?: Json;
-                    id?: string;
-                    kind?: string;
-                    subject_id?: string | null;
-                    subject_type?: string | null;
-                    tenant_id?: string;
-                };
-                Relationships: [];
-            };
             events_y2026m09: {
                 Row: {
                     category: string;
@@ -1432,6 +1396,39 @@ type Database = {
                 Relationships: [];
             };
             events_y2027m09: {
+                Row: {
+                    category: string;
+                    created_at: string;
+                    data: Json;
+                    id: string;
+                    kind: string;
+                    subject_id: string | null;
+                    subject_type: string | null;
+                    tenant_id: string;
+                };
+                Insert: {
+                    category?: string;
+                    created_at?: string;
+                    data?: Json;
+                    id?: string;
+                    kind: string;
+                    subject_id?: string | null;
+                    subject_type?: string | null;
+                    tenant_id: string;
+                };
+                Update: {
+                    category?: string;
+                    created_at?: string;
+                    data?: Json;
+                    id?: string;
+                    kind?: string;
+                    subject_id?: string | null;
+                    subject_type?: string | null;
+                    tenant_id?: string;
+                };
+                Relationships: [];
+            };
+            events_y2027m10: {
                 Row: {
                     category: string;
                     created_at: string;
@@ -1948,6 +1945,7 @@ type Database = {
                     role?: string;
                     tenant_id: string;
                     user_id: string;
+                    views?: Json;
                 };
                 Update: {
                     created_at?: string;
@@ -1955,6 +1953,7 @@ type Database = {
                     role?: string;
                     tenant_id?: string;
                     user_id?: string;
+                    views?: Json;
                 };
                 Relationships: [
                     {
@@ -2970,6 +2969,14 @@ type Database = {
                 };
                 Returns: undefined;
             };
+            member_view_set: {
+                Args: {
+                    p_page: string;
+                    p_tenant_id: string;
+                    p_view: Json;
+                };
+                Returns: Json;
+            };
             metrics_summary: {
                 Args: {
                     p_days?: number;
@@ -3005,14 +3012,6 @@ type Database = {
                     kind: string;
                     tenant_id: string;
                 }[];
-            };
-            member_view_set: {
-                Args: {
-                    p_page: string;
-                    p_tenant_id: string;
-                    p_view: Json;
-                };
-                Returns: Json;
             };
             people_list: {
                 Args: {

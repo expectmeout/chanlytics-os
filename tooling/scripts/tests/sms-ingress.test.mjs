@@ -92,10 +92,17 @@ test("a line the carriers have not approved is accepted and HELD: recorded, neve
   assert.equal((await plan(open, world(open))).held, false);
 });
 
-test("a number no line carries is a 404, and the platform is told which number", async () => {
+test("a number no line carries is a 404, and the platform is told once for the whole class", async () => {
   const to = freshNumber();
   const v = await plan(to, world(to, { lines: [] }));
-  assert.deepEqual(v, { kind: "refuse", status: 404, log: "sms_unknown_line", level: "warn", alert: "no line row carries this number" });
+  // Twilio signs with the LINE's own subaccount token, so this refusal happens
+  // before anything can be authenticated: the `To` is whatever the caller
+  // wrote. Suppressing per number meant a POST loop that changed it every
+  // request sent one email per request and buried every real alert; the
+  // constant key caps the class at one per window, like a known number.
+  assert.deepEqual(v, { kind: "refuse", status: 404, log: "sms_unknown_line", level: "warn", alert: "no line row carries this number", alertKey: "unknown-line" });
+  const other = await plan(freshNumber(), world(to, { lines: [] }));
+  assert.equal(other.alertKey, v.alertKey, "a different To is the same alert");
 });
 
 test("a line whose voice provisioning failed is not a line at all", async () => {

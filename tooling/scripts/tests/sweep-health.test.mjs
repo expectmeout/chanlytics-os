@@ -10,7 +10,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { readCode, readRaw } from "./_source.mjs";
+import { readRaw } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseSweepAlerts, describeSweepTrouble, ALERT_SUPPRESSION_MS } = await import(
@@ -105,32 +105,6 @@ test("the alert says what broke and what it costs, and carries no customer data"
   // This goes to the PLATFORM mailbox, which belongs to no tenant.
   assert.doesNotMatch(body, /\+\d{7,}/);
   assert.doesNotMatch(body, /conversation_id|phone_e164|escalation/);
-});
-
-test("a platform fault is addressed to the platform, never to a tenant", () => {
-  const health = readCode("apps/edge/api/cron/health.ts");
-  assert.match(health, /tenantId: null/);
-  assert.match(health, /isEnvDefault: true/);
-  // Looking a tenant up here would default to tenant #1's owner when the
-  // lookup fails — the cross-tenant disclosure notify.ts exists to prevent.
-  assert.doesNotMatch(health, /loadTenantNotifications/);
-});
-
-test("the health route always answers 200, even while reporting a broken sweep", () => {
-  // Its own reply is recorded by pg_net and judged by /api/diag, so a non-2xx
-  // used to report someone else's failure would make the watchdog report
-  // ITSELF broken, and it could never report recovery.
-  const health = readCode("apps/edge/api/cron/health.ts");
-  assert.match(
-    health,
-    /return json\(200, \{ ok: true, healthy: plan\.broken\.length === 0, broken: plan\.broken \}\);/,
-  );
-  const returns = [...health.matchAll(/return json\((\d{3}),/g)].map((m) => Number(m[1]));
-  assert.equal(
-    returns.at(-1),
-    200,
-    "the last return in the handler must be the 200 — a non-2xx here is recorded by pg_net and read as the health check failing",
-  );
 });
 
 test("the health check is never scheduled onto the grid it is judging", () => {

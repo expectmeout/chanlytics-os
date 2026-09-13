@@ -18,6 +18,7 @@ const ID = /^\d{6,32}$/;
 const SAID: Record<string, string> = {
   preview: "Connecting only works on the production dashboard.",
   number_taken: "That number is already connected to another workspace.",
+  channel_read_failed: "Chanlytics could not check whether that number is already connected, so nothing was changed. Try again in a moment.",
   exchange_failed: "Meta did not accept the sign-up code. Start the connection again.",
   number_unreadable: "Meta did not let Chanlytics read that number. Check that the number was selected in the sign-up window.",
   waba_unreadable: "Meta did not let Chanlytics read the WhatsApp Business Account. Check that it was shared in the sign-up window.",

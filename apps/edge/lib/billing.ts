@@ -352,6 +352,21 @@ export async function keepEvent(db: Db, id: string, type: string, tenantId: stri
   throw new Error(error.message);
 }
 
+/**
+ * The claim given back, because the work it guarded did not happen.
+ *
+ * The row is written BEFORE the apply, so two deliveries of one event racing
+ * each other cannot both act. That ordering also meant a failed apply kept
+ * the claim: the 500 asked Stripe to try again, and the retry read its own
+ * row and answered "duplicate" without applying anything, so a paused
+ * subscription or a failed payment was lost for good. Only a delivery that
+ * was ACTED ON keeps its claim.
+ */
+export async function forgetEvent(db: Db, id: string): Promise<void> {
+  const { error } = await db.from("billing_events").delete().eq("id", id);
+  if (error) logger({ hook: "stripe" }).error("stripe_event_unclaim_failed", { event: id, error: error.message });
+}
+
 /** The bells a payment event rings, beside the row facts it keeps. */
 export async function notePayment(db: Db, row: BillingRow, kind: "failed" | "paid", now = new Date()): Promise<void> {
   if (kind === "failed") {

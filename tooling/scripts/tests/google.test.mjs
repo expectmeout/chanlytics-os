@@ -313,11 +313,15 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
   assert.ok(lib.includes("process.env.GOOGLE_PLACES_API_KEY"));
   assert.ok(lib.includes("planListingCheck(") && lib.includes('kind: "review", title: b.title, body: b.body, route: "reports"'), "the plan decides, the edge writes and rings");
   assert.ok(lib.includes('.update({ check_error: error })'), "a failed read leaves its words and the last good numbers");
+  // And does NOT move the stamp: checked_at / last_synced_at are the last
+  // SUCCESSFUL read, which is the news cutoff, the first-sync flag and the due
+  // window all at once.
+  assert.ok(!lib.includes("check_error: error, checked_at:"), "a failure must not read as a read");
+  assert.ok(!lib.includes("sync_error: error.slice(0, 300), last_synced_at:"), "nor a failed sync as a sync");
   assert.ok(lib.includes('onConflict: "tenant_id,review_id"') && !lib.includes("first_seen_at"), "an existing review keeps its first_seen_at");
   assert.ok(lib.includes('"google.reviews"'));
-  const cron = readCode("apps/edge/api/cron/google.ts");
-  assert.ok(cron.includes('skipped: "no_places_key"'));
-  assert.ok(cron.includes("const MAX_PER_TICK = 40;"));
+  // The sweep -- skipped without a key, forty listings a tick, never-read
+  // first, a refusal left on its row -- runs in cron-doors-b.test.mjs.
   const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
   assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 60);
   assert.equal(vercel.functions["api/cron/google.ts"].maxDuration, 60);
