@@ -35,8 +35,6 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   assert.ok(!alerts.includes("WhatsApp handoff needed"));
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok((inbound.match(/n\.profileName \?\? null/g) ?? []).length >= 11, "every handoff carries the name and the thread");
-  const webhook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(webhook.includes("about: callAbout,") && webhook.includes("} phoned · ${") && webhook.includes('callAbout = { type: "conversation", id: res.conversation_id };'), "a call is said by name, about its call — or its thread when it needs a call back");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/notifications.ts").includes("dedupeFeed([...applyReadState("), "the bridge shows the feed once");
   const server = readCode("apps/dashboard/src/server/broadcasts.ts");
   assert.ok(server.includes("const REPLY_WINDOW_MS = 72 * 3_600_000;") && server.includes("<= REPLY_WINDOW_MS) {") && server.includes("replied.set(m.conversation_id, m.created_at)"), "a reply is an inbound inside the window, and the FIRST one is kept with its time (slice C)");

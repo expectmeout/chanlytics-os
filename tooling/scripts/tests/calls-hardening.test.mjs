@@ -20,16 +20,13 @@ const { wantsRefresh, subscribesToRealtime, DEFAULT_REFRESH_TABLES } = await imp
   pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
 );
 
-const hook = readCode("apps/edge/api/retell-webhook.ts");
 const cron = readCode("apps/edge/api/cron/calls.ts");
 const sql = readRaw("supabase/migrations/00034_call_pipeline_hardening.sql");
 
-test("the thread note waits for the summary; the sweep covers calls never analysed", () => {
+test("the sweep covers calls never analysed, and the trigger wakes the edge for them", () => {
   // Message bodies are immutable (P3): a note written on call_ended stayed
-  // "No summary available." forever, in the thread, in the bot's memory and
-  // in the caller's context on their next call.
-  assert.ok(hook.includes('(event === "call_analyzed" || n.summary !== null || n.inVoicemail === true)'));
-  assert.ok(!hook.includes('(event === "call_analyzed" || n.status === "ended")) {\n          const msgId'), "REGRESSION: the note was written on ended");
+  // "No summary available." forever. The webhook's half -- the note waits for
+  // the summary -- runs in retell-webhook-door.test.mjs; this is the sweep's.
   assert.ok(cron.includes('.is("message_id", null)'), "the sweep writes the line for never-analysed calls");
   assert.ok(cron.includes("NOTE_GRACE_MS"));
   assert.ok(sql.includes("and message_id is null"), "and the trigger wakes the edge for them");
@@ -37,15 +34,9 @@ test("the thread note waits for the summary; the sweep covers calls never analys
 
 test("the post-call email and memory note happen once: a claim on the row", () => {
   assert.ok(sql.includes("add column if not exists notified_at timestamptz"));
-  assert.ok(hook.includes("notifyClaim = await claimCallNotification(db, routed.tenantId, res.call_id)"));
-  assert.ok(hook.includes("if (notifyClaim === false) {"), "a retry sends nothing twice");
   const claim = readCode("packages/db/src/repositories/calls.ts");
   assert.ok(claim.includes('.is("notified_at", null)'));
   assert.ok(claim.includes(".select(\"id\")"), "the claim counts rows — RLS is silent on a forbidden UPDATE");
-});
-
-test("an ingest failure is a 500, so the provider retries", () => {
-  assert.ok(hook.includes('return json(500, { ok: false, error: "ingest_failed" })'));
 });
 
 test("usage is metered once under concurrency, and the audit copy keeps its analysis", () => {

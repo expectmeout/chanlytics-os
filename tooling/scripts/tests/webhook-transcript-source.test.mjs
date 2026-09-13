@@ -14,7 +14,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { parseTranscriptText, liveTurns } from "@chanlytics/channels";
-import { readCode } from "./_source.mjs";
 
 test("the plain transcript text becomes turns; a line with no speaker continues the turn before it", () => {
   const turns = parseTranscriptText("Agent: Thank you for calling!\nUser: What time are you open?\nAgent: Tomorrow is Saturday,\n9:30 to 7.\n\nUser: Thanks.");
@@ -28,18 +27,4 @@ test("the plain transcript text becomes turns; a line with no speaker continues 
   assert.equal(parseTranscriptText("just words, no speaker"), null, "nothing attributable is nothing");
   // The same shape the structured path produces, so the page renders both alike.
   assert.deepEqual(liveTurns([{ role: "agent", content: "hi" }]), [{ role: "agent", content: "hi" }]);
-});
-
-test("a transcript_updated delivery is read from the call object OR the body, then the text — and says which keys it carried", () => {
-  const hook = readCode("apps/edge/api/retell-webhook.ts");
-  const guard = hook.indexOf('if (event === "transcript_updated") {');
-  const norm = hook.indexOf("const n = normalizeCall(call);");
-  assert.ok(guard > 0 && guard < norm, "sourced BEFORE normalising");
-  assert.ok(hook.includes("call.transcript_with_tool_calls = top.transcript_with_tool_calls as"));
-  assert.ok(hook.includes("call.transcript_object = top.transcript_object as"));
-  assert.ok(hook.includes('if (!call.transcript && typeof top.transcript === "string") call.transcript = top.transcript;'));
-  assert.ok(hook.includes("call.transcript_object = parseTranscriptText(call.transcript) ?? undefined;"), "the words alone still become turns");
-  assert.ok(hook.includes("body_keys: bodyKeys,") && hook.includes("call_keys: callKeys,"), "key NAMES ride in the delivery row");
-  assert.ok(hook.includes('Object.keys(top).filter((k) => k !== "call")'));
-  assert.ok(!/body_keys:[^,]*content/.test(hook), "never the words");
 });

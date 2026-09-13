@@ -46,7 +46,6 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   assert.ok(notify.includes('console.error("notification_record_failed"'), "losing the row never loses the email");
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(readCode("apps/edge/lib/whatsapp/alerts.ts").includes('kind: "handoff",') && wa.includes("pauseHours, ing ? `inbox/th-${ing.conversation_id}` : \"inbox\", n.profileName ?? null, ing ? { type: \"conversation\", id: ing.conversation_id } : null)"), "a handoff points at its thread");
-  assert.ok(readCode("apps/edge/api/retell-webhook.ts").includes('kind: "call",'));
   assert.ok(readCode("apps/edge/api/cron/deadman.ts").includes('kind: "deadman",'));
   // Moved out of fire.ts when a second place could fail a job: the stale-jobs
   // sweep alerts too, and two copies of who-may-be-told is how a business's
