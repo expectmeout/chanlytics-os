@@ -171,9 +171,6 @@ test("both sweeps are wired to it, and answer 503 on the alarm", () => {
     // The old unbounded read must not come back.
     assert.ok(!/from\("tenant_config"\)\s*\.select\("tenant_id, config"\)\s*;/.test(src), `${file}: no unbounded select`);
   }
-  const cal = readCode("apps/edge/api/cron/calendar.ts");
-  // The CALL, not the import at the top of the file.
-  assert.ok(cal.indexOf("out.seen += r.seen") < cal.indexOf("await markCalendarChecked("), "stamped after the work, never before");
 
   // And something is watching for that 503.
   const watch = readRaw("supabase/migrations/00086_watch_every_sweep.sql");

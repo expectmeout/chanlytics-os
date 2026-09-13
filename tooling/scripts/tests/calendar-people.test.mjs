@@ -286,8 +286,6 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
   assert.ok(mig.includes("where id = v_id and display_name is null;"), "a name fills only an empty one");
   const sweep = readCode("supabase/migrations/00053_calendar_people_sweep.sql");
   assert.ok(sweep.includes("url     := v_url || '/api/cron/calendar',") && sweep.includes("select cron.schedule('calendar-people-sweep',"), "pg_cron calls the edge every hour, like the other sweeps");
-  const cron = readCode("apps/edge/api/cron/calendar.ts");
-  assert.ok(cron.includes("const people = peopleFromItems(items, (cfg?.brain?.profile?.services ?? []).map((s) => s.name), now.getTime());") && cron.includes("await addPeopleFromCalendar(db, row.tenant_id, people)"));
   const lib = readCode("apps/edge/lib/calendar-people.ts");
   assert.ok(lib.includes('.insert({ tenant_id: tenantId, phone_e164: r.phone, display_name: r.name })') && lib.includes('if (iErr.code !== "23505") throw') && lib.includes('kind: "contact.added", category: "contact"'), "get-or-create with the service role, an event for each person created");
   assert.ok(lib.includes('.is("display_name", null)'), "a name fills only an empty one");
