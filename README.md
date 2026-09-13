@@ -20,6 +20,10 @@ something a member of the public will experience.
 | `packages/*` | `contracts` (view models, zod config schema, enums), `db` (Supabase repositories), `channels` (WhatsApp + Retell adapters), `jobs` (scheduling + handlers). | bundled into both apps |
 | `supabase/migrations` | The schema. Postgres, RLS everywhere, `events` partitioned monthly. | Supabase project |
 
+`docs/system-map.md` is the layer-by-layer picture: what is built, what is
+deferred by decision, and what is actually between here and done. Re-derive its
+counts rather than trusting them — it says how.
+
 The two apps deploy **independently**. A change that requires both to agree
 must be shipped so that either order works — a dashboard-first deploy writing a
 config shape the older edge cannot parse is how you take the live line down.
@@ -58,7 +62,7 @@ you change a package — CI has a drift guard that will fail otherwise. Never ad
 guard will fail on someone else's machine.
 
 **`apps/dashboard/src/legacy` is a ported HTML mockup and is deliberately not
-refactored.** ~18,500 lines of hand-written JSX. Surfaces are converted to real
+refactored.** ~28,000 lines of hand-written JSX across 50 pages. Surfaces are converted to real
 data one at a time by *branching inside the existing components*
 (`XReal`/`XSeed`), never by redesigning them. The seam that swaps seed data for
 real data is `src/legacy-bridge`.
@@ -114,7 +118,7 @@ corepack pnpm e2e:install             # once, fetches Chromium
 corepack pnpm e2e                     # runs against production by default
 ```
 
-Twenty-four of these need no credentials and pin the auth gate. The rest sign
+Twenty-two of the 141 need no credentials and pin the auth gate. The rest sign
 in, and need four variables:
 
 ```
@@ -130,7 +134,8 @@ the nightly reported success four mornings running while executing 24 of 128
 specs. So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/coverage-guard.test.mjs` for its 62 integration tests.
+`tooling/scripts/tests/coverage-guard.test.mjs` for its 112 integration tests,
+which live in 26 files and skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.
 
