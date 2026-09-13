@@ -500,19 +500,26 @@ test("a routing row ANOTHER line still points at is kept, or one release silence
   // already carry facts.channel_id and their saga skips channel.ensure.
   const tables = {
     lines: [
-      { id: "line-a", tenant_id: "t1", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms-a" } },
-      { id: "line-b", tenant_id: "t1", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms-b" } },
+      { id: "line-a", tenant_id: "t1", e164: "+13055550100", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms-a" } },
+      { id: "line-b", tenant_id: "t1", e164: "+13055550111", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms-b" } },
     ],
     tenant_channels: [
-      { id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", status: "active" },
-      { id: "ch-sms-a", tenant_id: "t1", kind: "sms", external_id: "+13055550100", status: "active" },
+      { id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: { provider: "twilio-sip", line_id: "line-a" } },
+      { id: "ch-sms-a", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
     ],
   };
   const r = await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice", sms_channel_id: "ch-sms-a" }));
   assert.deepEqual(r, { ok: true, released: { channel_kept: "ch-voice", sms_channel_disabled: "ch-sms-a" } });
-  const by = Object.fromEntries(tables.tenant_channels.map((c) => [c.id, c.status]));
-  assert.equal(by["ch-voice"], "active", "the other line still answers on it");
-  assert.equal(by["ch-sms-a"], "disabled", "but the number this line held is given up: it is keyed on the number, so it is this line's alone");
+  const by = Object.fromEntries(tables.tenant_channels.map((c) => [c.id, c]));
+  assert.equal(by["ch-voice"].status, "active", "the other line still answers on it");
+  assert.equal(by["ch-sms-a"].status, "disabled", "but the number this line held is given up: it is keyed on the number, so it is this line's alone");
+  // A kept row must describe the line that HOLDS it. `number_e164` is what the
+  // public page, Settings, the consent page and the receptionist's own facts
+  // publish as the workspace's number, so a row keeping the RELEASED number on
+  // it advertises a number that has gone back to the carrier.
+  assert.equal(by["ch-voice"].number_e164, "+13055550111", "repointed at the line that kept it");
+  assert.equal(by["ch-voice"].config.line_id, "line-b");
+  assert.equal(by["ch-voice"].config.provider, "twilio-sip", "and the rest of its config is left alone");
 });
 
 test("another WORKSPACE's line pointing at the same id does not keep the row", async () => {
@@ -546,4 +553,32 @@ test("a row that will not switch off stops the release rather than orphaning a l
   // The caller does not delete the line: a number given back at the provider
   // with a live routing row still claiming it is the state this must not reach.
   assert.equal(tables.tenant_channels[0].status, "active");
+});
+
+test("a release that fails halfway still reports what it already did", async () => {
+  // The provider has already given the number back by this point and the voice
+  // row is already off. A 503 naming only the provider leaves an operator
+  // unaware that the workspace's routing is half dismantled while the line row
+  // still reads `answering`.
+  const tables = {
+    lines: [{ id: "line-a", tenant_id: "t1", e164: "+13055550100", facts: { channel_id: "ch-voice", sms_channel_id: "ch-sms" } }],
+    tenant_channels: [
+      { id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: {} },
+      { id: "ch-sms", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  const db = fakeDb(tables);
+  const realFrom = db.from.bind(db);
+  let offs = 0;
+  db.from = (table) => {
+    const q = realFrom(table);
+    if (table !== "tenant_channels") return q;
+    const update = q.update.bind(q);
+    q.update = (...a) => (++offs === 2 ? { eq: () => ({ eq: async () => ({ data: null, error: { message: "row is locked" } }) }) } : update(...a));
+    return q;
+  };
+  const r = await releaseRoutingRows(db, "t1", releasedLine({ channel_id: "ch-voice", sms_channel_id: "ch-sms" }));
+  assert.equal(r.ok, false);
+  assert.match(r.error, /switching the routing row off: row is locked/);
+  assert.deepEqual(r.released, { channel_disabled: "ch-voice" }, "the half that DID happen is still reported");
 });

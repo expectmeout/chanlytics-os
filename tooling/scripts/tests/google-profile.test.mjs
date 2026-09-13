@@ -455,3 +455,45 @@ test("every refusal on the way to a connection hands the grant back, and writes 
       assert.equal(g.revoked(), c.revokes, `${c.why}: the grant is given back`);
     }
   }));
+
+test("a workspace with ONE location on Maps is bound and synced without a single call escaping the injected transport", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    // This is the branch the transport had to be threaded all the way down
+    // for: connect -> bindLocation -> syncProfile -> tokenFor. A `net` that
+    // covered only the outer calls left this path talking to the real Google
+    // from inside a test, which is why every other case here returns two
+    // locations to stay on the pending branch. Global fetch is taken away for
+    // the duration, so an escape is a failure rather than a slow test.
+    const seen = [];
+    const net = async (req) => {
+      seen.push(req.url);
+      if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
+      if (req.url.includes("/accounts") && !req.url.includes("/locations")) return { status: 200, body: JSON.stringify({ accounts: [{ name: "accounts/1", accountName: "Ada's" }] }) };
+      if (req.url.includes("/locations") && !req.url.includes("/reviews")) {
+        return { status: 200, body: JSON.stringify({ locations: [{ name: "locations/1", title: "Ada's", metadata: { placeId: "p1", mapsUri: "https://maps/p1" } }] }) };
+      }
+      if (req.url.includes("/reviews")) return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+      throw new Error(`unexpected call: ${req.url}`);
+    };
+    const tables = { google_connections: [], google_listings: [], google_reviews: [], google_listing_days: [] };
+    const vault = { refresh_token: "rt-new", access_token: "at-1", expires_at: Date.now() + 3_600_000, scope: "https://www.googleapis.com/auth/business.manage" };
+    const db = fakeDb(tables, {}, {
+      put_google_credentials: () => null,
+      get_google_credentials: () => vault,
+    });
+
+    const realFetch = globalThis.fetch;
+    globalThis.fetch = () => { throw new Error("a call escaped the injected transport and went to the network"); };
+    try {
+      const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), net);
+      assert.equal(r.ok, true, JSON.stringify(r));
+      assert.equal(r.pending, false, "one location on Maps: bound at once, no choice to make");
+    } finally {
+      globalThis.fetch = realFetch;
+    }
+    assert.equal(tables.google_listings.length, 1, "the listing is written");
+    assert.equal(tables.google_listings[0].place_id, "p1");
+    assert.equal(tables.google_connections[0].location_name, "locations/1", "and the connection is bound to it");
+    assert.ok(seen.some((u) => u.includes("/reviews")), "the first sync ran, through the same transport");
+  }));

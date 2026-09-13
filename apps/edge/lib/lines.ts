@@ -290,19 +290,39 @@ export async function releaseRoutingRows(
   db: SupabaseClient<Database>,
   tenantId: string,
   line: { id: string; facts: Record<string, unknown> },
-): Promise<{ ok: true; released: Record<string, string> } | { ok: false; error: string }> {
+): Promise<{ ok: boolean; released: Record<string, string>; error?: string }> {
+  // Carried, not discarded, so a failure halfway still reports what DID
+  // happen: a 503 that says only "the provider gave the number back" leaves an
+  // operator unaware that the workspace's voice row is already switched off
+  // while the line row still reads `answering`.
   const released: Record<string, string> = {};
+  const stop = (error: string) => ({ ok: false, released, error });
   for (const key of ["channel_id", "sms_channel_id"] as const) {
     const id = line.facts[key];
     if (typeof id !== "string") continue;
-    const shared = await db.from("lines").select("id").eq("tenant_id", tenantId).neq("id", line.id).filter(`facts->>${key}`, "eq", id).limit(1);
-    if (shared.error) return { ok: false, error: `reading the workspace's other lines: ${shared.error.message}` };
-    if (shared.data?.length) {
+    const shared = await db.from("lines").select("id, e164").eq("tenant_id", tenantId).neq("id", line.id).filter(`facts->>${key}`, "eq", id).limit(1);
+    if (shared.error) return stop(`reading the workspace's other lines: ${shared.error.message}`);
+    const holder = shared.data?.[0];
+    if (holder) {
+      // It keeps answering -- but it must now describe the line that HOLDS it.
+      // `number_e164` is what the public page, Settings, the consent page and
+      // the receptionist's own facts publish as the workspace's number, so a
+      // kept row still carrying the RELEASED number advertises a number that
+      // has gone back to the carrier.
+      const row = await db.from("tenant_channels").select("config").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
+      if (row.error) return stop(`reading the routing row: ${row.error.message}`);
+      const cfg = row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config) ? (row.data.config as Record<string, unknown>) : {};
+      const moved = await db
+        .from("tenant_channels")
+        .update({ number_e164: holder.e164, config: { ...cfg, line_id: holder.id } as Json })
+        .eq("id", id)
+        .eq("tenant_id", tenantId);
+      if (moved.error) return stop(`repointing the routing row: ${moved.error.message}`);
       released[key === "channel_id" ? "channel_kept" : "sms_channel_kept"] = id;
       continue;
     }
     const off = await db.from("tenant_channels").update({ status: "disabled" }).eq("id", id).eq("tenant_id", tenantId);
-    if (off.error) return { ok: false, error: `switching the routing row off: ${off.error.message}` };
+    if (off.error) return stop(`switching the routing row off: ${off.error.message}`);
     released[key === "channel_id" ? "channel_disabled" : "sms_channel_disabled"] = id;
   }
   return { ok: true, released };

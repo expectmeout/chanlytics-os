@@ -228,8 +228,8 @@ export async function POST(request: Request): Promise<Response> {
       return json(502, { ok: false, error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`, released });
     }
     const rows = await releaseRoutingRows(db, tenantId, line);
-    if (!rows.ok) return json(503, { ok: false, error: rows.error, released });
     Object.assign(released, rows.released);
+    if (!rows.ok) return json(503, { ok: false, error: rows.error, released });
     const del = await db.from("lines").delete().eq("id", line.id);
     if (del.error) return json(503, { ok: false, error: del.error.message, released });
     await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, { e164: line.e164, provider: choice.name, ...released }).catch(() => {});

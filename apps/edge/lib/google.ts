@@ -338,14 +338,14 @@ async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: Plac
  * An access token for the workspace's profile: the stored one while it
  * lasts, else a fresh one from the refresh token, kept for next time.
  */
-export async function tokenFor(db: Db, tenantId: string, now = Date.now()): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+export async function tokenFor(db: Db, tenantId: string, now = Date.now(), net: PlacesHttp = http): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   const creds = await readCredentials(db, tenantId);
   if (!creds) return { ok: false, error: "no_credentials" };
   if (creds.access_token && creds.expires_at && creds.expires_at - TOKEN_SLACK_MS > now) return { ok: true, token: creds.access_token };
   try {
-    const grant = await grantFrom(tokenRefreshRequest(client, creds.refresh_token));
+    const grant = await grantFrom(tokenRefreshRequest(client, creds.refresh_token), net);
     await storeCredentials(db, tenantId, { refresh_token: creds.refresh_token, access_token: grant.access_token, expires_at: now + grant.expires_in * 1000, scope: grant.scope || creds.scope });
     return { ok: true, token: grant.access_token };
   } catch (e) {
@@ -383,7 +383,11 @@ async function allLocations(token: string, net: PlacesHttp = http): Promise<Loca
  * `net` is the ONE thing here that reaches Google, handed in so the paths that
  * matter most can be run instead of read: this function can destroy a working
  * connection on its way to reporting a failure, and a rollback nothing
- * exercises is a rollback nobody has seen work.
+ * exercises is a rollback nobody has seen work. It reaches the whole way
+ * down -- the token exchange, the accounts and locations, the revoke, and on
+ * the one-location path `bindLocation` -> `syncProfile` -> `tokenFor` too.
+ * It has to: a transport that covered only the outer calls would leave a test
+ * of the binding branch quietly talking to the real Google.
  */
 export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date(), net: PlacesHttp = http): Promise<ConnectResult> {
   const client = profileClient();
@@ -464,7 +468,7 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
   }
   await emitEvent(db, tenantId, "google.connected", "google", "listing", null, { email: claims.email, accounts: new Set(locations.map((l) => l.account_name)).size, locations: locations.length, on_maps: onMaps.length, by: userId }).catch(() => {});
   if (onMaps.length === 1) {
-    const bound = await bindLocation(db, saved.data, first, userId, tz, now);
+    const bound = await bindLocation(db, saved.data, first, userId, tz, now, net);
     if (!bound.ok) return { ok: false, error: bound.error, detail: bound.detail };
     return { ok: true, pending: false, connection: bound.connection, read: bound.read };
   }
@@ -487,7 +491,7 @@ export async function locationsFor(db: Db, tenantId: string): Promise<{ ok: true
  * and the connection's location, then the profile is synced at once. A
  * listing that named another place forgets what was read from it.
  */
-export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationChoice, userId: string | null, tz: string, now = new Date()): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
+export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationChoice, userId: string | null, tz: string, now = new Date(), net: PlacesHttp = http): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
   if (!loc.place_id) return { ok: false, error: "not_on_maps" };
   const existing = await db.from("google_listings").select("place_id").eq("tenant_id", conn.tenant_id).maybeSingle();
   if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };
@@ -511,7 +515,7 @@ export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationCho
     .select("*")
     .single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
-  const read = await syncProfile(db, saved.data, tz, now);
+  const read = await syncProfile(db, saved.data, tz, now, net);
   const after = await db.from("google_connections").select("*").eq("tenant_id", conn.tenant_id).single();
   return { ok: true, connection: after.data ?? saved.data, read };
 }
@@ -523,7 +527,7 @@ export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationCho
  * and is history: it raises nothing. A failed sync leaves its words on the
  * connection and is tried again next hour.
  */
-export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now = new Date()): Promise<CheckResult> {
+export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now = new Date(), net: PlacesHttp = http): Promise<CheckResult> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string) => {
@@ -532,11 +536,11 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
     L.warn("google_profile_sync_failed", { error });
     return { ok: false as const, error };
   };
-  const t = await tokenFor(db, conn.tenant_id, now.getTime());
+  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
   if (!t.ok) return failed(t.error);
   let page;
   try {
-    page = await listReviews(http, t.token, reviewParent(conn.account_name, conn.location_name));
+    page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name));
   } catch (e) {
     return failed(e instanceof Error ? e.message : String(e));
   }
