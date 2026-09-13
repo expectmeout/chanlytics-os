@@ -1,5 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
+import { isUuid } from "@/server/request-guards";
 import { edgeLines } from "@/server/lines";
 
 /**
@@ -14,7 +15,7 @@ export const POST = write({
   handle: async ({ req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { line_id?: unknown };
     const lineId = typeof body.line_id === "string" ? body.line_id.trim() : "";
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(lineId)) throw new AppError("validation", "Which line?", 400);
+    if (!isUuid(lineId)) throw new AppError("validation", "Which line?", 400);
     // `by`, because the edge cannot tell an owner's Retry from support's: both send the
     // same op, and it used to write "started by support" on every one of them.
     const a = await edgeLines({ op: "retry", tenant_id: member.tenantId, line_id: lineId, by: "owner" }, 60_000);

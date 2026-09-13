@@ -1,5 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
+import { requireUuid } from "@/server/request-guards";
 import { edgeGoogle } from "@/server/google";
 
 /**
@@ -13,8 +14,6 @@ import { edgeGoogle } from "@/server/google";
  * review lives on the edge's side of the door, which answers 404 for one
  * that is not on record.
  */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const SAID: Record<string, string> = {
   policy_never: "Review replies are set to Never on Autonomy. Set them to Ask for a draft, or Auto to have new reviews answered.",
   no_review: "That review is not on record.",
@@ -28,8 +27,7 @@ export const POST = write({
   role: "operator",
   rate: "google_draft",
   handle: async ({ ctx, member }) => {
-    const id = typeof ctx.params.id === "string" ? ctx.params.id : "";
-    if (!UUID.test(id)) throw new AppError("validation", "Which review?", 400);
+    const id = requireUuid(ctx.params.id, "review");
     const a = await edgeGoogle({ op: "draft", tenant_id: member.tenantId, user_id: ctx.userId, id }, 25_000);
     const b = a.body ?? {};
     if (a.status !== 200 || b.ok !== true || typeof b.text !== "string") {

@@ -29,6 +29,9 @@ export default function ResetPasswordPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [stage, setStage] = useState<"ask" | "set">("ask");
+  // Whether the recovery code has already been spent on a session. A ref, not
+  // state: it must survive a re-render caused by the error it exists to handle.
+  const codeAccepted = useRef(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fieldRef = useRef<HTMLInputElement | null>(null);
@@ -106,9 +109,18 @@ export default function ResetPasswordPage() {
           const weak = passwordProblem(password);
           if (weak) return weak;
           // The code is what creates the session; the new password is written
-          // on it. A code that does not verify has changed nothing.
-          const verified = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "recovery" });
-          if (verified.error) return PASSWORD_WORDS.resetBadCode;
+          // on it. A code that does not verify has changed nothing -- but one
+          // that DOES is spent, and the session it made is ours from then on.
+          // Verifying again on every submit stranded anyone whose password
+          // passed the check above and was then refused by Supabase (the breach
+          // list, or a project floor higher than ours): they were signed in,
+          // facing a code box, and every retry failed at verifyOtp and blamed
+          // the code. Once it is accepted, retries go straight to the password.
+          if (!codeAccepted.current) {
+            const verified = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "recovery" });
+            if (verified.error) return PASSWORD_WORDS.resetBadCode;
+            codeAccepted.current = true;
+          }
           const saved = await supabase.auth.updateUser({ password });
           // Signed in but the password did not take (too short for the
           // project, or on the breach list). Say so rather than landing them
@@ -120,6 +132,8 @@ export default function ResetPasswordPage() {
         }}
         onResend={async () => {
           const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+          // A fresh code is a fresh verification.
+          if (!error) codeAccepted.current = false;
           return error ? requestCodeWords(error) : null;
         }}
         onBack={() => { setStage("ask"); setError(null); }}

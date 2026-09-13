@@ -51,6 +51,19 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
  * a generic 500 "Something went wrong" — so a typo in a URL read as a server
  * fault. It is a 404: the thing named does not exist, because it cannot.
  */
+export function isUuid(value: unknown): boolean {
+  return UUID.test(String(value ?? ""));
+}
+
+/**
+ * The same shape as an AppError.
+ *
+ * `requireUuid` is for a URL's own parameter, where a malformed id means the
+ * thing named cannot exist (404). An id that arrives in a request BODY is a
+ * field the caller filled in wrong, which is a 400 with the field's own name --
+ * a real difference, unlike the four copies of this pattern that used to state
+ * it.
+ */
 export function requireUuid(value: unknown, what = "record"): string {
   const s = String(value ?? "");
   if (!UUID.test(s)) throw new AppError("not_found", `That ${what} does not exist.`, 404);

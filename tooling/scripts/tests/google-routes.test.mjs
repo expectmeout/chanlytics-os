@@ -118,10 +118,14 @@ test("a refresh, a draft and a reply are an operator's, each judged in its words
   await refused(refresh.POST.run(send("POST", undefined, inA), ctxFor(tables)), "forbidden", 403, "Viewers can see everything");
   await refused(refresh.POST.run(send("POST", undefined, inB), ctxFor(tables)), "internal", 502, "Google could not be read.");
   await refused(draft.POST.run(send("POST", undefined, inA), ctxFor(tables, { id: R1 })), "forbidden", 403);
-  await refused(draft.POST.run(send("POST", undefined, inB), ctxFor(tables, { id: "x" })), "validation", 400, "Which review?");
+  // A malformed id in the URL's own parameter is a 404 through requireUuid, as
+  // it is on every other [id] route: the thing named does not exist, because it
+  // cannot. These two carried their own copy of the uuid pattern and answered
+  // 400 instead, which read to a client as "you sent a bad field".
+  await refused(draft.POST.run(send("POST", undefined, inB), ctxFor(tables, { id: "x" })), "not_found", 404, "That review does not exist.");
   await refused(draft.POST.run(send("POST", undefined, inB), ctxFor(tables, { id: R1 })), "internal", 502, "No draft this time (no_edge_credential).");
   await refused(reply.POST.run(send("POST", { comment: "Thank you!" }, inA), ctxFor(tables, { id: R1 })), "forbidden", 403);
-  await refused(reply.POST.run(send("POST", { comment: "Thank you!" }, inB), ctxFor(tables, { id: "x" })), "validation", 400, "Which review?");
+  await refused(reply.POST.run(send("POST", { comment: "Thank you!" }, inB), ctxFor(tables, { id: "x" })), "not_found", 404, "That review does not exist.");
   await refused(reply.POST.run(send("POST", {}, inB), ctxFor(tables, { id: R1 })), "validation", 400, "Write the reply first.");
   const edge = ctxFor(tables, { id: R1 });
   await refused(reply.POST.run(send("POST", { comment: "Thank you for coming in!" }, inB), edge), "internal", 502, "The reply did not go through (no_edge_credential).");
