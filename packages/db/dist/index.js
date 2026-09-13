@@ -5151,8 +5151,12 @@ async function readThreadState(db, tenantId, conversationId, pausedUntilIso, his
   if (recent.error) throw new Error(`readThreadState/history: ${recent.error.message}`);
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
   const history = assembleHistory(recent.data ?? [], historyLimit);
+  const repliedBefore = (recent.data ?? []).some(
+    (m) => m.direction === "outbound" && DELIVERED.includes(String(m.status))
+  );
   return {
     history,
+    repliedBefore,
     seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
     // Imported rows carry the timestamp of the IMPORT, not of a send. Counting

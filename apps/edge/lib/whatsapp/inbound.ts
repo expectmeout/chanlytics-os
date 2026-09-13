@@ -4,7 +4,7 @@
  *
  * Persist first, then read the memory (Postgres; the Blob copy only while it
  * is still written — see api/whatsapp.ts), then the gates in order: unknown
- * state, consent, dedupe, what kind of message it is, its age, the pause and
+ * state, dedupe, consent, what kind of message it is, its age, the pause and
  * the day's cap, the token budget, the mode in force. Past the gates the
  * brain composes, layer two checks the words (steps.ts), and the reply goes
  * out now or waits in the hold window. Every branch reports through the sink
@@ -27,7 +27,7 @@ import { resolveConsent } from "../consent.js";
 import { logger, errField } from "../log.js";
 import type { NotifyTarget } from "../notify.js";
 import { FALLBACK_BRAIN, FALLBACK_NOTIFICATIONS } from "../tenant-fallback.js";
-import { PG_MISS, IngestFailed } from "./persist.js";
+import { isPgMiss, IngestFailed } from "./persist.js";
 import { realPorts, type InboundPorts } from "./ports.js";
 import type { Wire } from "../workspace/core.js";
 import { MAX_REPLIES_PER_DAY, PAUSE_MS, ageVerdict, threadVerdict, holdPlan, layerTwo, holdCopy, noModelPlan, NO_MODEL_PAGE } from "./steps.js";
@@ -118,7 +118,7 @@ export async function handleInbound(
       if (e instanceof IngestFailed) {
         // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
         try {
-          await ports.alertStaff(from, n.body ?? `[${m.type} message]`, "(NOT recorded: the database did not accept the message; the provider will retry)", "message not recorded", notifyTarget, pauseHours, "inbox", n.profileName ?? null, null);
+          await ports.alertStaff(from, n.body ?? `[${m.type} message]`, "(NOT recorded: the database did not accept the message; the provider will retry)", "message not recorded", { target: notifyTarget, channel, who: n.profileName ?? null });
         } catch (alertErr) {
           L.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
         }
@@ -126,10 +126,6 @@ export async function handleInbound(
       throw e;
     }
   };
-  // What is open, from the calendar feed, when the workspace has one. Cached
-  // for five minutes on the edge; a feed that cannot be read says nothing.
-  const openings = rt ? await ports.calendar.openings(rt) : null;
-
   // THE PILOT ALLOWLIST, scoped to the number it was made for.
   //
   // It exists so the deployment's OWN WhatsApp number — the pilot line in
@@ -160,8 +156,15 @@ export async function handleInbound(
     return;
   }
 
-  const allow = ports.env.allowlist.split(",").map((s) => s.trim()).filter(Boolean);
-  if (isEnvDefault && allow.length && !allow.includes(from)) {
+  // Compared as DIGITS on both sides. Meta delivers `from` as bare digits, and
+  // the natural way to write this env var is the E.164 spelling with its "+" —
+  // so a raw string compare matched nothing, including the tester the list was
+  // written for: every message on the pilot line was persisted, skipped and
+  // never answered, with one event per message to show for it. Exactly the
+  // silent muzzle the note above exists to prevent.
+  const digits = (s: string) => s.replace(/\D/g, "");
+  const allow = ports.env.allowlist.split(",").map(digits).filter(Boolean);
+  if (isEnvDefault && allow.length && !allow.includes(digits(from))) {
     // §4 delta (deliberate): allowlist gates the REPLY, not the persist.
     const ing = await recordOrSay();
     const sink = ports.persist.sink(db, tenantId, ing, rt, channel);
@@ -178,20 +181,24 @@ export async function handleInbound(
   // flip so the live salon line can be rolled back without a redeploy; Blob is
   // still written underneath, which is what makes that rollback safe.
   let ing: IngestResult | null;
-  let thread: ThreadState;
+  let read: ThreadState;
   let memory: "pg" | "blob" = "blob";
   if (ports.env.pgReads) {
     ing = await recordOrSay();
-    thread = await ports.persist.thread(db, tenantId, ing);
-    memory = thread === PG_MISS ? "blob" : "pg";
+    const fromPg = await ports.persist.thread(db, tenantId, ing);
+    memory = isPgMiss(fromPg) ? "blob" : "pg";
     // With the store retired this read answers "unknown", and the thread goes
     // to a human below instead of to a second copy of its memory.
-    if (memory === "blob") thread = await ports.store.get(ns, from);
+    read = memory === "blob" ? await ports.store.get(ns, from) : fromPg;
   } else {
     // The Blob read is side-effect-free, so it runs alongside the write.
-    [ing, thread] = (await Promise.all([recordOrSay(), ports.store.get(ns, from)])) as
+    [ing, read] = (await Promise.all([recordOrSay(), ports.store.get(ns, from)])) as
       [IngestResult | null, ThreadState];
   }
+  // Bound once it is settled, and never rebound. The closures below hold this
+  // memory and write to it after awaits, which is only sound while the binding
+  // itself cannot change under them.
+  const thread: ThreadState = read;
   const ingestMs = Date.now() - t0;
   // This message's wires: WhatsApp on the tenant's credentials (the
   // environment's pair only for the environment's own number), or the
@@ -205,9 +212,39 @@ export async function handleInbound(
   // One door out: the carrier shapes the words for its wire (the footer on
   // the first reply to a person), and the sink's door sends them -- re-reading
   // consent, the pause and the workspace's status the moment before.
-  const firstReply = thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant");
+  // Whether anything of ours has ever reached this person — which on a text
+  // decides the rates/STOP/HELP footer the campaign filing promises on a first
+  // reply. Postgres answers it outright; the Blob copy has only the history,
+  // which answers it correctly there because it holds nothing but what this
+  // handler wrote. It is the PG path that could not use the history: a voice
+  // call note is an inbound row whose sender is "system", assembleHistory maps
+  // that to an assistant turn, and a customer who phoned and then texted for
+  // the first time had their first reply sent without the disclosure.
+  const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
+  const firstReply = thread.replies.length === 0 && !repliedBefore;
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);
+  const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose) => sink.deliver(from, wire(text), meta, purpose);
+  /**
+   * The owner's handoff email. Every fact about the conversation other than
+   * the words is fixed for this whole invocation, and it was retyped at each
+   * of a dozen call sites -- which is how `channel` came to be known here and
+   * stated at none of them, and how four of the reasons reached the subject
+   * line as raw internal tokens.
+   *
+   * `pausedHours` is the honest one: only a branch that actually takes the
+   * receptionist out of the thread passes it, because the email states the
+   * pause, and an owner who believes in one that did not happen answers at
+   * their leisure and is talked over by the bot's next reply.
+   */
+  const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>
+    ports.alertStaff(from, userText, botText, reason, {
+      target: notifyTarget,
+      channel,
+      pausedHours,
+      route: ing ? `inbox/th-${ing.conversation_id}` : "inbox",
+      who: n.profileName ?? null,
+      about: ing ? { type: "conversation", id: ing.conversation_id } : null,
+    });
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger
@@ -250,11 +287,40 @@ export async function handleInbound(
         "state_unavailable",
         "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
       ),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable"),
       sink.processed(),
     ]);
     return;
   }
+
+  // WEBHOOK REDELIVERY, on the memory path.
+  //
+  // This sat two hundred lines below, under every branch that escalates and
+  // emails the owner — so with PG_READS and PG_DEDUPE both off (the README's
+  // documented rollback, where the atomic is_new gate above is skipped and
+  // this array is the only dedupe there is) each of Meta's redeliveries of a
+  // pin drop, a voice note, a STOP or a late message re-opened the handoff and
+  // sent the owner another email, with backoff, for days. The comment on the
+  // stale branch asserted the opposite — "replays are already stopped by the
+  // dedupe gate below" — of a gate that was literally below it.
+  //
+  // The gate belongs above everything it is meant to protect. `seen` is empty
+  // by design on the Postgres path (is_new is the stronger gate), so this
+  // costs that path nothing; the id is recorded here and every branch that
+  // returns below persists the thread, which is what makes the second delivery
+  // stop here.
+  if (thread.seen.includes(m.id)) { L.info("wa_skip_dupe"); return; }
+  thread.seen.push(m.id);
+  /**
+   * Persist this message id, so the branches below that return early stop the
+   * NEXT delivery of it at the gate above.
+   *
+   * Only where it is the memory. On the Postgres path `seen` is empty by
+   * design and is_new is the dedupe, so a write here would buy nothing and
+   * cost a Blob read and a Blob write on the hot path — the same trade the
+   * consent cache above was silently making until this change.
+   */
+  const rememberSeen = (t: ThreadState) => (memory === "blob" ? ports.store.save(ns, from, t) : Promise.resolve(false));
 
   // CONSENT GATE — before every branch below that can send, because all of
   // them could: the non-text acknowledgement, the brain's reply, even the
@@ -281,20 +347,31 @@ export async function handleInbound(
   const consent = resolveConsent({
     optOutNow: n.optOut,
     optInNow: n.optIn,
-    recorded: ing ? isOptedOutContact(ing) : null,
+    // Absence is not an answer. `consent` and `dnc` are optional on the ingest
+    // result (packages/db ingest.ts) — "readers must treat absence as 'nothing
+    // on record', never as a block" — and a row carrying neither read as
+    // `false`, an affirmative "they are opted in", which outranks the cache
+    // and wiped the one surviving copy of an opt-out made last week.
+    recorded: ing && (ing.consent !== undefined || ing.dnc !== undefined) ? isOptedOutContact(ing) : null,
     cached: thread.optedOut,
   });
   const optedOut = consent.optedOut;
 
   // Keep the cache current for the NEXT request — which may be the one that
   // finds Postgres down. Written only on a transition, so the steady state
-  // costs nothing.
-  if (thread.optedOut !== consent.cache) {
+  // costs nothing — which it did not, under the flag that is the intended
+  // production mode: a Postgres-sourced thread carries no `optedOut` at all,
+  // so `undefined !== false` was true for every message from every customer
+  // who has never opted out, and each one paid a Blob read and a Blob write in
+  // front of the brain call.
+  if ((thread.optedOut ?? false) !== consent.cache) {
     thread.optedOut = consent.cache;
     await ports.store.save(ns, from, thread);
   }
   if (optedOut) {
-    const post: Promise<unknown>[] = [sink.processed()];
+    // The save carries this message id in `seen`, which is what stops a
+    // redelivered STOP opening the handoff and mailing the owner a second time.
+    const post: Promise<unknown>[] = [sink.processed(), rememberSeen(thread)];
     if (n.optOut) {
       // Only on the opt-out message itself. upsertEscalation keeps ONE open
       // escalation per conversation, so a repeated STOP updates rather than
@@ -302,7 +379,7 @@ export async function handleInbound(
       // see once, not a log line.
       post.push(
         sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
-        ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+        tell(n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out"),
       );
     }
     await Promise.all(post);
@@ -323,7 +400,8 @@ export async function handleInbound(
   if (carrier?.held) {
     await Promise.all([
       sink.escalate(carrier.held.reason, carrier.held.details),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers"),
+      rememberSeen(thread),
       sink.processed(),
     ]);
     L.info("sms_held_for_carriers");
@@ -343,7 +421,7 @@ export async function handleInbound(
   // that we handled them and stop.
   if (n.kind === "reaction" || n.kind === "system") {
     L.info("wa_skip_no_request", { kind: n.kind });
-    await sink.processed();
+    await Promise.all([rememberSeen(thread), sink.processed()]);
     return;
   }
 
@@ -356,71 +434,97 @@ export async function handleInbound(
   if (n.kind === "location" || n.kind === "contacts") {
     await Promise.all([
       sink.escalate("non_text", `${n.body} — needs a person.`),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind, notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind),
+      rememberSeen(thread),
       sink.processed(),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;
   }
 
-  // A photo the receptionist may look at (features.vision, off by default).
-  // Fetched now rather than after the acknowledgement, because the reply
-  // needs the bytes; stored on the way like every attachment. Anything that
-  // is not a small image, or a workspace where the receptionist may not
-  // speak right now, takes the branch below exactly as before.
-  let photo: { mime: string; base64: string } | null = null;
-  let photoTried = false;
-  if (
-    n.type === "media" && n.media && rt?.features?.vision && isVisionMime(n.media.mime_type)
-    && brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil
-  ) {
-    photoTried = true;
-    const got = await sink.media(n);
-    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
-      photo = { mime: got.mime, base64: toBase64(got.bytes) };
-      L.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
-    } else {
-      L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-    }
-  }
+  // WILL the receptionist look at this photo (features.vision, off by
+  // default)? Decided from the message, the workspace and the mode in force —
+  // no bytes needed — so the routing below can be decided here while the
+  // download itself waits until the gates have agreed there will be a reply at
+  // all. The fetch used to run on this line: an 8s metadata call, up to 25MB
+  // with a 15s timeout, a storage upload and a base64 of the whole buffer,
+  // paid in full and then thrown away by a workspace at its reply cap, over
+  // its token budget, or paused for billing.
+  const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type)
+    && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
 
-  if (!photo && (n.type !== "text" || !n.body)) {
-    // genuinely unreadable (voice note, image, sticker): hand to a human.
-    //
-    // sink.media() downloads the attachment from Meta (an 8s metadata fetch,
-    // then up to 25MB with a 15s timeout) and uploads it to storage. That ran
-    // HERE, above the acknowledgement — so someone who sent a voice note waited
-    // through two Graph round trips and a multi-megabyte upload, as much as
-    // ~23s of pure timeout, before being told we had seen it. Nothing in the
-    // ack depends on those bytes, so it joins the post-reply work below.
-    const media = photoTried ? Promise.resolve(null) : sink.media(n);
-    if (Date.now() > thread.pausedUntil) {
-      // The acknowledgement is the receptionist speaking, so it obeys the
-      // same rule as every reply: only when the mode in force lets it speak.
-      // A workspace on Ask, or a person set to Never, gets no canned text —
-      // the message still escalates so a human sees it. No persona -> no ack.
-      const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
-      if (mayAck) {
-        // A courtesy, not an answer: marked so it does not spend the daily cap.
-        await send(brainCfg!.fallbacks.non_text, { ack: true });
-        thread.pausedUntil = Date.now() + pauseMs;
-        await ports.store.save(ns, from, thread);
-      }
-      const why = mayAck
-        ? "auto-acknowledged, bot paused"
+  /**
+   * Say the unreadable thing: a voice note, a sticker, a photo nobody may look
+   * at — or one the receptionist meant to look at and could not fetch.
+   * Acknowledge it where the mode in force allows, and hand the thread over.
+   *
+   * A closure because there are two ways in now: the routing decision above,
+   * and a vision fetch that fails below the gates. While the fetch sat above
+   * them the second case fell into the first by accident, through `!photo`;
+   * once the fetch moved it needed saying out loud, because a photo that
+   * cannot be read must not quietly become a question answered without it.
+   *
+   * Resolves to the moment the receptionist is out of the thread until, or 0
+   * when it never spoke. It reports rather than writes: the memory is the
+   * handler's, written in one place, and a courtesy that did not reach the
+   * customer earns no pause.
+   */
+  const sayUnreadable = async (pausedUntilNow: number): Promise<number> => {
+    if (Date.now() <= pausedUntilNow) return 0;
+    // The acknowledgement is the receptionist speaking, so it obeys the
+    // same rule as every reply: only when the mode in force lets it speak.
+    // A workspace on Ask, or a person set to Never, gets no canned text —
+    // the message still escalates so a human sees it. No persona -> no ack.
+    const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
+    // WHETHER IT LANDED decides everything after it. The outcome used to be
+    // discarded, so expired credentials or a refusal at the wire still paused
+    // the thread for a day and still told the owner "(auto-acknowledged, bot
+    // paused)": the customer had heard nothing, the receptionist was muted
+    // until tomorrow, and the one person who could fix it had been told the
+    // opposite. Every other send in this file branches on this.
+    const acked = mayAck
+      // A courtesy, not an answer: marked so it does not spend the daily cap.
+      ? (await send(brainCfg!.fallbacks.non_text, { ack: true })).outcome === "sent"
+      : false;
+    const pausedUntil = acked ? Date.now() + pauseMs : 0;
+    const why = acked
+      ? "auto-acknowledged, bot paused"
+      : mayAck
+        ? "the acknowledgement could not be sent — the customer has heard nothing back"
         : !brainCfg
           ? "no auto-reply configured"
           : personMode
             ? `no acknowledgement — this person is set to '${replyMode}'`
             : `no acknowledgement — reply mode is '${replyMode}'`;
-      await Promise.all([
-        ...(mayAck ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
-        sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
-        ports.alertStaff(from, `[${m.type} message]`, `(${why})`, "non-text message", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
-      ]);
-      L.info("wa_nontext", { acked: mayAck, mode: replyMode, person_mode: personMode });
-    }
-    await Promise.all([media, sink.processed()]);
+    await Promise.all([
+      ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),
+      sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
+      tell(`[${m.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null),
+    ]);
+    L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
+    return pausedUntil;
+  };
+
+  /**
+   * What the memory keeps after one: the pause where the receptionist actually
+   * spoke — real state, written wherever the memory lives — and this message
+   * id, which only the Blob copy has any use for. Without the second, a
+   * redelivery escalated and mailed the owner again for every one of Meta's
+   * retries.
+   */
+  const keepUnreadable = (t: ThreadState, pausedUntil: number, media: Promise<unknown>) =>
+    Promise.all([media, pausedUntil ? ports.store.save(ns, from, t) : rememberSeen(t), sink.processed()]);
+
+  if (!maySee && (n.type !== "text" || !n.body)) {
+    // sink.media() downloads the attachment from Meta and uploads it to
+    // storage. That ran above the acknowledgement — so someone who sent a voice
+    // note waited through two Graph round trips and a multi-megabyte upload, as
+    // much as ~23s of pure timeout, before being told we had seen it. Nothing
+    // in the ack depends on those bytes, so it joins the work at the end.
+    const media = sink.media(n);
+    const pausedUntil = await sayUnreadable(thread.pausedUntil);
+    if (pausedUntil) thread.pausedUntil = pausedUntil;
+    await keepUnreadable(thread, pausedUntil, media);
     return;
   }
   // Past the gate above, this is the customer's message as words — typed, or
@@ -434,7 +538,7 @@ export async function handleInbound(
   // For a photo the receptionist looks at, the words on record are the
   // caption, or the fact of the photo; what the MODEL is told is built beside
   // the image, in vision.ts, and never lands in an alert or the memory.
-  const bodyText: string = photo ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");
+  const bodyText: string = maySee ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");
 
   // Late, but somebody is still waiting.
   //
@@ -443,8 +547,8 @@ export async function handleInbound(
   // with backoff for days, so a fifteen-minute outage turned its entire
   // redelivery backlog into customers who wrote and were never answered, and
   // the only trace was one log line per message. The guard was written against
-  // webhook REPLAYS, and replays are already stopped by the dedupe gate below
-  // in both memory modes, so this only ever caught late FIRST deliveries.
+  // webhook REPLAYS, and replays are already stopped by the dedupe gate above
+  // in both memory modes, so this only ever catches late FIRST deliveries.
   //
   // Two ages, because the right answer changes with the delay. Inside the
   // reply horizon the customer is still in the conversation they started, and
@@ -454,16 +558,14 @@ export async function handleInbound(
   if (age === "stale") {
     await Promise.all([
       sink.escalate("stale", `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message"),
+      rememberSeen(thread),
       sink.processed(),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
     return;
   }
   if (age === "late") L.info("wa_late_but_answering", { age_ms: ageMs });
-
-  if (thread.seen.includes(m.id)) { L.info("wa_skip_dupe"); return; }
-  thread.seen.push(m.id);
 
   // A YES IS CONFIRMED, and in these words. Every recurring program owes the
   // person who opted in an immediate confirmation naming the program, the
@@ -482,12 +584,34 @@ export async function handleInbound(
   if (n.optIn || (n.optInMarketing && channel === "whatsapp")) {
     const purpose: SendPurpose = n.optInMarketing ? "marketing" : "conversational";
     const words = optInConfirmation(brainCfg?.business_name ?? rt?.known?.workspace?.name ?? "", purpose);
+    // Sent FIRST, and the memory written from what happened. The assistant turn
+    // used to be pushed and persisted before the send, and the send's outcome
+    // then dropped on the floor — so a confirmation the wire refused or could
+    // not deliver left the bot believing it had named the program, the
+    // frequency, the rates, HELP and STOP, and left nobody aware that the one
+    // message the carriers refused this campaign three times for missing had
+    // not reached the person who just said yes.
+    const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose);
     thread.history.push({ role: "user", content: bodyText });
-    thread.history.push({ role: "assistant", content: words });
+    if (confirmed.outcome === "sent") thread.history.push({ role: "assistant", content: words });
     await ports.store.save(ns, from, thread);
-    await send(words, { ack: true, confirmation: purpose });
+    if (confirmed.outcome !== "sent") {
+      // A yes nobody confirmed is the carriers' complaint, whether the wire
+      // failed or the door refused. A refusal is NOT quietly logged here the
+      // way it is on the reply path below: the reasons that can arrive at this
+      // send are all ones a person has to act on, and `no_marketing_consent` is
+      // the one to expect — the OFFERS answer is recorded best-effort a moment
+      // earlier and the door fails closed without it, so a consent write that
+      // did not land would otherwise leave a customer subscribed to nothing,
+      // told nothing, with a log line as the only trace.
+      const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
+      await Promise.all([
+        sink.escalate("send_failed", `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`),
+        tell(bodyText, `(the confirmation of their yes was not delivered — ${why})`, "opt-in not confirmed"),
+      ]);
+    }
     await sink.processed();
-    L.info("wa_opt_in_confirmed", { purpose, channel });
+    L.info("wa_opt_in_confirmed", { purpose, channel, sent: confirmed.outcome === "sent", why: confirmed.outcome === "sent" ? null : confirmed.reason });
     return;
   }
 
@@ -500,6 +624,11 @@ export async function handleInbound(
     return;
   }
   if (gate === "ratecap") {
+    // Kept in the memory, the way the thread pause above keeps it. Saving
+    // without the customer's words means that when the cap resets tomorrow the
+    // receptionist composes from a history that never contained "actually make
+    // it 3pm, not 2pm" — and confirms 2pm.
+    thread.history.push({ role: "user", content: bodyText });
     await ports.store.save(ns, from, thread);
     L.info("wa_skip_ratecap", { cap: maxRepliesDay, used: thread.replies.length });
     // A customer who hits the cap was being abandoned to a console line: no
@@ -509,7 +638,7 @@ export async function handleInbound(
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
       sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
-      ports.alertStaff(from, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap"),
       sink.processed(),
     ]);
     return;
@@ -524,11 +653,12 @@ export async function handleInbound(
   if (tokenCap > 0 && db && tenantId) {
     const used = await ports.budget.tokensLast24h(db, tenantId);
     if (used >= tokenCap) {
+      thread.history.push({ role: "user", content: bodyText });
       await ports.store.save(ns, from, thread);
       L.info("wa_skip_budget", { cap: tokenCap, used });
       await Promise.all([
         sink.escalate("budget", `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`),
-        ports.alertStaff(from, bodyText, "(no reply sent — the day's model budget is used up)", "budget", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+        tell(bodyText, "(no reply sent — the day's model budget is used up)", "budget"),
         sink.processed(),
       ]);
       return;
@@ -541,11 +671,15 @@ export async function handleInbound(
   // answered until the workspace resumes. Said the way the budget says it:
   // the escalation is the Inbox's row, the alert the owner's mail.
   if (rt?.paused) {
+    thread.history.push({ role: "user", content: bodyText });
     await ports.store.save(ns, from, thread);
-    L.info("wa_skip_paused");
+    // Its own name. This logged `wa_skip_paused`, the same event the THREAD
+    // pause above logs, so nothing reading the stream could tell a human
+    // taking one conversation over from a workspace-wide billing stop.
+    L.info("wa_skip_workspace_paused");
     await Promise.all([
       sink.escalate("paused", "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself."),
-      ports.alertStaff(from, bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused"),
       sink.processed(),
     ]);
     return;
@@ -558,35 +692,44 @@ export async function handleInbound(
   // window before sending, so the business can redirect the bot before the
   // customer sees it. It reaches the brain; what differs is the dispatch below.
   if (!brainCfg || (replyMode !== "auto" && replyMode !== "veto")) {
+    thread.history.push({ role: "user", content: bodyText });
     await ports.store.save(ns, from, thread);
     // A hold the owner chose for THIS person is its own reason: it is not a
     // workspace setting, and the Inbox should say "you handle this person",
     // not "held by policy". It also alerts ONCE per open hold rather than
     // once per message — the owner asked to handle this person themselves,
     // and a thread already in their Inbox does not need a second email.
-    const hold = holdCopy({ brainCfg, personMode, replyMode, configBroken: !!rt?.configBroken });
+    const hold = holdCopy({ brainCfg, personMode, replyMode, configBroken: !!rt?.configBroken, loadFailed: !!rt?.loadFailed });
     const outcome = await sink.escalate(hold.reason, hold.details);
     const alertNeeded = !hold.personHold || outcome !== "refreshed";
     await Promise.all([
-      ...(alertNeeded
-        ? [
-            ports.alertStaff(
-              from,
-              bodyText,
-              hold.botText,
-              hold.why,
-              notifyTarget,
-              pauseHours,
-              ing ? `inbox/th-${ing.conversation_id}` : "inbox",
-              n.profileName ?? null,
-              ing ? { type: "conversation", id: ing.conversation_id } : null,
-            ),
-          ]
-        : []),
+      ...(alertNeeded ? [tell(bodyText, hold.botText, hold.why)] : []),
       sink.processed(),
     ]);
-    L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken, escalation: outcome ?? "n/a", alerted: alertNeeded });
+    L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken, load_failed: !!rt?.loadFailed, escalation: outcome ?? "n/a", alerted: alertNeeded });
     return;
+  }
+
+  // THE BYTES, now that everything above has agreed there will be a reply.
+  // Every gate between here and the routing decision — the daily cap, the
+  // token budget, the billing pause, the mode in force — discards whatever the
+  // model would have been shown, so none of them should have paid for it.
+  let photo: { mime: string; base64: string } | null = null;
+  if (maySee) {
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      // Nothing to look at after all, and a caption is not an answer to a
+      // picture nobody saw: the same handoff the routing above would have given
+      // it, rather than a confident reply composed from the words alone.
+      L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+      const pausedUntil = await sayUnreadable(thread.pausedUntil);
+      if (pausedUntil) thread.pausedUntil = pausedUntil;
+      await keepUnreadable(thread, pausedUntil, Promise.resolve(null));
+      return;
+    }
   }
 
   let replyText: string;
@@ -619,6 +762,15 @@ export async function handleInbound(
           L.warn("lead_context_unavailable", { error: errField(e) });
         }
       }
+      // What is open, from the calendar feed, when the workspace has one.
+      // Cached for five minutes on the edge; a feed that cannot be read says
+      // nothing. Read HERE, beside the visits above and the one line below that
+      // consumes it — it used to be awaited at the top of the handler, so a
+      // short code, an off-allowlist sender, a STOP, a thumbs-up, a duplicate
+      // and a rate-capped message each paid an HTTP fetch and an ICS parse for
+      // a value none of them ever reads, and the ingest write that must never
+      // wait waited behind it.
+      const openings = rt ? await ports.calendar.openings(rt) : null;
       const tBrain = Date.now();
       const r = await generateReply(
         thread.history,
@@ -667,7 +819,19 @@ export async function handleInbound(
     escalate = fallback.escalate;
     escalationReason = fallback.escalationReason;
     L.error("wa_no_model");
-    if (db) await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
+    // Guarded, like every other external call on this path. pageOperator's own
+    // Supabase reads are not wrapped, so a fetch-level failure threw straight
+    // out of handleInbound: the workspace's greeting never went, nothing was
+    // marked processed, no escalation opened, and the route logged one line and
+    // answered 200 — so Meta never retried either. A PLATFORM notice must never
+    // be what costs a customer their reply.
+    if (db) {
+      try {
+        await ports.page({ db }, NO_MODEL_PAGE.key, NO_MODEL_PAGE.subject, NO_MODEL_PAGE.body);
+      } catch (e) {
+        L.error("wa_no_model_page_failed", { error: errField(e) });
+      }
+    }
   }
 
   // THE VETO WINDOW.
@@ -703,7 +867,11 @@ export async function handleInbound(
     confidence: brainMeta?.confidence ?? null,
     language: brainMeta?.language ?? null,
     latency_ms: brainMs,
-    held: heldForConfidence ? "low_confidence" : delayMs > 0 ? "veto_window" : null,
+    // What the reply actually did. This read `delayMs > 0` alone, so a reply
+    // whose hold could not be scheduled — sent to the customer immediately, a
+    // few lines below — was recorded as having waited, and the diagnostics that
+    // "read the day back from these" reported holds that never happened.
+    held: queued ? (heldForConfidence ? "low_confidence" : "veto_window") : null,
     escalate,
     photo: !!photo,
   };
@@ -717,7 +885,10 @@ export async function handleInbound(
   // Recorded per tenant on the event stream, so 'my veto window is not
   // working' has an answer that does not require reading lambda logs.
   if (delayMs > 0 && !queued) {
-    await sink.vetoFallback(delayMs);
+    // Named, because the confidence dial rides this same window: an owner with
+    // no veto window configured was shown `policy.veto_window_skipped` events
+    // for one and sent looking for a setting they had never turned on.
+    await sink.vetoFallback(delayMs, plan.source);
   }
   if (queued) {
     thread.history.push({ role: "user", content: bodyText });
@@ -731,7 +902,7 @@ export async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(ports.alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
+      post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
     }
     await Promise.all(post);
     await ports.store.save(ns, from, thread);
@@ -753,7 +924,7 @@ export async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(ports.alertStaff(from, bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
+      post.push(tell(bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", pauseHours));
     }
     await Promise.all(post);
     await ports.store.save(ns, from, thread);
@@ -771,7 +942,7 @@ export async function handleInbound(
     // The door wrote the failed row and its event; the people are told here.
     await ports.store.save(ns, from, thread);
     await Promise.all([
-      ports.alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      tell(bodyText, "(send failed — the customer received no reply)", "wa_send_failed"),
       sink.escalate("send_failed", sent.reason === "wire_unreadable"
         ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
         : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),

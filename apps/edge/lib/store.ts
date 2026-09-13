@@ -50,6 +50,26 @@ export interface ThreadState {
    * warm lambda. Each call now gets its own.
    */
   unknown?: boolean;
+  /**
+   * This state is Postgres's "I could not answer", not a thread. Set by
+   * persist.ts/pgMiss so the handler falls back to the Blob copy. A FIELD for
+   * the same reason `unknown` is one — see the note above it.
+   */
+  pgMiss?: boolean;
+  /**
+   * We have written to this person before, per Postgres.
+   *
+   * Advisory, and only the Postgres read sets it. It exists because the
+   * question "is this our first reply to them" — which decides whether a text
+   * carries the rates/STOP/HELP footer the campaign filing promises — was
+   * answered from the history, where a voice call note (an INBOUND row whose
+   * sender is "system") is mapped to an assistant turn: a customer who phoned
+   * and then texted for the first time was taken for someone we had already
+   * written to, and their first reply went out without the disclosure. Absent
+   * on the Blob path, where the history holds only what this handler wrote and
+   * so answers it correctly.
+   */
+  repliedBefore?: boolean;
 }
 
 const mem = new Map<string, ThreadState>();

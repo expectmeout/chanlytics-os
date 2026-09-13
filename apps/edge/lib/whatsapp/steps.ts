@@ -124,6 +124,13 @@ export function holdCopy(x: {
   personMode: string | null;
   replyMode: string;
   configBroken: boolean;
+  /**
+   * The control plane could not be READ (tenant-runtime's DR stub). A third
+   * state, because it is neither of the other two: a workspace with a perfectly
+   * good persona was being told it had none and sent to Settings to fix a
+   * database outage.
+   */
+  loadFailed?: boolean;
 }): { personHold: boolean; reason: "person_hold" | "policy_block"; details: string; botText: string; why: string } {
   const personHold = !!x.brainCfg && !!x.personMode;
   const details = x.brainCfg
@@ -132,11 +139,15 @@ export function holdCopy(x: {
       : `Reply mode is '${x.replyMode}' — the receptionist holds everything for a human.`
     : x.configBroken
       ? "This workspace's settings could not be read, so the receptionist stayed silent. The saved configuration has an invalid field."
-      : "No brain profile configured — the receptionist stays silent until Settings fills one in.";
+      : x.loadFailed
+        ? "This workspace's settings could not be reached just now, so the receptionist stayed silent rather than answer in a voice that might not be yours. Nothing is wrong with your configuration and nothing needs changing; the next message tries again."
+        : "No brain profile configured — the receptionist stays silent until Settings fills one in.";
   const botText = personHold ? "(held — you handle this person yourself)" : "(held — no auto-reply for this workspace)";
   const why = x.brainCfg
     ? personHold ? `this person is set to ${x.replyMode}` : `reply mode ${x.replyMode}`
-    : x.configBroken ? "settings could not be read" : "no persona configured";
+    : x.configBroken ? "settings could not be read"
+      : x.loadFailed ? "the workspace's settings could not be reached"
+        : "no persona configured";
   return { personHold, reason: personHold ? "person_hold" : "policy_block", details, botText, why };
 }
 

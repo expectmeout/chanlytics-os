@@ -44,7 +44,7 @@ const ingested = (n) => ({ message_id: "m-in", conversation_id: "conv1", contact
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   const memory = new Map();
-  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0 };
+  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0, media: 0, purposes: [] };
   const rt = over.rt ?? runtime();
   const ports = {
     db: () => fakeDb({}),
@@ -62,7 +62,12 @@ function world(over = {}) {
       ingest: over.ingest ?? (async (_db, _tenant, n) => ingested(n)),
       sink: (_db, _tenant, ing, _rt, channel) => ({
         on: !!ing,
-        deliver: async (to, body, meta) => { seen.sent.push({ to, body, meta: meta ?? null, channel }); return { outcome: "sent", messageId: "m-out", externalId: "wamid.out" }; },
+        deliver: async (to, body, meta, purpose) => {
+          seen.sent.push({ to, body, meta: meta ?? null, channel });
+          // The port's own default, mirrored: what reaches the door is what counts.
+          seen.purposes.push(purpose ?? "conversational");
+          return over.delivered ?? { outcome: "sent", messageId: "m-out", externalId: "wamid.out" };
+        },
         processed: async () => { seen.processed += 1; },
         allowlistSkip: async () => {},
         unreachableSender: async () => { seen.unreachable += 1; },
@@ -70,17 +75,19 @@ function world(over = {}) {
         pause: async (iso) => { seen.pauses.push(iso); },
         usage: async () => {},
         escalate: async (reason, details) => { seen.escalations.push({ reason, details }); return "opened"; },
-        media: async () => null,
+        media: async () => { seen.media += 1; return over.media ?? null; },
       }),
       queueReply: async () => false,
     },
-    alertStaff: async (thread, userText, botText, reason, _target, pauseHours, route, who) => { seen.alerts.push({ thread, userText, botText, reason, pauseHours, route, who }); },
+    alertStaff: async (thread, userText, botText, reason, ctx) => {
+      seen.alerts.push({ thread, userText, botText, reason, pauseHours: ctx.pausedHours ?? null, route: ctx.route, who: ctx.who, channel: ctx.channel });
+    },
     page: async (_ports, key, subject, body) => { seen.pages.push({ key, subject, body }); return "sent"; },
     sender: () => async () => ({ ok: true, wamid: "x", status: 200 }),
     brain: async () => { throw new Error("the model must not be reached in this test"); },
     env: { pgReads: false, pgDedupe: false, allowlist: "", modelKey: undefined, ...(over.env ?? {}) },
   };
-  const run = (m, extra = {}) => handleInbound(m, value, "t1", routed, false, false, null, { ...ports, ...extra });
+  const run = (m, extra = {}) => handleInbound(m, value, "t1", routed, !!over.isEnvDefault, false, over.carrier ?? null, { ...ports, ...extra });
   const thread = () => memory.get(`t1/${FROM}`);
   return { run, seen, thread };
 }
@@ -196,4 +203,203 @@ test("YES OFFERS is not the way back in from a STOP: an opted-out person gets no
   await w.run(text("START", "wamid.2"));
   assert.equal(w.seen.sent.length, 1);
   assert.equal(w.seen.sent[0].body, optInConfirmation("Harbor Nails", "conversational"));
+});
+
+/* -------------------------------------------------------------------------
+ * What the owner is told, and whether it is true.
+ * ---------------------------------------------------------------------- */
+
+test("a handoff names the wire the customer wrote on, and promises a pause only where one happened", async () => {
+  // The email hardcoded "WhatsApp" and hardcoded the pause, so an owner with
+  // both wires connected opened the wrong app, and one told "the receptionist
+  // is paused on this thread for 24h" by a branch that paused nothing replied
+  // at their leisure and was talked over by the bot's next reply.
+  const held = world({ rt: runtime({ policy: { reply: { mode: "ask", limits: {} } } }) });
+  await held.run(text("can I book Friday?"));
+  assert.equal(held.seen.alerts.length, 1);
+  assert.equal(held.seen.alerts[0].pauseHours, null, "'ask' never pauses the thread, so the email must not say it did");
+  assert.equal(held.seen.alerts[0].channel, "whatsapp");
+  assert.equal(held.seen.pauses.length, 0);
+
+  // The escalating reply DOES pause, and says so.
+  const paged = world();
+  await paged.run(text("hi"));
+  assert.equal(paged.seen.alerts[0].pauseHours, 24);
+  assert.equal(paged.seen.pauses.length, 1);
+
+  const sms = world({
+    carrier: { channel: "sms", send: async () => ({ ok: true, wamid: "s1", status: 200 }), body: (t) => t, held: null, consent: null },
+  });
+  await sms.run(text("are you open?"));
+  assert.equal(sms.seen.alerts[0].channel, "sms", "a text is not a WhatsApp message, and the owner opens the thread this names");
+});
+
+test("a redelivered pin drop escalates and emails once, not once per redelivery", async () => {
+  // Meta redelivers undelivered webhooks with backoff for days. The dedupe gate
+  // used to sit BELOW this branch, so on the memory path every redelivery
+  // re-opened the handoff and sent the owner another email.
+  const w = world();
+  const pin = { from: FROM, id: "wamid.loc", type: "location", timestamp: String(Math.floor(Date.now() / 1000)), location: { latitude: 25.7, longitude: -80.2 } };
+  await w.run(pin);
+  await w.run(pin);
+  assert.equal(w.seen.escalations.length, 1, "one escalation for one pin drop");
+  assert.equal(w.seen.alerts.length, 1, "and one email");
+  assert.equal(w.seen.sent.length, 0, "a pin drop is readable: no apology");
+});
+
+test("a redelivered STOP does not open the handoff twice", async () => {
+  const w = world();
+  await w.run(text("STOP"));
+  await w.run(text("STOP"));
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["opt_out"]);
+  assert.equal(w.seen.alerts.length, 1);
+});
+
+test("an acknowledgement that did not send neither pauses the thread nor is reported as sent", async () => {
+  // The outcome used to be discarded: a refusal or a failure at the wire still
+  // paused the receptionist for a day and still told the owner the customer had
+  // been acknowledged.
+  const w = world({ delivered: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: null, messageId: null } });
+  await w.run({ from: FROM, id: "wamid.vn", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a1", mime_type: "audio/ogg" } });
+  assert.equal(w.seen.sent.length, 1, "it was attempted");
+  assert.equal(w.seen.pauses.length, 0, "but nothing reached the customer, so the receptionist is not muted");
+  assert.equal(w.thread().pausedUntil, 0);
+  assert.equal(w.seen.alerts[0].pauseHours, null);
+  assert.match(w.seen.alerts[0].botText, /could not be sent/);
+  assert.match(w.seen.escalations[0].details, /could not be sent/);
+});
+
+test("an opt-in confirmation that did not send is not remembered as said, and somebody is told", async () => {
+  // The turn was pushed into the memory and persisted BEFORE the send, and the
+  // outcome then dropped — so the bot believed it had named the program, the
+  // frequency, the rates, HELP and STOP to somebody who heard nothing.
+  const w = world({ delivered: { outcome: "failed", reason: "provider", status: 500, errorBody: null, messageId: null } });
+  await w.run(text("START"));
+  assert.deepEqual(w.thread().history.map((h) => h.role), ["user"], "only what the customer actually said");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["send_failed"]);
+  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
+  assert.equal(w.seen.processed, 1, "the message is still handled");
+});
+
+test("a workspace whose settings could not be READ is not told it has no persona", async () => {
+  // loadTenantRuntime's DR stub carries loadFailed and no brain, so an outage
+  // read as "No brain profile configured" and sent the owner to Settings to fix
+  // a database blip.
+  const w = world({ rt: runtime({ brain: null, policy: {}, loadFailed: true }) });
+  await w.run(text("hi"));
+  assert.equal(w.seen.escalations.length, 1);
+  assert.match(w.seen.escalations[0].details, /could not be reached/);
+  assert.doesNotMatch(w.seen.escalations[0].details, /No brain profile configured/);
+  assert.equal(w.seen.alerts[0].reason, "the workspace's settings could not be reached");
+});
+
+test("the rate cap, the budget and a paused workspace all keep the customer's words", async () => {
+  // The thread pause above them pushed the turn; these three saved the thread
+  // without it, so when the cap reset the receptionist answered the message
+  // before the one it never saw.
+  const capped = world({ rt: runtime({ policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }) });
+  await capped.run(text("actually make it 3pm, not 2pm"));
+  assert.deepEqual(capped.seen.escalations.map((e) => e.reason), ["rate_cap"]);
+  assert.equal(capped.seen.sent.length, 0);
+  assert.ok(
+    capped.thread().history.some((h) => h.content === "actually make it 3pm, not 2pm"),
+    "the correction has to survive the cap, or tomorrow's reply confirms 2pm",
+  );
+
+  const paused = world({ rt: runtime({ paused: true }) });
+  await paused.run(text("are you open?"));
+  assert.deepEqual(paused.seen.escalations.map((e) => e.reason), ["paused"]);
+  assert.ok(paused.thread().history.some((h) => h.content === "are you open?"));
+});
+
+test("the pilot allowlist matches however the number is written", async () => {
+  // Meta delivers `from` as bare digits and the natural way to write the env
+  // var is the E.164 spelling with its "+", so a raw string compare matched
+  // nothing — including the tester the list was written for, whose messages
+  // were persisted, marked handled and never answered.
+  const spelt = world({ isEnvDefault: true, env: { allowlist: `+${FROM}` } });
+  await spelt.run(text("hi"));
+  assert.equal(spelt.seen.sent.length, 1, "the allowlisted tester is answered whichever spelling the env var uses");
+
+  const other = world({ isEnvDefault: true, env: { allowlist: "+13055550999" } });
+  await other.run(text("hi"));
+  assert.equal(other.seen.sent.length, 0, "and the list still gates everyone else");
+  assert.equal(other.seen.processed, 1, "recorded and marked handled, as before");
+});
+
+const photo = (id = "wamid.pic", caption = undefined) => ({
+  from: FROM, id, type: "image", timestamp: String(Math.floor(Date.now() / 1000)),
+  image: { id: "media-1", mime_type: "image/jpeg", ...(caption ? { caption } : {}) },
+});
+
+test("a workspace that will not answer never pays to download the photo", async () => {
+  // The fetch ran above the gates: an 8s metadata call, up to 25MB with a 15s
+  // timeout, a storage upload and a base64 of the whole buffer — paid in full
+  // and then discarded by the branch that discovered billing had stopped.
+  const vision = { features: { vision: true } };
+  const paused = world({ rt: runtime({ ...vision, paused: true }) });
+  await paused.run(photo());
+  assert.deepEqual(paused.seen.escalations.map((e) => e.reason), ["paused"]);
+  assert.equal(paused.seen.media, 0, "nothing was downloaded for a reply that was never going to happen");
+
+  const capped = world({ rt: runtime({ ...vision, policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }) });
+  await capped.run(photo());
+  assert.deepEqual(capped.seen.escalations.map((e) => e.reason), ["rate_cap"]);
+  assert.equal(capped.seen.media, 0);
+
+  // And a workspace that WILL answer still gets its bytes.
+  const live = world({ rt: runtime(vision) });
+  await live.run(photo());
+  assert.equal(live.seen.media, 1);
+});
+
+test("a photo the receptionist meant to read and could not is handed over, never answered from the caption", async () => {
+  // The fetch used to sit above the routing, so a failed one fell into the
+  // unreadable branch through `!photo`. Below the gates that accident is gone
+  // and the handoff has to be said out loud — otherwise the model answers a
+  // question about a picture nobody saw.
+  const w = world({ rt: runtime({ features: { vision: true } }), media: null });
+  await w.run(photo("wamid.pic2", "is this shade too dark?"));
+  assert.equal(w.seen.media, 1, "it was attempted");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["non_text"]);
+  assert.equal(w.seen.alerts[0].reason, "non-text message");
+  assert.equal(w.seen.processed, 1);
+  assert.equal(w.seen.sent.length, 1, "only the canned acknowledgement");
+  assert.deepEqual(w.seen.sent[0].meta, { ack: true });
+});
+
+test("an unreadable attachment still reaches storage, and a redelivery of it does not escalate twice", async () => {
+  const w = world();
+  const note = { from: FROM, id: "wamid.vn2", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a2", mime_type: "audio/ogg" } };
+  await w.run(note);
+  assert.equal(w.seen.media, 1, "the attachment is stored even though nobody may look at it");
+  await w.run(note);
+  assert.equal(w.seen.escalations.length, 1);
+  assert.equal(w.seen.alerts.length, 1);
+});
+
+test("the confirmation of a YES OFFERS names itself marketing at the door, and everything else is a reply", async () => {
+  // The sink stamped every send "conversational", so the one genuinely
+  // marketing message this handler writes reached the door claiming to be a
+  // reply — and the two rules that exist for it, the marketing yes and offers
+  // never going by text, were never asked.
+  const w = world();
+  await w.run(text("hi"));
+  await w.run(text("START", "wamid.2"));
+  await w.run(text("YES OFFERS", "wamid.3"));
+  assert.deepEqual(w.seen.purposes, ["conversational", "conversational", "marketing"]);
+});
+
+test("a confirmation the door refuses reaches a person, not just the log", async () => {
+  // `no_marketing_consent` is the one to expect: the OFFERS answer is recorded
+  // best-effort a moment earlier and the door fails closed without it, so a
+  // consent write that did not land would leave a customer subscribed to
+  // nothing and told nothing.
+  const w = world({ delivered: { outcome: "refused", reason: "no_marketing_consent", messageId: null } });
+  await w.run(text("YES OFFERS"));
+  assert.deepEqual(w.thread().history.map((h) => h.role), ["user"], "nothing is remembered as said");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["send_failed"]);
+  assert.match(w.seen.escalations[0].details, /no_marketing_consent/);
+  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
+  assert.equal(w.seen.processed, 1);
 });

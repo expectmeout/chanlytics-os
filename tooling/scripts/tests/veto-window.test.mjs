@@ -168,7 +168,7 @@ test("a configured veto window that did not happen is RECORDED, not just logged"
   // workspace asked to see its receptionist's words before the customer did,
   // and instead the customer got them first. A log line nobody reads is how a
   // setting quietly becomes a lie.
-  assert.match(edge, /if \(delayMs > 0 && !queued\) \{[\s\S]{0,120}?sink\.vetoFallback\(/);
+  assert.match(edge, /if \(delayMs > 0 && !queued\) \{[\s\S]{0,400}?sink\.vetoFallback\(/);
   assert.match(sink, /policy\.veto_window_skipped/);
 });
 

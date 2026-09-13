@@ -3680,6 +3680,17 @@ interface PgThreadState {
     seen: string[];
     pausedUntil: number;
     replies: number[];
+    /**
+     * Anything has ever LEFT on this conversation, at any time, from anyone.
+     *
+     * `history` cannot answer this: a voice call note is an inbound row whose
+     * sender is "system" and assembleHistory maps every non-customer sender to
+     * an assistant turn, so a customer who only ever phoned looks like one we
+     * have written to. `replies` cannot either — it is a 24h window, and it
+     * counts only the machine. The A2P footer on a first text reply is decided
+     * by this, so it is computed from what actually went out.
+     */
+    repliedBefore: boolean;
 }
 /**
  * A conversation's turns, as the model should see them.

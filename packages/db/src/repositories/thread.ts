@@ -32,6 +32,17 @@ export interface PgThreadState {
   seen: string[];
   pausedUntil: number;
   replies: number[];
+  /**
+   * Anything has ever LEFT on this conversation, at any time, from anyone.
+   *
+   * `history` cannot answer this: a voice call note is an inbound row whose
+   * sender is "system" and assembleHistory maps every non-customer sender to
+   * an assistant turn, so a customer who only ever phoned looks like one we
+   * have written to. `replies` cannot either — it is a 24h window, and it
+   * counts only the machine. The A2P footer on a first text reply is decided
+   * by this, so it is computed from what actually went out.
+   */
+  repliedBefore: boolean;
 }
 
 /** Outbound rows only count as memory once they actually left. A canceled or
@@ -144,9 +155,17 @@ export async function readThreadState(
   if (replies.error) throw new Error(`readThreadState/replies: ${replies.error.message}`);
 
   const history = assembleHistory((recent.data ?? []) as never, historyLimit);
+  // From the rows already in hand, so this costs no extra round trip: an
+  // outbound row that actually left is the only proof that we have written to
+  // this person before.
+  const repliedBefore = (recent.data ?? []).some(
+    (m: { direction?: string | null; status?: string | null }) =>
+      m.direction === "outbound" && DELIVERED.includes(String(m.status)),
+  );
 
   return {
     history,
+    repliedBefore,
 
     seen: [],
     pausedUntil: pausedUntilIso ? new Date(pausedUntilIso).getTime() : 0,
