@@ -1,4 +1,4 @@
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, parseParamSpec, purposeOfTemplate, renderTemplate, resolveParams, type ParamSpec } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, OUTCOME_UNKNOWN, firstNameOf, parseParamSpec, purposeOfTemplate, renderTemplate, resolveParams, type ParamSpec } from "@chanlytics/contracts";
 import type { BroadcastBatchCommand, BroadcastBatchPorts, ContactRow } from "./ports";
 
 /**
@@ -71,7 +71,10 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // reschedules the rest), the batch reads the row rather than sending twice:
     // they got it, and the recipient row now says so.
     const prior = await ports.alreadySent(b.id, c.id);
-    if (prior) { await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior }); continue; }
+    // Their row records when the message actually LEFT, not when this run
+    // noticed it had: the broadcast's page lists its people in that order, and
+    // a resumed run stamping "now" on an hour-old send reorders the whole list.
+    if (prior) { await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt }); continue; }
     // The thread this send belongs to. Which yes this message needs, the
     // pause, and the workspace's status are the door's to re-read at the
     // wire, below — the one place a stale answer cannot be taken back.
@@ -89,6 +92,18 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     });
     if (params.some((v) => !v)) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }
     const words = renderTemplate(tpl.body_preview, params);
+    // CLAIM THIS PERSON BEFORE THE WIRE IS TOUCHED. deliver records a
+    // broadcast's message only once the provider has accepted it, so a run
+    // killed in between leaves no message row: `alreadySent` above finds
+    // nothing, this row still says 'queued', and the resumed run sends the same
+    // template to the same person a second time — the one thing a broadcast
+    // must never do, and the thing the whole SPEAKS_TO_A_PERSON rule exists to
+    // prevent. Written first, the row says "a run was mid-send here and nobody
+    // knows how it went", and a moment later it is overwritten with the truth.
+    // The trade is deliberate: it risks one person who WOULD have been sent to
+    // and now is not, in the gap between two adjacent writes, to close a gap
+    // the width of a call to Meta — and between those two, never twice wins.
+    await ports.mark(b.id, r.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN });
     // The door. It asks the one predicate with this template's purpose — a
     // promotional send needs the yes to offers, an appointment reminder the
     // yes to conversation — and it asks at the wire, whatever the route found
@@ -130,6 +145,6 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   await ports.finish(b.id, { sent, held });
   await ports.alert(
     `Broadcast “${b.name}” sent`,
-    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`,
+    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`,
   );
 }

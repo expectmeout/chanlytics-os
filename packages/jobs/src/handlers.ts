@@ -252,17 +252,23 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       alreadySent: async (id, contactId) => {
         const row = must("broadcast_send: cannot check what this person was already sent", await db
           .from("messages")
-          .select("id")
+          .select("id, created_at")
           .eq("tenant_id", job.tenant_id)
           .eq("contact_id", contactId)
           .filter("meta->>broadcast_id", "eq", id)
           .in("status", ["sent", "delivered", "read"])
           .limit(1)
           .maybeSingle());
-        return row?.id ?? null;
+        // created_at is written by the same statement that records the send, so
+        // it is when the message left, which is what the recipient's row wants.
+        return row ? { id: row.id, sentAt: row.created_at } : null;
       },
+      // `sent_at` comes from the patch when the caller knows it — a resumed run
+      // reading the message a dying run left knows when it actually went out,
+      // and stamping "now" instead would reorder the broadcast's own page.
       mark: async (id, contactId, patch) => {
-        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? new Date().toISOString() : null }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
+        const sentAt = patch.sent_at ?? (patch.state === "sent" ? new Date().toISOString() : null);
+        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),

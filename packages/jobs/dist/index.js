@@ -14398,6 +14398,7 @@ function renderTemplate(body, params) {
     return typeof v === "string" && v !== "" ? v : m;
   });
 }
+var OUTCOME_UNKNOWN = "outcome_unknown";
 var LIMIT_TIERS22 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -19595,7 +19596,7 @@ async function sendBroadcastBatch(ports, cmd) {
     }
     const prior = await ports.alreadySent(b.id, c.id);
     if (prior) {
-      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior });
+      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
       continue;
     }
     const target = await ports.target(c.phone_e164);
@@ -19616,6 +19617,7 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     const words = renderTemplate(tpl.body_preview, params);
+    await ports.mark(b.id, r.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN });
     const out = await ports.deliver({
       tenantId: cmd.tenantId,
       conversationId: target.conversationId,
@@ -19650,7 +19652,7 @@ async function sendBroadcastBatch(ports, cmd) {
   await ports.finish(b.id, { sent, held });
   await ports.alert(
     `Broadcast \u201C${b.name}\u201D sent`,
-    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`
+    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
   );
 }
 
@@ -24640,11 +24642,15 @@ async function broadcastSend(ctx, job) {
       // the same person, so a read that FAILED must never come back as "no,
       // they have not been messaged".
       alreadySent: async (id, contactId) => {
-        const row = must("broadcast_send: cannot check what this person was already sent", await db.from("messages").select("id").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle());
-        return row?.id ?? null;
+        const row = must("broadcast_send: cannot check what this person was already sent", await db.from("messages").select("id, created_at").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle());
+        return row ? { id: row.id, sentAt: row.created_at } : null;
       },
+      // `sent_at` comes from the patch when the caller knows it — a resumed run
+      // reading the message a dying run left knows when it actually went out,
+      // and stamping "now" instead would reorder the broadcast's own page.
       mark: async (id, contactId, patch) => {
-        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
+        const sentAt = patch.sent_at ?? (patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null);
+        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: sentAt }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
       remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),

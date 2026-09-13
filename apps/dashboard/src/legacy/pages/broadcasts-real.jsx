@@ -104,7 +104,11 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
         {rest.length > 0 && (
           <div className="bc-detail-group">
             <div className="cl-prof-rail-label">Not there yet · {rest.length}</div>
-            {rest.map((r) => <Person key={r.contact_id} r={r} words={r.state === "failed" ? ((heldReasons || {}).send_failed || "WhatsApp refused") : "queued"} />)}
+            {/* The row's OWN reason, as the held-back group above already does.
+                Hardcoding send_failed here told everyone in this group that
+                WhatsApp refused them -- including the people a run was killed
+                mid-send for, who were never offered to WhatsApp at all. */}
+            {rest.map((r) => <Person key={r.contact_id} r={r} words={r.state === "failed" ? ((heldReasons || {})[r.reason] || (heldReasons || {}).send_failed || "WhatsApp refused") : "queued"} />)}
           </div>
         )}
       </div>
