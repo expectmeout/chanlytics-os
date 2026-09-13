@@ -465,7 +465,14 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
     // Google revokes the grant for a client/user pair, not one token of it, so
     // handing this refresh token back would kill the credentials the restored
     // row runs on -- destroying the connection by the other route.
-    if (!restored || prior.data!.google_sub !== claims.sub) await net(revokeRequest(grant.refresh_token)).catch(() => null);
+    // `claims.sub` is null whenever the id_token was missing or unparsable, and
+    // "unknown" is not "different": `"sub-1" !== null` would revoke the grant
+    // the row we just restored runs on, which is precisely the outage this
+    // guard exists to prevent. Not knowing means leaving it alone -- a grant
+    // left live costs nothing a person cannot undo; a dead one costs them the
+    // connection.
+    const otherAccount = claims.sub != null && prior.data?.google_sub !== claims.sub;
+    if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   await emitEvent(db, tenantId, "google.connected", "google", "listing", null, { email: claims.email, accounts: new Set(locations.map((l) => l.account_name)).size, locations: locations.length, on_maps: onMaps.length, by: userId }).catch(() => {});

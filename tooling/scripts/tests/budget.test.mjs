@@ -67,16 +67,16 @@ test("the caller's cap stops the read, because the only question is whether it i
   assert.equal(reads(db), 1, "it stopped at the first page rather than reading the day out to prove a number nobody compares");
 });
 
-test("rows written WHILE the day is being read are never counted twice", async () => {
-  // The defect newest-first paging has: rows inserted between two pages shift
-  // the window down, so the next OFFSET re-reads rows already summed and
-  // skips the ones it was meant to reach. Oldest-first, an append lands past
-  // the end and the offsets already read do not move.
+test("rows written WHILE the day is being read are counted once — in the NEXT read, not twice in this one", async () => {
+  // `events` is append-only and replies write to it while this reads. With an
+  // open-ended window every mid-read insert moves the rows after it, and the
+  // next OFFSET either re-reads rows already summed or steps over rows never
+  // summed. Naming the upper end before the first page freezes the set.
   //
-  // The arriving replies cost a HUNDRED times the ones already on record, so
-  // counting the wrong rows cannot come out to the right total by luck: read
-  // correctly this is 1000x2 + 500x200; newest-first it re-reads five hundred
-  // of the originals instead and lands on 3000.
+  // The arriving replies cost a HUNDRED times the ones on record, so a wrong
+  // window cannot come out to the right total by luck: counted correctly this
+  // is the thousand on record and nothing else; re-reading five hundred of
+  // them lands on 3000, and sweeping in the arrivals lands on 102 000.
   const rows = usage(1000);
   const db = fakeDb({ events: rows });
   const realFrom = db.from.bind(db);
@@ -89,15 +89,19 @@ test("rows written WHILE the day is being read are never counted twice", async (
       const b = select(...a);
       const then = b.then.bind(b);
       b.then = (res, rej) => then((r) => {
-        // A busy afternoon: five hundred replies land while page one is in flight.
-        if (++pages === 1) rows.push(...usage(500, 100, 5000));
+        // Five hundred replies land while page one is in flight, stamped NOW
+        // the way a real insert is — after the moment this read fixed its end.
+        if (++pages === 1) {
+          const at = new Date(Date.now() + 1000).toISOString();
+          rows.push(...Array.from({ length: 500 }, (_, i) => ({ id: `late-${i}`, tenant_id: T, kind: "usage.llm_tokens", created_at: at, data: { input_tokens: 100, output_tokens: 100 } })));
+        }
         return res(r);
       }, rej);
       return b;
     };
     return q;
   };
-  assert.equal(await tokensLast24h(db, T), 102_000, "every row once: the thousand on record, and the five hundred that genuinely arrived");
+  assert.equal(await tokensLast24h(db, T), 2000, "the thousand on record, each once; the arrivals belong to the next read");
   assert.equal(pages, 2);
 });
 
@@ -115,4 +119,21 @@ test("the summary describes the day without reading it twenty times over", async
 test("a read that fails counts as zero rather than silencing a receptionist", async () => {
   const db = fakeDb({ events: usage(10) }, { "events.select": { message: "statement timeout" } });
   assert.equal(await tokensLast24h(db, T), 0, "a budget must never stop a reply by accident");
+});
+
+test("a summary that hits its bound describes the NEWEST of the window, not the oldest", async () => {
+  // The diagnostics panel is opened to see what is happening now. Paged
+  // oldest-first, the rows that fall off its bound are the recent ones — so a
+  // latency spike or a burst of vetoes, which is the whole reason somebody is
+  // looking, is the first thing to go missing.
+  //
+  // 5001 events, with the marks on the two ends: the summary's bound is 5000,
+  // so exactly one row is dropped and which one it is says which end it read.
+  const rows = usage(5001);
+  rows[0].data = { ...rows[0].data, held: "veto_window" };          // the oldest
+  rows[5000].data = { ...rows[5000].data, held: "low_confidence" }; // the newest
+  const s = await brainSummary(fakeDb({ events: rows }), T);
+  assert.equal(s.replies, 5000, "bounded, as it is meant to be");
+  assert.equal(s.held_low_confidence, 1, "the newest event is in the picture");
+  assert.equal(s.held_veto, 0, "and the one that fell off the end is the oldest");
 });

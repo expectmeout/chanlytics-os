@@ -41,17 +41,26 @@ function num(v: unknown): number {
  * for: past a thousand replies a day, `max_llm_tokens_day` could not be
  * reached however much the workspace spent.
  *
- * Ordered by `created_at` AND `id`, ASCENDING. Both halves matter, and the
- * direction is the subtle one: `events` is append-only and this reads it while
- * replies are still writing to it, so with newest-first every row inserted
- * between two pages shifts the whole window down by one and the next OFFSET
- * re-reads rows already counted -- a sum that grows with how busy the
- * workspace is while being read, tripping the very cap it feeds. Oldest-first,
- * new rows land past the end and the offsets already read do not move. The
- * unique tiebreak then settles equal timestamps, which offset paging also
- * needs and which `created_at` alone cannot give.
+ * Bounded at BOTH ends, which is what makes offset paging safe here. `events`
+ * is append-only and this reads it while replies are still writing to it, so
+ * an open-ended window shifts under the reader: a row inserted between two
+ * pages moves every row after it, and the next OFFSET either re-reads rows
+ * already counted or steps over rows never counted. Naming the upper end once,
+ * before the first page, freezes the set being read -- and a frozen set can be
+ * paged in whichever direction is useful.
+ *
+ * Which is NEWEST-first, and that half is not cosmetic either. Both callers
+ * want the recent end: the budget stops as soon as the day's cap is reached,
+ * and the summary describes the last 24 hours on a diagnostics page. Paged
+ * oldest-first, a summary that stops at its bound describes the OLDEST events
+ * of the window -- so a latency spike or a burst of vetoes, which is the whole
+ * reason somebody opens that page, is the first thing to fall off it.
+ *
+ * `id` breaks ties, which offset paging needs and `created_at` alone, not
+ * being unique, cannot give.
  */
 async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null, since: string, cap = ROW_CAP): AsyncGenerator<UsageRow[]> {
+  const until = new Date().toISOString();
   for (let from = 0; from < cap; from += MAX_ROWS) {
     const size = Math.min(MAX_ROWS, cap - from);
     let q = db
@@ -59,8 +68,9 @@ async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null
       .select("created_at, data")
       .eq("kind", "usage.llm_tokens")
       .gte("created_at", since)
-      .order("created_at", { ascending: true })
-      .order("id", { ascending: true })
+      .lte("created_at", until)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .range(from, from + size - 1);
     if (tenantId) q = q.eq("tenant_id", tenantId);
     const { data, error } = await q;
@@ -89,7 +99,12 @@ async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, 
  * `stopAt` is the caller's cap, and it is what keeps this one round trip on
  * the workspaces that fit in a page while still being right on the ones that
  * do not: the only question asked is "is the day's budget used up", so the
- * paging stops the moment the answer is yes. Left out, the whole day is read.
+ * paging stops the moment the answer is yes, and newest-first is what makes
+ * that soon. A workspace comfortably UNDER its cap still has its day read out
+ * to know so, which is a page per thousand replies -- bounded by ROW_CAP and
+ * logged at it, but genuinely more work than the single truncated read this
+ * replaced. Summing in the database, over the same events, is what would make
+ * it one round trip again, and is the right next change here.
  */
 export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: string, stopAt = Number.POSITIVE_INFINITY): Promise<number> {
   try {

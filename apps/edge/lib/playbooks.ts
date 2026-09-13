@@ -25,6 +25,14 @@ import {
 import { feedItemsFor } from "./availability.js";
 import { readAllRows } from "./paged.js";
 
+/**
+ * How far back a touch can still hold somebody back: the longest gap a
+ * playbook may set (365 days, check-playbook.ts), plus the week's breath.
+ */
+const TOUCH_WINDOW_MS = (365 + 7) * 24 * 3600 * 1000;
+/** Ids per recipients query: they ride in the URL, which is not unbounded. */
+const RUN_IDS_PER_QUERY = 200;
+
 type BroadcastRow = { id: string; playbook_id: string | null; state: string; scheduled_for: string | null; created_at: string };
 type TouchRow = { broadcast_id: string; contact_id: string; state: string; sent_at: string | null };
 
@@ -66,12 +74,29 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     // Every broadcast, not only the playbooks' runs: a message sent by hand is
     // a touch too, and the week's breath is one message per person across all
     // of them. byThis (the gap) still keys on the playbook that sent it.
+    //
+    // Bounded by TIME, not by luck. Nothing older than the longest gap a
+    // playbook may set can hold anybody back, so reading further is work for
+    // nothing -- and the ids come back to be listed in the recipients query
+    // below, where an unbounded set is a URL no proxy will accept.
+    //
+    // The failure is CAUGHT to an error rather than to null: `null` reads as
+    // "no past broadcasts", which empties the touch history and re-messages
+    // everyone it can no longer see -- the exact defect the paging was added
+    // for, arrived at from the other side.
     readAllRows<BroadcastRow>("broadcasts", (from, to) =>
-      db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).order("id").range(from, to),
-    ).catch(() => null),
+      db
+        .from("broadcasts")
+        .select("id, playbook_id, state, scheduled_for, created_at")
+        .eq("tenant_id", tenantId)
+        .gte("created_at", new Date(now.getTime() - TOUCH_WINDOW_MS).toISOString())
+        .order("id")
+        .range(from, to),
+    ).then((data) => ({ data, error: null as string | null }), (e: unknown) => ({ data: null, error: e instanceof Error ? e.message : String(e) })),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (pErr) return { error: pErr.message };
+  if (pastRuns.error) return { error: `broadcasts: ${pastRuns.error}` };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
   if (tenant?.status === "paused") return { error: "paused" };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
@@ -83,7 +108,7 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
   // playbooks due the same hour never both pick the same person. A run that
   // was canceled or failed touched nobody. A broadcast the owner sent by hand
   // counts for the breath (byAny) and for no playbook's gap.
-  const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");
+  const runs = (pastRuns.data ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");
   const runIds = runs.map((b) => b.id);
   const ofRun = new Map(runs.map((b) => [b.id, b]));
   if (runIds.length) {
@@ -99,16 +124,25 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     // said so.
     let touched: TouchRow[];
     try {
-      touched = await readAllRows<TouchRow>("broadcast_recipients", (from, to) =>
-        db
-          .from("broadcast_recipients")
-          .select("broadcast_id, contact_id, state, sent_at")
-          .in("broadcast_id", runIds)
-          .in("state", ["sent", "queued"])
-          .order("broadcast_id")
-          .order("contact_id")
-          .range(from, to),
-      );
+      // Asked in batches. Every id rides in the QUERY STRING, so one list of
+      // them is a URL that grows with the workspace until a proxy refuses it
+      // and this workspace is skipped every tick, silently, for ever.
+      touched = [];
+      for (let i = 0; i < runIds.length; i += RUN_IDS_PER_QUERY) {
+        const batch = runIds.slice(i, i + RUN_IDS_PER_QUERY);
+        touched.push(
+          ...(await readAllRows<TouchRow>("broadcast_recipients", (from, to) =>
+            db
+              .from("broadcast_recipients")
+              .select("broadcast_id, contact_id, state, sent_at")
+              .in("broadcast_id", batch)
+              .in("state", ["sent", "queued"])
+              .order("broadcast_id")
+              .order("contact_id")
+              .range(from, to),
+          )),
+        );
+      }
     } catch (e) {
       // Never "assume nobody was touched": that is the reading that messages
       // people twice, which is the defect the paging was added for.
