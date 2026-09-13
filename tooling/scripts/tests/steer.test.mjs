@@ -42,35 +42,9 @@ test("one writer for a held draft, used by the handler and the steer", () => {
   assert.ok(!wa.includes('status: "queued",'), "the handler no longer writes the draft row itself");
 });
 
-test("the steer endpoint: the door, the draft's state, new before old, the price rule, the rollback", () => {
-  const s = readCode("apps/edge/api/admin/steer.ts");
-  assert.ok(s.includes('authorizeAdmin(request, "/api/admin/steer")'));
-  assert.ok(s.includes('if (m.sender !== "ai" || m.status !== "queued") return json(409, { ok: false, error: "not_a_held_draft" });'));
-  assert.ok(s.includes("readThreadState(db, m.tenant_id, m.conversation_id, null)"), "the same memory the reply was written from");
-  assert.ok(s.includes("frameSteer(text),"), "the instruction rides as the brain's steer block");
-  assert.ok(s.includes('return json(409, { ok: false, error: "policy_block_price" });'), "a rewrite that quotes a price leaves the original draft alone");
-  const queued = s.indexOf("const newId = await queueDraft(");
-  const retired = s.indexOf('.update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })');
-  assert.ok(queued > 0 && retired > queued, "the new draft is queued before the old one is retired");
-  assert.ok(s.includes('reason: lost ? "steer_lost_race" : "steer_rolled_back"'), "and taken back if the old one could not be retired");
-  assert.ok(s.includes('cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id)'));
-  assert.ok(s.includes('source: "steered",') && s.includes("extra: { steer: text, steered_from: m.id, escalate: r.escalate },"));
-
-  // Counted, not merely attempted: the model takes seconds, and a draft the
-  // tick sent in those seconds makes the retire match no rows and report no
-  // error, leaving the rewrite to go out behind it.
-  const retire = s.slice(s.indexOf('.update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })'));
-  assert.ok(retire.slice(0, 200).includes('.select("id")'), "the update reports the rows it touched");
-  assert.ok(s.includes("if (cancelErr || !retired?.length) {"), "zero rows is the race, not a success");
-  assert.ok(s.includes('json(409, { ok: false, error: "already_sent" })'), "and the rewrite is taken back rather than sent behind the reply");
-  // And it goes out on the wire the draft it replaces was written for.
-  assert.ok(s.includes('const channel: "whatsapp" | "sms" = m.channel === "sms" ? "sms" : "whatsapp";'));
-  assert.ok(s.includes(".select(\"id, tenant_id, conversation_id, contact_id, sender, status, meta, channel\")"), "the draft's channel is read");
-  assert.ok(s.includes('.eq("kind", channel)'), "the tenant's channel is resolved by the draft's kind, not always WhatsApp");
-  assert.ok(s.includes("    channel,\n"), "and the rewrite is queued on it");
-  assert.ok(!s.includes('error: "no_whatsapp_channel"'), "a texting-only workspace can steer too");
-  for (const forbidden of ["sendText(", "waSendText("]) assert.ok(!s.includes(forbidden), "nothing is sent from here");
-});
+// The steer endpoint -- the door, the draft's state, the memory and the frame
+// the brain is handed, new before old, the price rule, the race and the
+// rollback, the draft's own wire -- is run in steer-door.test.mjs.
 
 test("the dashboard route keeps its doors and records the decision only after the rewrite happened", () => {
   const r = readCode("apps/dashboard/app/api/v1/messages/[id]/steer/route.ts");

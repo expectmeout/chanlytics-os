@@ -44,14 +44,8 @@ test("the adapter speaks update-live-call exactly, and returns the status instea
   }
 });
 
-test("the edge takes the words behind the diag key and logs their length, never them", () => {
-  const edge = readCode("apps/edge/api/admin/whisper.ts");
-  assert.ok(edge.includes('authorizeAdmin(request, "/api/admin/whisper")'));
-  assert.ok(edge.includes("updateLiveCall("));
-  assert.ok(edge.includes("chars: text.length"));
-  assert.ok(!/console\.log\([^)]*\btext\b[^)]*\)/.test(edge.replace("chars: text.length", "")), "the operator's words stay out of the log");
-  assert.ok(edge.includes("text.length > MAX_CHARS"));
-});
+// The edge door -- the knock, the words to the provider framed, their length
+// in the log and never them -- is run in whisper-door.test.mjs.
 
 test("the route proves visibility, then the role door, then the provider — and records the decision last", () => {
   const route = readCode("apps/dashboard/app/api/v1/calls/[id]/whisper/route.ts");

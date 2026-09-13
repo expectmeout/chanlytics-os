@@ -20,7 +20,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
-import { readCode, readRaw } from "./_source.mjs";
+import { readRaw } from "./_source.mjs";
 
 const SQL = readRaw("supabase/migrations/00087_which_table_owns_a_number.sql");
 
@@ -59,15 +59,7 @@ test("number_drift() is silent about the states that are fine and loud about the
   assert.ok(fn.includes("revoke execute on function public.number_drift() from public, anon, authenticated;") || SQL.includes("revoke execute on function public.number_drift() from public, anon, authenticated;"));
 });
 
-test("/api/diag reads it, so agreement is something an operator can see", () => {
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes('await db.rpc("number_drift")'));
-  assert.ok(diag.includes("out.numbers = { ok: rows.length === 0, drift: rows };"), "empty means agreement");
-  // readCode strips comments, so the reason an empty list is the RIGHT answer
-  // is asserted on the raw file -- it is the one thing a future reader needs
-  // before deciding this check is broken because it never fires.
-  assert.ok(readRaw("apps/edge/api/diag.ts").includes("legitimately has none"), "and says why an empty list is the expected answer");
-});
+// /api/diag reading number_drift(), with an empty list as agreement, is run in diag-door.test.mjs.
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

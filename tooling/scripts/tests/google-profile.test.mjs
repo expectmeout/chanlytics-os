@@ -271,10 +271,9 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
   assert.ok(lib.includes('.eq("origin", "places");'), "the public five make way for the profile");
   assert.ok(lib.includes("{ reviews: carriesReviews }"), "with the profile connected the public read keeps only the numbers");
   assert.ok(lib.includes("creds.expires_at - TOKEN_SLACK_MS > now"), "a token is refreshed before it expires");
-  const admin = readCode("apps/edge/api/admin/google.ts");
-  for (const op of ['op === "connect"', 'op === "locations"', 'op === "choose"', 'op === "disconnect"', 'op === "reply"']) assert.ok(admin.includes(op), op);
-  assert.ok(admin.includes("const loc = r.locations.find((l) => l.account_name === accountName && l.name === locationName);"), "a choice is proven against Google's list");
-  assert.ok(admin.includes("if (conn.data) await disconnectProfile(db, tenantId);"), "unlinking the listing disconnects the profile first");
+  // The door's profile half -- connect, locations, choose (proven against
+  // Google's list), disconnect, reply, and unlink disconnecting first -- runs
+  // in google-door.test.mjs.
   // The sweep's half -- connected profiles due are synced, forty a tick, a
   // rejected credential written on the row -- runs in cron-doors-b.test.mjs.
   const env = readRaw("apps/edge/.env.example");

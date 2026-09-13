@@ -173,12 +173,6 @@ test("a copy given up on stops waking the edge, and the copy's own bound agrees"
   assert.ok(lib.includes('settle(exhausted ? "failed" : "pending"'));
 });
 
-test("the diagnostic reports what the agent is configured to send", () => {
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes("out.voiceAgents"));
-  assert.ok(diag.includes('includes("transcript_updated")'), "live transcript is the setting this page depends on");
-});
-
 test("the Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in'", () => {
   const src = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
   assert.ok(src.includes("Math.floor((Date.now() - c.ts) / 1000)"));

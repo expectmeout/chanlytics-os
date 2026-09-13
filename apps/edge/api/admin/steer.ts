@@ -36,7 +36,19 @@ const log = {
   error: (event: string, fields: Record<string, unknown> = {}) => console.error(event, JSON.stringify(fields)),
 };
 
-export async function POST(request: Request): Promise<Response> {
+/**
+ * The model as a port. Production passes nothing and gets the real brain; a
+ * test hands in an answer, because lib/brain.ts speaks to the Anthropic SDK
+ * and has no seam of its own. Anything else that may arrive in this position
+ * carries no generateReply and changes nothing. BOTH branches are run in
+ * tooling/scripts/tests/steer-door.test.mjs: most cases hand a brain in, and
+ * the last three call POST the way Vercel calls it and watch the real brain
+ * reach the model.
+ */
+export interface BrainPort { generateReply?: typeof generateReply }
+
+export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+  const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
   if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
@@ -108,7 +120,7 @@ export async function POST(request: Request): Promise<Response> {
   const t0 = Date.now();
   let r: Awaited<ReturnType<typeof generateReply>>;
   try {
-    r = await generateReply(
+    r = await ask(
       thread.history,
       lastUser.content,
       resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known),

@@ -20,15 +20,16 @@ import { voiceLlmCreateBody, voiceAgentCreateBody, VOICE_AGENT_DEFAULTS, greetin
 import { readRaw } from "./_source.mjs";
 
 const module_ = readRaw("packages/channels/src/voice-provision.ts");
-const endpoint = readRaw("apps/edge/api/admin/voice-provision.ts");
 const llm = voiceLlmCreateBody({ fnSecret: "s" });
 
 test("no business fact is written into provisioning", () => {
   // Anything you would be tempted to add here as text is a fact, and facts
-  // belong in Settings where the owner can see and change them.
+  // belong in Settings where the owner can see and change them. The endpoint
+  // sends this package's bodies byte for byte (run in voice-doors.test.mjs),
+  // so what is held here holds for what reaches the provider.
   const facts = ["9:30", "Pitkin", "Booksy", "booksy", "646-932", "Melany", "Brooklyn", "Beauty Academy", "balayage"];
   for (const f of facts) {
-    assert.ok(!module_.includes(f) && !endpoint.includes(f), `"${f}" is a fact and must not live in provisioning`);
+    assert.ok(!module_.includes(f), `"${f}" is a fact and must not live in provisioning`);
   }
 });
 
@@ -58,8 +59,9 @@ test("a second business is another request, not another copy of anything", () =>
 });
 
 test("the key is never written down", () => {
-  assert.ok(endpoint.includes("process.env.RETELL_API_KEY") && endpoint.includes("process.env.RETELL_FN_SECRET"));
-  assert.ok(!/key_[0-9a-f]{16}/.test(module_) && !/key_[0-9a-f]{16}/.test(endpoint), "no literal Retell key");
+  // The endpoint reading both from the environment -- and refusing without
+  // either -- is run in voice-doors.test.mjs.
+  assert.ok(!/key_[0-9a-f]{16}/.test(module_), "no literal Retell key");
 });
 
 /* --------------------------- the greeting variable ------------------------ */

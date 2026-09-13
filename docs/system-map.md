@@ -2,7 +2,8 @@
 
 Where this system is today, layer by layer, and what is between here and done.
 
-Measured against the tree on **13 September 2026** (`6a1725d`). Every count in
+Measured against the tree on **13 September 2026**, first at `6a1725d` and re-measured at
+`9cda33d` after the day's work (see *What moved on 13 September*, below). Every count in
 this document was taken from the code, not from a plan — the plan documents in
 `docs/plans/` describe intent at the moment they were written and several of
 them shipped without being re-ticked, so their checkboxes are the one signal
@@ -54,7 +55,7 @@ it separately and never folds it into the gap.
 | **Schema & tenancy** | 118 migrations, 42 tables, RLS on all 42, 91 functions. | — | Complete; 4 consistency nits |
 | **App plane (`/api/v1`)** | 124 handlers, every one declaring scope / role / rate / spend. 0 undeclared. | — | Complete |
 | **Operator surfaces** | 22 real, 6 deferred by decision, 2 retired, 1 fall-through default. | Every surface a paying customer can reach shows real data or says it is not built. | Complete — *and never walked end to end* |
-| **Quality & CI** | 229 test files, 1,854 tests, 0 failing. Two required checks. | The live path is executed, not read as text; a green PR means something. | **The second-largest gap** |
+| **Quality & CI** | 250 test files, 2,027 tests, 0 failing. Two required checks. | The live path is executed, not read as text; a green PR means something. | **Was the second-largest gap; mostly closed** |
 | **Observability** | 17 clocks registered and judged; deadman, sweeps, operator paging. | — | Complete; 4 alerts lack a consequence |
 | **Commercial** | Stripe live end to end. Signup, onboarding, back office shipped. | — | One dead end: the waitlist |
 
@@ -145,7 +146,7 @@ own row — correct.
 
 Four consistency nits, none of them a live leak:
 
-1. **Four deny-all tables do not revoke their grants.** `billing_events`, `jobs`,
+1. ~~**Four deny-all tables do not revoke their grants.**~~ **Closed 13 September** (`f9a7b00`; **applied to production 13 September**. The file is `00119_the_floor_is_uniform.sql` on this branch and was renumbered to `00120` when it landed, because the branch it stacked on added a `00119` of its own). `billing_events`, `jobs`,
    `platform_admins` and `sweep_status` have RLS on and no policy, which denies
    everything — but they never `revoke all ... from anon, authenticated`, so
    Supabase's default privileges leave both roles nominally holding
@@ -153,7 +154,7 @@ Four consistency nits, none of them a live leak:
    sibling tables do belt-and-brace it: `operator_pages` (`00105:26`),
    `waitlist` (`00088:46`), `rate_hits` (`00059:14`). **The inconsistency is the
    finding**, not the exposure — four one-line migrations closes it.
-2. **Eight policies omit the `TO` clause** and so default to `TO PUBLIC`, which
+2. ~~**Nine policies omit the `TO` clause**~~ **Closed 13 September** (the same migration; the first census said eight — it missed `invitations_member_read`). and so default to `TO PUBLIC`, which
    includes `anon` (`00012:71,73,105,107`; `00029:15,24`; `00033:18`;
    `00073:39`). Not a leak — every predicate keys on `auth.uid()`, which is NULL
    for `anon` and matches zero rows — but off-pattern from the other 64.
@@ -236,8 +237,8 @@ estimates, not commitments, and neither is on the path to 100%.
 
 This is the layer where the numbers look best and the reality is weakest.
 
-**The numbers.** 229 test files. `pnpm test` with no credentials: **1,854 tests,
-1,740 pass, 114 skip, 0 fail.** 35 Playwright spec files, 141 tests.
+**The numbers.** 250 test files. `pnpm test` with no credentials: **2,027 tests,
+1,913 pass, 114 skip, 0 fail.** 35 Playwright spec files, 141 tests.
 
 **The reality.** 1,039 of those assertions are `readCode`/`readRaw` source scans
 — they read a file as text and assert a string is in it. A source scan proves the
@@ -253,10 +254,15 @@ distribution is the problem:
 | `apps/edge/lib` | Good — 31 of 52 executed |
 | `packages/contracts` | Good — invoked by 152 test files through its entry point |
 | the legacy-bridge | Weak — 12 of 39 executed; the two most-pinned modules in the whole repo (`surface-data.ts`, `LegacyApp.tsx`) are text-only, and this is the exact seam every "fabricated data" bug has lived in |
-| **`apps/edge/api` handlers** | **Worst, and it is the live path.** 41 handlers; **5 are ever executed.** 33 are pinned by text only — including `whatsapp.ts`, `retell-webhook.ts`, `inbound-sms.ts`, `jobs/tick.ts` and all 8 crons. 3 are touched by nothing at all. |
+| **`apps/edge/api` handlers** | **Was the worst layer; now among the best.** 41 handlers; **30 execute** (was 5). 8 are still pinned by text — `whatsapp.ts`, `inbound-sms.ts`, `jobs/tick.ts`, `retell-inbound.ts`, `retell-fn.ts`, `retell-availability.ts`'s `POST`, and two retired doors. 3 are touched by nothing. |
 
-That last row is the finding. The path a real customer's message travels is the
-least-executed layer in the system.
+That last row *was* the finding: on the morning of 13 September the path a real
+customer's message travels was the least-executed layer in the system. By that
+evening 30 of the 41 handlers ran under test — the Retell webhook, the lines
+door, all eight cron sweeps and seventeen back-office doors — and the eight
+that remain are exactly the ones whose work was not commissioned: the WhatsApp
+door, the SMS door, the job tick and the two other Retell doors. Their plans
+are written and their briefs are ready.
 
 **What CI does not cover:**
 
@@ -271,12 +277,17 @@ least-executed layer in the system.
 - **`database.yml` is not a required check.** Its own header says branch
   protection requires Secret scan and Typecheck only — so a red migrations replay
   does not block a merge.
-- **`packages/db/src/database.types.ts` is the one unguarded generated artifact.**
-  `ci.yml:61-63` is a *comment describing a freshness check that was never
-  implemented*. No test references the file, no `--check` script covers it, and
-  `eslint.config.mjs:58` ignores it outright. Practical exposure: an added column
-  fails typecheck the moment code uses it, but a **dropped or retyped** column
-  stays in the types, typechecks clean, and fails in production.
+- ~~**`packages/db/src/database.types.ts` is the one unguarded generated
+  artifact.**~~ **Closed 13 September** (`97f803f`). `ci.yml:61-63` was a
+  *comment describing a freshness check that was never implemented*; the check
+  now exists — `tooling/scripts/check-db-types.mjs`, run in `database.yml`
+  against the database the migrations replay, ignoring exactly one line
+  (`PostgrestVersion`, which the generator reads off the running PostgREST) and
+  exiting 2 when the CLI cannot be reached, so a check that cannot run never
+  passes. **Its first CI run landed green on [#460](https://github.com/expectmeout/chanlytics-os/pull/460)** — the step is
+  unconditional in the workflow, so a green job is the check passing, and the
+  committed types do match the replayed migrations. Still owed: one deliberate
+  red, to see the check fail on purpose.
 - No coverage instrumentation, no dependency audit, no SAST beyond eslint and
   gitleaks, no migration linter, no rollback test. Playwright is Chromium-only.
 - `pnpm check:dist` is wired to `package.json:10` and called by nothing — a
@@ -329,6 +340,31 @@ no mechanism, anywhere, to invite them.
 
 ---
 
+## What moved on 13 September
+
+Twelve commits, all on `claude/admiring-albattani-s9j8x9`, each written by an
+implementer and then attacked by two independent adversarial reviewers —
+mutation probes against the handler for the fidelity lens, a hygiene lens for
+everything else — and fixed until both passed. Nine fix rounds in all; the
+reviewers caught, among other things, a pin whose replacement was vacuous, a
+guard that was not load-bearing, and a production seam whose default branch —
+the one production actually takes — nothing exercised.
+
+| | Before | After |
+|---|---|---|
+| `apps/edge/api` handlers executing under test | 5 of 41 | **30 of 41** |
+| Source-text pins on those handlers | 100 | **19** (8 handlers, all uncommissioned or retired) |
+| Tests in the suite | 1,854 | **2,027** |
+| Source-scan reads across the suite | 1,039 | **960** |
+| Generated artifacts with no freshness check | 1 | **0** |
+| Policies applying to `PUBLIC` | 9 | **0** (after `db push`) |
+
+Two things found along the way that are not yet fixed, both recorded rather
+than quietly absorbed: five admin doors answer a `null` JSON body with a 500
+where a 400 belongs (the body is parsed, becomes `null`, and the next property
+read throws), and a pre-existing test had a clock bomb that began failing at
+16:00 UTC that day on every branch — defused in `43b010d`.
+
 ## The distance to 100%, in order
 
 Ordered by what actually stands between the product and done. Effort figures are
@@ -338,14 +374,14 @@ estimates.
 |---|---|---|---|
 | 1 | **Walk gate 9** — signup → first answered call, on production, as a new user with a phone in hand | The only launch gate with an empty state cell. Nine gates were defined; eight shipped. Nobody has ever walked the real product with fresh eyes, and its own PRD calls it "the highest-information hour available before launch." Everything below this list may be reordered by what that hour finds. | ~1 day |
 | 2 | **The SMS carrier verdict** | The single largest functional gap, and mostly not ours to close. Five refusals, no sixth verdict. Every line of code behind it is written and tested. | Blocked externally |
-| 3 | **Execute the edge handlers** | 33 of 41 handlers on the live customer path are pinned by text and never run. `apps/dashboard/app/api/v1` already proves the pattern works — 82 route modules invoked against a fake database. The same treatment applied to `whatsapp.ts`, `inbound-sms.ts`, `retell-webhook.ts`, `jobs/tick.ts` and the 8 crons would move the weakest layer to the strongest. **Approved 13 Sep** — plan: `docs/plans/2026-09-13-the-edge-handlers-run.md` (eight sessions, A–H). | 1–2 weeks |
-| 4 | **Guard `database.types.ts`** | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Approved 13 Sep** — plan: `docs/plans/2026-09-13-the-generated-types-are-guarded.md` (one session). | ~half day |
+| 3 | **Execute the edge handlers** | 33 of 41 handlers on the live customer path are pinned by text and never run. `apps/dashboard/app/api/v1` already proves the pattern works — 82 route modules invoked against a fake database. The same treatment applied to `whatsapp.ts`, `inbound-sms.ts`, `retell-webhook.ts`, `jobs/tick.ts` and the 8 crons would move the weakest layer to the strongest. **Approved 13 Sep; six of eight sessions done that day** — the Retell webhook, the lines door, all eight crons and seventeen back-office doors now execute (41 pins deleted). **Left:** the WhatsApp door, the SMS door + job tick, and the two other Retell doors — plan: `docs/plans/2026-09-13-the-edge-handlers-run.md`, tasks A, B and D. | ~3 days left |
+| 4 | **Guard `database.types.ts`** | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Done 13 Sep** (`97f803f`); first CI run green on #460. | done |
 | 5 | **An e2e spec for the conversation thread** | The product's central surface has no browser test. Reply, take-over, escalation resolution, the message lifecycle. | 2–3 days |
-| 6 | **Make `database.yml` a required check** | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Approved 13 Sep** — plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md` (one session; the setting flip is Ruben's). | ~1 hour |
+| 6 | **Make `database.yml` a required check** | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Approved 13 Sep, not yet done** — plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md`; the final setting flip is yours. | ~1 hour |
 | 7 | **Automate the `events` partition** | It can wedge permanently and self-perpetuatingly, with up to 35 days of detection lag, and the remediation is manual. Alert on `events_default` row count; add a partition-level purge. | 1–2 days |
 | 8 | **Set `EDGE_CALL_SECRET`** and delete the 4 retired endpoints | One shared key currently opens 22 admin doors; four deployed doors have no caller. | ~half day |
 | 9 | **Drain the waitlist** | People are joining a list nothing reads. | 1–2 days |
-| 10 | **The four `revoke` migrations and the eight `TO authenticated` clauses** | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Approved 13 Sep** — plan: `docs/plans/2026-09-13-the-tenancy-floor-is-uniform.md` (one session, one migration). | ~2 hours |
+| 10 | **The four `revoke` migrations and the eight `TO authenticated` clauses** | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Done 13 Sep** (`f9a7b00` — nine clauses, not eight); replayed green in CI and applied to production the same day, as `00120` after a renumber. | ~2 hours |
 | 11 | **Add `next build` to CI** | A build failure should not first appear on Vercel. | ~1 hour |
 
 Not on this list, deliberately: outbound calling, email as a channel, and the six
@@ -367,7 +403,7 @@ receptionist product being complete.
 - **The mockup's unbuilt half.** Six surfaces, deferred by a recorded decision to
   after 100%. Counting them as debt would report the product as permanently
   incomplete against a target nobody set.
-- **Test *count*.** 1,854 passing tests is not 1,854 proofs. Where it matters,
+- **Test *count*.** 1,913 passing tests is not 1,913 proofs. Where it matters,
   this map counts what executes.
 
 ## Keeping this map true
