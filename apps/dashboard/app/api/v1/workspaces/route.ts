@@ -95,9 +95,20 @@ export const GET = read({
     }
 
     const preferred = new URL(_req.url).searchParams.get("workspace");
-    const active = await memberContext(ctx, preferred, { defaultAllowed: true }).catch(() =>
-      preferred ? memberContext(ctx, null, { defaultAllowed: true }) : Promise.reject(new Error("no workspace")),
-    );
+    // A STALE PREFERENCE, and nothing else. memberContext throws two things:
+    // an AppError("not_found") when the named workspace is not one of this
+    // account's -- someone was removed from the workspace their tab remembers,
+    // which is the degradation this fallback is for -- and a plain Error when
+    // the memberships read itself failed. Catching both sent a momentary read
+    // failure to the OLDEST membership instead, and the client echoes
+    // activeWorkspaceId back on every later call: the operator would be working
+    // in a different business's inbox with nothing on screen saying so. A
+    // rejection that is not the stale preference is re-thrown with its own
+    // cause, rather than replaced by a bare "no workspace" behind a 500.
+    const active = await memberContext(ctx, preferred, { defaultAllowed: true }).catch((e: unknown) => {
+      if (!preferred || !(e instanceof AppError) || e.code !== "not_found") throw e;
+      return memberContext(ctx, null, { defaultAllowed: true });
+    });
     return {
       workspaces: data,
       // Which workspace everything else on this page is scoped to. The client

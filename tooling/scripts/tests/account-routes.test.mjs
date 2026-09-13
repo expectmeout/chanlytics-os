@@ -81,6 +81,12 @@ test("where you are: every workspace with who is signed in; the active one by me
   assert.deepEqual([bayside.activeWorkspaceId, bayside.user.role], [B, "owner"], "the role describes the workspace being viewed");
   const stale = await workspaces.GET.run(get(`?workspace=${C}`), ctxFor(tables, {}, { is_platform_admin: () => false }));
   assert.equal(stale.activeWorkspaceId, A, "a workspace this person was removed from degrades to their default");
+  // ...and ONLY that. A memberships read that FAILED is not a stale preference:
+  // degrading it would put this session in the oldest membership, which the
+  // client then echoes back as ?workspace= on every later call -- an operator
+  // working in a different business's inbox with nothing on screen saying so.
+  const blind = { supabase: fakeDb(tables, { "memberships.select": { message: "statement timeout" } }), userId: USER, email: "ada@example.com", params: {} };
+  await assert.rejects(workspaces.GET.run(get(inB), blind), /statement timeout/, "the real cause, not a fallback and not a bare \"no workspace\"");
   const admin = await workspaces.GET.run(get(), ctxFor(tables, {}, { is_platform_admin: () => true }));
   assert.equal(admin.user.platform_admin, true, "the nav's one bit rides along");
   const nowhere = await workspaces.GET.run(get(), ctxFor({ memberships: [], tenants: [], profiles: [] }, {}, { is_platform_admin: () => false }));

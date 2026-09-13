@@ -114,3 +114,13 @@ export const POST = write({
     return { results, submitted: count("submitted"), existing: count("exists"), synced: count("synced"), failed: count("failed") };
   },
 });
+
+/**
+ * Seven starters in two languages is up to fourteen round trips to Meta, taken
+ * one at a time because `syncTemplates` below runs once for the whole batch and
+ * because Meta rate-limits template creation per account. Serial is the right
+ * shape; what it needs is room, which the platform default (well under a
+ * minute) does not give it -- and a run killed at the ceiling loses the reply
+ * describing the templates it really did submit.
+ */
+export const maxDuration = 60;
