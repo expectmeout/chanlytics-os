@@ -19,7 +19,7 @@ import {
 } from "../workspace/db.js";
 import type { Database, Json } from "../workspace/db.js";
 import { upsertEscalation, type EscalationOutcome } from "../workspace/jobs.js";
-import { deliverSafely, type Delivered, type Wire } from "../workspace/core.js";
+import { deliverSafely, type Delivered, type SendKind, type Wire } from "../workspace/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../draft-queue.js";
 import type { BrainMeta, SendPurpose } from "../workspace/contracts.js";
@@ -98,12 +98,12 @@ export async function queueReply(
   brainMeta?: BrainMeta,
   /** The wire the draft will go out on. */
   channel: "whatsapp" | "sms" = "whatsapp",
-): Promise<boolean> {
+): Promise<string | null> {
   if (!db || !tenantId || !ing) {
     L.warn("wa_queue_unavailable", {
       has_db: !!db, has_tenant: !!tenantId, has_ingest: !!ing,
     });
-    return false;
+    return null;
   }
   // One writer for a held draft (lib/draft-queue.ts): the steer endpoint
   // queues the same row and the same job when an owner has one rewritten.
@@ -112,7 +112,7 @@ export async function queueReply(
     { tenantId, conversationId: ing.conversation_id, contactId: ing.contact_id, toPhone, body, delayMs, source, brainMeta, channel },
     L,
   );
-  return !!id;
+  return id;
 }
 
 /** The ingest write itself failed. The message is NOT recorded, and the provider must be told so it retries. */
@@ -207,13 +207,16 @@ export function pgSink(
      * marketing yes, and offers never going by text) were never asked. The
      * default is the honest one for everything else the receptionist says.
      */
-    deliver: (to: string, text: string, meta?: Record<string, Json>, purpose: SendPurpose = "conversational"): Promise<Delivered> =>
+    deliver: (to: string, text: string, meta?: Record<string, Json>, purpose: SendPurpose = "conversational", kind?: SendKind): Promise<Delivered> =>
       on
         ? deliverSafely(
             { db: db!, wire },
             {
               tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
               to, channel, sender: "ai", purpose, proactive: false,
+              // What the send is, when it is not the receptionist answering:
+              // an opt-in confirmation is a system message, owed whoever holds the thread.
+              ...(kind ? { kind } : {}),
               body: text, ...(meta ? { meta } : {}),
             },
           )
@@ -253,8 +256,9 @@ export function pgSink(
               reason: "scheduling_failed",
             } as Json))
         : Promise.resolve(),
-    pause: (iso: string) =>
-      on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso)) : Promise.resolve(),
+    /** The thread handed to a person; its held drafts go with it, all but the one this handoff queued. */
+    pause: (iso: string, keepMessageId?: string) =>
+      on ? pgSafe("pause", () => pauseConversation(db!, tenantId!, ing!.conversation_id, iso, { keepMessageId })) : Promise.resolve(),
     /** Tokens in and out, and the quality signal beside them (intent,
      *  confidence, latency, whether it waited or handed off). */
     usage: (u: Record<string, unknown>) =>

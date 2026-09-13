@@ -177,7 +177,7 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(h.includes(".limit(limit);") && BROADCAST_CHUNK === 25);
   assert.ok(h.includes('.select("meta_status, body_preview, category")'), "the category is selected: it decides which yes the send needs");
   assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "the person's row still carries what the run needs");
-  assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: id });'), "the next batch is one more row, as this tenant");
+  assert.ok(h.includes('await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });'), "the next batch is one more row, as this tenant, now unless the batch stalled");
   assert.ok(h.includes('kind: "broadcast.sent"'));
   // Not one port answers from a read whose error it dropped. Every one of them
   // is a question the run then acts on, and `{ data }` alone turns a read that
@@ -224,8 +224,16 @@ test("the job's ports fail CLOSED: a read that did not happen never answers 'not
   assert.deepEqual(sent, [], "and nobody is told WhatsApp rejected a template it did not reject");
 
   // The one check between a resumed run and a second template to the same
-  // person: null here is "they have not been messaged yet".
-  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "messages.select": blip })), job), /already sent/);
+  // person: null here is "they have not been messaged yet". It is read once
+  // for the whole batch, and a read that fails leaves the whole batch queued:
+  // nobody is sent, nobody is marked, and the next batch waits rather than spin.
+  const m = world();
+  const later = [];
+  await dispatchJob({ ...ctx(fakeDb(m, { "messages.select": blip })), schedule: async (kind, dueAt) => later.push([kind, dueAt]) }, job);
+  assert.deepEqual(m.messages, [], "nothing is sent over a read that did not happen");
+  assert.equal(m.broadcast_recipients[0].state, "queued", "and nobody is marked as reached");
+  assert.equal(later.length, 1, "the batch is tried again");
+  assert.ok(later[0][0] === "broadcast_send" && later[0][1].getTime() > Date.now(), "a while later, not this second");
 
   // An empty business name is not a fallback: it fills a slot with nothing, and
   // the verb marks everyone in the batch permanently "missing_value".

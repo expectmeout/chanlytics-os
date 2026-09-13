@@ -4989,7 +4989,7 @@ async function recordEchoAndPause(db, p) {
   });
   if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
 }
-async function pauseConversation(db, tenantId, conversationId, pausedUntilIso) {
+async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
   if (error) {
     console.error("pause_conversation_failed", conversationId, error.message);
@@ -4999,6 +4999,10 @@ async function pauseConversation(db, tenantId, conversationId, pausedUntilIso) {
     console.error("pause_conversation_noop", conversationId);
     return false;
   }
+  let withdraw = db.from("messages").update({ status: "canceled", error: { reason: "superseded_by_human" } }).eq("conversation_id", conversationId).eq("tenant_id", tenantId).eq("sender", "ai").eq("status", "queued");
+  if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
+  const { error: wErr } = await withdraw;
+  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
   return true;
 }
 async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, data = {}) {

@@ -41,7 +41,7 @@ export interface AssemblePorts {
 export interface AssembleCommand { broadcast: NewBroadcast; recipients: NewRecipient[]; sendAt: Date | null }
 export type Assembled =
   | { ok: true; id: string }
-  | { ok: false; id: string | null; failure: "run_not_created" | "recipients_write_failed" | "schedule_failed"; error: string };
+  | { ok: false; failure: "run_not_created" | "recipients_write_failed" | "schedule_failed"; error: string };
 
 /* ---- The playbook's run ---- */
 
@@ -90,7 +90,7 @@ export type RunOutcome =
   | { outcome: "failed"; error: string };
 
 export interface RunPlaybookPorts extends AssemblePorts {
-  /** The template as Meta has it now, by name and language; null when gone. */
+  /** The template as Meta has it now, by name and language; null when gone. Throws when it cannot be read: unreadable is not withdrawn. */
   template(name: string, language: string): Promise<{ meta_status: string | null } | null>;
   /** Whether a run for this local day was already made (the unique index's fact, read first). */
   alreadyRan(playbookId: string, runFor: string): Promise<boolean>;
@@ -140,8 +140,8 @@ export interface CreateBroadcastCommand { userId: string; body: unknown; now: Da
 export interface ApproveRunPorts {
   /** The business's clock, for the hours a send may go out in. */
   timezone(): Promise<string>;
-  /** pending_approval → scheduled, only while pending. True iff a row changed. */
-  release(broadcastId: string): Promise<boolean>;
+  /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
+  release(broadcastId: string, at: Date): Promise<boolean>;
   /** Back to waiting, when the job could not be made. */
   hold(broadcastId: string): Promise<void>;
   schedule(broadcastId: string, at: Date): Promise<void>;

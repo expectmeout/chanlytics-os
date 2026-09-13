@@ -14420,6 +14420,9 @@ function parseParamSpec(raw) {
   }
   return null;
 }
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
 function firstNameOf(displayName, waProfileName) {
   const raw = (displayName || waProfileName || "").trim();
   if (!raw || /^[+\d(]/.test(raw)) return null;
@@ -19381,6 +19384,11 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
+function kindOf(d) {
+  if (d.kind) return d.kind;
+  if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
+  return d.messageId ? "draft" : "answer";
+}
 async function wireFacts(db, d) {
   const { data, error } = await db.from("conversations").select("paused_until, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
@@ -19396,39 +19404,39 @@ function refusalFor(d, f, nowMs) {
   if (f.contact.erased_at) return "erased";
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
-  if (!may.ok) return may.reason ?? "opted_out";
-  if (d.sender === "human" && !d.proactive) return null;
+  if (!may.ok) return may.reason;
+  const kind = kindOf(d);
+  if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
   const { data: mine, error: mineErr } = await db.from("messages").select("created_at").eq("id", d.messageId).eq("tenant_id", d.tenantId).maybeSingle();
   if (mineErr) throw new Error(`deliver: cannot read message ${d.messageId}: ${mineErr.message}`);
   if (!mine) return null;
-  const { data: newer, error } = await db.from("messages").select("id").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).limit(1);
+  const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  return newer && newer.length > 0 ? newer[0].id : null;
+  const spoke = (newer ?? []).find((m) => m.meta?.source !== "broadcast");
+  return spoke ? spoke.id : null;
 }
-async function event(db, d, kind, messageId, data) {
-  await db.from("events").insert({
-    tenant_id: d.tenantId,
-    kind,
-    category: "message",
-    subject_type: "message",
-    subject_id: messageId,
-    data
-  });
+function event(db, d, kind, messageId, data) {
+  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+}
+async function stampThread(db, d, nowMs) {
+  const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
+  if (error) console.error("deliver_stamp_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }));
 }
 async function finalizeQueued(db, d, patch) {
-  const { data } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
+  const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
+  if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
 async function deliver(ports, d) {
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const refusal = refusalFor(d, facts, nowMs);
-  const overtakenBy = !refusal && d.sender === "ai" && d.messageId ? await overtakenByHuman(ports.db, d) : null;
+  const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
   if (reason) {
     if (d.messageId) {
@@ -19448,10 +19456,15 @@ async function deliver(ports, d) {
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, { body: d.body, template: d.template });
   if (sent.ok) {
     if (d.messageId) {
-      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} });
-      if (!marked) await event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid });
-      await ports.db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId);
-      await event(ports.db, d, "message.sent", d.messageId, { sender: d.sender });
+      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} }).catch((e) => {
+        console.error("deliver_finalize_failed", JSON.stringify({ tenant: d.tenantId, message: d.messageId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+        return null;
+      });
+      await Promise.all([
+        marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
+        stampThread(ports.db, d, nowMs),
+        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
+      ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
     const messageId2 = await recordOutbound(ports.db, {
@@ -19532,8 +19545,10 @@ async function sendQueued(ports, cmd) {
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
     await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
   }
-  await ports.escalate(p.conversation_id, "send_failed", `Dashboard reply could not be delivered (HTTP ${out.status}).`);
-  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`);
+  const cause = out.reason === "no_credentials" ? "the WhatsApp number is not connected" : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : `HTTP ${out.status}`;
+  const receptionist = msg.sender === "ai";
+  await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
+  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
 }
 async function eraseBlobThread(ports, cmd) {
   const p = cmd.payload;
@@ -19555,6 +19570,16 @@ async function provisionLine(ports, cmd) {
   const r = await ports.provision(lineId, by);
   if (!r.ok) throw new Error(`line_provision: stopped at ${r.step ?? "?"}: ${r.error ?? "unknown"}`);
 }
+var BROADCAST_STALL_RETRY_MS = 6e4;
+function wireIsDown(out) {
+  return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || out.reason === "provider" && (out.status === 401 || out.status === 403);
+}
+var ThrownAtTheDoor = class {
+  error;
+  constructor(error) {
+    this.error = error;
+  }
+};
 async function sendBroadcastBatch(ports, cmd) {
   const b = await ports.broadcast(cmd.broadcastId);
   if (!b) return;
@@ -19564,7 +19589,7 @@ async function sendBroadcastBatch(ports, cmd) {
     await ports.alert(`Broadcast \u201C${b.name}\u201D not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again.");
     return;
   }
-  if (b.state === "scheduled") await ports.startSending(b.id);
+  if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
@@ -19572,37 +19597,47 @@ async function sendBroadcastBatch(ports, cmd) {
     return;
   }
   const purpose = purposeOfTemplate(tpl.category);
-  const specs = Array.isArray(b.params) ? b.params.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+  const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
-  let begun = 0;
-  for (const r of batch) {
-    if (begun > 0 && ports.now() >= cmd.deadline) break;
-    begun += 1;
-    let c;
+  const ids = batch.map((r) => r.contact_id);
+  let people = /* @__PURE__ */ new Map();
+  let priors = /* @__PURE__ */ new Map();
+  let unreadable = false;
+  if (ids.length > 0) {
     try {
-      c = await ports.contact(r.contact_id);
+      [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
     } catch (e) {
-      console.error("broadcast_contact_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
-      continue;
+      unreadable = true;
+      console.error("broadcast_batch_unreadable", b.id, e instanceof Error ? e.message : String(e));
     }
+  }
+  let begun = 0;
+  let marked = 0;
+  const mark = async (contactId, patch) => {
+    marked += 1;
+    await ports.mark(b.id, contactId, patch);
+  };
+  const skip = (contactId, reason) => mark(contactId, { state: "skipped", reason });
+  const one = async (r) => {
+    const c = people.get(r.contact_id) ?? null;
     if (!c || c.erased_at) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "erased" });
-      continue;
+      await skip(r.contact_id, "erased");
+      return "go on";
     }
     if (!c.phone_e164) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
-      continue;
+      await skip(r.contact_id, "no_phone");
+      return "go on";
     }
-    const prior = await ports.alreadySent(b.id, c.id);
+    const prior = priors.get(c.id) ?? null;
     if (prior) {
-      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
-      continue;
+      await mark(r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
+      return "go on";
     }
     const target = await ports.target(c.phone_e164);
     if (!target) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
-      continue;
+      await skip(r.contact_id, "no_thread");
+      return "go on";
     }
     const facts = r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
     const params = resolveParams(specs, {
@@ -19613,8 +19648,8 @@ async function sendBroadcastBatch(ports, cmd) {
       visitService: typeof facts.visit_service === "string" ? facts.visit_service : null
     });
     if (params.some((v) => !v)) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "missing_value" });
-      continue;
+      await skip(r.contact_id, "missing_value");
+      return "go on";
     }
     const words = renderTemplate(tpl.body_preview, params);
     await ports.mark(b.id, r.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN });
@@ -19625,6 +19660,7 @@ async function sendBroadcastBatch(ports, cmd) {
       to: c.phone_e164,
       channel: "whatsapp",
       sender: "human",
+      kind: "broadcast",
       purpose,
       proactive: true,
       body: words,
@@ -19636,16 +19672,44 @@ async function sendBroadcastBatch(ports, cmd) {
         broadcast_name: b.name,
         ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String(b.audience?.label ?? b.name) } : {}
       }
+    }).catch((e) => {
+      throw new ThrownAtTheDoor(e);
     });
-    if (out.outcome === "sent") await ports.mark(b.id, r.contact_id, { state: "sent", message_id: out.messageId });
-    else if (out.outcome === "refused") await ports.mark(b.id, r.contact_id, { state: "skipped", reason: out.reason });
-    else await ports.mark(b.id, r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
-    if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
+    if (out.outcome === "sent") {
+      await mark(r.contact_id, { state: "sent", message_id: out.messageId });
+      return "go on";
+    }
+    if (out.outcome === "refused") {
+      await skip(r.contact_id, out.reason);
+      return "go on";
+    }
+    await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+    if (!wireIsDown(out)) return "go on";
+    const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+    await ports.fail(b.id, "wire_unavailable");
+    await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`);
+    return "stop";
+  };
+  for (const [i, r] of batch.entries()) {
+    if (unreadable) break;
+    if (begun > 0 && ports.now() >= cmd.deadline) break;
+    begun += 1;
+    let verdict;
+    try {
+      verdict = await one(r);
+    } catch (e) {
+      if (e instanceof ThrownAtTheDoor) throw e.error;
+      console.error("broadcast_person_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
+      continue;
+    }
+    if (verdict === "stop") return;
+    if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    await ports.scheduleNext(b.id);
+    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    else await ports.scheduleNext(b.id);
     return;
   }
   const { sent, held } = await ports.tally(b.id);
@@ -24599,7 +24663,8 @@ async function broadcastSend(ctx, job) {
         must("broadcast_send: cannot mark the broadcast failed", await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id));
       },
       startSending: async (id) => {
-        must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled"));
+        const rows = must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id"));
+        return !!rows && rows.length > 0;
       },
       // `category` is Meta's verdict on what kind of message this is, and it
       // decides which consent the send needs. A template that cannot be READ is
@@ -24627,23 +24692,26 @@ async function broadcastSend(ctx, job) {
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
         return data ?? [];
       },
-      contact: async (contactId) => {
-        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").eq("id", contactId).eq("tenant_id", job.tenant_id).maybeSingle();
-        if (error) throw new Error(error.message);
-        return data;
+      // The batch's people in one read, not one read per person.
+      contacts: async (ids) => {
+        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").in("id", ids).eq("tenant_id", job.tenant_id);
+        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+        return new Map((data ?? []).map((c) => [c.id, c]));
       },
       // create: false — a broadcast never opens a contact. touch: false — the
       // door below still has to refuse some of these people, and a thread they
       // were not messaged in has nothing new in it.
       target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
-      // The message a dying run left this person: written by deliver after the
-      // wire accepted it, with this broadcast's id in its meta. It is the one
-      // check standing between a resumed run and a second WhatsApp template to
-      // the same person, so a read that FAILED must never come back as "no,
-      // they have not been messaged".
-      alreadySent: async (id, contactId) => {
-        const row = must("broadcast_send: cannot check what this person was already sent", await db.from("messages").select("id, created_at").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle());
-        return row ? { id: row.id, sentAt: row.created_at } : null;
+      // The messages a dying run left these people: written by deliver after the
+      // wire accepted them, with this broadcast's id in their meta, read once for
+      // the batch. It is the one check standing between a resumed run and a
+      // second WhatsApp template to the same person, so a read that FAILED must
+      // never come back as "no, they have not been messaged".
+      alreadySent: async (id, contactIds) => {
+        const rows = must("broadcast_send: cannot check what the batch was already sent", await db.from("messages").select("id, contact_id, created_at").eq("tenant_id", job.tenant_id).in("contact_id", contactIds).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]));
+        const prior = /* @__PURE__ */ new Map();
+        for (const m of rows ?? []) if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
+        return prior;
       },
       // `sent_at` comes from the patch when the caller knows it — a resumed run
       // reading the message a dying run left knows when it actually went out,
@@ -24661,8 +24729,8 @@ async function broadcastSend(ctx, job) {
         const row = must("broadcast_send: cannot read whether the broadcast is still wanted", await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle());
         return row?.state ?? null;
       },
-      scheduleNext: async (id) => {
-        await ctx.schedule("broadcast_send", /* @__PURE__ */ new Date(), { broadcast_id: id });
+      scheduleNext: async (id, dueAt) => {
+        await ctx.schedule("broadcast_send", dueAt ?? /* @__PURE__ */ new Date(), { broadcast_id: id });
       },
       // This tally is written to the permanent record and read out to the owner,
       // so it is counted rather than tallied from a page of rows.

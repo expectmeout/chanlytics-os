@@ -5,8 +5,9 @@
  * Body { tenant_id, playbook_id, user_id }. The dashboard proved who is
  * asking; the run itself is lib/playbooks.ts, the same implementation the
  * hourly sweep uses. A person who asks has decided: the run sends now
- * unless the class is set to never, and the ledger names them. One run per
- * local day, so a playbook that already ran today says so.
+ * unless the class is set to never -- at nine, if now is outside the hours a
+ * send may go out in -- and the ledger names them. One run per local day, so
+ * a playbook that already ran today says so.
  */
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";

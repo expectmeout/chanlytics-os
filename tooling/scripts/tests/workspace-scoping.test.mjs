@@ -186,14 +186,13 @@ test("the cache is keyed on the ACTIVE workspace", () => {
     assert.match(replyRoute, /\.strict\(\)/);
   });
 
-  test("template params come from config FIRST, not from the browser", () => {
+  test("template params come from config, never from the browser", () => {
     // The route's own comment has always said params are tenant facts resolved
     // server-side "so the browser neither knows nor ships any workspace's
-    // booking link" — and the code preferred whatever the browser sent, so an
-    // operator session could choose the link that lands on the customer's phone.
-    const cfg = replySrc.indexOf("await ports.templateFacts(conv.tenant_id)");
-    const client = replySrc.indexOf("body.template.params", cfg);
-    assert.ok(cfg > -1 && client > -1);
-    assert.ok(cfg < client, "config is consulted before the client's params (core-reply.test.mjs runs it)");
+    // booking link" — and the code fell back to whatever the browser sent for
+    // a workspace with no facts, so an operator session could still choose the
+    // link that lands on the customer's phone. The verb reads the facts alone.
+    assert.ok(replySrc.includes("await ports.templateFacts(conv.tenant_id)"));
+    assert.ok(!replySrc.includes("body.template.params"), "the browser's params are never read (core-reply.test.mjs runs it)");
   });
 }

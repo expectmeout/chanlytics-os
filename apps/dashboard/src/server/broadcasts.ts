@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, parseParamSpec, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
+import { AppError, parseParamSpecs, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -114,7 +114,7 @@ function toDto(r: BroadcastRow, counts: BroadcastCounts): BroadcastDto {
     template_id: r.template_id,
     template_name: r.template_name,
     template_language: r.template_language,
-    params: Array.isArray(r.params) ? (r.params as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) }) : [],
+    params: parseParamSpecs(r.params),
     audience: (r.audience && typeof r.audience === "object" ? r.audience : { kind: "everyone", id: null, label: "" }) as unknown as Audience,
     state: r.state as BroadcastState,
     scheduled_for: r.scheduled_for,

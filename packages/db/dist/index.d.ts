@@ -3550,7 +3550,11 @@ declare function recordEchoAndPause(db: Db$3, p: {
  * excludes matches zero rows and reports success, so the row count is the only
  * way to tell a write that happened from one that was silently skipped.
  */
-declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string): Promise<boolean>;
+declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string, 
+/** The holding message this same handoff queued, which the pause must not withdraw. */
+opts?: {
+    keepMessageId?: string | null;
+}): Promise<boolean>;
 declare function emitEvent(db: Db$3, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */

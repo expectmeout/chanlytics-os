@@ -101,6 +101,12 @@ test("off before a single row: a template Meta withdrew, a flagged number, a run
   assert.deepEqual(noCalendar.ops(), ["record"]);
 });
 
+test("a template that could not be read is the run failing, not the template withdrawn: nothing is recorded, so the next sweep asks again", async () => {
+  const blip = fakes({ template: new Error("PostgREST blip") });
+  assert.deepEqual(await runPlaybook(blip.ports, cmd()), { outcome: "failed", error: "template: PostgREST blip" });
+  assert.deepEqual(blip.ops(), []);
+});
+
 test("who the run reaches: the trigger's list crossed with who said yes, longest-unheard first; the number's daily limit as a ceiling; nobody at all, recorded honestly", async () => {
   const rows = [person("a"), person("b", { lastContact: { ts: NOW.getTime() - 90 * D, label: "" } }), person("c", { consent: { state: "unknown", dnc: false } }), person("d", { state: "active" })];
   const { ports, of } = fakes();
@@ -133,6 +139,22 @@ test("auto: the row, the people, the send now, the system's decision, the run re
   const at = new Date(NOW.getTime() + PLAYBOOK_VETO_DELAY_MS);
   assert.deepEqual(veto.of("schedule")[0], ["schedule", "b1", at]);
   assert.equal(veto.of("create")[0][1].scheduled_for, at.toISOString());
+});
+
+test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at nine, and the ledger says what was asked for", async () => {
+  const night = new Date("2026-09-07T03:00:00Z"); // 23:00 in New York
+  const nine = new Date("2026-09-07T13:00:00Z");
+  const f = fakes();
+  const r = await runPlaybook(f.ports, cmd({ ctx: context({ now: night }), by: { kind: "user", userId: "u1" } }));
+  assert.equal(r.outcome, "sent");
+  assert.deepEqual(f.of("schedule")[0], ["schedule", "b1", nine]);
+  assert.equal(f.of("create")[0][1].scheduled_for, nine.toISOString(), "the row says when it really goes");
+  assert.equal(f.of("decide")[0][1].payload.scheduled_for, nine.toISOString());
+  assert.equal(f.of("decide")[0][1].payload.moved_from, night.toISOString(), "and the ledger keeps what was asked for");
+  assert.equal(f.log.at(-1)[4].moved_from, night.toISOString());
+  const day = fakes();
+  await runPlaybook(day.ports, cmd({ by: { kind: "user", userId: "u1" } }));
+  assert.ok(!("moved_from" in day.of("decide")[0][1].payload), "inside the hours nothing moves, and nothing says so");
 });
 
 test("ask: the row waits, nobody is scheduled, the owner is told in these words, the run recorded", async () => {

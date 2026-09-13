@@ -1,11 +1,11 @@
 import "server-only";
-import { eligibleForPlaybook, parseParamSpec, PLAYBOOK_TRIGGERS, toPersonRowVM, type PersonRowDto, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
+import { eligibleForPlaybook, parseParamSpecs, PLAYBOOK_TRIGGERS, toPersonRowVM, type PersonRowDto, type PlaybookDto, type PlaybookPolicyClass, type PlaybookTrigger } from "@chanlytics/contracts";
 import { checkPlaybook, type PlaybookInput } from "@chanlytics/core";
 import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
 import { templateValuePorts } from "@/server/campaign-ports";
-import { everyone, listPeople, PEOPLE_PAGE } from "@/server/people";
+import { everyone } from "@/server/people";
 
 /**
  * Playbooks, read and checked.
@@ -69,22 +69,33 @@ export async function recentTouches(ctx: RouteContext, tenantId: string, now: Da
   const ofRun = new Map(runs.map((r) => [r.id, r]));
   const touched: Record<string, string> = {};
   for (let i = 0; i < ids.length; i += 200) {
-    const { data: people, error: pErr } = await ctx.supabase
-      .from("broadcast_recipients")
-      .select("broadcast_id, contact_id, state, sent_at")
-      .eq("tenant_id", tenantId)
-      .in("broadcast_id", ids.slice(i, i + 200))
-      .in("state", ["sent", "queued"]);
-    if (pErr) throw new Error(pErr.message);
-    for (const r of people ?? []) {
-      const run = ofRun.get(r.broadcast_id);
-      if (!run) continue;
-      const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
-      if (at >= since && (!touched[r.contact_id] || at > touched[r.contact_id])) touched[r.contact_id] = at;
+    // A page at a time, in a fixed order: PostgREST answers at most max_rows,
+    // and a touch cut off the end reads as a person nobody wrote to.
+    for (let from = 0; ; from += TOUCH_PAGE) {
+      const { data: people, error: pErr } = await ctx.supabase
+        .from("broadcast_recipients")
+        .select("broadcast_id, contact_id, state, sent_at")
+        .eq("tenant_id", tenantId)
+        .in("broadcast_id", ids.slice(i, i + 200))
+        .in("state", ["sent", "queued"])
+        .order("broadcast_id")
+        .order("contact_id")
+        .range(from, from + TOUCH_PAGE - 1);
+      if (pErr) throw new Error(pErr.message);
+      for (const r of people ?? []) {
+        const run = ofRun.get(r.broadcast_id);
+        if (!run) continue;
+        const at = r.sent_at ?? run.scheduled_for ?? run.created_at;
+        if (at >= since && (!touched[r.contact_id] || at > touched[r.contact_id])) touched[r.contact_id] = at;
+      }
+      if ((people ?? []).length < TOUCH_PAGE) break;
     }
   }
   return touched;
 }
+
+/** Rows per page of the touches read: PostgREST's max_rows. */
+const TOUCH_PAGE = 1000;
 
 /** A cap no workspace reaches: the pool is counted, not capped. */
 export const PLAYBOOK_POOL = 100_000;
@@ -163,7 +174,7 @@ export async function listPlaybooks(ctx: RouteContext, tenantId: string): Promis
     trigger: r.trigger as PlaybookTrigger,
     policy_class: r.policy_class as PlaybookPolicyClass,
     state: r.state as PlaybookDto["state"],
-    params: Array.isArray(r.params) ? (r.params as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) }) : [],
+    params: parseParamSpecs(r.params),
     totals: totals.get(r.id) ?? { runs: 0, sent: 0, delivered: 0, replied: 0, held: 0, lastRun: null, waiting: null, history: [] },
   }));
 }

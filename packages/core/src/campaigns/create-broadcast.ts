@@ -4,6 +4,8 @@ import { templateValues } from "./template-values";
 import type { CreateBroadcastCommand, CreateBroadcastPorts } from "./ports";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+/** An instant names its offset: "Z" or "±hh:mm". A date alone, or a wall-clock time without one, is read on the server's clock. */
+const OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 
 export interface BroadcastReceipt {
   id: string;
@@ -48,7 +50,25 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
   const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
 
-  // 3. The audience, crossed with who said yes. With their appointments, so a
+  // 3. When, as asked: an instant with its offset. A date alone would be read
+  // as midnight UTC -- the evening before, in this hemisphere -- and a
+  // wall-clock time without an offset on the server's clock, not the
+  // business's; either lands the send at the wrong moment with no note.
+  let when = now;
+  if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
+    const t = new Date(body.scheduled_for);
+    if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
+    if (!OFFSET.test(body.scheduled_for)) throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
+    when = t.getTime() > now.getTime() ? t : now;
+  }
+
+  // 3b. The number, as WhatsApp has rated it. A flagged number does not
+  // broadcast; asked before the people are read, which is the costly read.
+  const health = await ports.number();
+  if (!health) throw new AppError("conflict", "Connect a WhatsApp number first — a broadcast goes out on one.", 409);
+  if (!health.canSend) throw new AppError("conflict", health.refusal!, 409);
+
+  // 4. The audience, crossed with who said yes. With their appointments, so a
   // calendar list (Lapsed, Asked never booked) enrols exactly the people the
   // page counted.
   const rows = await ports.people(now);
@@ -69,29 +89,18 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   const eligible = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose);
   if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-
-  // 3b. The number, as WhatsApp has rated it. A flagged number does not
-  // broadcast; an audience past the day's limit is split, not silently cut.
-  const health = await ports.number();
-  if (!health) throw new AppError("conflict", "Connect a WhatsApp number first — a broadcast goes out on one.", 409);
-  if (!health.canSend) throw new AppError("conflict", health.refusal!, 409);
+  // An audience past the day's limit is split, not silently cut.
   const over = overLimitRefusal(health, eligible.length);
   if (over) throw new AppError("validation", over);
 
-  // 4. When.
-  let when = now;
-  if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
-    const t = new Date(body.scheduled_for);
-    if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
-    if (t.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
-    when = t.getTime() > now.getTime() ? t : now;
-  }
   // 4b. Never at 3 AM. The same window the playbooks keep, by the business's
   // own clock: a time outside it -- asked for, or "now" at eleven at night --
-  // moves to nine the next morning, and the receipt says so.
+  // moves to nine the next morning, and the receipt says so. The ceiling is
+  // judged on the moment it really goes, not the one asked for.
   const open = nextOpenMoment(await ports.timezone(), when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
   const audience: Audience = { kind: kind as AudienceKind, id: audienceId, label };
 
@@ -106,7 +115,9 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   });
   if (!made.ok) {
     if (made.failure === "schedule_failed") throw new AppError("upstream_meta", "The send could not be scheduled. Nothing was sent; try again.", 502, made.error);
-    throw new Error(made.error);
+    // A sentence for the person either way: the row says failed, and a bare
+    // error reached them as "Something went wrong" with no reason on the row.
+    throw new AppError("internal", made.failure === "run_not_created" ? "The broadcast could not be created. Nothing was sent; try again." : "The people could not be enrolled. Nothing was sent; try again.", 500, made.error);
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name, template: `${tpl.name}/${tpl.language}`, category: tpl.category, audience: { kind: audience.kind, id: audience.id, label: audience.label },

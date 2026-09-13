@@ -207,7 +207,8 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         must("broadcast_send: cannot mark the broadcast failed", await db.from("broadcasts").update({ state: "failed", failure, finished_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id));
       },
       startSending: async (id) => {
-        must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled"));
+        const rows = must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: new Date().toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled").select("id"));
+        return !!rows && rows.length > 0;
       },
       // `category` is Meta's verdict on what kind of message this is, and it
       // decides which consent the send needs. A template that cannot be READ is
@@ -235,33 +236,34 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
         return data ?? [];
       },
-      contact: async (contactId) => {
-        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").eq("id", contactId).eq("tenant_id", job.tenant_id).maybeSingle();
-        if (error) throw new Error(error.message);
-        return data;
+      // The batch's people in one read, not one read per person.
+      contacts: async (ids) => {
+        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").in("id", ids).eq("tenant_id", job.tenant_id);
+        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+        return new Map((data ?? []).map((c) => [c.id, c]));
       },
       // create: false — a broadcast never opens a contact. touch: false — the
       // door below still has to refuse some of these people, and a thread they
       // were not messaged in has nothing new in it.
       target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
-      // The message a dying run left this person: written by deliver after the
-      // wire accepted it, with this broadcast's id in its meta. It is the one
-      // check standing between a resumed run and a second WhatsApp template to
-      // the same person, so a read that FAILED must never come back as "no,
-      // they have not been messaged".
-      alreadySent: async (id, contactId) => {
-        const row = must("broadcast_send: cannot check what this person was already sent", await db
+      // The messages a dying run left these people: written by deliver after the
+      // wire accepted them, with this broadcast's id in their meta, read once for
+      // the batch. It is the one check standing between a resumed run and a
+      // second WhatsApp template to the same person, so a read that FAILED must
+      // never come back as "no, they have not been messaged".
+      alreadySent: async (id, contactIds) => {
+        const rows = must("broadcast_send: cannot check what the batch was already sent", await db
           .from("messages")
-          .select("id, created_at")
+          .select("id, contact_id, created_at")
           .eq("tenant_id", job.tenant_id)
-          .eq("contact_id", contactId)
+          .in("contact_id", contactIds)
           .filter("meta->>broadcast_id", "eq", id)
-          .in("status", ["sent", "delivered", "read"])
-          .limit(1)
-          .maybeSingle());
+          .in("status", ["sent", "delivered", "read"]));
         // created_at is written by the same statement that records the send, so
         // it is when the message left, which is what the recipient's row wants.
-        return row ? { id: row.id, sentAt: row.created_at } : null;
+        const prior = new Map<string, { id: string; sentAt: string | null }>();
+        for (const m of rows ?? []) if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, { id: m.id, sentAt: m.created_at });
+        return prior;
       },
       // `sent_at` comes from the patch when the caller knows it — a resumed run
       // reading the message a dying run left knows when it actually went out,
@@ -279,8 +281,8 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         const row = must("broadcast_send: cannot read whether the broadcast is still wanted", await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle());
         return row?.state ?? null;
       },
-      scheduleNext: async (id) => {
-        await ctx.schedule("broadcast_send", new Date(), { broadcast_id: id });
+      scheduleNext: async (id, dueAt) => {
+        await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });
       },
       // This tally is written to the permanent record and read out to the owner,
       // so it is counted rather than tallied from a page of rows.

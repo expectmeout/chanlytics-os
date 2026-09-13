@@ -107,7 +107,7 @@ export const ACT_TOOLS: ToolDef[] = [
   },
   {
     name: "propose_broadcast",
-    description: "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time. Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
+    description: "Propose a broadcast: one approved WhatsApp template to an audience — everyone who said yes, a People list (needs_you, waiting_on_you, new_week, quiet, phoned_only) or a list kept by hand (its audience_id from list_audiences) — with the template's values in order (typed text, or @first_name, @business_name, @booking_link to fill per person) and an optional ISO time with its offset (2026-09-20T15:00:00-04:00, never a bare date). Read list_audiences first. It becomes a card the person approves; nobody without a recorded yes is ever included.",
     input_schema: obj({
       template_id: { type: "string" },
       audience_kind: { type: "string", enum: ["everyone", "list", "saved"] },
@@ -410,7 +410,9 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   const count = eligibleFor(rows, kind as AudienceKind, audienceId, savedIds, purpose).length;
   if (count === 0) return refuse(`nobody on "${label}" can receive this message: ${emptyAudienceRefusal(purpose)} Say so, and name what to do about it`);
   const when = str(input.scheduled_for, 40) || null;
-  if (when && Number.isNaN(Date.parse(when))) return refuse("scheduled_for must be an ISO time");
+  // With its offset: a bare date is midnight UTC, the evening before here, and
+  // the route refuses it after the person approved the card.
+  if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when))) return refuse("scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00");
   const values = params;
   const words = renderTemplate(tpl.body_preview, exampleParams(values, "the business"));
   const name = str(input.name, 80) || broadcastName(tpl.name, t.now);
