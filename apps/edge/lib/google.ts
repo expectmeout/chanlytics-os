@@ -446,9 +446,15 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
     // could not reach the vault. The vault write is the thing that failed, so
     // the stored credentials are still the previous ones -- restoring the
     // previous row leaves the pair consistent and the profile working.
-    if (prior.data) await db.from("google_connections").update(prior.data).eq("tenant_id", tenantId);
+    const restored = !!prior.data;
+    if (restored) await db.from("google_connections").update(prior.data!).eq("tenant_id", tenantId);
     else await db.from("google_connections").delete().eq("tenant_id", tenantId);
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    // Giving the grant back is right when we are leaving nothing behind. It is
+    // wrong when we just restored a connection for the SAME Google account:
+    // Google revokes the grant for a client/user pair, not one token of it, so
+    // handing this refresh token back would kill the credentials the restored
+    // row runs on -- destroying the connection by the other route.
+    if (!restored || prior.data!.google_sub !== claims.sub) await http(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   await emitEvent(db, tenantId, "google.connected", "google", "listing", null, { email: claims.email, accounts: new Set(locations.map((l) => l.account_name)).size, locations: locations.length, on_maps: onMaps.length, by: userId }).catch(() => {});

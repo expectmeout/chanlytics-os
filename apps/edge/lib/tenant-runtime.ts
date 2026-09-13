@@ -369,12 +369,18 @@ export async function loadTenantNotifications(
         .maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
-    if (chQ.error) throw new Error(chQ.error.message);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
     const envPhoneId = process.env.WHATSAPP_PHONE_ID || "";
+    // A channel we could not read leaves ONE question unanswered -- whether
+    // this workspace is the environment's own -- and the recipients are not
+    // that question. Throwing here would land in the catch below and withhold
+    // the customer's words from a workspace whose mailbox we just read
+    // perfectly well, which is the outcome this whole function exists to
+    // avoid; `isEnvDefault` simply falls back to its safe answer.
+    if (chQ.error) console.error("tenant_notifications_channel_unreadable", tenantId, chQ.error.message);
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
-      isEnvDefault: !!envPhoneId && chQ.data?.external_id === envPhoneId,
+      isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
     };
   } catch (e) {
     console.error("tenant_notifications_load_failed", tenantId, e instanceof Error ? e.message : e);

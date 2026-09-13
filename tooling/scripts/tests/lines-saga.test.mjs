@@ -363,9 +363,9 @@ const portsOver = (db, tenantId = "t1") =>
     { name: "dry", provider: dryProvider(1), master: { sid: "ACdryrun", token: "dry" } },
   );
 
-test("a routing row belonging to another workspace is refused, never adopted", async () => {
-  // The number was rented by t-old, released, and bought by t-new. Release
-  // left the sms row behind, exactly as the bug required.
+test("a routing row another workspace is STILL USING is refused, never adopted", async () => {
+  // A live claim on the key. Adopting it is what put a new workspace's texts
+  // into the previous renter's Inbox.
   const tables = {
     tenant_channels: [
       { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
@@ -379,6 +379,63 @@ test("a routing row belonging to another workspace is refused, never adopted", a
   );
   assert.equal(tables.tenant_channels.length, 1, "and nothing was written");
   assert.equal(tables.tenant_channels[0].tenant_id, "t-old", "the other workspace's row is untouched");
+  assert.equal(tables.tenant_channels[0].status, "active");
+});
+
+test("a routing row another workspace RELEASED changes hands, or a recycled number is dead for ever", async () => {
+  // Release disables rather than deletes, because calls keep their history,
+  // and nothing anywhere deletes a tenant_channels row. So refusing every
+  // stranger's row would leave a carrier-recycled number unprovisionable by
+  // its new renter permanently -- the same number unreachable, arrived at
+  // from the opposite side of the same rule.
+  const tables = {
+    tenant_channels: [
+      { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "disabled", config: { line_id: "old-line" } },
+    ],
+  };
+  const got = await portsOver(fakeDb(tables), "t-new").smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG9" });
+  assert.deepEqual(got, { channelId: "ch-old", created: false }, "the row is taken, not duplicated: (kind, external_id) is unique across workspaces");
+  assert.equal(tables.tenant_channels.length, 1);
+  assert.equal(tables.tenant_channels[0].tenant_id, "t-new", "and it now belongs to the workspace that holds the number");
+  assert.equal(tables.tenant_channels[0].status, "active");
+  assert.equal(tables.tenant_channels[0].config.messaging_service_sid, "MG9", "pointed at the line that took it");
+});
+
+test("a row claimed between the read and the take is lost honestly, not overwritten", async () => {
+  // The take is pinned to the row as it was READ. A fake whose row moves
+  // underneath it stands in for the two sagas that race for one recycled
+  // number: the loser must fail, never overwrite the winner.
+  const tables = {
+    tenant_channels: [
+      { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "disabled", config: {} },
+    ],
+  };
+  const db = fakeDb(tables);
+  const realFrom = db.from.bind(db);
+  let raced = false;
+  db.from = (table) => {
+    const q = realFrom(table);
+    if (table !== "tenant_channels" || raced) return q;
+    const select = q.select.bind(q);
+    q.select = (...a) => {
+      const b = select(...a);
+      const maybeSingle = b.maybeSingle.bind(b);
+      // Somebody else takes it in the gap between the read and the take.
+      b.maybeSingle = async () => {
+        const r = await maybeSingle();
+        raced = true;
+        tables.tenant_channels[0] = { ...tables.tenant_channels[0], tenant_id: "t-other", status: "active" };
+        return r;
+      };
+      return b;
+    };
+    return q;
+  };
+  await assert.rejects(
+    () => portsOver(db, "t-new").smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" }),
+    /claimed by another workspace/,
+  );
+  assert.equal(tables.tenant_channels[0].tenant_id, "t-other", "the winner keeps it");
 });
 
 test("this workspace's own row is kept, and one switched off by a release is switched back on", async () => {

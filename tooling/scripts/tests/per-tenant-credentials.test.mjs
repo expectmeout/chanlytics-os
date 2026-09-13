@@ -143,8 +143,19 @@ test("a second WhatsApp row does not cost a workspace its own alerts", () =>
     assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true }, "the ACTIVE row answers, as it does for every other reader in this file");
   }));
 
-test("a channel read that fails withholds the customer's words rather than guessing a mailbox", () =>
+test("a channel read that fails costs only the env-default question, never the recipients", () =>
   withEnv(ENV, async () => {
+    // The channel answers ONE thing here -- whether this workspace is the
+    // environment's own -- and the mailbox is not it. Failing the whole read
+    // on a channel error would withhold the customer's words from a workspace
+    // whose recipients were read perfectly well, which is the outcome this
+    // function's error path exists to avoid.
     const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] }, { "tenant_channels.select": { message: "statement timeout" } });
-    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: null, isEnvDefault: false }, "unknown recipients, said as unknown");
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: false }, "addressed as itself; only isEnvDefault falls back");
+  }));
+
+test("recipients that cannot be read ARE said as unknown, so notify withholds rather than guesses", () =>
+  withEnv(ENV, async () => {
+    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] }, { "tenant_config.select": { message: "statement timeout" } });
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: null, isEnvDefault: false });
   }));

@@ -14,6 +14,13 @@ import { MAX_ROWS } from "./paged.js";
 const DAY_MS = 24 * 3600 * 1000;
 /** More rows than any workspace writes in a day; a bound, not a target. */
 const ROW_CAP = 20_000;
+/**
+ * The summary's own, smaller bound. It runs on /api/diag and describes a day
+ * rather than enforcing anything, so it is not worth twenty sequential
+ * thousand-row reads of a partitioned table -- the page most likely to be
+ * opened under load is the one that must not time out under it.
+ */
+const SUMMARY_ROW_CAP = 5_000;
 
 interface UsageRow {
   created_at: string;
@@ -34,19 +41,26 @@ function num(v: unknown): number {
  * for: past a thousand replies a day, `max_llm_tokens_day` could not be
  * reached however much the workspace spent.
  *
- * Ordered by `created_at` AND `id`: created_at alone is not unique, and a
- * range over a non-unique order repeats some rows and skips others.
+ * Ordered by `created_at` AND `id`, ASCENDING. Both halves matter, and the
+ * direction is the subtle one: `events` is append-only and this reads it while
+ * replies are still writing to it, so with newest-first every row inserted
+ * between two pages shifts the whole window down by one and the next OFFSET
+ * re-reads rows already counted -- a sum that grows with how busy the
+ * workspace is while being read, tripping the very cap it feeds. Oldest-first,
+ * new rows land past the end and the offsets already read do not move. The
+ * unique tiebreak then settles equal timestamps, which offset paging also
+ * needs and which `created_at` alone cannot give.
  */
-async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null, since: string): AsyncGenerator<UsageRow[]> {
-  for (let from = 0; from < ROW_CAP; from += MAX_ROWS) {
-    const size = Math.min(MAX_ROWS, ROW_CAP - from);
+async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null, since: string, cap = ROW_CAP): AsyncGenerator<UsageRow[]> {
+  for (let from = 0; from < cap; from += MAX_ROWS) {
+    const size = Math.min(MAX_ROWS, cap - from);
     let q = db
       .from("events")
       .select("created_at, data")
       .eq("kind", "usage.llm_tokens")
       .gte("created_at", since)
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
+      .order("created_at", { ascending: true })
+      .order("id", { ascending: true })
       .range(from, from + size - 1);
     if (tenantId) q = q.eq("tenant_id", tenantId);
     const { data, error } = await q;
@@ -55,11 +69,14 @@ async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null
     if (rows.length) yield rows;
     if (rows.length < size) return;
   }
+  // Reached only by exhausting the bound. Silence here is the defect this file
+  // was fixed for, one cap further out.
+  console.error(JSON.stringify({ level: "error", event: "usage_read_capped", tenant: tenantId, cap }));
 }
 
-async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, since: string): Promise<UsageRow[]> {
+async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, since: string, cap = ROW_CAP): Promise<UsageRow[]> {
   const all: UsageRow[] = [];
-  for await (const page of usagePages(db, tenantId, since)) all.push(...page);
+  for await (const page of usagePages(db, tenantId, since, cap)) all.push(...page);
   return all;
 }
 
@@ -102,7 +119,7 @@ export interface BrainSummary {
 
 /** The last 24 hours across the platform (or one workspace when named). */
 export async function brainSummary(db: SupabaseClient<Database>, tenantId: string | null = null): Promise<BrainSummary> {
-  const rows = await usageRows(db, tenantId, new Date(Date.now() - DAY_MS).toISOString());
+  const rows = await usageRows(db, tenantId, new Date(Date.now() - DAY_MS).toISOString(), SUMMARY_ROW_CAP);
   const withConf = rows.filter((r) => typeof r.data?.confidence === "number");
   const withMs = rows.filter((r) => typeof r.data?.latency_ms === "number");
   const avg = (xs: number[]) => (xs.length ? Math.round((xs.reduce((a, b) => a + b, 0) / xs.length) * 100) / 100 : null);

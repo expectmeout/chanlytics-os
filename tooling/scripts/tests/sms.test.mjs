@@ -212,11 +212,9 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
   const edge = readCode("apps/edge/lib/lines.ts");
   assert.ok(edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") && edge.includes('.eq("kind", kind).eq("external_id", externalId)'), "the sms row is keyed on the number the text was sent to");
-  // A carrier re-rents a released number. `tenant_channels` is unique on
-  // (kind, external_id) ACROSS workspaces, so the row found by that key is not
-  // necessarily ours -- and adopting it silently put a new workspace's texts
-  // into the previous renter's Inbox.
-  assert.ok(edge.includes("if (have.data.tenant_id !== tenantId) {"), "a routing row belonging to somebody else is refused, never adopted");
+  // Who that row may belong to -- refused while another workspace is still
+  // using it, taken over once they have released it -- is RUN against a
+  // database holding two workspaces' rows, in lines-saga.test.mjs.
   // One value says where this deployment answers, so a provider is never
   // told an address baked into a shared package.
   assert.ok(edge.includes("export function edgeFnUrl(): string {") && edge.includes("process.env.EDGE_ORIGIN"));

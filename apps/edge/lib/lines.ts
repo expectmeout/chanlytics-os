@@ -223,18 +223,34 @@ async function ensureRoutingRow(
   const have = await db.from("tenant_channels").select("id, tenant_id, status").eq("kind", kind).eq("external_id", externalId).maybeSingle();
   if (have.error) throw new Error(`reading the ${kind} row: ${have.error.message}`);
   if (have.data) {
-    if (have.data.tenant_id !== tenantId) {
+    const mine = have.data.tenant_id === tenantId;
+    // A row somebody else is still USING is a live claim on this key, and the
+    // only thing that must never be taken: taking it is what put a new
+    // workspace's texts into the previous renter's Inbox.
+    if (!mine && have.data.status === "active") {
       throw new Error(`the ${kind} routing row for ${externalId} belongs to another workspace; it must be released there before this line can use it`);
     }
-    if (have.data.status !== "active") {
-      // Back into service, describing the line that now holds it: a voice row
-      // is keyed on the agent, so its number is whichever line rides the agent.
-      const on = await db
+    // Everything else is claimable, and a DISABLED row of another workspace
+    // must be: release disables rather than deletes (calls keep their history)
+    // and nothing anywhere deletes a tenant_channels row, so refusing one
+    // would make a carrier-recycled number unprovisionable for its new renter
+    // for ever -- the same number unreachable, reached from the other side.
+    // Only `calls.channel_id` references a row, and only voice rows are
+    // called; a Retell agent id is minted per workspace and never recycled, so
+    // the row changing hands here is in practice always an sms one.
+    if (!mine || have.data.status !== "active") {
+      const take = await db
         .from("tenant_channels")
-        .update({ status: "active", number_e164: row.number_e164, config: row.config })
+        .update({ tenant_id: tenantId, status: "active", number_e164: row.number_e164, config: row.config })
         .eq("id", have.data.id)
-        .eq("tenant_id", tenantId);
-      if (on.error) throw new Error(`switching the ${kind} row back on: ${on.error.message}`);
+        // Pinned to the row as it was READ, so a claim laid between the two
+        // statements wins and this fails rather than overwriting it.
+        .eq("tenant_id", have.data.tenant_id)
+        .eq("status", have.data.status)
+        .select("id")
+        .maybeSingle();
+      if (take.error) throw new Error(`taking the ${kind} row: ${take.error.message}`);
+      if (!take.data) throw new Error(`the ${kind} routing row for ${externalId} was claimed by another workspace while this line was being set up`);
     }
     return { channelId: have.data.id, created: false };
   }

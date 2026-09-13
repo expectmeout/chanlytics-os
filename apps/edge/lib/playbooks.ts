@@ -91,16 +91,29 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     // error, so past roughly a thousand touches the week's breath and each
     // playbook's gap silently stopped holding -- and the people the run could
     // no longer see it had touched were messaged again.
-    const touched = await readAllRows<TouchRow>("broadcast_recipients", (from, to) =>
-      db
-        .from("broadcast_recipients")
-        .select("broadcast_id, contact_id, state, sent_at")
-        .in("broadcast_id", runIds)
-        .in("state", ["sent", "queued"])
-        .order("broadcast_id")
-        .order("contact_id")
-        .range(from, to),
-    );
+    // Returned as this tenant's error, never thrown. The hourly sweep calls
+    // this without a try/catch and reads `{ error }` to count one workspace
+    // off and carry on (api/cron/playbooks.ts); a throw escapes the whole
+    // handler, so one workspace's unreadable touch history would end the tick
+    // for every workspace after it and skip the backlog note that would have
+    // said so.
+    let touched: TouchRow[];
+    try {
+      touched = await readAllRows<TouchRow>("broadcast_recipients", (from, to) =>
+        db
+          .from("broadcast_recipients")
+          .select("broadcast_id, contact_id, state, sent_at")
+          .in("broadcast_id", runIds)
+          .in("state", ["sent", "queued"])
+          .order("broadcast_id")
+          .order("contact_id")
+          .range(from, to),
+      );
+    } catch (e) {
+      // Never "assume nobody was touched": that is the reading that messages
+      // people twice, which is the defect the paging was added for.
+      return { error: e instanceof Error ? e.message : String(e) };
+    }
     for (const r of touched) {
       const run = ofRun.get(r.broadcast_id);
       if (!run) continue;

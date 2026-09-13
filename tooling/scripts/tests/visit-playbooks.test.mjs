@@ -11,6 +11,7 @@ import {
   parseParamSpec, resolveParams, exampleParams, PARAM_SOURCE_LABELS, starterForTrigger, starterDraft, starterText, visitDateKey, visitStartTime,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
 
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
@@ -138,4 +139,43 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   assert.ok(page.includes('visit_when: "tomorrow at 2:00 PM"') && page.includes('visit_service: "a consultation"'), "the preview shows the visit's words");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('booking: modeOf("booking")') && tools.includes("withVisits(t.ctx, t.tenantId, people, t.now)"), "the assistant counts with the calendar too");
+});
+
+/* ---- the run context: one workspace's bad read is one workspace's problem ---- */
+
+const ctxDb = (over = {}, faults = {}) =>
+  fakeDb(
+    {
+      tenants: [{ id: "t1", timezone: "America/New_York", status: "active" }],
+      policies: [],
+      tenant_channels: [],
+      tenant_config: [],
+      broadcasts: [{ id: "b1", tenant_id: "t1", playbook_id: "p1", state: "sent", scheduled_for: "2026-09-10T12:00:00Z", created_at: "2026-09-10T12:00:00Z" }],
+      broadcast_recipients: [{ broadcast_id: "b1", contact_id: "c1", tenant_id: "t1", state: "sent", sent_at: "2026-09-10T12:00:00Z" }],
+      ...over,
+    },
+    faults,
+    { people_list: () => [] },
+  );
+
+test("the touch history is read whole, and a workspace that cannot be read is RETURNED as an error, not thrown", async () => {
+  const { loadTenantRunContext } = await import("../../../apps/edge/lib/playbooks.ts");
+  const now = new Date("2026-09-12T15:00:00Z");
+
+  const ok = await loadTenantRunContext(ctxDb(), "t1", now);
+  assert.ok(!("error" in ok), JSON.stringify(ok));
+  assert.equal(ok.touches.byAny.size, 1, "the person a broadcast already reached");
+  assert.equal(ok.touches.byThis.get("p1")?.size, 1, "and the playbook that reached them");
+
+  // The hourly sweep calls this with no try/catch and reads `{ error }` to
+  // count ONE workspace off and carry on (api/cron/playbooks.ts). A throw
+  // escapes the whole handler, so one unreadable touch history would end the
+  // tick for every workspace after it and skip the backlog note saying so.
+  const bad = await loadTenantRunContext(ctxDb({}, { "broadcast_recipients.select": { message: "statement timeout" } }), "t1", now);
+  assert.ok("error" in bad, "returned, never thrown");
+  assert.match(bad.error, /broadcast_recipients: statement timeout/);
+
+  // And never "assume nobody was touched": that reading is what messages
+  // people twice, which is the defect the paging was added for.
+  assert.ok(!("touches" in bad));
 });
