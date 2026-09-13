@@ -137,11 +137,12 @@ test("the resolver is the ONE place facts are decided, on every surface that sta
   assert.ok(rt.includes('db.from("tenant_channels").select("kind, number_e164, status")'), "loaded with the config, behind the same stamp");
   assert.ok(rt.includes("known: { workspace: null, channels: [], listing: null },"), "and a failed load is empty, never a guess");
 
+  // The eval and the steer doors passing what the platform knows -- the
+  // provisioned line spoken in their prompts -- are run in eval-door.test.mjs
+  // and steer-door.test.mjs.
   for (const [file, call] of [
     ["apps/edge/lib/whatsapp/inbound.ts", "rt?.known"],
     ["apps/edge/lib/call-start.ts", "rt.known"],
-    ["apps/edge/api/admin/eval.ts", "rt.known"],
-    ["apps/edge/api/admin/steer.ts", "rt.known"],
   ]) {
     const src = readCode(file);
     assert.ok(src.includes(call + ")"), `${file} passes what the platform knows`);

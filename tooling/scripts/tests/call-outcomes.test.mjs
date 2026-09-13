@@ -135,15 +135,10 @@ test("the agent reader carries the analysis schema, so the diagnostic's drift is
   }
 });
 
-test("the converge endpoint: the edge's key, a dry run by default, a draft for a published version, publish only when asked, the LLM never touched", () => {
-  const src = readCode("apps/edge/api/admin/voice-converge.ts");
-  assert.ok(src.includes('authorizeAdmin(request, "/api/admin/voice-converge")'), "diagnostic-key only");
-  assert.ok(src.includes("const apply = body.apply === true;") && src.includes("const publish = body.publish === true;"), "nothing moves unless asked, in two steps");
-  assert.ok(src.includes("planAgentSettings(before as unknown as LiveAgentSettings)"), "the same plan the script and the diagnostic use");
-  assert.ok(src.includes("if (before.is_published === true && working !== null) {") && src.includes("createAgentVersion(cfg, agentId, working)"), "a published version cannot change: a draft first");
-  assert.ok(src.includes("if (publish && working !== null && working !== before.version) {") && src.includes('publishAgentVersion(cfg, agentId, working, "converged from the edge")'));
-  assert.ok(!src.includes("update-retell-llm") && !src.includes("getRetellLlm"), "the shell and its secret header stay the script's");
-  assert.ok(src.includes("before: forRecord(before)") && src.includes('a.webhook_url.split("?")[0]'), "the backup rides in the response, its secret stripped");
+test("the converge endpoint has more than the default budget", () => {
+  // The endpoint itself -- the door, a dry run by default, a draft for a
+  // published version, publish only when asked, the backup with its secret
+  // stripped, the LLM never touched -- is run in voice-doors.test.mjs.
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/voice-converge.ts"'), "several provider calls need more than the default budget");
 });
 

@@ -144,11 +144,8 @@ test("hidden from the composers: the door, the routes, the sync's first sight, t
   assert.ok(r.includes('if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);'), "the composers never see a hidden template; Settings sees everything");
   const one = readCode("apps/dashboard/app/api/v1/templates/[id]/route.ts");
   assert.ok(one.includes('ctx.supabase.rpc("set_template_hidden", { p_template_id: id, p_hidden: input.hidden === true })') && one.includes('role: "operator",'));
-  const sync = readCode("apps/edge/api/admin/whatsapp/templates-sync.ts");
-  assert.ok(sync.includes('const SAMPLE_TEMPLATES = new Set(["hello_world"]);') && sync.includes("hidden_at: now.toISOString()"), "the sample is hidden on first sight");
-  assert.ok(sync.includes("const fresh = rows.filter((r) => !keep.has(`${r.name}|${r.language}`) && SAMPLE_TEMPLATES.has(r.name));"), "and only on first sight — a row on file keeps what the workspace decided");
-  const create = readCode("apps/edge/api/admin/whatsapp/templates-create.ts");
-  assert.ok(create.includes("label: labels[n - 1] || `Value ${n}`"), "the words a person gave each slot are kept");
+  // The sync hiding Meta's sample on first sight only, and the create door
+  // keeping the words a person gave each slot, are run in templates-doors.test.mjs.
   const s = readCode("apps/dashboard/src/legacy/pages/messages.jsx");
   assert.ok(s.includes('data-testid="template-hide"') && s.includes('data-testid="templates-hidden"'));
   const b = readCode("apps/dashboard/src/legacy-bridge/templates.ts");

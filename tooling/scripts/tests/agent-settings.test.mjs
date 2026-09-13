@@ -61,8 +61,7 @@ test("the converger, the diagnostic and the provisioning script all read the sam
   assert.ok(converge.includes("(plan.llmPatch || agentPlan.agentPatch) && agent.is_published"), "only when the latest version is published, and only when there is something to change");
   assert.ok(converge.includes('const publish = process.argv.includes("--publish");'));
   assert.ok(converge.includes("is a DRAFT: a pinned line stays on"), "without --publish the script says the line did not change");
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes("agent: agentSettingsDrift(a),"));
+  // The diagnostic's agent-settings drift is run in diag-door.test.mjs.
   const adapter = readCode("packages/channels/src/voice-retell.ts");
   assert.ok(adapter.includes('data_storage_retention_days: num("data_storage_retention_days")'));
   // Provisioning creates the agent with the same settings the converger keeps.

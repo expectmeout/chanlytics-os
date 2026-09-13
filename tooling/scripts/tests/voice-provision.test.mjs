@@ -146,36 +146,21 @@ test("the request is checked before anything is planned", () => {
   assert.deepEqual(planVoiceProvision(fresh({ agentId: "nope" })).errors, ["agent_id does not look like a Retell agent id"]);
 });
 
-test("the edge endpoint: key-gated, dry run by default, secrets never echoed, budgeted, row last, then the bell and the event", () => {
-  const src = readCode("apps/edge/api/admin/voice-provision.ts");
+test("the receptionist is made once, in the lib both line paths share: the shell, the agent over it, the first version published, a resumed id read from the provider first; the endpoint has more than the default budget", () => {
+  // The endpoint itself -- the knock, the dry run before any provider write,
+  // the bodies on the wire, the row after the number, the bell and the event,
+  // secrets never echoed, the read-back planning nothing -- is run in
+  // voice-doors.test.mjs.
   const agent = readCode("apps/edge/lib/voice-agent.ts");
-  assert.ok(src.includes('authorizeAdmin(request, "/api/admin/voice-provision")'));
-  assert.ok(src.includes("const apply = body.apply === true;"));
-  assert.ok(src.indexOf("if (!apply || plan.nothing) return json(200, out);") < src.indexOf("createVoiceAgent(cfg,"), "the dry run answers before any provider write");
-  // The receptionist is made once, in the lib both line paths share.
-  assert.ok(src.includes("createVoiceAgent(cfg, secrets, { agentName: plan.names.agent, llmId: req.llmId, agentId: req.agentId })"));
   for (const pin of ["createRetellLlm(cfg, voiceLlmCreateBody(secrets))", "createAgent(cfg, voiceAgentCreateBody(", 'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")']) {
     assert.ok(agent.includes(pin), pin);
   }
-  for (const pin of ["updatePhoneNumber(cfg, number, voiceNumberBindBody(", "createPhoneNumber(cfg, voiceNumberCreateBody("]) assert.ok(src.includes(pin), pin);
   // Resume reads the provider before trusting an id.
   assert.ok(agent.includes("await getAgentRaw(cfg, o.agentId)") && agent.includes("await getRetellLlm(cfg, llmId)"));
-  // The row is written after the number, active, with the agent as the routing key.
-  const row = src.indexOf('.insert({\n      tenant_id: tenantId,\n      kind: "voice",\n      external_id: agentId,');
-  assert.ok(row > src.indexOf("createPhoneNumber(cfg,"), "the row comes after the number");
-  assert.ok(src.includes('status: "active",'));
-  // Then the workspace's bell and the platform's event.
-  assert.ok(src.includes('kind: "number",') && src.includes('route: "admin/setup",'));
-  assert.ok(src.includes('emitEvent(db, tenantId, "voice.provisioned", "setup", "tenant_channel", ins.data.id, {'));
   assert.ok(EVENT_KINDS.includes("voice.provisioned"));
-  // What comes back never carries a key: URLs from voiceEndpoints (no query), never a provider success body.
-  assert.ok(src.includes("webhook_url: ends.webhook,") && src.includes("inbound_webhook_url: ends.inbound,"));
-  assert.ok(!src.includes("result.agent = { ...w.body") && !agent.includes("...w.body"), "a success body echoes the webhook URL with its key");
+  assert.ok(!agent.includes("...w.body"), "a success body echoes the webhook URL with its key");
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/admin/voice-provision.ts"'), "several provider calls need more than the default budget");
-  // Read back: a freshly provisioned line plans nothing on either converger.
-  assert.ok(src.includes("planAgentSettings(after as unknown as LiveAgentSettings, { retentionDays: VOICE_AGENT_DEFAULTS.data_storage_retention_days }).drift"));
-  assert.ok(src.includes("voiceShellDrift(llmAfter).drift"));
-  assert.ok(!/key_[0-9a-f]{16}/.test(src) && !/key_[0-9a-f]{16}/.test(agent), "no literal provider key");
+  assert.ok(!/key_[0-9a-f]{16}/.test(agent), "no literal provider key");
 });
 
 test("the laptop script is retired: the key lives on the edge and nowhere else", () => {
@@ -186,6 +171,5 @@ test("the laptop script is retired: the key lives on the edge and nowhere else",
   }
   assert.ok(adapter.includes('"/create-phone-number"') && adapter.includes("/update-phone-number/${encodeURIComponent(number)}"));
   assert.ok(readCode("packages/channels/src/index.ts").includes('export * from "./voice-provision";'));
-  // The diagnostic says which model each line runs, so provisioning parity is readable.
-  assert.ok(readCode("apps/edge/api/diag.ts").includes("model: llm?.model ?? null,"));
+  // The diagnostic saying which model each line runs is run in diag-door.test.mjs.
 });

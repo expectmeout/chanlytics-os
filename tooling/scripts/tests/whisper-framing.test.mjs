@@ -14,7 +14,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { frameWhisper, whisperText, toLiveCallVM, toCallVM } from "@chanlytics/contracts";
 import { liveTurns } from "@chanlytics/channels";
-import { readCode, readRaw } from "./_source.mjs";
+import { readRaw } from "./_source.mjs";
 
 test("the frame is an owner instruction with the words quoted, and its inverse gives the words back", () => {
   const framed = frameWhisper("  tell them we have a haircut special ");
@@ -66,6 +66,5 @@ test("both transcripts show the whisper as the owner's own words, where it lande
   assert.ok(page.includes('data-testid="live-whisper-line"') && page.includes("You whispered"));
   const cv = readRaw("apps/dashboard/src/legacy/pages/conversations.jsx");
   assert.ok(cv.includes('line.speaker === "whisper" ? "You whispered"'));
-  const edge = readCode("apps/edge/api/admin/whisper.ts");
-  assert.ok(edge.includes("additionalContext: frameWhisper(text)"), "the edge sends the frame, the ledger keeps the words");
+  // The edge sending the frame (and the ledger keeping the words) is run in whisper-door.test.mjs.
 });

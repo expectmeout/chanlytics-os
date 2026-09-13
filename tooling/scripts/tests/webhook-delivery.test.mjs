@@ -13,7 +13,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { normalizeCall } from "@chanlytics/channels";
-import { readCode } from "./_source.mjs";
 
 test("a payload without call_status normalises to ended — the default the webhook pins a transcript update away from", () => {
   // The pin itself (ongoing before normalising), the routing through the
@@ -23,7 +22,4 @@ test("a payload without call_status normalises to ended — the default the webh
   assert.equal(n.transcriptObject?.length, 1, "the turns are read from transcript_with_tool_calls");
 });
 
-test("the delivery row is readable from /api/diag", () => {
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes('.eq("kind", "webhook.delivery")'), "readable from /api/diag");
-});
+// The delivery row being readable from /api/diag is run in diag-door.test.mjs.

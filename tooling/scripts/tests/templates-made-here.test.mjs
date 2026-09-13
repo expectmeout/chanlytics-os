@@ -63,7 +63,11 @@ test("what fills a slot: typed text once, or the person's first name, the busine
   assert.equal(paramLabel({ kind: "text", value: "20%" }), "20%");
 });
 
-test("the migration says where a template came from; the edge submits and deletes on the number's own credentials; Meta's own words come back when it says no", () => {
+test("the migration says where a template came from; the graph module lets Meta recategorise, hands back Meta's own words, and deletes one language by its id", () => {
+  // The create and delete doors themselves -- the number's own credentials,
+  // the row made here and by whom, Meta's words back on a refusal, no call to
+  // Meta for a row with no id and the row still removed -- are run in
+  // templates-doors.test.mjs.
   const m = readRaw("supabase/migrations/00047_templates_made_here.sql");
   assert.ok(m.includes("add column source     text not null default 'meta' check (source in ('meta', 'chanlytics'))"));
   const g = readCode("apps/edge/lib/meta-templates.ts");
@@ -73,18 +77,6 @@ test("the migration says where a template came from; the edge submits and delete
   // that name, gone, with the name locked for thirty days.
   assert.ok(g.includes('const qs = new URLSearchParams({ name, hsm_id: hsmId });'), "one language goes, not every language of that name");
   assert.ok(g.includes("  hsmId: string,\n"), "and no caller can omit it");
-  const c = readCode("apps/edge/api/admin/whatsapp/templates-create.ts");
-  assert.ok(c.includes("const creds = await waCredentialsForTenant(db, tenantId);") && c.includes('source: "chanlytics",') && c.includes("created_by: userId,"));
-  assert.ok(c.includes('return json(502, { ok: false, error: "meta_refused", detail: made.error });'));
-  const d = readCode("apps/edge/api/admin/whatsapp/templates-delete.ts");
-  assert.ok(d.includes("await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)"), "the number's own credentials, and the id that narrows it to one language");
-  assert.ok(d.includes("Not found at Meta is a delete that already happened.") || d.includes("gone.status !== 404"));
-  // A row with no id on file is never sent to Meta by name (that deletes every
-  // language of the name), and is still removed from here — a sync cannot
-  // invent an id for a template Meta never had, so refusing both left the row
-  // undeletable for ever.
-  assert.ok(d.includes("const gone = row.meta_id\n    ? await deleteTemplate("), "no id, no call to Meta");
-  assert.ok(d.includes('error: "not synced: no template id on file, so Meta was not asked"'), "and it reads as a delete that already happened");
 });
 
 test("the routes: what Meta refuses is refused first; a duplicate name is a conflict; a template a broadcast still uses cannot go; the draft is a draft", () => {

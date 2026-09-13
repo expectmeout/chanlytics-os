@@ -56,9 +56,7 @@ test("every caller that used the store as a mirror steps aside when it is retire
   assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes("RETIRED STORE (BLOB_SHADOW=off)"), "the handler contract says so");
   const pause = readCode("apps/edge/api/admin/pause.ts");
   assert.ok(pause.includes('if (storeBackend() === "off") return json(200, { ok: true, store: "off" });'), "the dashboard's mirror call succeeds with nothing to mirror");
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes('out.probe = { skipped: "store retired; memory is Postgres" };'), "diag says it plainly instead of probing");
-  assert.ok(diag.includes('memory: process.env.PG_READS === "on" ? "postgres" : storeBackend() === "off" ? "none" : "blob",'), "memory reads none when both are off");
+  // /api/diag declining to probe and naming the memory "none" is run in diag-door.test.mjs.
   const st = readCode("apps/edge/lib/store.ts");
   assert.ok(st.includes('const STORE_OFF = process.env.BLOB_SHADOW === "off";'));
   assert.ok(st.includes("if (STORE_OFF) return unreadable();"), "a read under the flag is unknown, not blank");

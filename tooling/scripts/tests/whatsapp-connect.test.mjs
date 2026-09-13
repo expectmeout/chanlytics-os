@@ -30,37 +30,18 @@ test("the migration: one definer door writes a credential, service role only, na
   assert.ok(DECISION_VERBS.includes("connect_channel") && DECISION_SUBJECTS.includes("channel"), "the contract carries the same vocabulary");
 });
 
-test("the edge connect endpoint: diagnostic key, the four Graph calls in order, the token into Vault, a failed credential write disables the row", () => {
-  const c = readCode("apps/edge/api/admin/whatsapp/connect.ts");
-  assert.ok(c.includes('authorizeAdmin(request, "/api/admin/whatsapp/connect")'));
-  assert.ok(c.includes('if (!appId || !appSecret) return json(503, { ok: false, error: "no_app_credentials" });'));
-  const order = ["exchangeCode(appId, appSecret, code)", "phoneNumber(token, phoneNumberId)", "subscribeWaba(token, wabaId)", "registerNumber(token, phoneNumberId, pin)", 'db.rpc("put_channel_credentials"'];
-  let last = -1;
-  for (const step of order) { const i = c.indexOf(step); assert.ok(i > last, step); last = i; }
-  assert.ok(c.includes('error: "number_taken"'), "a number connected elsewhere is not connected twice");
-  assert.ok(c.includes('const onCloud = num.data.platform_type === "CLOUD_API";') && c.includes("const pin = onCloud ? null : newPin();"), "a number already on Cloud API is left alone: registration belongs to the number, not the app");
-  assert.ok(c.includes("if (reg && !reg.ok && !alreadyRegistered(reg)) {"), "a number already registered is done, not failed");
-  assert.ok(c.includes('pinMismatch(reg) ? "pin_required" : "register_failed"'), "a two-step PIN in the way is named, not a generic failure");
-  assert.ok(c.includes('await db.from("tenant_channels").update({ status: "disabled" }).eq("id", row.id);'), "a row without its own credentials would ride the environment token: disabled instead");
-  // Was an upsert on onConflict "kind,external_id" — an UPDATE of whichever
-  // row holds the number, another workspace's included. The write is scoped to
-  // the caller's tenant now, and the unique index is what refuses the rest.
-  assert.ok(c.includes('.eq("kind", "whatsapp")\n    .eq("external_id", phoneNumberId)\n    .eq("tenant_id", tenantId)'), "the write cannot reach another workspace's row");
-  assert.ok(c.includes('if (made.error?.code === "23505") {'), "and the unique key on (kind, external_id) refuses the number twice over");
-  assert.ok(c.includes('return json(503, { ok: false, error: "channel_read_failed" });'), "a read that failed is not read as 'nobody holds this number'");
-  assert.ok(!c.includes("WHATSAPP_ACCESS_TOKEN"), "the environment token plays no part in a connection");
+test("the graph module: one version, the app secret spent on the edge and nowhere else, one default app id, the configuration's name documented", () => {
+  // The two edge doors themselves -- the knock, the four Graph calls in order
+  // as the app this deployment speaks for, the write scoped to the workspace,
+  // the token into Vault, a failed credential write disabling the row, the
+  // answer naming what is missing -- are run in whatsapp-connect-door.test.mjs;
+  // /api/diag introspecting tokens as the same app is run in diag-door.test.mjs.
   const g = readCode("apps/edge/lib/meta-graph.ts");
   assert.ok(g.includes('export const GRAPH_VERSION = "v25.0";'));
   assert.ok(g.includes("client_secret: appSecret") && !readCode("apps/dashboard/src/server/service.ts").includes("META_APP_SECRET"), "the app secret is spent on the edge and nowhere else");
-  const s = readCode("apps/edge/api/admin/whatsapp/signup-config.ts");
-  assert.ok(s.includes('const reason = !secret ? "no_app_secret" : !configId ? "no_config_id" : null;'), "the answer names what is missing");
   // One place knows which Meta app this deployment speaks for: the sign-up
   // and the token introspection can never disagree about it.
   assert.ok(g.includes('export const DEFAULT_META_APP_ID = "1823820738182125";'));
-  for (const f of ["apps/edge/api/diag.ts", "apps/edge/api/admin/whatsapp/connect.ts", "apps/edge/api/admin/whatsapp/signup-config.ts"]) {
-    const code = readCode(f);
-    assert.ok(code.includes("metaAppId()") && !code.includes("1823820738182125") && !code.includes("process.env.META_APP_ID"), f);
-  }
   assert.ok(readRaw("apps/edge/.env.example").includes("META_ES_CONFIG_ID="), "the new name is documented");
 });
 
@@ -129,13 +110,12 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   assert.ok(hook.includes("entry?: Array<{ id?: string; changes?:"), "entry.id is the WABA");
 });
 
-test("the Integrations pane offers the connection to an owner or says exactly why it cannot start; the diag shows the gates", () => {
+test("the Integrations pane offers the connection to an owner or says exactly why it cannot start", () => {
   const s = readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx");
   assert.ok(s.includes('"verb:whatsapp-connect": "connect-whatsapp-btn"') && s.includes('case "verb:whatsapp-connect": {'));
   const rows = readCode("packages/contracts/src/connections.ts");
   assert.ok(rows.includes('const wa = channel("whatsapp");') && rows.includes("} else if (i.whatsapp === undefined) {"), "offered only when the workspace has no WhatsApp channel, and honest while asking");
   assert.ok(rows.includes("the Embedded Signup configuration is missing on the Chanlytics side"), "the missing piece is named, not hidden");
   assert.ok(!s.includes("A WhatsApp number or a phone line is connected by Chanlytics when your workspace is set up."), "the old by-hand line is gone");
-  const d = readCode("apps/edge/api/diag.ts");
-  assert.ok(d.includes("allowlist_numbers:") && d.includes("env_fallback_token:") && d.includes("signup_ready:"), "the gates that decide who is answered are visible");
+  // The diag showing the gates that decide who is answered is run in diag-door.test.mjs.
 });

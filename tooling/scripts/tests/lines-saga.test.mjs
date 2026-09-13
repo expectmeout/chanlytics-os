@@ -308,7 +308,7 @@ test("wiring: the saga's ports, the receptionist shared with voice-provision, th
   const agent = readCode("apps/edge/lib/voice-agent.ts");
   for (const pin of ["createRetellLlm(cfg, voiceLlmCreateBody(secrets))", "createAgent(cfg, voiceAgentCreateBody(", 'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")', "await getAgentRaw(cfg, o.agentId)", "await getRetellLlm(cfg, llmId)"]) assert.ok(agent.includes(pin), pin);
   assert.ok(agent.indexOf('.eq("kind", "voice")') < agent.indexOf("createVoiceAgent(cfg, secrets, { agentName: `${tenant.name} front desk` })"), "ensure reads the active voice row before creating");
-  assert.ok(readCode("apps/edge/api/admin/voice-provision.ts").includes("createVoiceAgent(cfg, secrets, { agentName: plan.names.agent, llmId: req.llmId, agentId: req.agentId })"));
+  // voice-provision making the receptionist through the same lib is run in voice-doors.test.mjs.
   const adapter = readCode("packages/channels/src/voice-retell.ts");
   assert.ok(adapter.includes('"/import-phone-number"'));
   const env = readRaw("apps/edge/.env.example");

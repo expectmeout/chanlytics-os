@@ -63,7 +63,7 @@ test("the wiring: the edge passes the rows to both prompts and checks after gene
   assert.ok(steps.includes("const askClass = policyAskClass(x.policy, x.intent);") && steps.includes('escalationReason = "policy_ask";') && wa.includes("const two = layerTwo({"), "after generation, not only in the prompt");
   assert.ok(steps.includes("const carriesLink = !!x.brainCfg.booking_link && replyText.includes(x.brainCfg.booking_link);"), "a link the model sent anyway is taken back");
   // The phone hears the same rules: run in call-start.test.mjs, where business_facts is this composer's text byte for byte.
-  assert.ok(readCode("apps/edge/api/admin/eval.ts").includes("rt.policy") && readCode("apps/edge/api/admin/steer.ts").includes("rt.policy"), "the eval and the steer compose the same prompt");
+  // The eval and the steer composing the same prompt, the Autonomy rows in it, are run in eval-door.test.mjs and steer-door.test.mjs.
   const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(route.includes("if (!POLICY_CLASS_MODES[cls as PolicyClass].includes(mode as PolicyMode))"));
   const store = readCode("apps/dashboard/src/legacy-bridge/policy-store.ts");
