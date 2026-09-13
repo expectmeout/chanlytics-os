@@ -207,7 +207,7 @@ export async function handleInbound(
   // consent, the pause and the workspace's status the moment before.
   const firstReply = thread.replies.length === 0 && !thread.history.some((h) => h.role === "assistant");
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);
+  const send = (text: string, meta?: Record<string, Json>, kind?: "system") => sink.deliver(from, wire(text), meta, kind);
 
   // Atomic concurrent-redelivery gate. PG_READS implies it: Postgres-sourced
   // memory carries no `seen` list, so is_new IS the dedupe — and it is stronger
@@ -485,9 +485,12 @@ export async function handleInbound(
     thread.history.push({ role: "user", content: bodyText });
     thread.history.push({ role: "assistant", content: words });
     await ports.store.save(ns, from, thread);
-    await send(words, { ack: true, confirmation: purpose });
+    // A system message: a held thread does not hold it (the yes is owed its
+    // confirmation whoever holds the thread), and what became of it is said.
+    const confirmed = await send(words, { ack: true, confirmation: purpose }, "system");
     await sink.processed();
-    L.info("wa_opt_in_confirmed", { purpose, channel });
+    if (confirmed.outcome === "sent") L.info("wa_opt_in_confirmed", { purpose, channel });
+    else L.error("wa_opt_in_confirmation_not_sent", { purpose, channel, outcome: confirmed.outcome, reason: confirmed.reason });
     return;
   }
 
@@ -727,9 +730,10 @@ export async function handleInbound(
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       // An escalating draft still pauses and alerts — a human should be looking
-      // at this one before the timer runs out, not after.
+      // at this one before the timer runs out, not after. The pause withdraws
+      // the thread's older drafts; this one, the holding message, is kept.
       thread.pausedUntil = Date.now() + pauseMs;
-      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
+      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined));
       post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
       post.push(ports.alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
     }

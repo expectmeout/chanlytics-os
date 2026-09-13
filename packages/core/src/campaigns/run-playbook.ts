@@ -1,4 +1,4 @@
-import { eligibleForPlaybook, localDate, parseParamSpecs, planRun, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan } from "@chanlytics/contracts";
+import { eligibleForPlaybook, localDate, nextOpenMoment, parseParamSpecs, planRun, triggerOf, visitFactsFor, type PersonRowVM, type PlaybookTrigger, type RunPlan } from "@chanlytics/contracts";
 import { assembleRun } from "./assemble";
 import type { RunOutcome, RunPlaybookCommand, RunPlaybookPorts } from "./ports";
 
@@ -16,8 +16,11 @@ type Skipped = Extract<RunOutcome, { outcome: "off" }>["skipped"];
  * class's autonomy mode: auto schedules the send now, veto schedules it half
  * an hour ahead with a Stop, ask leaves it waiting for a person, never does
  * nothing. A person who asks for a run now has decided: it sends now, unless
- * the class is set to never. Every run is recorded as an event, a run that
- * found nobody included. A run never throws: the sweep behind it must go on.
+ * the class is set to never. Never at 3 AM, whoever asks: a send that would
+ * go out past the hours a run keeps on its own (a "Run now" at eleven at
+ * night, a veto window ending past twenty) goes at nine, and the ledger says
+ * what was asked for. Every run is recorded as an event, a run that found
+ * nobody included. A run never throws: the sweep behind it must go on.
  */
 export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): Promise<RunOutcome> {
   const { playbook: p, ctx, by } = cmd;
@@ -36,6 +39,11 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     ? (mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now })
     : planRun(mode, now);
   if (plan.kind === "off") return off("never");
+  // Never at 3 AM, whoever asks: the same hours a run keeps on its own, by
+  // the business's clock. A send that would go out past them moves to nine.
+  const send = plan.kind === "send" ? plan : null;
+  const open = send ? nextOpenMoment(ctx.tz, send.at) : null;
+  const movedFrom = send && open?.moved ? send.at.toISOString() : null;
 
   // The template must still be what Meta approved; the number must be one
   // Meta lets send. A template that could not be READ is this run failing,
@@ -82,27 +90,27 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
       params: specs,
       audience: { kind: "playbook", id: p.id, label: p.name },
       state: plan.state,
-      scheduled_for: (plan.kind === "send" ? plan.at : now).toISOString(),
+      scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,
       created_by: by.kind === "user" ? by.userId : p.created_by,
       playbook_id: p.id,
       run_for: runFor,
     },
     recipients: eligible.map((r) => ({ contact_id: r.id, facts: factsOf(r) })),
-    sendAt: plan.kind === "send" ? plan.at : null,
+    sendAt: open ? open.at : null,
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
 
-  if (plan.kind === "send") {
+  if (open) {
     // The ledger: a run the sweep sends is the system's decision under the
     // mode the owner chose; a run a person asked for is theirs.
-    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: plan.at.toISOString(), run_now: by.kind === "user" } });
+    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: open.at.toISOString(), run_now: by.kind === "user", ...(movedFrom ? { moved_from: movedFrom } : {}) } });
   } else {
     await ports.notify(
       `Playbook “${p.name}” is ready: ${n} ${n === 1 ? "person" : "people"}`,
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for “${p.name}”. Approve or skip the run on Today or in Campaigns › Playbooks. Nothing is sent until you do.`,
     );
   }
-  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
-  return { outcome: plan.kind === "send" ? "sent" : "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state, ...(movedFrom ? { moved_from: movedFrom } : {}) });
+  return { outcome: open ? "sent" : "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }

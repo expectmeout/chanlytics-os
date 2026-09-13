@@ -15023,6 +15023,11 @@ function whatsappSender(cfg) {
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
 }
+function kindOf(d) {
+  if (d.kind) return d.kind;
+  if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
+  return d.messageId ? "draft" : "answer";
+}
 async function wireFacts(db, d) {
   const { data, error } = await db.from("conversations").select("paused_until, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
@@ -15039,18 +15044,20 @@ function refusalFor(d, f, nowMs) {
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
-  if (d.sender === "human" && !d.proactive) return null;
+  const kind = kindOf(d);
+  if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
   const { data: mine, error: mineErr } = await db.from("messages").select("created_at").eq("id", d.messageId).eq("tenant_id", d.tenantId).maybeSingle();
   if (mineErr) throw new Error(`deliver: cannot read message ${d.messageId}: ${mineErr.message}`);
   if (!mine) return null;
-  const { data: newer, error } = await db.from("messages").select("id").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).limit(1);
+  const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  return newer && newer.length > 0 ? newer[0].id : null;
+  const spoke = (newer ?? []).find((m) => m.meta?.source !== "broadcast");
+  return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
   return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
@@ -15068,7 +15075,7 @@ async function deliver(ports, d) {
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const refusal = refusalFor(d, facts, nowMs);
-  const overtakenBy = !refusal && d.sender === "ai" && d.messageId ? await overtakenByHuman(ports.db, d) : null;
+  const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
   if (reason) {
     if (d.messageId) {
@@ -15431,6 +15438,18 @@ async function sendBroadcastBatch(ports, cmd) {
   const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
+  const ids = batch.map((r) => r.contact_id);
+  let people = /* @__PURE__ */ new Map();
+  let priors = /* @__PURE__ */ new Map();
+  let unreadable = false;
+  if (ids.length > 0) {
+    try {
+      [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
+    } catch (e) {
+      unreadable = true;
+      console.error("broadcast_batch_unreadable", b.id, e instanceof Error ? e.message : String(e));
+    }
+  }
   let begun = 0;
   let marked = 0;
   const mark = async (contactId, patch) => {
@@ -15439,7 +15458,7 @@ async function sendBroadcastBatch(ports, cmd) {
   };
   const skip = (contactId, reason) => mark(contactId, { state: "skipped", reason });
   const one = async (r) => {
-    const c = await ports.contact(r.contact_id);
+    const c = people.get(r.contact_id) ?? null;
     if (!c || c.erased_at) {
       await skip(r.contact_id, "erased");
       return "go on";
@@ -15448,7 +15467,7 @@ async function sendBroadcastBatch(ports, cmd) {
       await skip(r.contact_id, "no_phone");
       return "go on";
     }
-    const prior = await ports.alreadySent(b.id, c.id);
+    const prior = priors.get(c.id) ?? null;
     if (prior) {
       await mark(r.contact_id, { state: "sent", message_id: prior });
       return "go on";
@@ -15478,6 +15497,7 @@ async function sendBroadcastBatch(ports, cmd) {
       to: c.phone_e164,
       channel: "whatsapp",
       sender: "human",
+      kind: "broadcast",
       purpose,
       proactive: true,
       body: words,
@@ -15505,7 +15525,8 @@ async function sendBroadcastBatch(ports, cmd) {
     await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`);
     return "stop";
   };
-  for (const r of batch) {
+  for (const [i, r] of batch.entries()) {
+    if (unreadable) break;
     if (begun > 0 && ports.now() >= cmd.deadline) break;
     begun += 1;
     let verdict;
@@ -15516,12 +15537,12 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     if (verdict === "stop") return;
-    if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
+    if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    if (begun > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     else await ports.scheduleNext(b.id);
     return;
   }
@@ -15572,6 +15593,9 @@ async function runPlaybook(ports, cmd) {
   };
   const plan = by.kind === "user" ? mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
   if (plan.kind === "off") return off("never");
+  const send = plan.kind === "send" ? plan : null;
+  const open = send ? nextOpenMoment(ctx.tz, send.at) : null;
+  const movedFrom = send && open?.moved ? send.at.toISOString() : null;
   let tpl;
   try {
     tpl = await ports.template(p.template_name, p.template_language);
@@ -15608,26 +15632,26 @@ async function runPlaybook(ports, cmd) {
       params: specs,
       audience: { kind: "playbook", id: p.id, label: p.name },
       state: plan.state,
-      scheduled_for: (plan.kind === "send" ? plan.at : now).toISOString(),
+      scheduled_for: (open ? open.at : now).toISOString(),
       recipient_count: n,
       created_by: by.kind === "user" ? by.userId : p.created_by,
       playbook_id: p.id,
       run_for: runFor
     },
     recipients: eligible.map((r) => ({ contact_id: r.id, facts: factsOf(r) })),
-    sendAt: plan.kind === "send" ? plan.at : null
+    sendAt: open ? open.at : null
   });
   if (!made.ok) return { outcome: "failed", error: made.error };
-  if (plan.kind === "send") {
-    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: plan.at.toISOString(), run_now: by.kind === "user" } });
+  if (open) {
+    await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: open.at.toISOString(), run_now: by.kind === "user", ...movedFrom ? { moved_from: movedFrom } : {} } });
   } else {
     await ports.notify(
       `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
       `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns \u203A Playbooks. Nothing is sent until you do.`
     );
   }
-  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
-  return { outcome: plan.kind === "send" ? "sent" : "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state, ...movedFrom ? { moved_from: movedFrom } : {} });
+  return { outcome: open ? "sent" : "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }
 
 // src/campaigns/template-values.ts

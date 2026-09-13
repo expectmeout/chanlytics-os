@@ -417,6 +417,8 @@ export async function pauseConversation(
   tenantId: string,
   conversationId: string,
   pausedUntilIso: string,
+  /** The holding message this same handoff queued, which the pause must not withdraw. */
+  opts: { keepMessageId?: string | null } = {},
 ): Promise<boolean> {
   const { data, error } = await db
     .from("conversations")
@@ -432,6 +434,23 @@ export async function pauseConversation(
     console.error("pause_conversation_noop", conversationId);
     return false;
   }
+  // A person is taking the thread, so the receptionist's held drafts on it
+  // are withdrawn with the pause -- all but the holding message the same
+  // handoff queued in this breath, which the caller names. A draft written
+  // before the pause must not land after it: the door (packages/core deliver)
+  // waives the pause for a queued row on exactly this promise. The job that
+  // would send a withdrawn row finds it canceled and does nothing. A failure
+  // here is logged, never fatal: the pause itself landed.
+  let withdraw = db
+    .from("messages")
+    .update({ status: "canceled", error: { reason: "superseded_by_human" } })
+    .eq("conversation_id", conversationId)
+    .eq("tenant_id", tenantId)
+    .eq("sender", "ai")
+    .eq("status", "queued");
+  if (opts.keepMessageId) withdraw = withdraw.neq("id", opts.keepMessageId);
+  const { error: wErr } = await withdraw;
+  if (wErr) console.error("pause_withdraw_drafts_failed", conversationId, wErr.message);
   return true;
 }
 

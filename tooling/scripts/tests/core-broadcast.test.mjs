@@ -23,8 +23,8 @@ function fakes(over = {}) {
   const log = [];
   const answers = {
     broadcast: broadcast(), workspacePaused: false, template: approved, facts: { businessName: "Melany's", bookingLink: "https://book.example/m" },
-    batch: [{ contact_id: "k1", facts: null }, { contact_id: "k2", facts: null }], contact: (id) => contacts[id] ?? null,
-    target: (phone) => ({ conversationId: `c-${phone.slice(-2)}` }), alreadySent: null, remaining: 0, state: "sending", tally: { sent: 2, held: 0 }, now: () => NOW,
+    batch: [{ contact_id: "k1", facts: null }, { contact_id: "k2", facts: null }], contacts: (ids) => new Map(ids.filter((id) => contacts[id]).map((id) => [id, contacts[id]])),
+    target: (phone) => ({ conversationId: `c-${phone.slice(-2)}` }), alreadySent: () => new Map(), remaining: 0, state: "sending", tally: { sent: 2, held: 0 }, now: () => NOW,
     fail: undefined, startSending: true, mark: undefined, deliver: (d) => ({ outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" }),
     scheduleNext: undefined, finish: undefined, alert: undefined, sleep: undefined,
     ...over,
@@ -81,14 +81,14 @@ test("each person goes through the door with the template's purpose, proactive, 
   const sends = log.filter((l) => l[0] === "deliver").map((l) => l[1]);
   assert.equal(sends.length, 2);
   assert.deepEqual(sends[0], {
-    tenantId: "t1", conversationId: "c-01", contactId: "k1", to: "+13475550101", channel: "whatsapp", sender: "human", purpose: "marketing", proactive: true,
+    tenantId: "t1", conversationId: "c-01", contactId: "k1", to: "+13475550101", channel: "whatsapp", sender: "human", kind: "broadcast", purpose: "marketing", proactive: true,
     body: "Hi Ada, a spring offer from Melany's.", template: { name: "month_offer", language: "en_US", params: ["Ada", "Melany's"] },
     meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring offer" },
   });
   assert.equal(sends[1].body, "Hi Bo, a spring offer from Melany's.", "the profile name when no display name is on file");
   assert.deepEqual(marks(), [["k1", "sent", null], ["k2", "sent", null]]);
   assert.equal(log.filter((l) => l[0] === "mark")[0][3].message_id, "m-k1");
-  assert.equal(log.filter((l) => l[0] === "sleep").length, 2, "a breath after every person");
+  assert.equal(log.filter((l) => l[0] === "sleep").length, 1, "a breath between two people, none after the last");
   const utility = fakes({ template: { ...approved, category: "utility" }, broadcast: broadcast({ playbook_id: "p1", audience: { label: "Win-back" } }) });
   await sendBroadcastBatch(utility.ports, cmd());
   const d = utility.log.find((l) => l[0] === "deliver")[1];
@@ -96,20 +96,19 @@ test("each person goes through the door with the template's purpose, proactive, 
   assert.deepEqual(d.meta, { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring offer", playbook_id: "p1", playbook_name: "Win-back" }, "a run's message names its playbook");
 });
 
-test("fail closed per person: unreadable stays queued; erased, no number, no thread and an unfillable slot are held with their reason, and none of them reach the door", async () => {
+test("held with their reason: a row that is gone, erased, no number, no thread and an unfillable slot are held, and none of them reach the door", async () => {
   const rows = { k1: { ...contacts.k1, erased_at: "2026-09-01T00:00:00Z" }, k2: { ...contacts.k2, phone_e164: null }, k3: contacts.k1 && { ...contacts.k1, id: "k3", phone_e164: "+13475550103" }, k4: { ...contacts.k1, id: "k4", phone_e164: "+13475550104" } };
   // A first name nobody has on file reads "there", so the slot no row can fill is a visit run's word.
   const { ports, log, marks } = fakes({
     broadcast: broadcast({ params: [{ kind: "first_name" }, { kind: "visit_when" }] }),
-    batch: [{ contact_id: "k0", facts: null }, { contact_id: "k1", facts: null }, { contact_id: "k2", facts: null }, { contact_id: "k3", facts: null }, { contact_id: "k4", facts: {} }, { contact_id: "k9", facts: null }],
-    contact: (id) => { if (id === "k0") throw new Error("PostgREST blip"); return rows[id] ?? null; },
+    batch: [{ contact_id: "k1", facts: null }, { contact_id: "k2", facts: null }, { contact_id: "k3", facts: null }, { contact_id: "k4", facts: {} }, { contact_id: "k9", facts: null }],
+    contacts: (ids) => new Map(ids.filter((id) => rows[id]).map((id) => [id, rows[id]])),
     target: (phone) => (phone.endsWith("03") ? null : { conversationId: "c" }),
     remaining: 1, state: "sending",
   });
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(marks(), [["k1", "skipped", "erased"], ["k2", "skipped", "no_phone"], ["k3", "skipped", "no_thread"], ["k4", "skipped", "missing_value"], ["k9", "skipped", "erased"]]);
   assert.equal(log.filter((l) => l[0] === "deliver").length, 0);
-  assert.ok(!marks().some(([id]) => id === "k0"), "a row that could not be read is left queued for the next batch");
   assert.deepEqual(log.at(-1), ["scheduleNext", "b1"], "and the rest follow in the next batch, at once: this one made progress");
 });
 
@@ -129,8 +128,15 @@ test("one person's failure is never the batch's: a thread or a wire that could n
   assert.deepEqual(wire.log.at(-1), ["scheduleNext", "b1"], "progress was made, so the rest follow at once");
 });
 
-test("a batch that reached nobody waits before the next: every read failed, and trying again this second would spin the ledger", async () => {
-  const { ports, log } = fakes({ contact: () => { throw new Error("PostgREST down"); }, remaining: 2 });
+test("a batch whose people could not be read leaves them all queued and waits before the next: trying again this second would spin the ledger", async () => {
+  const { ports, log } = fakes({ contacts: () => { throw new Error("PostgREST down"); }, remaining: 2 });
+  await sendBroadcastBatch(ports, cmd());
+  assert.ok(!log.some((l) => l[0] === "mark" || l[0] === "deliver"), "nobody is guessed about");
+  assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+});
+
+test("a batch whose prior sends could not be read is left queued as well: 'could not check' is not 'never sent'", async () => {
+  const { ports, log } = fakes({ alreadySent: () => { throw new Error("PostgREST down"); }, remaining: 2 });
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
 });
@@ -185,7 +191,7 @@ test("a resumed batch reads the message a dying run left rather than sending it 
   // The fresh run jobs/settle schedules finds the row: k1 is marked sent with
   // that message, nothing goes to them twice, and k2 -- who has no row -- is
   // sent as normal.
-  const f = fakes({ alreadySent: (id, contactId) => (id === "b1" && contactId === "k1" ? "m-earlier" : null) });
+  const f = fakes({ alreadySent: (id, ids) => new Map(id === "b1" && ids.includes("k1") ? [["k1", "m-earlier"]] : []) });
   await sendBroadcastBatch(f.ports, cmd());
   const sends = f.log.filter((l) => l[0] === "deliver").map((l) => l[1].contactId);
   assert.deepEqual(sends, ["k2"], "k1 is not sent again");

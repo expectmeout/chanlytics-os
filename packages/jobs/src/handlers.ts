@@ -177,28 +177,29 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
         return data ?? [];
       },
-      contact: async (contactId) => {
-        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").eq("id", contactId).eq("tenant_id", job.tenant_id).maybeSingle();
-        if (error) throw new Error(error.message);
-        return data;
+      // The batch's people in one read, not one read per person.
+      contacts: async (ids) => {
+        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").in("id", ids).eq("tenant_id", job.tenant_id);
+        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+        return new Map((data ?? []).map((c) => [c.id, c]));
       },
       target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false }),
-      // The message a dying run left this person: written by deliver after the
-      // wire accepted it, with this broadcast's id in its meta.
-      alreadySent: async (id, contactId) => {
+      // The messages a dying run left these people: written by deliver after
+      // the wire accepted them, with this broadcast's id in their meta.
+      alreadySent: async (id, contactIds) => {
         const { data, error } = await db
           .from("messages")
-          .select("id")
+          .select("id, contact_id")
           .eq("tenant_id", job.tenant_id)
-          .eq("contact_id", contactId)
+          .in("contact_id", contactIds)
           .filter("meta->>broadcast_id", "eq", id)
-          .in("status", ["sent", "delivered", "read"])
-          .limit(1)
-          .maybeSingle();
+          .in("status", ["sent", "delivered", "read"]);
         // "Could not check" is not "never sent": this read is what keeps a
-        // resumed batch from sending the same person twice.
-        if (error) throw new Error(`broadcast_send: cannot read what ${contactId} was sent: ${error.message}`);
-        return data?.id ?? null;
+        // resumed batch from sending the same people twice.
+        if (error) throw new Error(`broadcast_send: cannot read what the batch was sent: ${error.message}`);
+        const prior = new Map<string, string>();
+        for (const m of data ?? []) if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, m.id);
+        return prior;
       },
       mark: async (id, contactId, patch) => {
         await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? new Date().toISOString() : null }).eq("broadcast_id", id).eq("contact_id", contactId);

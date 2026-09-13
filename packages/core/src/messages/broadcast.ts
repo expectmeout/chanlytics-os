@@ -1,6 +1,6 @@
 import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, parseParamSpecs, purposeOfTemplate, renderTemplate, resolveParams } from "@chanlytics/contracts";
 import type { Delivered } from "../deliver";
-import type { BroadcastBatchCommand, BroadcastBatchPorts, RecipientMark, RecipientRow } from "./ports";
+import type { BroadcastBatchCommand, BroadcastBatchPorts, ContactRow, RecipientMark, RecipientRow } from "./ports";
 
 /**
  * How long a batch that reached nobody waits before it is tried again. The
@@ -68,6 +68,23 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const { businessName, bookingLink } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
 
+  // The people on the batch and what they were already sent, read once for
+  // the batch rather than once per person. FAIL CLOSED: a read that fails
+  // leaves the whole batch queued rather than guessing about anyone -- "we
+  // could not check" is not "yes" -- and the run waits before trying again.
+  const ids = batch.map((r) => r.contact_id);
+  let people = new Map<string, ContactRow>();
+  let priors = new Map<string, string>();
+  let unreadable = false;
+  if (ids.length > 0) {
+    try {
+      [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
+    } catch (e) {
+      unreadable = true;
+      console.error("broadcast_batch_unreadable", b.id, e instanceof Error ? e.message : String(e));
+    }
+  }
+
   let begun = 0;
   let marked = 0;
   const mark = async (contactId: string, patch: RecipientMark) => {
@@ -78,14 +95,14 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
 
   /** One person, to the wire and back. "stop" when the run cannot go on past them. */
   const one = async (r: RecipientRow): Promise<"go on" | "stop"> => {
-    const c = await ports.contact(r.contact_id);
+    const c = people.get(r.contact_id) ?? null;
     if (!c || c.erased_at) { await skip(r.contact_id, "erased"); return "go on"; }
     if (!c.phone_e164) { await skip(r.contact_id, "no_phone"); return "go on"; }
     // A run that died between the wire and its own bookkeeping left this
     // person a message row and a queued recipient row. Resumed (jobs/settle
     // reschedules the rest), the batch reads the row rather than sending twice:
     // they got it, and the recipient row now says so.
-    const prior = await ports.alreadySent(b.id, c.id);
+    const prior = priors.get(c.id) ?? null;
     if (prior) { await mark(r.contact_id, { state: "sent", message_id: prior }); return "go on"; }
     // The thread this send belongs to. Which yes this message needs, the
     // pause, and the workspace's status are the door's to re-read at the
@@ -109,7 +126,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // yes to conversation — and it asks at the wire, whatever the route found
     // when it enrolled them; then the pause, the workspace's status, the send
     // on the tenant's credentials, and the row either way. A refusal leaves no
-    // row: the person's own line says why they were held.
+    // row: the person's own line says why they were held. A broadcast is the
+    // owner's words (the row says so) sent by the machine (the door is told so).
     const out = await ports.deliver({
       tenantId: cmd.tenantId,
       conversationId: target.conversationId,
@@ -117,6 +135,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       to: c.phone_e164,
       channel: "whatsapp",
       sender: "human",
+      kind: "broadcast",
       purpose,
       proactive: true,
       body: words,
@@ -139,16 +158,17 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     return "stop";
   };
 
-  for (const r of batch) {
+  for (const [i, r] of batch.entries()) {
+    if (unreadable) break;
     // Yield before the runner's ceiling rather than be killed mid-send: no new
     // send starts after the deadline, and the follow-up job below carries the
     // rest. One person at least, so a batch that starts late still moves on.
     if (begun > 0 && ports.now() >= cmd.deadline) break;
     begun += 1;
-    // FAIL CLOSED per person: a read that fails — their row, their thread, the
-    // wire's own facts — leaves them queued for the next batch rather than
-    // guessing; "we could not check" is not "yes". And one person's failure is
-    // never the batch's: the people after them are still reached.
+    // FAIL CLOSED per person: a read that fails — their thread, the wire's
+    // own facts — leaves them queued for the next batch rather than guessing;
+    // and one person's failure is never the batch's: the people after them
+    // are still reached.
     let verdict: "go on" | "stop";
     try {
       verdict = await one(r);
@@ -157,7 +177,8 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       continue;
     }
     if (verdict === "stop") return;
-    if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
+    // A breath between two sends, none after the last: the next batch is a job away.
+    if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
 
   const remaining = await ports.remaining(b.id);
@@ -166,7 +187,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     if ((await ports.state(b.id)) !== "sending") return;
     // A batch that reached nobody waits before the next: every read failed,
     // and trying again this second is how a failing read spins the ledger.
-    if (begun > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     else await ports.scheduleNext(b.id);
     return;
   }

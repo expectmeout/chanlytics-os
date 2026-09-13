@@ -191,7 +191,7 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel\)/g) ?? []).length,
     "every ingest carries the channel",
   );
-  assert.ok(code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") && code.includes("const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);") && !code.includes("sendText("), "one door out: the carrier is this message's sms wire, and the sink's door sends on it");
+  assert.ok(code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") && code.includes("const send = (text: string, meta?: Record<string, Json>, kind?: \"system\") => sink.deliver(from, wire(text), meta, kind);") && !code.includes("sendText("), "one door out: the carrier is this message's sms wire, and the sink's door sends on it");
   assert.ok(code.includes("queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)"), "a held draft is written for its wire");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
   assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes('to, channel, sender: "ai", purpose: "conversational", proactive: false,'), "the sink's door sends on this message's channel, as the receptionist, in conversation");

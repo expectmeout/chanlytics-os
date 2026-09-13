@@ -345,7 +345,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           </button>
         )}
         {canAct && p.state === "running" && !waiting && (
-          <button className="btn btn-sm" disabled={busy} onClick={runNow} data-tip="Runs it now, at your request — sends unless its class is set to Never" data-testid="pb-run-now">
+          <button className="btn btn-sm" disabled={busy} onClick={runNow} data-tip="Runs it now, at your request — sends unless its class is set to Never; outside nine to twenty it goes at nine" data-testid="pb-run-now">
             <Icon name="bolt" size={12} /> Run now
           </button>
         )}

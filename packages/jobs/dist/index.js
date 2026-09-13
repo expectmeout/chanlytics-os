@@ -19382,6 +19382,11 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
+function kindOf(d) {
+  if (d.kind) return d.kind;
+  if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
+  return d.messageId ? "draft" : "answer";
+}
 async function wireFacts(db, d) {
   const { data, error } = await db.from("conversations").select("paused_until, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
@@ -19398,18 +19403,20 @@ function refusalFor(d, f, nowMs) {
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
-  if (d.sender === "human" && !d.proactive) return null;
+  const kind = kindOf(d);
+  if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
   const { data: mine, error: mineErr } = await db.from("messages").select("created_at").eq("id", d.messageId).eq("tenant_id", d.tenantId).maybeSingle();
   if (mineErr) throw new Error(`deliver: cannot read message ${d.messageId}: ${mineErr.message}`);
   if (!mine) return null;
-  const { data: newer, error } = await db.from("messages").select("id").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).limit(1);
+  const { data: newer, error } = await db.from("messages").select("id, meta").eq("conversation_id", d.conversationId).eq("tenant_id", d.tenantId).eq("direction", "outbound").eq("sender", "human").gt("created_at", mine.created_at).order("created_at", { ascending: true }).limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  return newer && newer.length > 0 ? newer[0].id : null;
+  const spoke = (newer ?? []).find((m) => m.meta?.source !== "broadcast");
+  return spoke ? spoke.id : null;
 }
 function event(db, d, kind, messageId, data) {
   return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
@@ -19427,7 +19434,7 @@ async function deliver(ports, d) {
   const nowMs = (ports.now ?? Date.now)();
   const facts = await wireFacts(ports.db, d);
   const refusal = refusalFor(d, facts, nowMs);
-  const overtakenBy = !refusal && d.sender === "ai" && d.messageId ? await overtakenByHuman(ports.db, d) : null;
+  const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
   if (reason) {
     if (d.messageId) {
@@ -19585,6 +19592,18 @@ async function sendBroadcastBatch(ports, cmd) {
   const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
+  const ids = batch.map((r) => r.contact_id);
+  let people = /* @__PURE__ */ new Map();
+  let priors = /* @__PURE__ */ new Map();
+  let unreadable = false;
+  if (ids.length > 0) {
+    try {
+      [people, priors] = await Promise.all([ports.contacts(ids), ports.alreadySent(b.id, ids)]);
+    } catch (e) {
+      unreadable = true;
+      console.error("broadcast_batch_unreadable", b.id, e instanceof Error ? e.message : String(e));
+    }
+  }
   let begun = 0;
   let marked = 0;
   const mark = async (contactId, patch) => {
@@ -19593,7 +19612,7 @@ async function sendBroadcastBatch(ports, cmd) {
   };
   const skip = (contactId, reason) => mark(contactId, { state: "skipped", reason });
   const one = async (r) => {
-    const c = await ports.contact(r.contact_id);
+    const c = people.get(r.contact_id) ?? null;
     if (!c || c.erased_at) {
       await skip(r.contact_id, "erased");
       return "go on";
@@ -19602,7 +19621,7 @@ async function sendBroadcastBatch(ports, cmd) {
       await skip(r.contact_id, "no_phone");
       return "go on";
     }
-    const prior = await ports.alreadySent(b.id, c.id);
+    const prior = priors.get(c.id) ?? null;
     if (prior) {
       await mark(r.contact_id, { state: "sent", message_id: prior });
       return "go on";
@@ -19632,6 +19651,7 @@ async function sendBroadcastBatch(ports, cmd) {
       to: c.phone_e164,
       channel: "whatsapp",
       sender: "human",
+      kind: "broadcast",
       purpose,
       proactive: true,
       body: words,
@@ -19659,7 +19679,8 @@ async function sendBroadcastBatch(ports, cmd) {
     await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`);
     return "stop";
   };
-  for (const r of batch) {
+  for (const [i, r] of batch.entries()) {
+    if (unreadable) break;
     if (begun > 0 && ports.now() >= cmd.deadline) break;
     begun += 1;
     let verdict;
@@ -19670,12 +19691,12 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     if (verdict === "stop") return;
-    if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
+    if (BROADCAST_GAP_MS > 0 && i < batch.length - 1) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    if (begun > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    if (batch.length > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
     else await ports.scheduleNext(b.id);
     return;
   }
@@ -24630,18 +24651,21 @@ async function broadcastSend(ctx, job) {
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
         return data ?? [];
       },
-      contact: async (contactId) => {
-        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").eq("id", contactId).eq("tenant_id", job.tenant_id).maybeSingle();
-        if (error) throw new Error(error.message);
-        return data;
+      // The batch's people in one read, not one read per person.
+      contacts: async (ids) => {
+        const { data, error } = await db.from("contacts").select("id, phone_e164, consent, dnc, marketing_consent, erased_at, display_name, wa_profile_name").in("id", ids).eq("tenant_id", job.tenant_id);
+        if (error) throw new Error(`broadcast_send: cannot read the people: ${error.message}`);
+        return new Map((data ?? []).map((c) => [c.id, c]));
       },
       target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false }),
-      // The message a dying run left this person: written by deliver after the
-      // wire accepted it, with this broadcast's id in its meta.
-      alreadySent: async (id, contactId) => {
-        const { data, error } = await db.from("messages").select("id").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle();
-        if (error) throw new Error(`broadcast_send: cannot read what ${contactId} was sent: ${error.message}`);
-        return data?.id ?? null;
+      // The messages a dying run left these people: written by deliver after
+      // the wire accepted them, with this broadcast's id in their meta.
+      alreadySent: async (id, contactIds) => {
+        const { data, error } = await db.from("messages").select("id, contact_id").eq("tenant_id", job.tenant_id).in("contact_id", contactIds).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]);
+        if (error) throw new Error(`broadcast_send: cannot read what the batch was sent: ${error.message}`);
+        const prior = /* @__PURE__ */ new Map();
+        for (const m of data ?? []) if (m.contact_id && !prior.has(m.contact_id)) prior.set(m.contact_id, m.id);
+        return prior;
       },
       mark: async (id, contactId, patch) => {
         await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", id).eq("contact_id", contactId);

@@ -35,6 +35,22 @@ type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
 
 export type Channel = "whatsapp" | "sms";
 
+/**
+ * What a send IS, for the door's rules -- never read off `sender`, which is a
+ * fact about who wrote the words and is recorded as such.
+ *  - "reply": a person's own words in a conversation; every pause exists for
+ *    them, so none holds it.
+ *  - "draft": the receptionist's held reply, queued; a person speaking since
+ *    retires it, and the pause it now meets does not.
+ *  - "broadcast": proactive and automated; it respects every pause like the
+ *    machine it is.
+ *  - "system": words the rules require of us -- an opt-in confirmation naming
+ *    the program, HELP and STOP; a held thread does not hold them, a paused
+ *    workspace does.
+ *  - "answer": the receptionist answering now; every pause holds it.
+ */
+export type SendKind = "reply" | "draft" | "broadcast" | "system" | "answer";
+
 export interface TemplateSend {
   name: string;
   language: string;
@@ -88,8 +104,17 @@ export interface Delivery {
    * cancel that wins the row is never overwritten.
    */
   messageId?: string | null;
+  /** What this send is, for the rules (SendKind). Absent, the door derives it the way it always read `sender`: see kindOf. */
+  kind?: SendKind;
   /** Recorded on a row this call writes. */
   meta?: Record<string, Json>;
+}
+
+/** The policy a send goes under: as declared, or as the door always derived it from who wrote the words. */
+function kindOf(d: Delivery): SendKind {
+  if (d.kind) return d.kind;
+  if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
+  return d.messageId ? "draft" : "answer";
 }
 
 /** Why the door stayed shut. Each is a fact about the person, the thread or the workspace, never about us. */
@@ -169,27 +194,33 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // Consent outranks everything, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
+  const kind = kindOf(d);
   // A person's own reply goes out even when the machine is told to stop: the
   // pause exists for them, and a paused workspace may still answer by hand.
   // A broadcast is a person's words too, but it is proactive and automated,
   // and it respects the pause like the machine it is.
-  if (d.sender === "human" && !d.proactive) return null;
+  if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  // The thread's pause holds an IMMEDIATE send. A queued row was written
-  // before the pause it now meets -- the receptionist's own escalation pauses
-  // the thread and queues its holding message in the same breath -- so for a
-  // queued row the question is not "is the thread paused" but "did a person
-  // speak since", which overtakenByHuman answers below; and every take-over
-  // path withdraws the draft explicitly besides.
-  if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  // The thread's pause holds the receptionist answering now, and a broadcast.
+  // It does not hold a queued draft, written before the pause it now meets --
+  // the receptionist's own escalation pauses the thread and queues its holding
+  // message in the same breath -- so for a draft the question is not "is the
+  // thread paused" but "did a person speak since", which overtakenByHuman
+  // answers below; and every pause writer withdraws the drafts that came
+  // before it (pauseConversation, withdrawDrafts) besides. Nor does it hold a
+  // system message: an opt-in confirmation is owed the moment the yes was
+  // given, whoever holds the thread.
+  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
 
 /**
  * A person spoke after this draft was written. A held reply exists so a
  * human can get there first; the fact is a newer human message on the
- * thread, and the draft is retired, never sent. Asked only of an AI draft
- * that sits in the outbox, which is the only kind that can be overtaken.
+ * thread, and the draft is retired, never sent. Asked only of a draft that
+ * sits in the outbox, which is the only kind that can be overtaken. A
+ * broadcast's row is a person's words too, but not a person speaking on this
+ * thread: it retires nothing.
  */
 async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   const { data: mine, error: mineErr } = await db
@@ -202,15 +233,17 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   if (!mine) return null;
   const { data: newer, error } = await db
     .from("messages")
-    .select("id")
+    .select("id, meta")
     .eq("conversation_id", d.conversationId)
     .eq("tenant_id", d.tenantId)
     .eq("direction", "outbound")
     .eq("sender", "human")
     .gt("created_at", mine.created_at)
-    .limit(1);
+    .order("created_at", { ascending: true })
+    .limit(10);
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
-  return newer && newer.length > 0 ? newer[0].id : null;
+  const spoke = (newer ?? []).find((m) => (m.meta as { source?: unknown } | null)?.source !== "broadcast");
+  return spoke ? spoke.id : null;
 }
 
 /** The same writer every other event goes through: a failed insert is logged there, never dropped. */
@@ -246,7 +279,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   const facts = await wireFacts(ports.db, d);
 
   const refusal = refusalFor(d, facts, nowMs);
-  const overtakenBy = !refusal && d.sender === "ai" && d.messageId ? await overtakenByHuman(ports.db, d) : null;
+  const overtakenBy = !refusal && kindOf(d) === "draft" ? await overtakenByHuman(ports.db, d) : null;
   const reason = refusal ?? (overtakenBy ? "superseded_by_human" : null);
   if (reason) {
     // A queued row is canceled with its reason, so the thread shows why the

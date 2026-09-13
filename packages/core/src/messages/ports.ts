@@ -59,17 +59,18 @@ export interface BroadcastBatchPorts {
   facts(): Promise<{ businessName: string; bookingLink: string | null }>;
   /** Up to `limit` people still queued; throws when it cannot be read. */
   batch(id: string, limit: number): Promise<RecipientRow[]>;
-  /** One person's row, null when gone; throws when it cannot be read. */
-  contact(contactId: string): Promise<ContactRow | null>;
+  /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
+  contacts(contactIds: string[]): Promise<Map<string, ContactRow>>;
   /** The thread this send belongs to, never created here. */
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
   /**
-   * The message this broadcast already sent this person, if a run died between
-   * the wire and its own bookkeeping: its id, or null. A resumed batch reads it
-   * rather than sending twice -- so a read that fails THROWS: "could not
-   * check" read as "never sent" is exactly the second send this exists to stop.
+   * The messages this broadcast already sent these people, if a run died
+   * between the wire and its own bookkeeping: contact id → message id, one
+   * read for the batch. A resumed batch reads them rather than sending twice
+   * -- so a read that fails THROWS: "could not check" read as "never sent" is
+   * exactly the second send this exists to stop.
    */
-  alreadySent(id: string, contactId: string): Promise<string | null>;
+  alreadySent(id: string, contactIds: string[]): Promise<Map<string, string>>;
   mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
   deliver: Door;
   /** How many are still queued; throws when it cannot be counted. */
