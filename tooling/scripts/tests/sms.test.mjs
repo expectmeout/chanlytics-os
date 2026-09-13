@@ -191,10 +191,16 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
     (code.match(/ports\.persist\.ingest\(db, tenantId, n, channel\)/g) ?? []).length,
     "every ingest carries the channel",
   );
-  assert.ok(code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") && code.includes("const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);") && !code.includes("sendText("), "one door out: the carrier is this message's sms wire, and the sink's door sends on it");
+  assert.ok(code.includes("...(carrier ? { sms: (to: string, p: { body: string }) => carrier.send(to, p.body) } : {}),") && code.includes("const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose) => sink.deliver(from, wire(text), meta, purpose);") && !code.includes("sendText("), "one door out: the carrier is this message's sms wire, and the sink's door sends on it");
   assert.ok(code.includes("queueReply(db, tenantId, ing, from, wire(replyText), delayMs, L, plan.source, brainMeta, channel)"), "a held draft is written for its wire");
   const persist = readCode("apps/edge/lib/whatsapp/persist.ts");
-  assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes('to, channel, sender: "ai", purpose: "conversational", proactive: false,'), "the sink's door sends on this message's channel, as the receptionist, in conversation");
+  assert.ok(persist.includes('channel: "whatsapp" | "sms" = "whatsapp"') && persist.includes('to, channel, sender: "ai", purpose, proactive: false,'), "the sink's door sends on this message's channel, as the receptionist");
+  // Conversational unless the caller says otherwise, which only the confirmation
+  // of a YES OFFERS does. Hardcoding it here meant the one genuinely marketing
+  // message the receptionist sends reached the door calling itself a reply, and
+  // the rules that exist for it — the marketing yes, and offers never going by
+  // text — were never asked of it.
+  assert.ok(persist.includes('purpose: SendPurpose = "conversational"'), "and names the purpose the caller gave it, a reply by default");
   assert.ok(readCode("packages/db/src/repositories/ingest.ts").includes('channel: p.channel ?? "whatsapp",'), "an outbound row says its wire");
   // The job's wires are bound by the edge where the credentials are, and a
   // missing one is a refusal at the door (deliver.test.mjs runs that door).

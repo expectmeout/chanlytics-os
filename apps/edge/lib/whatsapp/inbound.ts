@@ -223,7 +223,7 @@ export async function handleInbound(
   const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
   const firstReply = thread.replies.length === 0 && !repliedBefore;
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);
+  const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose) => sink.deliver(from, wire(text), meta, purpose);
   /**
    * The owner's handoff email. Every fact about the conversation other than
    * the words is fixed for this whole invocation, and it was retyped at each
@@ -591,22 +591,27 @@ export async function handleInbound(
     // frequency, the rates, HELP and STOP, and left nobody aware that the one
     // message the carriers refused this campaign three times for missing had
     // not reached the person who just said yes.
-    const confirmed = await send(words, { ack: true, confirmation: purpose });
+    const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose);
     thread.history.push({ role: "user", content: bodyText });
     if (confirmed.outcome === "sent") thread.history.push({ role: "assistant", content: words });
     await ports.store.save(ns, from, thread);
-    if (confirmed.outcome === "failed") {
+    if (confirmed.outcome !== "sent") {
+      // A yes nobody confirmed is the carriers' complaint, whether the wire
+      // failed or the door refused. A refusal is NOT quietly logged here the
+      // way it is on the reply path below: the reasons that can arrive at this
+      // send are all ones a person has to act on, and `no_marketing_consent` is
+      // the one to expect — the OFFERS answer is recorded best-effort a moment
+      // earlier and the door fails closed without it, so a consent write that
+      // did not land would otherwise leave a customer subscribed to nothing,
+      // told nothing, with a log line as the only trace.
+      const why = confirmed.outcome === "failed" ? `${confirmed.reason}, HTTP ${confirmed.status}` : confirmed.reason;
       await Promise.all([
-        sink.escalate("send_failed", "The customer said yes and their confirmation could not be sent, so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox."),
-        tell(bodyText, "(the confirmation of their yes was not delivered)", "opt-in not confirmed"),
+        sink.escalate("send_failed", `The customer said yes and their confirmation did not go out (${why}), so they have no record of what they signed up for, how often, or how to stop. Send it from the Inbox.`),
+        tell(bodyText, `(the confirmation of their yes was not delivered — ${why})`, "opt-in not confirmed"),
       ]);
-    } else if (confirmed.outcome === "refused") {
-      // The wire knows something the gates above could not see. It has its own
-      // person already, exactly as on the reply path below.
-      L.info("wa_opt_in_refused_at_wire", { reason: confirmed.reason });
     }
     await sink.processed();
-    L.info("wa_opt_in_confirmed", { purpose, channel, sent: confirmed.outcome === "sent" });
+    L.info("wa_opt_in_confirmed", { purpose, channel, sent: confirmed.outcome === "sent", why: confirmed.outcome === "sent" ? null : confirmed.reason });
     return;
   }
 

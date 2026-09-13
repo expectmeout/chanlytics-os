@@ -22,7 +22,7 @@ import { upsertEscalation, type EscalationOutcome } from "../workspace/jobs.js";
 import { deliverSafely, type Delivered, type Wire } from "../workspace/core.js";
 import { waCfgFor, type TenantRuntime } from "../tenant-runtime.js";
 import { queueDraft } from "../draft-queue.js";
-import type { BrainMeta } from "../workspace/contracts.js";
+import type { BrainMeta, SendPurpose } from "../workspace/contracts.js";
 import type { ThreadState } from "../store.js";
 import { logger, errField } from "../log.js";
 
@@ -199,14 +199,21 @@ export function pgSink(
      * and a message.send_failed event. Without Postgres there is no thread to
      * re-read and no row to write, so nothing is sent: the handler has
      * already handed such a message to a person.
+     *
+     * The PURPOSE is the caller's, not a constant. It was hardcoded
+     * "conversational", so the one send this handler makes that is genuinely
+     * marketing -- the confirmation of a YES OFFERS -- reached the door
+     * claiming to be a reply, and the two rules that exist for it (the
+     * marketing yes, and offers never going by text) were never asked. The
+     * default is the honest one for everything else the receptionist says.
      */
-    deliver: (to: string, text: string, meta?: Record<string, Json>): Promise<Delivered> =>
+    deliver: (to: string, text: string, meta?: Record<string, Json>, purpose: SendPurpose = "conversational"): Promise<Delivered> =>
       on
         ? deliverSafely(
             { db: db!, wire },
             {
               tenantId: tenantId!, conversationId: ing!.conversation_id, contactId: ing!.contact_id,
-              to, channel, sender: "ai", purpose: "conversational", proactive: false,
+              to, channel, sender: "ai", purpose, proactive: false,
               body: text, ...(meta ? { meta } : {}),
             },
           )

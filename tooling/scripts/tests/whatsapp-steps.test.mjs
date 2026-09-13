@@ -103,5 +103,5 @@ test("the shape: the webhook, the message path, the bookkeeping, the alerts, the
   // nothing in the vault, and the door refuses rather than sending on the
   // environment's pair (per-tenant-credentials.test.mjs runs the resolver,
   // deliver.test.mjs runs the door).
-  assert.ok(inbound.includes("whatsapp: ports.sender(waCfgFor(rt, isEnvDefault)),") && inbound.includes("const send = (text: string, meta?: Record<string, Json>) => sink.deliver(from, wire(text), meta);"), "the customer is texted on the tenant's credentials, through the door, or not at all");
+  assert.ok(inbound.includes("whatsapp: ports.sender(waCfgFor(rt, isEnvDefault)),") && inbound.includes("const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose) => sink.deliver(from, wire(text), meta, purpose);"), "the customer is texted on the tenant's credentials, through the door, or not at all");
 });

@@ -44,7 +44,7 @@ const ingested = (n) => ({ message_id: "m-in", conversation_id: "conv1", contact
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   const memory = new Map();
-  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0, media: 0 };
+  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0, media: 0, purposes: [] };
   const rt = over.rt ?? runtime();
   const ports = {
     db: () => fakeDb({}),
@@ -62,8 +62,10 @@ function world(over = {}) {
       ingest: over.ingest ?? (async (_db, _tenant, n) => ingested(n)),
       sink: (_db, _tenant, ing, _rt, channel) => ({
         on: !!ing,
-        deliver: async (to, body, meta) => {
+        deliver: async (to, body, meta, purpose) => {
           seen.sent.push({ to, body, meta: meta ?? null, channel });
+          // The port's own default, mirrored: what reaches the door is what counts.
+          seen.purposes.push(purpose ?? "conversational");
           return over.delivered ?? { outcome: "sent", messageId: "m-out", externalId: "wamid.out" };
         },
         processed: async () => { seen.processed += 1; },
@@ -374,4 +376,30 @@ test("an unreadable attachment still reaches storage, and a redelivery of it doe
   await w.run(note);
   assert.equal(w.seen.escalations.length, 1);
   assert.equal(w.seen.alerts.length, 1);
+});
+
+test("the confirmation of a YES OFFERS names itself marketing at the door, and everything else is a reply", async () => {
+  // The sink stamped every send "conversational", so the one genuinely
+  // marketing message this handler writes reached the door claiming to be a
+  // reply — and the two rules that exist for it, the marketing yes and offers
+  // never going by text, were never asked.
+  const w = world();
+  await w.run(text("hi"));
+  await w.run(text("START", "wamid.2"));
+  await w.run(text("YES OFFERS", "wamid.3"));
+  assert.deepEqual(w.seen.purposes, ["conversational", "conversational", "marketing"]);
+});
+
+test("a confirmation the door refuses reaches a person, not just the log", async () => {
+  // `no_marketing_consent` is the one to expect: the OFFERS answer is recorded
+  // best-effort a moment earlier and the door fails closed without it, so a
+  // consent write that did not land would leave a customer subscribed to
+  // nothing and told nothing.
+  const w = world({ delivered: { outcome: "refused", reason: "no_marketing_consent", messageId: null } });
+  await w.run(text("YES OFFERS"));
+  assert.deepEqual(w.thread().history.map((h) => h.role), ["user"], "nothing is remembered as said");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["send_failed"]);
+  assert.match(w.seen.escalations[0].details, /no_marketing_consent/);
+  assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
+  assert.equal(w.seen.processed, 1);
 });
