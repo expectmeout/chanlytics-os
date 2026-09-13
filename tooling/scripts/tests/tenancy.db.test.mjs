@@ -9,6 +9,9 @@
  * (the workspace's rows, their own rows, or nothing -- the service role's
  * tables), a member of another workspace reads none of it and can neither
  * change, remove nor add a row in it, and a viewer changes nothing anywhere.
+ * For the service role's tables "nothing" is the privilege itself refused
+ * (42501), not an empty list: RLS with no policy and a forgotten revoke read
+ * the same until someone grants the second one something.
  * The list of tables is checked against the database's own description of
  * itself (PostgREST's OpenAPI root), so a tenant table nobody added a proof
  * for fails here by name.
@@ -217,6 +220,32 @@ const seen = async (client, table, filter) => {
 };
 const nothing = (x) => x === 0 || (typeof x === "string" && x.startsWith("error:"));
 
+/**
+ * How a select was refused, for the service role's tables: the Postgres error
+ * code, or what came back instead. A sibling of seen(), not a change to it:
+ * seen() answers "how many rows" for every other table and every other check
+ * here; this answers "was the privilege itself refused".
+ */
+const refusedWith = async (client, table, filter) => {
+  let q = client.from(table).select("*").limit(5);
+  for (const [col, val] of filter) q = q.eq(col, val);
+  const r = await q;
+  if (!r.error) return `${r.data.length} rows`;
+  return r.error.code ?? `an error without a code: ${r.error.message}`;
+};
+/**
+ * The service role's tables must refuse the PRIVILEGE, not only the rows. RLS
+ * on with no policy answers a member with an empty list, and so does a table
+ * that turned RLS on and forgot the revoke: the two read as equally safe until
+ * someone grants the second one something. 42501 (insufficient_privilege) is
+ * the only answer that says the grant itself is gone, so it is what every
+ * "none" table is required to say -- to a viewer, an owner and a stranger
+ * alike. Four tables (billing_events, jobs, platform_admins, sweep_status)
+ * answered [] until 00119; this is the assertion that would have named them.
+ */
+const PRIVILEGE_REFUSED = "42501";
+const notRefused = (who, how) => `the service role's table did not refuse ${who} the privilege (${PRIVILEGE_REFUSED}); it answered ${how}`;
+
 test("the list of tenant tables is the database's own", { skip }, async () => {
   const res = await fetch(`${URL_}/rest/v1/`, { headers: { apikey: KEY, Authorization: `Bearer ${KEY}` } });
   assert.equal(res.status, 200, `PostgREST's root answered ${res.status}`);
@@ -261,6 +290,13 @@ test("every tenant table: a member reads what the policy says, a stranger reads 
     }
     if (mode === "none" && !nothing(asViewer)) note(table, `the service role's table was readable by a member (${asViewer})`);
     if (!nothing(asStranger)) note(table, `a member of another workspace read ${asStranger}`);
+    if (mode === "none") {
+      // Empty is not enough for the service role's table (see PRIVILEGE_REFUSED): the grant must be gone.
+      for (const [who, c] of [["a member (viewer)", viewer.client], ["a member of another workspace", stranger.client]]) {
+        const how = await refusedWith(c, table, [["tenant_id", A]]);
+        if (how !== PRIVILEGE_REFUSED) note(table, notRefused(who, how));
+      }
+    }
 
     // The stranger's writes, and then the viewer's: nothing changes.
     for (const [who, c, tag] of [["stranger", stranger.client, "a member of another workspace"], ["viewer", viewer.client, "a viewer"]]) {
@@ -308,6 +344,11 @@ test("the tables without a tenant_id: the workspace row is a member's to read an
     const asOwner = await seen(owner.client, table, []);
     if (!nothing(asViewer)) note(table, `the service role's table was readable by a member (${asViewer})`);
     if (!nothing(asOwner)) note(table, `the service role's table was readable by an owner (${asOwner})`);
+    // Empty is not enough for the service role's table (see PRIVILEGE_REFUSED): the grant must be gone.
+    for (const [who, c] of [["a member (viewer)", viewer.client], ["an owner", owner.client], ["a member of another workspace", stranger.client]]) {
+      const how = await refusedWith(c, table, []);
+      if (how !== PRIVILEGE_REFUSED) note(table, notRefused(who, how));
+    }
   }
   assert.deepEqual(offences, [], "the other tables keep their scope");
 });
