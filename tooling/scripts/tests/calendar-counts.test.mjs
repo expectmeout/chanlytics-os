@@ -23,8 +23,10 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server/rate-limit.ts"));
 const { forgetFeeds, openingsFor } = await import(at("apps/dashboard/src/server/ask/openings.ts"));
 const { bookingReport } = await import(at("apps/dashboard/src/server/calendar.ts"));
-const { everyone, triggerPools } = await import(at("apps/dashboard/src/server/playbooks.ts"));
-const { PEOPLE_PAGE } = await import(at("apps/dashboard/src/server/people.ts"));
+const { triggerPools } = await import(at("apps/dashboard/src/server/playbooks.ts"));
+// everyone() lives beside listPeople now: every read that means the whole
+// workspace goes through it, not just the pool a playbook run picks from.
+const { everyone, PEOPLE_PAGE } = await import(at("apps/dashboard/src/server/people.ts"));
 const playbooksRoute = await import(at("apps/dashboard/app/api/v1/playbooks/route.ts"));
 const openingsRoute = await import(at("apps/dashboard/app/api/v1/ask/openings/route.ts"));
 const { allPeople } = await import(at("apps/edge/lib/playbooks.ts"));

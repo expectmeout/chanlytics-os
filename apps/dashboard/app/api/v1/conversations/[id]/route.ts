@@ -7,7 +7,11 @@ import { mediaPublic } from "@/server/dto";
 
 const Query = z.object({
   /** Page back: messages created before this instant. */
-  before: z.string().optional(),
+  // Refused here rather than handed to PostgREST as a timestamp: an unparseable
+  // value comes back as 22P02, which is not an AppError, so withRoute renders a
+  // client's typo as a 500 "Something went wrong" -- the exact failure
+  // requireUuid exists to prevent for ids.
+  before: z.string().refine((s) => !Number.isNaN(Date.parse(s)), "before must be a timestamp.").optional(),
 });
 
 /**

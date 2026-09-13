@@ -107,6 +107,32 @@ export async function rescheduleBlobErase(
   return await schedule(tenantId, "blob_thread_erase", new Date(), prior.payload as Json);
 }
 
+/**
+ * The phone spellings an outstanding erasure is still carrying.
+ *
+ * After the tombstone the contact's own row holds no number, so the only place
+ * left that names the customer is the blob_thread_erase payload queued before
+ * anything was destroyed. A retry of the other legs reads its needles from
+ * here; once that job has scrubbed itself there are none left to recover, and
+ * the scrubs that key on the contact id still do their work.
+ */
+export async function erasedThreadIds(tenantId: string, contactId: string): Promise<string[]> {
+  const { data, error } = await serviceDb()
+    .from("jobs")
+    .select("payload")
+    .eq("tenant_id", tenantId)
+    .eq("kind", "blob_thread_erase")
+    .eq("payload->>contact_id", contactId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (error) {
+    console.error("erased_thread_ids_read_failed", contactId, error.message);
+    return [];
+  }
+  const payload = data?.[0]?.payload as { thread_ids?: unknown } | null;
+  return Array.isArray(payload?.thread_ids) ? payload.thread_ids.filter((t): t is string => typeof t === "string") : [];
+}
+
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 /**

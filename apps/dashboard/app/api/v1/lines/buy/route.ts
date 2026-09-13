@@ -27,8 +27,12 @@ export const POST = write({
   spend: true,
   input: Body,
   handle: async ({ member, input }) => {
-    const areaCode = typeof input.area_code === "number" ? input.area_code : typeof input.area_code === "string" ? Number(input.area_code) : undefined;
-    const a = await edgeLines({ op: "buy", tenant_id: member.tenantId, number: input.number, ...(areaCode ? { area_code: areaCode } : {}) }, 60_000);
+    // Kept as the three digits that were validated. Number() made "000" a zero,
+    // which the truthiness check below then dropped -- searching with no area
+    // code rather than refusing -- and "012" a 12, a different area code than
+    // the one the owner typed.
+    const areaCode = input.area_code === undefined || input.area_code === null ? undefined : String(input.area_code);
+    const a = await edgeLines({ op: "buy", tenant_id: member.tenantId, number: input.number, ...(areaCode !== undefined ? { area_code: areaCode } : {}) }, 60_000);
     const b = a.body ?? {};
     if (a.status === 409) throw new AppError("conflict", b.error === "line_failed_retry" ? "This workspace has a line that stopped part-way — retry it from Setup." : "This workspace already has a line.", 409);
     if (a.status === 503 && b.error === "no_line_provider") throw new AppError("conflict", "Getting a line is not available here yet — ask us and a person at Chanlytics sets it up with you.", 409);

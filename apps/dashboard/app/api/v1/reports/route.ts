@@ -1,7 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
 import { AppError, REPORT_RANGES, type ReportDto } from "@chanlytics/contracts";
-import { listPeople } from "@/server/people";
+import { everyone } from "@/server/people";
 import { bookingReport } from "@/server/calendar";
 
 const Query = z.object({
@@ -35,7 +35,10 @@ export const GET = read({
     if (!report || report.error) throw new AppError("not_found", "No workspace found for this report.", 404);
     // Asked, then booked — the one conversion line, from the calendar. Never
     // fatal: a feed that cannot be read costs this line, not the report.
-    const booking = await listPeople(ctx, tenantId)
+    // everyone(), not one 1000-row page: every other number on this page is
+    // computed in SQL over the whole tenant, and a conversion rate over a
+    // truncated denominator would disagree with all of them.
+    const booking = await everyone(ctx, tenantId)
       .then((rows) => bookingReport(ctx, tenantId, rows, days))
       .catch((e: unknown) => { console.error("booking_report_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) })); return null; });
     return { report, booking };

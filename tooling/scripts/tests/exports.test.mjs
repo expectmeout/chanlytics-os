@@ -168,12 +168,23 @@ test("the three routes keep their doors: rate bucket, a named workspace, owner o
     // Declared on the export (route()): the bucket, and the workspace the tab named.
     assert.ok(src.includes('rate: "export",'), `${name}: rate bucket`);
     assert.ok(src.includes("scope: workspace,"), `${name}: the workspace comes from the request`);
-    assert.ok(src.includes(".eq(\"tenant_id\", member.tenantId)") || src.includes("listPeople(ctx, member.tenantId)"), `${name}: scoped to the named workspace`);
+    assert.ok(src.includes(".eq(\"tenant_id\", member.tenantId)") || src.includes("everyone(ctx, member.tenantId)"), `${name}: scoped to the named workspace`);
     assert.ok(src.includes("return attachment("), `${name}: a file`);
   }
   assert.ok(people.includes('role: "owner",'), "only an owner exports everyone");
+  // everyone(), not listPeople(): one people_list call is capped at 1000 rows in
+  // the database, so the CSV that says it is the whole customer list has to page.
+  assert.ok(people.includes("everyone(ctx, member.tenantId)"), "the CSV is everyone, not the first page of them");
   // Every read of a workspace refuses an account in two that named neither (plan 3.4, run in route-definition.test.mjs); the export was the first to insist.
   assert.ok(conv.includes("for (let page = 0; page < MAX_PAGES; page++) {"), "the whole thread, not the screen's page");
+  // Offset paging under a TOTAL order, as the workspace bundle does. The old
+  // `.lt(created_at, before)` cursor stepped strictly past the last row on a
+  // page, so two messages written in one transaction -- identical timestamps --
+  // lost every one tied with the boundary, silently, from the file whose whole
+  // promise is "every message".
+  assert.ok(!conv.includes('.lt("created_at"'), "no cursor that can step over a tie");
+  assert.ok(conv.includes('.order("created_at", { ascending: true })') && conv.includes('.order("id", { ascending: true })'), "created_at then id: a total order");
+  assert.ok(conv.includes(".range(page * PAGE, page * PAGE + PAGE - 1)"), "and offset paging under it");
   assert.deepEqual([ROLE_PERMS.owner.export, ROLE_PERMS.operator.export, ROLE_PERMS.viewer.export], [true, false, false]);
   const limits = readCode("apps/dashboard/src/server/rate-limit.ts");
   assert.ok(limits.includes('export: { limit: 10, windowMs: 60_000, noun: "exports" }'));
@@ -212,8 +223,17 @@ test("the bundle is one JSON document: every section, every page, in order, neve
     { id: "c3", contact_id: "p3", state: "open", created_at: "2026-08-03T10:00:00Z", last_message_at: null, last_inbound_at: null },
   ];
   const msgs = { c1: [msg({ id: "m1" }), msg({ id: "m2" }), msg({ id: "m3" })], c2: [], c3: [msg({ id: "m4" })] };
+  // Three of them, over a page size of two: people used to be read as ONE call,
+  // whose answer people_list caps at 1000 rows in the database -- so a workspace
+  // above that downloaded a bundle short by everyone after the first page, with
+  // no error, no flag, and no way to tell it from the whole thing.
+  const people = [
+    { id: "p1", display_name: "Dani", phone_e164: "+19175550100", consent: "opted_in", dnc: false },
+    { id: "p2", display_name: "Sam", phone_e164: "+19175550101", consent: "opted_in", dnc: false },
+    { id: "p3", display_name: "Ola", phone_e164: "+19175550102", consent: "unknown", dnc: false },
+  ];
   const readers = {
-    people: async () => [{ id: "p1", display_name: "Dani", phone_e164: "+19175550100", consent: "opted_in", dnc: false }],
+    people: async (o, l) => { asked.push(["people", o, l]); return people.slice(o, o + l); },
     conversations: async (o, l) => { asked.push(["conversations", o, l]); return convs.slice(o, o + l); },
     messages: async (id, o, l) => { asked.push(["messages", id, o, l]); return (msgs[id] ?? []).slice(o, o + l); },
     calls: async (o, l) => { asked.push(["calls", o, l]); return [{ id: "k1", direction: "inbound", started_at: "2026-08-01T09:00:00Z" }].slice(o, o + l); },
@@ -227,7 +247,8 @@ test("the bundle is one JSON document: every section, every page, in order, neve
   assert.equal(doc.version, 1);
   assert.deepEqual(doc.workspace, { id: "t1", name: "Melany's Beauty Salon", timezone: TZ, exported_at: "2026-09-12T03:00:00.000Z" });
   assert.deepEqual(Object.keys(doc), ["format", "version", "workspace", "people", "conversations", "calls", "consent_history"]);
-  assert.deepEqual(doc.people.map((p) => p.id), ["p1"]);
+  assert.deepEqual(doc.people.map((p) => p.id), ["p1", "p2", "p3"], "every person, across page boundaries");
+  assert.deepEqual(asked.filter((a) => a[0] === "people"), [["people", 0, 2], ["people", 2, 2]], "paged like every other section");
   assert.deepEqual(doc.conversations.map((c) => [c.id, c.messages.map((m) => m.id)]), [["c1", ["m1", "m2", "m3"]], ["c2", []], ["c3", ["m4"]]], "every conversation with every message, across page boundaries");
   assert.deepEqual(doc.calls.map((k) => k.id), ["k1"]);
   assert.deepEqual(doc.consent_history, [{ id: "e1", contact_id: "p1", at: "2026-08-01T10:01:00Z", purpose: "conversational", consent: "opted_in", previous: "unknown", source: "customer_message", by: null, note: null }]);

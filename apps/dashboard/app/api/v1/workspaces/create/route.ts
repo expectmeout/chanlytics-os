@@ -65,7 +65,12 @@ export const POST = write({
 
     // The door (see the header): the posture, for an account with no membership
     // yet. Counted on the session client, which sees only its own rows.
-    const { count } = await ctx.supabase.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", ctx.userId);
+    // The error is read: `count` comes back null on a failed read, which the
+    // door takes for "no memberships" -- so an owner making their second
+    // workspace would be refused with a wrong-invite-code message, for a field
+    // the create screen never showed them.
+    const { count, error: countErr } = await ctx.supabase.from("memberships").select("id", { count: "exact", head: true }).eq("user_id", ctx.userId);
+    if (countErr) throw new Error(`memberships_count: ${countErr.message}`);
     const door = firstWorkspaceDoor({ posture: signupPosture(process.env.SIGNUP_CODE), memberships: count ?? 0, codeMatches: inviteCodeMatches(parsed.data.code) });
     if (!door.open) throw new AppError(door.code, door.message);
 

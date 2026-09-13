@@ -35,7 +35,7 @@ export interface BundleConversation {
 }
 
 export interface BundleReaders {
-  people(): Promise<PersonRowDto[]>;
+  people(offset: number, limit: number): Promise<PersonRowDto[]>;
   conversations(offset: number, limit: number): Promise<BundleConversation[]>;
   messages(conversationId: string, offset: number, limit: number): Promise<MessageDto[]>;
   calls(offset: number, limit: number): Promise<CallDto[]>;
@@ -59,11 +59,6 @@ async function* paged<T>(read: (offset: number, limit: number) => Promise<T[]>, 
     for (const r of rows) yield r;
     if (rows.length < page) return;
   }
-}
-
-/** One page that arrives whole (the people list is one RPC), as a sequence. */
-async function* once<T>(p: Promise<T[]>): AsyncGenerator<T> {
-  for (const r of await p) yield r;
 }
 
 /** The items of an async sequence as one JSON array, an item per chunk. */
@@ -95,7 +90,7 @@ export async function* workspaceBundle(readers: BundleReaders, opts: BundleOpts)
   yield JSON.stringify(head, null, 2).replace(/\n\}$/, "") + ",\n";
 
   yield '"people": ';
-  yield* jsonArray(once(readers.people()));
+  yield* jsonArray(paged(readers.people, page));
 
   yield ',\n"conversations": ';
   yield* jsonArray(withMessages(readers, page));

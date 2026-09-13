@@ -5,7 +5,7 @@ import type { RouteContext } from "@/server/with-route";
 import { listRuns } from "@/server/broadcasts";
 import { peopleVisits } from "@/server/calendar";
 import { templateValuePorts } from "@/server/campaign-ports";
-import { listPeople, PEOPLE_PAGE } from "@/server/people";
+import { everyone, listPeople, PEOPLE_PAGE } from "@/server/people";
 
 /**
  * Playbooks, read and checked.
@@ -84,17 +84,6 @@ export async function recentTouches(ctx: RouteContext, tenantId: string, now: Da
     }
   }
   return touched;
-}
-
-/** Everyone in People, a page at a time: the pool a run picks from is never one page of it. */
-export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
-  const all: PersonRowDto[] = [];
-  for (let offset = 0; ; offset += PEOPLE_PAGE) {
-    const page = await listPeople(ctx, tenantId, { offset, limit: PEOPLE_PAGE });
-    all.push(...page);
-    if (page.length < PEOPLE_PAGE) break;
-  }
-  return all;
 }
 
 /** A cap no workspace reaches: the pool is counted, not capped. */

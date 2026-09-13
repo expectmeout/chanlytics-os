@@ -142,6 +142,26 @@ test("erasing a person is the owner's, judged where the person lives, and a refu
   await refused(person.DELETE.run(send("DELETE"), ctxFor(tables, { id: "not-a-uuid" })), "not_found", 404);
 });
 
+test("a key that could not be READ stops the erasure, rather than erasing without it", async () => {
+  // The keys are collected while the rows still exist, because after the
+  // tombstone there is nowhere left to recompute them. The identities read used
+  // to drop its error, so a failed read looked exactly like "no WhatsApp
+  // identity" -- and the Blob job was queued without the wa_ids, leaving the
+  // verbatim transcript in Blob for ever under a reply of `{ erased: true }`.
+  const tables = { memberships: both("owner", "operator"), contacts: [contact(P1, A)] };
+  for (const [table, what] of [["contact_identities", /WhatsApp identities/], ["calls", /call recordings/], ["messages", /stored media/]]) {
+    const ctx = { supabase: fakeDb(tables, { [`${table}.select`]: { message: "statement timeout" } }), userId: USER, email: "ada@example.com", params: { id: P1 } };
+    await assert.rejects(person.DELETE.run(send("DELETE"), ctx), (e) => {
+      assert.equal(e.code, "internal", table);
+      assert.match(e.message, what, table);
+      assert.match(e.message, /nothing was deleted/, table);
+      return true;
+    });
+    assert.equal(writes(ctx), 0, `${table}: refused before anything was queued or destroyed`);
+    assert.equal(tables.contacts[0].erased_at, null, `${table}: the person is still there to try again`);
+  }
+});
+
 test("details: an operator where the person lives, a name or notes or both, trimmed, through the two doors; an erased person is a 404", async () => {
   const doors = [];
   const rpcs = {

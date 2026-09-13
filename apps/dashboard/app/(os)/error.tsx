@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 
 const CHUNK_ERROR = /ChunkLoadError|Loading chunk|dynamically imported module|Failed to fetch/i;
+/** Two chunk failures closer together than this are a loop, not a new deploy. */
+const LOOP_MS = 60_000;
 
 /** Pane-level error boundary: stale-deploy chunk failures self-heal with one
  *  reload; everything else gets a branded card instead of Next's white screen. */
@@ -11,8 +13,16 @@ export default function OsError({ error, reset }: { error: Error; reset: () => v
     console.error("os_error", error.message);
     if (CHUNK_ERROR.test(error.message)) {
       try {
-        if (!sessionStorage.getItem("chunk-reloaded")) {
-          sessionStorage.setItem("chunk-reloaded", "1");
+        // A TIMESTAMP, not a flag. The flag was only ever cleared on this line
+        // below — which a successful self-heal never reaches, because the
+        // reloaded page renders fine and this boundary never mounts. So the
+        // first stale-deploy reload in a tab worked and every later one showed
+        // the card instead: a tab open across two deploys stopped healing. What
+        // must be stopped is a reload LOOP, which is two failures moments
+        // apart, not two hours apart.
+        const last = Number(sessionStorage.getItem("chunk-reloaded") ?? 0);
+        if (!(Date.now() - last < LOOP_MS)) {
+          sessionStorage.setItem("chunk-reloaded", String(Date.now()));
           window.location.reload();
           return;
         }

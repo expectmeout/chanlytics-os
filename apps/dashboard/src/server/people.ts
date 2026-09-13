@@ -21,8 +21,22 @@ export interface PeoplePage {
   limit?: number;
 }
 
+/**
+ * The characters a name or a number holds, and nothing else.
+ *
+ * ONE sanitizer for both halves of the People page: `people_list` interpolates
+ * the needle into `ilike '%' || p_query || '%'`, where `%` and `_` are
+ * wildcards, and countPeople strips them before building its `or()` filter. A
+ * search for `a%b` matched `a<anything>b` in the list and the literal `ab` in
+ * the count, so `total` described a different set than the rows beside it and
+ * `has_more` stopped paging early or never stopped at all.
+ */
+export function searchNeedle(q: string | null | undefined): string {
+  return (q ?? "").trim().replace(/[,()"'\\%*_]/g, "");
+}
+
 export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string, page: PeoplePage = {}): Promise<PersonRowDto[]> {
-  const q = page.q?.trim() || null;
+  const q = searchNeedle(page.q) || null;
   const offset = page.offset ?? 0;
   const limit = page.limit ?? PEOPLE_PAGE;
   // The page arguments are named only when they leave their defaults: a
@@ -51,6 +65,25 @@ export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: 
 }
 
 /**
+ * EVERYONE, a page at a time.
+ *
+ * `people_list` clamps p_limit to 1000 in the database (00112), so one call is
+ * one page however it is asked — and a caller that wants the whole workspace
+ * and does not loop gets 1000 rows with no error, no flag and no way to tell
+ * them from "that is everyone". Every read that means all of them goes through
+ * here.
+ */
+export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
+  const all: PersonRowDto[] = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await listPeople(ctx, tenantId, { offset, limit: PEOPLE_PAGE });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) break;
+  }
+  return all;
+}
+
+/**
  * How many live people there are, or match a query: the page's "N of M", and
  * whether there is a next page. Counted where the rows are (never erased,
  * never merged), with the same three matches the search uses. The query is
@@ -64,7 +97,7 @@ export async function countPeople(ctx: Pick<RouteContext, "supabase">, tenantId:
     .eq("tenant_id", tenantId)
     .is("erased_at", null)
     .is("merged_into_contact_id", null);
-  const needle = (q ?? "").trim().replace(/[,()"'\\%*]/g, "");
+  const needle = searchNeedle(q);
   if (needle) {
     const digits = needle.replace(/\D/g, "");
     const clauses = [`display_name.ilike.*${needle}*`, `wa_profile_name.ilike.*${needle}*`, ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : [])];

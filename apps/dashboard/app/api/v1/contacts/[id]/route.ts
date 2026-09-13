@@ -2,7 +2,7 @@ import { AppError, consentChangeOf } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
-import { schedule, removeMediaObjects, rescheduleBlobErase, scrubErasedJobs } from "@/server/service";
+import { schedule, removeMediaObjects, erasedThreadIds, rescheduleBlobErase, scrubErasedJobs } from "@/server/service";
 import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
@@ -37,19 +37,50 @@ export const DELETE = write({
   handle: async ({ ctx, row: contact }) => {
     const id = contact.id;
 
-    // Already erased: never destroy twice, but DO re-drive a leg that is still
-    // outstanding. This is the whole retry story for a failed Blob delete.
+    // Already erased: never destroy twice, but DO re-drive every leg that may
+    // still be outstanding. Four of the five legs below step 4 are best effort
+    // by design -- they log and carry on rather than turn a finished erasure
+    // into a failure -- so a transient refusal on any of them leaves the erased
+    // person's words in Ask, their number in a done job's payload, or their
+    // name on a policy row. Re-driving only Blob left the other three with no
+    // retry at all. All of them are deletes or overwrites keyed on the contact,
+    // so repeating one that already ran costs nothing.
     if (contact.erased_at) {
       const retry = await rescheduleBlobErase(contact.tenant_id, id);
+      // The digits are gone from contacts; the outstanding Blob job's payload
+      // still carries them, and an empty list still scrubs by contact id.
+      const needles = await erasedThreadIds(contact.tenant_id, id);
+      const { error: polErr } = await ctx.supabase.from("policies").delete()
+        .eq("tenant_id", contact.tenant_id).eq("subject_type", "contact").eq("subject_id", id);
+      if (polErr) console.error("erase_person_policy_failed", id, polErr.message);
+      const { error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
+        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: needles,
+      });
+      if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
+      const jobs = await scrubErasedJobs(contact.tenant_id, id, needles).catch((e: unknown) => {
+        console.error("erase_jobs_scrub_failed", id, e instanceof Error ? e.message : e);
+        return 0;
+      });
       return {
         contact_id: id, already_erased: true, erased_at: contact.erased_at,
         blob: retry ? { job_id: retry.jobId, state: "scheduled" } : { state: "settled" },
+        redriven: { policy: !polErr, ask: !askErr, jobs },
       };
     }
 
     /* ---- 1. keys and paths, read while the rows still exist ---- */
-    const { data: idents } = await ctx.supabase
+    // THESE READS FAIL CLOSED. Nothing has been destroyed yet, so a read that
+    // could not be made is a retry — and an identities read that came back
+    // empty because it errored would queue the Blob job without the WhatsApp
+    // wa_ids, which is the one key this route's header says there is nowhere
+    // left to recompute after the tombstone. The transcript would stay in Blob
+    // for ever while the owner is told the person was erased.
+    const keyRead = (what: string, e: { message: string } | null): void => {
+      if (e) throw new AppError("internal", `Could not read this person's ${what}, so nothing was deleted. Try again.`, 500);
+    };
+    const { data: idents, error: identErr } = await ctx.supabase
       .from("contact_identities").select("external_id").eq("contact_id", id);
+    keyRead("WhatsApp identities", identErr);
     // apps/edge/lib/store.ts keys threads on phone DIGITS: the WhatsApp path uses
     // the wa_id (bare digits) and the Retell path strips the leading "+" from a
     // from_number that has already been proven E.164, so both equal the digits.
@@ -58,10 +89,12 @@ export const DELETE = write({
         .map(digits).filter(Boolean),
     )];
 
-    const { data: calls } = await ctx.supabase
+    const { data: calls, error: callErr } = await ctx.supabase
       .from("calls").select("recording").eq("contact_id", id);
-    const { data: media } = await ctx.supabase
+    keyRead("call recordings", callErr);
+    const { data: media, error: mediaErr } = await ctx.supabase
       .from("messages").select("media").eq("contact_id", id).not("media", "is", null);
+    keyRead("stored media", mediaErr);
     const paths = [...new Set([
       ...(calls ?? []).map((c) => (c.recording as { storage_path?: string } | null)?.storage_path),
       ...(media ?? []).map((m) => (m.media as { storage_path?: string } | null)?.storage_path),
@@ -147,11 +180,16 @@ export const DELETE = write({
     const sweep = missed.length ? await removeMediaObjects(missed) : null;
     if (sweep) {
       // decisions has no UPDATE policy for a session, so a late leg is a second
-      // row on the same subject rather than an edit of the first.
+      // row on the same subject rather than an edit of the first. Best effort
+      // like the three legs above it: past step 4 the person IS erased, and
+      // throwing here would report that as a failure and send the owner back to
+      // a route that now answers `already_erased`.
       await recordDecision(ctx, contact.tenant_id, "contact", id, "erase", {
         leg: "storage_sweep", requested: sweep.requested,
         removed: sweep.removed.length, error: sweep.error,
-      } as Json);
+      } as Json).catch((e: unknown) => {
+        console.error("erase_sweep_decision_failed", id, e instanceof Error ? e.message : e);
+      });
     }
 
     return {
@@ -216,6 +254,12 @@ export const GET = read({
     ]);
     if (history.error) throw new Error(history.error.message);
     if (own.error) throw new Error(own.error.message);
+    // Checked like the other seven. A dropped error here reads as "this
+    // workspace has no booking link", which is indistinguishable on the page
+    // from one that never set one -- so the "text them the link" step simply
+    // vanishes for a workspace that has it configured.
+    if (cfgRow.error) throw new Error(cfgRow.error.message);
+    if (added.error) throw new Error(added.error.message);
     const bookingLink = ((cfgRow.data?.config as { brain?: { booking_link?: unknown } } | null)?.brain?.booking_link);
     if (idents.error) throw new Error(idents.error.message);
     if (personPol.error) throw new Error(personPol.error.message);

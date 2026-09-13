@@ -1,4 +1,5 @@
 import "server-only";
+import { cache } from "react";
 
 /**
  * The public facts of one workspace's own page, read by slug.
@@ -34,7 +35,15 @@ function serviceDb(): SupabaseClient<Database> {
 /** A slug as `create_workspace` mints them: lowercase letters, digits and dashes. */
 const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 
-export async function businessPageFor(slug: string): Promise<BusinessPageFacts | null> {
+/**
+ * Wrapped in React's per-request `cache`: both public pages call this TWICE,
+ * once in generateMetadata and once in the component, and with
+ * `dynamic = "force-dynamic"` there is no render cache to fall back on — so a
+ * tenants lookup plus three parallel reads ran twice on every view of a page
+ * whose whole audience is carrier reviewers and customers following a link.
+ * The second call is now free, and neither page had to change shape.
+ */
+export const businessPageFor = cache(async function businessPageFor(slug: string): Promise<BusinessPageFacts | null> {
   const clean = slug.trim().toLowerCase();
   if (!SLUG.test(clean)) return null;
   const db = serviceDb();
@@ -81,4 +90,4 @@ export async function businessPageFor(slug: string): Promise<BusinessPageFacts |
     privacyUrl: `/b/${clean}`,
     termsUrl: `/b/${clean}/terms`,
   };
-}
+});

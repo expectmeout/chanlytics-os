@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import { notFound } from "next/navigation";
 import { consentFormVM } from "@chanlytics/contracts";
 import { consentPageFor } from "@/server/consent-page";
+import { printableOrigin } from "@/server/origin";
 
 /**
  * A workspace's "say yes" page, on paper.
@@ -31,9 +32,14 @@ export default async function ConsentFormPage({ params }: { params: Promise<{ sl
   const facts = await consentPageFor(slug);
   if (!facts) notFound();
   const vm = consentFormVM(facts);
-  // Printed, so its links are printed as addresses a person can type.
+  // Printed, so its links are printed as addresses a person can type -- and
+  // therefore NOT taken from the request's own headers. This sheet is the
+  // carriers' evidence that the business asked properly; a host header chosen
+  // by whoever fetched the page would print someone else's address as the
+  // place to read the privacy policy. Only a host we actually answer on is
+  // believed, and anything else falls back to the one on the filing.
   const h = await headers();
-  const origin = `${h.get("x-forwarded-proto") ?? "https"}://${h.get("x-forwarded-host") ?? h.get("host") ?? "app.chanlytics.com"}`;
+  const origin = printableOrigin(h.get("x-forwarded-proto"), h.get("x-forwarded-host") ?? h.get("host"));
 
   return (
     <main className="yes yes-paper">
