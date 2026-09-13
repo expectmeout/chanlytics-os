@@ -582,3 +582,40 @@ test("a release that fails halfway still reports what it already did", async () 
   assert.match(r.error, /switching the routing row off: row is locked/);
   assert.deepEqual(r.released, { channel_disabled: "ch-voice" }, "the half that DID happen is still reported");
 });
+
+test("with three lines on one agent row, the line the number moves to is not whichever the planner returned first", async () => {
+  // What gets picked becomes the number this workspace publishes on its
+  // business page, its consent page and in the receptionist's own facts, so
+  // an unordered limit(1) makes that a coin toss. The oldest, which is the
+  // line ensureVoiceAgent, line_forwarding_set and businessPageFor all settle
+  // on when a workspace has more than one.
+  const lines = [
+    { id: "line-c", tenant_id: "t1", e164: "+13055550133", created_at: "2026-03-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+    { id: "line-b", tenant_id: "t1", e164: "+13055550111", created_at: "2026-01-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+    { id: "line-a", tenant_id: "t1", e164: "+13055550100", created_at: "2026-02-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+  ];
+  const chan = () => [{ id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: {} }];
+  for (const order of [lines, [...lines].reverse()]) {
+    const tables = { lines: [...order], tenant_channels: chan() };
+    await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice" }));
+    assert.equal(tables.tenant_channels[0].number_e164, "+13055550111", "the oldest, whatever order the rows came back in");
+    assert.equal(tables.tenant_channels[0].config.line_id, "line-b");
+  }
+});
+
+test("a holder with no number of its own does not erase the number the row publishes", async () => {
+  // `lines.e164` is nullable: a line killed before its purchase answered has
+  // none. Writing that null would blank the number on the public page while
+  // reporting the keep as a success.
+  const tables = {
+    lines: [
+      { id: "line-a", tenant_id: "t1", e164: "+13055550100", created_at: "2026-01-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+      { id: "line-b", tenant_id: "t1", e164: null, created_at: "2026-02-01T00:00:00Z", facts: { channel_id: "ch-voice" } },
+    ],
+    tenant_channels: [{ id: "ch-voice", tenant_id: "t1", kind: "voice", external_id: "agent-1", number_e164: "+13055550100", status: "active", config: {} }],
+  };
+  const r = await releaseRoutingRows(fakeDb(tables), "t1", releasedLine({ channel_id: "ch-voice" }));
+  assert.deepEqual(r, { ok: true, released: { channel_kept: "ch-voice" } });
+  assert.equal(tables.tenant_channels[0].number_e164, "+13055550100", "left alone rather than nulled");
+  assert.equal(tables.tenant_channels[0].config.line_id, "line-b", "but the row still names a line that exists");
+});

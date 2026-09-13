@@ -290,17 +290,22 @@ export async function releaseRoutingRows(
   db: SupabaseClient<Database>,
   tenantId: string,
   line: { id: string; facts: Record<string, unknown> },
-): Promise<{ ok: boolean; released: Record<string, string>; error?: string }> {
+): Promise<{ ok: true; released: Record<string, string> } | { ok: false; released: Record<string, string>; error: string }> {
   // Carried, not discarded, so a failure halfway still reports what DID
   // happen: a 503 that says only "the provider gave the number back" leaves an
   // operator unaware that the workspace's voice row is already switched off
   // while the line row still reads `answering`.
   const released: Record<string, string> = {};
-  const stop = (error: string) => ({ ok: false, released, error });
+  const stop = (error: string) => ({ ok: false as const, released, error });
   for (const key of ["channel_id", "sms_channel_id"] as const) {
     const id = line.facts[key];
     if (typeof id !== "string") continue;
-    const shared = await db.from("lines").select("id, e164").eq("tenant_id", tenantId).neq("id", line.id).filter(`facts->>${key}`, "eq", id).limit(1);
+    // Ordered, because with three lines on one agent row `limit(1)` unordered
+    // picks whichever the planner happened to return -- and what is picked
+    // becomes the number this workspace publishes. The oldest, which is the
+    // same line `ensureVoiceAgent`, `line_forwarding_set` and `businessPageFor`
+    // all settle on when a workspace has more than one.
+    const shared = await db.from("lines").select("id, e164").eq("tenant_id", tenantId).neq("id", line.id).filter(`facts->>${key}`, "eq", id).order("created_at").limit(1);
     if (shared.error) return stop(`reading the workspace's other lines: ${shared.error.message}`);
     const holder = shared.data?.[0];
     if (holder) {
@@ -312,11 +317,14 @@ export async function releaseRoutingRows(
       const row = await db.from("tenant_channels").select("config").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
       if (row.error) return stop(`reading the routing row: ${row.error.message}`);
       const cfg = row.data?.config && typeof row.data.config === "object" && !Array.isArray(row.data.config) ? (row.data.config as Record<string, unknown>) : {};
-      const moved = await db
-        .from("tenant_channels")
-        .update({ number_e164: holder.e164, config: { ...cfg, line_id: holder.id } as Json })
-        .eq("id", id)
-        .eq("tenant_id", tenantId);
+      // `lines.e164` is nullable -- a line killed before its purchase answered
+      // has none -- and writing that null would erase the number the row
+      // publishes while reporting the keep as a success. A holder with no
+      // number of its own leaves the row's number alone; the line_id still
+      // moves, so the row names something that exists.
+      const patch: Database["public"]["Tables"]["tenant_channels"]["Update"] = { config: { ...cfg, line_id: holder.id } as Json };
+      if (holder.e164) patch.number_e164 = holder.e164;
+      const moved = await db.from("tenant_channels").update(patch).eq("id", id).eq("tenant_id", tenantId);
       if (moved.error) return stop(`repointing the routing row: ${moved.error.message}`);
       released[key === "channel_id" ? "channel_kept" : "sms_channel_kept"] = id;
       continue;

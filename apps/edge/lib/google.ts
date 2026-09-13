@@ -153,7 +153,7 @@ export async function draftFor(db: Db, tenantId: string, rowId: string): Promise
  * reply Google refuses is logged and left for the next hour; nothing here
  * stops the sync that called it. Returns what was answered, for the bell.
  */
-async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now: Date): Promise<Array<{ id: string; author: string | null; text: string }>> {
+async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now: Date, net: PlacesHttp = http): Promise<Array<{ id: string; author: string | null; text: string }>> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
   const unreplied = await db
@@ -167,7 +167,7 @@ async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now
   if (unreplied.error) throw new Error(unreplied.error.message);
   const picks = autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime());
   if (!picks.length) return [];
-  const t = await tokenFor(db, conn.tenant_id, now.getTime());
+  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
   if (!t.ok) return [];
   const facts = await reviewFacts(db, conn.tenant_id);
   const answered: Array<{ id: string; author: string | null; text: string }> = [];
@@ -179,7 +179,7 @@ async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now
     }
     let reply;
     try {
-      reply = await replyToReview(http, t.token, `${parent}/reviews/${r.review_id}`, d.text);
+      reply = await replyToReview(net, t.token, `${parent}/reviews/${r.review_id}`, d.text);
     } catch (e) {
       L.warn("google_auto_reply_refused", { id: r.id, error: e instanceof Error ? e.message : String(e) });
       continue;
@@ -386,8 +386,10 @@ async function allLocations(token: string, net: PlacesHttp = http): Promise<Loca
  * exercises is a rollback nobody has seen work. It reaches the whole way
  * down -- the token exchange, the accounts and locations, the revoke, and on
  * the one-location path `bindLocation` -> `syncProfile` -> `tokenFor` too.
- * It has to: a transport that covered only the outer calls would leave a test
- * of the binding branch quietly talking to the real Google.
+ * It has to, and it has to go further than it looks: a sync that is not the
+ * first one ANSWERS reviews publicly under the auto mode, so a transport
+ * stopping short of `answerNewReviews` would let a test post a real reply on a
+ * real business's listing and bill a real model call to write it.
  */
 export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date(), net: PlacesHttp = http): Promise<ConnectResult> {
   const client = profileClient();
@@ -597,7 +599,7 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
   }
   // The first sync is history, never answered. After that, the auto mode
   // answers what came in on duty; a failure here is logged, not thrown.
-  const answered = first ? [] : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now).catch((e) => {
+  const answered = first ? [] : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
     L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
     return [];
   });

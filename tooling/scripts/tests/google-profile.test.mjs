@@ -456,15 +456,14 @@ test("every refusal on the way to a connection hands the grant back, and writes 
     }
   }));
 
-test("a workspace with ONE location on Maps is bound and synced without a single call escaping the injected transport", () =>
+test("a workspace with ONE location on Maps is bound and synced through the injected transport, not round it", () =>
   withOAuthEnv(async () => {
     const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
     // This is the branch the transport had to be threaded all the way down
     // for: connect -> bindLocation -> syncProfile -> tokenFor. A `net` that
     // covered only the outer calls left this path talking to the real Google
     // from inside a test, which is why every other case here returns two
-    // locations to stay on the pending branch. Global fetch is taken away for
-    // the duration, so an escape is a failure rather than a slow test.
+    // locations to stay on the pending branch.
     const seen = [];
     const net = async (req) => {
       seen.push(req.url);
@@ -483,17 +482,73 @@ test("a workspace with ONE location on Maps is bound and synced without a single
       get_google_credentials: () => vault,
     });
 
-    const realFetch = globalThis.fetch;
-    globalThis.fetch = () => { throw new Error("a call escaped the injected transport and went to the network"); };
-    try {
-      const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), net);
-      assert.equal(r.ok, true, JSON.stringify(r));
-      assert.equal(r.pending, false, "one location on Maps: bound at once, no choice to make");
-    } finally {
-      globalThis.fetch = realFetch;
-    }
+    const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), net);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.pending, false, "one location on Maps: bound at once, no choice to make");
     assert.equal(tables.google_listings.length, 1, "the listing is written");
     assert.equal(tables.google_listings[0].place_id, "p1");
     assert.equal(tables.google_connections[0].location_name, "locations/1", "and the connection is bound to it");
-    assert.ok(seen.some((u) => u.includes("/reviews")), "the first sync ran, through the same transport");
+    // The signal is that the sync's OWN call came through `net`. It cannot be a
+    // stub on global fetch: `placesFetch()` captures fetch when this module
+    // loads, so the module-level transport holds the real one and a stub
+    // installed later never sees it. What reached the injected transport is
+    // the only honest evidence of what did not go round it.
+    assert.ok(seen.some((u) => u.includes("/reviews")), "the first sync ran through the same transport, not round it");
+  }));
+
+test("a sync that ANSWERS reviews stays inside the injected transport too", () =>
+  withOAuthEnv(async () => {
+    // The sharpest edge in this file. A non-first sync under the auto mode posts
+    // a real public reply on a real business's listing, so a transport that
+    // stopped at `syncProfile` and left `answerNewReviews` on the module-level
+    // one would let a test run write under a stranger's review — and bill a
+    // model call to compose it. Global fetch is replaced with a counter rather
+    // than a throw, because the auto-reply is wrapped in `.catch()` and would
+    // swallow an exception, reporting a clean pass over an escaped call.
+    const { syncProfile } = await import("../../../apps/edge/lib/google.ts");
+    const now = new Date("2026-09-12T00:00:00Z");
+    const seen = [];
+    const net = async (req) => {
+      seen.push(req.url);
+      if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
+      if (req.url.includes("/reviews")) return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+      throw new Error(`unexpected call: ${req.url}`);
+    };
+    const conn = connected({ last_synced_at: "2026-09-11T00:00:00Z", connected_at: "2026-08-01T00:00:00Z" });
+    const tables = {
+      google_connections: [conn],
+      google_listings: [{ tenant_id: "t1", place_id: "p1" }],
+      google_listing_days: [],
+      // On record, from the profile, unanswered, and published since the
+      // workspace connected: exactly what the auto mode picks up.
+      google_reviews: [{ id: "r1", tenant_id: "t1", review_id: "rv-1", origin: "profile", rating: 5, author: "Bo", body: "lovely", published_at: "2026-09-10T00:00:00Z", reply_text: null }],
+      policies: [{ id: "pol", tenant_id: "t1", class: "reviews", mode: "auto", subject_type: null, subject_id: null, limits: {}, updated_at: "2026-09-01T00:00:00Z" }],
+    };
+    const db = fakeDb(tables, {}, {
+      put_google_credentials: () => null,
+      // EXPIRED, so the auto-reply's own tokenFor must refresh — which is the
+      // call that proves whose transport it is using.
+      get_google_credentials: () => ({ refresh_token: "rt", access_token: "stale", expires_at: now.getTime() - 60_000, scope: "https://www.googleapis.com/auth/business.manage" }),
+    });
+
+    const realKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY; // the draft bails as no_model_key; no model is ever called
+    try {
+      const r = await syncProfile(db, conn, "America/New_York", now, net);
+      assert.equal(r.ok, true, JSON.stringify(r));
+    } finally {
+      if (realKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = realKey;
+    }
+    // TWO refreshes is the whole assertion. The stored token is stale and the
+    // fake vault keeps handing back the stale one, so `syncProfile`'s own
+    // `tokenFor` refreshes once and the auto-reply's refreshes again -- through
+    // `net` only if it was given `net`. Left on the module-level transport the
+    // second refresh goes round it and this counts one.
+    //
+    // It has to be counted rather than caught: `placesFetch()` captures fetch
+    // at module load, so a stub on global fetch never sees the escape, and the
+    // auto-reply is wrapped in `.catch()`, so a throw would be swallowed and
+    // reported as a clean pass.
+    assert.equal(seen.filter((u) => u.includes("/token")).length, 2, "the auto-reply refreshed its token through the injected transport");
+    assert.equal(tables.google_reviews[0].reply_text, null, "and nothing was posted: no model key, so the draft never happened");
   }));
