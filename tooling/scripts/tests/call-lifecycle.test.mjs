@@ -162,11 +162,10 @@ test("the upsert is forward-only and tells the caller when it declined", () => {
   assert.equal((sql.match(/<> 'not_connected'/g) ?? []).length, 5, "metrics (2), people (1), reports (2)");
 });
 
-test("the sweep retries pending copies, bounded, and the trigger wakes for them", () => {
-  const cron = readCode("apps/edge/api/cron/calls.ts");
-  assert.ok(cron.includes('.filter("recording->>fetch_state", "eq", "pending")'));
-  assert.ok(cron.includes("(rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue"));
-  assert.ok(cron.includes("timeoutMs: SWEEP_COPY_TIMEOUT_MS"));
+test("a copy given up on stops waking the edge, and the copy's own bound agrees", () => {
+  // The sweep's half -- pending copies retried on its own budget, the count
+  // advanced on a timeout, the third attempt the last -- runs in
+  // cron-doors-b.test.mjs. This holds the trigger and the library to one number.
   const sql = readRaw("supabase/migrations/00031_call_lifecycle.sql");
   assert.ok(sql.includes("coalesce((recording->>'attempts')::int, 0) < 3"), "a copy given up on stops waking the edge");
   const lib = readCode("apps/edge/lib/call-recording.ts");

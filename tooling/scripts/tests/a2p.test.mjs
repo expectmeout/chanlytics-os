@@ -455,10 +455,11 @@ test("the wiring: filed under our own profile, the table and the row, and the sw
   assert.ok(sql.includes("create table public.business_records") && sql.includes("business_records_member_select"));
   assert.ok(sql.includes("reg_mock") && sql.includes("brand_sid"), "the row says which registration it is and what it made");
   assert.ok(readRaw("apps/edge/.env.example").includes("TWILIO_PRIMARY_PROFILE_SID="));
-  // The wait must end without anyone pressing anything.
-  const sweep = readCode("apps/edge/api/cron/registrations.ts");
-  assert.ok(sweep.includes('const WAITING = ["registering", "approved"];') && sweep.includes('.in("sms_state", WAITING)'), "REGRESSION: filtering on 'registering' alone stopped sweeping a line the moment it was approved, so it could never become active");
-  assert.ok(sweep.includes('if (r.brand === "APPROVED" && !line.campaign_sid)'), "the sweep files the campaign the carriers were still holding");
+  // The wait must end without anyone pressing anything. The sweep's half --
+  // both waiting states asked about (filtering on 'registering' alone once
+  // stopped sweeping a line the moment it was approved, so it could never
+  // become active), and the campaign the carriers were holding filed once the
+  // brand is through -- runs in cron-doors-b.test.mjs.
   assert.ok(readRaw("supabase/migrations/00077_registration_truth.sql").includes("cron.schedule('registration-sweep'"), "REGRESSION: nothing called the status check, so 'waiting on carriers' was a state nothing ever left");
 });
 

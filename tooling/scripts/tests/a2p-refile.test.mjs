@@ -209,10 +209,9 @@ test("a question we could not ask is never reported as an answer", () => {
     "a master-credential fault is named as itself, so nobody is sent looking at the subaccount");
 
   // And the sweep says so out loud. Every line unreadable is OUR fault, not a
-  // quiet week, so it fails the request and sweep_health turns it red.
-  const sweep = readCode("apps/edge/api/cron/registrations.ts");
-  assert.ok(sweep.includes("let unreadable = 0;") && sweep.includes('error: "no_registration_readable"'));
-  assert.ok(sweep.includes("if (unreadable > 0 && unreadable === lines.length)"), "some readable is still a 200 -- those rows carry their own reason");
+  // quiet week, so it fails the request (503 no_registration_readable) and
+  // sweep_health turns it red; some readable is still a 200, those rows carrying
+  // their own reason. Run in cron-doors-b.test.mjs, heal included.
   assert.ok(readRaw("supabase/migrations/00086_watch_every_sweep.sql").includes("('registration',  'registration-sweep'"),
     "and something is watching this sweep to receive that 503");
 });

@@ -127,12 +127,10 @@ test("the page is on the same domain as the opt-in page, which is what 30907 wan
 
   // And the ABSOLUTE form the carriers are handed is built the same way the
   // opt-in URL is, from one origin, at the one moment a filing is composed.
-  // The door's filing is run in lines-door.test.mjs, where the captured campaign
-  // names `/b/<slug>` as the privacy policy and `/yes/<slug>` in the flow, both
-  // on DASHBOARD_ORIGIN; the sweep that finishes a filing is pinned here until
-  // it runs too.
-  const cron = readCode("apps/edge/api/cron/registrations.ts");
-  assert.ok(cron.includes("hostedUrl: `${origin}/b/${tenant.data.slug}`"), "the sweep files the same page, from the same origin");
+  // The door's filing is run in lines-door.test.mjs, and the sweep that finishes
+  // a filing in cron-doors-b.test.mjs: in both, the captured campaign names
+  // `/b/<slug>` as the privacy policy and `/yes/<slug>` in the flow, both on
+  // DASHBOARD_ORIGIN.
 });
 
 test("a business with no website of its own files the page we publish", () => {
