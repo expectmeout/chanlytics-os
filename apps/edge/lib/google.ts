@@ -323,8 +323,8 @@ async function readCredentials(db: Db, tenantId: string): Promise<StoredCredenti
   return c && typeof c.refresh_token === "string" ? { refresh_token: c.refresh_token, access_token: c.access_token ?? null, expires_at: typeof c.expires_at === "number" ? c.expires_at : null, scope: c.scope ?? null } : null;
 }
 
-async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>): Promise<TokenGrant> {
-  const r = await http(req);
+async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: PlacesHttp = http): Promise<TokenGrant> {
+  const r = await net(req);
   let json: unknown = null;
   try { json = JSON.parse(r.body); } catch { /* below */ }
   if (r.status < 200 || r.status >= 300) {
@@ -364,11 +364,11 @@ export interface LocationChoice extends GbpLocation {
 }
 
 /** Every location the signed-in account may manage, across its accounts, with the account each belongs to. */
-async function allLocations(token: string): Promise<LocationChoice[]> {
-  const accounts = await listAccounts(http, token);
+async function allLocations(token: string, net: PlacesHttp = http): Promise<LocationChoice[]> {
+  const accounts = await listAccounts(net, token);
   const out: LocationChoice[] = [];
   for (const a of accounts.slice(0, 10)) {
-    const locs = await listLocations(http, token, a.name);
+    const locs = await listLocations(net, token, a.name);
     for (const l of locs) out.push({ ...l, account_name: a.name, account_title: a.title });
   }
   return out;
@@ -379,39 +379,44 @@ async function allLocations(token: string): Promise<LocationChoice[]> {
  * Vault, the accounts and locations read, and — with one location on Maps —
  * the listing bound and synced at once. Several locations wait for the
  * owner's choice; none refuses and revokes what was granted.
+ *
+ * `net` is the ONE thing here that reaches Google, handed in so the paths that
+ * matter most can be run instead of read: this function can destroy a working
+ * connection on its way to reporting a failure, and a rollback nothing
+ * exercises is a rollback nobody has seen work.
  */
-export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date()): Promise<ConnectResult> {
+export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date(), net: PlacesHttp = http): Promise<ConnectResult> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   let grant: TokenGrant;
   try {
-    grant = await grantFrom(tokenExchangeRequest(client, code));
+    grant = await grantFrom(tokenExchangeRequest(client, code), net);
   } catch (e) {
     return { ok: false, error: "exchange_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   if (!grantHasScope(grant, BUSINESS_SCOPE)) {
-    await http(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(() => null);
     return { ok: false, error: "scope_missing" };
   }
   if (!grant.refresh_token) {
-    await http(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(() => null);
     return { ok: false, error: "no_refresh_token" };
   }
   const claims = idTokenClaims(grant.id_token);
   let locations: LocationChoice[];
   try {
-    locations = await allLocations(grant.access_token);
+    locations = await allLocations(grant.access_token, net);
   } catch (e) {
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "accounts_unreadable", detail: e instanceof Error ? e.message : String(e) };
   }
   const onMaps = locations.filter((l) => !!l.place_id);
   if (!locations.length) {
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "no_locations" };
   }
   if (!onMaps.length) {
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "not_on_maps" };
   }
   const first = onMaps[0];
@@ -454,7 +459,7 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
     // Google revokes the grant for a client/user pair, not one token of it, so
     // handing this refresh token back would kill the credentials the restored
     // row runs on -- destroying the connection by the other route.
-    if (!restored || prior.data!.google_sub !== claims.sub) await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    if (!restored || prior.data!.google_sub !== claims.sub) await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   await emitEvent(db, tenantId, "google.connected", "google", "listing", null, { email: claims.email, accounts: new Set(locations.map((l) => l.account_name)).size, locations: locations.length, on_maps: onMaps.length, by: userId }).catch(() => {});

@@ -259,5 +259,54 @@ async function ensureRoutingRow(
   return { channelId: ins.data.id, created: true };
 }
 
+/**
+ * The routing rows a released line leaves behind, switched off.
+ *
+ * Split out of the route the way `planSmsIngress` was split out of the SMS
+ * door: what it decides is a workspace's phone line going quiet, and that was
+ * held by nothing a test could reach.
+ *
+ * BOTH rows, and only rows no other line is using. `tenant_channels` is unique
+ * on (kind, external_id) ACROSS workspaces and a released number goes back to
+ * the carrier, who rents it to somebody else -- so an sms row left active is
+ * the previous renter's claim on a number they no longer have, and the next
+ * workspace to buy it cannot be routed until the claim is dropped. That is why
+ * the sms row must go.
+ *
+ * And why the voice row must not always: an sms row is keyed on the number, so
+ * it is this line's alone, but a voice row is keyed on the workspace's Retell
+ * AGENT, which every line of the workspace shares. Switching that off on
+ * behalf of one line switches the receptionist off for all of them, and
+ * unrecoverably -- the others already carry `facts.channel_id`, so their saga
+ * skips `channel.ensure` and never writes it back. Today `buy` refuses while
+ * any line is provisioning, answering or failed, so a second line holding the
+ * same agent cannot arise; but that is a guard in another file for another
+ * purpose, and it is the only thing between a release and a silent workspace.
+ * This asks the question directly instead.
+ *
+ * Switched off, never deleted: calls keep their history.
+ */
+export async function releaseRoutingRows(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  line: { id: string; facts: Record<string, unknown> },
+): Promise<{ ok: true; released: Record<string, string> } | { ok: false; error: string }> {
+  const released: Record<string, string> = {};
+  for (const key of ["channel_id", "sms_channel_id"] as const) {
+    const id = line.facts[key];
+    if (typeof id !== "string") continue;
+    const shared = await db.from("lines").select("id").eq("tenant_id", tenantId).neq("id", line.id).filter(`facts->>${key}`, "eq", id).limit(1);
+    if (shared.error) return { ok: false, error: `reading the workspace's other lines: ${shared.error.message}` };
+    if (shared.data?.length) {
+      released[key === "channel_id" ? "channel_kept" : "sms_channel_kept"] = id;
+      continue;
+    }
+    const off = await db.from("tenant_channels").update({ status: "disabled" }).eq("id", id).eq("tenant_id", tenantId);
+    if (off.error) return { ok: false, error: `switching the routing row off: ${off.error.message}` };
+    released[key === "channel_id" ? "channel_disabled" : "sms_channel_disabled"] = id;
+  }
+  return { ok: true, released };
+}
+
 /** The step, in the owner's words — one list, shared with the page (contracts/setup.ts). */
 export { LINE_STEP_WORDS } from "./workspace/contracts.js";

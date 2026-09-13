@@ -21,7 +21,7 @@ import { pg } from "../../lib/pg.js";
 import { emitEvent } from "../../lib/workspace/db.js";
 import { formatPhoneDisplay, whyCannotSpend, lineRetryRefusal, type BillingMode, type BillingStatus } from "../../lib/workspace/contracts.js";
 import { isAreaCode, isE164, LINE_COSTS } from "../../lib/workspace/channels.js";
-import { lineProviderFromEnv, lineForClient, rowToLine } from "../../lib/lines.js";
+import { lineProviderFromEnv, lineForClient, releaseRoutingRows, rowToLine } from "../../lib/lines.js";
 import { registerLine, syncRegistration, unfileMockRegistration, resubmitRejectedCampaign, replaceRejectedCampaign, campaignFactsFor } from "../../lib/a2p.js";
 import { scheduleJob } from "../../lib/workspace/jobs.js";
 import { claimLineForResume, retryRequestedBy } from "../../lib/line-resume.js";
@@ -227,18 +227,9 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       return json(502, { ok: false, error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`, released });
     }
-    // BOTH routing rows, not just the voice one. `tenant_channels` is unique on
-    // (kind, external_id) across workspaces and a released number goes back to
-    // the carrier, who rents it to somebody else: an sms row left active is the
-    // previous renter's claim on a number they no longer have, and the next
-    // workspace to buy it cannot be routed until the claim is dropped.
-    for (const key of ["channel_id", "sms_channel_id"] as const) {
-      const id = line.facts[key];
-      if (typeof id !== "string") continue;
-      const off = await db.from("tenant_channels").update({ status: "disabled" }).eq("id", id).eq("tenant_id", tenantId);
-      if (off.error) return json(503, { ok: false, error: `switching the routing row off: ${off.error.message}`, released });
-      released[key === "channel_id" ? "channel_disabled" : "sms_channel_disabled"] = id;
-    }
+    const rows = await releaseRoutingRows(db, tenantId, line);
+    if (!rows.ok) return json(503, { ok: false, error: rows.error, released });
+    Object.assign(released, rows.released);
     const del = await db.from("lines").delete().eq("id", line.id);
     if (del.error) return json(503, { ok: false, error: del.error.message, released });
     await emitEvent(db, tenantId, "line.released", "setup", "line", line.id, { e164: line.e164, provider: choice.name, ...released }).catch(() => {});
