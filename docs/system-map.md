@@ -284,10 +284,19 @@ are written and their briefs are ready.
   against the database the migrations replay, ignoring exactly one line
   (`PostgrestVersion`, which the generator reads off the running PostgREST) and
   exiting 2 when the CLI cannot be reached, so a check that cannot run never
-  passes. **Its first CI run landed green on [#460](https://github.com/expectmeout/chanlytics-os/pull/460)** — the step is
-  unconditional in the workflow, so a green job is the check passing, and the
-  committed types do match the replayed migrations. Still owed: one deliberate
-  red, to see the check fail on purpose.
+  passes. **It went red on its first real run, and the landing session repaired
+  it** — the version written here ignored one line, `PostgrestVersion`, on the
+  assumption that the linked project and the local stack differ only in its
+  value. They differ more than that: the local generator writes no
+  `__InternalSupabase` block at all, and `00002` creates a year of
+  `events_yYYYYmMM` partitions *around the day the migrations run*, so the same
+  migrations replayed in another month produce different tables and the check
+  would have gone red every month for no schema reason. Both are now ignored as
+  environment rather than schema, and the check is green on
+  [#460](https://github.com/expectmeout/chanlytics-os/pull/460). One consequence
+  worth knowing: the regenerated types no longer carry `PostgrestVersion`, so
+  supabase-js falls back to its default PostgREST typing — typecheck passes and
+  no code reads the block. Still owed: one deliberate red.
 - No coverage instrumentation, no dependency audit, no SAST beyond eslint and
   gitleaks, no migration linter, no rollback test. Playwright is Chromium-only.
 - `pnpm check:dist` is wired to `package.json:10` and called by nothing — a
