@@ -97,8 +97,12 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   assert.deepEqual(Object.keys(pools).sort(), ["everyone_monthly", "new_week", "phoned_only", "quiet_30", "visit_tomorrow", "visited"]);
   assert.equal(pools.visit_tomorrow.candidates, 0, "no calendar, nobody has a visit tomorrow");
 
-  // The route hands the same numbers to the page.
-  const out = await playbooksRoute.GET.run(new Request(`http://localhost/api/v1/playbooks?workspace=${T}`), ctxFor(tables(null, "owner", { broadcasts: [{ id: "b1", tenant_id: T, state: "sent", playbook_id: null, scheduled_for: iso(NOW.getTime() - 2 * DAY), created_at: iso(NOW.getTime() - 2 * DAY) }], broadcast_recipients: [{ tenant_id: T, broadcast_id: "b1", contact_id: "p3", state: "sent", sent_at: iso(NOW.getTime() - 2 * DAY) }] }), { people_list: pagedList(all) }));
+  // The route hands the same numbers to the page. It reads the WALL CLOCK for
+  // "this week", not the NOW pinned above, so its fixture must be relative to
+  // the wall clock too: pinned to NOW - 2 days it fell out of the week on
+  // 13 September 2026 at 16:00Z and the count went from 1000 to 1001.
+  const sentAt = iso(Date.now() - 2 * DAY);
+  const out = await playbooksRoute.GET.run(new Request(`http://localhost/api/v1/playbooks?workspace=${T}`), ctxFor(tables(null, "owner", { broadcasts: [{ id: "b1", tenant_id: T, state: "sent", playbook_id: null, scheduled_for: sentAt, created_at: sentAt }], broadcast_recipients: [{ tenant_id: T, broadcast_id: "b1", contact_id: "p3", state: "sent", sent_at: sentAt }] }), { people_list: pagedList(all) }));
   assert.equal(out.calendar, "none");
   assert.equal(out.pools.everyone_monthly.candidates, PEOPLE_PAGE + 3 - 2 - 1, "one reached by a broadcast this week, the route's own reading of the recipient rows");
   assert.equal(out.pools.everyone_monthly.held, 1);
