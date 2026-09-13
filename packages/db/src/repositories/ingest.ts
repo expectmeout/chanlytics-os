@@ -248,7 +248,7 @@ export interface OutboundTarget extends PurposeBearing {
  */
 export async function resolveOutboundTarget(
   db: Db,
-  p: { tenantId: string; phoneE164: string; create?: boolean },
+  p: { tenantId: string; phoneE164: string; create?: boolean; touch?: boolean },
 ): Promise<OutboundTarget | null> {
   // normalizePhone, not a hand-rolled "+" prefix: contacts are keyed on FULL
   // international digits, and a caller that hands us a national-format number
@@ -270,13 +270,18 @@ export async function resolveOutboundTarget(
     contact = await getOrCreateContact(db, p.tenantId, phone);
   }
 
+  // `touch` because resolving a thread is not the same as writing to it. A
+  // broadcast resolves one per recipient BEFORE the door decides whether they
+  // may be messaged, and stamping last_message_at there sends every refused
+  // person's thread to the top of the Inbox as if something had happened in it.
+  // The stamp belongs to the message: recordOutbound writes it when one lands.
   const { data: conv, error: cErr } = await db
     .from("conversations")
     .upsert(
       {
         tenant_id: p.tenantId,
         contact_id: contact.id,
-        last_message_at: new Date().toISOString(),
+        ...(p.touch === false ? {} : { last_message_at: new Date().toISOString() }),
       },
       { onConflict: "tenant_id,contact_id" },
     )

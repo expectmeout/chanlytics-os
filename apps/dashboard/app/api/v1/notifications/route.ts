@@ -17,15 +17,22 @@ export const GET = read({
     const tenantId = member.tenantId;
     const since = new Date(Date.now() - KEEP_DAYS * 86_400_000).toISOString();
     const sb = ctx.supabase;
-    const [rows, marks, seen] = await Promise.all([
+    const [rows, seen] = await Promise.all([
       sb.from("notifications").select("id, kind, title, body, route, subject_type, subject_id, created_at")
         .eq("tenant_id", tenantId).gte("created_at", since).order("created_at", { ascending: false }).limit(LIMIT),
-      sb.from("notification_marks").select("notification_id, read_at, dismissed_at").eq("user_id", ctx.userId),
       sb.from("notification_reads").select("seen_at").eq("tenant_id", tenantId).eq("user_id", ctx.userId).maybeSingle(),
     ]);
     if (rows.error) throw new Error(rows.error.message);
-    if (marks.error) throw new Error(marks.error.message);
     if (seen.error) throw new Error(seen.error.message);
+    // The marks for THESE notifications. Read in parallel it could name no ids,
+    // so it fetched every mark this person has ever left, in every workspace
+    // they belong to -- a row per notification per user, kept for ever, to
+    // build a map consulted at most LIMIT times. One more round trip bounds it.
+    const ids = (rows.data ?? []).map((r) => r.id);
+    const marks = ids.length
+      ? await sb.from("notification_marks").select("notification_id, read_at, dismissed_at").eq("user_id", ctx.userId).in("notification_id", ids)
+      : { data: [], error: null };
+    if (marks.error) throw new Error(marks.error.message);
     const byId = new Map((marks.data ?? []).map((m) => [m.notification_id, m]));
     const notifications: NotificationDto[] = (rows.data ?? []).map((r) => {
       const m = byId.get(r.id);

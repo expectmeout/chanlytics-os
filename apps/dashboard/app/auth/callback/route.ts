@@ -32,10 +32,14 @@ export async function GET(request: Request) {
       to = OAUTH_FAILED;
     }
   }
-  // The origin as the browser saw it, which behind Vercel is the forwarded host.
-  const host = request.headers.get("x-forwarded-host");
-  const origin = host ? `https://${host}` : url.origin;
-  const response = NextResponse.redirect(new URL(to, origin));
+  // A RELATIVE Location, resolved by the browser against the address it asked
+  // for. Building an absolute one from `x-forwarded-host` took the destination
+  // host from a request header: safeNext() guarantees `to` is a path on this
+  // site, and the origin it was resolved against then undid that, so a request
+  // carrying `X-Forwarded-Host: somewhere.else` sent a freshly signed-in
+  // browser there. Relative is both safer and more correct — whatever name the
+  // browser used to reach this route is the name it should stay on.
+  const response = new NextResponse(null, { status: 307, headers: { location: to } });
   response.headers.set("cache-control", "private, no-store");
   return response;
 }

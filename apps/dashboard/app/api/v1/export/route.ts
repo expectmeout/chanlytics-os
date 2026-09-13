@@ -28,7 +28,10 @@ export const GET = read({
       return data ?? [];
     };
     const readers: BundleReaders = {
-      people: () => listPeople(ctx, tenantId),
+      // Paged like every other section: one people_list call is capped at 1000
+      // in the database, and this bundle is streamed precisely so a workspace
+      // of any size downloads whole.
+      people: (offset, limit) => listPeople(ctx, tenantId, { offset, limit }),
       conversations: (offset, limit) =>
         rows(
           supabase

@@ -3506,6 +3506,7 @@ declare function resolveOutboundTarget(db: Db$3, p: {
     tenantId: string;
     phoneE164: string;
     create?: boolean;
+    touch?: boolean;
 }): Promise<OutboundTarget | null>;
 /**
  * Automated sends already made to this thread today, by source.

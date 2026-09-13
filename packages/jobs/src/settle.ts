@@ -15,7 +15,7 @@
  * either way. That condition, not `certain`, is what makes this safe to run on
  * a job whose outcome is unknown.
  */
-import type { Db } from "./ledger";
+import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
 
 export interface TerminalJob {
@@ -33,8 +33,18 @@ export interface Settled {
   changed: boolean;
   /** Why nothing could be written, when nothing could be. Never swallowed. */
   error?: string;
-  /** A broadcast mid-send was handed to a fresh run rather than failed: what it had reached, and what is left. */
+  /**
+   * The broadcast carries on. `changed` says whether THIS settlement is what
+   * handed it on: false means a run was already coming and nothing needed doing.
+   */
   resumed?: boolean;
+  /**
+   * The broadcast was marked failed INSTEAD of handed to a fresh run, and this
+   * is why. Separate from `error`, which means nothing could be written at all:
+   * reported as one, the owner reads "it may still show as sending" about a
+   * broadcast that is, in fact, marked failed.
+   */
+  notResumed?: string;
   reached?: number;
   remaining?: number;
 }
@@ -51,6 +61,54 @@ function idFrom(payload: unknown, key: string): string | null {
   if (typeof payload !== "object" || payload === null) return null;
   const v = (payload as Record<string, unknown>)[key];
   return typeof v === "string" ? v : null;
+}
+
+/** How many fresh runs this job is already the result of. Absent reads as none. */
+function resumesOf(payload: unknown): number {
+  if (typeof payload !== "object" || payload === null) return 0;
+  const v = (payload as Record<string, unknown>).resumes;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+
+/**
+ * How far a broadcast got: COUNTED, not tallied from a page of rows. PostgREST
+ * caps a plain select at max_rows, so reading the rows to count them tells the
+ * owner "0 reached, 0 to go" when the read fails and understates both numbers
+ * on any broadcast bigger than the cap — on the one screen where those two
+ * numbers are the whole point.
+ */
+async function howFar(db: Db, tenantId: string, broadcastId: string): Promise<{ reached: number; remaining: number; error?: string }> {
+  const of = (state: string) => db
+    .from("broadcast_recipients")
+    .select("contact_id", { count: "exact", head: true })
+    .eq("tenant_id", tenantId)
+    .eq("broadcast_id", broadcastId)
+    .eq("state", state);
+  const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
+  const error = sent.error?.message ?? queued.error?.message;
+  return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...(error ? { error } : {}) };
+}
+
+/**
+ * The honest failure, when no fresh run will carry the broadcast. `failure` is
+ * written too: the column is on the broadcast's own page, and "Failed" with no
+ * reason beside it reads the same as a template Meta rejected.
+ */
+async function failBroadcast(
+  db: Db, job: TerminalJob, broadcastId: string, why: string, far: { reached: number; remaining: number },
+): Promise<Settled[]> {
+  const { data, error } = await db
+    .from("broadcasts")
+    .update({ state: "failed", failure: "run_interrupted", finished_at: new Date().toISOString() })
+    .eq("id", broadcastId)
+    .eq("tenant_id", job.tenant_id)
+    .in("state", ["scheduled", "sending"])
+    .select("id");
+  if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
+  // No row means it finished by itself between the read and here, and there is
+  // nothing to tell anyone about work that completed.
+  if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
+  return [{ what: "broadcast", changed: true, notResumed: why, ...far }];
 }
 
 /**
@@ -84,12 +142,13 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     // broadcastSend schedules its own next batch, so one lost link used to
     // strand the whole run: the broadcast sat 'failed' with half its people
     // reached and the rest queued for ever. The rest are HANDED TO A FRESH RUN
-    // instead. The batch itself never sends twice (it reads the message row a
-    // dying run left, core/messages/broadcast.ts alreadySent), which is what
-    // makes a second run safe where a second outbound_send is not. Conditional
-    // on 'sending', so a broadcast that finished between the read and here is
-    // left exactly as it finished; a fresh job that cannot be written falls
-    // back to the honest failure, with the reason.
+    // instead. A resumed batch reads the message row a dying run left
+    // (core/messages/broadcast.ts alreadySent) rather than sending to that
+    // person again, which is what makes a second run safe where a second
+    // outbound_send is not. Conditional on the broadcast still claiming to be in
+    // flight, so one that finished between the read and here is left exactly as
+    // it finished; when no fresh run can be written, or too many already have
+    // been, it falls back to the honest failure with the reason.
     const { data: row, error: readErr } = await db
       .from("broadcasts")
       .select("id, state")
@@ -97,23 +156,46 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
       .eq("tenant_id", job.tenant_id)
       .maybeSingle();
     if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
-    if (!row || row.state !== "sending") return [{ what: "broadcast", changed: false }];
-    const { data: people } = await db.from("broadcast_recipients").select("state").eq("broadcast_id", broadcastId);
-    const reached = (people ?? []).filter((p) => p.state === "sent").length;
-    const remaining = (people ?? []).filter((p) => p.state === "queued").length;
+    // 'scheduled' as well as 'sending': a run killed before it could move the
+    // row off 'scheduled' sent nobody, and leaving it there stranded the whole
+    // broadcast where nothing would ever pick it up again — not sending, not
+    // failed, and not said.
+    if (!row || (row.state !== "sending" && row.state !== "scheduled")) return [{ what: "broadcast", changed: false }];
+
+    const far = await howFar(db, job.tenant_id, broadcastId);
+    if (far.error) return [{ what: "broadcast", changed: false, error: far.error }];
+    const { reached, remaining } = far;
+
+    // Is a run already coming? The dying run may have scheduled its own next
+    // batch and then failed to report back, and that chain has been working the
+    // queue for the ninety seconds it took this row's lease to expire. A second
+    // chain alongside it reads the same queued rows, finds no message written
+    // for them yet, and delivers to all of them AGAIN — the one thing a
+    // broadcast must never do. A read that cannot say is treated as "yes",
+    // because the cost of guessing wrong that way is only a broadcast that
+    // shows as sending.
+    const live = await db
+      .from("jobs")
+      .select("id", { count: "exact", head: true })
+      .eq("tenant_id", job.tenant_id)
+      .eq("kind", "broadcast_send")
+      .eq("payload->>broadcast_id", broadcastId)
+      .in("state", ["scheduled", "fired"])
+      .neq("id", job.id);
+    if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
+    if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
+
+    const resumes = resumesOf(job.payload);
+    if (resumes >= MAX_RESUMES) return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, { reached, remaining });
     try {
-      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: new Date(), payload: { broadcast_id: broadcastId } });
+      // The count rides the payload: nothing else survives the death of the run.
+      // broadcastSend's own scheduleNext writes a payload without it, so a run
+      // that got as far as its next batch resets the count, and this bounds only
+      // the runs that made no progress at all.
+      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: new Date(), payload: { broadcast_id: broadcastId, resumes: resumes + 1 } });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e) {
-      const { data, error } = await db
-        .from("broadcasts")
-        .update({ state: "failed", finished_at: new Date().toISOString() })
-        .eq("id", broadcastId)
-        .eq("tenant_id", job.tenant_id)
-        .eq("state", "sending")
-        .select("id");
-      const why = e instanceof Error ? e.message : String(e);
-      return [{ what: "broadcast", changed: !!data?.length, reached, remaining, error: error ? `${why}; then ${error.message}` : why }];
+      return failBroadcast(db, job, broadcastId, e instanceof Error ? e.message : String(e), { reached, remaining });
     }
   }
 
@@ -135,8 +217,14 @@ export function saySettled(results: Settled[]): string | null {
       lines.push(r.what === "message"
         ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
         : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
-    } else if (r.changed && r.resumed) {
-      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Nobody is sent it twice.`);
+    } else if (r.resumed) {
+      // Whether this settlement handed it on or found a run already coming, the
+      // owner's picture is the same: it is still going. What it does NOT say is
+      // "nobody is sent it twice" — a run killed between the wire accepting a
+      // message and the row recording it leaves no row for the next run to read.
+      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`);
+    } else if (r.changed && r.notResumed) {
+      lines.push(`The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
     } else if (r.changed) {
       lines.push(r.what === "message"
         ? "The message has been marked failed, so it is no longer shown as on its way."

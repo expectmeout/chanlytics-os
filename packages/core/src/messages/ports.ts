@@ -44,7 +44,7 @@ export interface ProvisionLinePorts {
 export interface BroadcastRow { id: string; state: string; name: string; template_name: string; template_language: string; params: unknown; recipient_count: number | null; playbook_id: string | null; audience: unknown }
 export interface RecipientRow { contact_id: string; facts: unknown }
 export interface ContactRow { id: string; phone_e164: string | null; erased_at: string | null; display_name: string | null; wa_profile_name: string | null }
-export type RecipientMark = { state: "sent" | "skipped" | "failed"; reason?: string | null; message_id?: string | null };
+export type RecipientMark = { state: "sent" | "skipped" | "failed"; reason?: string | null; message_id?: string | null; sent_at?: string | null };
 
 export interface BroadcastBatchPorts {
   /** The broadcast, or null when it is gone; throws when it cannot be read. */
@@ -65,10 +65,12 @@ export interface BroadcastBatchPorts {
   target(phoneE164: string): Promise<{ conversationId: string } | null>;
   /**
    * The message this broadcast already sent this person, if a run died between
-   * the wire and its own bookkeeping: its id, or null. A resumed batch reads it
-   * rather than sending twice.
+   * the wire and its own bookkeeping: its id and when it left, or null. A
+   * resumed batch reads it rather than sending twice, and records the time the
+   * message actually went out rather than the time it noticed — the broadcast's
+   * own page orders its recipients by that column.
    */
-  alreadySent(id: string, contactId: string): Promise<string | null>;
+  alreadySent(id: string, contactId: string): Promise<{ id: string; sentAt: string | null } | null>;
   mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
   deliver: Door;
   /** How many are still queued; throws when it cannot be counted. */

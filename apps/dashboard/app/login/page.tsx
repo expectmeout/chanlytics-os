@@ -56,6 +56,10 @@ export default function LoginPage() {
     const e = q.get("email");
     if (e) {
       setEmail(e);
+      // ...and the hash, like the branch above it. landed() navigates to
+      // "/" + window.location.hash, so dropping it here sent anyone arriving
+      // from /signup or a reset link -- both of which build `?email=` URLs --
+      // to the home surface instead of the thread they were sent to.
       window.history.replaceState(null, "", window.location.pathname + window.location.hash);
     }
   }, []);
@@ -84,7 +88,17 @@ export default function LoginPage() {
       // the correct password for an existing account gets here, so they learn
       // nothing they did not know. Send a fresh confirmation and show it.
       if (emailNotConfirmed(error)) {
-        await supabase.auth.resend({ type: "signup", email: email.trim() });
+        // The resend's own answer decides whether to show the code box. It was
+        // discarded, so a refusal -- Supabase rate-limits confirmation mail to
+        // one a minute, which is exactly the window someone who just signed up
+        // is in -- still put the person in front of six digits that were not
+        // coming. /api/v1/signup refuses to do this on the route beside it for
+        // the same reason.
+        const { error: resendErr } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+        if (resendErr) {
+          setError(requestCodeWords(resendErr));
+          return;
+        }
         setUnconfirmed(true);
         setStage("code");
         return;

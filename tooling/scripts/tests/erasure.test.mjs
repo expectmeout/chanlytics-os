@@ -114,13 +114,14 @@ test("deleting a thread leaves an EMPTY thread, not an unknown one", () => {
 
 const { dispatchJob } = await import(pathToFileURL(path.join(ROOT, "packages/jobs/dist/index.js")).href);
 
-function stubDb() {
+function stubDb(faults = {}) {
   const ops = [];
   const chain = (table, op, arg) => {
     ops.push({ table, op, arg });
+    const answer = { data: null, error: faults[`${table}.${op}`] ?? null };
     const self = {
       eq: () => self,
-      then: (res) => Promise.resolve({ data: null, error: null }).then(res),
+      then: (res) => Promise.resolve(answer).then(res),
     };
     return self;
   };
@@ -187,6 +188,27 @@ test("one undeleted thread fails the job and writes no ledger row", async () => 
   };
   await assert.rejects(dispatchJob(ctx, job), /not deleted/);
   assert.equal(db.ops.find((o) => o.table === "decisions"), undefined, "no ledger row for an unfinished leg");
+});
+
+test("a scrub that did not land fails the job, so the digits are not left behind on a job reported done", async () => {
+  // The payload IS the Blob key, so an unscrubbed one is a durable copy of the
+  // number we were asked to erase in a table whose rows are never deleted --
+  // and a silent failure would leave it there under a decision row saying the
+  // erasure is complete, with nothing left that would ever retry it.
+  const db = stubDb({ "jobs.update": { message: "permission denied" } });
+  const ctx = { db, waCfg: {}, alert: async () => {}, eraseThread: async () => true };
+  await assert.rejects(dispatchJob(ctx, job), /still on the job/);
+});
+
+test("an erasure the ledger refused fails the job, so it is never recorded as proven when it is not", async () => {
+  for (const table of ["decisions", "events"]) {
+    const db = stubDb({ [`${table}.insert`]: { message: "permission denied" } });
+    const ctx = { db, waCfg: {}, alert: async () => {}, eraseThread: async () => true };
+    await assert.rejects(dispatchJob(ctx, job), /erasure is not/, table);
+    // And the retry handle survives: the scrub is what makes this job a no-op
+    // on its second run, and it comes last for exactly this reason.
+    assert.equal(db.ops.find((o) => o.table === "jobs" && o.op === "update"), undefined, table);
+  }
 });
 
 test("an already-scrubbed payload is a no-op, so a retry writes no second ledger row", async () => {

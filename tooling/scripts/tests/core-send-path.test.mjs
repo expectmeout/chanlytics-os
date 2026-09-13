@@ -90,13 +90,17 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
   assert.deepEqual(refused.ops(), ["deliver"], "the row says why; nobody is paged or flagged for a refusal");
 });
 
-test("the Blob erasure: every thread gone before the payload is scrubbed and the ledger written; a thread that stayed fails the job with nothing scrubbed; a scrubbed payload is a finished job", async () => {
+test("the Blob erasure: every thread gone, then the ledger, then the payload scrubbed LAST; a thread that stayed fails the job with nothing scrubbed; a scrubbed payload is a finished job", async () => {
   const { ports, log, ops } = fakes();
   await core.eraseBlobThread(ports, { tenantId: "t1", jobId: "j1", payload: { contact_id: "k1", namespace: "ns", thread_ids: ["a", "b", ""] } });
-  assert.deepEqual(ops(), ["eraseThread", "eraseThread", "scrub", "recordErased"]);
+  // The scrub is what makes this job un-retryable: after it, a second run reads
+  // `scrubbed` and returns at the top. Recorded after the scrub, a run that
+  // scrubbed and then failed to record would finish with the erasure proven
+  // nowhere -- and nothing left that could retry it.
+  assert.deepEqual(ops(), ["eraseThread", "eraseThread", "recordErased", "scrub"]);
   assert.deepEqual(log[0], ["eraseThread", "ns", "a"]);
-  assert.deepEqual(log[2], ["scrub", "t1", { contactId: "k1" }, { contact_id: "k1", namespace: "ns", threads: 2, scrubbed: true }]);
-  assert.deepEqual(log[3], ["recordErased", "t1", "k1", 2, "j1"]);
+  assert.deepEqual(log[2], ["recordErased", "t1", "k1", 2, "j1"]);
+  assert.deepEqual(log[3], ["scrub", "t1", { contactId: "k1" }, { contact_id: "k1", namespace: "ns", threads: 2, scrubbed: true }]);
   const stuck = fakes({ eraseThread: (ns, id) => id !== "b" });
   await assert.rejects(core.eraseBlobThread(stuck.ports, { tenantId: "t1", jobId: "j1", payload: { contact_id: "k1", namespace: "ns", thread_ids: ["a", "b"] } }), /1 thread\(s\) not deleted/);
   assert.deepEqual(stuck.ops(), ["eraseThread", "eraseThread"], "the payload is the only thing that can retry it, so it stays");

@@ -9928,6 +9928,7 @@ function broadcastName(templateName, now = /* @__PURE__ */ new Date(), title) {
   const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
+var OUTCOME_UNKNOWN = "outcome_unknown";
 function emptyAudienceRefusal(purpose) {
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
 }
@@ -15347,9 +15348,9 @@ async function eraseBlobThread(ports, cmd) {
   const failed = [];
   for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
   if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
   const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
   await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
-  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
 }
 
 // src/messages/provision-line.ts
@@ -15404,7 +15405,7 @@ async function sendBroadcastBatch(ports, cmd) {
     }
     const prior = await ports.alreadySent(b.id, c.id);
     if (prior) {
-      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior });
+      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior.id, sent_at: prior.sentAt });
       continue;
     }
     const target = await ports.target(c.phone_e164);
@@ -15425,6 +15426,7 @@ async function sendBroadcastBatch(ports, cmd) {
       continue;
     }
     const words = renderTemplate(tpl.body_preview, params);
+    await ports.mark(b.id, r.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN });
     const out = await ports.deliver({
       tenantId: cmd.tenantId,
       conversationId: target.conversationId,
@@ -15459,7 +15461,7 @@ async function sendBroadcastBatch(ports, cmd) {
   await ports.finish(b.id, { sent, held });
   await ports.alert(
     `Broadcast \u201C${b.name}\u201D sent`,
-    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, or a person had the thread)` : ""}. Replies land in the Inbox.`
+    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
   );
 }
 

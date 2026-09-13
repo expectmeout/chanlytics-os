@@ -96,8 +96,17 @@ export const POST = write({
         continue;
       }
       if (r.reason in SAID) {
-        // Nothing can be added at all: say so once, as the submit route does.
-        throw new AppError(r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict", SAID[r.reason], r.reason === "preview" || r.reason === "no_token" ? 502 : 409);
+        // Nothing can be added at all: say so once, as the submit route does --
+        // but only while nothing HAS been added. Past the first submission the
+        // templates already at Meta are real and in review, and throwing here
+        // discarded `results` entirely, so the owner was told nothing was added
+        // while several sat waiting for Meta under their account.
+        const done = results.some((x) => x.status === "submitted" || x.status === "synced");
+        if (!done) {
+          throw new AppError(r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict", SAID[r.reason], r.reason === "preview" || r.reason === "no_token" ? 502 : 409);
+        }
+        results.push({ ...base, status: "failed", meta_status: null, detail: SAID[r.reason] });
+        break;
       }
       results.push({ ...base, status: "failed", meta_status: null, detail: r.detail ?? r.reason });
     }
@@ -105,3 +114,13 @@ export const POST = write({
     return { results, submitted: count("submitted"), existing: count("exists"), synced: count("synced"), failed: count("failed") };
   },
 });
+
+/**
+ * Seven starters in two languages is up to fourteen round trips to Meta, taken
+ * one at a time because `syncTemplates` below runs once for the whole batch and
+ * because Meta rate-limits template creation per account. Serial is the right
+ * shape; what it needs is room, which the platform default (well under a
+ * minute) does not give it -- and a run killed at the ceiling loses the reply
+ * describing the templates it really did submit.
+ */
+export const maxDuration = 60;

@@ -187,6 +187,19 @@ export function toBroadcastVM(d: BroadcastDto, now = new Date()): BroadcastVM {
   };
 }
 
+/**
+ * The recipient's row while a send is in flight — and the reason it KEEPS if
+ * the run never comes back to overwrite it.
+ *
+ * deliver() records a broadcast's message only once the provider has accepted
+ * it, so a run killed in between leaves no message row at all: a resumed run
+ * would find nothing, see the person still queued, and send them the same
+ * template a second time. Written before the wire is touched, this is the row
+ * saying "a run was mid-send here and nobody knows how it went" — the same
+ * answer the ledger gives for an outbound_send whose run did not report back.
+ */
+export const OUTCOME_UNKNOWN = "outcome_unknown";
+
 /** The reasons a person is held back at the wire, in the owner's words. */
 export const HELD_REASONS: Record<string, string> = {
   opted_out: "asked to stop",
@@ -202,6 +215,11 @@ export const HELD_REASONS: Record<string, string> = {
   erased: "deleted",
   send_failed: "WhatsApp refused",
   missing_value: "a value was missing",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish",
 };
 
 /**

@@ -1,5 +1,6 @@
 import { write, workspace } from "@/server/route";
 import { AppError } from "@chanlytics/contracts";
+import { requireUuid } from "@/server/request-guards";
 import { cleanReply } from "@chanlytics/channels";
 import { recordDecision } from "@/server/verbs";
 import { edgeGoogle } from "@/server/google";
@@ -12,8 +13,6 @@ import { edgeGoogle } from "@/server/google";
  * happened. A reply replaces the previous one: Google keeps one per review.
  * The body is the route's own to read: cleanReply decides what a reply is.
  */
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
 const SAID: Record<string, string> = {
   not_connected: "Connect your Business Profile first — replies go through it.",
   not_from_profile: "This review was read from the public listing; replies need the Business Profile connected.",
@@ -27,8 +26,7 @@ export const POST = write({
   role: "operator",
   rate: "google_reply",
   handle: async ({ ctx, req, member }) => {
-    const id = typeof ctx.params.id === "string" ? ctx.params.id : "";
-    if (!UUID.test(id)) throw new AppError("validation", "Which review?", 400);
+    const id = requireUuid(ctx.params.id, "review");
     const body = (await req.json().catch(() => ({}))) as { comment?: unknown };
     const comment = cleanReply(body.comment);
     if (!comment) throw new AppError("validation", "Write the reply first.", 400);

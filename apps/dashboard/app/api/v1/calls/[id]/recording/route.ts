@@ -1,4 +1,3 @@
-import { NextResponse } from "next/server";
 import { AppError } from "@chanlytics/contracts";
 import { read } from "@/server/route";
 import { callScope } from "@/server/verbs";
@@ -24,4 +23,3 @@ export const GET = read({
 });
 
 export const dynamic = "force-dynamic";
-void NextResponse;

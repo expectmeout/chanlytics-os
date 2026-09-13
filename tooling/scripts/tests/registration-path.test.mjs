@@ -486,7 +486,14 @@ test("one validator, three writers", () => {
   // the form is not the only caller; the filing checks because a fee is about
   // to be spent. Three moments, one list of what each registration needs.
   const route = readCode("apps/dashboard/app/api/v1/business-record/route.ts");
-  assert.ok(route.includes("businessRecordProblems(record, path)"));
+  // ...with the same facts the door is given. The one check a record cannot
+  // make about itself is whether its contact_phone is a number WE gave the
+  // workspace -- which the carriers refuse as a sole proprietor's handset, and
+  // which is exactly the number a business puts on its website once we
+  // provision one. Passing no facts skipped it here, so this route said the
+  // record was ready and the edge refused it after the owner pressed Register.
+  assert.ok(route.includes("businessRecordProblems(record, path, { ourNumbers:"));
+  assert.ok(route.includes('from("lines").select("e164")'), "read where the owner can read it, under RLS");
   assert.ok(route.includes('registrationPathOf(record) || "standard"'), "derived only when the caller did not say");
   assert.ok(route.includes("record, path }, 20_000)"), "and the path travels with the record to the door that writes it");
 

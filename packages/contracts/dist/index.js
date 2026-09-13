@@ -5273,6 +5273,7 @@ function toBroadcastVM(d, now = /* @__PURE__ */ new Date()) {
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0
   };
 }
+var OUTCOME_UNKNOWN = "outcome_unknown";
 var HELD_REASONS = {
   opted_out: "asked to stop",
   not_opted_in: "no recorded yes",
@@ -5286,7 +5287,12 @@ var HELD_REASONS = {
   human_has_it: "a person had the thread",
   erased: "deleted",
   send_failed: "WhatsApp refused",
-  missing_value: "a value was missing"
+  missing_value: "a value was missing",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish"
 };
 function emptyAudienceRefusal(purpose) {
   return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
@@ -8460,6 +8466,7 @@ export {
   OPT_IN_PATTERN,
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
+  OUTCOME_UNKNOWN,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
   PASSWORD_MAX_BYTES,

@@ -52,6 +52,34 @@ test("the name a provider gave stands in, trimmed to what a profile holds, and n
   for (const none of [null, undefined, "Ada", {}, { email: "hi@chanlytics.agency" }, { full_name: "   " }, { full_name: 7 }]) assert.equal(providerNameOf(none), null, JSON.stringify(none));
 });
 
+test("the landing is a RELATIVE redirect, so no header can choose the host it lands on", async () => {
+  process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??= "test-only";
+  // safeNext() guarantees `to` is a path on this site -- and the route used to
+  // undo that by resolving it against `https://${x-forwarded-host}`, a header
+  // the requester writes. A freshly signed-in browser could be sent anywhere.
+  const { GET } = await import(at("apps/dashboard/app/auth/callback/route.ts"));
+  // No code to exchange, so nothing reaches Supabase and the route is just the
+  // landing. The header is the hostile part: it used to become the redirect's
+  // origin, so a signed-in browser could be sent to whatever host the request
+  // named.
+  const res = await GET(new Request("http://internal.vercel/auth/callback?error=access_denied", {
+    headers: { "x-forwarded-host": "evil.example", "x-forwarded-proto": "https" },
+  }));
+  assert.equal(res.status, 307);
+  assert.equal(res.headers.get("location"), OAUTH_FAILED, "a path on this site, resolved by the browser against the address it asked for");
+  assert.ok(!(res.headers.get("location") ?? "").includes("evil.example"), "no header chooses the host");
+  assert.equal(res.headers.get("cache-control"), "private, no-store", "a redirect that depends on a cookie is never cacheable");
+  const noCode = await GET(new Request("http://internal.vercel/auth/callback", { headers: { "x-forwarded-host": "evil.example" } }));
+  assert.equal(noCode.headers.get("location"), "/login");
+  const { printableOrigin, CANONICAL_ORIGIN } = await import(at("apps/dashboard/src/server/origin.ts"));
+  assert.equal(printableOrigin("https", "evil.example"), CANONICAL_ORIGIN, "a host we do not answer on is not printed as ours");
+  assert.equal(printableOrigin("https", "app.chanlytics.com.evil.example"), CANONICAL_ORIGIN, "nor one that merely starts with ours");
+  assert.equal(printableOrigin("https", "APP.CHANLYTICS.COM"), CANONICAL_ORIGIN);
+  assert.equal(printableOrigin(null, null), CANONICAL_ORIGIN);
+  assert.equal(printableOrigin("http", "localhost:3000"), "http://localhost:3000", "development still prints where it runs");
+});
+
 test("the words on the two doors", () => {
   assert.equal(SIGNUP_WORDS.google, "Continue with Google");
   assert.match(SIGNUP_WORDS.googleFailed, /use your email/);

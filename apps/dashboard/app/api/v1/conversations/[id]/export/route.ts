@@ -29,17 +29,20 @@ export const GET = read({
       .maybeSingle();
     if (error) throw new Error(error.message);
     if (!conv) throw new AppError("not_found", "Conversation not found.");
+    // Offset paging under one TOTAL order, as the workspace export does, not a
+    // `.lt(created_at)` cursor: two messages written in the same transaction
+    // share a timestamp to the microsecond, and a cursor that steps strictly
+    // past the last one on a page drops every message tied with it -- silently,
+    // from the file whose whole promise is "every message".
     const messages: MessageDto[] = [];
-    let before: string | null = null;
     for (let page = 0; page < MAX_PAGES; page++) {
-      let q = supabase
+      const { data, error: merr } = await supabase
         .from("messages")
         .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts")
         .eq("conversation_id", id)
-        .order("created_at", { ascending: false })
-        .limit(PAGE);
-      if (before) q = q.lt("created_at", before);
-      const { data, error: merr } = await q;
+        .order("created_at", { ascending: true })
+        .order("id", { ascending: true })
+        .range(page * PAGE, page * PAGE + PAGE - 1);
       if (merr) throw new Error(merr.message);
       if (!data?.length) break;
       for (const m of data) {
@@ -56,7 +59,6 @@ export const GET = read({
           channel_ts: m.channel_ts,
         });
       }
-      before = data[data.length - 1].created_at;
       if (data.length < PAGE) break;
     }
     const { name, timezone } = await tenantFacts(supabase, member.tenantId);

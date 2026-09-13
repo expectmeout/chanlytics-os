@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { importSrc } from "./_source.mjs";
 
 const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast.ts");
-const { BROADCAST_CHUNK } = await import("@chanlytics/contracts");
+const { BROADCAST_CHUNK, HELD_REASONS, OUTCOME_UNKNOWN } = await import("@chanlytics/contracts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const WRITES = new Set(["fail", "startSending", "mark", "deliver", "scheduleNext", "finish", "alert", "sleep"]);
 
@@ -86,8 +86,10 @@ test("each person goes through the door with the template's purpose, proactive, 
     meta: { source: "broadcast", broadcast_id: "b1", broadcast_name: "Spring offer" },
   });
   assert.equal(sends[1].body, "Hi Bo, a spring offer from Melany's.", "the profile name when no display name is on file");
-  assert.deepEqual(marks(), [["k1", "sent", null], ["k2", "sent", null]]);
-  assert.equal(log.filter((l) => l[0] === "mark")[0][3].message_id, "m-k1");
+  // Each person is CLAIMED before the door and settled after it: the first mark
+  // is what their row would have been left saying had the run been killed.
+  assert.deepEqual(marks(), [["k1", "failed", OUTCOME_UNKNOWN], ["k1", "sent", null], ["k2", "failed", OUTCOME_UNKNOWN], ["k2", "sent", null]]);
+  assert.equal(log.filter((l) => l[0] === "mark")[1][3].message_id, "m-k1");
   assert.equal(log.filter((l) => l[0] === "sleep").length, 2, "a breath after every person");
   const utility = fakes({ template: { ...approved, category: "utility" }, broadcast: broadcast({ playbook_id: "p1", audience: { label: "Win-back" } }) });
   await sendBroadcastBatch(utility.ports, cmd());
@@ -118,7 +120,25 @@ test("the door's answer is the row's: refused holds with the door's reason, fail
     deliver: (d) => (d.contactId === "k1" ? { outcome: "refused", reason: "no_marketing_consent", messageId: null } : { outcome: "failed", reason: "provider", status: 500, errorBody: "x", messageId: "m-k2" }),
   });
   await sendBroadcastBatch(ports, cmd());
-  assert.deepEqual(marks(), [["k1", "skipped", "no_marketing_consent"], ["k2", "failed", "send_failed"]]);
+  assert.deepEqual(marks(), [
+    ["k1", "failed", OUTCOME_UNKNOWN], ["k1", "skipped", "no_marketing_consent"],
+    ["k2", "failed", OUTCOME_UNKNOWN], ["k2", "failed", "send_failed"],
+  ], "the door's answer overwrites the claim a moment later");
+});
+
+test("a person is claimed BEFORE the wire, so a run killed mid-send cannot reach them again", async () => {
+  // deliver records a broadcast's message only once the provider has ACCEPTED
+  // it. A run killed in that gap used to leave nothing at all: no message row
+  // for alreadySent to find, and a recipient row still saying 'queued' -- so
+  // the fresh run jobs/settle schedules sent the same template to the same
+  // person a second time, which is the one thing a broadcast must never do.
+  const f = fakes({ batch: [{ contact_id: "k1", facts: null }], deliver: new Error("the runner was killed mid-send") });
+  await assert.rejects(sendBroadcastBatch(f.ports, cmd()), /killed mid-send/);
+  assert.deepEqual(f.ops(), ["startSending", "mark", "deliver"], "the claim is written before the door is even reached");
+  assert.deepEqual(f.marks(), [["k1", "failed", OUTCOME_UNKNOWN]], "their row says a run was mid-send here and nobody knows how it went");
+  // Not 'queued', so no later batch picks them up -- and not a raw enum on the
+  // broadcast's own page either.
+  assert.equal(HELD_REASONS[OUTCOME_UNKNOWN], "a run that did not finish");
 });
 
 test("the deadline: at least one person, no new send after it, and the rest carried by the next batch", async () => {
@@ -140,7 +160,7 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(log.at(-2), ["finish", "b1", { sent: 1, held: 1 }]);
   assert.equal(log.at(-1)[1], "Broadcast “Spring offer” sent");
-  assert.match(log.at(-1)[2], /^1 person got it; 1 held back \(no recorded yes, asked to stop, no number, or a person had the thread\)\. Replies land in the Inbox\.$/);
+  assert.match(log.at(-1)[2], /^1 person got it; 1 held back \(no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish\)\. Replies land in the Inbox\.$/);
   assert.equal(BROADCAST_CHUNK, 25);
 });
 
@@ -150,11 +170,14 @@ test("a resumed batch reads the message a dying run left rather than sending it 
   // The fresh run jobs/settle schedules finds the row: k1 is marked sent with
   // that message, nothing goes to them twice, and k2 -- who has no row -- is
   // sent as normal.
-  const f = fakes({ alreadySent: (id, contactId) => (id === "b1" && contactId === "k1" ? "m-earlier" : null) });
+  const EARLIER = "2026-09-11T11:00:00Z";
+  const f = fakes({ alreadySent: (id, contactId) => (id === "b1" && contactId === "k1" ? { id: "m-earlier", sentAt: EARLIER } : null) });
   await sendBroadcastBatch(f.ports, cmd());
   const sends = f.log.filter((l) => l[0] === "deliver").map((l) => l[1].contactId);
   assert.deepEqual(sends, ["k2"], "k1 is not sent again");
-  assert.deepEqual(f.marks(), [["k1", "sent", null], ["k2", "sent", null]]);
-  assert.deepEqual(f.log.find((l) => l[0] === "mark" && l[2] === "k1")[3], { state: "sent", message_id: "m-earlier" }, "the row it already had");
+  assert.deepEqual(f.marks(), [["k1", "sent", null], ["k2", "failed", OUTCOME_UNKNOWN], ["k2", "sent", null]], "k1 never reaches the wire, so k1 is never claimed");
+  // An hour ago, not now: the broadcast's page lists its people by sent_at, and
+  // a resumed run stamping the moment it noticed reorders the whole list.
+  assert.deepEqual(f.log.find((l) => l[0] === "mark" && l[2] === "k1")[3], { state: "sent", message_id: "m-earlier", sent_at: EARLIER }, "the row it already had, at the time it actually left");
   assert.deepEqual(f.ops().filter((o) => o === "finish"), ["finish"], "and the run completes");
 });

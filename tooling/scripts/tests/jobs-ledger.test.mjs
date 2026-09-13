@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import {
   verdictFor, claimNext, completeJob, failJob,
-  CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS, MAX_ATTEMPTS, SPEAKS_TO_A_PERSON,
+  CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS, MAX_ATTEMPTS, MAX_RESUMES, SPEAKS_TO_A_PERSON,
 } from "../../../packages/jobs/src/ledger.ts";
 import { settleJob, saySettled } from "../../../packages/jobs/src/settle.ts";
 
@@ -98,39 +98,124 @@ test("certain changes the words, never the condition", async () => {
   assert.deepEqual(messages[0].error, { reason: "never_delivered", note: "the job that would have sent this never ran" });
 });
 
-test("a broadcast mid-send is handed to a fresh run, with what it reached and what is left; only in its own workspace; failed only when no run can be written", async () => {
+/** A broadcast's people, as the table really holds them: with a tenant on every row. */
+const peopleOf = (broadcastId, states) => states.map((state, i) => ({ tenant_id: TENANT, broadcast_id: broadcastId, contact_id: `k${i}`, state }));
+const sending = (over = {}) => ({ id: "b1", tenant_id: TENANT, state: "sending", finished_at: null, failure: null, ...over });
+const ranAndDied = (payload) => ({ id: "j", kind: "broadcast_send", tenant_id: TENANT, payload });
+
+test("a broadcast still in flight is handed to a fresh run, with what it reached and what is left; only in its own workspace", async () => {
   // It used to be marked failed with the rest still queued for ever. The rest
   // go to a fresh run; the batch reads the message a dying run left rather
   // than sending twice (core-broadcast.test.mjs), which is what makes this safe.
   const broadcasts = [
-    { id: "b1", tenant_id: TENANT, state: "sending", finished_at: null },
-    { id: "b2", tenant_id: "22222222-2222-2222-2222-222222222222", state: "sending", finished_at: null },
-    { id: "b3", tenant_id: TENANT, state: "sent", finished_at: "2026-09-12T00:00:00Z" },
+    sending(),
+    sending({ id: "b2", tenant_id: "22222222-2222-2222-2222-222222222222" }),
+    sending({ id: "b3", state: "sent", finished_at: "2026-09-12T00:00:00Z" }),
+    // A run killed before it could move the row off 'scheduled' reached nobody,
+    // and used to be left exactly there: not sending, not failed, not said, and
+    // with no job anywhere that would ever pick the broadcast up again.
+    sending({ id: "b4", state: "scheduled" }),
   ];
   const broadcast_recipients = [
-    { broadcast_id: "b1", contact_id: "k1", state: "sent" }, { broadcast_id: "b1", contact_id: "k2", state: "sent" },
-    { broadcast_id: "b1", contact_id: "k3", state: "queued" }, { broadcast_id: "b1", contact_id: "k4", state: "queued" }, { broadcast_id: "b1", contact_id: "k5", state: "skipped" },
+    ...peopleOf("b1", ["sent", "sent", "queued", "queued", "skipped"]),
+    ...peopleOf("b4", ["queued"]),
   ];
   const jobs = [];
   const db = fakeDb({ broadcasts, broadcast_recipients, jobs });
-  const run = (id) => ({ id: "j", kind: "broadcast_send", tenant_id: TENANT, payload: { broadcast_id: id } });
+  const run = (id) => ranAndDied({ broadcast_id: id });
   assert.deepEqual(await settleJob(db, run("b1"), false), [{ what: "broadcast", changed: true, resumed: true, reached: 2, remaining: 2 }]);
   assert.equal(broadcasts[0].state, "sending", "still sending: the fresh run carries it");
   assert.equal(jobs.length, 1);
   assert.equal(jobs[0].kind, "broadcast_send");
   assert.equal(jobs[0].tenant_id, TENANT);
-  assert.deepEqual(jobs[0].payload, { broadcast_id: "b1" });
+  assert.deepEqual(jobs[0].payload, { broadcast_id: "b1", resumes: 1 }, "how many fresh runs it has had rides the payload; nothing else survives the run");
+  // COUNTED, never a page of rows: PostgREST caps a plain select at max_rows and
+  // a broadcast may carry more people than that, so reading the rows to count
+  // them understates exactly the broadcasts big enough for the number to matter.
+  const counts = db.seen.filter((s) => s.table === "broadcast_recipients");
+  assert.ok(counts.length > 0 && counts.every((s) => s.counted), "every recipient read here is a count");
   assert.deepEqual(await settleJob(db, run("b2"), false), [{ what: "broadcast", changed: false }]);
   assert.equal(broadcasts[1].state, "sending", "another workspace's broadcast is not this job's to settle");
   assert.deepEqual(await settleJob(db, run("b3"), false), [{ what: "broadcast", changed: false }], "one that finished on its own is left as it finished");
   assert.equal(jobs.length, 1, "no run for either");
-  // A ledger that refuses the fresh row: the honest failure, with both reasons.
-  const refused = fakeDb({ broadcasts: [{ id: "b1", tenant_id: TENANT, state: "sending", finished_at: null }], broadcast_recipients, jobs: [] }, { "jobs.insert": { message: "jobs_guard says no" } });
-  const out = await settleJob(refused, run("b1"), false);
+  assert.deepEqual(await settleJob(db, run("b4"), false), [{ what: "broadcast", changed: true, resumed: true, reached: 0, remaining: 1 }], "one that never left 'scheduled' is resumed, not stranded");
+  assert.equal(jobs.length, 2);
+});
+
+test("a broadcast whose dying run already scheduled the next batch is not handed a SECOND run", async () => {
+  // The dying run may have scheduled its own next batch before it failed to
+  // report back, and that chain has been working the queue for the ninety
+  // seconds this row's lease took to expire. A second chain beside it reads the
+  // same queued rows, finds no message written for them yet, and delivers to
+  // every one of them AGAIN.
+  const broadcasts = [sending()];
+  const broadcast_recipients = peopleOf("b1", ["sent", "queued"]);
+  const chain = (state, id = "j-next") => [{ id, tenant_id: TENANT, kind: "broadcast_send", state, payload: { broadcast_id: "b1" } }];
+  for (const state of ["scheduled", "fired"]) {
+    const jobs = chain(state);
+    const out = await settleJob(fakeDb({ broadcasts, broadcast_recipients, jobs }), ranAndDied({ broadcast_id: "b1" }), false);
+    assert.deepEqual(out, [{ what: "broadcast", changed: false, resumed: true, reached: 1, remaining: 1 }], state);
+    assert.equal(jobs.length, 1, `a ${state} run is already coming, so nothing is scheduled`);
+  }
+  const over = chain("done");
+  await settleJob(fakeDb({ broadcasts, broadcast_recipients, jobs: over }), ranAndDied({ broadcast_id: "b1" }), false);
+  assert.equal(over.length, 2, "a run that is over is not a run that is coming");
+  const itself = chain("fired", "j");
+  await settleJob(fakeDb({ broadcasts, broadcast_recipients, jobs: itself }), ranAndDied({ broadcast_id: "b1" }), false);
+  assert.equal(itself.length, 2, "and the row being settled is not its own successor");
+  const elsewhere = [{ id: "j-other", tenant_id: TENANT, kind: "broadcast_send", state: "scheduled", payload: { broadcast_id: "b9" } }];
+  await settleJob(fakeDb({ broadcasts, broadcast_recipients, jobs: elsewhere }), ranAndDied({ broadcast_id: "b1" }), false);
+  assert.equal(elsewhere.length, 2, "nor is a run for a different broadcast");
+});
+
+test("fresh runs are bounded: a broadcast whose runs never finish is failed, with its reason on the row", async () => {
+  // settleJob mints a NEW row, with its own attempts of one, so MAX_ATTEMPTS
+  // cannot reach it: without a bound, a broadcast that kills every run would
+  // fail, resume, fail for ever, one owner alert per cycle.
+  const broadcasts = [sending()];
+  const broadcast_recipients = peopleOf("b1", ["sent", "queued"]);
+  const jobs = [];
+  const db = fakeDb({ broadcasts, broadcast_recipients, jobs });
+  assert.deepEqual(await settleJob(db, ranAndDied({ broadcast_id: "b1", resumes: MAX_RESUMES - 1 }), false),
+    [{ what: "broadcast", changed: true, resumed: true, reached: 1, remaining: 1 }], "the last one it is allowed");
+  assert.deepEqual(jobs[0].payload, { broadcast_id: "b1", resumes: MAX_RESUMES });
+  jobs.length = 0;
+  const out = await settleJob(db, ranAndDied({ broadcast_id: "b1", resumes: MAX_RESUMES }), false);
+  assert.deepEqual(out, [{ what: "broadcast", changed: true, notResumed: `${MAX_RESUMES} fresh runs in a row did not finish`, reached: 1, remaining: 1 }]);
+  assert.equal(jobs.length, 0, "and no more runs");
+  assert.equal(broadcasts[0].state, "failed");
+  assert.equal(broadcasts[0].failure, "run_interrupted", "the broadcast's own page says Failed AND why");
+});
+
+test("a ledger that refuses the fresh run fails the broadcast and says THAT, not that it may still be sending", async () => {
+  const broadcasts = [sending()];
+  const refused = fakeDb(
+    { broadcasts, broadcast_recipients: peopleOf("b1", ["sent", "sent", "queued", "queued"]), jobs: [] },
+    { "jobs.insert": { message: "jobs_guard says no" } },
+  );
+  const out = await settleJob(refused, ranAndDied({ broadcast_id: "b1" }), false);
   assert.equal(out[0].changed, true);
   assert.equal(out[0].resumed, undefined);
-  assert.match(out[0].error, /jobs_guard says no/);
+  assert.equal(out[0].error, undefined, "the broadcast WAS written; what failed was the reschedule");
+  assert.match(out[0].notResumed, /jobs_guard says no/);
   assert.equal(out[0].reached, 2);
+  assert.equal(broadcasts[0].state, "failed");
+  assert.equal(broadcasts[0].failure, "run_interrupted");
+  assert.match(saySettled(out), /could not be handed to a fresh run \(.*jobs_guard says no.*\), so it has been marked failed; the 2 it had already reached still got it, and 2 did not/);
+});
+
+test("a count that could not be read is never reported as zero, and never risks a second run", async () => {
+  const broadcasts = [sending()];
+  const blind = fakeDb({ broadcasts, broadcast_recipients: [], jobs: [] }, { "broadcast_recipients.select": { message: "statement timeout" } });
+  const out = await settleJob(blind, ranAndDied({ broadcast_id: "b1" }), false);
+  assert.deepEqual(out, [{ what: "broadcast", changed: false, error: "statement timeout" }], "not '0 reached so far, 0 still to go'");
+  assert.equal(broadcasts[0].state, "sending");
+  assert.match(saySettled(out), /could not be updated \(statement timeout\)/);
+  // A ledger it cannot read is not a ledger with no run coming: scheduling one
+  // on a guess is how the same people are sent the same template twice.
+  const deaf = fakeDb({ broadcasts, broadcast_recipients: peopleOf("b1", ["queued"]), jobs: [] }, { "jobs.select": { message: "statement timeout" } });
+  assert.deepEqual(await settleJob(deaf, ranAndDied({ broadcast_id: "b1" }), false),
+    [{ what: "broadcast", changed: false, reached: 0, remaining: 1, error: "statement timeout" }]);
 });
 
 test("a settlement that cannot be written, or has nothing to point at, says so", async () => {
@@ -149,7 +234,12 @@ test("a settlement that cannot be written, or has nothing to point at, says so",
 test("the owner reads what the writes returned, not what they meant to do", () => {
   assert.match(saySettled([{ what: "message", changed: true }]), /marked failed, so it is no longer shown as on its way/);
   assert.match(saySettled([{ what: "broadcast", changed: true }]), /people it had already reached still got it/);
-  assert.equal(saySettled([{ what: "broadcast", changed: true, resumed: true, reached: 12, remaining: 30 }]), "The broadcast carries on in a fresh run: 12 reached so far, 30 still to go. Nobody is sent it twice.");
+  // Not "nobody is sent it twice": a run killed between the wire accepting a
+  // message and the row recording it leaves no row for the next run to read.
+  const carriesOn = "The broadcast carries on in a fresh run: 12 reached so far, 30 still to go. Anyone it already recorded as sent is skipped, not sent again.";
+  assert.equal(saySettled([{ what: "broadcast", changed: true, resumed: true, reached: 12, remaining: 30 }]), carriesOn);
+  assert.equal(saySettled([{ what: "broadcast", changed: false, resumed: true, reached: 12, remaining: 30 }]), carriesOn, "a run already coming reads the same to an owner");
+  assert.match(saySettled([{ what: "broadcast", changed: true, notResumed: "jobs_guard says no", reached: 12, remaining: 30 }]), /could not be handed to a fresh run \(jobs_guard says no\), so it has been marked failed; the 12 it had already reached still got it, and 30 did not/);
   assert.match(saySettled([{ what: "broadcast", changed: true, reached: 12, remaining: 30 }]), /the 12 it had already reached still got it, and 30 did not/);
   assert.match(saySettled([{ what: "message", changed: false, error: "permission denied" }]), /could not be updated \(permission denied\)/);
   assert.equal(saySettled([{ what: "message", changed: false }]), null, "a row that moved on by itself is nothing to report");

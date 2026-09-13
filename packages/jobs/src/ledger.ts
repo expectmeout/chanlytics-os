@@ -41,6 +41,18 @@ export const YIELD_AT_MS = 45_000;
 /** Claims allowed for internal work before it is failed and reported. */
 export const MAX_ATTEMPTS = 3;
 
+/**
+ * Fresh runs a broadcast may be handed before it is failed instead.
+ *
+ * MAX_ATTEMPTS cannot reach the resume: settleJob mints a NEW row, with its own
+ * attempts of one, so a broadcast whose run dies the same way every time would
+ * fail, resume, fail for ever — one owner alert and one new row per cycle. The
+ * count rides the payload and is reset by a run that got far enough to schedule
+ * its own next batch, so this bounds resumes THAT MADE NO PROGRESS, not the
+ * number of batches a long broadcast takes.
+ */
+export const MAX_RESUMES = 5;
+
 /** Kinds whose second run could reach a real person a second time. */
 export const SPEAKS_TO_A_PERSON: ReadonlySet<string> = new Set(["outbound_send", "broadcast_send"]);
 

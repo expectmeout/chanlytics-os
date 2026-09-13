@@ -17,8 +17,10 @@ import {
   broadcastName, cleanParam, eligibleFor, emptyAudienceRefusal, mayReceive, renderTemplate, toBroadcastVM, whenLabel, OFFERS_BY_WHATSAPP_NOTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
+const { dispatchJob } = await import(pathToFileURL(path.join(here, "../../../packages/jobs/dist/index.js")).href);
 
 const person = (over = {}) => ({
   id: over.id ?? "p1", state: "active", hasChat: true, calls: 0, phone: "+15551230001",
@@ -177,6 +179,57 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "the person's row still carries what the run needs");
   assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: id });'), "the next batch is one more row, as this tenant");
   assert.ok(h.includes('kind: "broadcast.sent"'));
+  // Not one port answers from a read whose error it dropped. Every one of them
+  // is a question the run then acts on, and `{ data }` alone turns a read that
+  // failed into a confident wrong answer -- always in the direction of a real
+  // message to a real person, or of a broadcast failed over a blip.
+  assert.ok(!/const \{ data \} = await db\./.test(h), "a broadcast port never answers from a dropped error");
+  // And its numbers are COUNTED: PostgREST caps a plain select at max_rows, so
+  // a tally read from a page of rows undercounts the big ones and is then
+  // written to the permanent record and read out to the owner.
+  assert.ok(h.includes('{ count: "exact", head: true }') && !h.includes('.select("state").eq("broadcast_id"'), "the tally is a count, not a page of rows");
+});
+
+const TID = "11111111-1111-1111-1111-111111111111";
+/** The workspace as the tables really hold it, one queued person, ready to send. */
+const world = () => ({
+  broadcasts: [{ id: "b1", tenant_id: TID, state: "scheduled", name: "Spring offer", template_name: "offer", template_language: "en_US", params: [], recipient_count: 1, playbook_id: null, audience: null, started_at: null, finished_at: null, failure: null }],
+  tenants: [{ id: TID, name: "Melany's", status: "active" }],
+  tenant_config: [{ tenant_id: TID, config: {} }],
+  templates: [{ tenant_id: TID, channel: "whatsapp", name: "offer", language: "en_US", meta_status: "approved", body_preview: "A spring offer.", category: "MARKETING" }],
+  broadcast_recipients: [{ tenant_id: TID, broadcast_id: "b1", contact_id: "k1", state: "queued", facts: null, sent_at: null }],
+  contacts: [{ id: "k1", tenant_id: TID, phone_e164: "+15551230001", consent: "opted_in", dnc: false, marketing_consent: "opted_in", erased_at: null, display_name: "Ada", wa_profile_name: null }],
+  messages: [], events: [], jobs: [],
+});
+
+test("the job's ports fail CLOSED: a read that did not happen never answers 'not paused', 'Meta withdrew it' or 'they have not been messaged'", async () => {
+  const sent = [];
+  const ctx = (db) => ({
+    db, wire: {}, alert: async (subject, body) => sent.push([subject, body]),
+    eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000,
+  });
+  const job = { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } };
+  const blip = { message: "canceling statement due to statement timeout" };
+
+  // The billing gate. `data?.status === "paused"` on a failed read is false,
+  // and a paid template blast then goes out under a subscription that stopped.
+  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenants.select": blip })), job), /workspace's status/);
+
+  // The worst of the three. A null template reads as "no longer approved by
+  // WhatsApp": the broadcast is terminally failed and the owner is emailed
+  // something untrue about their Meta account, over a statement timeout.
+  const w = world();
+  await assert.rejects(dispatchJob(ctx(fakeDb(w, { "templates.select": blip })), job), /cannot read template/);
+  assert.notEqual(w.broadcasts[0].state, "failed", "not failed over a read that did not happen");
+  assert.deepEqual(sent, [], "and nobody is told WhatsApp rejected a template it did not reject");
+
+  // The one check between a resumed run and a second template to the same
+  // person: null here is "they have not been messaged yet".
+  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "messages.select": blip })), job), /already sent/);
+
+  // An empty business name is not a fallback: it fills a slot with nothing, and
+  // the verb marks everyone in the batch permanently "missing_value".
+  await assert.rejects(dispatchJob(ctx(fakeDb(world(), { "tenant_config.select": blip })), job), /workspace's settings/);
 });
 
 test("the routes: an approved template, values Meta accepts, an audience crossed with who said yes, enrolled now, scheduled, on the ledger; cancel stops what has not finished", () => {

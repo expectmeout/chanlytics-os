@@ -1,5 +1,5 @@
 import { read, workspace } from "@/server/route";
-import { listPeople } from "@/server/people";
+import { everyone } from "@/server/people";
 import { tenantFacts } from "@/server/tenant";
 import { attachment, dateTag, peopleCsv, safeName } from "@/server/export";
 import { recordDecision } from "@/server/verbs";
@@ -14,7 +14,10 @@ export const GET = read({
   role: "owner",
   rate: "export",
   handle: async ({ ctx, member }) => {
-    const people = await listPeople(ctx, member.tenantId);
+    // everyone(), not listPeople(): one call is capped at 1000 in the database,
+    // and a CSV that stops there is indistinguishable from a complete one --
+    // on the export whose ledger row says a full copy of the list was taken.
+    const people = await everyone(ctx, member.tenantId);
     const { name, timezone } = await tenantFacts(ctx.supabase, member.tenantId);
     const now = new Date();
     console.log(JSON.stringify({ level: "info", event: "export.people", user: ctx.userId, tenant: member.tenantId, rows: people.length }));

@@ -109,9 +109,15 @@ export function withRoute<T>(
       const data = await handler(req, { supabase, userId: user.id, email: user.email, metadata, params, ...(via ? { via } : {}), ...(undoOf ? { undoOf } : {}) });
       console.log(JSON.stringify({ level: "info", route, user: user.id, ms: Date.now() - started }));
       // A handler that built its own Response — a file to download — passes
-      // through as it is, under the same no-store rule as every other exit.
+      // through as it is. Its cache-control is overwritten with the no-store
+      // rule every other exit uses, UNLESS the handler asked for a private
+      // cache of its own: the QR code is an image of a number that changes
+      // about never, and it was regenerating on every paint because the header
+      // it set here was replaced on the way out. Only `private` is honoured, so
+      // no exit can be widened to a shared cache by accident.
       if (data instanceof Response) {
-        data.headers.set("cache-control", PRIVATE["cache-control"]);
+        const asked = data.headers.get("cache-control");
+        if (!asked || !/^private\b/i.test(asked)) data.headers.set("cache-control", PRIVATE["cache-control"]);
         return data;
       }
       return NextResponse.json(ok(data), { headers: PRIVATE });
