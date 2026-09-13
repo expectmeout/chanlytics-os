@@ -28,6 +28,8 @@ import {
 } from "@chanlytics/channels";
 import { EVENT_KINDS } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
+import { linePorts } from "../../../apps/edge/lib/lines.ts";
 
 const LINE_ID = "0f3c2a1e-1111-4222-8333-444455556666";
 const freshLine = (over = {}) => ({
@@ -334,4 +336,85 @@ test("wiring: the edge endpoint, its ports, the receptionist shared with voice-p
   assert.ok(readCode("packages/db/src/realtime.ts").includes('{ table: "lines", event: "*" }'), "a callback repaints Setup");
   const index = readCode("packages/channels/src/index.ts");
   for (const m of ["./lines", "./lines-twilio", "./lines-dry", "./lines-saga"]) assert.ok(index.includes(`export * from "${m}";`), m);
+});
+
+/**
+ * A routing row is claimed only by the workspace that owns it.
+ *
+ * `tenant_channels` is unique on (kind, external_id) ACROSS workspaces, and a
+ * phone number outlives its renter: a carrier hands a released number to
+ * somebody else a few weeks later. The ensure matched on (kind, external_id)
+ * alone, so the new workspace's saga found the PREVIOUS renter's row, wrote
+ * that row's id onto its line, and called the line provisioned -- after which
+ * every text to that number resolved to a business that no longer owned it.
+ * Release made it reachable: it switched off the voice row and left the sms
+ * row active.
+ *
+ * Run rather than read: the rule is about which row comes back from a
+ * database holding two workspaces' rows, which a source scan cannot see.
+ */
+const portsOver = (db, tenantId = "t1") =>
+  linePorts(
+    db,
+    { apiKey: "k" },
+    { fnSecret: "s" },
+    { id: tenantId, name: "Ada's" },
+    freshLine({ tenant_id: tenantId }),
+    { name: "dry", provider: dryProvider(1), master: { sid: "ACdryrun", token: "dry" } },
+  );
+
+test("a routing row belonging to another workspace is refused, never adopted", async () => {
+  // The number was rented by t-old, released, and bought by t-new. Release
+  // left the sms row behind, exactly as the bug required.
+  const tables = {
+    tenant_channels: [
+      { id: "ch-old", tenant_id: "t-old", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  const ports = portsOver(fakeDb(tables), "t-new");
+  await assert.rejects(
+    () => ports.smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" }),
+    /belongs to another workspace/,
+    "the saga fails loudly and a person looks at it",
+  );
+  assert.equal(tables.tenant_channels.length, 1, "and nothing was written");
+  assert.equal(tables.tenant_channels[0].tenant_id, "t-old", "the other workspace's row is untouched");
+});
+
+test("this workspace's own row is kept, and one switched off by a release is switched back on", async () => {
+  const tables = {
+    tenant_channels: [
+      { id: "ch-mine", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "active", config: {} },
+    ],
+  };
+  assert.deepEqual(
+    await portsOver(fakeDb(tables)).smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" }),
+    { channelId: "ch-mine", created: false },
+    "a workspace that already texts on this number keeps its row",
+  );
+
+  // The same workspace releasing and re-buying its own number. Adopting the
+  // disabled row as-is reported the line as answering while the webhook
+  // refused to route it -- the same silence, reached from the other side.
+  const off = { tenant_channels: [{ id: "ch-off", tenant_id: "t1", kind: "sms", external_id: "+13055550100", number_e164: "+13055550100", status: "disabled", config: {} }] };
+  assert.deepEqual(
+    await portsOver(fakeDb(off)).smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG2" }),
+    { channelId: "ch-off", created: false },
+  );
+  assert.equal(off.tenant_channels[0].status, "active", "switched back on, or the number is unroutable while the line says it answers");
+  assert.equal(off.tenant_channels[0].config.messaging_service_sid, "MG2", "and pointed at the line that now holds it");
+});
+
+test("a number nobody holds is written for this workspace; the voice row follows the same rule", async () => {
+  const tables = { tenant_channels: [] };
+  const made = await portsOver(fakeDb(tables)).smsChannel.ensure({ e164: "+13055550100", lineId: LINE_ID, serviceSid: "MG1" });
+  assert.equal(made.created, true);
+  assert.equal(tables.tenant_channels[0].tenant_id, "t1");
+  assert.equal(tables.tenant_channels[0].status, "active");
+
+  const theirs = { tenant_channels: [{ id: "ag-old", tenant_id: "t-old", kind: "voice", external_id: "agent-1", status: "active", config: {} }] };
+  await assert.rejects(
+    () => portsOver(fakeDb(theirs), "t-new").channel.ensure({ agentId: "agent-1", e164: "+13055550100", lineId: LINE_ID }),
+    /belongs to another workspace/,
+  );
 });

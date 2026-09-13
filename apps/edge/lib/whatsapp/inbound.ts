@@ -118,7 +118,7 @@ export async function handleInbound(
       if (e instanceof IngestFailed) {
         // The copy is best effort: a mailbox that cannot be reached must not mask the loss.
         try {
-          await ports.alertStaff(from, n.body ?? `[${m.type} message]`, "(NOT recorded: the database did not accept the message; the provider will retry)", "message not recorded", notifyTarget, pauseHours, "inbox", n.profileName ?? null, null);
+          await ports.alertStaff(from, n.body ?? `[${m.type} message]`, "(NOT recorded: the database did not accept the message; the provider will retry)", "message not recorded", notifyTarget, pauseHours, "inbox", n.profileName ?? null, null, channel);
         } catch (alertErr) {
           L.error("wa_unrecorded_alert_failed", { error: errField(alertErr) });
         }
@@ -250,7 +250,7 @@ export async function handleInbound(
         "state_unavailable",
         "The receptionist could not read this thread's history, so it did not reply. Please answer this one.",
       ),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the receptionist could not read the thread state)", "state unavailable", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.processed(),
     ]);
     return;
@@ -302,7 +302,7 @@ export async function handleInbound(
       // see once, not a log line.
       post.push(
         sink.escalate("opt_out", "Customer asked to stop receiving messages. Automatic replies are off for this contact until they text START."),
-        ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+        ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the customer opted out)", "opt-out", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       );
     }
     await Promise.all(post);
@@ -323,7 +323,7 @@ export async function handleInbound(
   if (carrier?.held) {
     await Promise.all([
       sink.escalate(carrier.held.reason, carrier.held.details),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.processed(),
     ]);
     L.info("sms_held_for_carriers");
@@ -356,7 +356,7 @@ export async function handleInbound(
   if (n.kind === "location" || n.kind === "contacts") {
     await Promise.all([
       sink.escalate("non_text", `${n.body} — needs a person.`),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind, notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind, notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.processed(),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
@@ -416,7 +416,7 @@ export async function handleInbound(
       await Promise.all([
         ...(mayAck ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
         sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
-        ports.alertStaff(from, `[${m.type} message]`, `(${why})`, "non-text message", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+        ports.alertStaff(from, `[${m.type} message]`, `(${why})`, "non-text message", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       ]);
       L.info("wa_nontext", { acked: mayAck, mode: replyMode, person_mode: personMode });
     }
@@ -454,7 +454,7 @@ export async function handleInbound(
   if (age === "stale") {
     await Promise.all([
       sink.escalate("stale", `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`),
-      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.processed(),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
@@ -509,7 +509,7 @@ export async function handleInbound(
     // fires on a busy thread, not only when someone lowers the limit.
     await Promise.all([
       sink.escalate("rate_cap", `Thread hit ${maxRepliesDay} automatic replies today — the receptionist stopped and is waiting for a human.`),
-      ports.alertStaff(from, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, bodyText, "(no reply sent — daily automatic-reply limit reached)", "rate cap", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.processed(),
     ]);
     return;
@@ -522,13 +522,13 @@ export async function handleInbound(
   // a customer at the cap is never abandoned to a log line.
   const tokenCap = typeof replyLimits.max_llm_tokens_day === "number" ? replyLimits.max_llm_tokens_day : 0;
   if (tokenCap > 0 && db && tenantId) {
-    const used = await ports.budget.tokensLast24h(db, tenantId);
+    const used = await ports.budget.tokensLast24h(db, tenantId, tokenCap);
     if (used >= tokenCap) {
       await ports.store.save(ns, from, thread);
       L.info("wa_skip_budget", { cap: tokenCap, used });
       await Promise.all([
         sink.escalate("budget", `The workspace used ${used.toLocaleString("en-US")} of its ${tokenCap.toLocaleString("en-US")} model tokens in the last 24 hours — the receptionist stopped and is waiting for a human.`),
-        ports.alertStaff(from, bodyText, "(no reply sent — the day's model budget is used up)", "budget", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+        ports.alertStaff(from, bodyText, "(no reply sent — the day's model budget is used up)", "budget", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
         sink.processed(),
       ]);
       return;
@@ -545,7 +545,7 @@ export async function handleInbound(
     L.info("wa_skip_paused");
     await Promise.all([
       sink.escalate("paused", "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself."),
-      ports.alertStaff(from, bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, bodyText, "(no reply sent — the workspace is paused until billing resumes)", "paused", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.processed(),
     ]);
     return;
@@ -580,6 +580,7 @@ export async function handleInbound(
               ing ? `inbox/th-${ing.conversation_id}` : "inbox",
               n.profileName ?? null,
               ing ? { type: "conversation", id: ing.conversation_id } : null,
+              channel,
             ),
           ]
         : []),
@@ -731,7 +732,7 @@ export async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(ports.alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
+      post.push(ports.alertStaff(from, bodyText, replyText, "assistant flagged handoff (reply held for review)", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel));
     }
     await Promise.all(post);
     await ports.store.save(ns, from, thread);
@@ -753,7 +754,7 @@ export async function handleInbound(
       thread.pausedUntil = Date.now() + pauseMs;
       post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
       post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
-      post.push(ports.alertStaff(from, bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null));
+      post.push(ports.alertStaff(from, bodyText, replyText, fallback ? fallback.alertReason : "assistant flagged handoff", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel));
     }
     await Promise.all(post);
     await ports.store.save(ns, from, thread);
@@ -771,7 +772,7 @@ export async function handleInbound(
     // The door wrote the failed row and its event; the people are told here.
     await ports.store.save(ns, from, thread);
     await Promise.all([
-      ports.alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null),
+      ports.alertStaff(from, bodyText, "(send failed — the customer received no reply)", "wa_send_failed", notifyTarget, pauseHours, ing ? `inbox/th-${ing.conversation_id}` : "inbox", n.profileName ?? null, ing ? { type: "conversation", id: ing.conversation_id } : null, channel),
       sink.escalate("send_failed", sent.reason === "wire_unreadable"
         ? "Auto-reply could not be sent: the thread could not be read at the wire. Customer got no answer."
         : `Auto-reply could not be delivered (HTTP ${sent.status}). Customer got no answer.`),

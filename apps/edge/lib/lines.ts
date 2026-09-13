@@ -159,49 +159,88 @@ export function linePorts(
       async ensure({ agentId, e164, lineId }) {
         // One routing row per agent. A workspace whose receptionist already
         // answers keeps its row; the new number rides on the same agent.
-        const have = await db.from("tenant_channels").select("id").eq("kind", "voice").eq("external_id", agentId).maybeSingle();
-        if (have.error) throw new Error(`reading the voice row: ${have.error.message}`);
-        if (have.data) return { channelId: have.data.id, created: false };
-        const ins = await db
-          .from("tenant_channels")
-          .insert({
-            tenant_id: tenant.id,
-            kind: "voice",
-            external_id: agentId,
-            number_e164: e164,
-            status: "active",
-            config: { provider: "twilio-sip", line_id: lineId, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
-          })
-          .select("id")
-          .single();
-        if (ins.error) throw new Error(`writing the voice row: ${ins.error.message}`);
-        return { channelId: ins.data.id, created: true };
+        return ensureRoutingRow(db, tenant.id, "voice", agentId, {
+          tenant_id: tenant.id,
+          kind: "voice",
+          external_id: agentId,
+          number_e164: e164,
+          status: "active",
+          config: { provider: "twilio-sip", line_id: lineId, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
+        });
       },
     },
     smsChannel: {
       // One routing row per number: a text arrives with the number it was
       // sent to, which is the key the inbound webhook resolves.
       async ensure({ e164, lineId, serviceSid }) {
-        const have = await db.from("tenant_channels").select("id").eq("kind", "sms").eq("external_id", e164).maybeSingle();
-        if (have.error) throw new Error(`reading the sms row: ${have.error.message}`);
-        if (have.data) return { channelId: have.data.id, created: false };
-        const ins = await db
-          .from("tenant_channels")
-          .insert({
-            tenant_id: tenant.id,
-            kind: "sms",
-            external_id: e164,
-            number_e164: e164,
-            status: "active",
-            config: { provider: "twilio", line_id: lineId, messaging_service_sid: serviceSid, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
-          })
-          .select("id")
-          .single();
-        if (ins.error) throw new Error(`writing the sms row: ${ins.error.message}`);
-        return { channelId: ins.data.id, created: true };
+        return ensureRoutingRow(db, tenant.id, "sms", e164, {
+          tenant_id: tenant.id,
+          kind: "sms",
+          external_id: e164,
+          number_e164: e164,
+          status: "active",
+          config: { provider: "twilio", line_id: lineId, messaging_service_sid: serviceSid, provisioned_at: new Date().toISOString(), provisioned_by: "lines" },
+        });
       },
     },
   };
+}
+
+type ChannelInsert = Database["public"]["Tables"]["tenant_channels"]["Insert"];
+
+/**
+ * The routing row for one key, made to exist and to belong to this workspace.
+ *
+ * `tenant_channels` is unique on (kind, external_id) ACROSS workspaces, and a
+ * phone number outlives the workspace that rented it: a carrier gives a
+ * released number to somebody else a few weeks later. So the row this finds
+ * by the routing key is not necessarily ours, and adopting it was how a new
+ * workspace's texts arrived in the previous renter's Inbox -- the saga wrote
+ * the stranger's channel id onto the line, called it provisioned, and every
+ * message to that number resolved to a business that no longer owns it.
+ *
+ * Hence three cases rather than two. Ours, live: keep it. Ours, switched off
+ * (a release and a re-buy by the same workspace): switch it back on, because
+ * an adopted disabled row is a line that reports as answering while the
+ * webhook refuses to route -- the same silence, arrived at from the other
+ * side. Somebody else's: refuse, loudly. The saga records the refusal on the
+ * line and a person looks at it, which is the only correct end: the row
+ * cannot be taken, and the number cannot be routed, until the other
+ * workspace's row is released.
+ */
+async function ensureRoutingRow(
+  db: SupabaseClient<Database>,
+  tenantId: string,
+  kind: "voice" | "sms",
+  externalId: string,
+  row: ChannelInsert,
+): Promise<{ channelId: string; created: boolean }> {
+  // By the unique key, so this is at most one row -- and deliberately NOT
+  // filtered by tenant: a row belonging to somebody else has to be seen to be
+  // refused. Filtering it out instead would fall through to the insert and
+  // fail on the constraint, which says "duplicate key" to an owner who has
+  // just been told their number is being set up.
+  const have = await db.from("tenant_channels").select("id, tenant_id, status").eq("kind", kind).eq("external_id", externalId).maybeSingle();
+  if (have.error) throw new Error(`reading the ${kind} row: ${have.error.message}`);
+  if (have.data) {
+    if (have.data.tenant_id !== tenantId) {
+      throw new Error(`the ${kind} routing row for ${externalId} belongs to another workspace; it must be released there before this line can use it`);
+    }
+    if (have.data.status !== "active") {
+      // Back into service, describing the line that now holds it: a voice row
+      // is keyed on the agent, so its number is whichever line rides the agent.
+      const on = await db
+        .from("tenant_channels")
+        .update({ status: "active", number_e164: row.number_e164, config: row.config })
+        .eq("id", have.data.id)
+        .eq("tenant_id", tenantId);
+      if (on.error) throw new Error(`switching the ${kind} row back on: ${on.error.message}`);
+    }
+    return { channelId: have.data.id, created: false };
+  }
+  const ins = await db.from("tenant_channels").insert(row).select("id").single();
+  if (ins.error) throw new Error(`writing the ${kind} row: ${ins.error.message}`);
+  return { channelId: ins.data.id, created: true };
 }
 
 /** The step, in the owner's words — one list, shared with the page (contracts/setup.ts). */

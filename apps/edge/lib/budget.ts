@@ -9,10 +9,11 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
+import { MAX_ROWS } from "./paged.js";
 
 const DAY_MS = 24 * 3600 * 1000;
 /** More rows than any workspace writes in a day; a bound, not a target. */
-const ROW_CAP = 2000;
+const ROW_CAP = 20_000;
 
 interface UsageRow {
   created_at: string;
@@ -23,18 +24,43 @@ function num(v: unknown): number {
   return typeof v === "number" && Number.isFinite(v) ? v : 0;
 }
 
+/**
+ * The day's usage events, a page at a time, newest first.
+ *
+ * This was one query with `.limit(ROW_CAP)` and ROW_CAP was 2000 — which
+ * PostgREST answered with 1000 and no complaint (`api.max_rows`). So the sum
+ * below stopped growing at whatever a thousand events came to, and the daily
+ * token cap it serves stopped binding on exactly the busy workspaces it exists
+ * for: past a thousand replies a day, `max_llm_tokens_day` could not be
+ * reached however much the workspace spent.
+ *
+ * Ordered by `created_at` AND `id`: created_at alone is not unique, and a
+ * range over a non-unique order repeats some rows and skips others.
+ */
+async function* usagePages(db: SupabaseClient<Database>, tenantId: string | null, since: string): AsyncGenerator<UsageRow[]> {
+  for (let from = 0; from < ROW_CAP; from += MAX_ROWS) {
+    const size = Math.min(MAX_ROWS, ROW_CAP - from);
+    let q = db
+      .from("events")
+      .select("created_at, data")
+      .eq("kind", "usage.llm_tokens")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
+      .range(from, from + size - 1);
+    if (tenantId) q = q.eq("tenant_id", tenantId);
+    const { data, error } = await q;
+    if (error) throw new Error(error.message);
+    const rows = (data ?? []) as UsageRow[];
+    if (rows.length) yield rows;
+    if (rows.length < size) return;
+  }
+}
+
 async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, since: string): Promise<UsageRow[]> {
-  let q = db
-    .from("events")
-    .select("created_at, data")
-    .eq("kind", "usage.llm_tokens")
-    .gte("created_at", since)
-    .order("created_at", { ascending: false })
-    .limit(ROW_CAP);
-  if (tenantId) q = q.eq("tenant_id", tenantId);
-  const { data, error } = await q;
-  if (error) throw new Error(error.message);
-  return (data ?? []) as UsageRow[];
+  const all: UsageRow[] = [];
+  for await (const page of usagePages(db, tenantId, since)) all.push(...page);
+  return all;
 }
 
 /**
@@ -42,11 +68,20 @@ async function usageRows(db: SupabaseClient<Database>, tenantId: string | null, 
  * A rolling day, not a calendar day: simpler to reason about at 4 a.m., and
  * the cap it serves is a margin, not an invoice. A failed read counts as
  * zero and says so — a budget must never silence a receptionist by accident.
+ *
+ * `stopAt` is the caller's cap, and it is what keeps this one round trip on
+ * the workspaces that fit in a page while still being right on the ones that
+ * do not: the only question asked is "is the day's budget used up", so the
+ * paging stops the moment the answer is yes. Left out, the whole day is read.
  */
-export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: string): Promise<number> {
+export async function tokensLast24h(db: SupabaseClient<Database>, tenantId: string, stopAt = Number.POSITIVE_INFINITY): Promise<number> {
   try {
-    const rows = await usageRows(db, tenantId, new Date(Date.now() - DAY_MS).toISOString());
-    return rows.reduce((sum, r) => sum + num(r.data?.input_tokens) + num(r.data?.output_tokens), 0);
+    let sum = 0;
+    for await (const page of usagePages(db, tenantId, new Date(Date.now() - DAY_MS).toISOString())) {
+      for (const r of page) sum += num(r.data?.input_tokens) + num(r.data?.output_tokens);
+      if (sum >= stopAt) break;
+    }
+    return sum;
   } catch (e) {
     console.error("budget_read_failed", e instanceof Error ? e.message : e);
     return 0;

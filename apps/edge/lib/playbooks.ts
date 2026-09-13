@@ -23,6 +23,10 @@ import {
   type PersonVisitsDto,
 } from "./workspace/contracts.js";
 import { feedItemsFor } from "./availability.js";
+import { readAllRows } from "./paged.js";
+
+type BroadcastRow = { id: string; playbook_id: string | null; state: string; scheduled_for: string | null; created_at: string };
+type TouchRow = { broadcast_id: string; contact_id: string; state: string; sent_at: string | null };
 
 type Db = SupabaseClient<Database>;
 
@@ -54,7 +58,7 @@ export interface TenantRunContext extends RunContext {
 
 /** Read once per tenant: the people, the modes, the number, the touches. */
 export async function loadTenantRunContext(db: Db, tenantId: string, now: Date): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns }, { data: cfgRow }] = await Promise.all([
+  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, pastRuns, { data: cfgRow }] = await Promise.all([
     db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
     allPeople(db, tenantId),
     listPolicies(db, tenantId).catch(() => []),
@@ -62,7 +66,9 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     // Every broadcast, not only the playbooks' runs: a message sent by hand is
     // a touch too, and the week's breath is one message per person across all
     // of them. byThis (the gap) still keys on the playbook that sent it.
-    db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId),
+    readAllRows<BroadcastRow>("broadcasts", (from, to) =>
+      db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).order("id").range(from, to),
+    ).catch(() => null),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (pErr) return { error: pErr.message };
@@ -81,8 +87,21 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
   const runIds = runs.map((b) => b.id);
   const ofRun = new Map(runs.map((b) => [b.id, b]));
   if (runIds.length) {
-    const { data: touched } = await db.from("broadcast_recipients").select("broadcast_id, contact_id, state, sent_at").in("broadcast_id", runIds).in("state", ["sent", "queued"]);
-    for (const r of touched ?? []) {
+    // Paged. Unbounded, this stopped at a thousand rows (api.max_rows) with no
+    // error, so past roughly a thousand touches the week's breath and each
+    // playbook's gap silently stopped holding -- and the people the run could
+    // no longer see it had touched were messaged again.
+    const touched = await readAllRows<TouchRow>("broadcast_recipients", (from, to) =>
+      db
+        .from("broadcast_recipients")
+        .select("broadcast_id, contact_id, state, sent_at")
+        .in("broadcast_id", runIds)
+        .in("state", ["sent", "queued"])
+        .order("broadcast_id")
+        .order("contact_id")
+        .range(from, to),
+    );
+    for (const r of touched) {
       const run = ofRun.get(r.broadcast_id);
       if (!run) continue;
       const at = r.sent_at ? Date.parse(r.sent_at) : Date.parse(run.scheduled_for ?? run.created_at);
@@ -100,11 +119,16 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
   // the visit itself. Read once per tenant per run.
   const tz = tenant?.timezone || "America/New_York";
   const rows = (people ?? []) as unknown as PersonRowDto[];
-  const url = parseTenantConfig(cfgRow?.config ?? null)?.calendar?.ical_url ?? null;
+  const cfgParsed = parseTenantConfig(cfgRow?.config ?? null);
+  const url = cfgParsed?.calendar?.ical_url ?? null;
+  // The workspace's own horizon, the way the People sweep asks for it
+  // (api/cron/calendar.ts). Left to the default, a workspace that books three
+  // months out had its visit playbooks reading a fortnight of calendar.
+  const daysAhead = cfgParsed?.brain?.profile?.booking_rules?.max_days_ahead ?? 14;
   let calendar: TenantRunContext["calendar"] = "none";
   const visits = new Map<string, PersonVisitsDto>();
   if (url) {
-    const items = await feedItemsFor(tenantId, url, tz, now);
+    const items = await feedItemsFor(tenantId, url, tz, now, daysAhead);
     if (items) {
       calendar = "ok";
       const index = indexFeed(items);

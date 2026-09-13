@@ -19,6 +19,7 @@ import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, revie
 import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
+import { readAllRows } from "./paged.js";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -217,11 +218,16 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
 
   const conn = await connectionOf(db, row.tenant_id);
   const carriesReviews = !(conn && conn.location_name);
-  const known = await db.from("google_reviews").select("review_id").eq("tenant_id", row.tenant_id);
-  if (known.error) throw new Error(known.error.message);
+  // Every id, not the first thousand. Capped, the set of reviews we have
+  // already seen was missing whatever fell past the page -- so a listing with
+  // more than a thousand reviews announced old reviews as new, every hour, for
+  // ever.
+  const known = await readAllRows<{ review_id: string }>("google_reviews", (from, to) =>
+    db.from("google_reviews").select("review_id").eq("tenant_id", row.tenant_id).order("review_id").range(from, to),
+  );
   const plan = planListingCheck(
     { rating: row.rating, review_count: row.review_count, checked_at: row.checked_at },
-    new Set((known.data ?? []).map((k) => k.review_id)),
+    new Set(known.map((k) => k.review_id)),
     details,
     localDate(tz, now),
     now.getTime(),
@@ -423,13 +429,25 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
     last_synced_at: null,
     sync_error: null,
   };
+  // What this workspace had connected before, read BEFORE the upsert overwrites
+  // it. A connect is also a RE-connect, and the row below carries
+  // `location_name: null` -- so the failure path is not "remove what we just
+  // made", it is "put back what was working".
+  const prior = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
+  if (prior.error) return { ok: false, error: "connection_write_failed", detail: prior.error.message };
   const saved = await db.from("google_connections").upsert(row, { onConflict: "tenant_id" }).select("*").single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
   try {
     await storeCredentials(db, tenantId, { refresh_token: grant.refresh_token, access_token: grant.access_token, expires_at: now.getTime() + grant.expires_in * 1000, scope: grant.scope });
   } catch (e) {
-    // Without the token the row is a lie: remove it, and give the grant back.
-    await db.from("google_connections").delete().eq("tenant_id", tenantId);
+    // Without the token the row is a lie. Deleting it unconditionally was the
+    // lie's cure and somebody else's outage: a workspace whose profile was
+    // connected and syncing lost the connection entirely because a RE-connect
+    // could not reach the vault. The vault write is the thing that failed, so
+    // the stored credentials are still the previous ones -- restoring the
+    // previous row leaves the pair consistent and the profile working.
+    if (prior.data) await db.from("google_connections").update(prior.data).eq("tenant_id", tenantId);
+    else await db.from("google_connections").delete().eq("tenant_id", tenantId);
     await http(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
@@ -512,11 +530,12 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
     return failed(e instanceof Error ? e.message : String(e));
   }
   const first = !conn.last_synced_at;
-  const known = await db.from("google_reviews").select("review_id, replied_at, reply_text, origin").eq("tenant_id", conn.tenant_id);
-  if (known.error) throw new Error(known.error.message);
+  const known = await readAllRows<{ review_id: string; replied_at: string | null; reply_text: string | null; origin: string }>("google_reviews", (from, to) =>
+    db.from("google_reviews").select("review_id, replied_at, reply_text, origin").eq("tenant_id", conn.tenant_id).order("review_id").range(from, to),
+  );
   const plan = planProfileSync(
     { last_synced_at: conn.last_synced_at },
-    new Map((known.data ?? []).filter((k) => k.origin === "profile").map((k) => [k.review_id, { updated_at: k.replied_at, reply_text: k.reply_text }])),
+    new Map(known.filter((k) => k.origin === "profile").map((k) => [k.review_id, { updated_at: k.replied_at, reply_text: k.reply_text }])),
     page,
     localDate(tz, now),
     now.getTime(),

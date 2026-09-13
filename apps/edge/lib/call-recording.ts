@@ -19,7 +19,7 @@
  * column reaches every member's browser.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import type { Database, Json } from "./workspace/db.js";
 import { fetchRecording } from "./workspace/channels.js";
 import { setCallRecording } from "./workspace/db.js";
 import { RECORDING_RETENTION_DAYS } from "./workspace/contracts.js";
@@ -85,16 +85,36 @@ export async function purgeExpiredRecordings(
     const r = await ports.remove(paths);
     if (r.error) return { candidates: rows.length, purged: 0, error: r.error };
   }
+  // Written here rather than through setCallRecording, which logs its error and
+  // returns: right for a webhook, where a recording marker is not worth a 500,
+  // and wrong for this, whose whole output is a count. `purged: rows.length`
+  // was the count of rows we had TRIED, reported as the count we had marked --
+  // so a database refusing every write read as a clean purge, and the audio
+  // being gone with the rows still saying "stored" was invisible from the one
+  // number the sweep publishes.
+  let purged = 0;
+  let failure: string | null = null;
   for (const row of rows) {
     // Replaces the whole value: the path and the size go with the audio.
-    await setCallRecording(db, row.tenant_id, row.id, {
-      fetch_state: "purged",
-      purged_at: ports.now.toISOString(),
-      retention_days: RECORDING_RETENTION_DAYS,
-      mime: row.recording?.mime ?? null,
-    });
+    const marked = await db
+      .from("calls")
+      .update({
+        recording: {
+          fetch_state: "purged",
+          purged_at: ports.now.toISOString(),
+          retention_days: RECORDING_RETENTION_DAYS,
+          mime: row.recording?.mime ?? null,
+        } as Json,
+      })
+      .eq("id", row.id)
+      .eq("tenant_id", row.tenant_id);
+    // One bad row does not hold the rest of the batch: the audio is already
+    // gone for all of them, and a row still marked `stored` comes back next
+    // tick, where the removal is a no-op and only the marker is retried.
+    if (marked.error) failure ??= marked.error.message;
+    else purged += 1;
   }
-  return { candidates: rows.length, purged: rows.length, error: null };
+  return { candidates: rows.length, purged, error: failure };
 }
 
 /** A refusal the provider will not change its mind about. A 404 is NOT one:

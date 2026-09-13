@@ -351,14 +351,25 @@ export async function loadTenantNotifications(
   try {
     const [cfgQ, chQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      // Filtered and bounded exactly as the two sibling readers above are.
+      // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
+      // product ADDS a row rather than replacing one -- a reconnected number
+      // leaves the old row behind -- so a bare maybeSingle() is a PostgREST
+      // error the moment a workspace has two. That error was not checked
+      // either, so it arrived as `chQ.data === null`, which reads as "not the
+      // env number": the env-default workspace's own alerts silently became
+      // redacted platform notices with the customer's words withheld.
       db
         .from("tenant_channels")
         .select("external_id")
         .eq("tenant_id", tenantId)
         .eq("kind", "whatsapp")
+        .eq("status", "active")
+        .limit(1)
         .maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
+    if (chQ.error) throw new Error(chQ.error.message);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
     const envPhoneId = process.env.WHATSAPP_PHONE_ID || "";
     return {

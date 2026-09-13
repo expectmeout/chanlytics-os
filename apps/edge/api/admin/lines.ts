@@ -227,9 +227,17 @@ export async function POST(request: Request): Promise<Response> {
     } catch (e) {
       return json(502, { ok: false, error: `releasing at the provider: ${e instanceof Error ? e.message : String(e)}`, released });
     }
-    if (typeof line.facts.channel_id === "string") {
-      await db.from("tenant_channels").update({ status: "disabled" }).eq("id", line.facts.channel_id).eq("tenant_id", tenantId);
-      released.channel_disabled = line.facts.channel_id;
+    // BOTH routing rows, not just the voice one. `tenant_channels` is unique on
+    // (kind, external_id) across workspaces and a released number goes back to
+    // the carrier, who rents it to somebody else: an sms row left active is the
+    // previous renter's claim on a number they no longer have, and the next
+    // workspace to buy it cannot be routed until the claim is dropped.
+    for (const key of ["channel_id", "sms_channel_id"] as const) {
+      const id = line.facts[key];
+      if (typeof id !== "string") continue;
+      const off = await db.from("tenant_channels").update({ status: "disabled" }).eq("id", id).eq("tenant_id", tenantId);
+      if (off.error) return json(503, { ok: false, error: `switching the routing row off: ${off.error.message}`, released });
+      released[key === "channel_id" ? "channel_disabled" : "sms_channel_disabled"] = id;
     }
     const del = await db.from("lines").delete().eq("id", line.id);
     if (del.error) return json(503, { ok: false, error: del.error.message, released });

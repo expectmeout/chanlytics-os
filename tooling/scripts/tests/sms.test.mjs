@@ -211,11 +211,40 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(sql.includes("'messaging'") && sql.includes("'carriers'"));
   assert.ok(readRaw("apps/edge/vercel.json").includes('"api/inbound-sms.ts"'));
   const edge = readCode("apps/edge/lib/lines.ts");
-  assert.ok(edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") && edge.includes('.eq("kind", "sms").eq("external_id", e164)'), "the sms row is keyed on the number the text was sent to");
+  assert.ok(edge.includes("smsInboundUrl: smsInboundUrl(edgeFnUrl()),") && edge.includes('.eq("kind", kind).eq("external_id", externalId)'), "the sms row is keyed on the number the text was sent to");
+  // A carrier re-rents a released number. `tenant_channels` is unique on
+  // (kind, external_id) ACROSS workspaces, so the row found by that key is not
+  // necessarily ours -- and adopting it silently put a new workspace's texts
+  // into the previous renter's Inbox.
+  assert.ok(edge.includes("if (have.data.tenant_id !== tenantId) {"), "a routing row belonging to somebody else is refused, never adopted");
   // One value says where this deployment answers, so a provider is never
   // told an address baked into a shared package.
   assert.ok(edge.includes("export function edgeFnUrl(): string {") && edge.includes("process.env.EDGE_ORIGIN"));
   assert.ok(edge.includes("inboundWebhookUrl: withKey(voiceEndpoints(edgeFnUrl()).inbound"), "the voice webhook is built from the same value");
   assert.ok(readCode("apps/edge/api/admin/voice-provision.ts").includes("voiceEndpoints(edgeFnUrl())"), "and so is the one the provisioner sends");
   assert.ok(readCode("apps/edge/lib/lines.ts").includes("export function lineForClient(r: Row): LineDto {"), "REGRESSION: the page's line shape was a loose object, so a field added on one side and forgotten on the other compiled and arrived undefined");
+});
+
+test("a handoff names the wire the customer actually wrote on", async () => {
+  // The handoff email is SHARED with WhatsApp: the SMS door routes through the
+  // same handler (handleInbound, with an sms carrier). It hardcoded
+  // "WhatsApp \u00b7 +<number>" in the body and "A WhatsApp conversation" in the
+  // redacted notice, so an owner whose customer TEXTED was sent to go and
+  // answer a WhatsApp thread that does not exist, on a number that had never
+  // used WhatsApp.
+  const { handoffMessage } = await import("../../../apps/edge/lib/whatsapp/alerts.ts");
+  const of = (channel) => handoffMessage({
+    threadId: "13055550100", userText: "are you open?", botText: "(no reply sent)",
+    reason: "passed to a human", pauseHours: 24, route: "inbox", who: null, about: null, channel,
+  });
+  const text = of("sms");
+  assert.ok(text.body.includes("Text \u00b7 +13055550100"), text.body);
+  assert.ok(!text.body.includes("WhatsApp"), "REGRESSION: a text handoff sending its owner to WhatsApp");
+  assert.equal(text.redactedBody, "A Text conversation needed a person (asked for a person), and nobody could be told.");
+  const wa = of("whatsapp");
+  assert.ok(wa.body.includes("WhatsApp \u00b7 +13055550100"), "and WhatsApp still says WhatsApp");
+  assert.ok(wa.redactedBody.startsWith("A WhatsApp conversation"));
+  // Everything else about the two is the same message.
+  assert.equal(text.subject, wa.subject);
+  assert.equal(text.kind, "handoff");
 });

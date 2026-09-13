@@ -19,7 +19,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import { lineProviderFromEnv, rowToLine, type LineProviderChoice } from "./lines.js";
 import { provisionLine } from "./provision.js";
-import { automaticResumesOf, claimLineForResume, MAX_AUTOMATIC_RESUMES, type ResumedBy } from "./line-resume.js";
+import { automaticResumesOf, claimLineForResume, countAutomaticResume, MAX_AUTOMATIC_RESUMES, type ResumedBy } from "./line-resume.js";
 
 export interface LineProvisionOutcome {
   ok: boolean;
@@ -78,7 +78,15 @@ export async function provisionLineJob(
     }
     const taken = await claimLineForResume(db, line, deps.now(), "sweep");
     if (!taken) return { ok: true, did: "nothing", why: "taken by another" };
-    line = taken;
+    // COUNT the try, which is what makes the bound above a bound. The header
+    // said these were "counted and bounded exactly as the sweep's are" and only
+    // the sweep counted: `automatic_resumes` stayed 0 for ever on this path, so
+    // MAX_AUTOMATIC_RESUMES never tripped and a line that can never finish was
+    // retried by the ledger indefinitely -- each retry another run of provider
+    // calls, another "your phone line hit a snag" bell, another platform email.
+    const counted = await countAutomaticResume(db, taken);
+    if (!counted.ok) return { ok: false, step: taken.step ?? undefined, error: `counting the automatic resume: ${counted.error}`, did: "nothing", why: "count unwritten" };
+    line = counted.row;
     by = "sweep";
     did = "resumed";
   }
