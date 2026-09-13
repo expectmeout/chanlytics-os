@@ -65,6 +65,12 @@ export interface DuePage<T> {
  * permanent backlog, turns itself red and pages the platform about work that
  * does not exist. 00089 built the index for this query `where config ?
  * 'calendar'` and said so in its comment; the query never asked.
+ *
+ * Spelled `->>`, the text form, which is what every other jsonb filter in this
+ * codebase uses against the real PostgREST (the jobs ledger's
+ * `payload->>contact_id`, the recording sweep's `recording->>fetch_state`). A
+ * key that is absent reads as SQL NULL either way; the text form also excludes
+ * a key explicitly set to JSON null, which has no feed either.
  */
 export async function calendarDue(db: Db, now: Date, limit: number, minAgeMs = 55 * 60_000): Promise<DuePage<{ tenant_id: string; config: unknown }>> {
   const before = new Date(now.getTime() - minAgeMs).toISOString();
@@ -72,7 +78,7 @@ export async function calendarDue(db: Db, now: Date, limit: number, minAgeMs = 5
   const { data, error, count } = await db
     .from("tenant_config")
     .select("tenant_id, config", { count: "exact" })
-    .not("config->calendar", "is", null)
+    .not("config->>calendar", "is", null)
     .or(due)
     .order("calendar_checked_at", { ascending: true, nullsFirst: true })
     .limit(limit);
