@@ -105,6 +105,28 @@ export async function claimLineForResume(
   return null;
 }
 
+/**
+ * Count one automatic try against the line's bound, and hand back the row as it
+ * now reads.
+ *
+ * Two callers resume a failed or stuck line on their own -- this file's sweep
+ * and the ledger's handler (line-provision-job.ts) -- and only one of them used
+ * to count, so `MAX_AUTOMATIC_RESUMES` bounded the sweep and bounded nothing on
+ * the ledger path. The count is the whole of the bound, so it lives in one
+ * function that both call rather than in a comment claiming they match.
+ *
+ * A refusal is returned rather than thrown, and a caller that gets one must NOT
+ * run the saga: an uncounted try is how a line is resumed for ever. The row
+ * keeps `provisioning` with a fresh `state_since`, which holds it off until the
+ * deadline passes.
+ */
+export async function countAutomaticResume(db: Db, row: LineDbRow): Promise<{ ok: true; row: LineDbRow } | { ok: false; error: string }> {
+  const facts = { ...factsOf(row), automatic_resumes: automaticResumesOf(row) + 1 } as Json;
+  const { error } = await db.from("lines").update({ facts }).eq("id", row.id);
+  if (error) return { ok: false, error: error.message };
+  return { ok: true, row: { ...row, facts } };
+}
+
 export interface StuckSweepDeps {
   /** Run the saga on a line this sweep has taken. The route wires `provisionLine`. */
   resume: (tenant: { id: string; name: string }, row: LineDbRow) => Promise<{ ok: boolean }>;
@@ -204,13 +226,12 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
       continue;
     }
 
-    const facts = { ...factsOf(taken), automatic_resumes: tries + 1 } as Json;
-    const { error: countErr } = await db.from("lines").update({ facts }).eq("id", taken.id);
-    if (countErr) {
+    const counted = await countAutomaticResume(db, taken);
+    if (!counted.ok) {
       // Not counting a try is how a line gets resumed for ever. Leave it taken — its
       // fresh `state_since` keeps it off the next tick for five minutes — and say so.
       out.failed += 1;
-      deps.log.error("lines_sweep_count_unwritten", { line_id: taken.id, error: countErr.message });
+      deps.log.error("lines_sweep_count_unwritten", { line_id: taken.id, error: counted.error });
       continue;
     }
 
@@ -222,7 +243,7 @@ export async function sweepStuckLines(db: Db, deps: StuckSweepDeps, limit: numbe
     }
 
     try {
-      const r = await deps.resume(t.data, { ...taken, facts });
+      const r = await deps.resume(t.data, counted.row);
       if (r.ok) out.resumed += 1;
       else out.failed += 1;
     } catch (e) {

@@ -351,19 +351,36 @@ export async function loadTenantNotifications(
   try {
     const [cfgQ, chQ] = await Promise.all([
       db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
+      // Filtered and bounded exactly as the two sibling readers above are.
+      // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
+      // product ADDS a row rather than replacing one -- a reconnected number
+      // leaves the old row behind -- so a bare maybeSingle() is a PostgREST
+      // error the moment a workspace has two. That error was not checked
+      // either, so it arrived as `chQ.data === null`, which reads as "not the
+      // env number": the env-default workspace's own alerts silently became
+      // redacted platform notices with the customer's words withheld.
       db
         .from("tenant_channels")
         .select("external_id")
         .eq("tenant_id", tenantId)
         .eq("kind", "whatsapp")
+        .eq("status", "active")
+        .limit(1)
         .maybeSingle(),
     ]);
     if (cfgQ.error) throw new Error(cfgQ.error.message);
     const parsed = parseTenantConfigResult(cfgQ.data?.config);
     const envPhoneId = process.env.WHATSAPP_PHONE_ID || "";
+    // A channel we could not read leaves ONE question unanswered -- whether
+    // this workspace is the environment's own -- and the recipients are not
+    // that question. Throwing here would land in the catch below and withhold
+    // the customer's words from a workspace whose mailbox we just read
+    // perfectly well, which is the outcome this whole function exists to
+    // avoid; `isEnvDefault` simply falls back to its safe answer.
+    if (chQ.error) console.error("tenant_notifications_channel_unreadable", tenantId, chQ.error.message);
     return {
       notifications: parsed.ok ? (parsed.config.notifications ?? null) : null,
-      isEnvDefault: !!envPhoneId && chQ.data?.external_id === envPhoneId,
+      isEnvDefault: !chQ.error && !!envPhoneId && chQ.data?.external_id === envPhoneId,
     };
   } catch (e) {
     console.error("tenant_notifications_load_failed", tenantId, e instanceof Error ? e.message : e);

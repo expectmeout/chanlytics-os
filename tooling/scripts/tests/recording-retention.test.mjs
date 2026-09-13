@@ -87,3 +87,21 @@ test("a purged call reads as removed on schedule -- on the call and on the live 
   assert.equal(toCallVM(dto({ fetch_state: "pending" }), NOW).recordingState, "pending");
   assert.equal(toCallVM(dto(null), NOW).recordingState, "none");
 });
+
+test("a purge that removed the audio but could not mark the rows says so, and does not count them", async () => {
+  // The audio is gone the moment the bucket answers, so the marking is the
+  // half that can still fail on its own. It went through setCallRecording,
+  // which logs its error and returns void, and the outcome then reported
+  // `purged: rows.length` -- the rows it had TRIED -- with error: null. A
+  // database refusing every write read as a clean ninety-day purge, while the
+  // calls it had emptied still said "Recording still processing" on the page.
+  const tables = { calls: [call("a", 100, { fetch_state: "stored", storage_path: "a.wav" })] };
+  const removed = [];
+  const out = await lib.purgeExpiredRecordings(
+    fakeDb(tables, { "calls.update": { message: "row is locked" } }),
+    { now: NOW, remove: async (p) => { removed.push(...p); return { removed: p, error: null }; } },
+  );
+  assert.deepEqual(out, { candidates: 1, purged: 0, error: "row is locked" }, "counted only what was marked, and named the failure");
+  assert.deepEqual(removed, ["a.wav"], "the audio did go");
+  assert.equal(tables.calls[0].recording.fetch_state, "stored", "so the next tick picks the row up again and retries the marker");
+});

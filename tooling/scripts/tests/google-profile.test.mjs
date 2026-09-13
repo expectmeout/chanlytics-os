@@ -19,6 +19,7 @@ import {
 } from "@chanlytics/channels";
 import { toGoogleVM, connectionWords, DECISION_VERBS, DECISION_SUBJECTS, EVENT_KINDS, setupSteps } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
 
 const NOW = Date.parse("2026-09-07T15:00:00Z");
 const CLIENT = { clientId: "123-abc.apps.googleusercontent.com", clientSecret: "not-a-secret", redirectUri: "https://chanlytics-os.vercel.app/api/v1/google/callback" };
@@ -265,7 +266,7 @@ test("the edge: the secret alone on the edge, a read before a row, the grant giv
   const lib = readCode("apps/edge/lib/google.ts");
   for (const v of ["GOOGLE_OAUTH_CLIENT_ID", "GOOGLE_OAUTH_CLIENT_SECRET", "GOOGLE_OAUTH_REDIRECT_URI"]) assert.ok(lib.includes(`process.env.${v}`), v);
   assert.ok(lib.includes('db.rpc("put_google_credentials"') && lib.includes('db.rpc("get_google_credentials"') && lib.includes('db.rpc("drop_google_credentials"'), "secrets through the vault doors");
-  assert.equal((lib.match(/await http\(revokeRequest\(/g) ?? []).length, 7, "a grant that cannot be kept is given back: no scope, no refresh token, accounts unreadable, no locations, none on Maps, credentials unsaved, and disconnect");
+  assert.equal((lib.match(/await (?:http|net)\(revokeRequest\(/g) ?? []).length, 7, "a grant that cannot be kept is given back: no scope, no refresh token, accounts unreadable, no locations, none on Maps, credentials unsaved, and disconnect — the first six are RUN below, `net` being connectProfile's injected transport");
   assert.ok(lib.includes('return { ok: false, error: "scope_missing" };') && lib.includes('return { ok: false, error: "no_refresh_token" };') && lib.includes('return { ok: false, error: "not_on_maps" };'));
   assert.ok(lib.includes('.eq("origin", "places");'), "the public five make way for the profile");
   assert.ok(lib.includes("{ reviews: carriesReviews }"), "with the profile connected the public read keeps only the numbers");
@@ -312,3 +313,242 @@ test("the dashboard: the way there is signed, the way back is proven before anyt
   assert.ok(reports.includes("vm.canReply && operator && r.fromProfile") && reports.includes('data-testid="google-reply-send"'));
   assert.ok(reports.includes("maxLength={4096}"));
 });
+
+/* ---- connecting: what a failed vault write must NOT destroy ---- */
+
+const grantBody = (sub, email) => JSON.stringify({
+  access_token: "at-1",
+  refresh_token: "rt-new",
+  expires_in: 3600,
+  scope: "https://www.googleapis.com/auth/business.manage",
+  id_token: `x.${Buffer.from(JSON.stringify({ sub, email })).toString("base64url")}.y`,
+});
+
+/** Google, as far as connectProfile can tell: a grant, two accounts' worth of locations, and a revoke that answers. */
+function fakeGoogle(sub = "sub-1", email = "ada@example.com") {
+  const calls = [];
+  const net = async (req) => {
+    calls.push(req.url);
+    if (req.url.includes("/token")) return { status: 200, body: grantBody(sub, email) };
+    if (req.url.includes("/revoke")) return { status: 200, body: "" };
+    if (req.url.includes("/accounts") && !req.url.includes("/locations")) {
+      return { status: 200, body: JSON.stringify({ accounts: [{ name: "accounts/1", accountName: "Ada's" }] }) };
+    }
+    // Two locations on Maps, so the connection stays pending and nothing binds.
+    return { status: 200, body: JSON.stringify({ locations: [
+      { name: "locations/1", title: "Ada's Downtown", metadata: { placeId: "p1" } },
+      { name: "locations/2", title: "Ada's Uptown", metadata: { placeId: "p2" } },
+    ] }) };
+  };
+  return { net, calls, revoked: () => calls.filter((u) => u.includes("/revoke")).length };
+}
+
+const OAUTH_ENV = {
+  GOOGLE_OAUTH_CLIENT_ID: "cid",
+  GOOGLE_OAUTH_CLIENT_SECRET: "secret",
+  GOOGLE_OAUTH_REDIRECT_URI: "https://app.example.com/cb",
+};
+async function withOAuthEnv(fn) {
+  const saved = {};
+  for (const [k, v] of Object.entries(OAUTH_ENV)) { saved[k] = process.env[k]; process.env[k] = v; }
+  try { return await fn(); } finally {
+    for (const [k, v] of Object.entries(saved)) { if (v === undefined) delete process.env[k]; else process.env[k] = v; }
+  }
+}
+
+const connected = (over = {}) => ({
+  tenant_id: "t1", google_email: "ada@example.com", google_sub: "sub-1",
+  account_name: "accounts/1", account_title: "Ada's",
+  location_name: "locations/1", location_title: "Ada's Downtown",
+  scopes: ["https://www.googleapis.com/auth/business.manage"],
+  connected_by: "u1", connected_at: "2026-01-01T00:00:00Z",
+  last_synced_at: "2026-09-01T00:00:00Z", sync_error: null, ...over,
+});
+
+test("a re-connect whose vault write fails puts the working connection back, instead of deleting it", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    // A workspace already connected and syncing. The upsert below writes
+    // `location_name: null` over it before the credentials are stored, so a
+    // rollback that DELETED the row -- as this used to -- cost a workspace its
+    // profile entirely because a re-authorisation could not reach the vault.
+    const tables = { google_connections: [connected()] };
+    const g = fakeGoogle("sub-1");
+    const db = fakeDb(tables, {}, { put_google_credentials: () => { throw new Error("vault unreachable"); } });
+
+    const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), g.net);
+    assert.equal(r.ok, false);
+    assert.equal(r.error, "credentials_failed");
+    assert.equal(tables.google_connections.length, 1, "the row is still there");
+    assert.equal(tables.google_connections[0].location_name, "locations/1", "bound where it was");
+    assert.equal(tables.google_connections[0].last_synced_at, "2026-09-01T00:00:00Z", "and still syncing");
+    // Google revokes a grant per client/user, not one token of it, so handing
+    // this refresh token back would kill the credentials the restored row runs
+    // on -- destroying the connection by the other route.
+    assert.equal(g.revoked(), 0, "the grant the restored row depends on is left alone");
+  }));
+
+test("a FIRST connect whose vault write fails leaves nothing behind, and does give the grant back", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    const tables = { google_connections: [] };
+    const g = fakeGoogle("sub-9");
+    const db = fakeDb(tables, {}, { put_google_credentials: () => { throw new Error("vault unreachable"); } });
+
+    const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), g.net);
+    assert.equal(r.ok, false);
+    assert.equal(tables.google_connections.length, 0, "a row with no token behind it is a lie: it goes");
+    assert.equal(g.revoked(), 1, "and nothing of ours depends on the grant, so it is handed back");
+  }));
+
+test("re-connecting a DIFFERENT Google account still hands its grant back", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    const tables = { google_connections: [connected({ google_sub: "sub-1" })] };
+    const g = fakeGoogle("sub-2", "bo@example.com");
+    const db = fakeDb(tables, {}, { put_google_credentials: () => { throw new Error("vault unreachable"); } });
+
+    await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), g.net);
+    assert.equal(tables.google_connections[0].google_sub, "sub-1", "the account that was working is restored");
+    assert.equal(g.revoked(), 1, "the OTHER account's grant shares nothing with it, so it is revoked");
+  }));
+
+test("a connect that reaches the vault leaves the workspace pending on its choice of location", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    const tables = { google_connections: [] };
+    const g = fakeGoogle();
+    const kept = [];
+    const db = fakeDb(tables, {}, { put_google_credentials: (a) => { kept.push(a); return null; } });
+
+    const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), g.net);
+    assert.equal(r.ok, true);
+    assert.equal(r.pending, true, "two locations on Maps: the owner picks");
+    assert.equal(r.locations.length, 2);
+    assert.equal(kept.length, 1, "the refresh token went to the vault, never onto the row");
+    assert.ok(!JSON.stringify(tables.google_connections[0]).includes("rt-new"));
+    assert.equal(g.revoked(), 0);
+  }));
+
+test("every refusal on the way to a connection hands the grant back, and writes nothing", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    // Each refusal, driven through the injected transport. A grant we cannot
+    // keep and do not give back is a workspace's Google account left
+    // authorised to an app that has no record of it.
+    const cases = [
+      { why: "exchange_failed", revokes: 0, at: (u) => (u.includes("/token") ? { status: 400, body: JSON.stringify({ error: "invalid_grant" }) } : null) },
+      { why: "scope_missing", revokes: 1, at: (u) => (u.includes("/token") ? { status: 200, body: JSON.stringify({ access_token: "at", refresh_token: "rt", expires_in: 3600, scope: "openid email" }) } : null) },
+      { why: "no_refresh_token", revokes: 1, at: (u) => (u.includes("/token") ? { status: 200, body: JSON.stringify({ access_token: "at", expires_in: 3600, scope: "https://www.googleapis.com/auth/business.manage" }) } : null) },
+      { why: "accounts_unreadable", revokes: 1, at: (u) => (u.includes("/accounts") && !u.includes("/locations") ? { status: 500, body: "boom" } : null) },
+      { why: "no_locations", revokes: 1, at: (u) => (u.includes("/locations") ? { status: 200, body: JSON.stringify({ locations: [] }) } : null) },
+      { why: "not_on_maps", revokes: 1, at: (u) => (u.includes("/locations") ? { status: 200, body: JSON.stringify({ locations: [{ name: "locations/1", title: "No Maps listing" }] }) } : null) },
+    ];
+    for (const c of cases) {
+      const g = fakeGoogle();
+      const net = async (req) => c.at(req.url) ?? g.net(req);
+      const tables = { google_connections: [] };
+      const r = await connectProfile(fakeDb(tables, {}, { put_google_credentials: () => null }), "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), net);
+      assert.equal(r.ok, false, c.why);
+      assert.equal(r.error, c.why);
+      assert.equal(tables.google_connections.length, 0, `${c.why}: no half-made connection left behind`);
+      assert.equal(g.revoked(), c.revokes, `${c.why}: the grant is given back`);
+    }
+  }));
+
+test("a workspace with ONE location on Maps is bound and synced through the injected transport, not round it", () =>
+  withOAuthEnv(async () => {
+    const { connectProfile } = await import("../../../apps/edge/lib/google.ts");
+    // This is the branch the transport had to be threaded all the way down
+    // for: connect -> bindLocation -> syncProfile -> tokenFor. A `net` that
+    // covered only the outer calls left this path talking to the real Google
+    // from inside a test, which is why every other case here returns two
+    // locations to stay on the pending branch.
+    const seen = [];
+    const net = async (req) => {
+      seen.push(req.url);
+      if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
+      if (req.url.includes("/accounts") && !req.url.includes("/locations")) return { status: 200, body: JSON.stringify({ accounts: [{ name: "accounts/1", accountName: "Ada's" }] }) };
+      if (req.url.includes("/locations") && !req.url.includes("/reviews")) {
+        return { status: 200, body: JSON.stringify({ locations: [{ name: "locations/1", title: "Ada's", metadata: { placeId: "p1", mapsUri: "https://maps/p1" } }] }) };
+      }
+      if (req.url.includes("/reviews")) return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+      throw new Error(`unexpected call: ${req.url}`);
+    };
+    const tables = { google_connections: [], google_listings: [], google_reviews: [], google_listing_days: [] };
+    const vault = { refresh_token: "rt-new", access_token: "at-1", expires_at: Date.now() + 3_600_000, scope: "https://www.googleapis.com/auth/business.manage" };
+    const db = fakeDb(tables, {}, {
+      put_google_credentials: () => null,
+      get_google_credentials: () => vault,
+    });
+
+    const r = await connectProfile(db, "t1", "u1", "code", "America/New_York", new Date("2026-09-12T00:00:00Z"), net);
+    assert.equal(r.ok, true, JSON.stringify(r));
+    assert.equal(r.pending, false, "one location on Maps: bound at once, no choice to make");
+    assert.equal(tables.google_listings.length, 1, "the listing is written");
+    assert.equal(tables.google_listings[0].place_id, "p1");
+    assert.equal(tables.google_connections[0].location_name, "locations/1", "and the connection is bound to it");
+    // The signal is that the sync's OWN call came through `net`. It cannot be a
+    // stub on global fetch: `placesFetch()` captures fetch when this module
+    // loads, so the module-level transport holds the real one and a stub
+    // installed later never sees it. What reached the injected transport is
+    // the only honest evidence of what did not go round it.
+    assert.ok(seen.some((u) => u.includes("/reviews")), "the first sync ran through the same transport, not round it");
+  }));
+
+test("a sync that ANSWERS reviews stays inside the injected transport too", () =>
+  withOAuthEnv(async () => {
+    // The sharpest edge in this file. A non-first sync under the auto mode posts
+    // a real public reply on a real business's listing, so a transport that
+    // stopped at `syncProfile` and left `answerNewReviews` on the module-level
+    // one would let a test run write under a stranger's review — and bill a
+    // model call to compose it. Global fetch is replaced with a counter rather
+    // than a throw, because the auto-reply is wrapped in `.catch()` and would
+    // swallow an exception, reporting a clean pass over an escaped call.
+    const { syncProfile } = await import("../../../apps/edge/lib/google.ts");
+    const now = new Date("2026-09-12T00:00:00Z");
+    const seen = [];
+    const net = async (req) => {
+      seen.push(req.url);
+      if (req.url.includes("/token")) return { status: 200, body: grantBody("sub-1", "ada@example.com") };
+      if (req.url.includes("/reviews")) return { status: 200, body: JSON.stringify({ reviews: [], averageRating: 4.5, totalReviewCount: 2 }) };
+      throw new Error(`unexpected call: ${req.url}`);
+    };
+    const conn = connected({ last_synced_at: "2026-09-11T00:00:00Z", connected_at: "2026-08-01T00:00:00Z" });
+    const tables = {
+      google_connections: [conn],
+      google_listings: [{ tenant_id: "t1", place_id: "p1" }],
+      google_listing_days: [],
+      // On record, from the profile, unanswered, and published since the
+      // workspace connected: exactly what the auto mode picks up.
+      google_reviews: [{ id: "r1", tenant_id: "t1", review_id: "rv-1", origin: "profile", rating: 5, author: "Bo", body: "lovely", published_at: "2026-09-10T00:00:00Z", reply_text: null }],
+      policies: [{ id: "pol", tenant_id: "t1", class: "reviews", mode: "auto", subject_type: null, subject_id: null, limits: {}, updated_at: "2026-09-01T00:00:00Z" }],
+    };
+    const db = fakeDb(tables, {}, {
+      put_google_credentials: () => null,
+      // EXPIRED, so the auto-reply's own tokenFor must refresh — which is the
+      // call that proves whose transport it is using.
+      get_google_credentials: () => ({ refresh_token: "rt", access_token: "stale", expires_at: now.getTime() - 60_000, scope: "https://www.googleapis.com/auth/business.manage" }),
+    });
+
+    const realKey = process.env.ANTHROPIC_API_KEY;
+    delete process.env.ANTHROPIC_API_KEY; // the draft bails as no_model_key; no model is ever called
+    try {
+      const r = await syncProfile(db, conn, "America/New_York", now, net);
+      assert.equal(r.ok, true, JSON.stringify(r));
+    } finally {
+      if (realKey === undefined) delete process.env.ANTHROPIC_API_KEY; else process.env.ANTHROPIC_API_KEY = realKey;
+    }
+    // TWO refreshes is the whole assertion. The stored token is stale and the
+    // fake vault keeps handing back the stale one, so `syncProfile`'s own
+    // `tokenFor` refreshes once and the auto-reply's refreshes again -- through
+    // `net` only if it was given `net`. Left on the module-level transport the
+    // second refresh goes round it and this counts one.
+    //
+    // It has to be counted rather than caught: `placesFetch()` captures fetch
+    // at module load, so a stub on global fetch never sees the escape, and the
+    // auto-reply is wrapped in `.catch()`, so a throw would be swallowed and
+    // reported as a clean pass.
+    assert.equal(seen.filter((u) => u.includes("/token")).length, 2, "the auto-reply refreshed its token through the injected transport");
+    assert.equal(tables.google_reviews[0].reply_text, null, "and nothing was posted: no model key, so the draft never happened");
+  }));

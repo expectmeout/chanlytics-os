@@ -20,7 +20,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { waCfgFor, waCredentialsForTenant } = await import(
+const { waCfgFor, waCredentialsForTenant, loadTenantNotifications } = await import(
   pathToFileURL(path.join(ROOT, "apps/edge/lib/tenant-runtime.ts")).href
 );
 
@@ -112,4 +112,50 @@ test("no active WhatsApp channel, or a channel that cannot be read, is a refusal
     assert.equal(await waCredentialsForTenant(fakeDb({ tenant_channels: [channel({ status: "disabled" })] }), "t2"), null);
     const broken = fakeDb({ tenant_channels: [channel()] }, { "tenant_channels.select": { message: "connection reset" } });
     assert.equal(await waCredentialsForTenant(broken, "t2"), null, "\"we could not check\" is not \"send on the pilot's token\"");
+  }));
+
+/* ---- who a tenant known only by id is addressed as ---- */
+
+const cfgRow = (notifications) => ({ tenant_id: "t2", config: { notifications } });
+const waRow = (over = {}) => ({ id: "ch1", tenant_id: "t2", kind: "whatsapp", external_id: "111000", status: "active", ...over });
+
+test("the workspace's own recipients are read, and its own number decides whether it is the environment's", () =>
+  withEnv(ENV, async () => {
+    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] });
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true });
+    const other = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["bo@example.com"] })], tenant_channels: [waRow({ external_id: "999000" })] });
+    assert.deepEqual(await loadTenantNotifications(other, "t2"), { notifications: { escalation_emails: ["bo@example.com"] }, isEnvDefault: false });
+  }));
+
+test("a second WhatsApp row does not cost a workspace its own alerts", () =>
+  withEnv(ENV, async () => {
+    // `tenant_channels` has no unique constraint on (tenant_id, kind) and the
+    // product ADDS a row rather than replacing one -- a reconnected number
+    // leaves the old row behind. A bare maybeSingle() over two rows is a
+    // PostgREST error, and the error was not checked, so it arrived as
+    // `data === null`: read as "not the environment's number", which quietly
+    // downgraded this workspace's alerts to redacted platform notices with the
+    // customer's own words withheld.
+    const db = fakeDb({
+      tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })],
+      tenant_channels: [waRow({ id: "old", status: "disabled", external_id: "222000" }), waRow()],
+    });
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: true }, "the ACTIVE row answers, as it does for every other reader in this file");
+  }));
+
+test("a channel read that fails costs only the env-default question, never the recipients", () =>
+  withEnv(ENV, async () => {
+    // The channel answers ONE thing here -- whether this workspace is the
+    // environment's own -- and the mailbox is not it. Failing the whole read
+    // on a channel error would withhold the customer's words from a workspace
+    // whose recipients were read perfectly well, which is the outcome this
+    // function's error path exists to avoid.
+    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] }, { "tenant_channels.select": { message: "statement timeout" } });
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: { escalation_emails: ["ada@example.com"] }, isEnvDefault: false }, "addressed as itself; only isEnvDefault falls back");
+  }));
+
+test("recipients that cannot be read ARE said as unknown, so notify withholds rather than guesses", () =>
+  withEnv(ENV, async () => {
+    const db = fakeDb({ tenant_config: [cfgRow({ escalation_emails: ["ada@example.com"] })], tenant_channels: [waRow()] }, { "tenant_config.select": { message: "statement timeout" } });
+    assert.deepEqual(await loadTenantNotifications(db, "t2"), { notifications: null, isEnvDefault: false });
   }));

@@ -19,6 +19,7 @@ import { autoReplyBell, autoReplyCandidates, localDate, parseTenantConfig, revie
 import { draftReviewReply } from "./review-reply.js";
 import { recordNotification } from "./notify.js";
 import { logger } from "./log.js";
+import { readAllRows } from "./paged.js";
 
 export type ListingRow = Database["public"]["Tables"]["google_listings"]["Row"];
 export type ConnectionRow = Database["public"]["Tables"]["google_connections"]["Row"];
@@ -152,7 +153,7 @@ export async function draftFor(db: Db, tenantId: string, rowId: string): Promise
  * reply Google refuses is logged and left for the next hour; nothing here
  * stops the sync that called it. Returns what was answered, for the bell.
  */
-async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now: Date): Promise<Array<{ id: string; author: string | null; text: string }>> {
+async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now: Date, net: PlacesHttp = http): Promise<Array<{ id: string; author: string | null; text: string }>> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if ((await reviewReplyMode(db, conn.tenant_id)) !== "auto") return [];
   const unreplied = await db
@@ -166,7 +167,7 @@ async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now
   if (unreplied.error) throw new Error(unreplied.error.message);
   const picks = autoReplyCandidates(unreplied.data ?? [], conn.connected_at, now.getTime());
   if (!picks.length) return [];
-  const t = await tokenFor(db, conn.tenant_id, now.getTime());
+  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
   if (!t.ok) return [];
   const facts = await reviewFacts(db, conn.tenant_id);
   const answered: Array<{ id: string; author: string | null; text: string }> = [];
@@ -178,7 +179,7 @@ async function answerNewReviews(db: Db, conn: ConnectionRow, parent: string, now
     }
     let reply;
     try {
-      reply = await replyToReview(http, t.token, `${parent}/reviews/${r.review_id}`, d.text);
+      reply = await replyToReview(net, t.token, `${parent}/reviews/${r.review_id}`, d.text);
     } catch (e) {
       L.warn("google_auto_reply_refused", { id: r.id, error: e instanceof Error ? e.message : String(e) });
       continue;
@@ -217,11 +218,16 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
 
   const conn = await connectionOf(db, row.tenant_id);
   const carriesReviews = !(conn && conn.location_name);
-  const known = await db.from("google_reviews").select("review_id").eq("tenant_id", row.tenant_id);
-  if (known.error) throw new Error(known.error.message);
+  // Every id, not the first thousand. Capped, the set of reviews we have
+  // already seen was missing whatever fell past the page -- so a listing with
+  // more than a thousand reviews announced old reviews as new, every hour, for
+  // ever.
+  const known = await readAllRows<{ review_id: string }>("google_reviews", (from, to) =>
+    db.from("google_reviews").select("review_id").eq("tenant_id", row.tenant_id).order("review_id").range(from, to),
+  );
   const plan = planListingCheck(
     { rating: row.rating, review_count: row.review_count, checked_at: row.checked_at },
-    new Set((known.data ?? []).map((k) => k.review_id)),
+    new Set(known.map((k) => k.review_id)),
     details,
     localDate(tz, now),
     now.getTime(),
@@ -317,8 +323,8 @@ async function readCredentials(db: Db, tenantId: string): Promise<StoredCredenti
   return c && typeof c.refresh_token === "string" ? { refresh_token: c.refresh_token, access_token: c.access_token ?? null, expires_at: typeof c.expires_at === "number" ? c.expires_at : null, scope: c.scope ?? null } : null;
 }
 
-async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>): Promise<TokenGrant> {
-  const r = await http(req);
+async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>, net: PlacesHttp = http): Promise<TokenGrant> {
+  const r = await net(req);
   let json: unknown = null;
   try { json = JSON.parse(r.body); } catch { /* below */ }
   if (r.status < 200 || r.status >= 300) {
@@ -332,14 +338,14 @@ async function grantFrom(req: ReturnType<typeof tokenExchangeRequest>): Promise<
  * An access token for the workspace's profile: the stored one while it
  * lasts, else a fresh one from the refresh token, kept for next time.
  */
-export async function tokenFor(db: Db, tenantId: string, now = Date.now()): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
+export async function tokenFor(db: Db, tenantId: string, now = Date.now(), net: PlacesHttp = http): Promise<{ ok: true; token: string } | { ok: false; error: string }> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   const creds = await readCredentials(db, tenantId);
   if (!creds) return { ok: false, error: "no_credentials" };
   if (creds.access_token && creds.expires_at && creds.expires_at - TOKEN_SLACK_MS > now) return { ok: true, token: creds.access_token };
   try {
-    const grant = await grantFrom(tokenRefreshRequest(client, creds.refresh_token));
+    const grant = await grantFrom(tokenRefreshRequest(client, creds.refresh_token), net);
     await storeCredentials(db, tenantId, { refresh_token: creds.refresh_token, access_token: grant.access_token, expires_at: now + grant.expires_in * 1000, scope: grant.scope || creds.scope });
     return { ok: true, token: grant.access_token };
   } catch (e) {
@@ -358,11 +364,11 @@ export interface LocationChoice extends GbpLocation {
 }
 
 /** Every location the signed-in account may manage, across its accounts, with the account each belongs to. */
-async function allLocations(token: string): Promise<LocationChoice[]> {
-  const accounts = await listAccounts(http, token);
+async function allLocations(token: string, net: PlacesHttp = http): Promise<LocationChoice[]> {
+  const accounts = await listAccounts(net, token);
   const out: LocationChoice[] = [];
   for (const a of accounts.slice(0, 10)) {
-    const locs = await listLocations(http, token, a.name);
+    const locs = await listLocations(net, token, a.name);
     for (const l of locs) out.push({ ...l, account_name: a.name, account_title: a.title });
   }
   return out;
@@ -373,39 +379,50 @@ async function allLocations(token: string): Promise<LocationChoice[]> {
  * Vault, the accounts and locations read, and — with one location on Maps —
  * the listing bound and synced at once. Several locations wait for the
  * owner's choice; none refuses and revokes what was granted.
+ *
+ * `net` is the ONE thing here that reaches Google, handed in so the paths that
+ * matter most can be run instead of read: this function can destroy a working
+ * connection on its way to reporting a failure, and a rollback nothing
+ * exercises is a rollback nobody has seen work. It reaches the whole way
+ * down -- the token exchange, the accounts and locations, the revoke, and on
+ * the one-location path `bindLocation` -> `syncProfile` -> `tokenFor` too.
+ * It has to, and it has to go further than it looks: a sync that is not the
+ * first one ANSWERS reviews publicly under the auto mode, so a transport
+ * stopping short of `answerNewReviews` would let a test post a real reply on a
+ * real business's listing and bill a real model call to write it.
  */
-export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date()): Promise<ConnectResult> {
+export async function connectProfile(db: Db, tenantId: string, userId: string | null, code: string, tz: string, now = new Date(), net: PlacesHttp = http): Promise<ConnectResult> {
   const client = profileClient();
   if (!client) return { ok: false, error: "no_oauth_client" };
   let grant: TokenGrant;
   try {
-    grant = await grantFrom(tokenExchangeRequest(client, code));
+    grant = await grantFrom(tokenExchangeRequest(client, code), net);
   } catch (e) {
     return { ok: false, error: "exchange_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   if (!grantHasScope(grant, BUSINESS_SCOPE)) {
-    await http(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(() => null);
     return { ok: false, error: "scope_missing" };
   }
   if (!grant.refresh_token) {
-    await http(revokeRequest(grant.access_token)).catch(() => null);
+    await net(revokeRequest(grant.access_token)).catch(() => null);
     return { ok: false, error: "no_refresh_token" };
   }
   const claims = idTokenClaims(grant.id_token);
   let locations: LocationChoice[];
   try {
-    locations = await allLocations(grant.access_token);
+    locations = await allLocations(grant.access_token, net);
   } catch (e) {
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "accounts_unreadable", detail: e instanceof Error ? e.message : String(e) };
   }
   const onMaps = locations.filter((l) => !!l.place_id);
   if (!locations.length) {
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "no_locations" };
   }
   if (!onMaps.length) {
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "not_on_maps" };
   }
   const first = onMaps[0];
@@ -423,19 +440,44 @@ export async function connectProfile(db: Db, tenantId: string, userId: string | 
     last_synced_at: null,
     sync_error: null,
   };
+  // What this workspace had connected before, read BEFORE the upsert overwrites
+  // it. A connect is also a RE-connect, and the row below carries
+  // `location_name: null` -- so the failure path is not "remove what we just
+  // made", it is "put back what was working".
+  const prior = await db.from("google_connections").select("*").eq("tenant_id", tenantId).maybeSingle();
+  if (prior.error) return { ok: false, error: "connection_write_failed", detail: prior.error.message };
   const saved = await db.from("google_connections").upsert(row, { onConflict: "tenant_id" }).select("*").single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
   try {
     await storeCredentials(db, tenantId, { refresh_token: grant.refresh_token, access_token: grant.access_token, expires_at: now.getTime() + grant.expires_in * 1000, scope: grant.scope });
   } catch (e) {
-    // Without the token the row is a lie: remove it, and give the grant back.
-    await db.from("google_connections").delete().eq("tenant_id", tenantId);
-    await http(revokeRequest(grant.refresh_token)).catch(() => null);
+    // Without the token the row is a lie. Deleting it unconditionally was the
+    // lie's cure and somebody else's outage: a workspace whose profile was
+    // connected and syncing lost the connection entirely because a RE-connect
+    // could not reach the vault. The vault write is the thing that failed, so
+    // the stored credentials are still the previous ones -- restoring the
+    // previous row leaves the pair consistent and the profile working.
+    const restored = !!prior.data;
+    if (restored) await db.from("google_connections").update(prior.data!).eq("tenant_id", tenantId);
+    else await db.from("google_connections").delete().eq("tenant_id", tenantId);
+    // Giving the grant back is right when we are leaving nothing behind. It is
+    // wrong when we just restored a connection for the SAME Google account:
+    // Google revokes the grant for a client/user pair, not one token of it, so
+    // handing this refresh token back would kill the credentials the restored
+    // row runs on -- destroying the connection by the other route.
+    // `claims.sub` is null whenever the id_token was missing or unparsable, and
+    // "unknown" is not "different": `"sub-1" !== null` would revoke the grant
+    // the row we just restored runs on, which is precisely the outage this
+    // guard exists to prevent. Not knowing means leaving it alone -- a grant
+    // left live costs nothing a person cannot undo; a dead one costs them the
+    // connection.
+    const otherAccount = claims.sub != null && prior.data?.google_sub !== claims.sub;
+    if (!restored || otherAccount) await net(revokeRequest(grant.refresh_token)).catch(() => null);
     return { ok: false, error: "credentials_failed", detail: e instanceof Error ? e.message : String(e) };
   }
   await emitEvent(db, tenantId, "google.connected", "google", "listing", null, { email: claims.email, accounts: new Set(locations.map((l) => l.account_name)).size, locations: locations.length, on_maps: onMaps.length, by: userId }).catch(() => {});
   if (onMaps.length === 1) {
-    const bound = await bindLocation(db, saved.data, first, userId, tz, now);
+    const bound = await bindLocation(db, saved.data, first, userId, tz, now, net);
     if (!bound.ok) return { ok: false, error: bound.error, detail: bound.detail };
     return { ok: true, pending: false, connection: bound.connection, read: bound.read };
   }
@@ -458,7 +500,7 @@ export async function locationsFor(db: Db, tenantId: string): Promise<{ ok: true
  * and the connection's location, then the profile is synced at once. A
  * listing that named another place forgets what was read from it.
  */
-export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationChoice, userId: string | null, tz: string, now = new Date()): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
+export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationChoice, userId: string | null, tz: string, now = new Date(), net: PlacesHttp = http): Promise<{ ok: true; connection: ConnectionRow; read: CheckResult } | { ok: false; error: string; detail?: string }> {
   if (!loc.place_id) return { ok: false, error: "not_on_maps" };
   const existing = await db.from("google_listings").select("place_id").eq("tenant_id", conn.tenant_id).maybeSingle();
   if (existing.error) return { ok: false, error: "listing_read_failed", detail: existing.error.message };
@@ -482,7 +524,7 @@ export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationCho
     .select("*")
     .single();
   if (saved.error || !saved.data) return { ok: false, error: "connection_write_failed", detail: saved.error?.message };
-  const read = await syncProfile(db, saved.data, tz, now);
+  const read = await syncProfile(db, saved.data, tz, now, net);
   const after = await db.from("google_connections").select("*").eq("tenant_id", conn.tenant_id).single();
   return { ok: true, connection: after.data ?? saved.data, read };
 }
@@ -494,7 +536,7 @@ export async function bindLocation(db: Db, conn: ConnectionRow, loc: LocationCho
  * and is history: it raises nothing. A failed sync leaves its words on the
  * connection and is tried again next hour.
  */
-export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now = new Date()): Promise<CheckResult> {
+export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now = new Date(), net: PlacesHttp = http): Promise<CheckResult> {
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string) => {
@@ -503,20 +545,21 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
     L.warn("google_profile_sync_failed", { error });
     return { ok: false as const, error };
   };
-  const t = await tokenFor(db, conn.tenant_id, now.getTime());
+  const t = await tokenFor(db, conn.tenant_id, now.getTime(), net);
   if (!t.ok) return failed(t.error);
   let page;
   try {
-    page = await listReviews(http, t.token, reviewParent(conn.account_name, conn.location_name));
+    page = await listReviews(net, t.token, reviewParent(conn.account_name, conn.location_name));
   } catch (e) {
     return failed(e instanceof Error ? e.message : String(e));
   }
   const first = !conn.last_synced_at;
-  const known = await db.from("google_reviews").select("review_id, replied_at, reply_text, origin").eq("tenant_id", conn.tenant_id);
-  if (known.error) throw new Error(known.error.message);
+  const known = await readAllRows<{ review_id: string; replied_at: string | null; reply_text: string | null; origin: string }>("google_reviews", (from, to) =>
+    db.from("google_reviews").select("review_id, replied_at, reply_text, origin").eq("tenant_id", conn.tenant_id).order("review_id").range(from, to),
+  );
   const plan = planProfileSync(
     { last_synced_at: conn.last_synced_at },
-    new Map((known.data ?? []).filter((k) => k.origin === "profile").map((k) => [k.review_id, { updated_at: k.replied_at, reply_text: k.reply_text }])),
+    new Map(known.filter((k) => k.origin === "profile").map((k) => [k.review_id, { updated_at: k.replied_at, reply_text: k.reply_text }])),
     page,
     localDate(tz, now),
     now.getTime(),
@@ -563,7 +606,7 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
   }
   // The first sync is history, never answered. After that, the auto mode
   // answers what came in on duty; a failure here is logged, not thrown.
-  const answered = first ? [] : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now).catch((e) => {
+  const answered = first ? [] : await answerNewReviews(db, conn, reviewParent(conn.account_name, conn.location_name), now, net).catch((e) => {
     L.warn("google_auto_reply_failed", { error: e instanceof Error ? e.message : String(e) });
     return [];
   });

@@ -3,8 +3,15 @@
  * and the platform (traffic for a channel nobody routes). The customer is
  * texted through the one door, deliver() in packages/core, from the sink.
  */
-import { notify, type NotifyTarget } from "../notify.js";
+import { notify, type NotifyTarget, type NotifyMessage } from "../notify.js";
 import { formatPhoneDisplay } from "../workspace/contracts.js";
+
+/**
+ * The text channels a thread can arrive on. Declared here rather than
+ * imported from inbound.ts: ports.ts already imports this module, so taking
+ * the type back from the handler would close a cycle for two string literals.
+ */
+export type InboundChannel = "whatsapp" | "sms";
 
 /**
  * The customer's own words travel in this email, so it goes only to an address
@@ -48,8 +55,14 @@ const REASON_WORDS: Record<string, string> = {
  */
 export interface HandoffContext {
   target: NotifyTarget;
-  /** The wire the customer wrote on. WhatsApp unless the text came in on a carrier's. */
-  channel?: "whatsapp" | "sms";
+  /**
+   * The wire the customer wrote on. This is the SHARED handoff alert: the SMS
+   * door routes through the same handler (api/inbound-sms.ts hands
+   * handleInbound an sms carrier), so a hardcoded "WhatsApp" told an owner to
+   * go and answer a WhatsApp thread that does not exist. WhatsApp unless the
+   * text came in on a carrier's.
+   */
+  channel?: InboundChannel;
   /**
    * How long the receptionist is out of this thread, when THIS branch paused
    * it. Null is the common case and must stay the default: the email used to
@@ -67,6 +80,9 @@ export interface HandoffContext {
   about?: { type: string; id: string } | null;
 }
 
+/** The channel a thread runs on, in the words an owner reads. */
+const CHANNEL_WORDS: Record<InboundChannel, string> = { whatsapp: "WhatsApp", sms: "Text" };
+
 export async function alertStaff(
   threadId: string,
   userText: string,
@@ -74,13 +90,28 @@ export async function alertStaff(
   reason: string,
   ctx: HandoffContext,
 ): Promise<void> {
+  const { target, ...said } = ctx;
+  await notify(target, handoffMessage({ threadId, userText, botText, reason, ...said }));
+}
+
+/**
+ * The handoff, as words: pure, so what a workspace actually reads is tested
+ * rather than read back off this file. Everything that reaches a mailbox is
+ * `notify`'s; everything that decides a sentence is here.
+ */
+export function handoffMessage({ threadId, userText, botText, reason, ...ctx }: {
+  threadId: string;
+  userText: string;
+  botText: string;
+  reason: string;
+} & Omit<HandoffContext, "target">): NotifyMessage {
   const name = ctx.who?.trim() || formatPhoneDisplay(`+${threadId}`) || `+${threadId}`;
   const why = REASON_WORDS[reason] ?? reason;
   // The owner of a workspace with both wires connected opens the thread this
   // names. Saying "WhatsApp" for a text sends them to an app the conversation
   // is not in.
-  const where = ctx.channel === "sms" ? "Text" : "WhatsApp";
-  await notify(ctx.target, {
+  const where = CHANNEL_WORDS[ctx.channel ?? "whatsapp"] ?? CHANNEL_WORDS.whatsapp;
+  return {
     kind: "handoff",
     route: ctx.route ?? "inbox",
     about: ctx.about ?? null,
@@ -92,8 +123,8 @@ export async function alertStaff(
       (ctx.pausedHours
         ? `Reply from the Inbox — the receptionist is paused on this thread for ${ctx.pausedHours}h.`
         : `Reply from the Inbox.`),
-    redactedBody: `A ${where.toLowerCase()} conversation needed a person (${why}), and nobody could be told.`,
-  });
+    redactedBody: `A ${where} conversation needed a person (${why}), and nobody could be told.`,
+  };
 }
 
 /**

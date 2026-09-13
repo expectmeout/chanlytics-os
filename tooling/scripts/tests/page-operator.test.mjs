@@ -16,7 +16,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../.
 const { pageOperator, pageStates, untoldPages, PAGE_WINDOW_MS } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/page-operator.ts")).href);
 
 /** A memory of pages: the three calls pageOperator makes, and nothing else. */
-function fakePages(initial = {}) {
+function fakePages(initial = {}, readError = null) {
   const rows = new Map(Object.entries(initial));
   return {
     rows,
@@ -24,7 +24,7 @@ function fakePages(initial = {}) {
       assert.equal(table, "operator_pages");
       return {
         select() {
-          return { eq(_col, key) { return { maybeSingle: async () => ({ data: rows.get(key) ?? null, error: null }) }; } };
+          return { eq(_col, key) { return { maybeSingle: async () => (readError ? { data: null, error: readError } : { data: rows.get(key) ?? null, error: null }) }; } };
         },
         upsert: async (row) => { rows.set(row.key, { alerted_at: null, ...(rows.get(row.key) ?? {}), ...row }); return { data: null, error: null }; },
         update(patch) {
@@ -134,4 +134,24 @@ test("with no platform address the page is unaddressed, said in the log, and not
   } finally {
     process.env.LEAD_TO = saved;
   }
+});
+
+test("a memory it could not read is a memory it does not overwrite: the running count survives", async () => {
+  // The write said `count: (row?.count ?? 0) + 1`, and `row` is null for both
+  // "no row yet" and "the row is there and the read failed". On the second it
+  // put 1 over the running total -- so the history an operator reads on
+  // /api/diag to judge how long a condition has been firing was erased by
+  // exactly the database trouble most likely to be firing it.
+  const db = fakePages({ ledger: { key: "ledger", last_at: new Date(T0 - 60_000).toISOString(), count: 91, alerted_at: null } }, { message: "statement timeout" });
+  const t = transport(true);
+  assert.equal(await pageOperator({ db, send: t.send, now: () => T0 }, "ledger", "Ledger", "body"), "sent", "and it still pages: a duplicate beats a silence nobody chose");
+  assert.equal(db.rows.get("ledger").count, 91, "the count is left where it was, never reset to 1");
+  assert.equal(db.rows.get("ledger").last_at, new Date(T0).toISOString(), "the firing is still stamped");
+});
+
+test("a first firing still starts the count at one", async () => {
+  const db = fakePages();
+  const t = transport(true);
+  await pageOperator({ db, send: t.send, now: () => T0 }, "fresh", "Fresh", "body");
+  assert.equal(db.rows.get("fresh").count, 1);
 });
