@@ -181,20 +181,24 @@ export async function handleInbound(
   // flip so the live salon line can be rolled back without a redeploy; Blob is
   // still written underneath, which is what makes that rollback safe.
   let ing: IngestResult | null;
-  let thread: ThreadState;
+  let read: ThreadState;
   let memory: "pg" | "blob" = "blob";
   if (ports.env.pgReads) {
     ing = await recordOrSay();
-    thread = await ports.persist.thread(db, tenantId, ing);
-    memory = isPgMiss(thread) ? "blob" : "pg";
+    const fromPg = await ports.persist.thread(db, tenantId, ing);
+    memory = isPgMiss(fromPg) ? "blob" : "pg";
     // With the store retired this read answers "unknown", and the thread goes
     // to a human below instead of to a second copy of its memory.
-    if (memory === "blob") thread = await ports.store.get(ns, from);
+    read = memory === "blob" ? await ports.store.get(ns, from) : fromPg;
   } else {
     // The Blob read is side-effect-free, so it runs alongside the write.
-    [ing, thread] = (await Promise.all([recordOrSay(), ports.store.get(ns, from)])) as
+    [ing, read] = (await Promise.all([recordOrSay(), ports.store.get(ns, from)])) as
       [IngestResult | null, ThreadState];
   }
+  // Bound once it is settled, and never rebound. The closures below hold this
+  // memory and write to it after awaits, which is only sound while the binding
+  // itself cannot change under them.
+  const thread: ThreadState = read;
   const ingestMs = Date.now() - t0;
   // This message's wires: WhatsApp on the tenant's credentials (the
   // environment's pair only for the environment's own number), or the
@@ -307,6 +311,16 @@ export async function handleInbound(
   // stop here.
   if (thread.seen.includes(m.id)) { L.info("wa_skip_dupe"); return; }
   thread.seen.push(m.id);
+  /**
+   * Persist this message id, so the branches below that return early stop the
+   * NEXT delivery of it at the gate above.
+   *
+   * Only where it is the memory. On the Postgres path `seen` is empty by
+   * design and is_new is the dedupe, so a write here would buy nothing and
+   * cost a Blob read and a Blob write on the hot path — the same trade the
+   * consent cache above was silently making until this change.
+   */
+  const rememberSeen = (t: ThreadState) => (memory === "blob" ? ports.store.save(ns, from, t) : Promise.resolve(false));
 
   // CONSENT GATE — before every branch below that can send, because all of
   // them could: the non-text acknowledgement, the brain's reply, even the
@@ -357,7 +371,7 @@ export async function handleInbound(
   if (optedOut) {
     // The save carries this message id in `seen`, which is what stops a
     // redelivered STOP opening the handoff and mailing the owner a second time.
-    const post: Promise<unknown>[] = [sink.processed(), ports.store.save(ns, from, thread)];
+    const post: Promise<unknown>[] = [sink.processed(), rememberSeen(thread)];
     if (n.optOut) {
       // Only on the opt-out message itself. upsertEscalation keeps ONE open
       // escalation per conversation, so a repeated STOP updates rather than
@@ -387,7 +401,7 @@ export async function handleInbound(
     await Promise.all([
       sink.escalate(carrier.held.reason, carrier.held.details),
       tell(n.body ?? `[${m.type}]`, "(no reply sent — the carriers have not approved this line for texting yet)", "carriers"),
-      ports.store.save(ns, from, thread),
+      rememberSeen(thread),
       sink.processed(),
     ]);
     L.info("sms_held_for_carriers");
@@ -407,7 +421,7 @@ export async function handleInbound(
   // that we handled them and stop.
   if (n.kind === "reaction" || n.kind === "system") {
     L.info("wa_skip_no_request", { kind: n.kind });
-    await Promise.all([ports.store.save(ns, from, thread), sink.processed()]);
+    await Promise.all([rememberSeen(thread), sink.processed()]);
     return;
   }
 
@@ -421,81 +435,96 @@ export async function handleInbound(
     await Promise.all([
       sink.escalate("non_text", `${n.body} — needs a person.`),
       tell(n.body ?? `[${m.type}]`, "(no reply sent — passed to a human)", n.kind),
-      ports.store.save(ns, from, thread),
+      rememberSeen(thread),
       sink.processed(),
     ]);
     L.info("wa_escalate_readable_nontext", { kind: n.kind });
     return;
   }
 
-  // A photo the receptionist may look at (features.vision, off by default).
-  // Fetched now rather than after the acknowledgement, because the reply
-  // needs the bytes; stored on the way like every attachment. Anything that
-  // is not a small image, or a workspace where the receptionist may not
-  // speak right now, takes the branch below exactly as before.
-  let photo: { mime: string; base64: string } | null = null;
-  let photoTried = false;
-  if (
-    n.type === "media" && n.media && rt?.features?.vision && isVisionMime(n.media.mime_type)
-    && brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil
-  ) {
-    photoTried = true;
-    const got = await sink.media(n);
-    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
-      photo = { mime: got.mime, base64: toBase64(got.bytes) };
-      L.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
-    } else {
-      L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
-    }
-  }
+  // WILL the receptionist look at this photo (features.vision, off by
+  // default)? Decided from the message, the workspace and the mode in force —
+  // no bytes needed — so the routing below can be decided here while the
+  // download itself waits until the gates have agreed there will be a reply at
+  // all. The fetch used to run on this line: an 8s metadata call, up to 25MB
+  // with a 15s timeout, a storage upload and a base64 of the whole buffer,
+  // paid in full and then thrown away by a workspace at its reply cap, over
+  // its token budget, or paused for billing.
+  const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type)
+    && !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil;
 
-  if (!photo && (n.type !== "text" || !n.body)) {
-    // genuinely unreadable (voice note, image, sticker): hand to a human.
-    //
-    // sink.media() downloads the attachment from Meta (an 8s metadata fetch,
-    // then up to 25MB with a 15s timeout) and uploads it to storage. That ran
-    // HERE, above the acknowledgement — so someone who sent a voice note waited
-    // through two Graph round trips and a multi-megabyte upload, as much as
-    // ~23s of pure timeout, before being told we had seen it. Nothing in the
-    // ack depends on those bytes, so it joins the post-reply work below.
-    const media = photoTried ? Promise.resolve(null) : sink.media(n);
-    if (Date.now() > thread.pausedUntil) {
-      // The acknowledgement is the receptionist speaking, so it obeys the
-      // same rule as every reply: only when the mode in force lets it speak.
-      // A workspace on Ask, or a person set to Never, gets no canned text —
-      // the message still escalates so a human sees it. No persona -> no ack.
-      const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
-      // WHETHER IT LANDED decides everything after it. The outcome used to be
-      // discarded, so expired credentials or a refusal at the wire still paused
-      // the thread for a day and still told the owner "(auto-acknowledged, bot
-      // paused)": the customer had heard nothing, the receptionist was muted
-      // until tomorrow, and the one person who could fix it had been told the
-      // opposite. Every other send in this file branches on this.
-      const acked = mayAck
-        // A courtesy, not an answer: marked so it does not spend the daily cap.
-        ? (await send(brainCfg!.fallbacks.non_text, { ack: true })).outcome === "sent"
-        : false;
-      if (acked) thread.pausedUntil = Date.now() + pauseMs;
-      const why = acked
-        ? "auto-acknowledged, bot paused"
-        : mayAck
-          ? "the acknowledgement could not be sent — the customer has heard nothing back"
-          : !brainCfg
-            ? "no auto-reply configured"
-            : personMode
-              ? `no acknowledgement — this person is set to '${replyMode}'`
-              : `no acknowledgement — reply mode is '${replyMode}'`;
-      await Promise.all([
-        ...(acked ? [sink.pause(new Date(Date.now() + pauseMs).toISOString())] : []),
-        sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
-        tell(`[${m.type} message]`, `(${why})`, "non-text message", acked ? pauseHours : null),
-      ]);
-      L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
-    }
-    // One save for both facts: the pause when there was one, and this message
-    // id in `seen` either way, so a redelivery stops at the gate above instead
-    // of escalating and mailing the owner again.
-    await Promise.all([media, ports.store.save(ns, from, thread), sink.processed()]);
+  /**
+   * Say the unreadable thing: a voice note, a sticker, a photo nobody may look
+   * at — or one the receptionist meant to look at and could not fetch.
+   * Acknowledge it where the mode in force allows, and hand the thread over.
+   *
+   * A closure because there are two ways in now: the routing decision above,
+   * and a vision fetch that fails below the gates. While the fetch sat above
+   * them the second case fell into the first by accident, through `!photo`;
+   * once the fetch moved it needed saying out loud, because a photo that
+   * cannot be read must not quietly become a question answered without it.
+   *
+   * Resolves to the moment the receptionist is out of the thread until, or 0
+   * when it never spoke. It reports rather than writes: the memory is the
+   * handler's, written in one place, and a courtesy that did not reach the
+   * customer earns no pause.
+   */
+  const sayUnreadable = async (pausedUntilNow: number): Promise<number> => {
+    if (Date.now() <= pausedUntilNow) return 0;
+    // The acknowledgement is the receptionist speaking, so it obeys the
+    // same rule as every reply: only when the mode in force lets it speak.
+    // A workspace on Ask, or a person set to Never, gets no canned text —
+    // the message still escalates so a human sees it. No persona -> no ack.
+    const mayAck = !!brainCfg && (replyMode === "auto" || replyMode === "veto");
+    // WHETHER IT LANDED decides everything after it. The outcome used to be
+    // discarded, so expired credentials or a refusal at the wire still paused
+    // the thread for a day and still told the owner "(auto-acknowledged, bot
+    // paused)": the customer had heard nothing, the receptionist was muted
+    // until tomorrow, and the one person who could fix it had been told the
+    // opposite. Every other send in this file branches on this.
+    const acked = mayAck
+      // A courtesy, not an answer: marked so it does not spend the daily cap.
+      ? (await send(brainCfg!.fallbacks.non_text, { ack: true })).outcome === "sent"
+      : false;
+    const pausedUntil = acked ? Date.now() + pauseMs : 0;
+    const why = acked
+      ? "auto-acknowledged, bot paused"
+      : mayAck
+        ? "the acknowledgement could not be sent — the customer has heard nothing back"
+        : !brainCfg
+          ? "no auto-reply configured"
+          : personMode
+            ? `no acknowledgement — this person is set to '${replyMode}'`
+            : `no acknowledgement — reply mode is '${replyMode}'`;
+    await Promise.all([
+      ...(pausedUntil ? [sink.pause(new Date(pausedUntil).toISOString())] : []),
+      sink.escalate("non_text", `Customer sent a ${m.type} message — ${why}.`),
+      tell(`[${m.type} message]`, `(${why})`, "non-text message", pausedUntil ? pauseHours : null),
+    ]);
+    L.info("wa_nontext", { acked, may_ack: mayAck, mode: replyMode, person_mode: personMode });
+    return pausedUntil;
+  };
+
+  /**
+   * What the memory keeps after one: the pause where the receptionist actually
+   * spoke — real state, written wherever the memory lives — and this message
+   * id, which only the Blob copy has any use for. Without the second, a
+   * redelivery escalated and mailed the owner again for every one of Meta's
+   * retries.
+   */
+  const keepUnreadable = (t: ThreadState, pausedUntil: number, media: Promise<unknown>) =>
+    Promise.all([media, pausedUntil ? ports.store.save(ns, from, t) : rememberSeen(t), sink.processed()]);
+
+  if (!maySee && (n.type !== "text" || !n.body)) {
+    // sink.media() downloads the attachment from Meta and uploads it to
+    // storage. That ran above the acknowledgement — so someone who sent a voice
+    // note waited through two Graph round trips and a multi-megabyte upload, as
+    // much as ~23s of pure timeout, before being told we had seen it. Nothing
+    // in the ack depends on those bytes, so it joins the work at the end.
+    const media = sink.media(n);
+    const pausedUntil = await sayUnreadable(thread.pausedUntil);
+    if (pausedUntil) thread.pausedUntil = pausedUntil;
+    await keepUnreadable(thread, pausedUntil, media);
     return;
   }
   // Past the gate above, this is the customer's message as words — typed, or
@@ -509,7 +538,7 @@ export async function handleInbound(
   // For a photo the receptionist looks at, the words on record are the
   // caption, or the fact of the photo; what the MODEL is told is built beside
   // the image, in vision.ts, and never lands in an alert or the memory.
-  const bodyText: string = photo ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");
+  const bodyText: string = maySee ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");
 
   // Late, but somebody is still waiting.
   //
@@ -530,7 +559,7 @@ export async function handleInbound(
     await Promise.all([
       sink.escalate("stale", `Message arrived ${Math.round(ageMs / 60000)} minutes late — too old to answer automatically.`),
       tell(n.body ?? `[${m.type}]`, "(no reply sent — arrived too late to answer automatically)", "late message"),
-      ports.store.save(ns, from, thread),
+      rememberSeen(thread),
       sink.processed(),
     ]);
     L.info("wa_stale_escalated", { age_ms: ageMs });
@@ -674,6 +703,28 @@ export async function handleInbound(
     ]);
     L.info("wa_held_by_policy", { mode: replyMode, person_mode: personMode, persona: !!brainCfg, config_broken: !!rt?.configBroken, load_failed: !!rt?.loadFailed, escalation: outcome ?? "n/a", alerted: alertNeeded });
     return;
+  }
+
+  // THE BYTES, now that everything above has agreed there will be a reply.
+  // Every gate between here and the routing decision — the daily cap, the
+  // token budget, the billing pause, the mode in force — discards whatever the
+  // model would have been shown, so none of them should have paid for it.
+  let photo: { mime: string; base64: string } | null = null;
+  if (maySee) {
+    const got = await sink.media(n);
+    if (got && isVisionMime(got.mime) && got.bytes.byteLength <= VISION_MAX_BYTES) {
+      photo = { mime: got.mime, base64: toBase64(got.bytes) };
+      L.info("wa_photo_seen", { bytes: got.bytes.byteLength, mime: got.mime });
+    } else {
+      // Nothing to look at after all, and a caption is not an answer to a
+      // picture nobody saw: the same handoff the routing above would have given
+      // it, rather than a confident reply composed from the words alone.
+      L.info("wa_photo_not_seen", { fetched: !!got, bytes: got?.bytes.byteLength ?? null, mime: got?.mime ?? null });
+      const pausedUntil = await sayUnreadable(thread.pausedUntil);
+      if (pausedUntil) thread.pausedUntil = pausedUntil;
+      await keepUnreadable(thread, pausedUntil, Promise.resolve(null));
+      return;
+    }
   }
 
   let replyText: string;

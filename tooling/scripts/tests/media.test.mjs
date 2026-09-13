@@ -110,12 +110,18 @@ test("vision: only small real images, and the words beside the picture restate t
 
 test("the handler looks only when the workspace, the mode and the moment allow, and never fetches twice", () => {
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
-  assert.ok(wa.includes('n.type === "media" && n.media && rt?.features?.vision && isVisionMime(n.media.mime_type)'));
-  assert.ok(wa.includes('&& brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil'), "a held workspace or person gets the old path");
+  assert.ok(wa.includes('const maySee = n.type === "media" && !!n.media && !!rt?.features?.vision && isVisionMime(n.media.mime_type)'));
+  assert.ok(wa.includes('&& !!brainCfg && (replyMode === "auto" || replyMode === "veto") && Date.now() > thread.pausedUntil'), "a held workspace or person gets the old path");
   assert.ok(wa.includes("got.bytes.byteLength <= VISION_MAX_BYTES"));
-  assert.ok(wa.includes('if (!photo && (n.type !== "text" || !n.body)) {'), "the unreadable branch is skipped only when the photo was seen");
-  assert.ok(wa.includes("const media = photoTried ? Promise.resolve(null) : sink.media(n);"), "one download per photo");
-  assert.ok(wa.includes('const bodyText: string = photo ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");'), "the record keeps the caption, not the instruction");
+  assert.ok(wa.includes('if (!maySee && (n.type !== "text" || !n.body)) {'), "the unreadable branch is skipped only when the photo is one we may look at");
+  // The DECISION is made where the routing needs it; the DOWNLOAD waits until
+  // the cap, the budget, the billing pause and the mode have all agreed there
+  // will be a reply, so none of them pays 25MB for bytes it throws away.
+  assert.ok(wa.indexOf("const photo: { mime: string; base64: string } | null = null;") < 0, "the bytes are fetched, not declared and filled from two places");
+  assert.ok(wa.indexOf("if (maySee) {\n    const got = await sink.media(n);") > wa.indexOf('if (rt?.paused) {'), "the download sits below every gate that would discard it");
+  assert.ok((wa.match(/sink\.media\(n\)/g) ?? []).length === 2, "one download per message: the unreadable path's, or the vision path's");
+  assert.ok(wa.includes("await keepUnreadable(thread, pausedUntil, Promise.resolve(null));"), "a photo that could not be fetched is handed over, not answered from its caption");
+  assert.ok(wa.includes('const bodyText: string = maySee ? (n.media?.caption?.trim() || "[photo]") : (n.body ?? "");'), "the record keeps the caption, not the instruction");
   assert.ok(wa.includes("photo ? photoUserText(n.media?.caption) : bodyText,"));
   assert.ok(wa.includes("photo ?? undefined,\n      );"), "the image reaches the brain");
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("return got;"), "sink.media hands the bytes back");

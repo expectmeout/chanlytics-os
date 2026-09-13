@@ -44,7 +44,7 @@ const ingested = (n) => ({ message_id: "m-in", conversation_id: "conv1", contact
 /** The handler's world, recording everything that crosses it. */
 function world(over = {}) {
   const memory = new Map();
-  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0 };
+  const seen = { sent: [], escalations: [], alerts: [], pages: [], pauses: [], processed: 0, unreachable: 0, saved: 0, media: 0 };
   const rt = over.rt ?? runtime();
   const ports = {
     db: () => fakeDb({}),
@@ -73,7 +73,7 @@ function world(over = {}) {
         pause: async (iso) => { seen.pauses.push(iso); },
         usage: async () => {},
         escalate: async (reason, details) => { seen.escalations.push({ reason, details }); return "opened"; },
-        media: async () => null,
+        media: async () => { seen.media += 1; return over.media ?? null; },
       }),
       queueReply: async () => false,
     },
@@ -323,4 +323,55 @@ test("the pilot allowlist matches however the number is written", async () => {
   await other.run(text("hi"));
   assert.equal(other.seen.sent.length, 0, "and the list still gates everyone else");
   assert.equal(other.seen.processed, 1, "recorded and marked handled, as before");
+});
+
+const photo = (id = "wamid.pic", caption = undefined) => ({
+  from: FROM, id, type: "image", timestamp: String(Math.floor(Date.now() / 1000)),
+  image: { id: "media-1", mime_type: "image/jpeg", ...(caption ? { caption } : {}) },
+});
+
+test("a workspace that will not answer never pays to download the photo", async () => {
+  // The fetch ran above the gates: an 8s metadata call, up to 25MB with a 15s
+  // timeout, a storage upload and a base64 of the whole buffer — paid in full
+  // and then discarded by the branch that discovered billing had stopped.
+  const vision = { features: { vision: true } };
+  const paused = world({ rt: runtime({ ...vision, paused: true }) });
+  await paused.run(photo());
+  assert.deepEqual(paused.seen.escalations.map((e) => e.reason), ["paused"]);
+  assert.equal(paused.seen.media, 0, "nothing was downloaded for a reply that was never going to happen");
+
+  const capped = world({ rt: runtime({ ...vision, policy: { reply: { mode: "auto", limits: { max_replies_day: 0 } } } }) });
+  await capped.run(photo());
+  assert.deepEqual(capped.seen.escalations.map((e) => e.reason), ["rate_cap"]);
+  assert.equal(capped.seen.media, 0);
+
+  // And a workspace that WILL answer still gets its bytes.
+  const live = world({ rt: runtime(vision) });
+  await live.run(photo());
+  assert.equal(live.seen.media, 1);
+});
+
+test("a photo the receptionist meant to read and could not is handed over, never answered from the caption", async () => {
+  // The fetch used to sit above the routing, so a failed one fell into the
+  // unreadable branch through `!photo`. Below the gates that accident is gone
+  // and the handoff has to be said out loud — otherwise the model answers a
+  // question about a picture nobody saw.
+  const w = world({ rt: runtime({ features: { vision: true } }), media: null });
+  await w.run(photo("wamid.pic2", "is this shade too dark?"));
+  assert.equal(w.seen.media, 1, "it was attempted");
+  assert.deepEqual(w.seen.escalations.map((e) => e.reason), ["non_text"]);
+  assert.equal(w.seen.alerts[0].reason, "non-text message");
+  assert.equal(w.seen.processed, 1);
+  assert.equal(w.seen.sent.length, 1, "only the canned acknowledgement");
+  assert.deepEqual(w.seen.sent[0].meta, { ack: true });
+});
+
+test("an unreadable attachment still reaches storage, and a redelivery of it does not escalate twice", async () => {
+  const w = world();
+  const note = { from: FROM, id: "wamid.vn2", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a2", mime_type: "audio/ogg" } };
+  await w.run(note);
+  assert.equal(w.seen.media, 1, "the attachment is stored even though nobody may look at it");
+  await w.run(note);
+  assert.equal(w.seen.escalations.length, 1);
+  assert.equal(w.seen.alerts.length, 1);
 });
