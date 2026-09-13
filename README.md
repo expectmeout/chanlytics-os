@@ -15,7 +15,7 @@ something a member of the public will experience.
 
 | Path | What it is | Deployed as |
 |---|---|---|
-| `apps/edge` | The webhooks. WhatsApp inbound, three Retell endpoints, the job runner, diagnostics. Vanilla Vercel functions, no framework. | Vercel project `chanlytics-messaging` |
+| `apps/edge` | The webhooks. 41 endpoints: WhatsApp inbound, four Retell endpoints, Stripe, inbound SMS, 8 cron sweeps, the job runner, 22 key-guarded back-office doors, diagnostics. Vanilla Vercel functions, no framework. | Vercel project `chanlytics-messaging` |
 | `apps/dashboard` | Next.js 15 operator dashboard, and the `/api/v1` app plane. | Vercel project `chanlytics-os` |
 | `packages/*` | `contracts` (view models, zod config schema, enums), `db` (Supabase repositories), `channels` (WhatsApp + Retell adapters), `jobs` (scheduling + handlers). | bundled into both apps |
 | `supabase/migrations` | The schema. Postgres, RLS everywhere, `events` partitioned monthly. | Supabase project |
