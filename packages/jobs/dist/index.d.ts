@@ -39,6 +39,17 @@ declare const CLAIM_FOR_MS = 20000;
 declare const YIELD_AT_MS = 45000;
 /** Claims allowed for internal work before it is failed and reported. */
 declare const MAX_ATTEMPTS = 3;
+/**
+ * Fresh runs a broadcast may be handed before it is failed instead.
+ *
+ * MAX_ATTEMPTS cannot reach the resume: settleJob mints a NEW row, with its own
+ * attempts of one, so a broadcast whose run dies the same way every time would
+ * fail, resume, fail for ever — one owner alert and one new row per cycle. The
+ * count rides the payload and is reset by a run that got far enough to schedule
+ * its own next batch, so this bounds resumes THAT MADE NO PROGRESS, not the
+ * number of batches a long broadcast takes.
+ */
+declare const MAX_RESUMES = 5;
 /** Kinds whose second run could reach a real person a second time. */
 declare const SPEAKS_TO_A_PERSON: ReadonlySet<string>;
 declare const RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
@@ -207,8 +218,18 @@ interface Settled {
     changed: boolean;
     /** Why nothing could be written, when nothing could be. Never swallowed. */
     error?: string;
-    /** A broadcast mid-send was handed to a fresh run rather than failed: what it had reached, and what is left. */
+    /**
+     * The broadcast carries on. `changed` says whether THIS settlement is what
+     * handed it on: false means a run was already coming and nothing needed doing.
+     */
     resumed?: boolean;
+    /**
+     * The broadcast was marked failed INSTEAD of handed to a fresh run, and this
+     * is why. Separate from `error`, which means nothing could be written at all:
+     * reported as one, the owner reads "it may still show as sending" about a
+     * broadcast that is, in fact, marked failed.
+     */
+    notResumed?: string;
     reached?: number;
     remaining?: number;
 }
@@ -276,4 +297,4 @@ interface TickCounts {
 }
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, type JobContext, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, dispatchJob, failJob, runTick, saySettled, scheduleJob, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, type JobContext, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, dispatchJob, failJob, runTick, saySettled, scheduleJob, settleJob, upsertEscalation, verdictFor };

@@ -24,14 +24,20 @@ export async function eraseBlobThread(ports: EraseThreadPorts, cmd: EraseThreadC
   const failed: string[] = [];
   for (const id of ids) if (!(await ports.eraseThread(p.namespace, id))) failed.push(id);
   if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  // Same ledger as the owner's own erase decision, so one query tells the whole
+  // story — and written BEFORE the scrub, because the scrub is what makes this
+  // job un-retryable. Recorded after it, a run that scrubbed and then failed to
+  // record would come back, see `scrubbed`, return at the top, and finish with
+  // the erasure proven nowhere. A retry that records a second decision row is a
+  // duplicate in an audit trail, which is the better of the two.
+  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
   // The payload carried the customer's phone digits, because that IS the Blob
   // key. Once the objects are gone it is a durable copy of the identifier we
-  // were asked to erase, in a table whose rows are never deleted. Scrub it,
-  // but only on success: while the leg is outstanding, this payload is the
-  // only thing that can retry it. EVERY job row for this contact is scrubbed,
-  // not just this one, so an earlier crashed attempt does not keep the digits.
+  // were asked to erase, in a table whose rows are never deleted. Scrub it
+  // LAST, and only on success: while the leg is outstanding, this payload is
+  // the only thing that can retry it. EVERY job row for this contact is
+  // scrubbed, not just this one, so an earlier crashed attempt does not keep
+  // the digits.
   const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
   await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
-  // Same ledger as the owner's own erase decision, so one query tells the whole story.
-  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
 }

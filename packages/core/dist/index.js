@@ -15347,9 +15347,9 @@ async function eraseBlobThread(ports, cmd) {
   const failed = [];
   for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
   if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
   const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
   await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
-  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
 }
 
 // src/messages/provision-line.ts

@@ -38,6 +38,11 @@ export async function cancelJobsFor(
   payloadKey: string,
   payloadValue: string,
 ): Promise<number> {
+  // The key is concatenated into a PostgREST filter column, so it is held to a
+  // plain JSON key: a metacharacter in it (a comma, a dot, a bracket) would
+  // become a different filter — or an extra one — and widen the rows this
+  // cancels, rather than failing.
+  if (!/^[a-z][a-z0-9_]*$/.test(payloadKey)) throw new Error(`cancel_jobs_for: ${payloadKey} is not a payload key`);
   const { data, error } = await db
     .from("jobs")
     .update({ state: "canceled" })

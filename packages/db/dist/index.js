@@ -4923,7 +4923,7 @@ async function resolveOutboundTarget(db, p) {
     {
       tenant_id: p.tenantId,
       contact_id: contact.id,
-      last_message_at: (/* @__PURE__ */ new Date()).toISOString()
+      ...p.touch === false ? {} : { last_message_at: (/* @__PURE__ */ new Date()).toISOString() }
     },
     { onConflict: "tenant_id,contact_id" }
   ).select("id, paused_until").single();

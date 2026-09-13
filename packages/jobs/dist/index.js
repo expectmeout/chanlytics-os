@@ -11,6 +11,7 @@ async function scheduleJob(db, p) {
   return { jobId: data.id };
 }
 async function cancelJobsFor(db, tenantId, kind, payloadKey, payloadValue) {
+  if (!/^[a-z][a-z0-9_]*$/.test(payloadKey)) throw new Error(`cancel_jobs_for: ${payloadKey} is not a payload key`);
   const { data, error } = await db.from("jobs").update({ state: "canceled" }).eq("tenant_id", tenantId).eq("kind", kind).eq("state", "scheduled").eq(`payload->>${payloadKey}`, payloadValue).select("id");
   if (error) {
     console.error(JSON.stringify({ level: "error", event: "cancel_jobs_failed", tenant_id: tenantId, kind, error: error.message }));
@@ -19541,9 +19542,9 @@ async function eraseBlobThread(ports, cmd) {
   const failed = [];
   for (const id of ids) if (!await ports.eraseThread(p.namespace, id)) failed.push(id);
   if (failed.length) throw new Error(`blob_thread_erase: ${failed.length} thread(s) not deleted`);
+  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
   const scrubbed = { contact_id: p.contact_id ?? null, namespace: p.namespace, threads: ids.length, scrubbed: true };
   await ports.scrub(cmd.tenantId, p.contact_id ? { contactId: p.contact_id } : { jobId: cmd.jobId }, scrubbed);
-  if (p.contact_id) await ports.recordErased(cmd.tenantId, p.contact_id, ids.length, cmd.jobId);
 }
 async function provisionLine(ports, cmd) {
   const lineId = typeof cmd.payload.line_id === "string" ? cmd.payload.line_id : "";
@@ -24479,7 +24480,7 @@ async function resolveOutboundTarget(db, p) {
     {
       tenant_id: p.tenantId,
       contact_id: contact.id,
-      last_message_at: (/* @__PURE__ */ new Date()).toISOString()
+      ...p.touch === false ? {} : { last_message_at: (/* @__PURE__ */ new Date()).toISOString() }
     },
     { onConflict: "tenant_id,contact_id" }
   ).select("id, paused_until").single();
@@ -24498,6 +24499,17 @@ var NEG_TTL_MS2 = 60 * 1e3;
 var DAY_MS23 = 24 * 3600 * 1e3;
 
 // src/handlers.ts
+function must(what, r) {
+  if (r.error) throw new Error(`${what}: ${r.error.message}`);
+  return r.data;
+}
+async function countRecipients(db, tenantId, broadcastId, state) {
+  let q = db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId);
+  if (state) q = q.eq("state", state);
+  const { count, error } = await q;
+  if (error) throw new Error(`broadcast_send: cannot count ${state ?? "all"} recipients: ${error.message}`);
+  return count ?? 0;
+}
 async function outboundSend(ctx, job) {
   await sendQueued(
     {
@@ -24522,16 +24534,25 @@ async function blobThreadErase(ctx, job) {
   await eraseBlobThread(
     {
       eraseThread: ctx.eraseThread,
+      // A scrub that failed silently is the worst of both: the ledger row above
+      // says the erasure is done while the payload still holds the digits we
+      // were asked to erase, in a table whose rows are never deleted. It throws,
+      // so the job fails and the unscrubbed payload — the only handle that can
+      // retry this leg — is tried again.
       scrub: async (tenantId, by, scrubbed) => {
         const q = ctx.db.from("jobs").update({ payload: scrubbed });
-        if ("contactId" in by) await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId);
-        else await q.eq("id", by.jobId);
+        must("blob_thread_erase: the erased number is still on the job", "contactId" in by ? await q.eq("tenant_id", tenantId).eq("kind", "blob_thread_erase").eq("payload->>contact_id", by.contactId) : await q.eq("id", by.jobId));
       },
       // actor_type 'system' with a null actor_user_id is what decisions_check
-      // requires; the service role is not subject to RLS here.
+      // requires; the service role is not subject to RLS here. An erasure whose
+      // ledger row was refused is an erasure nobody can prove, so it throws too.
       recordErased: async (tenantId, contactId, threads, jobId) => {
-        await ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } });
-        await ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } });
+        const [decided, evented] = await Promise.all([
+          ctx.db.from("decisions").insert({ tenant_id: tenantId, subject_type: "contact", subject_id: contactId, verb: "erase", actor_type: "system", payload: { leg: "blob", threads, job_id: jobId } }),
+          ctx.db.from("events").insert({ tenant_id: tenantId, kind: "contact.blob_erased", category: "contact", subject_type: "contact", subject_id: contactId, data: { threads } })
+        ]);
+        must("blob_thread_erase: the erasure is not on the decisions ledger", decided);
+        must("blob_thread_erase: the erasure is not in the events", evented);
       }
     },
     { tenantId: job.tenant_id, jobId: job.id, payload: job.payload }
@@ -24546,7 +24567,11 @@ async function upsertEscalation(db, tenantId, conversationId, reason, details) {
   });
   if (!error) return "opened";
   if (error.code === "23505") {
-    await db.from("escalations").update({ details, reason }).eq("conversation_id", conversationId).eq("state", "open");
+    const { error: refreshErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
+    if (refreshErr) {
+      console.error("escalation_refresh_failed", refreshErr.message);
+      return "failed";
+    }
     return "refreshed";
   }
   console.error("escalation_upsert_failed", error.message);
@@ -24562,33 +24587,41 @@ async function broadcastSend(ctx, job) {
         if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
         return data;
       },
+      // The billing gate, so it fails CLOSED: a tenants row that cannot be read
+      // is not a workspace that is paying.
       workspacePaused: async () => {
-        const { data } = await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle();
-        return data?.status === "paused";
+        const row = must("broadcast_send: cannot read the workspace's status", await db.from("tenants").select("status").eq("id", job.tenant_id).maybeSingle());
+        return row?.status === "paused";
       },
       fail: async (id, failure) => {
-        await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id);
+        must("broadcast_send: cannot mark the broadcast failed", await db.from("broadcasts").update({ state: "failed", failure, finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id));
       },
       startSending: async (id) => {
-        await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("state", "scheduled");
+        must("broadcast_send: cannot start the broadcast", await db.from("broadcasts").update({ state: "sending", started_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "scheduled"));
       },
       // `category` is Meta's verdict on what kind of message this is, and it
-      // decides which consent the send needs.
+      // decides which consent the send needs. A template that cannot be READ is
+      // not a template Meta withdrew: null here fails the whole broadcast and
+      // emails the owner that WhatsApp rejected it, which would be a lie about
+      // their Meta account told over a statement timeout.
       template: async (name, language) => {
-        const { data } = await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
-        return data ?? null;
+        return must(`broadcast_send: cannot read template ${name}`, await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle());
       },
+      // An empty business name is not a fallback: it resolves to an empty slot,
+      // and the verb marks everyone in the batch permanently "missing_value".
       facts: async () => {
-        const [{ data: tenantRow }, { data: cfgRow }] = await Promise.all([
+        const [tenantRes, cfgRes] = await Promise.all([
           db.from("tenants").select("name").eq("id", job.tenant_id).maybeSingle(),
           db.from("tenant_config").select("config").eq("tenant_id", job.tenant_id).maybeSingle()
         ]);
+        const tenantRow = must("broadcast_send: cannot read the workspace", tenantRes);
+        const cfgRow = must("broadcast_send: cannot read the workspace's settings", cfgRes);
         const parsedCfg = parseTenantConfig(cfgRow?.config ?? null);
         const businessName = parsedCfg?.brain?.business_name || tenantRow?.name || "";
         return { businessName, bookingLink: parsedCfg?.brain?.booking_link ?? null };
       },
       batch: async (id, limit) => {
-        const { data, error } = await db.from("broadcast_recipients").select("contact_id, facts").eq("broadcast_id", id).eq("state", "queued").limit(limit);
+        const { data, error } = await db.from("broadcast_recipients").select("contact_id, facts").eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("state", "queued").limit(limit);
         if (error) throw new Error(`broadcast_send: cannot read recipients: ${error.message}`);
         return data ?? [];
       },
@@ -24597,37 +24630,46 @@ async function broadcastSend(ctx, job) {
         if (error) throw new Error(error.message);
         return data;
       },
-      target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false }),
+      // create: false — a broadcast never opens a contact. touch: false — the
+      // door below still has to refuse some of these people, and a thread they
+      // were not messaged in has nothing new in it.
+      target: (phoneE164) => resolveOutboundTarget(db, { tenantId: job.tenant_id, phoneE164, create: false, touch: false }),
       // The message a dying run left this person: written by deliver after the
-      // wire accepted it, with this broadcast's id in its meta.
+      // wire accepted it, with this broadcast's id in its meta. It is the one
+      // check standing between a resumed run and a second WhatsApp template to
+      // the same person, so a read that FAILED must never come back as "no,
+      // they have not been messaged".
       alreadySent: async (id, contactId) => {
-        const { data } = await db.from("messages").select("id").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle();
-        return data?.id ?? null;
+        const row = must("broadcast_send: cannot check what this person was already sent", await db.from("messages").select("id").eq("tenant_id", job.tenant_id).eq("contact_id", contactId).filter("meta->>broadcast_id", "eq", id).in("status", ["sent", "delivered", "read"]).limit(1).maybeSingle());
+        return row?.id ?? null;
       },
       mark: async (id, contactId, patch) => {
-        await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("broadcast_id", id).eq("contact_id", contactId);
+        must("broadcast_send: cannot record how this person's send went", await db.from("broadcast_recipients").update({ ...patch, sent_at: patch.state === "sent" ? (/* @__PURE__ */ new Date()).toISOString() : null }).eq("tenant_id", job.tenant_id).eq("broadcast_id", id).eq("contact_id", contactId));
       },
       deliver: (d) => deliver({ db, wire: ctx.wire }, d),
-      remaining: async (id) => {
-        const { count, error } = await db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("broadcast_id", id).eq("state", "queued");
-        if (error) throw new Error(`broadcast_send: cannot count the rest: ${error.message}`);
-        return count ?? 0;
-      },
+      remaining: (id) => countRecipients(db, job.tenant_id, id, "queued"),
+      // Read by the verb as "is this broadcast still wanted"; null is how a
+      // cancel reads, so a failed read here would abandon a half-sent broadcast
+      // with nothing scheduled, nothing failed and nobody told.
       state: async (id) => {
-        const { data } = await db.from("broadcasts").select("state").eq("id", id).maybeSingle();
-        return data?.state ?? null;
+        const row = must("broadcast_send: cannot read whether the broadcast is still wanted", await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle());
+        return row?.state ?? null;
       },
       scheduleNext: async (id) => {
         await ctx.schedule("broadcast_send", /* @__PURE__ */ new Date(), { broadcast_id: id });
       },
+      // This tally is written to the permanent record and read out to the owner,
+      // so it is counted rather than tallied from a page of rows.
       tally: async (id) => {
-        const { data } = await db.from("broadcast_recipients").select("state").eq("broadcast_id", id);
-        const sent = (data ?? []).filter((t) => t.state === "sent").length;
-        return { sent, held: (data ?? []).length - sent };
+        const [all, sent] = await Promise.all([
+          countRecipients(db, job.tenant_id, id),
+          countRecipients(db, job.tenant_id, id, "sent")
+        ]);
+        return { sent, held: all - sent };
       },
       finish: async (id, tally) => {
-        await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("state", "sending");
-        await db.from("events").insert({ tenant_id: job.tenant_id, kind: "broadcast.sent", category: "message", subject_type: "broadcast", subject_id: id, data: tally });
+        must("broadcast_send: cannot close the broadcast", await db.from("broadcasts").update({ state: "sent", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", id).eq("tenant_id", job.tenant_id).eq("state", "sending"));
+        must("broadcast_send: cannot record the broadcast's tally", await db.from("events").insert({ tenant_id: job.tenant_id, kind: "broadcast.sent", category: "message", subject_type: "broadcast", subject_id: id, data: tally }));
       },
       alert: ctx.alert,
       now: Date.now,
@@ -24657,6 +24699,7 @@ var LEASE_SECONDS = 90;
 var CLAIM_FOR_MS = 2e4;
 var YIELD_AT_MS = 45e3;
 var MAX_ATTEMPTS = 3;
+var MAX_RESUMES = 5;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
 var RUN_INTERRUPTED = "the run did not finish; its outcome is unknown";
 function verdictFor(job) {
@@ -24689,6 +24732,23 @@ function idFrom(payload, key) {
   const v = payload[key];
   return typeof v === "string" ? v : null;
 }
+function resumesOf(payload) {
+  if (typeof payload !== "object" || payload === null) return 0;
+  const v = payload.resumes;
+  return typeof v === "number" && Number.isFinite(v) && v > 0 ? Math.floor(v) : 0;
+}
+async function howFar(db, tenantId, broadcastId) {
+  const of = (state) => db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("tenant_id", tenantId).eq("broadcast_id", broadcastId).eq("state", state);
+  const [sent, queued] = await Promise.all([of("sent"), of("queued")]);
+  const error = sent.error?.message ?? queued.error?.message;
+  return { reached: sent.count ?? 0, remaining: queued.count ?? 0, ...error ? { error } : {} };
+}
+async function failBroadcast(db, job, broadcastId, why, far) {
+  const { data, error } = await db.from("broadcasts").update({ state: "failed", failure: "run_interrupted", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).in("state", ["scheduled", "sending"]).select("id");
+  if (error) return [{ what: "broadcast", changed: false, ...far, error: `${why}; then ${error.message}` }];
+  if (!data?.length) return [{ what: "broadcast", changed: false, ...far }];
+  return [{ what: "broadcast", changed: true, notResumed: why, ...far }];
+}
 async function settleJob(db, job, certain) {
   const reason = certain ? "never_delivered" : "run_interrupted";
   if (job.kind === "outbound_send") {
@@ -24702,17 +24762,20 @@ async function settleJob(db, job, certain) {
     if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
     const { data: row, error: readErr } = await db.from("broadcasts").select("id, state").eq("id", broadcastId).eq("tenant_id", job.tenant_id).maybeSingle();
     if (readErr) return [{ what: "broadcast", changed: false, error: readErr.message }];
-    if (!row || row.state !== "sending") return [{ what: "broadcast", changed: false }];
-    const { data: people } = await db.from("broadcast_recipients").select("state").eq("broadcast_id", broadcastId);
-    const reached = (people ?? []).filter((p) => p.state === "sent").length;
-    const remaining = (people ?? []).filter((p) => p.state === "queued").length;
+    if (!row || row.state !== "sending" && row.state !== "scheduled") return [{ what: "broadcast", changed: false }];
+    const far = await howFar(db, job.tenant_id, broadcastId);
+    if (far.error) return [{ what: "broadcast", changed: false, error: far.error }];
+    const { reached, remaining } = far;
+    const live = await db.from("jobs").select("id", { count: "exact", head: true }).eq("tenant_id", job.tenant_id).eq("kind", "broadcast_send").eq("payload->>broadcast_id", broadcastId).in("state", ["scheduled", "fired"]).neq("id", job.id);
+    if (live.error) return [{ what: "broadcast", changed: false, reached, remaining, error: live.error.message }];
+    if ((live.count ?? 0) > 0) return [{ what: "broadcast", changed: false, resumed: true, reached, remaining }];
+    const resumes = resumesOf(job.payload);
+    if (resumes >= MAX_RESUMES) return failBroadcast(db, job, broadcastId, `${resumes} fresh runs in a row did not finish`, { reached, remaining });
     try {
-      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: /* @__PURE__ */ new Date(), payload: { broadcast_id: broadcastId } });
+      await scheduleJob(db, { tenantId: job.tenant_id, kind: "broadcast_send", dueAt: /* @__PURE__ */ new Date(), payload: { broadcast_id: broadcastId, resumes: resumes + 1 } });
       return [{ what: "broadcast", changed: true, resumed: true, reached, remaining }];
     } catch (e) {
-      const { data, error } = await db.from("broadcasts").update({ state: "failed", finished_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", broadcastId).eq("tenant_id", job.tenant_id).eq("state", "sending").select("id");
-      const why = e instanceof Error ? e.message : String(e);
-      return [{ what: "broadcast", changed: !!data?.length, reached, remaining, error: error ? `${why}; then ${error.message}` : why }];
+      return failBroadcast(db, job, broadcastId, e instanceof Error ? e.message : String(e), { reached, remaining });
     }
   }
   return [];
@@ -24722,8 +24785,10 @@ function saySettled(results) {
   for (const r of results) {
     if (r.error) {
       lines.push(r.what === "message" ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.` : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
-    } else if (r.changed && r.resumed) {
-      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Nobody is sent it twice.`);
+    } else if (r.resumed) {
+      lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`);
+    } else if (r.changed && r.notResumed) {
+      lines.push(`The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
     } else if (r.changed) {
       lines.push(r.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : `The broadcast has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
     }
@@ -24809,6 +24874,7 @@ async function conclude(ports, job, reason, certain, subject, lead) {
     const settled = await ports.settle(job, certain);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
+      else if (s.notResumed) ports.log.warn("broadcast_not_resumed", { job_id: job.id, tenant_id: job.tenant_id, reason: s.notResumed });
     }
     wreckage = saySettled(settled);
   } catch (e) {
@@ -24828,6 +24894,7 @@ export {
   CLAIM_FOR_MS,
   LEASE_SECONDS,
   MAX_ATTEMPTS,
+  MAX_RESUMES,
   RUN_INTERRUPTED,
   SPEAKS_TO_A_PERSON,
   YIELD_AT_MS,

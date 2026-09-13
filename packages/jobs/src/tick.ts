@@ -138,6 +138,9 @@ async function conclude(
     const settled = await ports.settle(job, certain);
     for (const s of settled) {
       if (s.error) ports.log.error("job_settle_failed", { job_id: job.id, what: s.what, error: s.error });
+      // Written, but not the write that was wanted: the broadcast is failed
+      // rather than carried on, and why is worth a line of its own.
+      else if (s.notResumed) ports.log.warn("broadcast_not_resumed", { job_id: job.id, tenant_id: job.tenant_id, reason: s.notResumed });
     }
     wreckage = saySettled(settled);
   } catch (e) {
