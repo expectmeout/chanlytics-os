@@ -25,7 +25,7 @@
 import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { notify } from "../../lib/notify.js";
+import { notify, reachesTenant } from "../../lib/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
 import { logger, errField } from "../../lib/log.js";
 
@@ -92,10 +92,16 @@ export async function POST(request: Request): Promise<Response> {
         },
       );
 
-      // Only a DELIVERED warning earns the once-guard. If the alert failed, the
-      // next tick tries again rather than marking the customer as handled.
-      if (delivered) alerted.push(c.escalation_id);
-      else L.warn("deadman_alert_undelivered", { tenant_id: c.tenant_id, escalation: c.escalation_id });
+      // Only a warning that DELIVERED, and delivered to this workspace's own
+      // people, earns the once-guard. A tenant with no recipients configured
+      // gets the redacted platform note instead — which sends fine, and told
+      // the owner nothing; stamping on it spent the single re-raise (nothing
+      // ever clears deadman_alerted_at) on a customer still waiting. If either
+      // half is missing, the next tick tries again rather than marking the
+      // customer as handled.
+      const reached = reachesTenant({ tenantId: c.tenant_id, ...addressing.get(c.tenant_id)! });
+      if (delivered && reached) alerted.push(c.escalation_id);
+      else L.warn("deadman_alert_undelivered", { tenant_id: c.tenant_id, escalation: c.escalation_id, delivered, reached });
     } catch (e) {
       L.error("deadman_candidate_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: errField(e) });
     }

@@ -209,7 +209,13 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
     details = await readPlace(key, row.place_id);
   } catch (e) {
     const error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
-    const { error: upErr } = await db.from("google_listings").update({ check_error: error }).eq("tenant_id", row.tenant_id);
+    // Stamped even though it FAILED. The due query orders on checked_at nulls
+    // first, so a listing Google no longer serves — a retired place_id, a
+    // revoked grant — kept its old stamp, sat at the head of the page every
+    // hour and, once there were forty of them, took the whole tick from the
+    // listings that were fine. The error on the row is what says it failed;
+    // the stamp only says when it was last tried.
+    const { error: upErr } = await db.from("google_listings").update({ check_error: error, checked_at: now.toISOString() }).eq("tenant_id", row.tenant_id);
     if (upErr) throw new Error(upErr.message);
     L.warn("google_check_failed", { error });
     return { ok: false, error };
@@ -498,7 +504,10 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string) => {
-    const { error: upErr } = await db.from("google_connections").update({ sync_error: error.slice(0, 300) }).eq("tenant_id", conn.tenant_id);
+    // Stamped even though it FAILED — same rotation rule as checkListing: a
+    // connection whose token was revoked keeps failing, and without a stamp it
+    // holds a slot at the head of every hour's page for ever.
+    const { error: upErr } = await db.from("google_connections").update({ sync_error: error.slice(0, 300), last_synced_at: now.toISOString() }).eq("tenant_id", conn.tenant_id);
     if (upErr) throw new Error(upErr.message);
     L.warn("google_profile_sync_failed", { error });
     return { ok: false as const, error };

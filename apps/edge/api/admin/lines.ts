@@ -122,15 +122,26 @@ export async function POST(request: Request): Promise<Response> {
   // Chanlytics' Twilio account: a number is $1.15 a month for as long as it is
   // held, a registration is $19.50 one time and non-refundable.
   //
-  // `refile` is deliberately exempt: it corrects a filing already paid for and
-  // costs nothing (a campaign edit, not a replacement), and a workspace whose
-  // card lapsed mid-review must still be able to answer the carriers.
-  if (op === "buy" || (op === "register" && body.refile !== true)) {
+  // `refile` was exempted wholesale, on the premise that it corrects a filing
+  // already paid for. That is true of exactly ONE of its three paths. A refile
+  // of a REHEARSAL files the workspace's first real brand and campaign
+  // ($19.50, non-refundable), and `refile` with `replace` deletes the refused
+  // campaign and files a new one (a second vetting fee, about $15); only the
+  // in-place resubmit of a rejected campaign is the free edit the premise
+  // describes. So the gate is not a question about a flag any more — it is
+  // asked below, in the register branch, where the ROW says what the filing
+  // will actually be.
+  const refuseIfCannotSpend = async (): Promise<Response | null> => {
     const bill = await db.from("billing_accounts").select("mode, status").eq("tenant_id", tenantId).maybeSingle();
     if (bill.error) return json(503, { ok: false, error: bill.error.message });
     if (!bill.data) return json(402, { ok: false, error: "no_billing_record" });
     const why = whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus);
     if (why) return json(402, { ok: false, error: "payment_required", detail: why, status: bill.data.status });
+    return null;
+  };
+  if (op === "buy") {
+    const refused = await refuseIfCannotSpend();
+    if (refused) return refused;
   }
 
   if (op === "buy") {
@@ -339,6 +350,14 @@ export async function POST(request: Request): Promise<Response> {
     // refusal an edit cannot reach (the opt-in message and its keywords), and a
     // second vetting fee, so never implied by `refile` alone.
     const replace = body.replace === true;
+    // What this filing will COST, read off the row rather than the flag: a
+    // first filing, a rehearsal made real, or a refused campaign replaced all
+    // land a charge on Chanlytics' account for a workspace that may be on a
+    // billing hold. The rejected-campaign resubmit is the one that does not.
+    if (!refile || row.data.reg_mock === true || replace) {
+      const refused = await refuseIfCannotSpend();
+      if (refused) return refused;
+    }
     const rec = await db.from("business_records").select("*").eq("tenant_id", tenantId).maybeSingle();
     if (rec.error) return json(503, { ok: false, error: rec.error.message });
     if (!rec.data) {

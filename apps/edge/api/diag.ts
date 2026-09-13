@@ -30,7 +30,10 @@ export async function GET(request: Request): Promise<Response> {
     memory: process.env.PG_READS === "on" ? "postgres" : storeBackend() === "off" ? "none" : "blob",
     env: {
       pgReads: process.env.PG_READS === "on",
+      // Retired as a switch (lib/pg.ts): reported because an operator who
+      // has read the old runbook will look for it, honoured by nothing.
       pgWrites: process.env.PG_WRITES === "on",
+      database: !!process.env.SUPABASE_URL && !!process.env.SUPABASE_SERVICE_ROLE_KEY,
       blobToken: !!process.env.BLOB_READ_WRITE_TOKEN,
       anthropic: !!process.env.ANTHROPIC_API_KEY,
       waToken: !!process.env.WHATSAPP_ACCESS_TOKEN,
@@ -71,7 +74,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const db = pg();
     if (!db) {
-      out.sweeps = { unavailable: "no database client (PG_WRITES is not 'on')" };
+      out.sweeps = { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" };
     } else {
       const { data, error } = await db.rpc("sweep_health");
       if (error) {
@@ -96,7 +99,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const db = pg();
     if (!db) {
-      out.pages = { unavailable: "no database client (PG_WRITES is not 'on')" };
+      out.pages = { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" };
     } else {
       const { data, error } = await db.from("operator_pages").select("key, first_at, last_at, count, alerted_at").order("last_at", { ascending: false });
       if (error) {
@@ -120,7 +123,7 @@ export async function GET(request: Request): Promise<Response> {
   try {
     const db = pg();
     if (!db) {
-      out.numbers = { unavailable: "no database client (PG_WRITES is not 'on')" };
+      out.numbers = { unavailable: "no database client (SUPABASE_URL / SUPABASE_SERVICE_ROLE_KEY)" };
     } else {
       const { data, error } = await db.rpc("number_drift");
       if (error) {

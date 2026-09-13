@@ -31,16 +31,24 @@ export async function POST(request: Request): Promise<Response> {
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
-  // Every line the carriers still hold, oldest first, so a backlog drains in
-  // order. BOTH waiting states: a line that reaches "approved" is still
-  // waiting on the last check, and filtering on "registering" alone meant it
-  // was never asked about again and could never become active.
+  // Every line the carriers still hold, LEAST RECENTLY ASKED ABOUT first, so a
+  // backlog drains in order. BOTH waiting states: a line that reaches
+  // "approved" is still waiting on the last check, and filtering on
+  // "registering" alone meant it was never asked about again and could never
+  // become active.
+  //
+  // On `updated_at` rather than `state_since`: a brand in review sits in one
+  // state for days and `state_since` deliberately does not move until the
+  // state does (Setup reads it to say how long the carriers have had it), so
+  // ordering on it meant the same twenty rows held the page every hour and a
+  // twenty-first line was never asked about at all. Every read of a line
+  // writes the row, so `updated_at` is exactly "when we last asked".
   const { data: lines, error } = await db
     .from("lines")
     .select("*")
     .in("sms_state", WAITING)
     .not("brand_sid", "is", null)
-    .order("state_since", { ascending: true })
+    .order("updated_at", { ascending: true })
     .limit(MAX_PER_TICK);
   if (error) return json(503, { ok: false, error: error.message });
   if (!lines?.length) return json(200, { ok: true, checked: 0 });

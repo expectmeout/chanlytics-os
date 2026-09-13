@@ -30,6 +30,9 @@ import { planCallStart } from "../lib/call-start.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
 
+/** How long the unroutable alert may hold the answer. Retell's own ceiling is ten seconds. */
+const ALERT_BUDGET_MS = 3_000;
+
 export async function POST(request: Request): Promise<Response> {
   if (new URL(request.url).searchParams.get("key") !== process.env.RETELL_FN_SECRET) {
     return json(401, { ok: false });
@@ -54,9 +57,22 @@ export async function POST(request: Request): Promise<Response> {
   // The platform is told, as it is for a text: a call answered with no facts
   // is a customer nobody knows about. Suppressed per agent for fifteen minutes
   // inside alertUnroutable, which is why the judgement says whether they are
-  // told rather than telling them. Never waited for -- Retell gives this
-  // webhook ten seconds.
-  if (start.alert) void alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {});
+  // told rather than telling them.
+  //
+  // WAITED FOR, up to three seconds. It was fired and forgotten because Retell
+  // gives this webhook ten -- but a serverless invocation is frozen the moment
+  // it answers, and nothing here registers a waitUntil, so the send was
+  // abandoned mid-flight. Worse, alertUnroutable claims its fifteen-minute
+  // window BEFORE sending and gives it back only on a failure it never lived
+  // to see: the alarm was neither sent nor re-armed. The race keeps the
+  // provider's budget while making the common case -- a Resend POST, well
+  // under a second -- actually happen.
+  if (start.alert) {
+    await Promise.race([
+      alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {}),
+      new Promise((r) => setTimeout(r, ALERT_BUDGET_MS)),
+    ]);
+  }
 
   L.info("retell_inbound", { facts: start.facts, memory: start.memory, facts_chars: start.variables.business_facts.length });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });

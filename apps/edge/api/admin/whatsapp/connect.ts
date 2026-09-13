@@ -52,7 +52,16 @@ export async function POST(request: Request): Promise<Response> {
     console.log(event, JSON.stringify({ tenant: tenantId, phone_number_id: phoneNumberId, waba_id: wabaId, ...extra }));
 
   // A number already connected to another workspace is not connected twice.
-  const { data: taken } = await db.from("tenant_channels").select("id, tenant_id").eq("kind", "whatsapp").eq("external_id", phoneNumberId).maybeSingle();
+  // The ERROR is read, not just the row: (kind, external_id) is unique, so the
+  // upsert below is an UPDATE of whatever row holds this number — including
+  // another workspace's, whose tenant_id and Vault token it would rewrite. A
+  // read that failed says nothing about who holds the number, and treating it
+  // as "nobody" is how a pooler blip moved a live number between workspaces.
+  const { data: taken, error: takenErr } = await db.from("tenant_channels").select("id, tenant_id").eq("kind", "whatsapp").eq("external_id", phoneNumberId).maybeSingle();
+  if (takenErr) {
+    log("wa_connect_channel_read_failed", { error: takenErr.message });
+    return json(503, { ok: false, error: "channel_read_failed" });
+  }
   if (taken && taken.tenant_id !== tenantId) {
     log("wa_connect_number_taken");
     return json(409, { ok: false, error: "number_taken" });
@@ -108,14 +117,30 @@ export async function POST(request: Request): Promise<Response> {
     connected_by: userId,
     registration,
   };
-  const { data: row, error: upErr } = await db
+  // Scoped to THIS workspace on the way in, so the write cannot cross a tenant
+  // even if the read above was answered wrongly: the update touches only a row
+  // this workspace already owns, and the insert that follows a miss trips the
+  // unique index (23505) when the number belongs to someone else.
+  const fields = { tenant_id: tenantId, kind: "whatsapp" as const, external_id: phoneNumberId, number_e164: e164, waba_id: wabaId, status: "active", config: config as unknown as Json };
+  const mine = await db
     .from("tenant_channels")
-    .upsert(
-      { tenant_id: tenantId, kind: "whatsapp", external_id: phoneNumberId, number_e164: e164, waba_id: wabaId, status: "active", config: config as unknown as Json },
-      { onConflict: "kind,external_id" },
-    )
+    .update(fields)
+    .eq("kind", "whatsapp")
+    .eq("external_id", phoneNumberId)
+    .eq("tenant_id", tenantId)
     .select("id")
-    .single();
+    .maybeSingle();
+  let row = mine.data;
+  let upErr = mine.error;
+  if (!upErr && !row) {
+    const made = await db.from("tenant_channels").insert(fields).select("id").single();
+    if (made.error?.code === "23505") {
+      log("wa_connect_number_taken", { at: "insert" });
+      return json(409, { ok: false, error: "number_taken" });
+    }
+    row = made.data;
+    upErr = made.error;
+  }
   if (upErr || !row) {
     log("wa_connect_channel_write_failed", { error: upErr?.message });
     return json(500, { ok: false, error: "channel_write_failed" });

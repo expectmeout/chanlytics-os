@@ -144,7 +144,7 @@ test("the wiring: the migration, the webhook proves it, the routes are owner-onl
     "Your receptionist has no line to forward to yet.",
   ]) assert.ok(mig.includes(pin), pin);
   const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes('void markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });'), "every inbound delivery may be the test call");
+  assert.ok(hook.includes('await markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });'), "every inbound delivery may be the test call, and it is awaited so a frozen invocation cannot drop it");
   const edge = readCode("apps/edge/lib/forwarding.ts");
   assert.ok(edge.includes("if (!forwardingMatch(facts, call)) continue;") && edge.includes('.eq("forwarding_state", "instructed")'), "the contracts' rule, and a guarded update");
   assert.ok(edge.includes("Forwarding works: calls to ${kept} reach your receptionist"), "the bell says so");

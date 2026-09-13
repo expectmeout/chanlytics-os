@@ -59,9 +59,11 @@ export async function POST(request: Request): Promise<Response> {
   if (verdict.kind === "refuse") {
     if (verdict.level === "error") L.error(verdict.log);
     else L.warn(verdict.log);
-    // Suppressed per number for fifteen minutes inside alertUnroutable, which
-    // is why the decision above returns the sentence rather than sending it.
-    if (verdict.alert) await alertUnroutable("sms", inbound.to, 1, verdict.alert);
+    // Suppressed for fifteen minutes inside alertUnroutable, by the key the
+    // verdict names -- the number for a refusal about a line we know, a
+    // constant for one that could not be authenticated at all. That is why the
+    // decision above returns the sentence rather than sending it.
+    if (verdict.alert) await alertUnroutable("sms", verdict.alertKey ?? inbound.to, 1, verdict.alert);
     return twiml(verdict.status);
   }
 

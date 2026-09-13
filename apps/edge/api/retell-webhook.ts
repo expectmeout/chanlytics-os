@@ -142,6 +142,12 @@ export async function POST(request: Request): Promise<Response> {
   // before, so nothing moves until it is set.
   const signature = request.headers.get("x-retell-signature");
   const webhookKey = process.env.RETELL_WEBHOOK_KEY || process.env.RETELL_API_KEY;
+  if (!process.env.RETELL_WEBHOOK_KEY) {
+    // Named, every delivery, so the one configuration step that stands between
+    // this door and a real signature is not a thing someone has to already
+    // know. The API key is tried underneath, as before.
+    console.warn("retell_webhook_key_unset", JSON.stringify({ trying: "RETELL_API_KEY", fix: "set RETELL_WEBHOOK_KEY to the badged key" }));
+  }
   const sigRaw = verifyRetellSignature(raw, signature, webhookKey);
   let restringified: string | null = null;
   try { restringified = JSON.stringify(JSON.parse(raw)); } catch { /* not JSON: nothing to re-serialise */ }
@@ -156,9 +162,28 @@ export async function POST(request: Request): Promise<Response> {
   // should be the only credential. Which one passed is logged on every
   // event so the key can be retired once a real delivery proves the
   // signature verifies against the key this deployment holds.
-  const keyOk = new URL(request.url).searchParams.get("key") === process.env.RETELL_FN_SECRET;
+  //
+  // Two things this key is NOT allowed to be: absent, and the signature's
+  // replacement forever. A blank RETELL_FN_SECRET with `?key=` on the URL
+  // compared "" with "" and opened the door, so an empty variable — the shape
+  // a rotation leaves behind for a moment — admitted anyone. And because the
+  // same secret opens /api/retell-fn (which texts a template on the tenant's
+  // own WhatsApp credentials), a leaked webhook URL is not only a forged
+  // call. RETIRING IT IS AN OPS STEP FIRST, IN THIS ORDER: set
+  // RETELL_WEBHOOK_KEY to the badged key, watch /api/diag's retellAuth for a
+  // delivery with sig:true, re-converge the agents onto a webhook_url with no
+  // query string, and only then delete these three lines. Deleting them while
+  // the signature still fails takes every live call's webhook with it.
+  const urlKey = process.env.RETELL_FN_SECRET;
+  const keyOk = !!urlKey && new URL(request.url).searchParams.get("key") === urlKey;
   console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk, key: keyOk }));
-  void recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });
+  // AWAITED, not fired and forgotten. A serverless invocation is frozen when it
+  // answers and nothing in this app registers a waitUntil, so an un-awaited
+  // insert only lands if another delivery happens to thaw the instance in
+  // time. On the 401 below there is nothing after it at all, which is how the
+  // rejected deliveries — the ones that would say "Retell cannot get in" —
+  // left no evidence whatsoever. It is one insert, and it never throws.
+  await recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });
   if (!sigOk && !keyOk) {
     return json(401, { ok: false, error: "unauthorized" });
   }
@@ -219,13 +244,22 @@ export async function POST(request: Request): Promise<Response> {
         if (res.call_id) callAbout = { type: "call", id: res.call_id };
         // Keep my number, proven: an inbound call inside a forwarded line's
         // test window. Idempotent, and never in the way of the delivery.
-        if (res.call_id && n.direction === "inbound") void markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });
+        // Awaited for the same reason as the auth row: a call_started that
+        // reaches the answer with nothing else to do is frozen before this
+        // lands, and the owner's Setup page then says "Testing —" through the
+        // whole call it was waiting for. Outside an open test window it is one
+        // select that returns nothing.
+        if (res.call_id && n.direction === "inbound") await markForwardingVerified(db, routed.tenantId, { fromE164: n.fromE164, toE164: n.toE164, startedAtIso: n.startedAtIso, callId: res.call_id });
         if (res.skipped) {
           // Older than the row: a retried call_started after call_ended, or a
           // partial transcript after the final one. Nothing was written.
           console.log("retell_event_stale", event, n.retellCallId);
         }
-        void recordDelivery(db, routed.tenantId, res.call_id ?? null, {
+        // Awaited: this row IS /api/diag's answer to "what did the provider
+        // actually send", and the deliveries it was written for — call_started
+        // and the per-turn transcript updates — are exactly the ones with no
+        // awaited work after them, so they were the ones it never recorded.
+        await recordDelivery(db, routed.tenantId, res.call_id ?? null, {
           event: event ?? null,
           call_status: call.call_status ?? null,
           status: n.status,

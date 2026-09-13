@@ -65,7 +65,15 @@ export async function POST(request: Request): Promise<Response> {
       out[r.outcome] += 1;
     }
   }
-  const backlog = await noteBacklog(db, "playbooks", page.remaining);
+  // Left behind only if this tick had no room. `remaining` counts RUNNING
+  // playbooks past the page, and due-ness is judged here, in the tenant's own
+  // zone, after paging — so a deployment with twenty-six daily playbooks
+  // reported five left behind every hour, including the twenty-three hours
+  // when none of them was due, and from the third tick called itself broken
+  // and paged the platform. A page that was not filled by due work starved
+  // nobody.
+  const saturated = out.due >= PLAYBOOKS_PER_TICK;
+  const backlog = await noteBacklog(db, "playbooks", saturated ? page.remaining : 0);
   L.info("playbooks_swept", { ...out, backlog_ticks: backlog.ticks });
   // Three consecutive ticks with playbooks left unread is a campaign nobody
   // sent. sweep_health turns that red and mails the platform.

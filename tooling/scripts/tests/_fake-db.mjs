@@ -28,6 +28,14 @@ function cell(row, col) {
     const v = row[base];
     return v && typeof v === "object" ? v[key] : undefined;
   }
+  // `config->calendar`, the OBJECT at a key rather than its text. What "has a
+  // calendar at all" is written with, and the difference between a sweep that
+  // rotates and one that reads the same feedless rows for ever.
+  if (typeof col === "string" && col.includes("->")) {
+    const [base, key] = col.split("->");
+    const v = row[base];
+    return v && typeof v === "object" ? v[key] ?? undefined : undefined;
+  }
   return row[col];
 }
 

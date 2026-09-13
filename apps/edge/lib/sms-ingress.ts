@@ -52,10 +52,21 @@ type Db = SupabaseClient<Database>;
  * platform is told -- or null, when nobody should be told. A bad signature
  * is the one refusal that alerts nobody: it is what an unsigned probe looks
  * like, and paging a person for it is how an alarm stops being read.
+ *
+ * `alertKey` is what that sentence is suppressed BY. The default is the number
+ * the text came to, which is right for every refusal about a line we know --
+ * one alert per number per window. It is exactly wrong for a refusal that
+ * happens BEFORE the signature can be checked: the number is then attacker-
+ * chosen, so a fresh one every request means a fresh key every request, and
+ * the only alarm channel this system has sends one email per POST to a public
+ * URL. Those name a constant instead, so the whole class is capped like one.
  */
 export type SmsVerdict =
-  | { kind: "refuse"; status: number; log: string; level: "warn" | "error"; alert: string | null }
+  | { kind: "refuse"; status: number; log: string; level: "warn" | "error"; alert: string | null; alertKey?: string }
   | { kind: "accept"; line: SmsLine; acct: ProviderAccount; routed: RoutedChannel; held: boolean };
+
+/** One suppression key for every text to a number no line carries, whatever the caller writes in `To`. */
+export const UNKNOWN_LINE_ALERT_KEY = "unknown-line";
 
 export async function planSmsIngress(o: {
   inbound: SmsInbound;
@@ -80,7 +91,11 @@ export async function planSmsIngress(o: {
     return { kind: "refuse", status: 503, log: "sms_line_unreadable", level: "error", alert: "the line or its token could not be read" };
   }
   if (!line) {
-    return { kind: "refuse", status: 404, log: "sms_unknown_line", level: "warn", alert: "no line row carries this number" };
+    // Before the signature: the token that verifies it belongs to the line's
+    // own subaccount, so an unknown number cannot be authenticated at all.
+    // The signal is worth keeping -- a Twilio number still pointing here whose
+    // row was deleted -- but it is suppressed as ONE thing, not one per `To`.
+    return { kind: "refuse", status: 404, log: "sms_unknown_line", level: "warn", alert: "no line row carries this number", alertKey: UNKNOWN_LINE_ALERT_KEY };
   }
   if (!acct) {
     return { kind: "refuse", status: 503, log: "sms_line_without_account", level: "error", alert: "the line has no subaccount or no token in the vault" };

@@ -25,7 +25,7 @@ import {
   maySpend, whyCannotSpend, receptionistOn,
   BILLING_STATUSES, BILLING_MODES,
 } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode } from "./_source.mjs";
 
 test("the whole matrix: two modes by nine statuses, stated rather than inferred", () => {
   // Written out so a change to either function shows up as a diff a reviewer
@@ -113,12 +113,15 @@ test("both money routes carry the second door, and so does the edge behind them"
   // The edge is reachable with the diagnostic key alone, so it must not take
   // the dashboard's word for it.
   const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(edge.includes('if (op === "buy" || (op === "register" && body.refile !== true)) {'));
+  assert.ok(edge.includes('if (op === "buy") {\n    const refused = await refuseIfCannotSpend();'));
   assert.ok(edge.includes("whyCannotSpend(bill.data.mode as BillingMode, bill.data.status as BillingStatus)"));
   assert.ok(edge.includes('json(402, { ok: false, error: "payment_required"'));
-  // A refile corrects a filing already paid for and costs nothing, so a lapsed
-  // card must not stop a workspace answering the carriers.
-  assert.ok(readRaw("apps/edge/api/admin/lines.ts").includes("`refile` is deliberately exempt"));
+  // The gate asks what the FILING will be, not what the flag is called. Only
+  // the in-place resubmit of a rejected campaign is the free correction a
+  // lapsed card must not stop; a rehearsal made real files the workspace's
+  // first real brand ($19.50) and `replace` files a fresh campaign ($15).
+  assert.ok(edge.includes("if (!refile || row.data.reg_mock === true || replace) {"), "a refile that SPENDS is gated like a first filing");
+  assert.ok(!edge.includes('body.refile !== true'), "REGRESSION: the flag is not the question");
 });
 
 test("payment_required is its own code, mapped to 402", () => {

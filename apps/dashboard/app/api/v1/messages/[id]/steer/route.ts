@@ -36,7 +36,9 @@ export const POST = write({
           ? "Rewrites only work on the production dashboard."
           : r.reason === "policy_block_price"
             ? "The rewrite would have quoted a price, so the original draft stays."
-            : `The receptionist could not rewrite it (${r.reason}).`,
+            : r.reason === "already_sent"
+              ? "That reply went out while it was being rewritten, so nothing was changed."
+              : `The receptionist could not rewrite it (${r.reason}).`,
         502,
       );
     }

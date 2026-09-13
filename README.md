@@ -71,12 +71,17 @@ mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
 and is shown; an invented number is not. This is the rule most likely to be
 violated by accident.
 
-**`PG_READS` / `PG_WRITES` are the rollback levers.** Postgres is the bot's
-memory; Blob is still written underneath, which is what makes the flip
-reversible. The env change needs a redeploy to take effect — measured, not
-assumed — so budget a couple of minutes, and confirm with `/api/diag`, which
-reports `memory` as `postgres` or `blob`. That is why the Blob path still has
-to be correct.
+**`PG_READS` is the rollback lever — `PG_WRITES` is not.** Postgres is the
+bot's memory; Blob is still written underneath, which is what makes the
+`PG_READS` flip reversible. The env change needs a redeploy to take effect —
+measured, not assumed — so budget a couple of minutes, and confirm with
+`/api/diag`, which reports `memory` as `postgres` or `blob`. That is why the
+Blob path still has to be correct. `PG_WRITES` was the Slice 1 dual-write
+switch and reads as a second lever, but the edge now holds its ONLY database
+behind that gate: withholding it would not fall back to Blob, it would answer
+`no_database` from every sweep, the jobs tick, every admin door and the public
+`/api/health`. The client asks only for `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` now, so there is no lever left to pull by mistake.
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
 access. *Which member may do a thing* is decided in the route with

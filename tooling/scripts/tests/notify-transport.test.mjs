@@ -16,7 +16,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
-const { post, notify, recordNotification, platformTo } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/notify.ts")).href);
+const { post, notify, recordNotification, platformTo, reachesTenant } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/notify.ts")).href);
 
 /** console.error, kept instead of printed. */
 function capture() {
@@ -181,6 +181,19 @@ test("a kind the table does not know is kept as an alert; a title and a body pas
   assert.equal(row.body.length, 4000);
   assert.equal(row.route, null);
   assert.equal(row.subject_type, null);
+});
+
+test("reaching the workspace is a different question from sending: the redacted note sends, and reaches nobody in it", async () => {
+  await withEnv(PLATFORM_ENV, async () => {
+    assert.equal(reachesTenant({ tenantId: TENANT, notifications: { escalation_emails: ["owner@salon.test"] }, isEnvDefault: false }), true, "its own people");
+    assert.equal(reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: true }), true, "the designated workspace's mailbox IS the platform's");
+    // Sends fine, tells the owner nothing. A caller that spends a once-only
+    // guard on `notify`'s true here marks a waiting customer as handled.
+    assert.equal(reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }), false, "the redacted note is not the workspace being told");
+  });
+  await withEnv({ LEAD_TO: "", LEAD_FROM: "" }, async () => {
+    assert.equal(reachesTenant({ tenantId: TENANT, notifications: null, isEnvDefault: false }), false, "nowhere to send is not reaching anyone either");
+  });
 });
 
 test("ANOTHER tenant with no mailbox: the row is theirs, the platform gets the redacted fact with the workspace id, and never the customer's words", async () => {
