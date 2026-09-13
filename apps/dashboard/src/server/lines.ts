@@ -64,7 +64,15 @@ export async function edgeLines(body: Record<string, unknown>, timeoutMs = 60_00
   // account ($1.15/month) and filed a real carrier registration ($19.50,
   // non-refundable) from a Get a line click that was only ever meant to be
   // clicked on a preview.
-  if (!deployment.providersLive) return { status: 503, body: { ok: false, error: "preview" } };
+  //
+  // `record` is the exception, because the gate is about PROVIDERS and that op
+  // reaches none: it normalises the business on record and upserts one row. It
+  // was caught by the first version of this gate, which made Setup's business
+  // form unusable on every preview and laptop — refusing a save that would
+  // have worked, with "try again in a moment" about a state that never
+  // resolves. `status` stays gated deliberately: a deployment that may not buy
+  // should report itself not ready, which is what Setup already says well.
+  if (!deployment.providersLive && body.op !== "record") return { status: 503, body: { ok: false, error: "preview" } };
   try {
     const r = await fetch(`${edgeUrl()}/api/admin/lines`, {
       method: "POST",

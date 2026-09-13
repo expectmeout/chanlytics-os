@@ -135,11 +135,24 @@ export async function POST(request: Request): Promise<Response> {
   if (!upErr && !row) {
     const made = await db.from("tenant_channels").insert(fields).select("id").single();
     if (made.error?.code === "23505") {
-      log("wa_connect_number_taken", { at: "insert" });
-      return json(409, { ok: false, error: "number_taken" });
+      // Somebody got there between the read and the insert. Whose it is
+      // decides the answer: another workspace's is the 409 this door exists to
+      // give, but this workspace's own is a double-submit — the owner ran
+      // Embedded Signup twice because the first attempt's four Graph calls
+      // outlasted their patience — and telling them their own number belongs
+      // to somebody else would be a worse answer than the upsert used to give.
+      const mineNow = await db.from("tenant_channels").select("id, tenant_id").eq("kind", "whatsapp").eq("external_id", phoneNumberId).maybeSingle();
+      if (mineNow.data?.tenant_id === tenantId) {
+        log("wa_connect_raced_self");
+        row = { id: mineNow.data.id };
+      } else {
+        log("wa_connect_number_taken", { at: "insert" });
+        return json(409, { ok: false, error: "number_taken" });
+      }
+    } else {
+      row = made.data;
+      upErr = made.error;
     }
-    row = made.data;
-    upErr = made.error;
   }
   if (upErr || !row) {
     log("wa_connect_channel_write_failed", { error: upErr?.message });

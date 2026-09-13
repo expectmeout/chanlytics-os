@@ -150,7 +150,7 @@ export async function POST(request: Request): Promise<Response> {
           console.error("wa_skip_routing_failed", JSON.stringify({
             phone_number_id: phoneNumberId, messages: v.messages.length,
           }));
-          await alertUnroutable("whatsapp", phoneNumberId, v.messages.length, "the channel row could not be read");
+          await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
         } else if (field === "messages" && v.messages && unroutable) {
           // Customers are texting a line whose channel is switched off. Nobody
           // is answering them and nothing is being recorded, so this has to

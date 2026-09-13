@@ -38,7 +38,12 @@ export const POST = write({
             ? "The rewrite would have quoted a price, so the original draft stays."
             : r.reason === "already_sent"
               ? "That reply went out while it was being rewritten, so nothing was changed."
-              : `The receptionist could not rewrite it (${r.reason}).`,
+              // Both spellings: the edge called this `no_whatsapp_channel` until
+              // it learned that a held draft can be a text, and the two apps
+              // deploy independently.
+              : r.reason === "no_channel" || r.reason === "no_whatsapp_channel"
+                ? "This workspace has no connected channel to send a rewrite on."
+                : `The receptionist could not rewrite it (${r.reason}).`,
         502,
       );
     }

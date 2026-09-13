@@ -69,8 +69,24 @@ export async function POST(request: Request): Promise<Response> {
         // replacement and is applied; a dead one about a subscription we no
         // longer hold can never be right.
         if (row.stripe_subscription_id && row.stripe_subscription_id !== sub.id && !receptionistOn(subscriptionFacts(sub).status)) {
-          L.warn("stripe_event_superseded", { type: event.type, subscription: sub.id, current: row.stripe_subscription_id });
-          return json(200, { ok: true, superseded: true });
+          // The row is the reason to skip, so the row has to be worth trusting,
+          // and it is not always: applySubscription writes under a compare-and-
+          // set and DOES NOT WRITE when it loses (billing_apply_raced), which
+          // Stripe's own burst of three events for one Checkout can cause. A
+          // row left naming a subscription the workspace has already replaced
+          // would then make this guard discard every later "the subscription
+          // ended" about the live one — answered 200, never retried, the
+          // receptionist answering unbilled for good. So the row's claim is
+          // checked against Stripe before it is believed: if what the row
+          // names is gone or already dead, the row is the stale one and this
+          // event is the truth.
+          const current = await s.subscriptions.retrieve(row.stripe_subscription_id).catch(() => null);
+          const rowStillLive = current !== null && receptionistOn(subscriptionFacts(current).status);
+          if (rowStillLive) {
+            L.warn("stripe_event_superseded", { type: event.type, subscription: sub.id, current: row.stripe_subscription_id });
+            return json(200, { ok: true, superseded: true });
+          }
+          L.warn("stripe_event_stale_row", { type: event.type, subscription: sub.id, named_by_row: row.stripe_subscription_id, row_status: current ? subscriptionFacts(current).status : "gone" });
         }
         // The event's copy has no expanded card; the row keeps the card from
         // the last full read (sync) when this one has none. A read that fails

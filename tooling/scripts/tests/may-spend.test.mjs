@@ -120,7 +120,8 @@ test("both money routes carry the second door, and so does the edge behind them"
   // the in-place resubmit of a rejected campaign is the free correction a
   // lapsed card must not stop; a rehearsal made real files the workspace's
   // first real brand ($19.50) and `replace` files a fresh campaign ($15).
-  assert.ok(edge.includes("if (!refile || row.data.reg_mock === true || replace) {"), "a refile that SPENDS is gated like a first filing");
+  assert.ok(edge.includes("const correctingInPlace = refile && onFile && row.data.sms_state === \"rejected\" && !replace;"), "the one free path is named");
+  assert.ok(edge.includes("if (!correctingInPlace) {"), "and everything else that files is gated like a first filing");
   assert.ok(!edge.includes('body.refile !== true'), "REGRESSION: the flag is not the question");
 });
 

@@ -77,9 +77,14 @@ test("the migration says where a template came from; the edge submits and delete
   assert.ok(c.includes("const creds = await waCredentialsForTenant(db, tenantId);") && c.includes('source: "chanlytics",') && c.includes("created_by: userId,"));
   assert.ok(c.includes('return json(502, { ok: false, error: "meta_refused", detail: made.error });'));
   const d = readCode("apps/edge/api/admin/whatsapp/templates-delete.ts");
-  assert.ok(d.includes("const gone = await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id);"));
+  assert.ok(d.includes("await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)"), "the number's own credentials, and the id that narrows it to one language");
   assert.ok(d.includes("Not found at Meta is a delete that already happened.") || d.includes("gone.status !== 404"));
-  assert.ok(d.includes('return json(409, { ok: false, error: "not_synced" });'), "a row Meta never gave us an id for is synced first, never deleted by name");
+  // A row with no id on file is never sent to Meta by name (that deletes every
+  // language of the name), and is still removed from here — a sync cannot
+  // invent an id for a template Meta never had, so refusing both left the row
+  // undeletable for ever.
+  assert.ok(d.includes("const gone = row.meta_id\n    ? await deleteTemplate("), "no id, no call to Meta");
+  assert.ok(d.includes('error: "not synced: no template id on file, so Meta was not asked"'), "and it reads as a delete that already happened");
 });
 
 test("the routes: what Meta refuses is refused first; a duplicate name is a conflict; a template a broadcast still uses cannot go; the draft is a draft", () => {

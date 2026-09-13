@@ -63,8 +63,14 @@ export interface DuePage<T> {
  * them the page is entirely feedless every hour: no calendar is ever read
  * again, and `remaining` never reaches zero, so the sweep also reports a
  * permanent backlog, turns itself red and pages the platform about work that
- * does not exist. 00089 built the index for this query `where config ?
- * 'calendar'` and said so in its comment; the query never asked.
+ * does not exist. 00089 built an index for this query `where config ?
+ * 'calendar'` and said so in its comment; the query never asked, and still
+ * does not — Postgres cannot derive `config ? 'calendar'` from `config->>
+ * 'calendar' is not null`, so the index stays unused and the tick is a scan
+ * and a sort of tenant_config. That is throughput, not correctness, and at
+ * the size where it matters the index predicate should be changed to match
+ * rather than the filter changed to match the index: `?` would also select a
+ * key explicitly set to JSON null, which is not a feed.
  *
  * Spelled `->>`, the text form, which is what every other jsonb filter in this
  * codebase uses against the real PostgREST (the jobs ledger's

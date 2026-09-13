@@ -350,11 +350,20 @@ export async function POST(request: Request): Promise<Response> {
     // refusal an edit cannot reach (the opt-in message and its keywords), and a
     // second vetting fee, so never implied by `refile` alone.
     const replace = body.replace === true;
-    // What this filing will COST, read off the row rather than the flag: a
-    // first filing, a rehearsal made real, or a refused campaign replaced all
-    // land a charge on Chanlytics' account for a workspace that may be on a
-    // billing hold. The rejected-campaign resubmit is the one that does not.
-    if (!refile || row.data.reg_mock === true || replace) {
+    // What this filing will COST, read off the row rather than off a flag.
+    //
+    // Exactly one path through this branch is free: a campaign already on file
+    // that the carriers SENT BACK, corrected in place. Twilio assesses the
+    // vetting fee once per campaign, at its first decision, so editing that
+    // same resource costs nothing — which is why the back office offers it on
+    // a rejected line with no price beside it (contracts/platform.ts), and why
+    // a workspace whose card lapsed mid-review must still be able to answer
+    // the carriers. Everything else that reaches a filing spends: a first
+    // filing, a rehearsal taken off and made real, and a refused campaign
+    // deleted and replaced.
+    const onFile = !!row.data.brand_sid && !!row.data.campaign_sid;
+    const correctingInPlace = refile && onFile && row.data.sms_state === "rejected" && !replace;
+    if (!correctingInPlace) {
       const refused = await refuseIfCannotSpend();
       if (refused) return refused;
     }

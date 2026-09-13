@@ -68,10 +68,15 @@ export async function POST(request: Request): Promise<Response> {
   // provider's budget while making the common case -- a Resend POST, well
   // under a second -- actually happen.
   if (start.alert) {
+    // The timer is cleared whichever side wins, as lib/call-recording.ts does:
+    // the common case is a send well under a second, and leaving three seconds
+    // of timer armed behind the answer is the same class of thing this await
+    // exists to stop.
+    let timer: ReturnType<typeof setTimeout> | undefined;
     await Promise.race([
       alertUnroutable("voice", agentId ?? undefined, 1).catch(() => {}),
-      new Promise((r) => setTimeout(r, ALERT_BUDGET_MS)),
-    ]);
+      new Promise((r) => { timer = setTimeout(r, ALERT_BUDGET_MS); }),
+    ]).finally(() => clearTimeout(timer));
   }
 
   L.info("retell_inbound", { facts: start.facts, memory: start.memory, facts_chars: start.variables.business_facts.length });

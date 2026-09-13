@@ -59,11 +59,13 @@ export async function POST(request: Request): Promise<Response> {
   if (verdict.kind === "refuse") {
     if (verdict.level === "error") L.error(verdict.log);
     else L.warn(verdict.log);
-    // Suppressed for fifteen minutes inside alertUnroutable, by the key the
-    // verdict names -- the number for a refusal about a line we know, a
-    // constant for one that could not be authenticated at all. That is why the
-    // decision above returns the sentence rather than sending it.
-    if (verdict.alert) await alertUnroutable("sms", verdict.alertKey ?? inbound.to, 1, verdict.alert);
+    // Suppressed for fifteen minutes inside alertUnroutable. The alert always
+    // NAMES the number -- an operator cannot act on "a text arrived for
+    // unknown-line" -- but a refusal that happens before the signature can be
+    // checked is windowed as one class, because the number in it is whatever
+    // the caller wrote. That is why the decision above returns the sentence
+    // rather than sending it.
+    if (verdict.alert) await alertUnroutable("sms", inbound.to, 1, verdict.alert, verdict.alertKey);
     return twiml(verdict.status);
   }
 

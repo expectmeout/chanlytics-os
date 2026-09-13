@@ -62,6 +62,14 @@ const PLATFORM_TENANT = "00000000-0000-0000-0000-000000000000";
  * refreshes what the owner reads instead of stacking.
  */
 const corrected = new Set<string>();
+
+/**
+ * When a refused delivery last left an evidence row, per instance. The row is
+ * the readback /api/diag offers for "is the signature working"; the throttle is
+ * because the door is public and the insert is now awaited.
+ */
+const REFUSED_AUTH_ROW_MS = 60_000;
+let lastRefusedAuthRow = 0;
 /** A long-lived instance must not accumulate call ids for ever. */
 const CORRECTED_MAX = 500;
 
@@ -183,8 +191,19 @@ export async function POST(request: Request): Promise<Response> {
   // time. On the 401 below there is nothing after it at all, which is how the
   // rejected deliveries — the ones that would say "Retell cannot get in" —
   // left no evidence whatsoever. It is one insert, and it never throws.
-  await recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });
-  if (!sigOk && !keyOk) {
+  //
+  // A REFUSED delivery is recorded at most once a minute per instance. This is
+  // a public URL, and awaiting the insert on the way to a 401 turned "usually
+  // no row, because the freeze ate it" into "a row for every POST anyone
+  // sends" — an unauthenticated write amplifier that would also bury the
+  // evidence under itself. Once a minute is enough to answer the only question
+  // the row is for ("is Retell being turned away?") and cannot be driven.
+  const refused = !sigOk && !keyOk;
+  if (!refused || Date.now() - lastRefusedAuthRow >= REFUSED_AUTH_ROW_MS) {
+    if (refused) lastRefusedAuthRow = Date.now();
+    await recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });
+  }
+  if (refused) {
     return json(401, { ok: false, error: "unauthorized" });
   }
 

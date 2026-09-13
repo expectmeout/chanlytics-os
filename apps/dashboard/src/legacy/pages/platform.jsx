@@ -49,7 +49,11 @@ const PlatformLine = ({ line, tenantId, onDone, flash }) => {
     const r = await P.act(a.action, tenantId, line.id);
     setBusy(false);
     setArm(null);
-    flash({ tone: "danger", msg: <>{r.message}</> });
+    // The tone follows the OUTCOME. The tone pass gave this call site
+    // `danger` unconditionally, so support pressing Retry and getting "Done.
+    // This page will show it on the next read." was told so in red — the same
+    // class of thing that pass existed to fix, one flash serving both answers.
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
     if (r.ok) onDone();
   };
 

@@ -312,11 +312,12 @@ test("the edge: the key alone on the edge, diag-key verbs, the cron-key sweep, o
   const lib = readCode("apps/edge/lib/google.ts");
   assert.ok(lib.includes("process.env.GOOGLE_PLACES_API_KEY"));
   assert.ok(lib.includes("planListingCheck(") && lib.includes('kind: "review", title: b.title, body: b.body, route: "reports"'), "the plan decides, the edge writes and rings");
-  // The stamp moves even on a failure, or a listing Google no longer serves
-  // holds the head of every hour's page for ever and the healthy ones behind
-  // it are never read (the due query is checked_at, nulls first).
-  assert.ok(lib.includes('.update({ check_error: error, checked_at: now.toISOString() })'), "a failed read leaves its words and the last good numbers, and rotates");
-  assert.ok(lib.includes('.update({ sync_error: error.slice(0, 300), last_synced_at: now.toISOString() })'), "so does a profile whose token was revoked");
+  assert.ok(lib.includes('.update({ check_error: error })'), "a failed read leaves its words and the last good numbers");
+  // And does NOT move the stamp: checked_at / last_synced_at are the last
+  // SUCCESSFUL read, which is the news cutoff, the first-sync flag and the due
+  // window all at once.
+  assert.ok(!lib.includes("check_error: error, checked_at:"), "a failure must not read as a read");
+  assert.ok(!lib.includes("sync_error: error.slice(0, 300), last_synced_at:"), "nor a failed sync as a sync");
   assert.ok(lib.includes('onConflict: "tenant_id,review_id"') && !lib.includes("first_seen_at"), "an existing review keeps its first_seen_at");
   assert.ok(lib.includes('"google.reviews"'));
   const cron = readCode("apps/edge/api/cron/google.ts");

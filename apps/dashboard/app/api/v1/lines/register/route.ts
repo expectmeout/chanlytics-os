@@ -44,6 +44,12 @@ export const POST = write({
     const a = await edgeLines({ op: "register", tenant_id: member.tenantId, line_id: input.line_id }, 60_000);
     const b = a.body ?? {};
     if (a.status === 404) throw new AppError("not_found", "That line does not exist.", 404);
+    if (a.status === 503 && b.error === "preview") throw new AppError("conflict", "Registering only works on the production dashboard.", 409);
+    // The edge asks the billing question again on its own side, and it now asks
+    // it of the FILING rather than of a flag, so a 402 can reach here where it
+    // could not before. It carries the sentence whyCannotSpend wrote; reporting
+    // it as "the carriers did not answer" would be about nothing that happened.
+    if (a.status === 402) throw new AppError("payment_required", typeof b.detail === "string" ? b.detail : "Billing needs attention before this can be filed.", 402);
     if (a.status === 409 && b.error === "no_business_record") throw new AppError("conflict", "Fill in your business on record first — the carriers ask who you are.", 409);
     if (a.status === 409 && b.error === "already_registered") throw new AppError("conflict", "This line is already registered with the carriers.", 409);
     // A rehearsal filing, which this route deliberately cannot replace: making it

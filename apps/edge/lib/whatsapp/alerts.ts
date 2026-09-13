@@ -68,6 +68,17 @@ const UNROUTABLE_ALERT_MS = 15 * 60 * 1000;
 const unroutableAlerted = new Map<string, number>();
 
 const UNROUTABLE_WORDS = {
+  whatsapp_unreadable: {
+    subject: "WhatsApp messages are arriving and the control plane cannot be read",
+    what: (key: string, count: number) =>
+      `${count} message(s) just arrived for phone_number_id ${key} and the channel row could not be read, so they were NOT recorded and nobody was answered.`,
+    // Deliberately not "re-enable the channel": the channel is probably fine.
+    // Reported as its own kind so it also keeps its own suppression window —
+    // sharing one with the switched-off alert let a database outage and a
+    // deliberate switch-off silence each other for fifteen minutes, and the
+    // two need opposite responses.
+    fix: "Check Postgres and /api/diag. Meta is being told 503, so it redelivers for up to seven days and nothing is lost once the read works.",
+  },
   whatsapp: {
     subject: "WhatsApp messages are arriving for a channel that is switched off",
     what: (key: string, count: number) =>
@@ -87,8 +98,24 @@ const UNROUTABLE_WORDS = {
   },
 } as const;
 
-export async function alertUnroutable(kind: keyof typeof UNROUTABLE_WORDS, key: string | undefined, count: number, why?: string): Promise<void> {
-  const k = `${kind}:${key || "unknown"}`;
+export async function alertUnroutable(
+  kind: keyof typeof UNROUTABLE_WORDS,
+  key: string | undefined,
+  count: number,
+  why?: string,
+  /**
+   * What the fifteen-minute window is keyed on, when that is not the number.
+   *
+   * These were one argument, which is wrong wherever the identifier is chosen
+   * by whoever sent the request: keying the window on it lets a caller rotate
+   * the value and send one email per request, and keying the WORDS on a
+   * constant instead leaves the operator an alert that names nothing they can
+   * act on. The SMS door needs both — the number in the sentence, one window
+   * for the whole class — so they are two arguments.
+   */
+  suppressAs?: string,
+): Promise<void> {
+  const k = `${kind}:${suppressAs || key || "unknown"}`;
   const last = unroutableAlerted.get(k) ?? 0;
   if (Date.now() - last < UNROUTABLE_ALERT_MS) return;
   unroutableAlerted.set(k, Date.now());

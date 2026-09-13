@@ -36,5 +36,6 @@ test("the signature is verified over the raw body and over the re-serialised bod
   assert.ok(hook.includes("verifyRetellSignature(restringified, signature, webhookKey)"));
   assert.ok(hook.includes("const sigOk = sigRaw || sigRestringified;"));
   assert.ok(hook.includes("sig_raw: forms.raw, sig_restringified: forms.restringified"), "the evidence rides in the auth row");
-  assert.ok(hook.includes("if (!sigOk && !keyOk) {"), "the key still opens the door until a delivery verifies");
+  assert.ok(hook.includes("const refused = !sigOk && !keyOk;") && hook.includes("if (refused) {\n    return json(401"),
+    "the key still opens the door until a delivery verifies");
 });

@@ -31,6 +31,7 @@ export const POST = write({
     const a = await edgeLines({ op: "buy", tenant_id: member.tenantId, number: input.number, ...(areaCode ? { area_code: areaCode } : {}) }, 60_000);
     const b = a.body ?? {};
     if (a.status === 409) throw new AppError("conflict", b.error === "line_failed_retry" ? "This workspace has a line that stopped part-way — retry it from Setup." : "This workspace already has a line.", 409);
+    if (a.status === 503 && b.error === "preview") throw new AppError("conflict", "Getting a line only works on the production dashboard.", 409);
     if (a.status === 503 && b.error === "no_line_provider") throw new AppError("conflict", "Getting a line is not available here yet — ask us and a person at Chanlytics sets it up with you.", 409);
     if (a.status === 400) throw new AppError("validation", typeof b.error === "string" ? b.error : "That number cannot be used.", 400);
     if (a.status !== 200 && a.status !== 202 && a.status !== 502) throw new AppError("internal", typeof b.error === "string" ? b.error : "The carrier did not answer. Try again in a moment.", 502);

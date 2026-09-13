@@ -23,7 +23,6 @@ const SAID: Record<string, string> = {
   not_found: "That template is not on file.",
   no_waba: "This number's WhatsApp Business Account is not on file. Reconnect the number and try again.",
   no_token: "Chanlytics has no access token for this number yet.",
-  not_synced: "This template has not been synced from WhatsApp yet, so it cannot be deleted precisely. Sync from WhatsApp first, then delete it.",
   meta_refused: "WhatsApp did not let the template be deleted. Try again in a moment.",
   write_failed: "The template could not be removed here. Sync from Meta and try again.",
 };

@@ -66,6 +66,7 @@ export const PUT = write({
     const a = await edgeLines({ op: "record", tenant_id: member.tenantId, record, path }, 20_000);
     const b = a.body ?? {};
     if (a.status === 400) throw new AppError("validation", typeof b.error === "string" ? b.error : "That could not be saved.", 400);
+    if (a.status === 503 && typeof b.error === "string" && b.error === "preview") throw new AppError("conflict", "Saving the business on record only works on the production dashboard.", 409);
     if (a.status !== 200) throw new AppError("internal", "The record could not be saved. Try again in a moment.", 502);
     return { record: b.record ?? null };
   },

@@ -49,7 +49,8 @@ test("every delivery leaves a readable row saying which credential it passed; th
   assert.ok(hook.includes("await recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });"), "awaited: the invocation is frozen when it answers, and the 401 path has nothing after it");
   assert.ok(hook.includes('emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, {'));
   assert.ok(hook.includes('provider: "retell", sig, key, sig_raw: forms.raw, sig_restringified: forms.restringified,'), "which credential, and which body form, verified");
-  assert.ok(hook.includes("if (!sigOk && !keyOk) {"), "the key still opens the door — retirement waits on the evidence");
+  assert.ok(hook.includes("const refused = !sigOk && !keyOk;") && hook.includes("if (refused) {\n    return json(401"),
+    "the key still opens the door — retirement waits on the evidence");
   const diag = readCode("apps/edge/api/diag.ts");
   assert.ok(diag.includes("out.retellAuth = {"));
   assert.ok(diag.includes('createHash("sha256").update(process.env.RETELL_API_KEY).digest("hex").slice(0, 12)'), "a fingerprint, never the key");

@@ -36,17 +36,7 @@ export async function POST(request: Request): Promise<Response> {
     .eq("channel", "whatsapp")
     .maybeSingle();
   if (!row) return json(404, { ok: false, error: "not_found" });
-  // Meta's delete takes a name, and the template's own id NARROWS it to one
-  // language. Without the id it removes every language of that name and locks
-  // the name for thirty days — so a row that was never synced (the seeded
-  // booking_link_v1 predates the column; a sync never fills in what Meta did
-  // not return) would take its siblings with it, leaving rows on file that
-  // still read "approved" and fail at the wire. Sync first: the row either
-  // gains its id, or is provably absent at Meta.
-  if (!row.meta_id) {
-    console.warn("wa_template_delete_unsynced", JSON.stringify({ tenant_id: tenantId, name: row.name, language: row.language }));
-    return json(409, { ok: false, error: "not_synced" });
-  }
+
   const { data: ch } = await db
     .from("tenant_channels")
     .select("id, waba_id")
@@ -59,7 +49,19 @@ export async function POST(request: Request): Promise<Response> {
   const creds = await waCredentialsForTenant(db, tenantId);
   if (!creds?.accessToken) return json(503, { ok: false, error: "no_token" });
 
-  const gone = await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id);
+  // Meta's delete takes a name, and the template's own id NARROWS it to one
+  // language. WITHOUT the id it removes every language of that name and locks
+  // the name for thirty days — so a row that was never synced (the seeded
+  // booking_link_v1 predates the column; a sync only writes what Meta returns)
+  // must not be sent to Meta at all. It is still removed from here: Meta has
+  // no id for it, which is as close to "Meta does not have it" as this door
+  // can get, and refusing the local delete too left the row undeletable for
+  // ever — the sync the refusal told the operator to run can never fill in an
+  // id for a template Meta never had.
+  const gone = row.meta_id
+    ? await deleteTemplate(creds.accessToken, ch.waba_id, row.name, row.meta_id)
+    : ({ ok: false, status: 404, error: "not synced: no template id on file, so Meta was not asked" } as const);
+  if (!row.meta_id) console.warn("wa_template_delete_unsynced", JSON.stringify({ tenant_id: tenantId, name: row.name, language: row.language }));
   // Not found at Meta is a delete that already happened.
   if (!gone.ok && gone.status !== 404 && !/does not exist|not found|Unsupported get request/i.test(gone.error)) {
     console.error("wa_template_delete_failed", JSON.stringify({ tenant_id: tenantId, name: row.name, status: gone.status, error: gone.error.slice(0, 300) }));
