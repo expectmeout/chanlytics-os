@@ -65,6 +65,9 @@ jobs:
       # A migration that changed one without regenerating fails here, and the
       # compiler then names every copy the change left behind.
       - run: node tooling/scripts/gen-schema-sets.mjs --check
+      # database.types.ts regenerated from the same database and compared, one
+      # line ignored (PostgREST's version). Red: supabase start && corepack pnpm gen:db-types
+      - run: node tooling/scripts/check-db-types.mjs --check
       # The local stack's service and anon keys are the published demo keys, not
       # secrets. The anon key is what the RLS suites sign real sessions in with.
       - name: Point the suite at the local database
