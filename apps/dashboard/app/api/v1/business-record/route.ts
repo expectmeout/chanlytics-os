@@ -4,6 +4,7 @@ import {
   type BusinessRecordDto, type RegistrationPath,
 } from "@chanlytics/contracts";
 import { edgeLines } from "@/server/lines";
+import type { RouteContext } from "@/server/with-route";
 
 /**
  * The business on record: what the carriers ask before they let a number
@@ -31,15 +32,34 @@ export const GET = read({
     if (!data) return { record: null, path: null, problems: {} };
     const { tenant_id: _tenant, created_at: _created, ...record } = data;
     const path = registrationPathOf(record) ?? "standard";
-    return { record, path, problems: businessRecordProblems(record as BusinessRecordDto, path) };
+    return { record, path, problems: businessRecordProblems(record as BusinessRecordDto, path, { ourNumbers: await ourNumbers(ctx, member.tenantId) }) };
   },
 });
+
+/**
+ * The numbers this workspace was given BY US, for the one check a record
+ * cannot make about itself.
+ *
+ * A sole proprietor's "contact_phone" is the handset the carriers text a code
+ * to, and they refuse a CPaaS number for it -- which is exactly the number a
+ * business puts on its own website after we provision one. Both halves of this
+ * route ran businessRecordProblems with no facts at all, so the check was
+ * skipped here and only fired at the edge: the form said the record was ready,
+ * the owner pressed Register, and the refusal came back from a screen that had
+ * just told them everything was in order. Members may read `lines`
+ * (lines_member_select, 00066), so the session client can answer it.
+ */
+async function ourNumbers(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<string[]> {
+  const { data, error } = await ctx.supabase.from("lines").select("e164").eq("tenant_id", tenantId);
+  if (error) throw new Error(`reading this workspace's numbers: ${error.message}`);
+  return (data ?? []).map((r) => r.e164).filter((n): n is string => !!n);
+}
 
 export const PUT = write({
   scope: workspace,
   role: "owner",
   rate: "business_record",
-  handle: async ({ req, member }) => {
+  handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => ({}))) as { record?: Partial<BusinessRecordDto>; path?: string };
     const record = body.record && typeof body.record === "object" ? body.record : {};
     // WHICH registration this is for, said by the page rather than guessed from a
@@ -57,7 +77,7 @@ export const PUT = write({
     // nothing a person can act on. The edge checks the same list again on the
     // row it is about to write — this one is for the message, that one is the
     // door.
-    const problems = businessRecordProblems(record, path);
+    const problems = businessRecordProblems(record, path, { ourNumbers: await ourNumbers(ctx, member.tenantId) });
     if (Object.keys(problems).length) {
       const first = Object.values(problems)[0];
       throw new AppError("validation", first ?? "Something is missing.", 400);

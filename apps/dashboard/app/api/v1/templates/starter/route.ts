@@ -96,8 +96,17 @@ export const POST = write({
         continue;
       }
       if (r.reason in SAID) {
-        // Nothing can be added at all: say so once, as the submit route does.
-        throw new AppError(r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict", SAID[r.reason], r.reason === "preview" || r.reason === "no_token" ? 502 : 409);
+        // Nothing can be added at all: say so once, as the submit route does --
+        // but only while nothing HAS been added. Past the first submission the
+        // templates already at Meta are real and in review, and throwing here
+        // discarded `results` entirely, so the owner was told nothing was added
+        // while several sat waiting for Meta under their account.
+        const done = results.some((x) => x.status === "submitted" || x.status === "synced");
+        if (!done) {
+          throw new AppError(r.reason === "preview" || r.reason === "no_token" ? "upstream_meta" : "conflict", SAID[r.reason], r.reason === "preview" || r.reason === "no_token" ? 502 : 409);
+        }
+        results.push({ ...base, status: "failed", meta_status: null, detail: SAID[r.reason] });
+        break;
       }
       results.push({ ...base, status: "failed", meta_status: null, detail: r.detail ?? r.reason });
     }
