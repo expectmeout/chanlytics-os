@@ -12,9 +12,11 @@
  * the platform; a routed call is ingested, an inbound test call marks the
  * forwarded line verified, and every delivery leaves its row. The transcript
  * rides wherever the provider put it. The note waits for the summary, the
- * recording is copied on a budget, a stale replay writes nothing, a spoken
- * price is corrected once, and the analysis tells the owner once -- by bell,
- * and by mail only to a mailbox that is theirs.
+ * recording is copied on a budget -- and never again once stored or given up
+ * on -- a stale replay writes nothing, a spoken price is corrected once, a
+ * call back is handed to a person on the analysis and on nothing earlier, and
+ * the analysis tells the owner once -- by bell, and by mail only to a mailbox
+ * that is theirs.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -38,7 +40,7 @@ process.env.LEAD_FROM = "Pager <pager@platform.test>";
 for (const k of ["WHATSAPP_PHONE_ID", "SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"]) delete process.env[k];
 
 const { setPg, store, knock, deliver, world } = await openDoor();
-const { WEBHOOK_COPY_TIMEOUT_MS, SWEEP_COPY_TIMEOUT_MS } = await import(at("apps/edge/lib/call-recording.ts"));
+const { WEBHOOK_COPY_TIMEOUT_MS, SWEEP_COPY_TIMEOUT_MS, RECORDING_MAX_ATTEMPTS } = await import(at("apps/edge/lib/call-recording.ts"));
 after(() => setPg(null));
 
 /* ------------------------------------------------------------ the door */
@@ -437,6 +439,54 @@ test("call_analyzed: the note lands in the caller's thread and the call links to
   }
 });
 
+test("a recording the sweep gave up on is not fetched again on the webhook: the analysis arrives, the CDN is not asked, the bucket is not written, the row's verdict stands -- and everything else about the delivery still happens", async () => {
+  // The guard before the copy has two halves. `stored` is proved above: the
+  // replay does not fetch again. This is `failed`: RECORDING_MAX_ATTEMPTS
+  // spent, the sweep marked the copy failed and nothing wakes for it again --
+  // which a late delivery must honour rather than reopen with one more try on
+  // a budget it does not have, and a row that flaps back to pending.
+  const w = world();
+  const db = w.open();
+  const line = wire();
+  try {
+    const id = w.callId("given-up");
+    const url = `https://cdn.retell.test/recording/${id}.wav`;
+    // The row as the sweep leaves it: exactly what copyRecording's exhausted
+    // settle writes. Seeded rather than driven, because driving it is three
+    // sweep ticks, and the sweep has its own test (calls-hardening).
+    const verdict = { fetch_state: "failed", attempts: RECORDING_MAX_ATTEMPTS, error: "provider_404" };
+    w.tables.calls.push({
+      id: `row_${id}`, tenant_id: w.T, retell_call_id: id, agent_id: w.AGENT, status: "ended", direction: "inbound",
+      from_e164: CALLER, to_e164: LINE, started_at: iso(NOW - 130_000), ended_at: iso(NOW - 5_000), duration_ms: 125_000,
+      contact_id: null, conversation_id: null, notified_at: null, message_id: null, recording: { ...verdict },
+    });
+
+    const res = await deliver("call_analyzed", w.analysed(id));
+    assert.deepEqual([res.status, await res.json()], [200, { ok: true }]);
+    assert.equal(ingests(db).length, 1, "the delivery reached the ingest, whose answer carries the row's recording state");
+
+    // Not fetched, not uploaded, not rewritten.
+    assert.equal(line.to("cdn.retell.test").length, 0, "no request to the recording CDN");
+    assert.equal(line.to(url).length, 0);
+    assert.deepEqual(w.uploads, [], "nothing into the private bucket");
+    assert.equal(w.tables.calls.length, 1, "the one row, enriched -- never a second");
+    assert.deepEqual(w.tables.calls[0].recording, verdict, "the sweep's verdict stands: no further attempt, no flap back to pending");
+
+    // The guard is narrow: only the copy is skipped. The analysis lands on
+    // the row, the note is written and linked, the owner is told.
+    const call = w.tables.calls[0];
+    assert.deepEqual([call.status, call.summary, call.analysis?.outcome], ["ended", "Rosa asked for a moving quote for Tuesday.", "answered"]);
+    assert.equal(w.tables.messages.length, 1);
+    assert.equal(call.message_id, w.tables.messages[0].id);
+    assert.deepEqual([w.tables.notifications.length, line.mail().length], [1, 1]);
+    assert.equal(w.tables.notifications[0].title, "Rosa phoned · 2 min");
+    assert.equal(kind(w.tables, "webhook.delivery").at(-1).data.skipped, false);
+    assert.deepEqual([...new Set(line.calls.map((c) => new URL(c.url).host))], ["api.resend.com"], "the mail is the only thing that left the handler");
+  } finally {
+    line.restore();
+  }
+});
+
 test("callback_needed: the thread is paused for the workspace's own hours, one callback escalation opens with the to-do, the bell is about the thread, the mail says so -- and a replay refreshes rather than stacks", async () => {
   const w = world();
   w.tables.tenant_config.push({ tenant_id: w.T, config: { notifications: { escalation_emails: ["owner@harbor.test"] } } });
@@ -546,6 +596,61 @@ test("callback_needed in a workspace with no reply policy of its own: the thread
     assert.ok(pausedFor > 24 * 3_600_000 - 5_000 && pausedFor <= 24 * 3_600_000 + 5_000, `a day, the default the workspace never overrode: ${pausedFor} ms`);
     assert.deepEqual(w.tables.escalations.map((e) => [e.conversation_id, e.reason, e.details]), [[thread.id, "callback", "Call Rosa back."]]);
     assert.equal(w.tables.notifications[0].title, "Rosa phoned · 2 min · needs a call back");
+  } finally {
+    line.restore();
+  }
+});
+
+test("callback_needed on call_ended: the thread is there and the analysis says so, and still no escalation opens, nothing is paused and no bell rings -- the same delivery as call_analyzed does all three", async () => {
+  // The callback branch has three clauses: the event is the analysis, the
+  // caller has a thread, the outcome is callback_needed. The two cases above
+  // prove it fires when all three hold. This is the first clause on its own:
+  // a provider that attaches its analysis to the end-of-call delivery, or a
+  // call_ended replayed after the analysis, carries the outcome AND the
+  // thread -- and must not hand the caller to a person yet. The analysis is
+  // the one delivery that does, so a person is told once, from there.
+  const w = world();
+  const db = w.open();
+  const line = wire();
+  try {
+    const id = w.callId("callback-on-ended");
+    const call_analysis = {
+      call_summary: "Rosa needs someone to call her back about a piano.", user_sentiment: "Neutral", call_successful: false, in_voicemail: false,
+      custom_analysis_data: { caller_name: "Rosa", caller_wanted: "to move a piano on Saturday", outcome: "callback_needed", follow_up: "Call Rosa back about the piano." },
+    };
+    // The very call object the analysis will carry, under the end-of-call event.
+    const ended = await deliver("call_ended", w.analysed(id, { call_analysis }));
+    assert.deepEqual([ended.status, await ended.json()], [200, { ok: true }]);
+
+    // The other two clauses hold, on the record: the caller's thread exists
+    // and the outcome rode the delivery into the ingest. Only the event differs.
+    const call = w.tables.calls[0];
+    const thread = () => w.tables.conversations.find((c) => c.id === call.conversation_id);
+    assert.ok(call.conversation_id && thread(), "a thread to land on");
+    assert.equal(ingests(db)[0].args.p_analysis.outcome, "callback_needed", "the analysis rode the delivery");
+    assert.equal(w.tables.messages.length, 1, "processed, not dropped: the summary is here, so the note is written now");
+
+    // And the branch stayed shut.
+    assert.deepEqual([thread().state, thread().paused_until], ["open", null], "the receptionist keeps the thread; nothing on Needs you");
+    assert.equal(w.tables.escalations.length, 0, "no callback escalation");
+    assert.equal(w.tables.notifications.length, 0, "no bell -- 'needs a call back' or any other");
+    assert.equal(line.mail().length, 0);
+
+    // The same words, as the analysis: the thread is paused and on Needs you,
+    // the one escalation opens with the to-do, the bell is about the thread.
+    // Postgres holds the note's unique key; the double runs over the refusal.
+    w.open({ "messages.insert": DUPLICATE("messages_tenant_external") });
+    const before = Date.now();
+    const analysed = await deliver("call_analyzed", w.analysed(id, { call_analysis }));
+    assert.deepEqual([analysed.status, await analysed.json()], [200, { ok: true }]);
+    assert.equal(thread().state, "needs_human");
+    assert.ok(Date.parse(thread().paused_until) > before, "paused, from now");
+    assert.deepEqual(w.tables.escalations.map((e) => [e.conversation_id, e.reason, e.details]), [[call.conversation_id, "callback", "Call Rosa back about the piano."]]);
+    assert.equal(w.tables.notifications.length, 1);
+    const bell = w.tables.notifications[0];
+    assert.deepEqual([bell.kind, bell.subject_type, bell.subject_id, bell.title], ["call", "conversation", call.conversation_id, "Rosa phoned · 2 min · needs a call back"]);
+    assert.equal(line.mail().length, 1);
+    assert.equal(w.tables.messages.length, 1, "one line per call, still");
   } finally {
     line.restore();
   }
