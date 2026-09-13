@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, REPORTS_DATA, Sparkline */
+/* global React, Icon, StatStrip, StatCell, REPORTS_DATA, Sparkline, EmptyState, FailedRead */
 // Chanlytics — Reports
 // Owner-first: what came in, which agents earned it, and how your judgment
 // layer performed. Range tabs rescale everything.
@@ -411,7 +411,7 @@ const RpTable = ({ columns, rows }) => (
       <thead><tr>{columns.map((c) => <th key={c}>{c}</th>)}</tr></thead>
       <tbody>
         {rows.map((r, i) => <tr key={i}>{r.map((v, j) => <td key={j} className={j ? "num" : ""}>{v}</td>)}</tr>)}
-        {rows.length === 0 && <tr><td colSpan={columns.length} className="rp2-empty">Nothing in this period.</td></tr>}
+        {rows.length === 0 && <tr><td colSpan={columns.length}><EmptyState kind="line" title="Nothing in this period." /></td></tr>}
       </tbody>
     </table>
   </div>
@@ -536,7 +536,7 @@ const RpColumns = ({ points, field, max, days, label }) => {
 };
 
 const RpBars = ({ rows, empty }) => {
-  if (!rows.length) return <div className="rp2-empty">{empty}</div>;
+  if (!rows.length) return <EmptyState kind="line" title={empty} />;
   return (
     <div className="rp2-bars">
       {rows.map((r) => (
@@ -551,7 +551,7 @@ const RpBars = ({ rows, empty }) => {
 };
 
 const RpBuckets = ({ rt }) => {
-  if (!rt.count) return <div className="rp2-empty">No receptionist replies in this period to time.</div>;
+  if (!rt.count) return <EmptyState kind="line" title="No receptionist replies in this period to time." />;
   return (
     <div className="rp2-buckets">
       <div className="rp2-bucket-stats">
@@ -593,7 +593,7 @@ const RpShare = ({ pct, n, of }) => (
 // The current period by source: a playbook's runs together, a one-off
 // broadcast alone; the shares are of that source's own sent.
 const RpSources = ({ rows }) => {
-  if (!rows.length) return <div className="rp2-empty">No broadcast or playbook run reached anyone in this period.</div>;
+  if (!rows.length) return <EmptyState kind="line" title="No broadcast or playbook run reached anyone in this period." />;
   const title = (s) => (window.__starters && s.templateName ? window.__starters.title(s.templateName) : s.template);
   return (
     <div className="rp2-tablewrap">
@@ -694,10 +694,7 @@ const GoogleSection = ({ days }) => {
         <RpSection label="Google reviews" />
         <section className="fl-card rp2-card" data-testid="google-none">
           <div className="fl-card-head"><span className="fl-card-title">Your listing on Google</span></div>
-          <div className="rp2-empty">
-            Find your business on Google once and its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands.{" "}
-            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/setup")}>Find it on Setup</button>
-          </div>
+          <EmptyState kind="line" title="Find your business on Google once." body="Its rating, its count and its newest reviews show here for the period, with a line on Today and a row on the bell when one lands." action={{ label: "Find it on Setup", to: "admin/setup" }} />
         </section>
       </>
     );
@@ -712,7 +709,7 @@ const GoogleSection = ({ days }) => {
           table={{ columns: ["Day", "Gained"], rows: vm.gained.points.map((p) => [p.label, p.gained]) }}>
           {vm.gained.points.length && vm.gained.total !== null
             ? <RpColumns points={vm.gained.points} field="gained" max={vm.gained.max} days={days} label="ratings gained" />
-            : <div className="rp2-empty">The count is read once a day; the first difference shows after the second read.</div>}
+            : <EmptyState kind="line" title="The count is read once a day; the first difference shows after the second read." />}
         </RpCard>
         <RpCard title="Latest reviews" sub={vm.latest.length ? (vm.reply.words ? `${vm.source} · ${vm.reply.words}` : vm.source) : ""} testid="chart-google-latest" table={vm.table}>
           {vm.latest.length ? (
@@ -731,7 +728,7 @@ const GoogleSection = ({ days }) => {
                 </div>
               ))}
             </div>
-          ) : <div className="rp2-empty">Google shows no written reviews for this listing yet.</div>}
+          ) : <EmptyState kind="line" title="Google shows no written reviews for this listing yet." />}
         </RpCard>
       </div>
     </>
@@ -748,10 +745,11 @@ const ReportsReal = () => {
   const [failed, setFailed] = useRpState(null);
   const fetchedAt = R ? R.fetchedAt : 0;
   React.useEffect(() => { setBusy(false); }, [fetchedAt]);
-  if (!R) return null;
+  if (!R) return <FailedRead kind="page" what="your reports" surface="reports" />;
   const vm = R.vm;
   const cm = R.campaigns || null;
   const bk = R.booking || { present: false, headline: "—", sub: "", pct: null, asked: 0, booked: 0 };
+  const [widest, widestLabel] = RP2_RANGES[RP2_RANGES.length - 1];
   const pick = async (days) => {
     if (days === R.days || !window.__setReportDays) return;
     setBusy(true);
@@ -786,10 +784,7 @@ const ReportsReal = () => {
         <div className="rp2-tiles rp2-strip-reception">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
 
         {vm.empty ? (
-          <section className="fl-card rp2-card">
-            <div className="fl-card-head"><span className="fl-card-title">Nothing came in</span></div>
-            <div className="rp2-empty">Nobody wrote or called between {vm.since} and {vm.until}, so there is nothing to chart. The numbers above are real zeros.</div>
-          </section>
+          <EmptyState kind="card" glyph="wave" title="Nothing came in" body={`Nobody wrote or called between ${vm.since} and ${vm.until}, so there is nothing to chart. The numbers above are real zeros.`} action={R.days !== widest ? { label: `Look at ${widestLabel}`, onClick: () => pick(widest) } : null} />
         ) : (
           <>
             <RpCard title="Who answered, day by day" sub={`${vm.answered.totals.in} customer messages`} testid="chart-answered" table={vm.table} className="rp2-main">
@@ -800,7 +795,7 @@ const ReportsReal = () => {
               </div>
               {vm.answered.totals.in
                 ? <RpStacked points={vm.answered.points} max={vm.answered.max} days={vm.days} />
-                : <div className="rp2-empty">No customer messages in this period — the receptionist had nothing to answer by text. Calls are below.</div>}
+                : <EmptyState kind="line" title="No customer messages in this period — the receptionist had nothing to answer by text. Calls are below." />}
             </RpCard>
 
             <div className="rp2-row">
@@ -823,19 +818,13 @@ const ReportsReal = () => {
           <>
             <div className="rp2-tiles rp2-strip-campaigns five" data-testid="campaign-tiles">{cm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
             {cm.empty ? (
-              <section className="fl-card rp2-card" data-testid="chart-campaigns">
-                <div className="fl-card-head"><span className="fl-card-title">Nothing went out</span></div>
-                <div className="rp2-empty">
-                  No broadcast or playbook run reached anyone between {vm.since} and {vm.until}, and nobody said yes or asked to stop.{" "}
-                  <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("broadcasts")}>Open Broadcasts</button>
-                </div>
-              </section>
+              <EmptyState kind="card" glyph="wave" title="Nothing went out" body={`No broadcast or playbook run reached anyone between ${vm.since} and ${vm.until}, and nobody said yes or asked to stop.`} action={{ label: "Open Broadcasts", to: "broadcasts" }} testid="chart-campaigns" />
             ) : (
               <div className="rp2-row rp2-row-wide">
                 <RpCard title="Sent, day by day" sub={cm.totals.sent ? `${cm.totals.sent} messages · ${cm.totals.replied} wrote back` : "nothing sent"} testid="chart-campaigns" table={cm.table}>
                   {cm.totals.sent
                     ? <RpColumns points={cm.points} field="sent" max={cm.max} days={vm.days} label="messages sent" />
-                    : <div className="rp2-empty">No message went out in this period; the yeses and stops above are the people's own.</div>}
+                    : <EmptyState kind="line" title="No message went out in this period; the yeses and stops above are the people's own." />}
                 </RpCard>
                 <RpCard title="By playbook and broadcast" sub={cm.sources.length ? `${cm.sources.length} source${cm.sources.length === 1 ? "" : "s"} · shares of each one's own sent` : ""} testid="chart-sources"
                   table={{ columns: ["Source", "Kind", "Sends", "Sent", "Delivered", "Replied"], rows: cm.sources.map((x) => [x.name, x.kindLabel, x.runs, x.sent, x.delivered, x.replied]) }}>
@@ -845,7 +834,7 @@ const ReportsReal = () => {
             )}
           </>
         ) : (
-          <div className="rp2-empty" data-testid="chart-campaigns">Campaign numbers could not be read right now.</div>
+          <FailedRead kind="card" what="the campaign numbers" body="The receptionist's own numbers above are current." surface="reports" testid="chart-campaigns" />
         )}
 
         <GoogleSection days={R.days} />
@@ -863,13 +852,13 @@ const ReportsReal = () => {
                       <div className="rp2-foot">Caller mood, the voice provider's own read: {vm.calls.sentiments.map((x) => `${x.label} ${x.value}`).join(" · ")}</div>
                     )}
                   </>
-                ) : <div className="rp2-empty">Nobody phoned in this period.</div>}
+                ) : <EmptyState kind="line" title="Nobody phoned in this period." />}
               </RpCard>
               <RpCard title="New people" sub={vm.people.total ? `${vm.people.total} first contacts, by evidence` : "nobody new"} testid="chart-people"
                 table={{ columns: ["Day", "New people"], rows: vm.people.points.map((p) => [p.label, p.newPeople]) }}>
                 {vm.people.total
                   ? <RpColumns points={vm.people.points} field="newPeople" max={vm.people.max} days={vm.days} label="new people" />
-                  : <div className="rp2-empty">Nobody new wrote or called in this period.</div>}
+                  : <EmptyState kind="line" title="Nobody new wrote or called in this period." />}
               </RpCard>
               <RpCard title="Asked → booked" sub={bk.present ? "the booking is the conversion" : "needs the calendar"} testid="chart-booking">
                 <div className="rp2-booking">

@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, EmptyState, FailedRead */
 // Inbox List Rail — perfectionist refinement.
 // Improvements:
 //   - Search input at the top
@@ -169,6 +169,15 @@ const InboxList = ({
 
       {/* Threads */}
       <div className="ix-threads">
+        {(() => {
+          // Escalated threads outside the newest page are fetched one by one;
+          // one that failed is a waiting customer nobody can see, so the list
+          // says so instead of listing fewer.
+          const n = ((window.INBOX_DATA || {}).UNREAD_ESCALATED) || 0;
+          return n > 0
+            ? <FailedRead kind="line" title={`Couldn't read ${n} escalated conversation${n === 1 ? "" : "s"}`} body="Someone may be waiting in them." surface="inbox" testid="inbox-unread-escalated" />
+            : null;
+        })()}
         {visible.length === 0 && (() => {
           // "Is this a real workspace?" must come from the surface
           // classification, not from the array being inspected: an EMPTY
@@ -193,17 +202,15 @@ const InboxList = ({
               : { icon: "flag", title: "No escalations", body: "Sensitive threads that need a human land here." },
           }[activeView ? "view" : activeBucket] || { icon: "filter", title: "Nothing in this view", body: "No threads match this saved view right now." };
           return (
-            <div className="ix-empty-mini">
-              <Icon name={query ? "search" : (meta.icon || "check")} size={20} />
-              <div className="ix-empty-mini-title">{query ? `No matches for "${query}"` : (meta.title || "All clear")}</div>
-              <div className="ix-empty-mini-body">{query ? "Try a different term — search spans every bucket." : (meta.body || "Your agents will surface anything that needs your attention here.")}</div>
-              {!query && meta.cta && (
-                <button className="btn btn-sm" style={{ marginTop: 4 }} onClick={() => window.CHANLY.nav(meta.cta.to)}>{meta.cta.label}</button>
-              )}
-              {query && (
-                <button className="btn btn-ghost btn-sm" style={{ marginTop: 4 }} onClick={() => setQuery("")}>Clear search</button>
-              )}
-            </div>
+            <EmptyState
+              kind="card"
+              className="ix-empty-mini"
+              glyph={query ? "search" : (meta.icon || "check")}
+              tone={query ? null : "ok"}
+              title={query ? `No matches for "${query}"` : (meta.title || "All clear")}
+              body={query ? "Try a different term — search spans every bucket." : (meta.body || "The receptionist surfaces anything that needs you.")}
+              action={query ? { label: "Clear search", onClick: () => setQuery("") } : meta.cta ? { label: meta.cta.label, to: meta.cta.to } : null}
+            />
           );
         })()}
         {visible.map((t) => {

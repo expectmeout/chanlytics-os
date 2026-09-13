@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm */
+/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
 // Chanlytics — Live, on a real workspace.
 //
 // The mockup's console (live-monitor.jsx) promised Live Listen, Take Over and
@@ -52,7 +52,9 @@ const LrRow = ({ c, active, elapsed, onSelect }) => (
   </tr>
 );
 
-const LrLineNote = ({ line }) => {
+const LrLineNote = ({ line, lineRead = true }) => {
+  // The channels read failed: the line's state is unknown, not absent.
+  if (!lineRead) return <FailedRead kind="line" what="the phone line" body="Calls still show here; whether the line is on is unknown until it reads." surface="live" testid="live-line-failed" />;
   if (line === null) return <div className="lm-line-note">No call in progress. This workspace has no phone line yet.</div>;
   if (!line.on) return <div className="lm-line-note">No call in progress. The line is switched off — the receptionist is not picking up.</div>;
   return (
@@ -62,7 +64,7 @@ const LrLineNote = ({ line }) => {
   );
 };
 
-const LrList = ({ live, recent, line, activeId, elapsedOf, onSelect }) => (
+const LrList = ({ live, recent, line, lineRead = true, activeId, elapsedOf, onSelect }) => (
   <aside className="lm-list">
     <div className="lm-list-head">
       <span className="lm-list-label"><span className="live-dot" style={{ width: 6, height: 6, ...(live.length ? {} : { opacity: 0.35, animation: "none" }) }} /> Right now</span>
@@ -76,7 +78,7 @@ const LrList = ({ live, recent, line, activeId, elapsedOf, onSelect }) => (
         </tbody>
       </table>
     ) : (
-      <LrLineNote line={line} />
+      <LrLineNote line={line} lineRead={lineRead} />
     )}
     <div className="lm-list-head lm-section-head">
       <span className="lm-list-label">Recent</span>
@@ -339,10 +341,7 @@ const LrPanel = ({ c, elapsed }) => {
   if (!c) {
     return (
       <div className="lm-panel">
-        <div className="lm-ended-note">
-          <Icon name="phone" size={16} />
-          <div className="lm-ended-title">No calls on this line yet. When a customer calls, the call appears here while it is happening.</div>
-        </div>
+        <EmptyState kind="card" glyph="phone" title="No calls on this line yet" body="When a customer calls, the call appears here while it is happening." />
       </div>
     );
   }
@@ -500,7 +499,7 @@ const LiveMonitorReal = () => {
       </div>
 
       <div className="lm-body">
-        <LrList live={live} recent={recent} line={line} activeId={active ? active.callId : null} elapsedOf={elapsedOf} onSelect={setActiveId} />
+        <LrList live={live} recent={recent} line={line} lineRead={L.lineRead !== false} activeId={active ? active.callId : null} elapsedOf={elapsedOf} onSelect={setActiveId} />
         <LrPanel c={active} elapsed={active ? elapsedOf(active) : 0} />
       </div>
     </div>

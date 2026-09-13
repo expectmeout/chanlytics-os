@@ -1,4 +1,4 @@
-/* global React, Icon, ConfidenceDots, TlMedia */
+/* global React, Icon, ConfidenceDots, TlMedia, EmptyState */
 // Inbox Thread Pane — perfectionist refinement.
 // New structure:
 //   1. Header (compact — name, channels, actions)
@@ -906,13 +906,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
 
 // =============== EMPTY STATE ===============
 const InboxEmpty = () => (
-  <div className="ix-empty-state">
-    <div className="ix-empty-glyph"><Icon name="inbox" size={28} /></div>
-    <div className="ix-empty-title">Inbox zero</div>
-    <div className="ix-empty-body">
-      Your agents are handling everything in real time. Anything that needs your call will appear here.
-    </div>
-  </div>
+  <EmptyState kind="page" glyph="inbox" title="Inbox zero" body="The receptionist is handling everything. Anything that needs your call appears here." action={{ label: "See what it handled", to: "conversations" }} testid="inbox-empty" />
 );
 
 window.InboxThread = InboxThread;

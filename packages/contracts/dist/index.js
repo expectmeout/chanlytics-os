@@ -2843,7 +2843,7 @@ function toLiveVM(calls, channels, now = /* @__PURE__ */ new Date()) {
     on: voice.status === "active",
     lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null
   } : null;
-  return { now: nowList, recent, line, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
+  return { now: nowList, recent, line, lineRead: channels !== null, heartbeatMs: CALL_HEARTBEAT_MS, fetchedAtMs: now.getTime() };
 }
 
 // src/calendar-people.ts
@@ -3780,6 +3780,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
+  const callsRead = calls !== null;
+  const callDtos = calls ?? [];
   const localNow = new Date(m.window.now_local);
   const valid = !Number.isNaN(localNow.getTime());
   const hour = valid ? localNow.getHours() : now.getHours();
@@ -3844,7 +3846,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     };
   });
   const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = calls.filter(
+  const callsInWindow = callDtos.filter(
     (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs
   );
   const callMinutes = Math.round(p.call_seconds / 60);
@@ -3880,6 +3882,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       recap: { label: "Today so far", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
+      callsRead,
       queue: { rows: [], more: 0, parts: [] },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock2,
@@ -3986,7 +3989,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     };
   });
   const callByConv = /* @__PURE__ */ new Map();
-  for (const c of calls) {
+  for (const c of callDtos) {
     if (!c.conversation_id) continue;
     const prev = callByConv.get(c.conversation_id);
     if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
@@ -4119,6 +4122,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     } : null,
     recap: { label: "Today so far", sentences, facts, receipts },
     pulse,
+    callsRead,
     calls: p.calls ? {
       line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${callMinutes ? ` \xB7 ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}.`,
       rows: callRows

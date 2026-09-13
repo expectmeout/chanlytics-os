@@ -150,6 +150,8 @@ export interface TodayVM {
    *  (an arc of 0/0 is a gauge with no needle). */
   pulse: { num: number; den: number } | null;
   calls: { line: string; rows: TodayCallRowVM[] } | null;
+  /** Whether the calls read succeeded; false means the rows above omit the phone, and the brief says so. */
+  callsRead: boolean;
   /** Everything that asks for a person, in one row grammar, longest wait first. */
   /** The rows, the rest as a count, and what the rows hold in words: "2 need you", "1 reply window closing", "1 call worth a listen". */
   queue: { rows: TodayQueueRowVM[]; more: number; parts: string[] };
@@ -234,12 +236,15 @@ export function toTodayVM(
   m: MetricsSummaryDto,
   conversations: ConversationDto[],
   escalations: Array<EscalationDto & { conversation_id: string }>,
-  calls: CallDto[],
+  calls: CallDto[] | null,
   now = new Date(),
 ): TodayVM {
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
+  // Null: the calls read failed. The brief says so rather than counting none.
+  const callsRead = calls !== null;
+  const callDtos = calls ?? [];
 
   // now_local is a naive tenant-local wall clock ("2026-08-27T11:00:19"), so
   // parsing it as a local Date yields the salon's own hour and weekday.
@@ -339,7 +344,7 @@ export function toTodayVM(
     });
 
   const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = calls.filter(
+  const callsInWindow = callDtos.filter(
     (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs,
   );
   const callMinutes = Math.round(p.call_seconds / 60);
@@ -400,6 +405,7 @@ export function toTodayVM(
       recap: { label: "Today so far", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
+      callsRead,
       queue: { rows: [], more: 0, parts: [] },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock,
@@ -596,7 +602,7 @@ export function toTodayVM(
      The longest wait first; a closing window by how soon it closes; a call
      worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
   const callByConv = new Map<string, CallDto>();
-  for (const c of calls) {
+  for (const c of callDtos) {
     if (!c.conversation_id) continue;
     const prev = callByConv.get(c.conversation_id);
     if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
@@ -709,6 +715,7 @@ export function toTodayVM(
       : null,
     recap: { label: "Today so far", sentences, facts, receipts },
     pulse,
+    callsRead,
     calls: p.calls
       ? {
           line: `${p.calls} call${p.calls === 1 ? "" : "s"} today${

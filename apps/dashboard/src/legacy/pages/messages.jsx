@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm */
+/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
 // Campaigns › Messages: what the receptionist and the campaigns send on
 // WhatsApp, shown as the customer sees it. One card per message — the
 // starter set in the library's order, then what the workspace wrote or
@@ -137,9 +137,7 @@ const MessagesReal = () => {
       <div className="reports" data-testid="messages-real">
         <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Couldn&rsquo;t be loaded right now</div></div></div>
         <div className="rp-body">
-          <section className="fl-card rp2-card">
-            <div className="rp2-empty">The receptionist keeps sending; this page just can&rsquo;t show the messages at the moment. <button className="cl-bucket-link" onClick={() => window.__refreshSettings && window.__refreshSettings()}>Retry</button></div>
-          </section>
+          <FailedRead kind="card" what="your messages" body="The receptionist keeps sending; this page just can't show them at the moment." surface="settings" testid="messages-failed" />
         </div>
       </div>
     );
@@ -214,9 +212,7 @@ const MessagesReal = () => {
 
       <div className="rp-body">
         {!hasWhatsApp && (
-          <section className="fl-card rp2-card" data-testid="messages-no-number">
-            <div className="rp2-empty">Connect a WhatsApp number first — messages belong to a number&rsquo;s account. <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/integrations")}>Open Connections</button></div>
-          </section>
+          <EmptyState kind="card" glyph="phone" title="Connect a WhatsApp number first" body="Messages belong to a number's account." action={{ label: "Open Connections", to: "admin/integrations" }} testid="messages-no-number" />
         )}
         {composing && window.TemplateComposer && (
           <section className="fl-card rp2-card" data-testid="messages-composer">
@@ -237,7 +233,7 @@ const MessagesReal = () => {
             {hasWhatsApp && starters.map(card)}
             {customGroups.map(card)}
           </div>
-          {!hasWhatsApp && customGroups.length === 0 && <div className="rp2-empty">Nothing on file yet.</div>}
+          {!hasWhatsApp && customGroups.length === 0 && <EmptyState kind="line" title="Nothing on file yet." />}
         </section>
         {hiddenGroups.length > 0 && (
           <section className="msg-fold" data-testid="templates-fold">

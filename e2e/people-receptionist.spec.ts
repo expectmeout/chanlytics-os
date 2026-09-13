@@ -18,7 +18,7 @@ test.describe("Receptionist mode for one person", () => {
   test("shows which mode is in force and issues a workspace-scoped PUT with the chosen mode — intercepted", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const rows = page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))");
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
     await rows.first().click();
     await expect(page.locator(".cl-prof-name")).toBeVisible();

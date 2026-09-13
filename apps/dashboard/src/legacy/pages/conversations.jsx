@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, CONVERSATIONS_DATA, TlMedia */
+/* global React, Icon, StatStrip, StatCell, CONVERSATIONS_DATA, TlMedia, EmptyState, FailedRead */
 // Chanlytics — Conversations
 // The raw communication layer: every call, chat, and email. Calls carry
 // transcripts + agent summaries; the live call streams at the top.
@@ -417,7 +417,7 @@ const CvViewer = ({ c, onBack = null }) => {
 
 // ---------- Page ----------
 const ConversationsPage = ({ channel = "all", initialId = null }) => {
-  const { CONVERSATIONS, CV_CHANNELS } = window.CONVERSATIONS_DATA;
+  const { CONVERSATIONS, CV_CHANNELS, CALLS_READ } = window.CONVERSATIONS_DATA;
   const [query, setQuery] = useCvState("");
   const [selectedId, setSelectedId] = useCvState(initialId);
   // Phone: the list and the viewer take turns (mobile.css owns the breakpoint).
@@ -478,6 +478,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
             <input placeholder="Search names, transcripts, messages…" value={query} onChange={(e) => setQuery(e.target.value)} />
           </div>
         </div>
+        {CALLS_READ === false && <FailedRead kind="line" what="the calls" body="The chats below are current; the phone's rows are missing until it reads." surface="conversations" testid="cv-calls-failed" />}
         <div className="cv-filters">
           <div className="fleet-filter">
             {CV_CHANNELS.map(ch => (
@@ -497,15 +498,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
             <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }} />
           ))}
           {visible.length === 0 && (
-            <div className="cv-empty">
-              <div>No conversations match{query.trim() ? ` “${query.trim()}”` : " this channel"}.</div>
-              <div style={{ marginTop: 4, fontSize: 11, color: "var(--ink-faint)" }}>Search spans names, transcripts, and messages.</div>
-              {query.trim() && (
-                <button className="cl-bucket-link" style={{ marginTop: 8 }} onClick={() => setQuery("")}>
-                  Clear search <Icon name="arrow-right" size={10} />
-                </button>
-              )}
-            </div>
+            <EmptyState kind="line" className="empty-center" title={`No conversations match${query.trim() ? ` “${query.trim()}”` : " this channel"}.`} body="Search spans names, transcripts and messages." action={query.trim() ? { label: "Clear search", onClick: () => setQuery("") } : null} />
           )}
         </div>
       </aside>
@@ -516,10 +509,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
         </div>
       )}
       {selected ? <CvViewer c={selected} onBack={() => setPhoneOpen(false)} /> : (
-        <div className="ix-empty-state">
-          <div className="ix-empty-glyph"><Icon name="chat" size={28} /></div>
-          <div className="ix-empty-title">No conversation selected</div>
-        </div>
+        <EmptyState kind="page" glyph="chat" title="No conversation selected" body="Pick one on the left to read it here." />
       )}
     </div>
   );

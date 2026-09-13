@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell */
+/* global React, Icon, StatStrip, StatCell, EmptyState */
 // Calendar, real: the owner's calendar as the receptionist reads it.
 //
 // One loaded window of days, four views sliced from it. The page keeps two
@@ -230,7 +230,7 @@ const CrAgenda = ({ frames, feedOk, fit, service, onOpen }) => (
               ))}
             </div>
           )}
-          {!d.loading && !d.closed.yes && feedOk && items.length === 0 && <div className="cal-agenda-empty">Nothing on the calendar.</div>}
+          {!d.loading && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
           {!d.loading && !d.closed.yes && feedOk && !d.past && (
             <div className="cal-agenda-open">
               <span className="cal-agenda-open-label">Open{service ? ` for ${service.name}` : ""}:</span>

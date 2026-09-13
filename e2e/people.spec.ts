@@ -64,7 +64,7 @@ test.describe("People on a real workspace", () => {
     for (const p of pills) expect(["needs you", "waiting on you", "opted out", "new", "quiet", "active"]).toContain(p.trim().toLowerCase());
 
     // The header counts are integers, and "People" equals the rows shown when nothing is filtered.
-    const shown = await page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))").count();
+    const shown = await page.locator(".cl-table tbody tr:not(:has(.empty))").count();
     const total = (await page.locator(".cl-head-stats .stat-cell").first().locator(".stat-cell-value").innerText()).trim();
     expect(Number(total)).toBe(shown);
   });
@@ -72,7 +72,7 @@ test.describe("People on a real workspace", () => {
   test("a profile opens from the list and is a timeline, not a form", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const rows = page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))");
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to open");
 
     await rows.first().click();
@@ -214,7 +214,7 @@ test.describe("People on a real workspace", () => {
   test("the keyboard walks the rows: ↓ focuses, Enter opens the profile", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const rows = page.locator(".cl-table tbody tr:not(:has(.cl-table-empty))");
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
     test.skip((await rows.count()) === 0, "this workspace has nobody to walk");
     await page.evaluate(() => { const el = document.activeElement as HTMLElement | null; if (el && el.blur) el.blur(); });
     await page.keyboard.press("ArrowDown");

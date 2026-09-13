@@ -225,7 +225,7 @@ const TriageConsole = ({ buckets, clients, onOpen, attentionTab, setAttentionTab
         <div className="cl-decision-grid">
           {rows.map(c => <ClientDecisionRow key={c.id} client={c} onOpen={onOpen} />)}
           {rows.length === 0 && (
-            <div className="cl-decision-empty">No clients in this bucket right now.</div>
+            <EmptyState kind="line" className="empty-center" title="Nobody in this bucket right now." />
           )}
         </div>
       </div>
@@ -306,13 +306,7 @@ const ClientsTable = ({ clients, sortBy, sortDir, onSort, selected, onToggle, on
           {clients.length === 0 && (
             <tr>
               <td colSpan={6}>
-                <div className="cl-table-empty">
-                  <Icon name="search" size={15} />
-                  <span>No clients match this view.</span>
-                  <button className="cl-bucket-link" onClick={onClearFilters}>
-                    Clear filters <Icon name="arrow-right" size={10} />
-                  </button>
-                </div>
+                <EmptyState kind="line" className="empty-center" glyph="search" title="No clients match this view." action={{ label: "Clear filters", onClick: onClearFilters }} />
               </td>
             </tr>
           )}
@@ -1060,15 +1054,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
         {rows.length === 0 && (
           <tr>
             <td colSpan={selectable ? 7 : 6}>
-              <div className="cl-table-empty">
-                <Icon name="search" size={15} />
-                <span>{total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."}</span>
-                {total > 0 && filtered && (
-                  <button className="cl-bucket-link" onClick={onClearFilters}>
-                    Clear filters <Icon name="arrow-right" size={10} />
-                  </button>
-                )}
-              </div>
+              <EmptyState kind="line" className="empty-center" glyph="search" title={total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} action={total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
             </td>
           </tr>
         )}

@@ -1,4 +1,4 @@
-/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm */
+/* global React, Icon, CLIENTS, ChannelGlyph, TempBar, ClientTag, MoreMenu, Confirm, EmptyState, FailedRead */
 // Chanlytics — Client profile page.
 // The last approval surface wired into the decide engine: Aisha's queue
 // approves through IX_STORE (toast + undo), overlays live decisions, and
@@ -707,7 +707,7 @@ const PersonTimeline = ({ items, initials }) => {
           </React.Fragment>
         );
       })}
-      {items.length === 0 && <div className="cl-decision-empty">Nothing recorded yet.</div>}
+      {items.length === 0 && <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />}
     </div>
   );
 };
@@ -821,14 +821,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const { vm, loading, missing, error } = st;
   if (missing) return (
     <PersonProfileFrame onBack={onBack}>
-      <div className="cl-decision-empty">This person is not in your workspace — they may have been deleted.</div>
+      <EmptyState kind="page" glyph="user" title="This person is not in your workspace" body="They may have been deleted." action={{ label: "Back to People", onClick: onBack }} />
     </PersonProfileFrame>
   );
   if (!vm) return (
     <PersonProfileFrame onBack={onBack}>
-      <div className="cl-decision-empty" aria-busy={loading ? "true" : "false"}>
-        {loading ? "Loading…" : <>Couldn't load this person — {error}. <button className="cl-bucket-link" onClick={load}>Retry</button></>}
-      </div>
+      {loading ? <div className="cl-decision-empty" aria-busy="true">Loading…</div> : <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />}
     </PersonProfileFrame>
   );
 

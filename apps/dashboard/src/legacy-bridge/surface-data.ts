@@ -272,15 +272,18 @@ export const inboxOverride: SurfaceOverride = {
     // letting a waiting customer be invisible.
     const listed = new Set(convData.conversations.map((c) => c.id));
     const missing = [...byConv.keys()].filter((id) => !listed.has(id));
-    const extra = (
-      await Promise.all(
-        missing.slice(0, 20).map((id) =>
-          read("GET conversations/[id]", { params: { id } })
-            .then((d) => ({ ...d.conversation, messages: d.messages }))
-            .catch(() => null),
-        ),
-      )
-    ).filter((c): c is ConversationDto => !!c);
+    const fetched = await Promise.all(
+      missing.slice(0, 20).map((id) =>
+        read("GET conversations/[id]", { params: { id } })
+          .then((d) => ({ ...d.conversation, messages: d.messages }))
+          .catch(() => null),
+      ),
+    );
+    const extra = fetched.filter((c): c is ConversationDto => !!c);
+    // One that could not be read is a waiting customer nobody can see: the
+    // list says how many, rather than listing fewer.
+    const unreadEscalated = fetched.length - extra.length;
+    if (unreadEscalated) console.error("inbox_escalated_fetch_failed", unreadEscalated);
 
     const all = [...extra, ...convData.conversations];
     const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null));
@@ -295,6 +298,7 @@ export const inboxOverride: SurfaceOverride = {
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
       CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone" },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
+      UNREAD_ESCALATED: unreadEscalated,
     };
   },
 };
@@ -332,7 +336,9 @@ export const todayOverride: SurfaceOverride = {
       read("GET escalations", { query: { state: "open" } }),
       read("GET calls").catch((e: unknown) => e as Error),
     ]);
-    let calls: CallDto[] = [];
+    // Null, not []: a calls read that failed is its own state, and the brief
+    // says so rather than counting none.
+    let calls: CallDto[] | null = null;
     try {
       if (callsRes instanceof Error) throw callsRes;
       calls = callsRes.calls;
@@ -376,7 +382,7 @@ export const conversationsOverride: SurfaceOverride = {
       read("GET calls").catch((e: unknown) => e as Error),
     ]);
     const w = window as unknown as {
-      CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[] };
+      CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[]; CALLS_READ: boolean };
     };
     // Calls get their OWN rows: a thread answers "am I on the hook to reply",
     // a call answers "is my AI saying the right things on the phone" — the
@@ -400,6 +406,9 @@ export const conversationsOverride: SurfaceOverride = {
     );
     w.CONVERSATIONS_DATA = {
       CONVERSATIONS: merged,
+      // A calls read that failed is its own state: the page says so instead
+      // of listing no calls (the audit's D9 family).
+      CALLS_READ: !(callsRes instanceof Error),
       CV_CHANNELS: [
         { id: "all", label: "All" },
         ...(callRows.length ? [{ id: "phone", label: "Calls" }] : []),
@@ -676,7 +685,10 @@ export type BroadcastTemplate = TemplateDto & { purpose: SendPurpose };
 export interface BroadcastsSurface {
   rows: BroadcastVM[];
   /** The approved WhatsApp templates, with their variables and their purpose. */
-  templates: BroadcastTemplate[];
+  /** Null: the templates read failed -- its own state, never "no template yet". */
+  templates: BroadcastTemplate[] | null;
+  /** Whether the saved lists were read; false leaves the audiences without them, and the page says so. */
+  listsRead: boolean;
   audiences: AudienceOption[];
   /** The WhatsApp number a broadcast goes out on, and what WhatsApp has said about it. */
   number: { present: boolean; display: string | null; health: NumberHealth };
@@ -745,8 +757,9 @@ export const broadcastsOverride: SurfaceOverride = {
     const slug = workspaceOverride.current()?.slug ?? null;
     (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
+      listsRead: !(saved instanceof Error),
       templates: tpl instanceof Error
-        ? []
+        ? null
         : (tpl.templates ?? [])
             .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
             .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
@@ -826,7 +839,8 @@ export interface PlaybooksSurface {
   /** The Autonomy rows' words, so a playbook names its row the way the matrix does. */
   classWords: typeof POLICY_CLASS_WORDS;
   /** The approved WhatsApp templates, with their variables. */
-  templates: TemplateDto[];
+  /** Null: the templates read failed -- its own state, never "no template yet". */
+  templates: TemplateDto[] | null;
   number: { present: boolean; health: NumberHealth };
   businessName: string;
   bookingLink: boolean;
@@ -882,7 +896,7 @@ export const playbooksOverride: SurfaceOverride = {
       calendar: pb.calendar ?? "none",
       triggers: PLAYBOOK_TRIGGERS.map((t) => ({ id: t.id, label: t.label, hint: t.hint, cls: t.cls, list: t.list, kind: t.kind, candidates: pool(t.id), held: held(t.id) })),
       templates: tpl instanceof Error
-        ? []
+        ? null
         : (tpl.templates ?? [])
             .filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")
             .map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) })),
@@ -978,8 +992,8 @@ export function setReportDays(days: number): void {
 
 export interface ReportsSurface {
   vm: ReportVM;
-  /** What the offers earned over the same period. */
-  campaigns: CampaignReportVM;
+  /** What the offers earned over the same period; null when that read failed and the receptionist's own numbers still stand (D9). */
+  campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;
   days: number;
@@ -1004,11 +1018,15 @@ export const reportsOverride: SurfaceOverride = {
     const days = reportDays;
     const [data, campaigns] = await Promise.all([
       read("GET reports", { query: { days: String(days) } }),
-      read("GET reports/campaigns", { query: { days: String(days) } }),
+      // The offers' numbers are their own read. A failure there used to fail
+      // the whole surface -- the page went blank, and its own "could not be
+      // read" line could never render (the audit's D9). Null is its state.
+      read("GET reports/campaigns", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
     ]);
+    if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
     (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = {
       vm: toReportVM(data.report),
-      campaigns: toCampaignReportVM(campaigns.report),
+      campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
       booking: toBookingReportVM(data.booking),
       days,
       fetchedAt: Date.now(),

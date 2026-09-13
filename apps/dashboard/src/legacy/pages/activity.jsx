@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, EmptyState, FailedRead */
 // Chanlytics — Settings › Activity: what happened in the workspace, and who did it.
 //
 // Both ledgers -- the decisions people (and the receptionist, and the system)
@@ -84,10 +84,10 @@ const PaneActivity = () => {
             </span>
           )}
       </div>
-      {st.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{st.error}</div>}
+      {st.error && <FailedRead kind="line" what="the activity log" why={st.error} onRetry={() => load(0, false)} busy={st.loading} testid="act-failed" />}
       <div className="cl-prof-attr-list" data-testid="act-rows">
         {st.rows.map((r) => <ActivityRow key={r.id} r={r} actors={st.actors} />)}
-        {!st.loading && st.rows.length === 0 && !st.error && <span className="cl-prof-aut-hint">Nothing here for that.</span>}
+        {!st.loading && st.rows.length === 0 && !st.error && <EmptyState kind="line" title="Nothing here for that." action={kind || day || person ? { label: "Clear the filters", onClick: () => { setKind(""); setDay(""); setPerson(null); } } : null} />}
       </div>
       {st.hasMore && <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.rows.length, true)} data-testid="act-more">{st.loading ? "Loading…" : "Show more"}</button>}
       <div className="cl-prof-aut-hint">Model usage, webhook receipts and unplaced messages are kept but not listed here; name a kind to see them.</div>
