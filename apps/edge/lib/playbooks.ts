@@ -52,9 +52,28 @@ export interface TenantRunContext extends RunContext {
   tenantId: string;
 }
 
+/** Rows per page of a read that PostgREST would otherwise cut at max_rows. */
+const PAGE = 1000;
+
+/**
+ * Every row, a page at a time in a fixed order. PostgREST answers at most
+ * max_rows; a touches read cut off the end reads as people nobody wrote to,
+ * and the gap and the week's breath then let a playbook write to them again.
+ */
+async function allOf<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>): Promise<{ data: T[]; error: { message: string } | null }> {
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) return { data: all, error };
+    all.push(...(data ?? []));
+    if ((data ?? []).length < PAGE) break;
+  }
+  return { data: all, error: null };
+}
+
 /** Read once per tenant: the people, the modes, the number, the touches. */
 export async function loadTenantRunContext(db: Db, tenantId: string, now: Date): Promise<TenantRunContext | { error: string }> {
-  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns }, { data: cfgRow }] = await Promise.all([
+  const [{ data: tenant }, { data: people, error: pErr }, policies, { data: ch }, { data: pastRuns, error: rErr }, { data: cfgRow }] = await Promise.all([
     db.from("tenants").select("timezone, status").eq("id", tenantId).maybeSingle(),
     allPeople(db, tenantId),
     listPolicies(db, tenantId).catch(() => []),
@@ -62,10 +81,11 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     // Every broadcast, not only the playbooks' runs: a message sent by hand is
     // a touch too, and the week's breath is one message per person across all
     // of them. byThis (the gap) still keys on the playbook that sent it.
-    db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId),
+    allOf((from, to) => db.from("broadcasts").select("id, playbook_id, state, scheduled_for, created_at").eq("tenant_id", tenantId).order("id").range(from, to)),
     db.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
   ]);
   if (pErr) return { error: pErr.message };
+  if (rErr) return { error: rErr.message };
   // A paused workspace runs nothing: the sweep counts it off, and says so once, quietly.
   if (tenant?.status === "paused") return { error: "paused" };
   const cfg = (ch?.config && typeof ch.config === "object" && !Array.isArray(ch.config) ? ch.config : {}) as Record<string, unknown>;
@@ -80,9 +100,15 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
   const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");
   const runIds = runs.map((b) => b.id);
   const ofRun = new Map(runs.map((b) => [b.id, b]));
-  if (runIds.length) {
-    const { data: touched } = await db.from("broadcast_recipients").select("broadcast_id, contact_id, state, sent_at").in("broadcast_id", runIds).in("state", ["sent", "queued"]);
-    for (const r of touched ?? []) {
+  // The runs two hundred at a time (a URL holds that many ids), each page by
+  // page; a read that fails is the context failing, never "nobody was touched".
+  for (let i = 0; i < runIds.length; i += 200) {
+    const ids = runIds.slice(i, i + 200);
+    const { data: touched, error: tErr } = await allOf((from, to) =>
+      db.from("broadcast_recipients").select("broadcast_id, contact_id, state, sent_at").in("broadcast_id", ids).in("state", ["sent", "queued"]).order("broadcast_id").order("contact_id").range(from, to),
+    );
+    if (tErr) return { error: tErr.message };
+    for (const r of touched) {
       const run = ofRun.get(r.broadcast_id);
       if (!run) continue;
       const at = r.sent_at ? Date.parse(r.sent_at) : Date.parse(run.scheduled_for ?? run.created_at);
@@ -142,8 +168,11 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
   const { db, tenantId } = ctx;
   return runOverPorts(
     {
+      // A read that fails throws: a template that could not be read is not
+      // one Meta withdrew, and the run says it failed rather than skipping the day.
       template: async (name, language) => {
-        const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        const { data, error } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        if (error) throw new Error(`cannot read template ${name}: ${error.message}`);
         return data ?? null;
       },
       alreadyRan: async (playbookId, runFor) => {

@@ -53,7 +53,7 @@ test("ids are validated by the one guard, never by a private regex", () => {
 test("the reply's idempotency key belongs to the caller and to the intent (core-reply.test.mjs runs the replay; here the shape)", () => {
   const src = route("packages/core/src/conversations/reply.ts");
   assert.ok(src.includes("const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;"), "scoped to the caller");
-  assert.ok(src.includes("const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;"), "a different body is a different intent");
+  assert.ok(src.includes("const sameIntent = prior?.request_hash === intentHash;"), "a different body is a different intent, and a receipt with no hash never answers");
   assert.ok(src.includes("await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);"), "the stored hash is the one compared");
   // The check happens BEFORE any side effect of the send.
   const check = src.indexOf("sameIntent");

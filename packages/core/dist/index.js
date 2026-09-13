@@ -9964,6 +9964,9 @@ function parseParamSpec(raw) {
   }
   return null;
 }
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+}
 function paramLabel(spec) {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
@@ -15035,7 +15038,7 @@ function refusalFor(d, f, nowMs) {
   if (f.contact.erased_at) return "erased";
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
-  if (!may.ok) return may.reason ?? "opted_out";
+  if (!may.ok) return may.reason;
   if (d.sender === "human" && !d.proactive) return null;
   if (f.tenantStatus === "paused") return "paused";
   if (!d.messageId && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
@@ -15049,18 +15052,16 @@ async function overtakenByHuman(db, d) {
   if (error) throw new Error(`deliver: cannot read the thread for ${d.messageId}: ${error.message}`);
   return newer && newer.length > 0 ? newer[0].id : null;
 }
-async function event(db, d, kind, messageId, data) {
-  await db.from("events").insert({
-    tenant_id: d.tenantId,
-    kind,
-    category: "message",
-    subject_type: "message",
-    subject_id: messageId,
-    data
-  });
+function event(db, d, kind, messageId, data) {
+  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
+}
+async function stampThread(db, d, nowMs) {
+  const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
+  if (error) console.error("deliver_stamp_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }));
 }
 async function finalizeQueued(db, d, patch) {
-  const { data } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
+  const { data, error } = await db.from("messages").update(patch).eq("id", d.messageId).eq("status", "queued").select("id");
+  if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
 async function deliver(ports, d) {
@@ -15087,10 +15088,15 @@ async function deliver(ports, d) {
   const sent = send === void 0 ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" } : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" } : await send(d.to, { body: d.body, template: d.template });
   if (sent.ok) {
     if (d.messageId) {
-      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} });
-      if (!marked) await event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid });
-      await ports.db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId);
-      await event(ports.db, d, "message.sent", d.messageId, { sender: d.sender });
+      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...sent.wamid ? { external_id: sent.wamid } : {} }).catch((e) => {
+        console.error("deliver_finalize_failed", JSON.stringify({ tenant: d.tenantId, message: d.messageId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+        return null;
+      });
+      await Promise.all([
+        marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
+        stampThread(ports.db, d, nowMs),
+        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender })
+      ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
     const messageId2 = await recordOutbound(ports.db, {
@@ -15167,8 +15173,18 @@ async function takeOver(ports, cmd) {
 async function handBack(ports, cmd) {
   const { conv } = cmd;
   if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
-  await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
-  if (!await ports.release(conv.id)) throw new AppError("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
+  const phone = conv.phone_e164;
+  await ports.pauseBot(conv.tenant_id, phone, 0);
+  const back = conv.paused_until ? () => ports.pauseBot(conv.tenant_id, phone, Date.parse(conv.paused_until)) : async () => {
+  };
+  const released = await ports.release(conv.id).catch(async (e) => {
+    await back();
+    throw e;
+  });
+  if (!released) {
+    await back();
+    throw new AppError("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
+  }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "hand_back");
   await ports.resolveEscalation(conv.id, decision_id);
   return { state: "open", decision_id };
@@ -15183,9 +15199,19 @@ async function snooze(ports, cmd) {
   const until = cmd.until ? new Date(cmd.until) : null;
   if (!until || Number.isNaN(until.getTime()) || until.getTime() <= now) throw new AppError("validation", NEEDS_UNTIL);
   if (until.getTime() - now > MAX_SNOOZE_MS) throw new AppError("validation", "snooze is capped at 30 days.");
-  if (conv.paused_until && conv.phone_e164) await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+  const held = conv.paused_until && conv.phone_e164 ? { phone: conv.phone_e164, until: Date.parse(conv.paused_until) } : null;
+  if (held) await ports.pauseBot(conv.tenant_id, held.phone, 0);
   const snooze_until = until.toISOString();
-  if (!await ports.snooze(conv.id, snooze_until)) throw new AppError("conflict", "Could not snooze this thread \u2014 reload and try again.", 409);
+  const back = held ? () => ports.pauseBot(conv.tenant_id, held.phone, held.until) : async () => {
+  };
+  const snoozed = await ports.snooze(conv.id, snooze_until).catch(async (e) => {
+    await back();
+    throw e;
+  });
+  if (!snoozed) {
+    await back();
+    throw new AppError("conflict", "Could not snooze this thread \u2014 reload and try again.", 409);
+  }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "snooze", { until: snooze_until });
   return { state: "snoozed", snooze_until, decision_id };
 }
@@ -15202,8 +15228,18 @@ async function wake(ports, cmd) {
 // src/conversations/archive.ts
 async function archive(ports, cmd) {
   const { conv } = cmd;
-  if (conv.paused_until && conv.phone_e164) await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
-  if (!await ports.archive(conv.id)) throw new AppError("conflict", "Could not archive this thread \u2014 reload and try again.", 409);
+  const held = conv.paused_until && conv.phone_e164 ? { phone: conv.phone_e164, until: Date.parse(conv.paused_until) } : null;
+  if (held) await ports.pauseBot(conv.tenant_id, held.phone, 0);
+  const back = held ? () => ports.pauseBot(conv.tenant_id, held.phone, held.until) : async () => {
+  };
+  const archived = await ports.archive(conv.id).catch(async (e) => {
+    await back();
+    throw e;
+  });
+  if (!archived) {
+    await back();
+    throw new AppError("conflict", "Could not archive this thread \u2014 reload and try again.", 409);
+  }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "archive");
   await ports.resolveEscalation(conv.id, decision_id);
   return { state: "archived", decision_id };
@@ -15243,7 +15279,7 @@ async function replyToConversation(ports, cmd) {
   const intentHash = ports.hash(JSON.stringify(body));
   if (idemKey) {
     const prior = await ports.priorReceipt(conv.tenant_id, idemKey);
-    const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;
+    const sameIntent = prior?.request_hash === intentHash;
     if (prior && sameIntent && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS) return prior.response;
   }
   let messageBody;
@@ -15261,18 +15297,22 @@ async function replyToConversation(ports, cmd) {
     if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
       throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
     }
+    const expected = Array.isArray(tpl.variables) ? tpl.variables.length : null;
+    if (expected !== null && expected !== 2) {
+      throw new AppError("validation", `This template takes ${expected} value${expected === 1 ? "" : "s"}; the Inbox fills two, the business name and the booking link. Pick a template with those two slots.`);
+    }
     const facts = await ports.templateFacts(conv.tenant_id);
-    let params = facts ? [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")] : [];
-    if (!params.length) params = body.template.params ?? [];
-    if (!params.length) throw new AppError("validation", "This workspace has no template facts configured yet.");
+    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Workspace first.");
+    const params = [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")];
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
-    messageBody = params.reduce((acc, p, i) => acc.replaceAll(`{{${i + 1}}}`, p), tpl.body_preview ?? `[template ${tpl.name}]`);
+    messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;
     jobTemplate = { name: tpl.name, language: tpl.language, params };
   }
   const pauseUntil = now + await ports.pauseMs(conv.tenant_id);
   await ports.pauseBot(conv.tenant_id, conv.phone_e164, pauseUntil);
   if (!await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString())) {
+    await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
@@ -15295,9 +15335,11 @@ async function replyToConversation(ports, cmd) {
     await ports.cancelOrphan(message_id);
     throw e;
   }
+  const queued = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
   await ports.resolveEscalation(conv.id, decision_id);
-  const receipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts, decision_id };
+  const receipt = { ...queued, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
   return receipt;
 }
@@ -15334,8 +15376,10 @@ async function sendQueued(ports, cmd) {
   if (out.reason === "provider" && (out.status === 401 || out.status === 403)) {
     await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
   }
-  await ports.escalate(p.conversation_id, "send_failed", `Dashboard reply could not be delivered (HTTP ${out.status}).`);
-  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `A reply queued from the dashboard could not be sent (HTTP ${out.status}). The thread is flagged in the Inbox.`);
+  const cause = out.reason === "no_credentials" ? "the WhatsApp number is not connected" : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : `HTTP ${out.status}`;
+  const receptionist = msg.sender === "ai";
+  await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
+  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
 }
 
 // src/messages/erase-thread.ts
@@ -15363,6 +15407,10 @@ async function provisionLine(ports, cmd) {
 }
 
 // src/messages/broadcast.ts
+var BROADCAST_STALL_RETRY_MS = 6e4;
+function wireIsDown(out) {
+  return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || out.reason === "provider" && (out.status === 401 || out.status === 403);
+}
 async function sendBroadcastBatch(ports, cmd) {
   const b = await ports.broadcast(cmd.broadcastId);
   if (!b) return;
@@ -15372,7 +15420,7 @@ async function sendBroadcastBatch(ports, cmd) {
     await ports.alert(`Broadcast \u201C${b.name}\u201D not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again.");
     return;
   }
-  if (b.state === "scheduled") await ports.startSending(b.id);
+  if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
@@ -15380,37 +15428,35 @@ async function sendBroadcastBatch(ports, cmd) {
     return;
   }
   const purpose = purposeOfTemplate(tpl.category);
-  const specs = Array.isArray(b.params) ? b.params.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
+  const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
   let begun = 0;
-  for (const r of batch) {
-    if (begun > 0 && ports.now() >= cmd.deadline) break;
-    begun += 1;
-    let c;
-    try {
-      c = await ports.contact(r.contact_id);
-    } catch (e) {
-      console.error("broadcast_contact_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
-      continue;
-    }
+  let marked = 0;
+  const mark = async (contactId, patch) => {
+    marked += 1;
+    await ports.mark(b.id, contactId, patch);
+  };
+  const skip = (contactId, reason) => mark(contactId, { state: "skipped", reason });
+  const one = async (r) => {
+    const c = await ports.contact(r.contact_id);
     if (!c || c.erased_at) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "erased" });
-      continue;
+      await skip(r.contact_id, "erased");
+      return "go on";
     }
     if (!c.phone_e164) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
-      continue;
+      await skip(r.contact_id, "no_phone");
+      return "go on";
     }
     const prior = await ports.alreadySent(b.id, c.id);
     if (prior) {
-      await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior });
-      continue;
+      await mark(r.contact_id, { state: "sent", message_id: prior });
+      return "go on";
     }
     const target = await ports.target(c.phone_e164);
     if (!target) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" });
-      continue;
+      await skip(r.contact_id, "no_thread");
+      return "go on";
     }
     const facts = r.facts !== null && typeof r.facts === "object" && !Array.isArray(r.facts) ? r.facts : {};
     const params = resolveParams(specs, {
@@ -15421,8 +15467,8 @@ async function sendBroadcastBatch(ports, cmd) {
       visitService: typeof facts.visit_service === "string" ? facts.visit_service : null
     });
     if (params.some((v) => !v)) {
-      await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "missing_value" });
-      continue;
+      await skip(r.contact_id, "missing_value");
+      return "go on";
     }
     const words = renderTemplate(tpl.body_preview, params);
     const out = await ports.deliver({
@@ -15444,15 +15490,39 @@ async function sendBroadcastBatch(ports, cmd) {
         ...b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String(b.audience?.label ?? b.name) } : {}
       }
     });
-    if (out.outcome === "sent") await ports.mark(b.id, r.contact_id, { state: "sent", message_id: out.messageId });
-    else if (out.outcome === "refused") await ports.mark(b.id, r.contact_id, { state: "skipped", reason: out.reason });
-    else await ports.mark(b.id, r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+    if (out.outcome === "sent") {
+      await mark(r.contact_id, { state: "sent", message_id: out.messageId });
+      return "go on";
+    }
+    if (out.outcome === "refused") {
+      await skip(r.contact_id, out.reason);
+      return "go on";
+    }
+    await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+    if (!wireIsDown(out)) return "go on";
+    const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+    await ports.fail(b.id, "wire_unavailable");
+    await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`);
+    return "stop";
+  };
+  for (const r of batch) {
+    if (begun > 0 && ports.now() >= cmd.deadline) break;
+    begun += 1;
+    let verdict;
+    try {
+      verdict = await one(r);
+    } catch (e) {
+      console.error("broadcast_person_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
+      continue;
+    }
+    if (verdict === "stop") return;
     if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
   }
   const remaining = await ports.remaining(b.id);
   if (remaining > 0) {
     if (await ports.state(b.id) !== "sending") return;
-    await ports.scheduleNext(b.id);
+    if (begun > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    else await ports.scheduleNext(b.id);
     return;
   }
   const { sent, held } = await ports.tally(b.id);
@@ -15469,20 +15539,20 @@ async function assembleRun(ports, cmd) {
   try {
     id = await ports.create(cmd.broadcast);
   } catch (e) {
-    return { ok: false, id: null, failure: "run_not_created", error: said(e) };
+    return { ok: false, failure: "run_not_created", error: said(e) };
   }
   try {
     await ports.enrol(id, cmd.recipients);
   } catch (e) {
     await ports.fail(id, "recipients_write_failed");
-    return { ok: false, id, failure: "recipients_write_failed", error: said(e) };
+    return { ok: false, failure: "recipients_write_failed", error: said(e) };
   }
   if (cmd.sendAt) {
     try {
       await ports.schedule(id, cmd.sendAt);
     } catch (e) {
       await ports.fail(id, "schedule_failed");
-      return { ok: false, id, failure: "schedule_failed", error: said(e) };
+      return { ok: false, failure: "schedule_failed", error: said(e) };
     }
   }
   return { ok: true, id };
@@ -15496,25 +15566,22 @@ async function runPlaybook(ports, cmd) {
   const runFor = cmd.runFor ?? localDate(ctx.tz, now);
   const record = (data) => ports.record(p.id, runFor, now, { run_for: runFor, by: by.kind, ...data });
   const mode = ctx.modes.get(p.policy_class) ?? "ask";
+  const off = async (skipped, opts = {}) => {
+    if (opts.record !== false) await record({ mode, skipped });
+    return { outcome: "off", mode, skipped };
+  };
   const plan = by.kind === "user" ? mode === "never" ? { kind: "off" } : { kind: "send", state: "scheduled", at: now } : planRun(mode, now);
-  if (plan.kind === "off") {
-    await record({ mode, skipped: "never" });
-    return { outcome: "off", mode, skipped: "never" };
+  if (plan.kind === "off") return off("never");
+  let tpl;
+  try {
+    tpl = await ports.template(p.template_name, p.template_language);
+  } catch (e) {
+    return { outcome: "failed", error: `template: ${e instanceof Error ? e.message : String(e)}` };
   }
-  const tpl = await ports.template(p.template_name, p.template_language);
-  if (!tpl || tpl.meta_status !== "approved") {
-    await record({ mode, skipped: "template_not_approved" });
-    return { outcome: "off", mode, skipped: "template_not_approved" };
-  }
-  if (!ctx.health.canSend) {
-    await record({ mode, skipped: "number_flagged" });
-    return { outcome: "off", mode, skipped: "number_flagged" };
-  }
-  if (await ports.alreadyRan(p.id, runFor)) return { outcome: "off", mode, skipped: "already_ran_today" };
-  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") {
-    await record({ mode, skipped: "no_calendar" });
-    return { outcome: "off", mode, skipped: "no_calendar" };
-  }
+  if (!tpl || tpl.meta_status !== "approved") return off("template_not_approved");
+  if (!ctx.health.canSend) return off("number_flagged");
+  if (await ports.alreadyRan(p.id, runFor)) return off("already_ran_today", { record: false });
+  if (triggerOf(p.trigger)?.kind === "visit" && ctx.calendar !== "ok") return off("no_calendar");
   let eligible = eligibleForPlaybook(
     ctx.people,
     { trigger: p.trigger, cap_per_run: p.cap_per_run, gap_days: p.gap_days, cadence_days: p.cadence_days },
@@ -15526,7 +15593,7 @@ async function runPlaybook(ports, cmd) {
     await record({ mode, eligible: 0 });
     return { outcome: "empty", eligible: 0, mode };
   }
-  const specs = Array.isArray(p.params) ? p.params : [];
+  const specs = parseParamSpecs(p.params);
   const factsOf = (r) => {
     const v = ctx.visits.get(r.id);
     return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz);
@@ -15553,15 +15620,14 @@ async function runPlaybook(ports, cmd) {
   if (!made.ok) return { outcome: "failed", error: made.error };
   if (plan.kind === "send") {
     await ports.decide({ broadcastId: made.id, by, payload: { playbook_id: p.id, playbook: p.name, mode, recipients: n, scheduled_for: plan.at.toISOString(), run_now: by.kind === "user" } });
-    await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
-    return { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  } else {
+    await ports.notify(
+      `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
+      `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns \u203A Playbooks. Nothing is sent until you do.`
+    );
   }
-  await ports.notify(
-    `Playbook \u201C${p.name}\u201D is ready: ${n} ${n === 1 ? "person" : "people"}`,
-    `${n} ${n === 1 ? "person has" : "people have"} become eligible for \u201C${p.name}\u201D. Approve or skip the run on Today or in Campaigns \u203A Playbooks. Nothing is sent until you do.`
-  );
   await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state });
-  return { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  return { outcome: plan.kind === "send" ? "sent" : "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }
 
 // src/campaigns/template-values.ts
@@ -15596,6 +15662,7 @@ async function templateValues(ports, cmd) {
 
 // src/campaigns/create-broadcast.ts
 var UUID2 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+var OFFSET = /(?:Z|[+-]\d{2}:?\d{2})$/i;
 async function createBroadcast(ports, cmd) {
   const { now } = cmd;
   const body = cmd.body;
@@ -15609,6 +15676,16 @@ async function createBroadcast(ports, cmd) {
   if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
   if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
   const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  let when = now;
+  if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
+    const t = new Date(body.scheduled_for);
+    if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
+    if (!OFFSET.test(body.scheduled_for)) throw new AppError("validation", "Give the time with its offset, like 2026-09-20T15:00:00-04:00.");
+    when = t.getTime() > now.getTime() ? t : now;
+  }
+  const health = await ports.number();
+  if (!health) throw new AppError("conflict", "Connect a WhatsApp number first \u2014 a broadcast goes out on one.", 409);
+  if (!health.canSend) throw new AppError("conflict", health.refusal, 409);
   const rows = await ports.people(now);
   let savedIds = null;
   let label = EVERYONE_LABEL;
@@ -15624,21 +15701,12 @@ async function createBroadcast(ports, cmd) {
   const eligible = eligibleFor(rows, kind, audienceId, savedIds, purpose);
   if (eligible.length === 0) throw new AppError("conflict", emptyAudienceRefusal(purpose), 409);
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
-  const health = await ports.number();
-  if (!health) throw new AppError("conflict", "Connect a WhatsApp number first \u2014 a broadcast goes out on one.", 409);
-  if (!health.canSend) throw new AppError("conflict", health.refusal, 409);
   const over = overLimitRefusal(health, eligible.length);
   if (over) throw new AppError("validation", over);
-  let when = now;
-  if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
-    const t = new Date(body.scheduled_for);
-    if (Number.isNaN(t.getTime())) throw new AppError("validation", "That is not a time.");
-    if (t.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
-    when = t.getTime() > now.getTime() ? t : now;
-  }
   const open = nextOpenMoment(await ports.timezone(), when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
+  if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
   const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
   const audience = { kind, id: audienceId, label };
   const made = await assembleRun(ports, {
@@ -15659,7 +15727,7 @@ async function createBroadcast(ports, cmd) {
   });
   if (!made.ok) {
     if (made.failure === "schedule_failed") throw new AppError("upstream_meta", "The send could not be scheduled. Nothing was sent; try again.", 502, made.error);
-    throw new Error(made.error);
+    throw new AppError("internal", made.failure === "run_not_created" ? "The broadcast could not be created. Nothing was sent; try again." : "The people could not be enrolled. Nothing was sent; try again.", 500, made.error);
   }
   const decision_id = await ports.record("broadcast", made.id, "send_broadcast", {
     name,
@@ -15678,36 +15746,37 @@ async function createBroadcast(ports, cmd) {
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
-  if (!await ports.release(b.id)) throw new AppError("conflict", "This run just changed state; look again.", 409);
   const open = nextOpenMoment(await ports.timezone(), cmd.now);
   const at = open.at;
+  if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {
     await ports.schedule(b.id, at);
   } catch (e) {
     await ports.hold(b.id);
     throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502, e instanceof Error ? e.message : void 0);
   }
+  const scheduledFor = at.toISOString();
+  const movedFrom = open.moved ? cmd.now.toISOString() : null;
   const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
     name: b.name,
     playbook_id: b.playbook_id,
     recipients: b.recipient_count,
     approved: true,
-    scheduled_for: at.toISOString(),
-    ...open.moved ? { moved_from: cmd.now.toISOString() } : {}
+    scheduled_for: scheduledFor,
+    ...movedFrom ? { moved_from: movedFrom } : {}
   });
-  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, scheduled_for: at.toISOString(), moved_from: open.moved ? cmd.now.toISOString() : null, decision_id };
+  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, scheduled_for: scheduledFor, moved_from: movedFrom, decision_id };
 }
 
 // src/campaigns/cancel.ts
 async function cancelBroadcast(ports, cmd) {
   const b = cmd.row;
-  if (b.state === "scheduled") {
-    await ports.withdraw(b.id);
-  } else if (b.state !== "sending" && b.state !== "pending_approval") {
+  if (b.state !== "scheduled" && b.state !== "sending" && b.state !== "pending_approval") {
     const said2 = b.state === "sent" ? "already been sent" : b.state === "canceled" ? "already been canceled" : "already failed";
     throw new AppError("conflict", `This broadcast has ${said2}.`, 409);
   }
   if (!await ports.cancel(b.id, b.state)) throw new AppError("conflict", "This broadcast just changed state; look again.", 409);
+  if (b.state === "scheduled") await ports.withdraw(b.id);
   const decision_id = await ports.record("broadcast", b.id, "cancel_broadcast", { name: b.name, was: b.state });
   return { id: b.id, state: "canceled", was: b.state, decision_id };
 }
@@ -15741,6 +15810,7 @@ async function checkPlaybook(ports, body) {
   };
 }
 export {
+  BROADCAST_STALL_RETRY_MS,
   IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,

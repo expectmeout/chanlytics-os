@@ -14,19 +14,23 @@ export interface ApproveReceipt { id: string; state: "scheduled"; recipient_coun
 export async function approveRun(ports: ApproveRunPorts, cmd: { row: BroadcastRef; now: Date }): Promise<ApproveReceipt> {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
-  if (!(await ports.release(b.id))) throw new AppError("conflict", "This run just changed state; look again.", 409);
   // Approved at night, it goes at nine: the same hours a run keeps on its own.
+  // Read BEFORE the row moves: a clock that cannot be read leaves the run
+  // waiting, as it was, rather than scheduled with no job to send it.
   const open = nextOpenMoment(await ports.timezone(), cmd.now);
   const at = open.at;
+  if (!(await ports.release(b.id, at))) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {
     await ports.schedule(b.id, at);
   } catch (e) {
     await ports.hold(b.id);
     throw new AppError("upstream_meta", "The send could not be scheduled. The run is still waiting; try again.", 502, e instanceof Error ? e.message : undefined);
   }
+  const scheduledFor = at.toISOString();
+  const movedFrom = open.moved ? cmd.now.toISOString() : null;
   const decision_id = await ports.record("broadcast", b.id, "send_broadcast", {
-    name: b.name, playbook_id: b.playbook_id, recipients: b.recipient_count, approved: true, scheduled_for: at.toISOString(),
-    ...(open.moved ? { moved_from: cmd.now.toISOString() } : {}),
+    name: b.name, playbook_id: b.playbook_id, recipients: b.recipient_count, approved: true, scheduled_for: scheduledFor,
+    ...(movedFrom ? { moved_from: movedFrom } : {}),
   });
-  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, scheduled_for: at.toISOString(), moved_from: open.moved ? cmd.now.toISOString() : null, decision_id };
+  return { id: b.id, state: "scheduled", recipient_count: b.recipient_count, scheduled_for: scheduledFor, moved_from: movedFrom, decision_id };
 }

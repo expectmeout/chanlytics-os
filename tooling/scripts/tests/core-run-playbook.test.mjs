@@ -101,6 +101,12 @@ test("off before a single row: a template Meta withdrew, a flagged number, a run
   assert.deepEqual(noCalendar.ops(), ["record"]);
 });
 
+test("a template that could not be read is the run failing, not the template withdrawn: nothing is recorded, so the next sweep asks again", async () => {
+  const blip = fakes({ template: new Error("PostgREST blip") });
+  assert.deepEqual(await runPlaybook(blip.ports, cmd()), { outcome: "failed", error: "template: PostgREST blip" });
+  assert.deepEqual(blip.ops(), []);
+});
+
 test("who the run reaches: the trigger's list crossed with who said yes, longest-unheard first; the number's daily limit as a ceiling; nobody at all, recorded honestly", async () => {
   const rows = [person("a"), person("b", { lastContact: { ts: NOW.getTime() - 90 * D, label: "" } }), person("c", { consent: { state: "unknown", dnc: false } }), person("d", { state: "active" })];
   const { ports, of } = fakes();

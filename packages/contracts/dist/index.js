@@ -5279,7 +5279,13 @@ var HELD_REASONS = {
   // that should have arrived untranslated.
   no_marketing_consent: "no yes to offers",
   no_phone: "no number",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
   human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
   erased: "deleted",
   send_failed: "WhatsApp refused",
   missing_value: "a value was missing"
@@ -5396,6 +5402,9 @@ function parseParamSpec(raw) {
     if (o.kind === "first_name" || o.kind === "business_name" || o.kind === "booking_link" || o.kind === "visit_when" || o.kind === "visit_service") return { kind: o.kind };
   }
   return null;
+}
+function parseParamSpecs(raw) {
+  return Array.isArray(raw) ? raw.map((p) => parseParamSpec(p) ?? { kind: "text", value: String(p) }) : [];
 }
 function paramLabel(spec) {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
@@ -8743,6 +8752,7 @@ export {
   parseBrainOutput,
   parseIcs,
   parseParamSpec,
+  parseParamSpecs,
   parseTenantConfig,
   parseTenantConfigResult,
   partialAnswer,

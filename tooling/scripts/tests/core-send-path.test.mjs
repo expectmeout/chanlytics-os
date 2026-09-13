@@ -85,6 +85,11 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
   const noWire = fakes({ deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
   await core.sendQueued(noWire.ports, send());
   assert.deepEqual(noWire.ops(), ["deliver", "escalate", "alert"], "no credentials is the thread's problem to show, not the pager's");
+  assert.deepEqual(noWire.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the WhatsApp number is not connected)."], "and it is shown as what it is, never as an HTTP status");
+  assert.match(noWire.log[2][2], /the WhatsApp number is not connected/);
+  const draft = fakes({ queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" }, deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "x", messageId: "m1" } });
+  await core.sendQueued(draft.ports, send());
+  assert.equal(draft.log[1][3], "The receptionist's reply could not be delivered (HTTP 500).", "a draft the receptionist queued is not 'a dashboard reply'");
   const refused = fakes({ deliver: { outcome: "refused", reason: "opted_out", messageId: "m1" } });
   await core.sendQueued(refused.ports, send());
   assert.deepEqual(refused.ops(), ["deliver"], "the row says why; nobody is paged or flagged for a refusal");

@@ -175,7 +175,7 @@ test("the job: its rules are run (core-broadcast.test.mjs); the adapter still re
   assert.ok(h.includes(".limit(limit);") && BROADCAST_CHUNK === 25);
   assert.ok(h.includes('.select("meta_status, body_preview, category")'), "the category is selected: it decides which yes the send needs");
   assert.ok(h.includes('.select("id, phone_e164, consent, dnc, marketing_consent, erased_at'), "the person's row still carries what the run needs");
-  assert.ok(h.includes('await ctx.schedule("broadcast_send", new Date(), { broadcast_id: id });'), "the next batch is one more row, as this tenant");
+  assert.ok(h.includes('await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });'), "the next batch is one more row, as this tenant, now unless the batch stalled");
   assert.ok(h.includes('kind: "broadcast.sent"'));
 });
 

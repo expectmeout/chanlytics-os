@@ -120,7 +120,15 @@ test("the number: none connected, flagged, or an audience past the day's limit, 
 
 test("when, and what it is called: not a time, past the window, a past time is now, a future time is kept; a name given is trimmed, none given is the template and the day", async () => {
   await refused(make(fakes(), { template_id: T1, audience: everyone, scheduled_for: "nope" }), "validation", 400, "That is not a time.");
+  // An instant names its offset: a bare date is midnight UTC (the evening
+  // before, in New York) and a wall-clock time without one is the server's.
+  await refused(make(fakes(), { template_id: T1, audience: everyone, scheduled_for: "2026-09-20" }), "validation", 400, "Give the time with its offset");
+  await refused(make(fakes(), { template_id: T1, audience: everyone, scheduled_for: "2026-09-20T15:00" }), "validation", 400, "Give the time with its offset");
   await refused(make(fakes(), { template_id: T1, audience: everyone, scheduled_for: new Date(NOW.getTime() + 31 * D).toISOString() }), "validation", 400, "Schedule within 30 days.");
+  // The ceiling is judged on the moment it really goes: asked for an hour
+  // inside the thirty days but after twenty, it would move past them.
+  const night = new Date("2026-09-07T03:00:00Z");
+  await refused(createBroadcast(fakes().ports, { userId: "u1", body: { template_id: T1, audience: everyone, scheduled_for: "2026-10-07T02:00:00Z" }, now: night }), "validation", 400, "Schedule within 30 days.");
   const past = fakes();
   const r1 = await make(past, { template_id: T1, audience: everyone, scheduled_for: new Date(NOW.getTime() - D).toISOString() });
   assert.equal(r1.scheduled_for, NOW.toISOString(), "a past time is now");
@@ -155,10 +163,10 @@ test("the rows, then the job, then the ledger: the row as the person composed it
 
 test("what could not be written says so: no row is an error; people not written fails the row, then the error; a job the ledger refused fails the row and asks the person to try again; nothing on the ledger", async () => {
   const noRow = fakes({ create: new Error("insert refused") });
-  await assert.rejects(make(noRow, { template_id: T1, audience: everyone }), { message: "insert refused" });
+  await refused(make(noRow, { template_id: T1, audience: everyone }), "internal", 500, "The broadcast could not be created. Nothing was sent; try again.");
   assert.deepEqual(noRow.ops(), ["create"]);
   const noPeople = fakes({ enrol: new Error("rows refused") });
-  await assert.rejects(make(noPeople, { template_id: T1, audience: everyone }), { message: "rows refused" });
+  await refused(make(noPeople, { template_id: T1, audience: everyone }), "internal", 500, "The people could not be enrolled. Nothing was sent; try again.");
   assert.deepEqual(noPeople.ops(), ["create", "enrol", "fail"]);
   assert.deepEqual(noPeople.of("fail")[0], ["fail", "b1", "recipients_write_failed"]);
   const noJob = fakes({ schedule: new Error("schedule_job: no row") });
@@ -179,7 +187,7 @@ test("approve: a run not waiting is refused; one that changed under the approver
   const f = fakes();
   const r = await approveRun(f.ports, { row, now: NOW });
   assert.deepEqual(f.log, [
-    ["release", "b1"],
+    ["release", "b1", NOW],
     ["schedule", "b1", NOW],
     ["record", "broadcast", "b1", "send_broadcast", { name: row.name, playbook_id: "p1", recipients: 3, approved: true, scheduled_for: NOW.toISOString() }],
   ]);
@@ -225,7 +233,7 @@ test("cancel: scheduled withdraws the job; sending stops at the next batch; wait
   const row = (state) => ({ id: "b1", tenant_id: "t1", state, name: "Reminder" });
   const scheduled = fakes();
   const r = await cancelBroadcast(scheduled.ports, { row: row("scheduled") });
-  assert.deepEqual(scheduled.log, [["withdraw", "b1"], ["cancel", "b1", "scheduled"], ["record", "broadcast", "b1", "cancel_broadcast", { name: "Reminder", was: "scheduled" }]]);
+  assert.deepEqual(scheduled.log, [["cancel", "b1", "scheduled"], ["withdraw", "b1"], ["record", "broadcast", "b1", "cancel_broadcast", { name: "Reminder", was: "scheduled" }]], "the row first: a job withdrawn before a row that did not change would leave a run that never goes");
   assert.deepEqual(r, { id: "b1", state: "canceled", was: "scheduled", decision_id: "d1" });
   for (const state of ["sending", "pending_approval"]) {
     const f = fakes();

@@ -14,20 +14,20 @@ export async function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): P
   try {
     id = await ports.create(cmd.broadcast);
   } catch (e) {
-    return { ok: false, id: null, failure: "run_not_created", error: said(e) };
+    return { ok: false, failure: "run_not_created", error: said(e) };
   }
   try {
     await ports.enrol(id, cmd.recipients);
   } catch (e) {
     await ports.fail(id, "recipients_write_failed");
-    return { ok: false, id, failure: "recipients_write_failed", error: said(e) };
+    return { ok: false, failure: "recipients_write_failed", error: said(e) };
   }
   if (cmd.sendAt) {
     try {
       await ports.schedule(id, cmd.sendAt);
     } catch (e) {
       await ports.fail(id, "schedule_failed");
-      return { ok: false, id, failure: "schedule_failed", error: said(e) };
+      return { ok: false, failure: "schedule_failed", error: said(e) };
     }
   }
   return { ok: true, id };

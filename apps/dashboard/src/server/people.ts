@@ -21,6 +21,17 @@ export interface PeoplePage {
   limit?: number;
 }
 
+/** Everyone in People, a page at a time: people_list answers at most PEOPLE_PAGE rows, and the pool a broadcast or a run picks from is never one page of it. */
+export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: string): Promise<PersonRowDto[]> {
+  const all: PersonRowDto[] = [];
+  for (let offset = 0; ; offset += PEOPLE_PAGE) {
+    const page = await listPeople(ctx, tenantId, { offset, limit: PEOPLE_PAGE });
+    all.push(...page);
+    if (page.length < PEOPLE_PAGE) break;
+  }
+  return all;
+}
+
 export async function listPeople(ctx: Pick<RouteContext, "supabase">, tenantId: string, page: PeoplePage = {}): Promise<PersonRowDto[]> {
   const q = page.q?.trim() || null;
   const offset = page.offset ?? 0;

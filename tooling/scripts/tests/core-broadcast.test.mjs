@@ -6,7 +6,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "./_source.mjs";
 
-const { sendBroadcastBatch } = await importSrc("packages/core/src/messages/broadcast.ts");
+const { sendBroadcastBatch, BROADCAST_STALL_RETRY_MS } = await importSrc("packages/core/src/messages/broadcast.ts");
 const { BROADCAST_CHUNK } = await import("@chanlytics/contracts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const WRITES = new Set(["fail", "startSending", "mark", "deliver", "scheduleNext", "finish", "alert", "sleep"]);
@@ -25,7 +25,7 @@ function fakes(over = {}) {
     broadcast: broadcast(), workspacePaused: false, template: approved, facts: { businessName: "Melany's", bookingLink: "https://book.example/m" },
     batch: [{ contact_id: "k1", facts: null }, { contact_id: "k2", facts: null }], contact: (id) => contacts[id] ?? null,
     target: (phone) => ({ conversationId: `c-${phone.slice(-2)}` }), alreadySent: null, remaining: 0, state: "sending", tally: { sent: 2, held: 0 }, now: () => NOW,
-    fail: undefined, startSending: undefined, mark: undefined, deliver: (d) => ({ outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" }),
+    fail: undefined, startSending: true, mark: undefined, deliver: (d) => ({ outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" }),
     scheduleNext: undefined, finish: undefined, alert: undefined, sleep: undefined,
     ...over,
   };
@@ -107,10 +107,45 @@ test("fail closed per person: unreadable stays queued; erased, no number, no thr
     remaining: 1, state: "sending",
   });
   await sendBroadcastBatch(ports, cmd());
-  assert.deepEqual(marks(), [["k1", "skipped", "erased"], ["k2", "skipped", "no_phone"], ["k3", "skipped", "no_phone"], ["k4", "skipped", "missing_value"], ["k9", "skipped", "erased"]]);
+  assert.deepEqual(marks(), [["k1", "skipped", "erased"], ["k2", "skipped", "no_phone"], ["k3", "skipped", "no_thread"], ["k4", "skipped", "missing_value"], ["k9", "skipped", "erased"]]);
   assert.equal(log.filter((l) => l[0] === "deliver").length, 0);
   assert.ok(!marks().some(([id]) => id === "k0"), "a row that could not be read is left queued for the next batch");
-  assert.equal(log.at(-1)[0], "scheduleNext", "and the rest follow in the next batch");
+  assert.deepEqual(log.at(-1), ["scheduleNext", "b1"], "and the rest follow in the next batch, at once: this one made progress");
+});
+
+test("a cancel that landed between the read and the claim: the row did not change, so nothing is sent and nothing is said", async () => {
+  const { ports, ops } = fakes({ startSending: false });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(ops(), ["startSending"]);
+});
+
+test("one person's failure is never the batch's: a thread or a wire that could not be read leaves them queued, and the rest are reached", async () => {
+  const thread = fakes({ target: (phone) => { if (phone.endsWith("01")) throw new Error("PostgREST blip"); return { conversationId: "c" }; }, remaining: 1 });
+  await sendBroadcastBatch(thread.ports, cmd());
+  assert.deepEqual(thread.marks(), [["k2", "sent", null]], "k1 stays queued for the next batch; k2 is sent");
+  const wire = fakes({ deliver: (d) => { if (d.contactId === "k1") throw new Error("cannot read the wire"); return { outcome: "sent", messageId: `m-${d.contactId}`, externalId: "wamid" }; }, remaining: 1 });
+  await sendBroadcastBatch(wire.ports, cmd());
+  assert.deepEqual(wire.marks(), [["k2", "sent", null]]);
+  assert.deepEqual(wire.log.at(-1), ["scheduleNext", "b1"], "progress was made, so the rest follow at once");
+});
+
+test("a batch that reached nobody waits before the next: every read failed, and trying again this second would spin the ledger", async () => {
+  const { ports, log } = fakes({ contact: () => { throw new Error("PostgREST down"); }, remaining: 2 });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(log.at(-1), ["scheduleNext", "b1", new Date(NOW + BROADCAST_STALL_RETRY_MS)]);
+});
+
+test("a wire that is down stops the run at the first person it cannot reach, says why, and burns nobody else as refused", async () => {
+  const { ports, log, marks, ops } = fakes({ deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m-k1" }, remaining: 1 });
+  await sendBroadcastBatch(ports, cmd());
+  assert.deepEqual(marks(), [["k1", "failed", "send_failed"]]);
+  assert.deepEqual(ops(), ["startSending", "deliver", "mark", "fail", "alert"], "one person through the door, then the run stops");
+  assert.deepEqual(log[3], ["fail", "b1", "wire_unavailable"]);
+  assert.match(log[4][2], /the number is not connected/);
+  const token = fakes({ deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "bad token", messageId: "m-k1" } });
+  await sendBroadcastBatch(token.ports, cmd());
+  assert.deepEqual(token.log.find((l) => l[0] === "fail"), ["fail", "b1", "wire_unavailable"], "a provider refusing the credentials is the wire, not the person");
+  assert.match(token.log.at(-1)[2], /HTTP 401/);
 });
 
 test("the door's answer is the row's: refused holds with the door's reason, failed is a failed row with the message it wrote", async () => {

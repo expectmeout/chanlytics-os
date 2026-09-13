@@ -1,5 +1,24 @@
-import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, parseParamSpec, purposeOfTemplate, renderTemplate, resolveParams, type ParamSpec } from "@chanlytics/contracts";
-import type { BroadcastBatchCommand, BroadcastBatchPorts, ContactRow } from "./ports";
+import { BROADCAST_CHUNK, BROADCAST_GAP_MS, firstNameOf, parseParamSpecs, purposeOfTemplate, renderTemplate, resolveParams } from "@chanlytics/contracts";
+import type { Delivered } from "../deliver";
+import type { BroadcastBatchCommand, BroadcastBatchPorts, RecipientMark, RecipientRow } from "./ports";
+
+/**
+ * How long a batch that reached nobody waits before it is tried again. The
+ * rest of a run is scheduled the moment a batch ends; a batch in which every
+ * read failed would otherwise schedule itself again at once, and a read that
+ * keeps failing would spin the ledger until somebody canceled by hand.
+ */
+export const BROADCAST_STALL_RETRY_MS = 60_000;
+
+/**
+ * A failure of the wire itself rather than of one person's send: no
+ * credentials, no wire for the channel in this runtime, or a provider
+ * refusing the credentials outright. Nobody after it can be reached, and
+ * marking each of them "WhatsApp refused" would end the run as sent.
+ */
+function wireIsDown(out: Extract<Delivered, { outcome: "failed" }>): boolean {
+  return out.reason === "no_credentials" || out.reason === "no_sender_for_channel" || (out.reason === "provider" && (out.status === 401 || out.status === 403));
+}
 
 /**
  * broadcast_send: one batch of a broadcast, then the next.
@@ -9,7 +28,8 @@ import type { BroadcastBatchCommand, BroadcastBatchPorts, ContactRow } from "./p
  * unrecoverable — and records why anyone was held back. Then it schedules
  * itself again for the rest, or closes the broadcast and tells the
  * workspace. A canceled broadcast stops at the next batch; a template that
- * is no longer approved fails it before a single send.
+ * is no longer approved fails it before a single send; a wire that is down
+ * fails it at the first person it cannot reach.
  */
 export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void> {
   const b = await ports.broadcast(cmd.broadcastId);
@@ -25,7 +45,9 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     await ports.alert(`Broadcast “${b.name}” not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.");
     return;
   }
-  if (b.state === "scheduled") await ports.startSending(b.id);
+  // Only while still scheduled: a cancel that landed between the read above
+  // and this write is the row's answer, and the batch sends nothing.
+  if (b.state === "scheduled" && !(await ports.startSending(b.id))) return;
 
   // The template must still be what Meta approved.
   const tpl = await ports.template(b.template_name, b.template_language);
@@ -42,41 +64,34 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
 
   // What fills each slot: typed text once, the rest per person. The
   // workspace's own words for the slots that name it are read once.
-  const specs: ParamSpec[] = Array.isArray(b.params)
-    ? (b.params as unknown[]).map((p) => parseParamSpec(p) ?? { kind: "text" as const, value: String(p) })
-    : [];
+  const specs = parseParamSpecs(b.params);
   const { businessName, bookingLink } = await ports.facts();
   const batch = await ports.batch(b.id, BROADCAST_CHUNK);
 
   let begun = 0;
-  for (const r of batch) {
-    // Yield before the runner's ceiling rather than be killed mid-send: no new
-    // send starts after the deadline, and the follow-up job below carries the
-    // rest. One person at least, so a batch that starts late still moves on.
-    if (begun > 0 && ports.now() >= cmd.deadline) break;
-    begun += 1;
-    // FAIL CLOSED per person: a read that fails leaves them queued for the
-    // next batch rather than guessing; "we could not check" is not "yes".
-    let c: ContactRow | null;
-    try {
-      c = await ports.contact(r.contact_id);
-    } catch (e) {
-      console.error("broadcast_contact_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
-      continue;
-    }
-    if (!c || c.erased_at) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "erased" }); continue; }
-    if (!c.phone_e164) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
+  let marked = 0;
+  const mark = async (contactId: string, patch: RecipientMark) => {
+    marked += 1;
+    await ports.mark(b.id, contactId, patch);
+  };
+  const skip = (contactId: string, reason: string) => mark(contactId, { state: "skipped", reason });
+
+  /** One person, to the wire and back. "stop" when the run cannot go on past them. */
+  const one = async (r: RecipientRow): Promise<"go on" | "stop"> => {
+    const c = await ports.contact(r.contact_id);
+    if (!c || c.erased_at) { await skip(r.contact_id, "erased"); return "go on"; }
+    if (!c.phone_e164) { await skip(r.contact_id, "no_phone"); return "go on"; }
     // A run that died between the wire and its own bookkeeping left this
     // person a message row and a queued recipient row. Resumed (jobs/settle
     // reschedules the rest), the batch reads the row rather than sending twice:
     // they got it, and the recipient row now says so.
     const prior = await ports.alreadySent(b.id, c.id);
-    if (prior) { await ports.mark(b.id, r.contact_id, { state: "sent", message_id: prior }); continue; }
+    if (prior) { await mark(r.contact_id, { state: "sent", message_id: prior }); return "go on"; }
     // The thread this send belongs to. Which yes this message needs, the
     // pause, and the workspace's status are the door's to re-read at the
     // wire, below — the one place a stale answer cannot be taken back.
     const target = await ports.target(c.phone_e164);
-    if (!target) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "no_phone" }); continue; }
+    if (!target) { await skip(r.contact_id, "no_thread"); return "go on"; }
 
     // Their own words in the slots: a first name nobody has on file reads
     // "there"; a slot nothing can fill holds the person, never a blank send.
@@ -87,7 +102,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
       visitWhen: typeof facts.visit_when === "string" ? facts.visit_when : null,
       visitService: typeof facts.visit_service === "string" ? facts.visit_service : null,
     });
-    if (params.some((v) => !v)) { await ports.mark(b.id, r.contact_id, { state: "skipped", reason: "missing_value" }); continue; }
+    if (params.some((v) => !v)) { await skip(r.contact_id, "missing_value"); return "go on"; }
     const words = renderTemplate(tpl.body_preview, params);
     // The door. It asks the one predicate with this template's purpose — a
     // promotional send needs the yes to offers, an appointment reminder the
@@ -112,9 +127,36 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
         ...(b.playbook_id ? { playbook_id: b.playbook_id, playbook_name: String((b.audience as { label?: unknown } | null)?.label ?? b.name) } : {}),
       },
     });
-    if (out.outcome === "sent") await ports.mark(b.id, r.contact_id, { state: "sent", message_id: out.messageId });
-    else if (out.outcome === "refused") await ports.mark(b.id, r.contact_id, { state: "skipped", reason: out.reason });
-    else await ports.mark(b.id, r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+    if (out.outcome === "sent") { await mark(r.contact_id, { state: "sent", message_id: out.messageId }); return "go on"; }
+    if (out.outcome === "refused") { await skip(r.contact_id, out.reason); return "go on"; }
+    await mark(r.contact_id, { state: "failed", reason: "send_failed", message_id: out.messageId });
+    if (!wireIsDown(out)) return "go on";
+    // The wire, not the person: the run stops here and says so, rather than
+    // burning everyone still queued as refused and ending as "sent".
+    const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
+    await ports.fail(b.id, "wire_unavailable");
+    await ports.alert(`Broadcast “${b.name}” stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.`);
+    return "stop";
+  };
+
+  for (const r of batch) {
+    // Yield before the runner's ceiling rather than be killed mid-send: no new
+    // send starts after the deadline, and the follow-up job below carries the
+    // rest. One person at least, so a batch that starts late still moves on.
+    if (begun > 0 && ports.now() >= cmd.deadline) break;
+    begun += 1;
+    // FAIL CLOSED per person: a read that fails — their row, their thread, the
+    // wire's own facts — leaves them queued for the next batch rather than
+    // guessing; "we could not check" is not "yes". And one person's failure is
+    // never the batch's: the people after them are still reached.
+    let verdict: "go on" | "stop";
+    try {
+      verdict = await one(r);
+    } catch (e) {
+      console.error("broadcast_person_unreadable", r.contact_id, e instanceof Error ? e.message : String(e));
+      continue;
+    }
+    if (verdict === "stop") return;
     if (BROADCAST_GAP_MS > 0) await ports.sleep(BROADCAST_GAP_MS);
   }
 
@@ -122,7 +164,10 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   if (remaining > 0) {
     // Still wanted? A cancel during this batch stops here.
     if ((await ports.state(b.id)) !== "sending") return;
-    await ports.scheduleNext(b.id);
+    // A batch that reached nobody waits before the next: every read failed,
+    // and trying again this second is how a failing read spins the ledger.
+    if (begun > 0 && marked === 0) await ports.scheduleNext(b.id, new Date(ports.now() + BROADCAST_STALL_RETRY_MS));
+    else await ports.scheduleNext(b.id);
     return;
   }
 

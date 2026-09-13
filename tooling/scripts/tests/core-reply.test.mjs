@@ -77,7 +77,7 @@ test("inside the window, empty text is refused; on the texting line a text over 
   assert.equal(r.status, "queued");
 });
 
-test("outside the window: only an approved template goes, a promotion needs a yes to offers, and the params are the workspace's facts before the client's", async () => {
+test("outside the window: only an approved template goes, a promotion needs a yes to offers, and the params are the workspace's facts, never the client's", async () => {
   const closed = conv({ last_wa_inbound_at: iso(NOW - 25 * HOUR) });
   const noTemplate = fakes();
   await refused(replyToConversation(noTemplate.ports, cmd({ conv: closed })), "window_closed", /24-hour/);
@@ -96,18 +96,23 @@ test("outside the window: only an approved template goes, a promotion needs a ye
   assert.deepEqual(log[5][5], { message_id: "m1", window_open: false, template: "booking_link_v1" });
   assert.equal(r.window_open, false);
   const bare = fakes({ templateFacts: null });
-  const fell = await replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["A", "B"] } } }));
-  assert.equal(fell.status, "queued", "the client's params are the fallback for a workspace with no facts");
-  assert.equal(bare.log[3][1].body, "Book with A: B");
+  await refused(replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["A", "B"] } } })), "validation", /no template facts/);
+  assert.deepEqual(bare.ops(), [], "the client's params are never a fallback: the browser does not choose the link that lands on a phone");
+  const three = fakes({ template: { ...approved, variables: ["1", "2", "3"] } });
+  await refused(replyToConversation(three.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /takes 3 values/);
+  assert.deepEqual(three.ops(), [], "a template the Inbox cannot fill is refused here, not by Meta fifteen seconds after 'queued'");
+  const two = fakes({ template: { ...approved, variables: ["1", "2"] } });
+  assert.equal((await replyToConversation(two.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } }))).status, "queued");
   const none = fakes({ templateFacts: null });
   await refused(replyToConversation(none.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /no template facts/);
   assert.deepEqual(none.ops(), []);
 });
 
-test("a claim that changed no row is a 409 and nothing was queued", async () => {
-  const { ports, ops } = fakes({ claimForReply: false });
+test("a claim that changed no row releases the pause it mirrored and is a 409; nothing was queued", async () => {
+  const { ports, log, ops } = fakes({ claimForReply: false });
   await refused(replyToConversation(ports, cmd()), "conflict", /nothing was sent/);
-  assert.deepEqual(ops(), ["pauseBot", "claimForReply"]);
+  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "pauseBot"]);
+  assert.equal(log[2][3], 0, "the second mirror releases, as take-over's does");
 });
 
 test("a job that could not be scheduled cancels the row it would have sent, and the error is the caller's", async () => {
@@ -129,6 +134,13 @@ test("a replay: the same key and intent inside the window returns the stored rec
   const other = fakes({ priorReceipt: { response: stored, created_at: iso(NOW - 5_000), request_hash: "h(other)" } });
   assert.equal((await replyToConversation(other.ports, cmd({ idempotencyKey: "k1" }))).message_id, "m1", "a different intent under the same key goes through");
   assert.deepEqual(other.log.at(-1), ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1, decision_id: "d1" }]);
+  // The receipt is kept the moment the send is certain: a ledger that fails
+  // after the job exists still leaves a retry under the same key something
+  // to find, or the customer receives the words twice.
+  const ledgerDown = fakes({ record: () => { throw new Error("decisions down"); } });
+  await assert.rejects(replyToConversation(ledgerDown.ports, cmd({ idempotencyKey: "k1" })), /decisions down/);
+  assert.deepEqual(ledgerDown.ops(), ["pauseBot", "claimForReply", "withdrawDrafts", "queue", "schedule", "storeReceipt", "record"]);
+  assert.deepEqual(ledgerDown.log[5], ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1 }]);
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
   assert.ok(!noKey.ops().includes("storeReceipt"), "no key, nothing stored");

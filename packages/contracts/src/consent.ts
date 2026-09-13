@@ -69,11 +69,14 @@ export interface PurposeBearing extends ConsentBearing {
  * for the same reason in the other direction: a missing column must never
  * silence a reply, and must never authorise a promotion.
  */
+/** Why the predicate said no: a closed set, so a door cannot admit a reason that has no words. */
+export type PurposeRefusal = "opted_out" | "no_marketing_consent" | "not_opted_in";
+
 export function mayMessageFor(
   c: PurposeBearing,
   purpose: SendPurpose,
   opts: { proactive?: boolean } = {},
-): { ok: boolean; reason: string | null } {
+): { ok: true; reason: null } | { ok: false; reason: PurposeRefusal } {
   if (isOptedOutContact(c)) return { ok: false, reason: "opted_out" };
   if (purpose === "marketing") {
     return c.marketing_consent === "opted_in"

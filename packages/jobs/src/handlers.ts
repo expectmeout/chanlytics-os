@@ -151,12 +151,16 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         await db.from("broadcasts").update({ state: "failed", failure, finished_at: new Date().toISOString() }).eq("id", id);
       },
       startSending: async (id) => {
-        await db.from("broadcasts").update({ state: "sending", started_at: new Date().toISOString() }).eq("id", id).eq("state", "scheduled");
+        const { data, error } = await db.from("broadcasts").update({ state: "sending", started_at: new Date().toISOString() }).eq("id", id).eq("state", "scheduled").select("id");
+        if (error) throw new Error(`broadcast_send: cannot start broadcast ${id}: ${error.message}`);
+        return !!data && data.length > 0;
       },
       // `category` is Meta's verdict on what kind of message this is, and it
-      // decides which consent the send needs.
+      // decides which consent the send needs. A read that fails throws: a
+      // template that could not be read is not one Meta withdrew.
       template: async (name, language) => {
-        const { data } = await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        const { data, error } = await db.from("templates").select("meta_status, body_preview, category").eq("tenant_id", job.tenant_id).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        if (error) throw new Error(`broadcast_send: cannot read template ${name}: ${error.message}`);
         return data ?? null;
       },
       facts: async () => {
@@ -182,7 +186,7 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // The message a dying run left this person: written by deliver after the
       // wire accepted it, with this broadcast's id in its meta.
       alreadySent: async (id, contactId) => {
-        const { data } = await db
+        const { data, error } = await db
           .from("messages")
           .select("id")
           .eq("tenant_id", job.tenant_id)
@@ -191,6 +195,9 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
           .in("status", ["sent", "delivered", "read"])
           .limit(1)
           .maybeSingle();
+        // "Could not check" is not "never sent": this read is what keeps a
+        // resumed batch from sending the same person twice.
+        if (error) throw new Error(`broadcast_send: cannot read what ${contactId} was sent: ${error.message}`);
         return data?.id ?? null;
       },
       mark: async (id, contactId, patch) => {
@@ -202,17 +209,25 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
         if (error) throw new Error(`broadcast_send: cannot count the rest: ${error.message}`);
         return count ?? 0;
       },
+      // An unreadable state throws: read as "not sending", it ended the run
+      // with the rest queued and no job to carry them.
       state: async (id) => {
-        const { data } = await db.from("broadcasts").select("state").eq("id", id).maybeSingle();
+        const { data, error } = await db.from("broadcasts").select("state").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        if (error) throw new Error(`broadcast_send: cannot read broadcast ${id}: ${error.message}`);
         return data?.state ?? null;
       },
-      scheduleNext: async (id) => {
-        await ctx.schedule("broadcast_send", new Date(), { broadcast_id: id });
+      scheduleNext: async (id, dueAt) => {
+        await ctx.schedule("broadcast_send", dueAt ?? new Date(), { broadcast_id: id });
       },
+      // Counted in the database, not by reading every row back: PostgREST
+      // answers at most max_rows, and a tally over a truncated page is wrong.
       tally: async (id) => {
-        const { data } = await db.from("broadcast_recipients").select("state").eq("broadcast_id", id);
-        const sent = (data ?? []).filter((t) => t.state === "sent").length;
-        return { sent, held: (data ?? []).length - sent };
+        const [{ count: total, error: tErr }, { count: sent, error: sErr }] = await Promise.all([
+          db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("broadcast_id", id),
+          db.from("broadcast_recipients").select("contact_id", { count: "exact", head: true }).eq("broadcast_id", id).eq("state", "sent"),
+        ]);
+        if (tErr || sErr) throw new Error(`broadcast_send: cannot tally: ${(tErr ?? sErr)!.message}`);
+        return { sent: sent ?? 0, held: (total ?? 0) - (sent ?? 0) };
       },
       finish: async (id, tally) => {
         await db.from("broadcasts").update({ state: "sent", finished_at: new Date().toISOString() }).eq("id", id).eq("state", "sending");

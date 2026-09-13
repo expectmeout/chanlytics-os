@@ -51,9 +51,9 @@ export interface BroadcastBatchPorts {
   broadcast(id: string): Promise<BroadcastRow | null>;
   workspacePaused(): Promise<boolean>;
   fail(id: string, failure: string): Promise<void>;
-  /** scheduled → sending, only while scheduled. */
-  startSending(id: string): Promise<void>;
-  /** The template as Meta has it: its status, its words, its category. */
+  /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
+  startSending(id: string): Promise<boolean>;
+  /** The template as Meta has it: its status, its words, its category. Null when gone; throws when it cannot be read. */
   template(name: string, language: string): Promise<{ meta_status: string | null; body_preview: string | null; category: string | null } | null>;
   /** The workspace's own words for the slots that name it. */
   facts(): Promise<{ businessName: string; bookingLink: string | null }>;
@@ -66,16 +66,18 @@ export interface BroadcastBatchPorts {
   /**
    * The message this broadcast already sent this person, if a run died between
    * the wire and its own bookkeeping: its id, or null. A resumed batch reads it
-   * rather than sending twice.
+   * rather than sending twice -- so a read that fails THROWS: "could not
+   * check" read as "never sent" is exactly the second send this exists to stop.
    */
   alreadySent(id: string, contactId: string): Promise<string | null>;
   mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
   deliver: Door;
   /** How many are still queued; throws when it cannot be counted. */
   remaining(id: string): Promise<number>;
+  /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */
   state(id: string): Promise<string | null>;
-  /** The next batch, as this tenant, through the same door the dashboard uses. */
-  scheduleNext(id: string): Promise<void>;
+  /** The next batch, as this tenant, through the same door the dashboard uses; now unless told when. */
+  scheduleNext(id: string, dueAt?: Date): Promise<void>;
   /** Who got it and who was held, once nobody is queued. */
   tally(id: string): Promise<{ sent: number; held: number }>;
   /** sending → sent, and the event with the tally. */

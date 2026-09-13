@@ -28,7 +28,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { sendText, sendTemplate, type SendResult, type WaConfig } from "@chanlytics/channels";
 import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
-import { recordOutbound, type Database, type Json } from "@chanlytics/db";
+import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
 
 export type Db = SupabaseClient<Database>;
 type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
@@ -168,7 +168,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   // Consent outranks everything, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
-  if (!may.ok) return (may.reason ?? "opted_out") as DeliveryRefusal;
+  if (!may.ok) return may.reason;
   // A person's own reply goes out even when the machine is told to stop: the
   // pause exists for them, and a paused workspace may still answer by hand.
   // A broadcast is a person's words too, but it is proactive and automated,
@@ -213,21 +213,31 @@ async function overtakenByHuman(db: Db, d: Delivery): Promise<string | null> {
   return newer && newer.length > 0 ? newer[0].id : null;
 }
 
-async function event(db: Db, d: Delivery, kind: EventKind, messageId: string | null, data: Record<string, Json>): Promise<void> {
-  await db.from("events").insert({
-    tenant_id: d.tenantId, kind, category: "message",
-    subject_type: "message", subject_id: messageId, data,
-  });
+/** The same writer every other event goes through: a failed insert is logged there, never dropped. */
+function event(db: Db, d: Delivery, kind: EventKind, messageId: string | null, data: Record<string, Json>): Promise<void> {
+  return emitEvent(db, d.tenantId, kind, "message", "message", messageId, data);
 }
 
-/** Finalize an outbox row that is still queued. Zero rows means a cancel won it first. */
+/** The thread stamped with the send, as recordOutbound stamps it on the row it writes. */
+async function stampThread(db: Db, d: Delivery, nowMs: number): Promise<void> {
+  const { error } = await db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId).eq("tenant_id", d.tenantId);
+  if (error) console.error("deliver_stamp_failed", JSON.stringify({ tenant: d.tenantId, conversation: d.conversationId, error: error.message }));
+}
+
+/**
+ * Finalize an outbox row that is still queued. Zero rows means a cancel won
+ * it first; a write that FAILED throws, because "the row did not change" and
+ * "the row could not be changed" are different facts, and reading the second
+ * as the first left a sent message queued for ever under a false race event.
+ */
 async function finalizeQueued(db: Db, d: Delivery, patch: MessagePatch): Promise<boolean> {
-  const { data } = await db
+  const { data, error } = await db
     .from("messages")
     .update(patch)
     .eq("id", d.messageId!)
     .eq("status", "queued")
     .select("id");
+  if (error) throw new Error(`deliver: cannot finalize message ${d.messageId}: ${error.message}`);
   return !!data && data.length > 0;
 }
 
@@ -262,11 +272,17 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
     if (d.messageId) {
       // The text is already gone, so the row must say `sent` -- but a cancel
       // that won the row between the send and this write is the signal, not
-      // something to overwrite silently.
-      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...(sent.wamid ? { external_id: sent.wamid } : {}) });
-      if (!marked) await event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid });
-      await ports.db.from("conversations").update({ last_message_at: new Date(nowMs).toISOString() }).eq("id", d.conversationId);
-      await event(ports.db, d, "message.sent", d.messageId, { sender: d.sender });
+      // something to overwrite silently. A write that failed is neither: the
+      // words left, so it is logged with the wamid and the send still reported.
+      const marked = await finalizeQueued(ports.db, d, { status: "sent", ...(sent.wamid ? { external_id: sent.wamid } : {}) }).catch((e: unknown) => {
+        console.error("deliver_finalize_failed", JSON.stringify({ tenant: d.tenantId, message: d.messageId, wamid: sent.wamid, error: e instanceof Error ? e.message : String(e) }));
+        return null;
+      });
+      await Promise.all([
+        marked === false ? event(ports.db, d, "message.send_raced_cancel", d.messageId, { wamid: sent.wamid }) : Promise.resolve(),
+        stampThread(ports.db, d, nowMs),
+        event(ports.db, d, "message.sent", d.messageId, { sender: d.sender }),
+      ]);
       return { outcome: "sent", messageId: d.messageId, externalId: sent.wamid };
     }
     // recordOutbound stamps the thread and writes message.sent itself. The

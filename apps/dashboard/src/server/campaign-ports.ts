@@ -3,7 +3,7 @@
  * person's broadcast, an approval, a cancel and a playbook's check touch. A
  * verb never sees a client, a service module or an environment; it sees
  * these. The session role writes here: it may insert a broadcast and its
- * people, and update a broadcast's `state` alone (00046).
+ * people, and update a broadcast's `state` (00046) and `scheduled_for` (00119).
  */
 import type { Json } from "@chanlytics/db";
 import { numberHealth, parseTenantConfig, toPersonRowVM } from "@chanlytics/contracts";
@@ -12,7 +12,7 @@ import type { RouteContext } from "./with-route";
 import { changed } from "./core-ports";
 import { recordDecision } from "./verbs";
 import { cancelKindFor, schedule } from "./service";
-import { listPeople } from "./people";
+import { everyone } from "./people";
 import { withVisits } from "./calendar";
 import { tenantFacts } from "./tenant";
 
@@ -75,7 +75,8 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
     timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
-    people: async (now) => (await withVisits(ctx, tenantId, await listPeople(ctx, tenantId), now)).people.map((r) => toPersonRowVM(r, now)),
+    // Everyone, not one page of them: a broadcast may hold twice what people_list answers at once.
+    people: async (now) => (await withVisits(ctx, tenantId, await everyone(ctx, tenantId), now)).people.map((r) => toPersonRowVM(r, now)),
     savedList: async (id) => {
       const { data: seg, error: sErr } = await ctx.supabase.from("segments").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
       if (sErr) throw new Error(sErr.message);
@@ -106,7 +107,7 @@ export function createBroadcastPorts(ctx: RouteContext, tenantId: string): Creat
 export function approveRunPorts(ctx: RouteContext, tenantId: string): ApproveRunPorts {
   return {
     timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
-    release: (id) => changed(ctx.supabase.from("broadcasts").update({ state: "scheduled" }).eq("id", id).eq("state", "pending_approval").select("id")),
+    release: (id, at) => changed(ctx.supabase.from("broadcasts").update({ state: "scheduled", scheduled_for: at.toISOString() }).eq("id", id).eq("state", "pending_approval").select("id")),
     hold: async (id) => {
       await ctx.supabase.from("broadcasts").update({ state: "pending_approval" }).eq("id", id);
     },
