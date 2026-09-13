@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { AppError } from "@chanlytics/contracts";
 import type { ConversationDto, MessageDto } from "@chanlytics/contracts";
 import { read } from "@/server/route";
 import { conversationScope } from "@/server/verbs";
@@ -27,13 +26,11 @@ export const GET = read({
     const { supabase, userId } = ctx;
     const id = row.id;
     const before = input.before ?? null;
-    const { data: conv, error } = await supabase
-      .from("conversations")
-      .select("id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)")
-      .eq("id", id)
-      .maybeSingle();
-    if (error) throw new Error(error.message);
-    if (!conv) throw new AppError("not_found", "Conversation not found.");
+    // `row` IS the conversation: conversationScope loaded it under RLS a moment
+    // ago and 404s when it is not there. This re-read the same row through the
+    // same join for five more columns, doubling the round trips on the Inbox's
+    // hottest read -- and its own `if (!conv) 404` could never fire. The five
+    // columns ride on loadConversation now.
     let q = supabase
       .from("messages")
       .select("id, direction, sender, type, body, media, meta, created_at, status, channel_ts, channel")
@@ -44,21 +41,21 @@ export const GET = read({
     const { data: msgs, error: merr } = await q;
     if (merr) throw new Error(merr.message);
     const conversation: Omit<ConversationDto, "messages"> = {
-      id: conv.id,
-      state: conv.state as ConversationDto["state"],
-      paused_until: conv.paused_until,
-      snooze_until: conv.snooze_until,
-      assignee_user_id: conv.assignee_user_id,
-      assignee_is_me: conv.assignee_user_id ? conv.assignee_user_id === userId : undefined,
-      last_wa_inbound_at: conv.last_wa_inbound_at,
-      last_message_at: conv.last_message_at,
+      id: row.id,
+      state: row.state as ConversationDto["state"],
+      paused_until: row.paused_until,
+      snooze_until: row.snooze_until,
+      assignee_user_id: row.assignee_user_id,
+      assignee_is_me: row.assignee_user_id ? row.assignee_user_id === userId : undefined,
+      last_wa_inbound_at: row.last_wa_inbound_at,
+      last_message_at: row.last_message_at,
       contact: {
-        id: conv.contacts?.id ?? "",
-        display_name: conv.contacts?.display_name ?? null,
-        wa_profile_name: conv.contacts?.wa_profile_name ?? null,
-        phone_e164: conv.contacts?.phone_e164 ?? null,
-        consent: conv.contacts?.consent ?? null,
-        dnc: conv.contacts?.dnc ?? false,
+        id: row.contact_id,
+        display_name: row.display_name,
+        wa_profile_name: row.wa_profile_name,
+        phone_e164: row.phone_e164,
+        consent: row.consent,
+        dnc: row.dnc,
       },
     };
     const messages: MessageDto[] = (msgs ?? []).reverse().map((m) => ({

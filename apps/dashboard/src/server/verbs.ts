@@ -33,9 +33,15 @@ export interface VerbConversation {
   tenant_id: string;
   state: string;
   paused_until: string | null;
+  /** Carried for the thread's own page, which had to re-read the row for them. */
+  snooze_until: string | null;
+  assignee_user_id: string | null;
   last_wa_inbound_at: string | null;
+  last_message_at: string | null;
   contact_id: string;
   phone_e164: string | null;
+  display_name: string | null;
+  wa_profile_name: string | null;
   /** Consent travels with every verb load so no send path has to remember to
    *  ask for it separately. */
   consent: string | null;
@@ -52,7 +58,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const convId = requireUuid(id, "conversation");
   const { data, error } = await ctx.supabase
     .from("conversations")
-    .select("id, tenant_id, state, paused_until, last_wa_inbound_at, contact_id, contacts (phone_e164, consent, dnc, marketing_consent)")
+    .select("id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent)")
     .eq("id", convId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -62,9 +68,14 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     tenant_id: data.tenant_id,
     state: data.state,
     paused_until: data.paused_until,
+    snooze_until: data.snooze_until,
+    assignee_user_id: data.assignee_user_id,
     last_wa_inbound_at: data.last_wa_inbound_at,
+    last_message_at: data.last_message_at,
     contact_id: data.contact_id,
     phone_e164: data.contacts?.phone_e164 ?? null,
+    display_name: data.contacts?.display_name ?? null,
+    wa_profile_name: data.contacts?.wa_profile_name ?? null,
     consent: data.contacts?.consent ?? null,
     dnc: data.contacts?.dnc ?? false,
     marketing_consent: data.contacts?.marketing_consent ?? null,
