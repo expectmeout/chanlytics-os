@@ -111,7 +111,8 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   const r = readCode("apps/edge/lib/playbooks.ts");
   // The run's branches are run: core-run-playbook.test.mjs. The loader's touches stay pinned here.
   assert.ok(r.includes('.in("state", ["sent", "queued"])') && r.includes('const runs = (pastRuns ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");'), "a message on its way is a touch too, so two playbooks never both pick the same person in a week");
-  assert.ok(readCode("apps/edge/api/admin/playbooks-run.ts").includes('runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } })'));
+  // Run now -- a person's run through the same implementation, sent now under
+  // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   assert.ok(readCode("packages/contracts/src/config.ts").includes('note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"') && readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'), "the Autonomy row says what the playbooks do, in the one set of words every surface reads");
 });
 
