@@ -118,8 +118,8 @@ test("the wiring: the migration, the edge, the routes, the bridge, the pane and 
   const model = readCode("apps/edge/lib/review-reply.ts");
   assert.ok(model.includes('export const REVIEW_REPLY_MODEL = "claude-sonnet-5";') && model.includes("timeout: 15_000, maxRetries: 1") && model.includes("max_tokens: 300"));
   assert.ok(model.includes('if (!process.env.ANTHROPIC_API_KEY) return { ok: false, error: "no_model_key" };'));
-  const admin = readCode("apps/edge/api/admin/google.ts");
-  assert.ok(admin.includes('if (op === "draft") {') && admin.includes('if (mode === "never") return json(409, { ok: false, error: "policy_never", mode });'));
+  // The draft op -- Never refused before the review is read, the no-model
+  // path -- runs in google-door.test.mjs.
 
   const route = readCode("apps/dashboard/app/api/v1/google/reviews/[id]/draft/route.ts");
   assert.ok(route.includes('role: "operator",') && route.includes('rate: "google_draft",') && route.includes('op: "draft"'));

@@ -55,7 +55,11 @@ test("the door itself: no database is 503 no_database; with one, the judgement i
   // Executed, not read: the handler, the edge's own Postgres client and the
   // cache, with only the wire replaced. PostgREST's two calls are answered as
   // PostgREST answers them.
-  delete process.env.PG_WRITES;
+  // No credentials, no client: what the door answers on a deployment whose
+  // Supabase env is not set. (It used to withhold PG_WRITES, which no longer
+  // decides anything — the client is keyed on the credentials alone.)
+  delete process.env.SUPABASE_URL;
+  delete process.env.SUPABASE_SERVICE_ROLE_KEY;
   const dark = await GET();
   assert.equal(dark.status, 503);
   assert.equal((await dark.json()).reason, "no_database");

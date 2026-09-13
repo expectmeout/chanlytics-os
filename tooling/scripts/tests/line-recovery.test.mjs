@@ -130,7 +130,7 @@ test("SUPPORT: the back office offers the same retry, which it offered for nothi
 /* ----------------------------- the two doors ------------------------------ */
 
 test("the retry rule accepts a line the wall killed, and refuses one that is still running", () => {
-  // BEHAVIOUR, not text. This test used to read `apps/edge/api/admin/lines.ts` and
+  // BEHAVIOUR, not text. This test used to read the lines door's source and
   // assert five regexes against an `if` statement buried in a 400-line handler —
   // it passed whether or not the rule was right, and it was one of thirty-six such
   // assertions added in a single day. The rule now returns a value, so it has a
@@ -161,19 +161,12 @@ test("the retry rule accepts a line the wall killed, and refuses one that is sti
   }
 });
 
-test("the sweep's route: its own preconditions, its bound, its schedule, and its 60 seconds", () => {
+test("the sweep's schedule and its 60 seconds", () => {
   // What the sweep DECIDES -- which lines, the take, the count, when the platform
-  // hears -- moved to lib/line-resume.ts and is run below against a fake database;
-  // the pins that read those decisions off the route went with it. What stays is
-  // what nothing runs: the route's own refusals, and configuration.
-  const sweep = readCode("apps/edge/api/cron/lines.ts");
-  // A small bound, because each item is a whole saga and this sweep exists to clean
-  // up a half-run saga rather than to create more of them.
-  assert.match(sweep, /const MAX_PER_TICK = 2;/);
-  // The provider preconditions the writing ops check, so a tick that cannot
-  // provision says so instead of reporting a clean sweep over lines it never touched.
-  assert.match(sweep, /no_line_provider/);
-  assert.match(sweep, /no_provider_key/);
+  // hears -- moved to lib/line-resume.ts and is run below against a fake database.
+  // The route itself -- its refusals (no provider, no key, no secret), its bound of
+  // two a tick, the job it schedules and who it tells -- runs in
+  // cron-doors-b.test.mjs. What stays here is configuration nothing runs.
 
   // Registered, scheduled, and watched from its first tick.
   const m = readRaw("supabase/migrations/00097_a_line_stops_being_stuck.sql");
@@ -384,13 +377,10 @@ test("a read that FAILS must not be reported as 'we do not own it'", () => {
   assert.ok(!/catch/.test(body), "REGRESSION: swallowing the read turns a failure into a purchase");
 });
 
-test("release gives back a number the row lost the receipt for", () => {
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.match(edge, /const sid = line\.number_sid \?\? \(line\.e164 \? \(await choice\.provider\.ownedNumber\(acct, line\.e164\)\)\?\.sid \?\? null : null\);/);
-  assert.match(edge, /released\.number_found_by_lookup = true;/, "and says so, because it means a saga was killed mid-purchase");
-  assert.ok(!/if \(line\.number_sid\) \{ await choice\.provider\.releaseNumber/.test(edge),
-    "REGRESSION: deleting the row while still paying for the number");
-});
+// `release` giving back a number the row lost the receipt for is run in
+// lines-door.test.mjs: the door looks the number up at the carrier by its
+// digits, releases the SID that answered, says `number_found_by_lookup`, and
+// keeps the row when the lookup is refused.
 
 /* --------------- and the bug the old escape route created ---------------- */
 

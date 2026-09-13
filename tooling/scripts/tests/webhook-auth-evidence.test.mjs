@@ -44,17 +44,9 @@ test("a freshly applied agent, with the provider's own defaults added, is conver
   assert.ok(!JSON.stringify(voiceLlmCreateBody({ fnSecret: "s" }).general_tools).includes('"required"'), "provisioning sends none either");
 });
 
-test("every delivery leaves a readable row saying which credential it passed; the fallback stays until a real one shows sig:true", () => {
-  const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes("void recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });"));
-  assert.ok(hook.includes('emitEvent(db, PLATFORM_TENANT, "webhook.auth", "ingest", null, null, {'));
-  assert.ok(hook.includes('provider: "retell", sig, key, sig_raw: forms.raw, sig_restringified: forms.restringified,'), "which credential, and which body form, verified");
-  assert.ok(hook.includes("if (!sigOk && !keyOk) {"), "the key still opens the door — retirement waits on the evidence");
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes("out.retellAuth = {"));
-  assert.ok(diag.includes('createHash("sha256").update(process.env.RETELL_API_KEY).digest("hex").slice(0, 12)'), "a fingerprint, never the key");
-  assert.ok(diag.includes('.eq("kind", "webhook.auth")'));
-});
+// The diagnostic listing which credential each delivery passed, beside a
+// fingerprint of the held key and never the key, is run in diag-door.test.mjs;
+// the rows themselves are written by the webhook, run in retell-webhook-door.test.mjs.
 
 test("The transfer number is compared with the receptionist's own line, not the number customers are told", () => {
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");

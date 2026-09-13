@@ -65,6 +65,22 @@ export async function POST(request: Request): Promise<Response> {
       out[r.outcome] += 1;
     }
   }
+  // `remaining` counts RUNNING playbooks past the page, and due-ness is judged
+  // here, in the tenant's own zone, AFTER paging — so this over-reports: a
+  // deployment with twenty-six daily playbooks says five were left behind
+  // every hour, including the twenty-three hours when none of them was due,
+  // and from the third tick calls itself broken.
+  //
+  // A NOISY ALARM IS KEPT OVER A SILENT ONE. Gating it on the page being all
+  // due (`out.due >= PLAYBOOKS_PER_TICK`) was tried and is worse: a playbook
+  // whose hour has not arrived still carries yesterday's `last_run_at`, so it
+  // sorts to the front and holds a slot while never being due, one such row
+  // makes the page not-all-due, and `note_sweep_backlog` then RESETS the
+  // counter — which makes the alarm unreachable in any deployment with mixed
+  // run hours, exactly where starvation is real. The fix is a due-aware page:
+  // `playbooksDue` can exclude what already ran today (`last_run_for`), but
+  // "not yet at its hour" is per-tenant-timezone and needs the query to know
+  // the zone. Until then the sweep is loud rather than deaf.
   const backlog = await noteBacklog(db, "playbooks", page.remaining);
   L.info("playbooks_swept", { ...out, backlog_ticks: backlog.ticks });
   // Three consecutive ticks with playbooks left unread is a campaign nobody

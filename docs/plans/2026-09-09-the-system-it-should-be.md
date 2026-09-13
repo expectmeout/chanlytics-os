@@ -20,7 +20,7 @@ This is a **program of six phases plus a Phase 0**. Each phase leaves a working,
 
 Standing rules for every task in every phase:
 
-- Every migration is followed by `cd packages/db && supabase gen types typescript --linked > src/database.types.ts && cd ../..` and the regenerated types are committed with it.
+- Every migration is followed by `supabase start && corepack pnpm gen:db-types` — the types come from the local stack the migrations build, not the linked project, which is a `db push` behind them — and the regenerated types are committed with it; the Database workflow fails when they disagree.
 - Every PR is green on `pnpm -r typecheck && pnpm lint && pnpm test` and, from Phase 1 on, `pnpm test:integration` against a local Supabase.
 - Commit messages are one sentence in the house voice, no prefix: `A job that finished says so`, not `feat: job done state`.
 - When a behaviour test lands for a piece of code, the `readCode` assertions that pinned that code's text are **deleted in the same PR**, and the Phase 0 baseline goes down. Never add a `readCode` assertion outside the lint allowlist.

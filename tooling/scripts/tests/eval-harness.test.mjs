@@ -59,14 +59,10 @@ test("the report reads at a glance and counts what passed", () => {
   assert.ok(r.text.includes("1/2 passed · 2,560 tokens"));
 });
 
-test("the endpoint keeps the door, runs the real prompt, sends nothing and writes nothing", () => {
-  const src = readCode("apps/edge/api/admin/eval.ts");
-  assert.ok(src.includes('authorizeAdmin(request, "/api/admin/eval")'));
-  assert.ok(src.includes("const MAX_CASES = 6;"), "sequential model calls inside the function's minute");
-  assert.ok(src.includes('resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known)'), "the same composed prompt the webhook uses");
-  assert.ok(src.includes("describeNow(rt.timezone, new Date(), rt.brain.profile?.closures)"));
-  assert.ok(src.includes("generateReply(c.history ?? [], c.text, system, rt.brain.fallbacks.error, undefined, nowNote)"));
-  for (const forbidden of ["sendText(", "recordOutbound(", "ingestInbound(", ".insert(", ".update("]) assert.ok(!src.includes(forbidden), `${forbidden} has no place here`);
+test("the runner knocks with the key and saves the exchange where git ignores it", () => {
+  // The endpoint itself -- the door, the case set's limits, the real composed
+  // prompt handed to the model per case, nothing sent and nothing written --
+  // is run in eval-door.test.mjs.
   const runner = readRaw("tooling/scripts/eval-brain.mjs");
   assert.ok(runner.includes('"x-diag-key": KEY'));
   assert.ok(runner.includes("tooling/backups/eval-"), "the exchange is saved where git ignores it");
@@ -78,8 +74,7 @@ test("every reply leaves a quality signal on its usage event, and the diagnostic
   assert.ok(wa.includes("intent: brainMeta?.intent ?? null,") && wa.includes("confidence: brainMeta?.confidence ?? null,") && wa.includes("latency_ms: brainMs,"));
   assert.equal((wa.match(/sink\.usage\(\{ \.\.\.usage, \.\.\.replyQuality \}\)/g) ?? []).length, 2, "the held path and the sent path");
   assert.ok(readCode("apps/edge/lib/whatsapp/persist.ts").includes("usage: (u: Record<string, unknown>) =>"));
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes("out.brain = db ? await brainSummary(db) : null;"));
+  // The diagnostic reading the day back (brainSummary) is run in diag-door.test.mjs.
   const b = readCode("apps/edge/lib/budget.ts");
   assert.ok(b.includes('.eq("kind", "usage.llm_tokens")'));
   assert.ok(b.includes("return 0;"), "a failed read never silences the receptionist");

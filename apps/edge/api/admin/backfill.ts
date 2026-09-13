@@ -48,7 +48,7 @@ export async function GET(request: Request): Promise<Response> {
   const apply = url.searchParams.get("mode") === "apply";
   const tenantSlug = url.searchParams.get("tenant") || "melanys-beauty-salon"; // trade-word: the one workspace this admin backfill was written for; pass ?tenant= for any other
   const db = pg();
-  if (!db) return json(400, { ok: false, error: "PG_WRITES not enabled" });
+  if (!db) return json(503, { ok: false, error: "no_database" });
 
   const { data: tenant } = await db.from("tenants").select("id").eq("slug", tenantSlug).single();
   if (!tenant) return json(404, { ok: false, error: "tenant not found" });

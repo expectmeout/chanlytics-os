@@ -276,13 +276,10 @@ test("the loop: read tools plus finish, tool_choice any then finish forced on th
   assert.ok(prompt.includes("Never state a name, a count, a time, a price or a quote you did not read this turn."));
 });
 
-test("the gateway: the key stays on the edge, Ask's tokens have their own event kind and their own cap, the stream is forwarded and metered", () => {
-  const g = readCode("apps/edge/api/admin/llm.ts");
-  assert.ok(g.includes('authorizeAdmin(request, "/api/admin/llm")'));
-  assert.ok(g.includes('body.purpose !== "ask"'));
-  assert.ok(g.includes("if (used >= ASK_TOKENS_DAY) {") && g.includes('error: "ask_budget"'));
-  assert.ok(g.includes('body: JSON.stringify({ ...v.request, stream: true }),'));
-  assert.ok(g.includes("const stream = teeUsage(upstream.body, async (usage, stopReason) => {"));
+test("the gateway: the key stays on the edge, Ask's tokens have their own event kind and their own cap; the dashboard signs for the door and holds no key", () => {
+  // The door itself -- the knock, purpose 'ask', the budget refused at the
+  // cap, the request streamed, the stream forwarded and metered -- runs in
+  // llm-door.test.mjs.
   const lib = readCode("apps/edge/lib/ask-gateway.ts");
   assert.ok(lib.includes('export const ASK_USAGE_KIND = "usage.ask_tokens" as const;'));
   const budget = readCode("apps/edge/lib/budget.ts");
@@ -609,7 +606,7 @@ test("REGRESSION: the assistant's tools fit under the edge gateway's cap — one
   assert.ok(total <= cap - 4, `${total} tools against a cap of ${cap}: leave room, or raise GATEWAY_MAX_TOOLS on the edge first`);
 });
 
-test("the speed pass: a fast model for a short answer, the day's rows never re-read, the autonomy modes in the prompt, the budget read once a minute", () => {
+test("the speed pass: a fast model for a short answer, the day's rows never re-read, the autonomy modes in the prompt", () => {
   const l = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(l.includes('export { ASK_MODEL } from "@chanlytics/contracts";') && ASK_MODEL === "claude-sonnet-5", "the eval set chose it: same grounding, the answer written faster; one name, in contracts, for the loop and the gateway");
   const route = readCode("apps/dashboard/app/api/v1/ask/route.ts");
@@ -621,8 +618,8 @@ test("the speed pass: a fast model for a short answer, the day's rows never re-r
   const snap = readCode("apps/dashboard/src/server/ask/snapshot.ts");
   assert.ok(snap.includes("return these same rows: do not call them for what is here"), "a second read of the day is refused in words");
   assert.ok(snap.includes("person_route: d.contact.id ? `clients/${d.contact.id}` : null,") && snap.includes("person_route: c.contact_id ? `clients/${c.contact_id}` : null,"), "a profile opens from the snapshot without a read");
-  const g = readCode("apps/edge/api/admin/llm.ts");
-  assert.ok(g.includes("const BUDGET_TTL_MS = 60_000;") && g.includes("budgetSeen.set(tenantId, { at: Date.now(), used });"));
+  // The budget read once a minute -- kept per workspace, believed within the
+  // minute over the table -- runs in llm-door.test.mjs.
 });
 
 test("the speed pass, two: no definitions tool, a proposal ends the turn, the snapshot kept twenty seconds, fewer citations and follow-ups to write", () => {

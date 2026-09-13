@@ -100,7 +100,13 @@ export function installPlatform(win: Window = window): void {
           ? (res.problems as unknown[]).filter((x): x is string => typeof x === "string" && !!x.trim())
           : [];
         if (problems.length) return { ok: false, message: problems.join(" ") };
-        const why = res && typeof res.error === "string" ? res.error : `HTTP ${r.data.status ?? "?"}`;
+        // `detail` before `error`: a refusal that carries a sentence is meant to
+        // be read. The billing hold the edge applies to a refile sends
+        // whyCannotSpend's words there ("Your last payment did not go through.
+        // Update the card in Billing, then try again.") while `error` is the
+        // token `payment_required` — which is what support saw in a red toast.
+        const detail = res && typeof res.detail === "string" && res.detail.trim() ? res.detail.trim() : null;
+        const why = detail ?? (res && typeof res.error === "string" ? res.error : `HTTP ${r.data.status ?? "?"}`);
         const hint = res && typeof res.hint === "string" ? ` — ${res.hint}` : "";
         return { ok: false, message: `${why}${hint}` };
       }

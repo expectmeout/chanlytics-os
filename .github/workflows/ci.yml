@@ -58,8 +58,6 @@ jobs:
       # duplicated invocation here silently ran without them — passing only
       # because this runner's Node happens to strip types by default.
       - run: pnpm test
-      # generated-types freshness: regen must produce no diff (CI has no Supabase
-      # access token, so this runs only when the schema changed in the commit).
-      # The gen runs locally with every migration per the blueprint's §8 rule.
+      # database.types.ts freshness is proved in database.yml, where a database exists to regenerate from.
 
   # CI holds no live service secrets — tests run against fakes only (Blueprint §8).

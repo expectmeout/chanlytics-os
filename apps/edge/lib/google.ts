@@ -210,6 +210,17 @@ export async function checkListing(db: Db, row: ListingRow, tz: string, now = ne
     details = await readPlace(key, row.place_id);
   } catch (e) {
     const error = (e instanceof Error ? e.message : String(e)).slice(0, 300);
+    // The stamp is NOT moved. It was, briefly, to stop a permanently failing
+    // listing holding the head of every hourly page — but `checked_at` is the
+    // last SUCCESSFUL read (00069's own comment), and three things read it as
+    // that: it is the news cutoff for which reviews are new (google-sync.ts),
+    // it is the `first` flag that clears the Places copies and withholds the
+    // first sync's bells, and it is the twenty-hour due window. Moving it on a
+    // failure announced days-old reviews as new, replied to them in public,
+    // and pushed the retry from the next hour to the next day. Fair rotation
+    // past a permanently failing row needs its own `last_attempt_at` column,
+    // which is a migration, not a stamp borrowed from a column that means
+    // something else.
     const { error: upErr } = await db.from("google_listings").update({ check_error: error }).eq("tenant_id", row.tenant_id);
     if (upErr) throw new Error(upErr.message);
     L.warn("google_check_failed", { error });
@@ -540,6 +551,11 @@ export async function syncProfile(db: Db, conn: ConnectionRow, tz: string, now =
   const L = logger({ tenant: conn.tenant_id, location: conn.location_name ?? "" });
   if (!conn.location_name) return { ok: false, error: "no_location" };
   const failed = async (error: string) => {
+    // The stamp is NOT moved, for the reasons checkListing gives above: a
+    // profile's `last_synced_at` is its last SUCCESSFUL sync, and moving it on
+    // a failed first attempt made the next real sync think it had run before —
+    // leaving the Places reviews on file as duplicates for ever and answering
+    // reviews the owner had already seen.
     const { error: upErr } = await db.from("google_connections").update({ sync_error: error.slice(0, 300) }).eq("tenant_id", conn.tenant_id);
     if (upErr) throw new Error(upErr.message);
     L.warn("google_profile_sync_failed", { error });

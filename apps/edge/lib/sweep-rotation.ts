@@ -54,6 +54,29 @@ export interface DuePage<T> {
  * `minAgeMs` keeps a tenant from being read twice in one hour when the cap is
  * larger than the queue: without it a small deployment would re-read the same
  * three feeds every tick and burn the provider's rate limit on nothing.
+ *
+ * ROWS WITH A FEED ONLY, which is not a refinement — it is what makes the
+ * rotation a rotation. Every workspace gets a `tenant_config` row at signup
+ * and most never connect a calendar; those rows have no `calendar_checked_at`
+ * and never get one (the sweep stamps on a successful READ, and there is
+ * nothing to read), so they sort first under NULLS FIRST for ever. At forty of
+ * them the page is entirely feedless every hour: no calendar is ever read
+ * again, and `remaining` never reaches zero, so the sweep also reports a
+ * permanent backlog, turns itself red and pages the platform about work that
+ * does not exist. 00089 built an index for this query `where config ?
+ * 'calendar'` and said so in its comment; the query never asked, and still
+ * does not — Postgres cannot derive `config ? 'calendar'` from `config->>
+ * 'calendar' is not null`, so the index stays unused and the tick is a scan
+ * and a sort of tenant_config. That is throughput, not correctness, and at
+ * the size where it matters the index predicate should be changed to match
+ * rather than the filter changed to match the index: `?` would also select a
+ * key explicitly set to JSON null, which is not a feed.
+ *
+ * Spelled `->>`, the text form, which is what every other jsonb filter in this
+ * codebase uses against the real PostgREST (the jobs ledger's
+ * `payload->>contact_id`, the recording sweep's `recording->>fetch_state`). A
+ * key that is absent reads as SQL NULL either way; the text form also excludes
+ * a key explicitly set to JSON null, which has no feed either.
  */
 export async function calendarDue(db: Db, now: Date, limit: number, minAgeMs = 55 * 60_000): Promise<DuePage<{ tenant_id: string; config: unknown }>> {
   const before = new Date(now.getTime() - minAgeMs).toISOString();
@@ -61,6 +84,7 @@ export async function calendarDue(db: Db, now: Date, limit: number, minAgeMs = 5
   const { data, error, count } = await db
     .from("tenant_config")
     .select("tenant_id, config", { count: "exact" })
+    .not("config->>calendar", "is", null)
     .or(due)
     .order("calendar_checked_at", { ascending: true, nullsFirst: true })
     .limit(limit);

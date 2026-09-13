@@ -818,7 +818,15 @@ export async function syncRegistration(db: Db, line: LineRow): Promise<{ ok: boo
   };
   // Both are the workspace's own, so both are read as its subaccount.
   const sub = await lineAccount(db, line).catch(() => null);
-  if (!sub) return { ok: false, smsState: line.sms_state, error: "no_line_credentials" };
+  if (!sub) {
+    // Recorded, like the two refusals below, and for a second reason: the
+    // hourly sweep reads the least-recently-asked lines first, and a row it
+    // returns from without touching never moves down the queue. Twenty lines
+    // with a lost token would otherwise hold every page for ever and the
+    // twenty-first would never be asked about at all.
+    await db.from("lines").update({ last_error: "could not read the registration: the line has no credentials on file" }).eq("id", line.id);
+    return { ok: false, smsState: line.sms_state, error: "no_line_credentials" };
+  }
 
   // One attempt, then heal, then one more.
   //

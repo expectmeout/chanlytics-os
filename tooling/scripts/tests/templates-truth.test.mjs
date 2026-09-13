@@ -65,15 +65,9 @@ test("Meta's words into the table's: status, category, the body, the numbered va
   assert.equal(mod.bodyOf({ ...t, components: [] }), null);
 });
 
-test("the edge sync: the number's own credentials, the WABA on the channel, upsert what Meta returns, leave the rest alone", () => {
-  const s = readCode("apps/edge/api/admin/whatsapp/templates-sync.ts");
-  assert.ok(s.includes('authorizeAdmin(request, "/api/admin/whatsapp/templates-sync")'));
-  assert.ok(s.includes("const creds = await waCredentialsForTenant(db, tenantId);"), "the same credentials a send takes");
-  assert.ok(s.includes('if (!ch.waba_id) return json(409, { ok: false, error: "no_waba" });'));
-  assert.ok(s.includes('{ onConflict: "tenant_id,channel,name,language" }'));
-  assert.ok(!/\.delete\(|meta_status: "disabled"/.test(s), "a row Meta does not return is left exactly as it was — the hand-written booking-link template among them");
-  assert.ok(s.includes("labelsOf(r.variables)"), "labels a person gave are kept");
-});
+// The edge sync -- the number's own credentials, the WABA on the channel,
+// upsert what Meta returns, leave the rest exactly as it was, labels kept --
+// is run in templates-doors.test.mjs.
 
 test("the dashboard: the route proves the operator, the service reaches the edge in production only, the composer still sees approved only", () => {
   const r = readCode("apps/dashboard/app/api/v1/templates/sync/route.ts");

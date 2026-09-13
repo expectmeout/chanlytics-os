@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --no-splitting",
     "typecheck": "tsc --noEmit",
-    "gen:types": "supabase gen types typescript --linked > src/database.types.ts"
+    "gen:types": "node ../../tooling/scripts/check-db-types.mjs"
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",

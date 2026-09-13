@@ -36,7 +36,19 @@ const log = {
   error: (event: string, fields: Record<string, unknown> = {}) => console.error(event, JSON.stringify(fields)),
 };
 
-export async function POST(request: Request): Promise<Response> {
+/**
+ * The model as a port. Production passes nothing and gets the real brain; a
+ * test hands in an answer, because lib/brain.ts speaks to the Anthropic SDK
+ * and has no seam of its own. Anything else that may arrive in this position
+ * carries no generateReply and changes nothing. BOTH branches are run in
+ * tooling/scripts/tests/steer-door.test.mjs: most cases hand a brain in, and
+ * the last three call POST the way Vercel calls it and watch the real brain
+ * reach the model.
+ */
+export interface BrainPort { generateReply?: typeof generateReply }
+
+export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+  const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/steer");
   if (!auth.ok) return auth.response;
   if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
@@ -54,7 +66,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const { data: m, error: mErr } = await db
     .from("messages")
-    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta")
+    .select("id, tenant_id, conversation_id, contact_id, sender, status, meta, channel")
     .eq("id", messageId)
     .maybeSingle();
   if (mErr) return json(500, { ok: false, error: "message_read_failed" });
@@ -71,15 +83,20 @@ export async function POST(request: Request): Promise<Response> {
   const phone = conv?.contacts?.phone_e164 ?? null;
   if (!phone) return json(409, { ok: false, error: "no_phone" });
 
+  // The wire the draft is already on. A held reply to a text is an `sms` row,
+  // and looking the tenant up on WhatsApp alone both refused every steer for a
+  // texting-only workspace and, where a WhatsApp channel happened to exist,
+  // rewrote the reply against the wrong channel.
+  const channel: "whatsapp" | "sms" = m.channel === "sms" ? "sms" : "whatsapp";
   const { data: ch } = await db
     .from("tenant_channels")
     .select("id, tenant_id, kind, status, number_e164, credentials_ref, config, external_id")
     .eq("tenant_id", m.tenant_id)
-    .eq("kind", "whatsapp")
+    .eq("kind", channel)
     .eq("status", "active")
     .limit(1)
     .maybeSingle();
-  if (!ch) return json(409, { ok: false, error: "no_whatsapp_channel" });
+  if (!ch) return json(409, { ok: false, error: "no_channel" });
   const routed: RoutedChannel = {
     channelId: ch.id, tenantId: ch.tenant_id, kind: ch.kind, externalId: ch.external_id, numberE164: ch.number_e164, credentialsRef: ch.credentials_ref, config: ch.config,
   };
@@ -103,7 +120,7 @@ export async function POST(request: Request): Promise<Response> {
   const t0 = Date.now();
   let r: Awaited<ReturnType<typeof generateReply>>;
   try {
-    r = await generateReply(
+    r = await ask(
       thread.history,
       lastUser.content,
       resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known),
@@ -138,20 +155,35 @@ export async function POST(request: Request): Promise<Response> {
     delayMs,
     source: "steered",
     brainMeta: r.meta,
+    // The rewrite goes out on the wire the draft it replaces was written for.
+    // Unsaid, the row defaulted to WhatsApp, so a steered text was sent over
+    // WhatsApp to a number that had only ever texted — and the customer's own
+    // thread never got its answer.
+    channel,
     extra: { steer: text, steered_from: m.id, escalate: r.escalate },
   }, log);
   if (!newId) return json(502, { ok: false, error: "could_not_queue" });
 
-  const { error: cancelErr } = await db
+  // Counted, not just attempted. The status filter is the whole guard: the
+  // model takes seconds, and in those seconds the tick can claim the old
+  // draft's job and send it. That update then matches NOTHING and reports no
+  // error, and the rewrite queued a moment ago went out behind the reply it
+  // was meant to replace — two answers to one message. Zero rows is the race,
+  // and it is handled exactly like a failure to retire.
+  const { data: retired, error: cancelErr } = await db
     .from("messages")
     .update({ status: "canceled", error: { reason: "steered", replaced_by: newId } })
     .eq("id", m.id)
-    .eq("status", "queued");
-  if (cancelErr) {
-    log.error("steer_retire_failed", { message_id: m.id, error: cancelErr.message });
-    await db.from("messages").update({ status: "canceled", error: { reason: "steer_rolled_back" } }).eq("id", newId).eq("status", "queued");
+    .eq("status", "queued")
+    .select("id");
+  if (cancelErr || !retired?.length) {
+    const lost = !cancelErr;
+    log.error(lost ? "steer_lost_race" : "steer_retire_failed", { message_id: m.id, error: cancelErr?.message });
+    await db.from("messages").update({ status: "canceled", error: { reason: lost ? "steer_lost_race" : "steer_rolled_back" } }).eq("id", newId).eq("status", "queued");
     await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", newId);
-    return json(500, { ok: false, error: "could_not_retire_old_draft" });
+    return lost
+      ? json(409, { ok: false, error: "already_sent" })
+      : json(500, { ok: false, error: "could_not_retire_old_draft" });
   }
   await cancelJobsFor(db, m.tenant_id, "outbound_send", "message_id", m.id);
 

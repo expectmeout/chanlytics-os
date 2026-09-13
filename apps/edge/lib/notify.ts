@@ -138,6 +138,23 @@ export function chooseAddressing(
 }
 
 /**
+ * Whether a notice would reach THIS WORKSPACE's own people.
+ *
+ * `notify` answers whether anything was sent, which is a different question:
+ * the redacted branch tells the PLATFORM that a workspace is unaddressable,
+ * and sending that successfully is still an owner who was never told. A caller
+ * that spends a once-only guard on the strength of a delivery has to ask this
+ * one instead — the deadman stamped `deadman_alerted_at`, which nothing ever
+ * clears, on the platform's "needs notification settings" note, so every
+ * self-serve workspace in its default state used up its single re-raise on a
+ * notice its owner could not see.
+ */
+export function reachesTenant(target: NotifyTarget): boolean {
+  const kind = chooseAddressing(target, { to: platformTo(), from: platformFrom() }).kind;
+  return kind === "tenant" || kind === "platform";
+}
+
+/**
  * Deliver to the tenant this concerns, or tell the platform operator that we
  * could not. Returns whether anything was delivered.
  */

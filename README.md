@@ -15,10 +15,14 @@ something a member of the public will experience.
 
 | Path | What it is | Deployed as |
 |---|---|---|
-| `apps/edge` | The webhooks. WhatsApp inbound, three Retell endpoints, the job runner, diagnostics. Vanilla Vercel functions, no framework. | Vercel project `chanlytics-messaging` |
+| `apps/edge` | The webhooks. 41 endpoints: WhatsApp inbound, four Retell endpoints, Stripe, inbound SMS, 8 cron sweeps, the job runner, 22 key-guarded back-office doors, diagnostics. Vanilla Vercel functions, no framework. | Vercel project `chanlytics-messaging` |
 | `apps/dashboard` | Next.js 15 operator dashboard, and the `/api/v1` app plane. | Vercel project `chanlytics-os` |
 | `packages/*` | `contracts` (view models, zod config schema, enums), `db` (Supabase repositories), `channels` (WhatsApp + Retell adapters), `jobs` (scheduling + handlers). | bundled into both apps |
 | `supabase/migrations` | The schema. Postgres, RLS everywhere, `events` partitioned monthly. | Supabase project |
+
+`docs/system-map.md` is the layer-by-layer picture: what is built, what is
+deferred by decision, and what is actually between here and done. Re-derive its
+counts rather than trusting them — it says how.
 
 The two apps deploy **independently**. A change that requires both to agree
 must be shipped so that either order works — a dashboard-first deploy writing a
@@ -58,7 +62,7 @@ you change a package — CI has a drift guard that will fail otherwise. Never ad
 guard will fail on someone else's machine.
 
 **`apps/dashboard/src/legacy` is a ported HTML mockup and is deliberately not
-refactored.** ~18,500 lines of hand-written JSX. Surfaces are converted to real
+refactored.** ~28,000 lines of hand-written JSX across 50 pages. Surfaces are converted to real
 data one at a time by *branching inside the existing components*
 (`XReal`/`XSeed`), never by redesigning them. The seam that swaps seed data for
 real data is `src/legacy-bridge`.
@@ -71,12 +75,17 @@ mockup regions stay behind `window.__DEMO_MODE`. A zero is a real measurement
 and is shown; an invented number is not. This is the rule most likely to be
 violated by accident.
 
-**`PG_READS` / `PG_WRITES` are the rollback levers.** Postgres is the bot's
-memory; Blob is still written underneath, which is what makes the flip
-reversible. The env change needs a redeploy to take effect — measured, not
-assumed — so budget a couple of minutes, and confirm with `/api/diag`, which
-reports `memory` as `postgres` or `blob`. That is why the Blob path still has
-to be correct.
+**`PG_READS` is the rollback lever — `PG_WRITES` is not.** Postgres is the
+bot's memory; Blob is still written underneath, which is what makes the
+`PG_READS` flip reversible. The env change needs a redeploy to take effect —
+measured, not assumed — so budget a couple of minutes, and confirm with
+`/api/diag`, which reports `memory` as `postgres` or `blob`. That is why the
+Blob path still has to be correct. `PG_WRITES` was the Slice 1 dual-write
+switch and reads as a second lever, but the edge now holds its ONLY database
+behind that gate: withholding it would not fall back to Blob, it would answer
+`no_database` from every sweep, the jobs tick, every admin door and the public
+`/api/health`. The client asks only for `SUPABASE_URL` and
+`SUPABASE_SERVICE_ROLE_KEY` now, so there is no lever left to pull by mistake.
 
 **Row Level Security is the floor, not the door.** RLS stops cross-tenant
 access. *Which member may do a thing* is decided in the route with
@@ -109,7 +118,7 @@ corepack pnpm e2e:install             # once, fetches Chromium
 corepack pnpm e2e                     # runs against production by default
 ```
 
-Twenty-four of these need no credentials and pin the auth gate. The rest sign
+Twenty-two of the 141 need no credentials and pin the auth gate. The rest sign
 in, and need four variables:
 
 ```
@@ -125,7 +134,8 @@ the nightly reported success four mornings running while executing 24 of 128
 specs. So a run that is MEANT to be signed in says so with
 `REQUIRE_SERVICE_CREDENTIALS=1`, and `e2e/coverage.spec.ts` then fails instead
 of skipping. The node suite carries the same guard in
-`tooling/scripts/tests/coverage-guard.test.mjs` for its 62 integration tests.
+`tooling/scripts/tests/coverage-guard.test.mjs` for its 112 integration tests,
+which live in 26 files and skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.
 

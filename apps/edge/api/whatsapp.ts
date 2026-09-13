@@ -16,9 +16,10 @@
  * under maxDuration 60; Meta retries + dedupe make replays safe. The HTTP
  * surface is unchanged by Gate 1b — only where memory is read from moves.
  *
- * Postgres dual-write (PG_WRITES=on): additive, fail-safe, batched — the
- * PgSink no-ops when unconfigured so the frozen Blob/send order never depends
- * on PG. wa_replied logs carry ingest_ms/post_ms (blueprint latency budget).
+ * Postgres writes: additive, fail-safe, batched — the PgSink no-ops when
+ * unconfigured (no Supabase credentials) so the frozen Blob/send order never
+ * depends on PG. wa_replied logs carry ingest_ms/post_ms (blueprint latency
+ * budget). PG_WRITES used to gate the client and no longer does: see lib/pg.ts.
  *
  * GATE 1b (PG_READS=on): Postgres becomes the SOURCE of the bot's memory —
  * history, pause, and rate cap all come from the same rows the dashboard reads
@@ -37,7 +38,7 @@
  * Env: WHATSAPP_VERIFY_TOKEN, META_APP_SECRET, WHATSAPP_ACCESS_TOKEN,
  *      WHATSAPP_PHONE_ID, WHATSAPP_TEST_ALLOWLIST (optional, comma list),
  *      ANTHROPIC_API_KEY, RESEND_API_KEY + LEAD_TO/LEAD_FROM,
- *      BLOB_READ_WRITE_TOKEN, PG_WRITES + SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY,
+ *      BLOB_READ_WRITE_TOKEN, SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY,
  *      PG_READS (Gate 1b), PG_DEDUPE (optional, implied by PG_READS),
  *      BLOB_SHADOW ('off' retires Blob; Postgres is the only memory).
  */
@@ -138,7 +139,19 @@ export async function POST(request: Request): Promise<Response> {
             ).catch(() => {});
           }
         }
-        if (field === "messages" && v.messages && unroutable) {
+        if (field === "messages" && v.messages && routingFailed && !isEnvDefault) {
+          // The database did not answer and this number has no baked profile to
+          // ride it out on. Nothing can be recorded and nothing can be said, so
+          // this is NOT acknowledged: the 503 below has Meta redeliver, and the
+          // ingest's is_new gate makes that retry a no-op once one lands. The
+          // designated number is the exception this branch carves out: it DOES
+          // have a baked profile, answers from it, and keeps its 200.
+          unrecorded += v.messages.length;
+          console.error("wa_skip_routing_failed", JSON.stringify({
+            phone_number_id: phoneNumberId, messages: v.messages.length,
+          }));
+          await alertUnroutable("whatsapp_unreadable", phoneNumberId, v.messages.length);
+        } else if (field === "messages" && v.messages && unroutable) {
           // Customers are texting a line whose channel is switched off. Nobody
           // is answering them and nothing is being recorded, so this has to
           // reach a human — throttled, because the alternative is one email per

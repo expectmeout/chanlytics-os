@@ -108,13 +108,11 @@ test("the migration and the sweep: one run per playbook per local day, touches n
   assert.ok(m.includes("url     := v_url || '/api/cron/playbooks',") && m.includes("select cron.schedule('playbooks-sweep', '5 * * * *'"));
   assert.ok(m.includes("'start_playbook', 'pause_playbook'") && m.includes("'broadcast', 'playbook'"));
   assert.ok(!/create table public.playbook_touches/.test(m), "touches are derived from the runs' recipient rows");
-  const s = readCode("apps/edge/api/cron/playbooks.ts");
-  assert.ok(s.includes("runDueNow(p as unknown as PlaybookDto, tz, now)"), "by the business's clock");
-  assert.ok(s.includes('await runPlaybook(ctx, p, { runFor, by: { kind: "system" } })'), "the sweep runs the one implementation");
   const r = readCode("apps/edge/lib/playbooks.ts");
   // The run's branches are run: core-run-playbook.test.mjs. The loader's touches stay pinned here.
   assert.ok(r.includes('.in("state", ["sent", "queued"])') && r.includes('const runs = (pastRuns.data ?? []).filter((b) => b.state !== "canceled" && b.state !== "failed");'), "a message on its way is a touch too, so two playbooks never both pick the same person in a week");
-  assert.ok(readCode("apps/edge/api/admin/playbooks-run.ts").includes('runPlaybook(ctx, p as PlaybookRow, { by: { kind: "user", userId } })'));
+  // Run now -- a person's run through the same implementation, sent now under
+  // ask, the ledger naming them -- runs in playbooks-run-door.test.mjs.
   assert.ok(readCode("packages/contracts/src/config.ts").includes('note: "the win-back and save-our-number playbooks · auto sends each run, veto sends it 30 minutes later unless you stop it, ask leaves it waiting on Today, never runs nothing"') && readCode("apps/dashboard/src/legacy-bridge/policy-store.ts").includes('...W("reengage")'), "the Autonomy row says what the playbooks do, in the one set of words every surface reads");
 });
 

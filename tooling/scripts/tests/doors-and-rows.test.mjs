@@ -87,13 +87,6 @@ test("the doors agree with the code above them", () => {
   assert.ok(sql.includes("create policy idempotency_acting_member_all"));
 });
 
-test("the diagnostic accepts only its header, and the webhook says which credential passed", () => {
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(!diag.includes("WHATSAPP_VERIFY_TOKEN"), "the legacy query-string key is gone");
-  const hook = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(hook.includes('console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk, key: keyOk }))'));
-});
-
 test("customer numbers stay out of edge logs", () => {
   const pause = readCode("apps/edge/api/admin/pause.ts");
   assert.ok(!/JSON\.stringify\(\{ phone,/.test(pause), "the pause mirror logged the whole number");

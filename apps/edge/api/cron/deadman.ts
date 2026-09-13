@@ -25,9 +25,10 @@
 import { json } from "../../lib/http.js";
 import { authorizeCron } from "../../lib/cron-auth.js";
 import { pg } from "../../lib/pg.js";
-import { notify } from "../../lib/notify.js";
+import { notify, reachesTenant } from "../../lib/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
 import { logger, errField } from "../../lib/log.js";
+import { pageOperator } from "../../lib/page-operator.js";
 
 export const config = { maxDuration: 60 };
 
@@ -67,6 +68,8 @@ export async function POST(request: Request): Promise<Response> {
   // one workspace having a bad morning.
   const addressing = new Map<string, Awaited<ReturnType<typeof loadTenantNotifications>>>();
   const alerted: string[] = [];
+  /** Workspaces with an open escalation and nobody on file to tell about it. */
+  const unaddressable = new Set<string>();
 
   for (const c of candidates) {
     try {
@@ -76,8 +79,26 @@ export async function POST(request: Request): Promise<Response> {
       const waitedMin = Math.round((Date.now() - new Date(c.opened_at).getTime()) / 60000);
       const waited = waitedMin >= 120 ? `${Math.round(waitedMin / 60)} hours` : `${waitedMin} minutes`;
 
+      // A workspace with nobody to tell is not warned AT ALL from here, and
+      // its escalation is left unstamped so it is raised the moment somebody
+      // is on file.
+      //
+      // The obvious version of this — send the redacted platform note and
+      // withhold the stamp — is a flood: this sweep runs every ten minutes and
+      // the row keeps coming back, so one open escalation becomes a hundred
+      // and forty-four platform emails and as many bell rows a day, on the
+      // only alarm channel this system has. The platform still needs to know,
+      // so it is told through the pager that remembers: one page per workspace
+      // per six hours, durable across instances, stamped only when it sends.
+      const target = { tenantId: c.tenant_id, ...addressing.get(c.tenant_id)! };
+      if (!reachesTenant(target)) {
+        unaddressable.add(c.tenant_id);
+        L.warn("deadman_tenant_unaddressable", { tenant_id: c.tenant_id, escalation: c.escalation_id });
+        continue;
+      }
+
       const delivered = await notify(
-        { tenantId: c.tenant_id, ...addressing.get(c.tenant_id)! },
+        target,
         {
           kind: "deadman",
           route: "inbox",
@@ -92,13 +113,28 @@ export async function POST(request: Request): Promise<Response> {
         },
       );
 
-      // Only a DELIVERED warning earns the once-guard. If the alert failed, the
-      // next tick tries again rather than marking the customer as handled.
+      // Only a DELIVERED warning earns the once-guard, and only this
+      // workspace's own people count as delivery — the unaddressable case
+      // never reaches here. If the send failed, the next tick tries again
+      // rather than marking the customer as handled.
       if (delivered) alerted.push(c.escalation_id);
       else L.warn("deadman_alert_undelivered", { tenant_id: c.tenant_id, escalation: c.escalation_id });
     } catch (e) {
       L.error("deadman_candidate_failed", { tenant_id: c.tenant_id, escalation: c.escalation_id, error: errField(e) });
     }
+  }
+
+  // One page per workspace per six hours, not one per escalation per tick.
+  for (const tenantId of unaddressable) {
+    await pageOperator(
+      { db },
+      `deadman_unaddressable:${tenantId}`,
+      "A workspace has a customer waiting and nobody to tell",
+      `A conversation in workspace ${tenantId} was handed to a human more than two hours ago and is still open, ` +
+        `and the workspace has no notification recipients on file — so its owner cannot be told, here or anywhere.\n\n` +
+        `Set them in Settings › Notifications for that workspace. The warning is raised as soon as somebody is on file; ` +
+        `nothing about this customer has been marked as handled.`,
+    ).catch(() => {});
   }
 
   if (alerted.length) {

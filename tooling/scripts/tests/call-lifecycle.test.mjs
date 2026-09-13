@@ -162,30 +162,15 @@ test("the upsert is forward-only and tells the caller when it declined", () => {
   assert.equal((sql.match(/<> 'not_connected'/g) ?? []).length, 5, "metrics (2), people (1), reports (2)");
 });
 
-test("the webhook copies on a budget and never regresses a finished copy", () => {
-  const src = readCode("apps/edge/api/retell-webhook.ts");
-  assert.ok(src.includes("timeoutMs: WEBHOOK_COPY_TIMEOUT_MS"));
-  assert.ok(!src.includes("fetchRecording("), "the copy lives in lib/call-recording.ts, not inline");
-  assert.ok(src.includes('res.recording_state !== "stored" && res.recording_state !== "failed"'));
-  assert.ok(src.includes("res.skipped"), "a stale event is logged, not treated as new");
-});
-
-test("the sweep retries pending copies, bounded, and the trigger wakes for them", () => {
-  const cron = readCode("apps/edge/api/cron/calls.ts");
-  assert.ok(cron.includes('.filter("recording->>fetch_state", "eq", "pending")'));
-  assert.ok(cron.includes("(rec.attempts ?? 0) >= RECORDING_MAX_ATTEMPTS) continue"));
-  assert.ok(cron.includes("timeoutMs: SWEEP_COPY_TIMEOUT_MS"));
+test("a copy given up on stops waking the edge, and the copy's own bound agrees", () => {
+  // The sweep's half -- pending copies retried on its own budget, the count
+  // advanced on a timeout, the third attempt the last -- runs in
+  // cron-doors-b.test.mjs. This holds the trigger and the library to one number.
   const sql = readRaw("supabase/migrations/00031_call_lifecycle.sql");
   assert.ok(sql.includes("coalesce((recording->>'attempts')::int, 0) < 3"), "a copy given up on stops waking the edge");
   const lib = readCode("apps/edge/lib/call-recording.ts");
   assert.ok(lib.includes("export const RECORDING_MAX_ATTEMPTS = 3;"));
   assert.ok(lib.includes('settle(exhausted ? "failed" : "pending"'));
-});
-
-test("the diagnostic reports what the agent is configured to send", () => {
-  const diag = readCode("apps/edge/api/diag.ts");
-  assert.ok(diag.includes("out.voiceAgents"));
-  assert.ok(diag.includes('includes("transcript_updated")'), "live transcript is the setting this page depends on");
 });
 
 test("the Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in'", () => {

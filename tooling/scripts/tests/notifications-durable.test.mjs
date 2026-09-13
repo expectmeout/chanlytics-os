@@ -46,12 +46,10 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   assert.ok(notify.includes('console.error("notification_record_failed"'), "losing the row never loses the email");
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(readCode("apps/edge/lib/whatsapp/alerts.ts").includes('kind: "handoff",') && wa.includes("route: ing ? `inbox/th-${ing.conversation_id}` : \"inbox\",") && wa.includes("about: ing ? { type: \"conversation\", id: ing.conversation_id } : null,"), "a handoff points at its thread");
-  assert.ok(readCode("apps/edge/api/retell-webhook.ts").includes('kind: "call",'));
-  assert.ok(readCode("apps/edge/api/cron/deadman.ts").includes('kind: "deadman",'));
+  // The call and deadman bells run: retell-webhook-door.test.mjs and cron-deadman-door.test.mjs.
   // Moved out of fire.ts when a second place could fail a job: the stale-jobs
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.
   assert.ok(readCode("apps/edge/lib/job-alert.ts").includes('kind: "job_failed", route: "inbox",'));
   assert.ok(readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') && readCode("apps/edge/lib/waba-events.ts").includes('kind: "number", route: "admin/integrations",'));
-  assert.ok(readCode("apps/edge/api/cron/calendar.ts").includes('recordNotification(row.tenant_id, { kind: "calendar_people",'), "good news is a row, not an email");
 });

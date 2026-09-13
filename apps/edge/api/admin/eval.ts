@@ -27,7 +27,19 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 interface EvalCase { id: string; text: string; history?: Array<{ role: "user" | "assistant"; content: string }> }
 
-export async function POST(request: Request): Promise<Response> {
+/**
+ * The model as a port, as on the steer door. Production passes nothing and
+ * gets the real brain; a test hands in an answer, because lib/brain.ts speaks
+ * to the Anthropic SDK and has no seam of its own. Anything else that may
+ * arrive in this position carries no generateReply and changes nothing. BOTH
+ * branches are run in tooling/scripts/tests/eval-door.test.mjs: most cases
+ * hand a brain in, and the last two call POST the way Vercel calls it and
+ * watch the real brain reach the model.
+ */
+export interface BrainPort { generateReply?: typeof generateReply }
+
+export async function POST(request: Request, brain?: BrainPort | null): Promise<Response> {
+  const ask = brain?.generateReply ?? generateReply;
   const auth = authorizeAdmin(request, "/api/admin/eval");
   if (!auth.ok) return auth.response;
   if (!process.env.ANTHROPIC_API_KEY) return json(503, { ok: false, error: "no_model_key" });
@@ -77,7 +89,7 @@ export async function POST(request: Request): Promise<Response> {
   for (const c of cases) {
     const t0 = Date.now();
     try {
-      const r = await generateReply(c.history ?? [], c.text, system, rt.brain.fallbacks.error, undefined, nowNote);
+      const r = await ask(c.history ?? [], c.text, system, rt.brain.fallbacks.error, undefined, nowNote);
       results.push({ id: c.id, ok: true, text: r.text, escalate: r.escalate, reason: r.reason ?? null, meta: r.meta ?? null, usage: r.usage ?? null, ms: Date.now() - t0 });
     } catch (e) {
       results.push({ id: c.id, ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 200), ms: Date.now() - t0 });

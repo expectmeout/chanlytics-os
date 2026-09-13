@@ -284,11 +284,10 @@ test("the SIP credential meets Twilio's rule; the trunk domain and username come
   assert.deepEqual(body.inbound_agents, [{ agent_id: "a", weight: 1 }], "unpublished: no pin");
 });
 
-test("wiring: the edge endpoint, its ports, the receptionist shared with voice-provision, the migration, the manifest, the events", () => {
-  const edge = readCode("apps/edge/api/admin/lines.ts");
-  assert.ok(edge.includes('authorizeAdmin(request, "/api/admin/lines")'));
-  for (const op of ['op === "status"', 'op === "search"', 'op === "buy"', 'op === "retry" || op === "release"']) assert.ok(edge.includes(op), op);
-  assert.ok(edge.includes("const choice = lineProviderFromEnv();"));
+test("wiring: the saga's ports, the receptionist shared with voice-provision, the migration, the manifest, the events", () => {
+  // The edge endpoint itself -- the knock, every op, the spend rule, one line
+  // per workspace, and that it schedules the saga rather than running it -- is
+  // run in lines-door.test.mjs.
   // The saga and everything it has to tell people moved to lib/provision.ts, because
   // two things provision a line now: a person pressing a button, and the sweep that
   // resumes one the lambda killed. A sweep that assembled its own version of "and
@@ -300,11 +299,6 @@ test("wiring: the edge endpoint, its ports, the receptionist shared with voice-p
   assert.ok(prov.includes('kind: "number",') && prov.includes('title: `Your phone line is ready: ${shown}`'), "the bell on success");
   assert.ok(prov.includes("Your phone line hit a snag — a person at Chanlytics has it"), "the bell on failure");
   assert.ok(prov.includes("{ tenantId: null, notifications: null, isEnvDefault: true }"), "the platform hears a failure");
-  assert.ok(!edge.includes("runLineSaga("), "REGRESSION: a second copy of the saga's aftermath in the route");
-  // Who started a run is read from the request now (`retryRequestedBy`, run in
-  // line-recovery.test.mjs) and `provisionLine` requires it, so the compiler holds
-  // every caller to naming one -- these two text pins were retired with that.
-  assert.ok(edge.includes('error: "line_exists"') && edge.includes('error: "line_failed_retry"'), "one line per workspace in v1");
   for (const k of ["line.answering", "line.failed", "line.released"]) assert.ok(EVENT_KINDS.includes(k), k);
   const lib = readCode("apps/edge/lib/lines.ts");
   assert.ok(lib.includes("chooseLineProvider({ sid, token, dryRun: process.env.LINES_DRY_RUN, vercelEnv: process.env.VERCEL_ENV })"));
@@ -316,7 +310,7 @@ test("wiring: the edge endpoint, its ports, the receptionist shared with voice-p
   const agent = readCode("apps/edge/lib/voice-agent.ts");
   for (const pin of ["createRetellLlm(cfg, voiceLlmCreateBody(secrets))", "createAgent(cfg, voiceAgentCreateBody(", 'publishAgentVersion(cfg, agentId, agentVersion, "provisioned from the edge")', "await getAgentRaw(cfg, o.agentId)", "await getRetellLlm(cfg, llmId)"]) assert.ok(agent.includes(pin), pin);
   assert.ok(agent.indexOf('.eq("kind", "voice")') < agent.indexOf("createVoiceAgent(cfg, secrets, { agentName: `${tenant.name} front desk` })"), "ensure reads the active voice row before creating");
-  assert.ok(readCode("apps/edge/api/admin/voice-provision.ts").includes("createVoiceAgent(cfg, secrets, { agentName: plan.names.agent, llmId: req.llmId, agentId: req.agentId })"));
+  // voice-provision making the receptionist through the same lib is run in voice-doors.test.mjs.
   const adapter = readCode("packages/channels/src/voice-retell.ts");
   assert.ok(adapter.includes('"/import-phone-number"'));
   const env = readRaw("apps/edge/.env.example");
