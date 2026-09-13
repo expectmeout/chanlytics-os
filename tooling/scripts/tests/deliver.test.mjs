@@ -255,6 +255,37 @@ test("the receptionist's own escalation pauses the thread and queues its holding
   }
 });
 
+test("what a send IS decides what holds it, never who wrote it: a system message goes under a held thread but not a paused workspace, and a broadcast's row does not retire a draft", async () => {
+  const held = thread({ paused_until: new Date(NOW + 60_000).toISOString() });
+  {
+    const t = tables({ conversations: [held] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "ai", kind: "system" }));
+    assert.equal(out.outcome, "sent", "an opt-in confirmation is owed the moment the yes was given, whoever holds the thread");
+    assert.equal(t.messages[0].sender, "ai", "and the row still says who wrote the words");
+  }
+  {
+    const t = tables({ conversations: [held] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "ai" }));
+    assert.equal(out.reason, "human_has_it", "the receptionist answering now is held, as before");
+  }
+  {
+    const t = tables({ conversations: [thread({ tenants: { status: "paused" } })] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "ai", kind: "system" }));
+    assert.equal(out.reason, "paused", "a paused workspace sends nothing but a person's own words");
+  }
+  {
+    const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "Hi", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
+    const run = { id: "m2", tenant_id: T, conversation_id: "c1", status: "sent", body: "An offer", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:30.000Z", meta: { source: "broadcast", broadcast_id: "b1" } };
+    const t = tables({ messages: [draft, run] });
+    const w = wireOf();
+    const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1", body: "Hi" }));
+    assert.equal(out.outcome, "sent", "a broadcast is a person's words, not a person speaking on the thread");
+  }
+});
+
 test("a wire that cannot be read is a failure with its own name, never a throw past the door", async () => {
   const t = tables();
   const w = wireOf();

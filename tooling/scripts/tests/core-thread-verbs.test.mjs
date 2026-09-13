@@ -63,6 +63,21 @@ test("hand back: the pause released, the thread opened, the decision recorded, a
   await refused(core.handBack(fakes().ports, { conv: conv({ phone_e164: null }) }), "conflict", undefined, /phone/);
 });
 
+test("hand back, snooze and archive: a row that did not change gets its pause back, so the receptionist never speaks under a person still holding the thread", async () => {
+  const until = new Date(NOW + HOUR).toISOString();
+  const hb = fakes({ release: false });
+  await refused(core.handBack(hb.ports, { conv: conv({ paused_until: until }) }), "conflict", 409, /reload/);
+  assert.deepEqual(hb.ops(), ["pauseBot", "release", "pauseBot"]);
+  assert.equal(hb.log[2][3], NOW + HOUR, "mirrored back as it was");
+  const sn = fakes({ snooze: false });
+  await refused(core.snooze(sn.ports, { conv: conv({ paused_until: until }), until: new Date(NOW + 2 * HOUR).toISOString() }), "conflict", 409, /reload/);
+  assert.deepEqual(sn.ops(), ["pauseBot", "snooze", "pauseBot"]);
+  assert.equal(sn.log[2][3], NOW + HOUR);
+  const ar = fakes({ archive: () => { throw new Error("PostgREST blip"); } });
+  await assert.rejects(core.archive(ar.ports, { conv: conv({ paused_until: until }) }), /blip/);
+  assert.deepEqual(ar.ops(), ["pauseBot", "archive", "pauseBot"], "a write that threw is compensated too");
+});
+
 test("snooze: a missing, malformed, past or too-distant until is refused before anything is touched", async () => {
   for (const until of [undefined, "yesterday", new Date(NOW - 1).toISOString(), new Date(NOW + core.MAX_SNOOZE_MS + 1).toISOString()]) {
     const { ports, ops } = fakes();

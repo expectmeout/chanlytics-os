@@ -211,7 +211,13 @@ export const HELD_REASONS: Record<string, string> = {
   // that should have arrived untranslated.
   no_marketing_consent: "no yes to offers",
   no_phone: "no number",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
   human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
   erased: "deleted",
   send_failed: "WhatsApp refused",
   missing_value: "a value was missing",

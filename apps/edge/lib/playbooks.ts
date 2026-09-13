@@ -213,8 +213,11 @@ export async function runPlaybook(ctx: TenantRunContext, p: PlaybookRow, req: Ru
   const { db, tenantId } = ctx;
   return runOverPorts(
     {
+      // A read that fails throws: a template that could not be read is not
+      // one Meta withdrew, and the run says it failed rather than skipping the day.
       template: async (name, language) => {
-        const { data } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        const { data, error } = await db.from("templates").select("meta_status").eq("tenant_id", tenantId).eq("channel", "whatsapp").eq("name", name).eq("language", language).maybeSingle();
+        if (error) throw new Error(`cannot read template ${name}: ${error.message}`);
         return data ?? null;
       },
       alreadyRan: async (playbookId, runFor) => {

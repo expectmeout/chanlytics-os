@@ -1,4 +1,4 @@
-import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, purposeOfTemplate, replyWindow } from "@chanlytics/contracts";
+import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, replyWindow } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
 
@@ -47,8 +47,8 @@ export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "
   replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms">;
   /** The receipt stored under this caller's key, with when and for which intent it was stored. */
   priorReceipt(tenantId: string, key: string): Promise<{ response: ReplyReceipt; created_at: string; request_hash: string | null } | null>;
-  /** The workspace's template by name and language, as Meta last told us about it. */
-  template(tenantId: string, name: string, language: string): Promise<{ name: string; language: string; body_preview: string | null; meta_status: string | null; category: string | null } | null>;
+  /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
+  template(tenantId: string, name: string, language: string): Promise<{ name: string; language: string; body_preview: string | null; meta_status: string | null; category: string | null; variables?: unknown } | null>;
   /** The facts a template's params come from, when the workspace has them. */
   templateFacts(tenantId: string): Promise<{ business_name: string; booking_link: string } | null>;
   /** needs_human, paused until, snooze cleared, claimed by the user, and the thread touched now. True iff a row changed. */
@@ -96,7 +96,10 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   const intentHash = ports.hash(JSON.stringify(body));
   if (idemKey) {
     const prior = await ports.priorReceipt(conv.tenant_id, idemKey);
-    const sameIntent = !prior?.request_hash || prior.request_hash === intentHash;
+    // A receipt with no hash never answers: every writer keeps one, and a
+    // receipt that somehow lacks it must not swallow a send on the strength
+    // of the key alone.
+    const sameIntent = prior?.request_hash === intentHash;
     if (prior && sameIntent && now - Date.parse(prior.created_at) < IDEMPOTENCY_WINDOW_MS) return prior.response;
   }
 
@@ -118,16 +121,24 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
       throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
     }
-    // Params are TENANT FACTS (E4): the workspace's config first, the client's
-    // as a fallback for a workspace with no config, bounded by the route's
-    // schema; so the browser never chooses the link that lands on a phone.
+    // The Inbox fills exactly two slots -- the business name and the booking
+    // link -- so the template must take exactly two. Judged here, where the
+    // operator hears a sentence: Meta refuses a count mismatch at the wire,
+    // fifteen seconds after "queued".
+    const expected = Array.isArray(tpl.variables) ? tpl.variables.length : null;
+    if (expected !== null && expected !== 2) {
+      throw new AppError("validation", `This template takes ${expected} value${expected === 1 ? "" : "s"}; the Inbox fills two, the business name and the booking link. Pick a template with those two slots.`);
+    }
+    // Params are TENANT FACTS (E4): the workspace's own words for the slots
+    // that name it, never the browser's, so the browser never chooses the
+    // link that lands on a phone. A workspace with no facts on file cannot
+    // send a template from here, and is told so before anything is queued.
     const facts = await ports.templateFacts(conv.tenant_id);
-    let params: string[] = facts ? [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")] : [];
-    if (!params.length) params = body.template.params ?? [];
-    if (!params.length) throw new AppError("validation", "This workspace has no template facts configured yet.");
+    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Workspace first.");
+    const params: string[] = [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")];
     templateName = tpl.name;
     templateVars = { language: tpl.language, params } as Json;
-    messageBody = params.reduce((acc, p, i) => acc.replaceAll(`{{${i + 1}}}`, p), tpl.body_preview ?? `[template ${tpl.name}]`);
+    messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;
     jobTemplate = { name: tpl.name, language: tpl.language, params };
   }
 
@@ -138,6 +149,9 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   const pauseUntil = now + (await ports.pauseMs(conv.tenant_id));
   await ports.pauseBot(conv.tenant_id, conv.phone_e164, pauseUntil);
   if (!(await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString()))) {
+    // The mirror already paused the receptionist; release it so the two stores
+    // do not disagree about a thread nobody took (take-over does the same).
+    await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   // The operator is REPLACING the receptionist's held reply, not queueing
@@ -165,10 +179,15 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     await ports.cancelOrphan(message_id);
     throw e;
   }
+  // The receipt is kept the moment the send is certain: a retry under the same
+  // key after a failure further down must find it, or the words go twice. It
+  // is kept again below with the decision's id, once there is one.
+  const queued: ReplyReceipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts };
+  if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, queued);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "reply", { message_id, window_open: window.open, template: templateName });
   await ports.resolveEscalation(conv.id, decision_id);
 
-  const receipt: ReplyReceipt = { message_id, status: "queued", cancelable_until: dueAt.toISOString(), window_open: window.open, withdrawn_drafts, decision_id };
+  const receipt: ReplyReceipt = { ...queued, decision_id };
   if (idemKey) await ports.storeReceipt(conv.tenant_id, idemKey, intentHash, receipt);
   return receipt;
 }

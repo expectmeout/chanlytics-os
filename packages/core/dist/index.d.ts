@@ -33,6 +33,21 @@ import { Json, Database } from '@chanlytics/db';
 
 type Db = SupabaseClient<Database>;
 type Channel = "whatsapp" | "sms";
+/**
+ * What a send IS, for the door's rules -- never read off `sender`, which is a
+ * fact about who wrote the words and is recorded as such.
+ *  - "reply": a person's own words in a conversation; every pause exists for
+ *    them, so none holds it.
+ *  - "draft": the receptionist's held reply, queued; a person speaking since
+ *    retires it, and the pause it now meets does not.
+ *  - "broadcast": proactive and automated; it respects every pause like the
+ *    machine it is.
+ *  - "system": words the rules require of us -- an opt-in confirmation naming
+ *    the program, HELP and STOP; a held thread does not hold them, a paused
+ *    workspace does.
+ *  - "answer": the receptionist answering now; every pause holds it.
+ */
+type SendKind = "reply" | "draft" | "broadcast" | "system" | "answer";
 interface TemplateSend {
     name: string;
     language: string;
@@ -75,6 +90,8 @@ interface Delivery {
      * cancel that wins the row is never overwritten.
      */
     messageId?: string | null;
+    /** What this send is, for the rules (SendKind). Absent, the door derives it the way it always read `sender`: see kindOf. */
+    kind?: SendKind;
     /** Recorded on a row this call writes. */
     meta?: Record<string, Json>;
 }
@@ -194,7 +211,7 @@ declare function takeOver(ports: TakeOverPorts, cmd: {
 type HandBackPorts = Pick<ThreadPorts, "pauseBot" | "release" | "record" | "resolveEscalation">;
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */
 declare function handBack(ports: HandBackPorts, cmd: {
-    conv: Pick<Thread, "id" | "tenant_id" | "phone_e164">;
+    conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until">;
 }): Promise<{
     state: "open";
     decision_id: string;
@@ -338,13 +355,14 @@ interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "withdra
         created_at: string;
         request_hash: string | null;
     } | null>;
-    /** The workspace's template by name and language, as Meta last told us about it. */
+    /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
     template(tenantId: string, name: string, language: string): Promise<{
         name: string;
         language: string;
         body_preview: string | null;
         meta_status: string | null;
         category: string | null;
+        variables?: unknown;
     } | null>;
     /** The facts a template's params come from, when the workspace has them. */
     templateFacts(tenantId: string): Promise<{
@@ -464,9 +482,9 @@ interface BroadcastBatchPorts {
     broadcast(id: string): Promise<BroadcastRow | null>;
     workspacePaused(): Promise<boolean>;
     fail(id: string, failure: string): Promise<void>;
-    /** scheduled → sending, only while scheduled. */
-    startSending(id: string): Promise<void>;
-    /** The template as Meta has it: its status, its words, its category. */
+    /** scheduled → sending, only while scheduled. True iff the row changed: false is a cancel that landed first. */
+    startSending(id: string): Promise<boolean>;
+    /** The template as Meta has it: its status, its words, its category. Null when gone; throws when it cannot be read. */
     template(name: string, language: string): Promise<{
         meta_status: string | null;
         body_preview: string | null;
@@ -479,30 +497,34 @@ interface BroadcastBatchPorts {
     }>;
     /** Up to `limit` people still queued; throws when it cannot be read. */
     batch(id: string, limit: number): Promise<RecipientRow[]>;
-    /** One person's row, null when gone; throws when it cannot be read. */
-    contact(contactId: string): Promise<ContactRow | null>;
+    /** The people on the batch by id, one read for all of them; a row that is gone is absent. Throws when it cannot be read. */
+    contacts(contactIds: string[]): Promise<Map<string, ContactRow>>;
     /** The thread this send belongs to, never created here. */
     target(phoneE164: string): Promise<{
         conversationId: string;
     } | null>;
     /**
-     * The message this broadcast already sent this person, if a run died between
-     * the wire and its own bookkeeping: its id and when it left, or null. A
-     * resumed batch reads it rather than sending twice, and records the time the
-     * message actually went out rather than the time it noticed — the broadcast's
-     * own page orders its recipients by that column.
+     * The messages this broadcast already sent these people, if a run died
+     * between the wire and its own bookkeeping: contact id → the message's id
+     * and when it left, one read for the batch. A resumed batch reads them
+     * rather than sending twice, and records the time each message actually
+     * went out rather than the time it noticed — the broadcast's own page
+     * orders its recipients by that column. A read that fails THROWS: "could
+     * not check" read as "never sent" is exactly the second send this exists
+     * to stop.
      */
-    alreadySent(id: string, contactId: string): Promise<{
+    alreadySent(id: string, contactIds: string[]): Promise<Map<string, {
         id: string;
         sentAt: string | null;
-    } | null>;
+    }>>;
     mark(id: string, contactId: string, patch: RecipientMark): Promise<void>;
     deliver: Door;
     /** How many are still queued; throws when it cannot be counted. */
     remaining(id: string): Promise<number>;
+    /** The broadcast's state now; null when gone. Throws when it cannot be read: an unreadable state is not a cancel. */
     state(id: string): Promise<string | null>;
-    /** The next batch, as this tenant, through the same door the dashboard uses. */
-    scheduleNext(id: string): Promise<void>;
+    /** The next batch, as this tenant, through the same door the dashboard uses; now unless told when. */
+    scheduleNext(id: string, dueAt?: Date): Promise<void>;
     /** Who got it and who was held, once nobody is queued. */
     tally(id: string): Promise<{
         sent: number;
@@ -580,6 +602,13 @@ declare function provisionLine(ports: ProvisionLinePorts, cmd: {
 }): Promise<void>;
 
 /**
+ * How long a batch that reached nobody waits before it is tried again. The
+ * rest of a run is scheduled the moment a batch ends; a batch in which every
+ * read failed would otherwise schedule itself again at once, and a read that
+ * keeps failing would spin the ledger until somebody canceled by hand.
+ */
+declare const BROADCAST_STALL_RETRY_MS = 60000;
+/**
  * broadcast_send: one batch of a broadcast, then the next.
  *
  * The route enrolled the recipients; this sends to up to BROADCAST_CHUNK of
@@ -587,7 +616,8 @@ declare function provisionLine(ports: ProvisionLinePorts, cmd: {
  * unrecoverable — and records why anyone was held back. Then it schedules
  * itself again for the rest, or closes the broadcast and tells the
  * workspace. A canceled broadcast stops at the next batch; a template that
- * is no longer approved fails it before a single send.
+ * is no longer approved fails it before a single send; a wire that is down
+ * fails it at the first person it cannot reach.
  */
 declare function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: BroadcastBatchCommand): Promise<void>;
 
@@ -639,7 +669,6 @@ type Assembled = {
     id: string;
 } | {
     ok: false;
-    id: string | null;
     failure: "run_not_created" | "recipients_write_failed" | "schedule_failed";
     error: string;
 };
@@ -705,7 +734,7 @@ type RunOutcome = {
     error: string;
 };
 interface RunPlaybookPorts extends AssemblePorts {
-    /** The template as Meta has it now, by name and language; null when gone. */
+    /** The template as Meta has it now, by name and language; null when gone. Throws when it cannot be read: unreadable is not withdrawn. */
     template(name: string, language: string): Promise<{
         meta_status: string | null;
     } | null>;
@@ -776,8 +805,8 @@ interface CreateBroadcastCommand {
 interface ApproveRunPorts {
     /** The business's clock, for the hours a send may go out in. */
     timezone(): Promise<string>;
-    /** pending_approval → scheduled, only while pending. True iff a row changed. */
-    release(broadcastId: string): Promise<boolean>;
+    /** pending_approval → scheduled for `at`, only while pending. True iff a row changed. The row carries the time the job carries (00119). */
+    release(broadcastId: string, at: Date): Promise<boolean>;
     /** Back to waiting, when the job could not be made. */
     hold(broadcastId: string): Promise<void>;
     schedule(broadcastId: string, at: Date): Promise<void>;
@@ -814,8 +843,11 @@ declare function assembleRun(ports: AssemblePorts, cmd: AssembleCommand): Promis
  * class's autonomy mode: auto schedules the send now, veto schedules it half
  * an hour ahead with a Stop, ask leaves it waiting for a person, never does
  * nothing. A person who asks for a run now has decided: it sends now, unless
- * the class is set to never. Every run is recorded as an event, a run that
- * found nobody included. A run never throws: the sweep behind it must go on.
+ * the class is set to never. Never at 3 AM, whoever asks: a send that would
+ * go out past the hours a run keeps on its own (a "Run now" at eleven at
+ * night, a veto window ending past twenty) goes at nine, and the ledger says
+ * what was asked for. Every run is recorded as an event, a run that found
+ * nobody included. A run never throws: the sweep behind it must go on.
  */
 declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): Promise<RunOutcome>;
 
@@ -921,4 +953,4 @@ interface PlaybookInput {
  */
 declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
-export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };
+export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };

@@ -8,9 +8,10 @@ import { runPlaybookNow } from "@/server/service";
  *
  * The edge runs it with the same implementation the hourly sweep uses. A
  * person who asks has decided: the run sends now unless the class is set to
- * never, and the ledger names them. One run per local day, so a playbook
- * that already ran today says so. Owner or operator, judged where the
- * playbook lives (playbookScope).
+ * never -- at nine, if now is outside the hours a send may go out in -- and
+ * the ledger names them. One run per local day, so a playbook that already
+ * ran today says so. Owner or operator, judged where the playbook lives
+ * (playbookScope).
  */
 const SAID: Record<string, string> = {
   preview: "Running only works on the production dashboard.",

@@ -77,7 +77,7 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
     template: async (tenantId, name, language) => {
       const { data } = await ctx.supabase
         .from("templates")
-        .select("name, language, body_preview, meta_status, category")
+        .select("name, language, body_preview, meta_status, category, variables")
         .eq("tenant_id", tenantId)
         .eq("channel", "whatsapp")
         .eq("name", name)

@@ -223,7 +223,7 @@ export async function handleInbound(
   const repliedBefore = thread.repliedBefore ?? thread.history.some((h) => h.role === "assistant");
   const firstReply = thread.replies.length === 0 && !repliedBefore;
   const wire = (text: string) => (carrier ? carrier.body(text, firstReply) : text);
-  const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose) => sink.deliver(from, wire(text), meta, purpose);
+  const send = (text: string, meta?: Record<string, Json>, purpose?: SendPurpose, kind?: "system") => sink.deliver(from, wire(text), meta, purpose, kind);
   /**
    * The owner's handoff email. Every fact about the conversation other than
    * the words is fixed for this whole invocation, and it was retyped at each
@@ -591,7 +591,9 @@ export async function handleInbound(
     // frequency, the rates, HELP and STOP, and left nobody aware that the one
     // message the carriers refused this campaign three times for missing had
     // not reached the person who just said yes.
-    const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose);
+    // A system message, so a thread a person holds does not hold it back: the
+    // yes is owed its confirmation whoever holds the thread.
+    const confirmed = await send(words, { ack: true, confirmation: purpose }, purpose, "system");
     thread.history.push({ role: "user", content: bodyText });
     if (confirmed.outcome === "sent") thread.history.push({ role: "assistant", content: words });
     await ports.store.save(ns, from, thread);
@@ -898,9 +900,10 @@ export async function handleInbound(
     if (usage) post.push(sink.usage({ ...usage, ...replyQuality }));
     if (escalate) {
       // An escalating draft still pauses and alerts — a human should be looking
-      // at this one before the timer runs out, not after.
+      // at this one before the timer runs out, not after. The pause withdraws
+      // the thread's older drafts; this one, the holding message, is kept.
       thread.pausedUntil = Date.now() + pauseMs;
-      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
+      post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString(), typeof queued === "string" ? queued : undefined));
       post.push(sink.escalate(escalationReason, fallback ? fallback.escalationDetails(bodyText) : brainMeta?.reason ? `${brainMeta.reason} — "${bodyText}"` : bodyText));
       post.push(tell(bodyText, replyText, "assistant flagged handoff (reply held for review)", pauseHours));
     }
