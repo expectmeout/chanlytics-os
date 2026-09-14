@@ -101,6 +101,7 @@
   .ix-th-head { padding: 12px 16px; grid-template-columns: 1fr auto; }
   .ix-th-channels-meta { display: none; }
   .ix-context-strip { padding: 0 16px; }
+  .ix-thread-pane > .confirm-block { margin: 10px 16px 4px; }
   .ix-approval { margin: 12px 16px 0; }
   .ix-outcomes { grid-template-columns: 1fr; }
   .ix-timeline { padding: 12px 16px; }

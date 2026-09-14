@@ -260,17 +260,17 @@ export const inboxOverride: SurfaceOverride = {
       // the operator could do nothing about.
       //
       // Additive, like calls: a template read that fails must not blank the
-      // Inbox. It degrades to "no approved template", which is the honest
-      // reading of "we do not know of one".
+      // Inbox. It leaves null -- "could not read" -- which the composer says,
+      // with a way to read it again; [] is the other answer, "none approved".
       read("GET templates").catch(
         (e: unknown) => e as Error,
       ),
       // Every time on a thread is said by the business's clock (zone.ts).
       workspaceZone(),
     ]);
-    const w0 = window as unknown as { __TEMPLATES?: ApprovedTemplate[] };
+    const w0 = window as unknown as { __TEMPLATES?: ApprovedTemplate[] | null };
     if (tplRes instanceof Error) {
-      w0.__TEMPLATES = [];
+      w0.__TEMPLATES = null;
       console.error("templates_fetch_failed", tplRes.message);
     } else {
       w0.__TEMPLATES = (tplRes.templates ?? []).filter((t) => t.channel === "whatsapp");

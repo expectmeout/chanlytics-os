@@ -1,4 +1,4 @@
-/* global React, Icon, ConfidenceDots, TlMedia, EmptyState */
+/* global React, Icon, ConfidenceDots, TlMedia, EmptyState, FailedRead, Confirm */
 // Inbox Thread Pane — perfectionist refinement.
 // New structure:
 //   1. Header (compact — name, channels, actions)
@@ -10,14 +10,28 @@
 
 const { useState: useCvtState } = React;
 
-const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {}, notice = null }) => {
+const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, onArchive = null, planParam = 0, onPlanParam = () => {}, notice = null }) => {
+  // Archive asks first: it closes the customer's request. Above the early return, so the hooks keep their order.
+  const [askArchive, setAskArchive] = useCvtState(false);
   if (!thread) return <InboxEmpty />;
 
   const decided = !!thread.resolution;
 
   return (
     <div className="ix-thread-pane">
-      <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} />
+      <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} onArchive={thread.real && onArchive ? () => setAskArchive(true) : null} />
+      {askArchive && thread.real && onArchive && (
+        <Confirm
+          block
+          question={`Archive ${thread.who}'s conversation?`}
+          detail="It leaves the Inbox and their request is closed. If they write again, it comes back."
+          yes="Yes, archive"
+          no="Not now"
+          onYes={() => { setAskArchive(false); onArchive(thread.id); }}
+          onNo={() => setAskArchive(false)}
+          testid="ix-archive"
+        />
+      )}
       <ContextStrip thread={thread} />
       {notice && <div className="ix-notice" role="status">{notice}</div>}
 
@@ -105,12 +119,17 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
             <span><b>{window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"}</b> is answering this{thread.waited ? ` · waited ${thread.waited}` : ""}. The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours.</span>
           </div>
         )}
-        {thread.real && thread.state === "done" && !thread.resolution && (
+        {thread.real && thread.state === "done" && !thread.resolution && (thread.archived ? (
+          <div className="ix-resolved" data-testid="ix-archived">
+            <Icon name="check" size={13} />
+            <span>Archived — their request is closed. If they write again, it comes back.</span>
+          </div>
+        ) : (
           <div className="ix-resolved">
             <Icon name="check" size={13} />
             <span>Answered by the receptionist — no one asked for you.</span>
           </div>
-        )}
+        ))}
         {thread.takenOver && (
           <div className="ix-resolved">
             <Icon name="users" size={13} />
@@ -171,7 +190,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
 };
 
 // =============== HEADER ===============
-const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null }) => {
+const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
   const snoozed = thread.state === "snoozed";
 
@@ -244,6 +263,8 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           // the mode on their profile, so that is where a real session goes.
           ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
           { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") },
+          // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
+          ...(onArchive && !thread.archived ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: window.gate("approve", "archive a conversation") }] : []),
           ...(window.__DEMO_MODE
             ? [{ divider: true }, { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }]
             : thread.clientId
@@ -686,7 +707,9 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
   // used to name one by a hardcoded literal — booking_link_v1/en_US — which is
   // right for exactly one workspace and a guaranteed failure for every other,
   // including every newly created one, which has no template row at all.
-  const templates = Array.isArray(window.__TEMPLATES) ? window.__TEMPLATES : null;
+  // undefined: still being read. null: the read failed (surface-data.ts), which is not "none approved".
+  const readTemplates = window.__TEMPLATES;
+  const templates = Array.isArray(readTemplates) ? readTemplates : null;
   const [picked, setPicked] = useCvtState(0);
 
   // On a seeded thread there is nothing to look up and nothing to send; keep
@@ -713,6 +736,9 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
         No approved template yet — outside the 24-hour window WhatsApp delivers nothing else.
       </span>
     );
+  }
+  if (real && readTemplates === null) {
+    return <FailedRead kind="line" title="Couldn't read your approved templates" body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read." surface="inbox" testid="ix-tpl-failed" />;
   }
   if (real && !list) {
     return <span className="ix-tpl-none">Checking which templates are approved…</span>;

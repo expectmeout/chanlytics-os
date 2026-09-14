@@ -1553,3 +1553,5 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }
+/* Archive's question, under the thread's header, on the header's own gutter. */
+.ix-thread-pane > .confirm-block { flex-shrink: 0; margin: 10px 24px 4px; }

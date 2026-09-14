@@ -379,6 +379,8 @@ export interface InboxThreadVM {
    * or what the call left behind for a call back. Null when nothing is being decided.
    */
   ask: { label: string; text: string; quoted: boolean } | null;
+  /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
+  archived: boolean;
   /**
    * This thread is waiting on a human, and no human has it yet.
    *
@@ -626,6 +628,7 @@ export function toInboxThreadVM(
     claimedByOther,
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
+    archived: dto.state === "archived",
     heldDraft,
     ...(heldDraft
       ? {
