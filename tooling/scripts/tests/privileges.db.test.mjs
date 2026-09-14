@@ -37,7 +37,12 @@ function query(sql) {
     maxBuffer: 16 * 1024 * 1024,
   });
   if (r.error) throw new Error(`could not run ${CLI} (${r.error.message}); set SUPABASE_CLI to the supabase binary`);
-  if (r.status !== 0) throw new Error(`supabase db query exited ${r.status}: ${(r.stderr || r.stdout).trim().slice(-600)}`);
+  if (r.status !== 0) {
+    // The CLI says "Connecting to local database..." on stderr and puts the
+    // database's own error on stdout, so a failure carries both.
+    const said = [r.stderr, r.stdout].map((s) => (s ?? "").trim()).filter(Boolean).join("\n");
+    throw new Error(`supabase db query exited ${r.status}: ${said.slice(-800)}`);
+  }
   const out = r.stdout;
   const start = out.search(/[[{]/);
   if (start < 0) return [];
@@ -107,12 +112,61 @@ union all
 select 'session_email_lookup',
        case when has_function_privilege('authenticated', 'public.lookup_user_for_invite(uuid, text)', 'EXECUTE')
             then array['lookup_user_for_invite(uuid,text)'] else '{}'::text[] end
+union all
+select 'anon_holds_relation', coalesce(array_agg(x order by x), '{}') from (
+  select c.relname::text as x
+    from pg_class c join pg_namespace n on n.oid = c.relnamespace
+   where n.nspname = 'public'
+     and ((c.relkind in ('r', 'p', 'v', 'm', 'f') and has_table_privilege('anon', c.oid, 'SELECT,INSERT,UPDATE,DELETE,TRUNCATE,REFERENCES,TRIGGER'))
+       or (c.relkind = 'S' and has_sequence_privilege('anon', c.oid, 'USAGE,SELECT,UPDATE')))
+) s
+union all
+select 'anon_executes', coalesce(array_agg(x order by x), '{}') from (
+  select p.oid::regprocedure::text as x
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+   where n.nspname = 'public'
+     and not exists (select 1 from pg_depend d where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+     and has_function_privilege('anon', p.oid, 'EXECUTE')
+) s
 `;
 
 const rules = {};
 before(() => {
   if (skip) return;
   for (const r of query(RULES)) rules[r.rule] = r.offenders;
+});
+
+test("anon holds nothing in public: no table, view or sequence privilege", { skip }, () => {
+  // The product never reads data with the logged-out key. Row-level security
+  // already denied anon every row; since 00122 the privilege itself is gone.
+  assert.deepEqual(rules.anon_holds_relation, [], "revoke all from anon: the logged-out key reads through no table");
+});
+
+test("anon executes no function in public, directly or through PUBLIC", { skip }, () => {
+  assert.deepEqual(rules.anon_executes, [], "revoke execute from public, anon");
+});
+
+test("a table or function created in public starts closed to anon, and a function still reaches authenticated", { skip }, () => {
+  // Run, not read: make one of each inside a block and drop them before it
+  // ends, so nothing is kept whether it passes or not. PUBLIC's EXECUTE on new
+  // functions is a global default, so this is what proves the global revoke took.
+  query(`do $$
+begin
+  create table public.__privileges_probe (id int);
+  create function public.__privileges_probe_fn() returns int language sql as $f$ select 1 $f$;
+  if has_table_privilege('anon', 'public.__privileges_probe', 'SELECT,INSERT,UPDATE,DELETE') then
+    raise exception 'a new table in public grants anon';
+  end if;
+  if has_function_privilege('anon', 'public.__privileges_probe_fn()', 'EXECUTE') then
+    raise exception 'a new function in public is executable by anon';
+  end if;
+  if not has_function_privilege('authenticated', 'public.__privileges_probe_fn()', 'EXECUTE') then
+    raise exception 'a new function no longer reaches authenticated, which policies and RPCs rely on';
+  end if;
+  drop function public.__privileges_probe_fn();
+  drop table public.__privileges_probe;
+end
+$$`);
 });
 
 test("a column UPDATE grant is a fence: no table also hands authenticated table-wide UPDATE", { skip }, () => {
