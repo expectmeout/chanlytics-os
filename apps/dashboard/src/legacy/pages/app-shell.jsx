@@ -521,7 +521,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     // A real workspace's button opens the composer on the page; the seeded
     // page keeps the demo's Ask detour.
     primaryAction = window.__PLAYBOOKS ? (
-      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve")}>
+      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve", "start a playbook")}>
         <Icon name="plus" size={12} /> New playbook
       </button>
     ) : (

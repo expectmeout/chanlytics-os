@@ -12,7 +12,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { ROLE_PERMS, frameWhisper } from "@chanlytics/contracts";
+import { ROLE_PERMS, frameWhisper, roleGate } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
 
@@ -199,7 +199,7 @@ test("the pages link to the routes, and only where the bridge can name the works
   assert.ok(people.includes('window.canDo && !window.canDo("export")'), "a non-owner sees a disabled button that says why, not a refusal");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
   assert.ok(bridge.includes("window.__href = href;"));
-  assert.ok(readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes('export: "export the customer list"'));
+  assert.equal(roleGate("operator", "export").reason, "Only an owner can export the customer list.", "the Export a non-owner sees says why, in contracts' words");
   // The list route and the export share one reading of who exists.
   const list = readCode("apps/dashboard/app/api/v1/contacts/route.ts");
   assert.ok(list.includes("listPeople(ctx, tenantId, { q, offset, limit: PEOPLE_PAGE })") && list.includes("const out = await withVisits(ctx, tenantId, rows);"), "the same reading of who exists as the export, with their appointments, a page at a time");

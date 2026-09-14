@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164 } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164 } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -16,6 +16,7 @@ declare global {
     ReactDOM: typeof ReactDOM;
     __DEMO_MODE: boolean;
     ROLE_PERMS: typeof ROLE_PERMS;
+    __roleGate: typeof roleGate;
     __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
@@ -35,6 +36,10 @@ if (typeof window !== "undefined") {
   // maintained in two places is one edit away from the client offering a
   // control the server will refuse — or, worse, hiding one it would allow.
   window.ROLE_PERMS = ROLE_PERMS;
+  // The gate's sentence, from the same table: a control a role may not press
+  // says who may before the press, in the words the server's refusal gives
+  // after it (contracts refusal.ts roleGate). data-bits.jsx gate() reads it.
+  window.__roleGate = roleGate;
   // How a fact's source is said beside its value. Published here for the same
   // reason ROLE_PERMS is: the words belong to the contracts package, and a
   // second copy in a page is one edit away from the surface claiming a

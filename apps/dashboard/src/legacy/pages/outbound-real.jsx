@@ -73,7 +73,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const [error, setError] = React.useState(null);
   const [picked, setPicked] = React.useState(!!editing);
   const [adding, setAdding] = React.useState(false);
-  const canEdit = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  const canEdit = !!(window.canDo && window.canDo("approve"));
   React.useEffect(() => {
     if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
   }, [templates, tplId]);
@@ -334,15 +334,13 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
       )}
 
       <div className="ob-actions">
-        {waiting && canAct && (
-          <>
-            <button className="btn btn-primary btn-sm" disabled={busy} onClick={approve} data-testid="pb-approve">
-              <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
-            </button>
-            <button className="btn btn-sm" disabled={busy} onClick={skip} data-testid="pb-skip">Skip this run</button>
-          </>
+        {/* The run's Approve is where it always is for every role, and says who may; Skip stays with those who may. */}
+        {waiting && (
+          <button className="btn btn-primary btn-sm" disabled={busy} onClick={approve} data-testid="pb-approve" {...(canAct || !window.gate ? {} : window.gate("approve", "approve a run"))}>
+            <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
+          </button>
         )}
-        {waiting && !canAct && <span className="ob-note">{pbPeople(waiting.recipient_count)} waiting for an owner or operator</span>}
+        {waiting && canAct && <button className="btn btn-sm" disabled={busy} onClick={skip} data-testid="pb-skip">Skip this run</button>}
         {canAct && (
           <button className="btn btn-sm" disabled={busy} onClick={toggle} data-testid="pb-pause">
             <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
@@ -369,7 +367,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
 const PlaybooksReal = () => {
   const data = usePlaybooks();
   const [toastNode, flash] = window.usePPToast();
-  const canAct = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may start, change or run a playbook: the role store's answer, View-as included.
+  const canAct = !!(window.canDo && window.canDo("approve"));
   const [filter, setFilter] = React.useState("all");
   const [composing, setComposing] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
@@ -438,16 +437,14 @@ const PlaybooksReal = () => {
             glyph="bolt"
             title="No playbook yet"
             body="Win-back for anyone quiet 30 days, welcome for anyone new this week, save our number for anyone who only ever phoned, or the month's offer for everyone who said yes."
-            action={canAct ? { label: "New playbook", onClick: () => window.dispatchEvent(new CustomEvent("playbooks:new")) } : null}
+            action={{ label: "New playbook", onClick: () => window.dispatchEvent(new CustomEvent("playbooks:new")), gate: window.gate ? window.gate("approve", "start a playbook") : null }}
             testid="pb-empty"
-          >
-            {!canAct && <div className="empty-body">An owner or operator can start one.</div>}
-          </EmptyState>
+          />
         )}
         {rows.length > 0 && visible.length === 0 && (
           <EmptyState kind="line" title={filter === "approval" ? "No run is waiting on you." : `Nothing ${filter}.`} />
         )}
-        {!canAct && rows.length > 0 && <div className="bc-excl-hint">Only an owner or operator can start, change or run a playbook.</div>}
+        {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}
       </div>
 
       {toastNode}

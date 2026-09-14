@@ -357,12 +357,13 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   }, [vetoTick]);
 
   const decide = (id, action, meta = {}) => {
+    // The role first, for a real thread too: its hand-back used to skip this check and reach the server.
+    if (!window.canDo("approve")) return;
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
       if (action === "__HANDBACK__") realVerb(tReal, "hand-back", undefined, "cleared — the receptionist is answering again");
       return;
     }
-    if (!window.canDo("approve")) return;
     const t = threads.find((x) => x.id === id);
     if (!t) return;
     const prev = { id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };

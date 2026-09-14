@@ -48,14 +48,15 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   const [drafting, setDrafting] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState(null);
-  const canEdit = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may draft or submit: the role store's answer, View-as included.
+  const canEdit = !!(window.canDo && window.canDo("approve"));
   const slots = tcSlots(body);
   const exampleFor = (i) => examples[i] || "";
   const preview = tcRender(body, slots.map((n, i) => exampleFor(i)));
   const ready = !!name.trim() && !!body.trim() && slots.every((n, i) => !!exampleFor(i).trim()) && !submitting;
 
   const draft = async () => {
-    if (!window.__templates || drafting || brief.trim().length < 4) return;
+    if (!window.__templates || drafting || brief.trim().length < 4 || !canEdit) return;
     setDrafting(true); setError(null);
     const r = await window.__templates.draft({ brief: brief.trim(), category, language });
     setDrafting(false);
@@ -69,7 +70,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
     setWarnings(d.warnings || []);
   };
   const submit = async () => {
-    if (!window.__templates || !ready) return;
+    if (!window.__templates || !ready || !canEdit) return;
     setSubmitting(true); setError(null);
     const r = await window.__templates.create({ name: name.trim(), language, category, body, footer: footer.trim() || null, examples: slots.map((n, i) => exampleFor(i).trim()), labels: slots.map((n, i) => (labels[i] || "").trim()) });
     setSubmitting(false);
@@ -119,7 +120,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
           <select className="tpl-select" value={language} onChange={(e) => setLanguage(e.target.value)} data-testid="tpl-language">
             {TC_LANGS.map((l) => <option key={l.id} value={l.id}>{l.label}</option>)}
           </select>
-          <button className="btn btn-sm" disabled={drafting || brief.trim().length < 4 || !canEdit} onClick={draft} data-testid="tpl-draft">
+          <button className="btn btn-sm" disabled={drafting || brief.trim().length < 4} onClick={draft} data-testid="tpl-draft" {...(window.gate ? window.gate("approve", "draft a template") : {})}>
             <Icon name="sparkle" size={11} /> {drafting ? "Drafting…" : "Draft with Chanlytics"}
           </button>
         </div>
@@ -145,9 +146,8 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
       <div className="bc-actions">
         <span className="bc-excl-hint">The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}</span>
         <span className="bc-actions-spacer" />
-        <button className="btn btn-primary btn-sm" disabled={!ready || !canEdit} onClick={submit} data-testid="tpl-submit">{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
+        <button className="btn btn-primary btn-sm" disabled={!ready} onClick={submit} data-testid="tpl-submit" {...(window.gate ? window.gate("approve", "submit a template") : {})}>{submitting ? "Submitting…" : "Submit to WhatsApp"}</button>
       </div>
-      {!canEdit && <div className="bc-excl-hint">Only an owner or operator can submit a template.</div>}
     </section>
   );
 };

@@ -104,7 +104,7 @@ const runRows = (nav, flash) => {
         sentence={`${people(r)} · nothing sends until you say so`}
         status={["Waiting for your approval"]}
         tone="escalated"
-        cta={{ label: "Approve", kind: "primary", onClick: () => approve(r) }}
+        cta={{ label: "Approve", kind: "primary", onClick: () => approve(r), gate: window.gate("approve", "approve a run") }}
         also={{ label: "Open Playbooks", onClick: () => nav("outbound") }}
         onOpen={() => nav("outbound")}
         testid="brief-run-row"
@@ -121,7 +121,7 @@ const runRows = (nav, flash) => {
         status={["Scheduled", `sends ${r.when}`]}
         tone="warn"
         cta={{ label: "Open", kind: "primary", onClick: () => nav("broadcasts") }}
-        also={{ label: "Stop", onClick: () => stop(r), gate: window.gate("approve") }}
+        also={{ label: "Stop", onClick: () => stop(r), gate: window.gate("approve", "stop a run") }}
         onOpen={() => nav("broadcasts")}
         testid="brief-run-soon"
       />
@@ -170,7 +170,7 @@ const TodayQueue = ({ vm }) => {
             status={r.status}
             tone={r.tone}
             cta={{ label: r.cta.label, kind: "primary", onClick: () => nav(r.cta.to) }}
-            also={r.also ? { label: r.also.label, onClick: () => verb(r, r.also.verb), gate: window.gate("approve"), testid: `queue-${r.also.verb}` } : null}
+            also={r.also ? { label: r.also.label, onClick: () => verb(r, r.also.verb), gate: window.gate("approve", r.also.verb === "snooze" ? "snooze a conversation" : "resolve a conversation"), testid: `queue-${r.also.verb}` } : null}
             onOpen={() => nav(r.cta.to)}
             testid={`queue-${r.kind}`}
           />

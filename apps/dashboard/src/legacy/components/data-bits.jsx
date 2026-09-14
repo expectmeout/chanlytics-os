@@ -56,8 +56,11 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 );
 
 // ---- MoreMenu — shared 3-dot popover -----------------------------------
-// items: [{ label, icon, onClick, danger, meta } | { divider:true } | { header:"…" }]
+// items: [{ label, icon, onClick, danger, meta, gate } | { divider:true } | { header:"…" }]
 // Renders its own trigger button; closes on backdrop, Escape, or item click.
+// `gated` (a sentence) keeps the whole menu shut and says why; an item's `gate`
+// is window.gate(...)'s props, spread after its click, so a refused item stays in
+// the menu, says why when pressed, and leaves the menu open.
 const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, gated = null }) => {
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef(null);
@@ -80,12 +83,11 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
     <div className="more-wrap" ref={wrapRef}>
       <button
         className={btnClass}
-        title={gated || title}
-        disabled={!!gated}
-        data-gated={gated ? "" : undefined}
+        title={title}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        {...(gated ? gatedProps(gated) : {})}
       >
         {label ? <>{label} <Icon name="chevron-down" size={10} /></> : <Icon name="more" size={size} />}
       </button>
@@ -97,7 +99,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
               if (it.divider) return <div key={i} className="more-divider" />;
               if (it.header) return <div key={i} className="more-header">{it.header}</div>;
               return (
-                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role="menuitem" onClick={() => run(it)}>
+                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role="menuitem" onClick={() => run(it)} {...(it.gate || {})}>
                   {it.icon && <Icon name={it.icon} size={13} />}
                   <span className="more-item-label">{it.label}</span>
                   {it.meta && <span className="more-item-meta">{it.meta}</span>}
@@ -225,17 +227,44 @@ const useHotkey = (matcher, handler) => {
 window.useHotkey = useHotkey;
 
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
-// gate(action) spreads onto a committing control's opening tag AFTER onClick:
-// allowed -> {}, denied -> disabled + reason tooltip + onClick stripped.
-// Engine fns double-guard with canDo(action) so hotkeys/bulk paths respect roles.
-const GATE_VERB = { approve: "approve or send", autonomy: "change agent autonomy", disconnect: "disconnect", billing: "change billing", team: "manage the team", settings: "change the business details", export: "export the customer list" };
+// gate(action, doing?) spreads onto a committing control's opening tag AFTER its
+// handlers. Allowed -> {}. Denied -> the control stays on the page and in the tab
+// order, says why on hover, on focus and when pressed, and does nothing. It used
+// to return `disabled` and a `title`: a disabled button takes no focus and fires
+// no hover, so the reason reached no keyboard, no finger and most pointers (A7).
+// The words are contracts' (refusal.ts roleGate, through the bridge): the same no
+// the server's refusal gives after a press. `doing` names what this control does
+// where the permission's own words would mislead -- snoozing is an `approve` act.
+// Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
 const canDo = (a) => !window.ST_STORE || window.ST_STORE.can(a);
-const gateTitle = (a) => {
-  const r = window.ST_STORE ? window.ST_STORE.myRole() : "owner";
-  return r.charAt(0).toUpperCase() + r.slice(1) + " role can't " + (GATE_VERB[a] || a) + " — ask an owner";
+const gateTitle = (a, doing) => {
+  const said = window.__roleGate ? window.__roleGate(window.ST_STORE ? window.ST_STORE.myRole() : "viewer", a, doing) : null;
+  return said ? said.reason : "Your role can't do this.";
 };
-const gate = (a) => canDo(a) ? {} : { disabled: true, onClick: undefined, title: gateTitle(a), "data-gated": "" };
-Object.assign(window, { canDo, gateTitle, gate });
+// A control that refuses: focusable, described, and inert. Every handler that would
+// act is replaced -- the click; Enter and Space, which would also reach a row's own
+// key handler; a hold's pointer and key-up events -- and pressing it shows the
+// reason at the control, which is how a finger gets to read it.
+const gatedProps = (reason) => {
+  const refuse = (e) => { e.preventDefault(); e.stopPropagation(); if (window.__tip) window.__tip.show(e.currentTarget); };
+  return {
+    disabled: false,
+    title: undefined,
+    "aria-disabled": true,
+    "aria-description": reason,
+    "data-tip": reason,
+    "data-gated": "",
+    onClick: refuse,
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") refuse(e); },
+    onKeyUp: undefined,
+    onPointerDown: undefined,
+    onPointerUp: undefined,
+    onPointerLeave: undefined,
+    onPointerCancel: undefined,
+  };
+};
+const gate = (a, doing) => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
+Object.assign(window, { canDo, gateTitle, gate, gatedProps });
 
 // ---- Attachments in a thread (real sessions) ---------------------------
 // The bytes live in a private bucket; the route answers with a five-minute
@@ -272,10 +301,11 @@ window.PR_STORE = window.PR_STORE || {
   setAway(v) { this.away = v; this._emit(); },
   setTransfers(v) { this.transfers = v; this._emit(); },
 };
+// Presence refuses the way a role does: the same props, the same reachable reason.
 window.transferGate = () => {
   const P = window.PR_STORE;
-  if (P && P.away) return { disabled: true, onClick: undefined, title: "You're Away — agents use the holding line + async approval", "data-gated": "" };
-  if (P && !P.transfers) return { disabled: true, onClick: undefined, title: "Transfers off — callers get the holding line", "data-gated": "" };
+  if (P && P.away) return gatedProps("You're Away — agents use the holding line + async approval");
+  if (P && !P.transfers) return gatedProps("Transfers off — callers get the holding line");
   return {};
 };
 
@@ -552,5 +582,8 @@ Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, 
   window.addEventListener("scroll", hide, true);
   window.addEventListener("resize", hide);
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  // A pressed gate shows its reason at once, at the control: a tap has no hover,
+  // and the press's own mousedown has just hidden whatever the hover began.
+  window.__tip = { show: (t) => { if (!t || !t.getAttribute || !t.getAttribute("data-tip")) return; cur = t; clearTimeout(showT); clearTimeout(hideT); place(t); } };
   window.__uiTip = true;
 })();

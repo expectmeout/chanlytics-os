@@ -1498,7 +1498,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
                   says so for anyone else instead of leading to a refusal. */}
               {window.__href && (
                 window.canDo && !window.canDo("export")
-                  ? <button className="btn btn-ghost btn-sm" disabled title={window.gateTitle("export")}><Icon name="external" size={12} /> Export CSV</button>
+                  ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
                   : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
               )}
               <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>

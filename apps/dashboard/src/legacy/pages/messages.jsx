@@ -77,9 +77,7 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
             );
           }
           if (!g.starter) return null;
-          return canAct
-            ? <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add">Add {lang.label}</button>
-            : <span key={lang.id} className="msg-lang-missing">{lang.label} · not added</span>;
+          return <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>Add {lang.label}</button>;
         })}
       </div>
       <window.WaBubble from={bizName || "Your business"} body={body} footer={footer} />
@@ -121,12 +119,8 @@ const MessagesReal = () => {
   const [composing, setComposing] = React.useState(false);
   const [showHidden, setShowHidden] = React.useState(false);
   const [toastNode, flash] = window.usePPToast();
-  React.useEffect(() => {
-    const open = () => setComposing(true);
-    window.addEventListener("messages:new", open);
-    return () => window.removeEventListener("messages:new", open);
-  }, []);
-  const canAct = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may add, change or remove a message: the role store's answer, View-as included.
+  const canAct = !!(window.canDo && window.canDo("approve"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
   const bizName = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.__SETTINGS.config.brain.business_name) || null;
 
@@ -207,11 +201,14 @@ const MessagesReal = () => {
 
       <div className="cl-controls">
         <div className="cl-controls-right">
-          {canAct && hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
-            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all">{busy ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
+          {/* The page's own acts stay where they are for every role and say who may
+              (window.gate); a message's rename, hide and delete stay with those who may. */}
+          {!canAct && hasWhatsApp && <span className="bc-excl-hint" data-testid="messages-role">{window.gateTitle("approve", "rename, hide or delete a message")}</span>}
+          {hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
+            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all" {...window.gate("approve", "add a starter message")}>{busy ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
           ))}
-          {canAct && hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from WhatsApp"}</button>}
-          {canAct && hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new"><Icon name="plus" size={12} /> New message</button>}
+          {hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates" {...window.gate("approve", "sync from WhatsApp")}>{busy ? "Syncing…" : "Sync from WhatsApp"}</button>}
+          {hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a message")}><Icon name="plus" size={12} /> New message</button>}
         </div>
       </div>
 

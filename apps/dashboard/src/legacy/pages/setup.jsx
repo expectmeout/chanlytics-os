@@ -18,6 +18,25 @@ const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.
 
 const money = (usd) => (typeof usd === "number" ? `about $${usd.toFixed(2)} a month` : "a small monthly fee");
 
+// Who may press a row's verb, and what pressing does, for the gate's sentence
+// (contracts refusal.ts roleGate). A verb that opens a panel or a page is anyone's;
+// these reach doors that refuse everyone else (requireRole), and the button says so
+// before the press -- it used to say so after, in a toast.
+const SETUP_GATES = [
+  ["verb:request-line", "approve", "ask for a line"],
+  ["verb:billing-checkout", "billing", "start the subscription"],
+  ["verb:billing-portal", "billing", "manage the subscription"],
+  ["verb:forwarding-test:", "team", "test forwarding"],
+  ["verb:retry-line:", "team", "retry a line"],
+  ["verb:activate:", "team", "activate a capability"],
+  ["verb:deactivate:", "team", "withdraw an activation"],
+];
+const setupGate = (verb) => {
+  const hit = verb && verb.to ? SETUP_GATES.find(([to]) => (to.endsWith(":") ? verb.to.startsWith(to) : verb.to === to)) : null;
+  return hit && window.gate ? window.gate(hit[1], hit[2]) : {};
+};
+const setupGated = (verb) => "data-gated" in setupGate(verb);
+
 // The chooser under the line row: a new number in an area code, the number
 // you have (forwarding arrives next), or bringing it over (we file the port).
 // A line costs money, so only an owner gets one.
@@ -40,7 +59,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
     if (!(r.numbers || []).length) flash({ msg: <>Nothing free in {area} right now — try a nearby area code.</> });
   };
   const buy = async () => {
-    if (!owner) { flash({ msg: <>Only an owner can get a line.</> }); return; }
+    if (!owner) return;
     if (!chosen) return;
     setBusy(true);
     const r = await window.__setup.lines.buy(chosen.e164, area);
@@ -55,7 +74,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
     onDone();
   };
   const ask = async () => {
-    if (!(window.canDo && window.canDo("approve"))) { flash({ msg: <>Only an owner or operator can ask for a line.</> }); return; }
+    if (!(window.canDo && window.canDo("approve"))) return;
     const r = await window.__setup.request("line");
     flash(r.ok
       ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</> }
@@ -93,7 +112,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
               onKeyDown={(e) => { if (e.key === "Enter") find(); }}
               data-testid="setup-area"
             />
-            <button className="btn btn-sm" onClick={find} disabled={busy} data-testid="setup-find">{busy && !chosen ? "Looking…" : "Find numbers"}</button>
+            <button className="btn btn-sm" onClick={find} disabled={busy} data-testid="setup-find" {...window.gate("team", "find a number")}>{busy && !chosen ? "Looking…" : "Find numbers"}</button>
           </div>
           {numbers && numbers.length > 0 && (
             <div className="setup-numbers" data-testid="setup-numbers">
@@ -108,7 +127,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
           {chosen && (
             <div className="setup-confirm" data-testid="setup-confirm">
               <span className="setup-confirm-text"><b className="tabular">{chosen.friendly}</b> · {money(cost)} · your receptionist answers it; texting arrives when the carriers register it</span>
-              <button className="btn btn-primary btn-sm" onClick={buy} disabled={busy} data-testid="setup-buy">{busy ? "Setting up…" : "Get this number"}</button>
+              <button className="btn btn-primary btn-sm" onClick={buy} disabled={busy} data-testid="setup-buy" {...window.gate("team", "get a line")}>{busy ? "Setting up…" : "Get this number"}</button>
             </div>
           )}
         </div>
@@ -124,7 +143,7 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
       ) : (
         <div className="setup-ask">
           <span className="setup-ask-text">A port is filed by a person at Chanlytics. Ask, and we set it up with you.</span>
-          <button className="btn btn-sm" onClick={ask} data-testid="setup-ask-us">Ask us</button>
+          <button className="btn btn-sm" onClick={ask} data-testid="setup-ask-us" {...window.gate("approve", "ask for a line")}>Ask us</button>
         </div>
       )}
     </section>
@@ -146,14 +165,14 @@ const ForwardingCard = ({ S, flash, onDone }) => {
   const [busy, setBusy] = React.useState(false);
   const owner = window.canDo ? window.canDo("team") : true;
   const save = async () => {
-    if (!owner) { flash({ msg: <>Only an owner can set up forwarding.</> }); return; }
+    if (!owner) return;
     setBusy(true);
     const r = await window.__setup.forwarding.set({ number, carrier, mode, test_from: testFrom });
     setBusy(false);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Saved. Dial the code on the phone with {number}, then test it.</> : <>{r.message}</> });
   };
   const test = async () => {
-    if (!owner) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
+    if (!owner) return;
     setBusy(true);
     const r = await window.__setup.forwarding.test(fw.id);
     setBusy(false);
@@ -186,7 +205,7 @@ const ForwardingCard = ({ S, flash, onDone }) => {
           <input className="setup-area setup-fw-input" inputMode="tel" placeholder="your mobile" value={testFrom} onChange={(e) => setTestFrom(e.target.value)} data-testid="setup-fw-from" />
         </label>
         <div className="setup-fw-actions">
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy || !dest} data-testid="setup-fw-save">{fw ? "Save changes" : "Save and show the code"}</button>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy || !dest} data-testid="setup-fw-save" {...window.gate("team", "set up forwarding")}>{fw ? "Save changes" : "Save and show the code"}</button>
           <button className="btn btn-ghost btn-sm" onClick={onDone}>Close</button>
         </div>
       </div>
@@ -200,7 +219,7 @@ const ForwardingCard = ({ S, flash, onDone }) => {
               ? <span className="setup-fw-ok">Verified {f.verified_at ? W.ago(f.verified_at) : ""} · to switch it off, dial <b className="tabular">{codes.off.code}</b></span>
               : testing
                 ? <span className="setup-fw-ok">The window is open — call {W.display(fw.e164)} from another phone. This page updates by itself.</span>
-                : <button className="btn btn-sm" onClick={test} disabled={busy} data-testid="setup-fw-test">Test it</button>}
+                : <button className="btn btn-sm" onClick={test} disabled={busy} data-testid="setup-fw-test" {...window.gate("team", "test forwarding")}>Test it</button>}
             {fw.forwarding_state !== "verified" && <span className="setup-fw-off">Off again: <b className="tabular">{codes.off.code}</b></span>}
           </div>
         </div>
@@ -235,7 +254,7 @@ const ListingFinder = ({ flash, onDone }) => {
     setResult(r.ok ? { candidates: r.candidates, query: r.query, fromFacts: false, failed: "" } : { candidates: [], query: words, fromFacts: false, failed: r.message });
   };
   const link = async (c) => {
-    if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can link the listing.</> }); return; }
+    if (!(window.canDo && window.canDo("team"))) return;
     if (!window.__google || busy) return;
     setBusy(true);
     const r = await window.__google.link(c.place_id);
@@ -260,7 +279,7 @@ const ListingFinder = ({ flash, onDone }) => {
                 <span className="setup-place-where">{c.address || "no address on Google"}</span>
               </span>
               {c.maps_uri && <a className="cl-bucket-link" href={c.maps_uri} target="_blank" rel="noreferrer">See it on Maps</a>}
-              <button className="btn btn-primary btn-sm" onClick={() => link(c)} disabled={busy} data-testid="setup-place-link">This is it</button>
+              <button className="btn btn-primary btn-sm" onClick={() => link(c)} disabled={busy} data-testid="setup-place-link" {...window.gate("team", "link the listing")}>This is it</button>
             </div>
           ))}
         </div>
@@ -301,8 +320,9 @@ const PaneSetup = () => {
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const act = async (verb) => {
     if (!verb) return;
+    // Each door's own role, checked again here: a stale row or the Next button cannot press past the gate.
     if (verb.to === "verb:request-line") {
-      if (!(window.canDo && window.canDo("approve"))) { flash({ msg: <>Only an owner or operator can ask for a line.</> }); return; }
+      if (!(window.canDo && window.canDo("approve"))) return;
       const r = await window.__setup.request("line");
       flash(r.ok
         ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</> }
@@ -313,34 +333,34 @@ const PaneSetup = () => {
     if (verb.to === "verb:forwarding") { setForwarding((v) => !v); return; }
     if (verb.to === "verb:google-find") { setFinder((v) => !v); return; }
     if (verb.to === "verb:billing-checkout" || verb.to === "verb:billing-portal") {
-      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can start or manage the subscription.</> }); return; }
+      if (!(window.canDo && window.canDo("billing"))) return;
       if (!window.__billing) return;
       const r = verb.to === "verb:billing-checkout" ? await window.__billing.checkout() : await window.__billing.portal();
       if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("verb:forwarding-test:")) {
-      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can test forwarding.</> }); return; }
+      if (!(window.canDo && window.canDo("team"))) return;
       const r = await window.__setup.forwarding.test(verb.to.slice("verb:forwarding-test:".length));
       flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>The window is open for 30 minutes — call the number you keep from another phone.</> : <>{r.message}</> });
       setForwarding(true);
       return;
     }
     if (verb.to.startsWith("verb:retry-line:")) {
-      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can retry a line.</> }); return; }
+      if (!(window.canDo && window.canDo("team"))) return;
       flash({ msg: <>Retrying — usually a minute or two.</> });
       const r = await window.__setup.lines.retry(verb.to.slice("verb:retry-line:".length));
       flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? (r.queued ? <>Setting up again — this page updates by itself.</> : <>Your line answers now.</>) : <>{r.message || "It stopped again — a person at Chanlytics has it."}</> });
       return;
     }
     if (verb.to.startsWith("verb:activate:")) {
-      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can activate a capability.</> }); return; }
+      if (!(window.canDo && window.canDo("team"))) return;
       const r = await window.__setup.activate(verb.to.slice("verb:activate:".length));
       flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Activated — it is yours to use, and Setup says so.</> : <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("verb:deactivate:")) {
-      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can withdraw an activation.</> }); return; }
+      if (!(window.canDo && window.canDo("team"))) return;
       const r = await window.__setup.deactivate(verb.to.slice("verb:deactivate:".length));
       // An activation is the owner's record that a capability is theirs; it
       // gates nothing at runtime. Withdrawing it stops nothing, and says so.
@@ -362,7 +382,7 @@ const PaneSetup = () => {
         {vm.next && (
           <div className="setup-next">
             <span className="setup-next-label">Next</span>
-            <button className="btn btn-primary btn-sm" onClick={() => act(vm.next)} data-testid="setup-next">{vm.next.title}: {vm.next.label} <Icon name="arrow-right" size={11} /></button>
+            <button className="btn btn-primary btn-sm" onClick={() => act(vm.next)} data-testid="setup-next" {...setupGate(vm.next)}>{vm.next.title}: {vm.next.label} <Icon name="arrow-right" size={11} /></button>
           </div>
         )}
       </section>
@@ -401,13 +421,14 @@ const PaneSetup = () => {
                 quoted={false}
                 status={[r.stateWords, ...r.details]}
                 tone={setupTone(r.state)}
-                cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb) } : null}
+                cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb) } : null}
                 also={r.undo
-                  ? { label: r.undo.label, onClick: () => act(r.undo), testid: `setup-undo-${r.id}` }
+                  ? { label: r.undo.label, onClick: () => act(r.undo), gate: setupGate(r.undo), testid: `setup-undo-${r.id}` }
                   : !r.required && r.state !== "ready" ? { label: r.later ? "Undo later" : "Later", onClick: () => window.__setup.later(r.id, !r.later), testid: `setup-later-${r.id}` } : null}
                 // The row is a click target for a navigation, never for a dial:
-                // a mis-click on the receptionist row must not ring the shop.
-                onOpen={r.verb && !r.verb.to.startsWith("tel:") ? () => act(r.verb) : undefined}
+                // a mis-click on the receptionist row must not ring the shop. Nor is
+                // it a way around its own gated button.
+                onOpen={r.verb && !r.verb.to.startsWith("tel:") && !setupGated(r.verb) ? () => act(r.verb) : undefined}
                 testid={`setup-row-${r.id}`}
                 ctaTestid="setup-verb"
               />

@@ -1688,8 +1688,15 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .nav-item.parent-active .icon { color: var(--ink); }
 .nav-item.parent-active { background: var(--bg-hover); }
 
-/* Role-gated controls (window.gate) */
+/* Role-gated controls (window.gate). They stay focusable and say why on hover,
+   focus and press, so they look unavailable without taking the hover and press
+   states of a control that works. */
 .btn[data-gated], [data-gated]{opacity:.55;cursor:not-allowed}
+.btn[data-gated]:hover, .btn[data-gated]:active { background: var(--bg-raised); border-color: var(--line); }
+.btn-primary[data-gated]:hover, .btn-primary[data-gated]:active { background: var(--ink); border-color: var(--ink); }
+.btn-ghost[data-gated]:hover, .btn-ghost[data-gated]:active { background: transparent; color: var(--ink-muted); }
+.more-item[data-gated]:hover { background: transparent; }
+.cl-attn-cta[data-gated]:hover { filter: none; }
 
 /* Topbar presence toggle */
 .tb-presence{font-size:11.5px;gap:6px}

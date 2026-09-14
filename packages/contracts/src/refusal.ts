@@ -14,7 +14,15 @@
  * many replies in a short time — try again in 40 seconds."). What this adds is
  * a title that says what kind of no it is, a sentence of ours where the server
  * gave none or gave its catch-all, the wait, and a form's fields.
+ *
+ * And the no before the press (roleGate): a control a role may not press says
+ * who may, in the same words, before anyone presses it.
  */
+
+import { ROLE_PERMS, ROLES, type Role } from "./config";
+
+/** The title of a no, by the least role the door wanted: the gate says it before the press (roleGate), the refusal after it. */
+export const NEEDS_TITLE: Readonly<Record<"owner" | "operator", string>> = { owner: "Owner only", operator: "Not for viewers" };
 
 export interface RefusalInput {
   /** The envelope's code; absent when the answer was not an envelope. `network`, `timeout` and `client` are the client's own. */
@@ -157,9 +165,43 @@ export function refusalOf(input: RefusalInput): Refusal {
       return refusal(code, "Too many at once", said || `Too many at once — try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`);
     case "forbidden": {
       const needs = input.details && typeof input.details === "object" ? (input.details as { needs?: unknown }).needs : undefined;
-      return refusal(code, needs === "owner" ? "Owner only" : needs === "operator" ? "Not for viewers" : "Not allowed", said || (SAID.get(code) as string));
+      return refusal(code, needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed", said || (SAID.get(code) as string));
     }
     default:
       return refusal(code, TITLES.get(code) ?? "Not done", said || SAID.get(code) || "That didn't go through.");
   }
+}
+
+/* ------------------------------------------------- the no before the press */
+
+/** A permission a control can be gated on (config.ts ROLE_PERMS). */
+export type RolePerm = keyof (typeof ROLE_PERMS)[Role];
+
+/**
+ * What a control on a permission does, when the control does not say. A control
+ * whose own act is narrower names it: an owner's line is gated on `team`, and
+ * "manage the team" is not what buying a number does.
+ */
+export const PERM_DOING: Readonly<Record<RolePerm, string>> = {
+  approve: "approve or send",
+  autonomy: "change what the receptionist may do on its own",
+  disconnect: "disconnect a channel",
+  billing: "change billing",
+  team: "manage the team",
+  settings: "change the business details",
+  export: "export the customer list",
+};
+
+/**
+ * The gate before the press: null when the role may; otherwise the least role
+ * that may, and one sentence in the words the server's refusal gives after the
+ * press ("Only an owner can change the business details."). A role that is not
+ * one, or none yet, is a viewer: the gate fails closed, as the page's role does.
+ */
+export function roleGate(role: string | null | undefined, perm: RolePerm, doing?: string | null): { needs: "owner" | "operator"; title: string; reason: string } | null {
+  const who: Role = (ROLES as readonly string[]).includes(role ?? "") ? (role as Role) : "viewer";
+  if (ROLE_PERMS[who]?.[perm]) return null;
+  const needs = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
+  const what = doing?.trim() || PERM_DOING[perm] || "do this";
+  return { needs, title: NEEDS_TITLE[needs], reason: needs === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.` };
 }

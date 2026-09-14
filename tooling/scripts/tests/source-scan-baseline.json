@@ -41,7 +41,7 @@
     "erasure.test.mjs": 1,
     "eval-harness.test.mjs": 7,
     "event-kinds.test.mjs": 4,
-    "exports.test.mjs": 10,
+    "exports.test.mjs": 9,
     "facts.test.mjs": 11,
     "forwarding.test.mjs": 5,
     "google-profile.test.mjs": 13,
