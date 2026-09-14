@@ -135,7 +135,9 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       at: Number.isNaN(at) ? now : at,
       title: `Invitation pending · ${i.email}`,
       message: "They have not accepted yet.",
-      to: "admin/workspace",
+      // Invitations live on the Team pane since Team split from Workspace;
+      // the row's own button says "Team", so its door must open Team.
+      to: "admin/team",
       icon: "users",
       tone: "",
       action: "Team",

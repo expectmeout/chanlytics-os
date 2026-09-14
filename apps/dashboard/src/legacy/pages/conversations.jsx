@@ -15,6 +15,9 @@ const OutcomePill = ({ outcome, decidedAction, channel }) => {
   if (decidedAction) return <StatePill kind="thread" value="decided" label={<><Icon name="check" size={9} />Handled · you chose {decidedAction}</>} />;
   if (outcome === "live") return <StatePill kind="call" value="live" />;
   if (outcome === "missed") return <StatePill kind="call" value="missed" />;
+  // A call's own story beats "handled": the caller who asked for a call back,
+  // and the one who hung up in seconds (contracts toCallVM decides both).
+  if (outcome === "callback" || outcome === "abandoned") return <StatePill kind="call" value={outcome} />;
   if (outcome === "booked") return <StatePill kind="thread" value="booked" />;
   if (outcome === "escalated") return <StatePill kind="thread" value="escalated" />;
   if (outcome === "handled") return <StatePill kind="thread" value="handled" label={channel === "phone" ? "Receptionist handled it" : "Receptionist replied"} />;
@@ -516,3 +519,5 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
 };
 
 window.ConversationsPage = ConversationsPage;
+// Published for the-pages-say-only-what-is-true.test.mjs, which mounts the pill.
+window.OutcomePill = OutcomePill;

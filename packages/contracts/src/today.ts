@@ -185,6 +185,35 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   try { return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`; } catch { return t; }
 }
 
+/**
+ * When a wait began, said with its day, in the workspace's zone: "8:00 AM"
+ * today, "yesterday 8:00 AM", "Fri 8:00 AM" inside a week, "Aug 29, 8:00 AM"
+ * beyond it. A bare time on a wait from an earlier day read as last night:
+ * Today said "waiting since 6:51 PM" of a customer who had waited eight days.
+ */
+function tzSince(iso: string | null | undefined, tz: string, now: Date): string | null {
+  const t = tzTime(iso, tz);
+  if (!iso || !t) return t;
+  const dayNumber = (d: Date): number => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d).split("-").map(Number);
+      return Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1) / 86_400_000;
+    } catch {
+      return Math.floor(d.getTime() / 86_400_000);
+    }
+  };
+  const days = dayNumber(now) - dayNumber(new Date(iso));
+  if (days <= 0) return t;
+  if (days === 1) return `yesterday ${t}`;
+  try {
+    const within: Intl.DateTimeFormatOptions = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
+    const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
+    return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
+  } catch {
+    return t;
+  }
+}
+
 function tzTime(iso: string | null | undefined, tz: string): string | null {
   if (!iso) return null;
   try {
@@ -434,7 +463,7 @@ export function toTodayVM(
   }
 
   /* ---- headline ladder: first match wins ---- */
-  const oldest = tzTime(live.oldest_open_escalation_at, tz);
+  const oldest = tzSince(live.oldest_open_escalation_at, tz, now);
   let headline: string;
   let detail: string | null = null;
   let tone: "needs" | "calm" | "alert" = "calm";
@@ -612,7 +641,7 @@ export function toTodayVM(
   for (const e of openEsc) {
     const conv = byConv.get(e.conversation_id);
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
-    const since = tzTime(e.created_at, tz) ?? "";
+    const since = tzSince(e.created_at, tz, now) ?? "";
     const warn = waitedMs > 30 * 60000;
     if (e.reason === "callback") {
       // The phone receptionist could not finish it: the to-do it left is the

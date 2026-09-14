@@ -1150,7 +1150,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
       recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
     );
   }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.start ?? turn.words?.[0]?.start;
     if (turn.role === "injected") {
@@ -1176,7 +1176,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
     at: shortTime(dto.started_at, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : missed ? "missed" : "handled",
+    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
@@ -3736,6 +3736,28 @@ function tzClock(iso, tz, now) {
     return t;
   }
 }
+function tzSince(iso, tz, now) {
+  const t = tzTime(iso, tz);
+  if (!iso || !t) return t;
+  const dayNumber2 = (d) => {
+    try {
+      const parts2 = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d).split("-").map(Number);
+      return Date.UTC(parts2[0] ?? 1970, (parts2[1] ?? 1) - 1, parts2[2] ?? 1) / 864e5;
+    } catch {
+      return Math.floor(d.getTime() / 864e5);
+    }
+  };
+  const days = dayNumber2(now) - dayNumber2(new Date(iso));
+  if (days <= 0) return t;
+  if (days === 1) return `yesterday ${t}`;
+  try {
+    const within = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
+    const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
+    return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
+  } catch {
+    return t;
+  }
+}
 function tzTime(iso, tz) {
   if (!iso) return null;
   try {
@@ -3905,7 +3927,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       }
     };
   }
-  const oldest = tzTime(live.oldest_open_escalation_at, tz);
+  const oldest = tzSince(live.oldest_open_escalation_at, tz, now);
   let headline;
   let detail = null;
   let tone = "calm";
@@ -3999,7 +4021,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   for (const e of openEsc) {
     const conv = byConv.get(e.conversation_id);
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
-    const since = tzTime(e.created_at, tz) ?? "";
+    const since = tzSince(e.created_at, tz, now) ?? "";
     const warn = waitedMs > 30 * 6e4;
     if (e.reason === "callback") {
       const call = callByConv.get(e.conversation_id) ?? null;
@@ -4292,7 +4314,9 @@ function buildNotificationFeed(input) {
       at: Number.isNaN(at2) ? now : at2,
       title: `Invitation pending \xB7 ${i.email}`,
       message: "They have not accepted yet.",
-      to: "admin/workspace",
+      // Invitations live on the Team pane since Team split from Workspace;
+      // the row's own button says "Team", so its door must open Team.
+      to: "admin/team",
       icon: "users",
       tone: "",
       action: "Team"
@@ -8315,7 +8339,7 @@ var TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
 var TONE_OF = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
   person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
   consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
   mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
@@ -8330,7 +8354,7 @@ var TONE_OF = {
 var LABEL_OF = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
   mode: PERSON_MODE_LABELS,

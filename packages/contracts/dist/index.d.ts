@@ -898,7 +898,7 @@ interface CallVM {
     ts: number;
     /** live: in progress under the heartbeat rule · missed: the dial never
      *  connected (Retell's not_connected) · handled: everything else. */
-    outcome: "live" | "handled" | "missed";
+    outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
     live?: boolean;
     snippet: string;
     summary: {
