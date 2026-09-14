@@ -52,7 +52,29 @@ export interface InboundPorts {
   };
 }
 
+/**
+ * A test's world, handed in the way setPg hands in a database: while one is
+ * set, realPorts() answers with it, so a door that reaches handleInbound runs
+ * over fakes when it is called exactly as production calls it. Nothing in
+ * production sets it; null puts the real modules back.
+ *
+ * A module-level door, not a second parameter on the webhook's POST, which is
+ * where it was first planned. Vercel does not call a method export with the
+ * request alone: its Node runtime wraps each one with @edge-runtime/node-utils,
+ * which calls `webHandler(request, new FetchEvent(request))`, and Vercel's
+ * FetchEvent carries `waitUntil`. A parameter defaulted to realPorts() would
+ * have been handed that event in production instead, every message would have
+ * thrown inside the webhook's per-message catch, and every batch would still
+ * have answered 200.
+ */
+let injected: InboundPorts | null = null;
+
+export function setInboundPorts(p: InboundPorts | null): void {
+  injected = p;
+}
+
 export function realPorts(): InboundPorts {
+  if (injected) return injected;
   return {
     db: pg,
     store: { get: getThread, save: saveThread, backend: storeBackend },

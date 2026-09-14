@@ -62,11 +62,10 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
     assert.ok(src.includes("pauseMsFor(ctx,"), `${rel} reads the limit`);
     assert.ok(!src.includes("PAUSE_MS"), `${rel}: REGRESSION — Settings said N hours, the verb paused for 24`);
   }
-  const wa = readCode("apps/edge/api/whatsapp.ts");
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
   const alerts = readCode("apps/edge/lib/whatsapp/alerts.ts");
-  assert.ok(wa.includes("const echoPauseMs = (echoLimits.pause_hours ? echoLimits.pause_hours * 3600 * 1000 : PAUSE_MS);"));
-  assert.ok(!wa.includes("t.pausedUntil = Date.now() + PAUSE_MS;"), "the WhatsApp-app echo honoured nothing");
+  // The WhatsApp-app echo pausing for the workspace's own pause_hours, and for
+  // the default day when none is set, is run in whatsapp-door.test.mjs.
   assert.ok(alerts.includes("the receptionist is paused on this thread for ${ctx.pausedHours}h."), "and the handoff email states the same number");
   // Stated only by a branch that actually paused the thread. The email used to
   // promise the pause unconditionally, so nine of the eleven handoffs told the

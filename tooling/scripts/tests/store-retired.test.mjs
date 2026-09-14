@@ -51,8 +51,7 @@ test("retired: the store answers unknown, refuses writes, still deletes", async 
 });
 
 test("every caller that used the store as a mirror steps aside when it is retired", () => {
-  const wa = readCode("apps/edge/api/whatsapp.ts");
-  assert.ok(wa.includes('if (storeBackend() !== "off") {\n                  const echoNs = threadNamespace(tenantId);'), "the echo pause mirror is skipped; Postgres records the pause below it");
+  // The echo pause skipping the retired store and landing in Postgres is run in whatsapp-door.test.mjs.
   assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes("RETIRED STORE (BLOB_SHADOW=off)"), "the handler contract says so");
   const pause = readCode("apps/edge/api/admin/pause.ts");
   assert.ok(pause.includes('if (storeBackend() === "off") return json(200, { ok: true, store: "off" });'), "the dashboard's mirror call succeeds with nothing to mirror");
