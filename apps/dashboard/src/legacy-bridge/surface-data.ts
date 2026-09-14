@@ -134,10 +134,17 @@ export const workspaceOverride: SurfaceOverride & { current: () => Workspace | n
  * swap tenant underneath them — and getting that wrong shows one business's
  * threads under another's name, which is the single worst thing this app can
  * do. Clearing the cache first is what makes the reload cold.
+ *
+ * `knownSlug` when the caller has it and the page's own list may not. A
+ * workspace created a moment ago is not in __WORKSPACES yet; addressed by its
+ * id, the app booted twice -- under the id, then again when the workspaces
+ * read corrected the address -- and Setup's once-a-session landing could fire
+ * on the first boot and be lost with it (the nightly's workspace-create spec,
+ * 13 Sep 2026).
  */
-export function switchWorkspace(id: string): void {
+export function switchWorkspace(id: string, knownSlug?: string): void {
   const target = (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES?.find((t) => t.id === id);
-  const slug = target?.slug ?? id;
+  const slug = target?.slug ?? knownSlug ?? id;
   const here = getActiveWorkspace();
   if (here === slug || here === id) return;
   clearSurfaceCache();

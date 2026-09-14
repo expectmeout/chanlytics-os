@@ -135,6 +135,39 @@ test("switching workspace clears the cache before it reloads", () => {
   );
 });
 
+test("a workspace created a moment ago opens at its slug, once: the app never boots under its id", async () => {
+  // Run, not read. A new workspace is not in __WORKSPACES yet. Addressed by its
+  // id, the app booted twice -- under the id, then again when the workspaces
+  // read corrected the address -- and Setup's once-a-session landing fired on
+  // the first boot and was lost with it (the nightly's workspace-create spec,
+  // 13 Sep 2026).
+  const store = () => {
+    const m = new Map();
+    return {
+      getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k),
+      key: (i) => [...m.keys()][i] ?? null, get length() { return m.size; },
+    };
+  };
+  const saved = { window: globalThis.window, localStorage: globalThis.localStorage, sessionStorage: globalThis.sessionStorage };
+  const assigned = [];
+  globalThis.localStorage = store();
+  globalThis.sessionStorage = store();
+  globalThis.window = {
+    location: { pathname: "/w/harbor-moving", hash: "#/today", assign: (u) => assigned.push(u) },
+    localStorage: globalThis.localStorage, sessionStorage: globalThis.sessionStorage,
+    __WORKSPACES: [{ id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", slug: "harbor-moving" }],
+    addEventListener() {}, removeEventListener() {}, dispatchEvent() { return true; },
+  };
+  try {
+    const { switchWorkspace } = await importSrc("apps/dashboard/src/legacy-bridge/surface-data.ts");
+    switchWorkspace("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "glow-studio");
+    assert.deepEqual(assigned, ["/w/glow-studio"], "one navigation, to the address the workspaces read would otherwise have corrected it to");
+    assert.equal(globalThis.localStorage.getItem("chanlytics.workspace"), "glow-studio", "and the home returns to the slug, not the id");
+  } finally {
+    Object.assign(globalThis, saved);
+  }
+});
+
 test("the cache is keyed on the ACTIVE workspace", () => {
   // Keyed on __WORKSPACES[0] this was constant for a member of two workspaces,
   // so the guard against restoring one tenant's rows under another's name could
