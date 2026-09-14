@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # The whole history, so the diff below has its base to compare with.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # The answer goes to the step's outputs and the reason to the log. A git
@@ -58,14 +58,14 @@ jobs:
           fi
           printf '%s\n' "$files" | node tooling/scripts/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
       - if: steps.changed.outputs.db == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - if: steps.changed.outputs.db == 'true'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
       - if: steps.changed.outputs.db == 'true'
-        uses: supabase/setup-cli@v1
+        uses: supabase/setup-cli@v3
         with:
           version: 2.116.0
       - if: steps.changed.outputs.db == 'true'
