@@ -45,7 +45,29 @@ const ixRouteThread = (param, threads) => {
   return { id, who: found ? found.who : null };
 };
 
-Object.assign(window, { ixHoldAll, ixRouteThread });
+// What changed on the open thread between two reads, in the words the pane shows. The Inbox is
+// read again whenever anything moves, and each read used to repaint the open thread in silence.
+const IX_BUCKET_WORDS = { escalated: "Needs you", done: "Handled", snoozed: "Snoozed" };
+const ixRepaintNotice = (before, after, answerer = null) => {
+  if (!before || !after || before.id !== after.id) return null;
+  if (!before.claimedByOther && after.claimedByOther) return `${answerer || "A teammate"} took this conversation`;
+  if (before.state !== after.state || !!before.archived !== !!after.archived) {
+    if (after.archived) return "Archived";
+    if (after.state === "snoozed") return after.wake ? `Snoozed until ${after.wake}` : "Snoozed";
+    if (before.state === "snoozed" && after.state === "escalated") return "Back in Needs you";
+    return `Moved to ${IX_BUCKET_WORDS[after.state] || after.state}`;
+  }
+  const was = (before.timeline || []).length;
+  const now = (after.timeline || []).length;
+  if (now > was && (after.lastAtMs || 0) > (before.lastAtMs || 0)) {
+    const last = after.timeline[now - 1];
+    if (last && last.from === "client") return `${after.who} wrote again`;
+    return last && last.byYou ? "Someone on the team replied" : "The receptionist replied";
+  }
+  return null;
+};
+
+Object.assign(window, { ixHoldAll, ixRouteThread, ixRepaintNotice });
 
 const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
@@ -77,6 +99,13 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const [phoneThreadOpen, setPhoneThreadOpen] = React.useState(!!initialThreadId);
   const [activeView, setActiveView] = React.useState(null);
   const [stale, setStale] = React.useState(null); // { threadId, update } — concurrent change waiting to merge
+  // A real re-read that changes or moves the open thread: what happened, said on the pane, and the
+  // thread kept on screen though its bucket no longer lists it -- never another customer's in its place.
+  const [repaint, setRepaint] = React.useState(null); // { threadId, words }
+  const [keepOpenId, setKeepOpenId] = React.useState(null);
+  const shownRef = React.useRef(null);
+  // Your own verbs in flight: the re-read each one makes is not news for the pane (its toast says it).
+  const ownVerbsRef = React.useRef(0);
   const firedRef = React.useRef({});
   const [toastNode, ppFlash] = window.usePPToast();
   const [planParams, setPlanParams] = React.useState({}); // per-thread plan-param pick — lifted so hotkey A and the button write the same record
@@ -111,6 +140,14 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     }));
     const onSwap = () => {
       const list = (window.INBOX_DATA || {}).THREADS || [];
+      // The thread on screen, before and after this read: say what changed, and keep it open.
+      const shown = shownRef.current;
+      const next = shown && shown.real ? list.find((x) => x.id === shown.id) : null;
+      if (next) {
+        const words = ixRepaintNotice(shown, next, window.ixAnswerer ? window.ixAnswerer(next) : null);
+        if (words && ownVerbsRef.current === 0) setRepaint({ threadId: shown.id, words });
+        setKeepOpenId(shown.id);
+      }
       reseed();
       if (!list.length) return;
       setActiveBucket((b) => (list.some((x) => x.state === b) ? b : firstBucketWithThreads(list)));
@@ -126,7 +163,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // reseed repaints. No local mutation, no IX_STORE — the server owns state.
   const realVerb = (t, verb, payload, okMsg, undoable) => {
     if (!window.__inboxVerb) return Promise.resolve(false);
-    return window.__inboxVerb(t, verb, payload).then((r) => {
+    ownVerbsRef.current += 1;
+    return window.__inboxVerb(t, verb, payload).finally(() => { ownVerbsRef.current -= 1; }).then((r) => {
       if (!r.ok) { ppFlash({ tone: "danger", msg: <>{r.message}</> }); return false; }
       const mid = undoable && r.data && r.data.message_id;
       // The receipt says exactly how long the send can still be stopped; the
@@ -192,7 +230,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
-  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
+  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); setRepaint(null); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
 
   // ---- Verdict gate: the ONE post-meeting human decision (closed set) ----
@@ -548,10 +586,17 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // Scoped to the VISIBLE list: an id left over from another bucket used to
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
-  const activeThread = visible.find((t) => t.id === activeThreadId) || visible[0];
+  // A thread a re-read moved out of this bucket stays on screen (keepOpenId): the pane used to fall
+  // to the first thread in the list, another customer's, and a half-written reply went with it.
+  const activeThread = visible.find((t) => t.id === activeThreadId)
+    || (keepOpenId && keepOpenId === activeThreadId ? threads.find((t) => t.id === keepOpenId) : null)
+    || visible[0];
   // A deep link (People → "Open thread") to a thread outside the newest
-  // hundred must not open someone else's thread in silence.
-  const requestedMissing = !!initialThreadId && activeThreadId === initialThreadId && visible.length > 0 && !visible.some((t) => t.id === initialThreadId);
+  // hundred must not open someone else's thread in silence. Loaded is the test,
+  // not listed: a thread the Inbox holds in another bucket is not missing.
+  const requestedMissing = !!initialThreadId && activeThreadId === initialThreadId && visible.length > 0 && !threads.some((t) => t.id === initialThreadId);
+  // The thread on screen, for the next re-read to compare with; none while a link's notice stands.
+  shownRef.current = requestedMissing ? null : activeThread || null;
 
   // Keyboard: A approve recommended · D decline · E focus composer
   React.useEffect(() => {
@@ -583,6 +628,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     setActiveBucket(id);
     setActiveView(null);
     setSelected([]);
+    setKeepOpenId(null);
+    setRepaint(null);
     const stillVisible = activeThread && activeThread.state === id;
     if (!stillVisible) {
       const next = threads.find((t) => t.state === id);
@@ -669,6 +716,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
           onWake={wake}
           onHandBack={handBack}
           onMarkUnread={markUnread}
+          onArchive={archiveThread}
+          notice={repaint && activeThread && repaint.threadId === activeThread.id ? repaint.words : null}
           planParam={planParams[activeThread?.id] || 0}
           onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
         />

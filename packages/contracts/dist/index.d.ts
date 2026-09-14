@@ -693,6 +693,8 @@ interface InboxThreadVM {
         text: string;
         quoted: boolean;
     } | null;
+    /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
+    archived: boolean;
     /**
      * This thread is waiting on a human, and no human has it yet.
      *

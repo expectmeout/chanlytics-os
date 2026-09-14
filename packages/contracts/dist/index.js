@@ -1531,6 +1531,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     claimedByOther,
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
+    archived: dto.state === "archived",
     heldDraft,
     ...heldDraft ? {
       veto: {
