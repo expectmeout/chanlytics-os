@@ -680,6 +680,19 @@ interface InboxThreadVM {
     avatar: string;
     state: "escalated" | "snoozed" | "done";
     takenOver: boolean;
+    /** A teammate has this thread: the page names them and offers no take-over. */
+    claimedByOther: boolean;
+    /** Who has it, when someone does -- the page names them from the team. */
+    assigneeUserId: string | null;
+    /**
+     * The customer's own words beside the decision: what they last wrote, quoted,
+     * or what the call left behind for a call back. Null when nothing is being decided.
+     */
+    ask: {
+        label: string;
+        text: string;
+        quoted: boolean;
+    } | null;
     /**
      * This thread is waiting on a human, and no human has it yet.
      *

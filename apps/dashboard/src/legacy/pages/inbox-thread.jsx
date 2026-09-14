@@ -66,7 +66,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
           </div>
         )}
 
-        {thread.state === "escalated" && !thread.takenOver && (
+        {thread.state === "escalated" && !thread.takenOver && !thread.claimedByOther && (
           <div className="ix-take">
             <Icon name="flag" size={13} />
             <div className="ix-take-body">
@@ -78,6 +78,13 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
               <div className="ix-take-sub">{thread.real
                 ? <>{thread.summary}</>
                 : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
+              {/* What they asked, beside the decision: their last message, or what the call left behind. */}
+              {thread.real && thread.ask && (
+                <div className="ix-take-ask" data-testid="ix-take-ask">
+                  <span className="ix-take-ask-label">{thread.ask.label}</span>
+                  <span className="ix-take-ask-text">{thread.ask.quoted ? `“${thread.ask.text}”` : thread.ask.text}</span>
+                </div>
+              )}
             </div>
             <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
               {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
@@ -87,6 +94,15 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
                 Nothing needed — hand it back to the receptionist
               </button>
             )}
+          </div>
+        )}
+        {/* A teammate has it. Nothing to take and nothing to hand back: pressing
+            "I'll answer this" took it from them without a word, and the hand-back
+            resolved their request. A reply still claims it, so that is said first. */}
+        {thread.real && thread.claimedByOther && (
+          <div className="ix-resolved" data-testid="ix-theirs">
+            <Icon name="users" size={13} />
+            <span><b>{window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"}</b> is answering this{thread.waited ? ` · waited ${thread.waited}` : ""}. The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours.</span>
           </div>
         )}
         {thread.real && thread.state === "done" && !thread.resolution && (
@@ -632,7 +648,7 @@ const SteerBox = ({ messageId }) => {
 const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOver = () => {} }) => (
   <div className={`ix-veto ${remaining == null ? "held" : paused ? "paused" : remaining <= 10 ? "urgent" : ""}`}>
     <span className="ix-veto-dot"></span>
-    <span className="ix-veto-msg" data-tip="This draft sends itself at zero — Edit, Hold, or typing a reply cancels it">
+    <span className="ix-veto-msg" data-tip={thread.real ? "This draft sends itself at zero. Hold stops it, and so does starting to type a reply." : "This draft sends itself at zero — Edit, Hold, or typing a reply cancels it"}>
       {remaining != null
         ? (paused ? <>Paused at <b>{remaining}s</b> — you're away</> : <><b>Auto-sends in {remaining}s</b></>)
         : <>Held — manual send</>}
