@@ -9,6 +9,10 @@
  * a human, for the same reason the deadman alert lives in the edge — notify()
  * owns who may be told what.
  *
+ * It also pages the platform for two conditions no sweep row can show: due
+ * jobs nobody is claiming, and WhatsApp messages Meta accepted that have had
+ * no receipt for six hours (lib/receipts-watch.ts).
+ *
  * Called by pg_cron via pg_net at :13 and :43, same Vault secret as the two
  * sweeps it watches. The offset is deliberate: on the :00/:30 grid every tick
  * would land on a deadman tick and judge a request seconds old, which the
@@ -22,6 +26,7 @@ import { notify } from "../../lib/notify.js";
 import { pageOperator } from "../../lib/page-operator.js";
 import { logger } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/sweep-health.js";
+import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/receipts-watch.js";
 
 export const config = { maxDuration: 60 };
 
@@ -88,10 +93,23 @@ export async function POST(request: Request): Promise<Response> {
     await pageOperator({ db }, "jobs_backlog", `${due} due jobs have waited more than two minutes`, "The heartbeat is scheduled but not draining. Check sweep_health for 'jobs' and the tick's Vercel logs.");
   }
 
+  // WhatsApp messages that never heard back, in a workspace where nothing
+  // else has been receipted since either: the webhook, not a phone. The page
+  // names workspaces and times, never a customer, and comes once per window
+  // while it lasts. A read that fails is logged.
+  const receipts = await whatsappWithoutReceipts(db, Date.now());
+  if (receipts.error) L.error("sweep_health_receipts_unreadable", { error: receipts.error });
+  const unreceipted = receipts.silent.reduce((n, w) => n + w.count, 0);
+  if (unreceipted > 0) {
+    const page = describeSilentReceipts(receipts.silent, Date.now());
+    await pageOperator({ db }, "whatsapp_no_receipt", page.subject, page.body);
+  }
+
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
     alerted: delivered ? plan.alert.length : 0,
     recovered: plan.recovered.length,
+    unreceipted,
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

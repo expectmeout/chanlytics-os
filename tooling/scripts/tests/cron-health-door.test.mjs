@@ -10,10 +10,13 @@
  * customer. Only a delivered mail earns the stamp. A healthy run pages nobody;
  * a clock that was alerted about and is answering again earns an all-clear,
  * but only when nothing else is broken. Due jobs nobody claims page the
- * operator once per window through a row that remembers. And the route answers
- * 200 even while reporting a broken sweep, because pg_net records its reply
- * and /api/diag reads it: a non-2xx here would make the watchdog report itself
- * broken and never recover.
+ * operator once per window through a row that remembers. So does a WhatsApp
+ * message Meta accepted that has had no receipt for six hours, when nothing
+ * else in its workspace has been receipted since -- the webhook, not one
+ * person's phone -- and that page names workspaces and times, never a
+ * customer. And the route answers 200 even while reporting a broken sweep,
+ * because pg_net records its reply and /api/diag reads it: a non-2xx here
+ * would make the watchdog report itself broken and never recover.
  */
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
@@ -49,9 +52,9 @@ const clock = (sweep, healthy, over = {}) => ({
 
 /* -------------------------------------------------------------- the world */
 
-/** The clocks as sweep_health() reports them, the jobs backlog, and the pager's memory. */
-function world(rows, { backlog = 0, faults = {}, sweep_health = () => rows } = {}) {
-  const tables = { operator_pages: [], notifications: [], tenant_config: [] };
+/** The clocks as sweep_health() reports them, the jobs backlog, the messages the receipts watch reads, and the pager's memory. */
+function world(rows, { backlog = 0, faults = {}, sweep_health = () => rows, messages = [] } = {}) {
+  const tables = { operator_pages: [], notifications: [], tenant_config: [], messages };
   const marks = [];
   const db = fakeDb(tables, faults, {
     ...vault,
@@ -186,6 +189,113 @@ test("due jobs nobody claims page the operator -- once per window, remembered in
     await w.tick();
     assert.equal(line.mail().length, 1, "one page per window");
     assert.equal(w.tables.operator_pages[0].count, 2, "the row remembers the second firing");
+  } finally { line.restore(); }
+});
+
+/* -------------------------------------------------- the receipts watch */
+
+/** Three workspaces, none of them the environment's own. */
+const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
+const C = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
+const WORDS = "Your colour appointment is at 3 tomorrow";
+let seq = 0;
+/**
+ * One outbound WhatsApp message as the send path leaves it once Meta has
+ * accepted it: `sent`, carrying Meta's id. By default it went out seven hours
+ * ago straight from the door, so no status change ever stamped it.
+ */
+const accepted = (tenant, over = {}) => {
+  seq += 1;
+  return {
+    id: `msg-${seq}`, tenant_id: tenant, conversation_id: `conv-${seq}`, contact_id: `contact-${seq}`,
+    channel: "whatsapp", direction: "outbound", sender: "ai", type: "text", body: WORDS,
+    status: "sent", external_id: `wamid.HBgL${seq}`, created_at: ago(7 * H), status_updated_at: null,
+    ...over,
+  };
+};
+
+test("a WhatsApp message Meta accepted with no receipt for six hours, and nothing in its workspace receipted since, pages the platform once per window: by workspace and time, never the customer", async () => {
+  const w = world([clock("jobs", true)], {
+    messages: [
+      // Went out seven hours ago, straight from the door: silent.
+      accepted(A),
+      // Queued at nine, left at eight: silent, and timed from when it left.
+      accepted(A, { created_at: ago(9 * H), status_updated_at: ago(8 * H) }),
+      // Drafted eight hours ago, approved and sent an hour ago: its six hours have not passed.
+      accepted(A, { created_at: ago(8 * H), status_updated_at: ago(1 * H) }),
+      // Three hours: a receipt may still come.
+      accepted(A, { created_at: ago(3 * H) }),
+      // Forty hours: past the watch, history rather than news.
+      accepted(A, { created_at: ago(40 * H) }),
+      // A text: not WhatsApp's receipts.
+      accepted(A, { channel: "sms", external_id: "SM0001" }),
+      // The send path's own failure, which Meta never saw: not a receipt.
+      accepted(A, { status: "failed", external_id: null, created_at: ago(3 * H), status_updated_at: ago(2 * H) }),
+      // A receipt, but from before the silent ones left.
+      accepted(A, { status: "delivered", created_at: ago(10 * H), status_updated_at: ago(7.5 * H) }),
+    ],
+  });
+  const line = wire();
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual(body, { ok: true, healthy: true, broken: [] }, "a watched condition is the pager's, not this answer's");
+
+    const mail = line.mail();
+    assert.equal(mail.length, 1);
+    assert.equal(mail[0].subject, "[Chanlytics] 2 WhatsApp messages have had no receipt for six hours");
+    assert.deepEqual(mail[0].to, ["ops@platform.test"]);
+    assert.ok(mail[0].text.includes(`workspace ${A}: 2 messages`), "the workspace, and how many");
+    assert.match(mail[0].text, /wa_status/, "and where to look");
+    for (const secret of [WORDS, "conv-", "contact-", "msg-", "wamid."]) assert.ok(!mail[0].text.includes(secret), `never the customer: ${secret}`);
+
+    assert.equal(w.tables.operator_pages.length, 1);
+    const page = w.tables.operator_pages[0];
+    assert.equal(page.key, "whatsapp_no_receipt");
+    assert.equal(page.count, 1);
+    assert.ok(page.alerted_at, "stamped as told, because it was");
+
+    // Still silent at the next tick: counted, not re-paged.
+    await w.tick();
+    assert.equal(line.mail().length, 1, "one page per window while it lasts");
+    assert.equal(w.tables.operator_pages[0].count, 2);
+  } finally { line.restore(); }
+});
+
+test("one person's phone is not the webhook: a workspace with any receipt since its silent message left pages nobody, a receipt of failure included, and another workspace's silence still pages alone", async () => {
+  const w = world([clock("jobs", true)], {
+    messages: [
+      // Silent, but a read receipt arrived four hours ago: the webhook is answering for this workspace.
+      accepted(A),
+      accepted(A, { status: "read", created_at: ago(5 * H), status_updated_at: ago(4 * H) }),
+      // Silent, and Meta reported another message failed two hours ago: a receipt too.
+      accepted(C),
+      accepted(C, { status: "failed", created_at: ago(3 * H), status_updated_at: ago(2 * H) }),
+      // Silent, and nothing since.
+      accepted(B),
+    ],
+  });
+  const line = wire();
+  try {
+    assert.equal((await w.tick()).status, 200);
+    const mail = line.mail();
+    assert.equal(mail.length, 1);
+    assert.equal(mail[0].subject, "[Chanlytics] 1 WhatsApp message has had no receipt for six hours");
+    assert.ok(mail[0].text.includes(`workspace ${B}: 1 message`));
+    assert.ok(!mail[0].text.includes(A) && !mail[0].text.includes(C), "a workspace whose receipts are arriving is not described");
+  } finally { line.restore(); }
+});
+
+test("messages that cannot be read page nobody: the clocks are still judged, and the route still answers 200", async () => {
+  const w = world([clock("deadman", false)], { faults: { "messages.select": { message: "permission denied for table messages" } } });
+  const line = wire();
+  try {
+    const [status, body] = await answer(await w.tick());
+    assert.equal(status, 200);
+    assert.deepEqual(body, { ok: true, healthy: false, broken: ["deadman"] });
+    assert.deepEqual(line.mail().map((m) => m.subject), ["A background sweep is not running: deadman"], "the clock's alert, and no page");
+    assert.deepEqual(w.tables.operator_pages, []);
   } finally { line.restore(); }
 });
 

@@ -4,11 +4,13 @@
  * page per condition key per six hours, stamped only after delivery -- a page
  * that did not send earns no quiet, so the next tick tries again.
  *
- * Four conditions call it today: the heartbeat failing many jobs in one run
- * (api/jobs/tick.ts), a provider refusing a send with 401 or 403 -- credentials,
- * not content (core/messages/send.ts), due jobs nobody is claiming
- * (api/cron/health.ts), and the receptionist having no model key
- * (whatsapp/inbound.ts). Each is the platform's to fix, never an owner's.
+ * Six conditions call it today: the heartbeat failing many jobs in one run
+ * (api/jobs/tick.ts); a provider refusing a send with 401 or 403 -- credentials,
+ * not content (core/messages/send.ts); due jobs nobody is claiming, and
+ * WhatsApp messages Meta accepted that have had no receipt for six hours
+ * (api/cron/health.ts); a customer waiting in a workspace with nobody on file
+ * to tell (api/cron/deadman.ts); and the receptionist having no model key
+ * (whatsapp/inbound.ts). Each reaches the platform, never an owner.
  *
  * The callers do not act on the outcome: the memory does. A condition whose
  * last firing was never told (a failed or unaddressed page) is readable as
