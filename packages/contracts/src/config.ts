@@ -314,7 +314,7 @@ export const E164 = /^\+[1-9]\d{6,14}$/;
 export const BusinessProfileSchema = z
   .object({
     address: z.string().max(300).optional(),
-    hours: z.record(z.enum(DAYS), HoursSchema).optional(),
+    hours: z.partialRecord(z.enum(DAYS), HoursSchema).optional(),
     /** Dates the business is shut regardless of the weekly grid. */
     closures: z.array(ClosureSchema).optional(),
     services: z.array(ServiceSchema).max(60).optional(),
