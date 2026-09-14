@@ -2,6 +2,8 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. One session, and the last step is Ruben's.
 
+> **Status, 14 September:** tasks 1 to 3 are done; task 4, the setting, is Ruben's. Two departures from the steps below: the push trigger lost its path list too, so the list lives once rather than twice, and the script answers `db=true` or `db=false` on stdout rather than in its exit code, because a crash also exits non-zero and must not read as "not needed".
+
 **Goal:** A red migrations replay blocks a merge, on a product whose entire safety model lives in the schema — and a pull request that leaves the database alone is not held for a check that never ran. Today branch protection requires only `Secret scan` and `Typecheck` (the two jobs of `ci.yml`); `database.yml`'s job, `Migrations replay, SQL rules hold`, is path-filtered and therefore cannot be required: a PR that touches no database path would produce no check and wait forever.
 
 **Architecture:** One workflow, always present on a pull request, cheap when the database could not have changed. `database.yml`'s `pull_request` trigger loses its `paths`; a first step decides from the PR's changed files whether the database could have changed; every heavy step is gated on that answer; the job succeeds either way and says which case it was. The decision is a function in `tooling/scripts/`, executed by a test, so the path list is code rather than YAML in two places. Then a human makes the check required in GitHub's branch settings — there is no API tool in this session for that, and the plan says so rather than pretending.
