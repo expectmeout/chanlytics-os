@@ -17,7 +17,7 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, lastChangedWords, newReceptionistDefaults } from "@chanlytics/contracts";
+import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf } from "@chanlytics/contracts";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
@@ -30,8 +30,8 @@ interface RealThread {
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
 type VerbResult = ApiResult<unknown>;
 
-/** A refusal the courier makes before asking: nothing was sent. */
-const local = (message: string): VerbResult => ({ ok: false, code: "client", status: 0, message });
+/** A refusal the courier makes before asking: nothing was sent, and it reads as any other refusal does. */
+const local = (message: string): VerbResult => ({ ok: false, ...refusalOf({ code: "client", status: 0, message, write: true }) });
 
 async function refresh(): Promise<void> {
   // Today carries the "needs you" count — leaving it out means snoozing from

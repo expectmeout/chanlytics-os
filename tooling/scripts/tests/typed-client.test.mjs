@@ -15,7 +15,8 @@ const { createApi, ApiError, unwrap } = await import(at("apps/dashboard/src/clie
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
 const C1 = "cccccccc-cccc-4ccc-8ccc-ccccccccccc1";
 const envelope = (data) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
-const refusal = (status, code, message) => new Response(JSON.stringify({ ok: false, error: { code, message } }), { status });
+const refusal = (status, code, message, details, headers = {}) =>
+  new Response(JSON.stringify({ ok: false, error: details === undefined ? { code, message } : { code, message, details } }), { status, headers });
 
 function harness(answer, { workspace = A } = {}) {
   const sent = [];
@@ -65,23 +66,47 @@ test("a write: JSON in, the idempotency key and the via marker on the wire, then
   assert.deepEqual(held.events, [], "refresh: false holds the map, for a bulk verb that re-reads once at its end");
 });
 
-test("a refusal is the server's words and code; a 401 signs out; a network failure changes nothing and says so", async () => {
+test("a refusal is the server's words and code, with the kind of no as a title; a 401 signs out; a network failure changes nothing and says so", async () => {
   const refused = harness(refusal(403, "forbidden", "Viewers can see everything and change nothing."));
-  assert.deepEqual(await refused.api("POST conversations/[id]/reply", { params: { id: C1 }, body: { text: "x" } }), { ok: false, code: "forbidden", status: 403, message: "Viewers can see everything and change nothing." });
+  assert.deepEqual(await refused.api("POST conversations/[id]/reply", { params: { id: C1 }, body: { text: "x" } }), { ok: false, code: "forbidden", status: 403, title: "Not allowed", message: "Viewers can see everything and change nothing.", retryAfterS: null, fields: null });
   assert.deepEqual(refused.events, [], "nothing refreshed for a refusal");
   const out = harness(refusal(401, "unauthorized", "Sign in required."));
-  assert.deepEqual(await out.api("GET conversations"), { ok: false, code: "unauthorized", status: 401, message: "Signed out." });
+  assert.deepEqual(await out.api("GET conversations"), { ok: false, code: "unauthorized", status: 401, title: "Signed out", message: "Signed out.", retryAfterS: null, fields: null });
   assert.deepEqual(out.events, ["signed-out"]);
   // The first error code the client reads: the server would not guess the
   // workspace, so the bridge forgets its choice and boots again.
   const unnamed = harness(refusal(400, "choose_workspace", "This account belongs to more than one workspace — say which one first."));
-  assert.deepEqual(await unnamed.api("GET conversations"), { ok: false, code: "choose_workspace", status: 400, message: "This account belongs to more than one workspace — say which one first." });
+  assert.deepEqual(await unnamed.api("GET conversations"), { ok: false, code: "choose_workspace", status: 400, title: "Choose a workspace", message: "This account belongs to more than one workspace — say which one first.", retryAfterS: null, fields: null });
   assert.deepEqual(unnamed.events, ["choose-workspace"]);
   const down = harness(() => { throw new TypeError("fetch failed"); });
-  assert.deepEqual(await down.api("PUT settings", { body: { config: {}, version: 1 } }), { ok: false, code: "network", status: 0, message: "Network error — nothing was changed." });
-  assert.deepEqual(await down.api("GET conversations"), { ok: false, code: "network", status: 0, message: "Chanlytics could not be reached." });
+  assert.deepEqual(await down.api("PUT settings", { body: { config: {}, version: 1 } }), { ok: false, code: "network", status: 0, title: "No connection", message: "Network error — nothing was changed.", retryAfterS: null, fields: null });
+  assert.deepEqual(await down.api("GET conversations"), { ok: false, code: "network", status: 0, title: "No connection", message: "Chanlytics could not be reached.", retryAfterS: null, fields: null });
+  // A gateway's page, not ours: "Request failed (502)." put a status code on screen.
   const gone = harness(new Response("<html>", { status: 502 }));
-  assert.deepEqual(await gone.api("GET conversations"), { ok: false, code: "internal", status: 502, message: "Request failed (502)." });
+  assert.deepEqual(await gone.api("GET conversations"), { ok: false, code: "internal", status: 502, title: "No answer", message: "Chanlytics couldn't read this just now — try again in a moment.", retryAfterS: null, fields: null });
+});
+
+test("A5: a refusal carries what the server counted and named -- the wait, a form's fields, the role a door wanted -- and a timeout is never 'nothing was changed'", async () => {
+  const limited = harness(refusal(429, "rate_limited", "Too many replies in a short time — try again in 40 seconds.", { retry_after_s: 40 }));
+  assert.deepEqual(
+    await limited.api("POST conversations/[id]/reply", { params: { id: C1 }, body: { text: "x" } }),
+    { ok: false, code: "rate_limited", status: 429, title: "Too many at once", message: "Too many replies in a short time — try again in 40 seconds.", retryAfterS: 40, fields: null },
+    "REGRESSION: the envelope's details were dropped, so the wait never reached a page",
+  );
+  const header = harness(refusal(429, "rate_limited", "Slow down.", undefined, { "retry-after": "12" }));
+  assert.equal((await header.api("GET conversations")).retryAfterS, 12, "the Retry-After header, when the details do not say");
+  const form = harness(refusal(400, "validation", "email: Invalid email", { fields: { email: "Write the whole address, like ana@example.com." } }));
+  const f = await form.api("POST team/invite", { body: { email: "nope", role: "operator" } });
+  assert.deepEqual([f.title, f.fields], ["Check the details", { email: "Write the whole address, like ana@example.com." }]);
+  const owner = harness(refusal(403, "forbidden", "Only an owner can do this.", { needs: "owner" }));
+  assert.equal((await owner.api("POST billing/sync")).title, "Owner only");
+  const slow = harness(() => { const e = new Error("The operation was aborted due to timeout"); e.name = "TimeoutError"; throw e; });
+  const s = await slow.api("PUT settings", { body: { config: {}, version: 1 } });
+  assert.deepEqual([s.code, s.title, s.message], ["timeout", "No answer in time", "Chanlytics took too long to answer — this may still go through, so check before trying again."], "REGRESSION: a timeout said 'Network error — nothing was changed.' of a write the server may still be making");
+  const stale = harness(new Response("<html>Not found</html>", { status: 404 }));
+  assert.equal((await stale.api("GET conversations")).message, "This page is out of date — reload it and try again.", "a route the deployed app no longer has");
+  const catchAll = harness(refusal(500, "internal", "Something went wrong."));
+  assert.equal((await catchAll.api("POST billing/sync")).message, "Chanlytics hit a problem and couldn't confirm this — check whether it went through before trying again.");
 });
 
 test("identical reads within two seconds share one request; a write never does; a settled read is not shared past its burst", async () => {

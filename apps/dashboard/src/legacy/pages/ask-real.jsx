@@ -311,7 +311,7 @@ const AskReal = ({ open, onClose }) => {
               <div className="ask-msgs" ref={scrollRef}>
                 {active.messages.map((m, i) => m.role === "user"
                   ? <div key={m.id || i} className="ask-msg user"><p className="ask-msg-text">{m.text}</p></div>
-                  : <AskTurn key={m.id || i} m={m} latest={!live && m === lastAssistant} t={t} lang={lang} onFollow={submit} onNav={nav} speech={speech} flash={flash} />)}
+                  : <AskTurn key={m.id || i} m={m} latest={!live && m === lastAssistant} t={t} lang={lang} onFollow={submit} onNav={nav} speech={speech} flash={flash} onRetry={m.failed ? () => { const asked = active.messages.slice(0, i).reverse().find((x) => x.role === "user"); if (asked) submit(asked.text); } : undefined} />)}
                 {live && (
                   live.text
                     ? <AskTurn m={{ id: "live", text: live.text, citations: [], followups: [], proposals: [] }} streaming t={t} lang={lang} onFollow={submit} onNav={nav} speech={speech} flash={flash} />

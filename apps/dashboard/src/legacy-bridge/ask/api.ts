@@ -7,6 +7,7 @@
  * the ledger reads. Nothing here knows what the palette does with it.
  */
 import type { AskMessageVM, AskProposalOutcome, AskScope, AskSurface, AskThreadVM } from "@chanlytics/contracts";
+import { refusalOf } from "@chanlytics/contracts";
 import { api } from "../api";
 import { unwrap, type Api, type ApiOptions, type ApiResult, type Output, type RouteKey } from "../../client/api";
 
@@ -89,15 +90,24 @@ export function askApi(client: Api = api()) {
       let res: Response;
       try {
         res = await client.raw("POST ask", { body: { text: input.text, thread_id: input.threadId, scope: input.scope, surface: input.surface }, timeoutMs: TURN_MS });
-      } catch {
-        on({ t: "error", text: "Network error — nothing was asked." });
+      } catch (e) {
+        // A question that never left asked nothing; one that timed out may still be answered.
+        const name = (e as { name?: unknown } | null)?.name;
+        on({ t: "error", text: name === "TimeoutError" || name === "AbortError" ? "Chanlytics took too long to answer — ask again in a moment." : "Network error — nothing was asked." });
         return;
       }
       // The client has already signed the tab out on its way back.
       if (res.status === 401) return;
       if (!res.ok || !res.body) {
-        const j = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
-        on({ t: "error", text: j?.error?.message ?? `Ask failed (${res.status}).` });
+        const j = (await res.json().catch(() => null)) as { error?: { code?: string; message?: string; details?: unknown } } | null;
+        // The server's sentence, in our words where it gave none (contracts refusalOf); a page
+        // that was not ours used to read "Ask failed (502)." and gets a sentence of ours.
+        on({
+          t: "error",
+          text: j?.error
+            ? refusalOf({ code: j.error.code, status: res.status, message: j.error.message, details: j.error.details, retryAfter: res.headers.get("retry-after"), write: true }).message
+            : "Chanlytics didn't answer — ask again in a moment.",
+        });
         return;
       }
       await readLines(res.body, (line) => {

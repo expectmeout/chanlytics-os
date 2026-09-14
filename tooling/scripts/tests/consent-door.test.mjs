@@ -143,14 +143,19 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
 // `undefined`. So the globals are stable indirections and only what they DELEGATE to
 // is swapped per mount.
 let HOOKS = null;
+// A5: the ask's refusal is drawn by the shared FieldError (data-bits.jsx, run for real in
+// refusals-on-the-page.test.mjs). This harness never runs a component's function, so it draws
+// that one hook-free component the way the component draws: the sentence as text, announced,
+// under its testid -- and nothing without a sentence.
+const FieldError = ({ message, testid }) => (message ? { type: "span", props: { className: "field-error", role: "alert", "data-testid": testid ?? undefined, children: [message] } } : null);
 globalThis.React = {
   Fragment: "Fragment",
-  createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+  createElement: (type, p, ...kids) => (type === FieldError ? FieldError({ ...(p || {}) }) : { type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
   useState: (init) => HOOKS.useState(init),
   useEffect: (fn) => HOOKS.useEffect(fn),
   useMemo: (fn) => HOOKS.useMemo(fn),
 };
-globalThis.window = { __ME: { role: "operator" } };
+globalThis.window = { __ME: { role: "operator" }, FieldError };
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 const Ask = globalThis.window.ConsentAsk;
 assert.equal(typeof Ask, "function", "the ask is published, or nothing below tests anything");

@@ -1542,6 +1542,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .confirm-typed::placeholder { color: var(--ink-faint); }
 .confirm-error { color: var(--danger); font-size: 11.5px; }
 
+/* ---- FieldError — one sentence under the box it belongs to (data-bits.jsx).
+   Six forms coloured their own hint red inline; this is the one red a field
+   error wears, with its glyph, wrapping rather than clipping. */
+.field-error { display: flex; align-items: flex-start; gap: 5px; color: var(--danger); font-size: 11.5px; line-height: 1.4; }
+.field-error > .icon { flex: none; margin-top: 2px; }
+.field-error-words { min-width: 0; overflow-wrap: anywhere; }
+
 /* ---- EmptyState and FailedRead — the one "nothing here" and the one
    "couldn't read" (data-bits.jsx). Three kinds: a page centres itself in a
    pane, a card sits in a card or a rail, a line is one sentence in a table

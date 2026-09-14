@@ -157,7 +157,7 @@ const AskCard = ({ p, messageId, t, onNav }) => {
 
 // The turn: text (with a cursor while it streams), the unverified mark, the
 // cards, the links, the toolbar, and — when it is the latest — what next.
-const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash }) => {
+const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash, onRetry }) => {
   const A = window.__ask;
   const shape = streaming || !A ? { open: null, citations: [], followups: [] } : A.shape(m, lang);
   const at = m.atMs ? new Date(m.atMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
@@ -166,6 +166,12 @@ const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash
       <span className="ask-msg-avatar" title={at}><Icon name="sparkle" size={11} /></span>
       <div className="ask-msg-body">
         <p className="ask-msg-text" aria-live="polite">{m.text}{streaming ? <span className="ask-cursor" /> : null}</p>
+        {/* A failed answer can be asked again, from the latest turn only: an older failure is history. */}
+        {!streaming && m.failed && latest && onRetry && (
+          <div className="ask-msg-links">
+            <button type="button" className="ask-action-chip" onClick={onRetry} data-testid="ask-retry"><Icon name="refresh" size={11} /> {t.tryAgain}</button>
+          </div>
+        )}
         {!streaming && m.ungrounded && <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div>}
         {!streaming && m.proposals && m.proposals.length ? m.proposals.map((p) => <AskCard key={p.id} p={p} messageId={m.id} t={t} onNav={onNav} />) : null}
         {!streaming && <AskLinks shape={shape} t={t} onNav={onNav} />}

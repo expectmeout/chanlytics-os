@@ -45,8 +45,9 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
     setBusy(true);
     const r = await window.__setup.lines.buy(chosen.e164, area);
     setBusy(false);
-    if (!r.ok && r.message) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
-    flash({ msg: r.ok
+    if (!r.ok && r.message) { flash(window.refusalToast(r, "No line bought")); return; }
+    // Bought, then stopped part-way: the number is ours and a person has it -- a warning, not good news.
+    flash({ tone: r.ok ? "ok" : "warn", msg: r.ok
       ? (r.queued
         ? <>{chosen.friendly} is yours — setting it up now, usually a minute or two. This page updates by itself.</>
         : <>{chosen.friendly} is yours — the receptionist answers it. Call it from your phone.</>)
@@ -56,9 +57,9 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
   const ask = async () => {
     if (!(window.canDo && window.canDo("approve"))) { flash({ msg: <>Only an owner or operator can ask for a line.</> }); return; }
     const r = await window.__setup.request("line");
-    flash({ msg: r.ok
-      ? (r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</>)
-      : <>Couldn&rsquo;t send the request — {r.message}</> });
+    flash(r.ok
+      ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</> }
+      : window.refusalToast(r, "Request not sent"));
     onDone();
   };
   return (
@@ -303,9 +304,9 @@ const PaneSetup = () => {
     if (verb.to === "verb:request-line") {
       if (!(window.canDo && window.canDo("approve"))) { flash({ msg: <>Only an owner or operator can ask for a line.</> }); return; }
       const r = await window.__setup.request("line");
-      flash({ msg: r.ok
-        ? (r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</>)
-        : <>Couldn&rsquo;t send the request — {r.message}</> });
+      flash(r.ok
+        ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</> }
+        : window.refusalToast(r, "Request not sent"));
       return;
     }
     if (verb.to === "verb:choose-line") { setChooser((v) => !v); return; }

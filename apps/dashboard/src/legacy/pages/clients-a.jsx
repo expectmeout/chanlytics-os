@@ -777,36 +777,42 @@ const NewListRow = ({ onCreate }) => {
           placeholder="Name the list"
           maxLength={60}
           disabled={busy}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "new-list-error" : undefined}
           data-testid="new-list-name"
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }}
         />
-        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit}>Add</button>
+        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="new-list-add">Add</button>
       </div>
-      {error && <div className="cl-rail-hint" style={{ color: "var(--danger)" }}>{error}</div>}
+      <window.FieldError id="new-list-error" message={error} testid="new-list-error" />
     </div>
   );
 };
 
 // Deleting a list keeps the people; only the grouping goes. Asked once,
-// inline, in the words that say so.
+// inline, in the words that say so. A refusal keeps the question open and
+// says why: it used to close with no word, the list still on screen.
 const DeleteListButton = ({ list, onDeleted }) => {
   const [arm, setArm] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
   const go = async () => {
     if (!window.__lists || busy) return;
     setBusy(true);
+    setError(null);
     const r = await window.__lists.remove(list.id);
     setBusy(false);
+    if (!r.ok) { setError(r.message || "The list could not be deleted."); return; }
     setArm(false);
-    if (r.ok) onDeleted();
+    onDeleted();
   };
   if (!arm) {
-    return <button className="cl-bucket-link danger" style={{ marginLeft: 8 }} onClick={() => setArm(true)} data-testid="delete-list">Delete list…</button>;
+    return <button className="cl-bucket-link danger" style={{ marginLeft: 8 }} onClick={() => { setError(null); setArm(true); }} data-testid="delete-list">Delete list…</button>;
   }
   return (
     <span style={{ marginLeft: 8 }}>
-      <Confirm question={`Delete “${list.name}”?`} detail="The people stay." yes="Yes, delete" danger busy={busy} onYes={go} onNo={() => setArm(false)} testid="delete-list" />
+      <Confirm question={`Delete “${list.name}”?`} detail="The people stay." yes="Yes, delete" danger busy={busy} error={error} onYes={go} onNo={() => { setArm(false); setError(null); }} testid="delete-list" />
     </span>
   );
 };
@@ -1096,7 +1102,7 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
     const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
     setBusy(false); setNaming(false); setName("");
-    flash({ msg: a.ok ? <>{ids.length} on the new list <b>{n}</b></> : <>{a.message}</> });
+    flash(a.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></> } : window.refusalToast(a, "Not added to the new list"));
   };
   // A yes recorded for a whole class at once — and WHICH yes, because they are two
   // separate answers and only one of them puts a person on a broadcast. This
@@ -1225,7 +1231,7 @@ const SaveShownAsList = ({ ids, suggested, flash }) => {
     const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
     const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
     setBusy(false); setOpen(false); setName("");
-    flash({ msg: a.ok ? <>{ids.length} kept as <b>{n}</b></> : <>{a.message}</> });
+    flash(a.ok ? { msg: <>{ids.length} kept as <b>{n}</b></> } : window.refusalToast(a, "Not kept as a list"));
   };
   if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
   return (
@@ -1253,7 +1259,8 @@ const AddPersonButton = ({ onAdded, flash }) => {
     setBusy(true); setError(null);
     const r = await window.__addPerson({ phone: phone.trim(), ...(name.trim() ? { name: name.trim() } : {}) });
     setBusy(false);
-    if (!r.ok) { setError(r.message || "Could not add them."); return; }
+    // The field's own sentence where the route named one, else the refusal's.
+    if (!r.ok) { setError((r.fields && Object.values(r.fields)[0]) || r.message || "Could not add them."); return; }
     flash({ msg: r.data.existed ? <><b>{name.trim() || phone.trim()}</b> was already here — opened</> : <><b>{name.trim() || phone.trim()}</b> added</> });
     close();
     onAdded(r.data.contact_id);
@@ -1264,10 +1271,10 @@ const AddPersonButton = ({ onAdded, flash }) => {
   return (
     <span className="cl-bulk-naming" data-testid="add-person-form">
       <input autoFocus value={name} placeholder="Name (optional)" maxLength={80} disabled={busy} data-testid="add-person-name" onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === "Escape") close(); }} />
-      <input value={phone} placeholder="Mobile number" maxLength={24} disabled={busy} data-testid="add-person-phone" onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }} />
+      <input value={phone} placeholder="Mobile number" maxLength={24} disabled={busy} aria-invalid={error ? true : undefined} aria-describedby={error ? "add-person-error" : undefined} data-testid="add-person-phone" onChange={(e) => setPhone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }} />
       <button className="btn btn-sm btn-primary" disabled={busy || !phone.trim()} onClick={submit} data-testid="add-person-save">Add</button>
       <button className="btn btn-ghost btn-sm" disabled={busy} onClick={close}>Cancel</button>
-      {error && <span className="cl-rail-hint" style={{ color: "var(--danger)" }}>{error}</span>}
+      <window.FieldError id="add-person-error" message={error} testid="add-person-error" />
     </span>
   );
 };
@@ -1336,7 +1343,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const loadMore = async () => {
     if (!window.__peopleMore || loadingMore) return;
     setLoadingMore(true);
-    try { await window.__peopleMore(); } finally { setLoadingMore(false); }
+    // A page of people that could not be read says so: Show more used to go quiet and stay.
+    try { await window.__peopleMore(); } catch (e) { plFlash(window.refusalToast({ message: e && e.message }, "No more people loaded")); } finally { setLoadingMore(false); }
   };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
@@ -1586,3 +1594,5 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
 const ClientsA = (props) => (window.__PEOPLE ? <ClientsAReal {...props} /> : <ClientsASeed {...props} />);
 
 window.ClientsA = ClientsA;
+// Drawn on their own by refusals-on-the-page.test.mjs.
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton });

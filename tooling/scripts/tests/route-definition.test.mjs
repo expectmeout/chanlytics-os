@@ -126,11 +126,26 @@ test("the body is judged last, names every field it refuses, and reaches the han
     assert.equal(e.code, "validation");
     assert.match(e.message, /until: /);
     assert.match(e.message, /note: /);
+    // A5: the envelope carries each field by name, for the form to mark the box it belongs to.
+    assert.deepEqual(Object.keys(e.details?.fields ?? {}).sort(), ["note", "until"], "REGRESSION: the fields were only ever joined into one sentence");
+    assert.ok(e.message.includes(`until: ${e.details.fields.until}`), "each field's sentence is the one the message joins");
     return true;
   });
   await assert.rejects(POST.run(post("", "{not json"), ctxFor(op)), (e) => e.code === "validation" && /Expected a JSON body/.test(e.message));
   await assert.rejects(POST.run(post("", ""), ctxFor(op)), (e) => e.code === "validation" && /until/.test(e.message), "an empty body is {} and the schema decides");
   assert.deepEqual((await POST.run(post("", { until: "2026-09-11T15:00:00Z" }), ctxFor(op))).input, { until: "2026-09-11T15:00:00Z" });
+});
+
+test("A5: a refusal names what the page can act on -- the role the door wanted, and when a limit lifts, in the header a client reads", async () => {
+  const OWNER = write({ scope: workspace, role: "owner", rate: null, handle: echo });
+  await assert.rejects(OWNER.run(post(), ctxFor({ memberships: only("operator") })), (e) => e.code === "forbidden" && e.details?.needs === "owner");
+  const OPERATOR = write({ scope: workspace, role: "operator", rate: null, handle: echo });
+  await assert.rejects(OPERATOR.run(post(), ctxFor({ memberships: only("viewer") })), (e) => e.code === "forbidden" && e.details?.needs === "operator");
+  const { refusalHeaders } = await import(pathToFileURL(path.join(ROOT, "apps/dashboard/src/server/with-route.ts")).href);
+  assert.deepEqual(refusalHeaders(new AppError("rate_limited", "Too many replies in a short time — try again in 40 seconds.", 429, { retry_after_s: 40 })), { "retry-after": "40" }, "REGRESSION: a 429 never carried Retry-After");
+  assert.deepEqual(refusalHeaders(new AppError("rate_limited", "Too many.", 429, { retry_after_s: 12.2 })), { "retry-after": "13" }, "whole seconds, rounded up");
+  assert.deepEqual(refusalHeaders(new AppError("rate_limited", "Too many.", 429)), {}, "nothing counted, nothing promised");
+  assert.deepEqual(refusalHeaders(new AppError("forbidden", "Only an owner can do this.", 403, { needs: "owner" })), {}, "only a limit says when");
 });
 
 test("the order holds: 403, then 429, then 400", async () => {

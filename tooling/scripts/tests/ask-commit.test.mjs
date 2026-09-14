@@ -235,7 +235,8 @@ test("no undo, an unknown inverse, and an unknown kind are each refused in words
 
 test("the server's refusal is the card's answer, in the server's words", async () => {
   const t = tab(() => refusal(403, "forbidden", "Viewers can see everything and change nothing."));
-  assert.deepEqual(await commitProposal(t.win, card("reply", { conversation_id: C1, text: "x", who: "Rosa" }), t.client), { ok: false, code: "forbidden", status: 403, message: "Viewers can see everything and change nothing." });
+  // A5: the refusal carries the kind of no (refusals-in-our-words) beside the server's own sentence.
+  assert.deepEqual(await commitProposal(t.win, card("reply", { conversation_id: C1, text: "x", who: "Rosa" }), t.client), { ok: false, code: "forbidden", status: 403, title: "Not allowed", message: "Viewers can see everything and change nothing.", retryAfterS: null, fields: null });
 });
 
 test("edit in the composer: the thread's route, then the words handed to the composer", () => {

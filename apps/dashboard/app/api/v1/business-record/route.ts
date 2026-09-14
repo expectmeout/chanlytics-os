@@ -80,7 +80,8 @@ export const PUT = write({
     const problems = businessRecordProblems(record, path, { ourNumbers: await ourNumbers(ctx, member.tenantId) });
     if (Object.keys(problems).length) {
       const first = Object.values(problems)[0];
-      throw new AppError("validation", first ?? "Something is missing.", 400);
+      // Every problem by its field, not only the first: the form marks each box, as it does before saving.
+      throw new AppError("validation", first ?? "Something is missing.", 400, { fields: problems });
     }
 
     const a = await edgeLines({ op: "record", tenant_id: member.tenantId, record, path }, 20_000);
