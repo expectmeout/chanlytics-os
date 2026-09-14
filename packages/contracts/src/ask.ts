@@ -439,7 +439,7 @@ export const AskProposalOutcomeSchema = z.object({
   state: z.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z.string().max(300).catch(""),
   atMs: z.number().catch(0),
-  undo: z.record(z.unknown()).nullable().optional(),
+  undo: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export interface AskMessageVM {

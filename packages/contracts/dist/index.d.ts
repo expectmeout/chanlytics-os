@@ -422,29 +422,26 @@ declare const BRAIN_OUTPUT_JSON_SCHEMA: {
 /** The read side: tolerant of what a model might still do, strict about shape. */
 declare const BrainOutputSchema: z.ZodObject<{
     reply: z.ZodString;
-    intent: z.ZodCatch<z.ZodEnum<["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"]>>;
+    intent: z.ZodCatch<z.ZodEnum<{
+        booking: "booking";
+        pricing: "pricing";
+        hours: "hours";
+        services: "services";
+        location: "location";
+        complaint: "complaint";
+        smalltalk: "smalltalk";
+        other: "other";
+    }>>;
     escalate: z.ZodCatch<z.ZodBoolean>;
-    reason: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
-    confidence: z.ZodEffects<z.ZodCatch<z.ZodNumber>, number, unknown>;
-    facts_used: z.ZodEffects<z.ZodCatch<z.ZodArray<z.ZodString, "many">>, string[], unknown>;
-    language: z.ZodCatch<z.ZodEnum<["en", "es", "other"]>>;
-}, "strip", z.ZodTypeAny, {
-    reply: string;
-    intent: "booking" | "pricing" | "hours" | "services" | "location" | "complaint" | "smalltalk" | "other";
-    escalate: boolean;
-    reason: string;
-    confidence: number;
-    facts_used: string[];
-    language: "other" | "en" | "es";
-}, {
-    reply: string;
-    intent?: unknown;
-    escalate?: unknown;
-    reason?: unknown;
-    confidence?: unknown;
-    facts_used?: unknown;
-    language?: unknown;
-}>;
+    reason: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
+    confidence: z.ZodPipe<z.ZodCatch<z.ZodNumber>, z.ZodTransform<number, number>>;
+    facts_used: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
+    language: z.ZodCatch<z.ZodEnum<{
+        other: "other";
+        en: "en";
+        es: "es";
+    }>>;
+}, z.core.$strip>;
 type BrainOutput = z.infer<typeof BrainOutputSchema>;
 /**
  * Parse what the model returned. With constrained decoding the JSON is well
@@ -4399,43 +4396,10 @@ declare function policyRules(policy: Record<string, {
 declare const PolicyLimitsSchema: z.ZodObject<{
     max_replies_day: z.ZodOptional<z.ZodNumber>;
     pause_hours: z.ZodOptional<z.ZodNumber>;
-    /**
-     * How long the receptionist WAITS before its own reply goes out, in ms.
-     *
-     * Only meaningful when mode is 'veto'. A text channel is not a phone
-     * call — nobody expects an answer in under a second — so the delay costs
-     * the customer nothing and buys the business a window to redirect the bot
-     * before it speaks, rather than apologising for it afterwards.
-     */
     reply_delay_ms: z.ZodOptional<z.ZodNumber>;
-    /**
-     * The confidence dial. Under 'auto', a reply the model is less sure about
-     * than this waits in the hold window (reply_delay_ms) for a person instead
-     * of going straight out — sure enough sends itself, not sure enough waits.
-     * 0 or absent means off.
-     */
     min_confidence: z.ZodOptional<z.ZodNumber>;
-    /**
-     * The day's token budget: model tokens in and out over a rolling 24
-     * hours, read from the usage events every reply writes. Over it the
-     * receptionist stops and files a `budget` escalation, as it does at the
-     * reply cap. 0 or absent is off; a value is at least a thousand, because
-     * a budget of ten would be a mute button with a misleading name.
-     */
-    max_llm_tokens_day: z.ZodOptional<z.ZodEffects<z.ZodNumber, number, number>>;
-}, "strict", z.ZodTypeAny, {
-    max_replies_day?: number | undefined;
-    pause_hours?: number | undefined;
-    reply_delay_ms?: number | undefined;
-    min_confidence?: number | undefined;
-    max_llm_tokens_day?: number | undefined;
-}, {
-    max_replies_day?: number | undefined;
-    pause_hours?: number | undefined;
-    reply_delay_ms?: number | undefined;
-    min_confidence?: number | undefined;
-    max_llm_tokens_day?: number | undefined;
-}>;
+    max_llm_tokens_day: z.ZodOptional<z.ZodNumber>;
+}, z.core.$strict>;
 type PolicyLimits = z.infer<typeof PolicyLimitsSchema>;
 interface PolicyRow {
     id: string;
@@ -4463,47 +4427,15 @@ interface PolicyRow {
 declare const IntervalSchema: z.ZodObject<{
     open: z.ZodString;
     close: z.ZodString;
-}, "strip", z.ZodTypeAny, {
-    open: string;
-    close: string;
-}, {
-    open: string;
-    close: string;
-}>;
+}, z.core.$strip>;
 declare const HoursSchema: z.ZodObject<{
-    /** "09:00". Absent or null = closed that day, which is a real answer. */
     open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
     close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-    /**
-     * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-     * actually keeps. Additive: a day that has always been one stretch keeps
-     * saying so with open/close, and no stored config is rewritten.
-     */
     intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
         open: z.ZodString;
         close: z.ZodString;
-    }, "strip", z.ZodTypeAny, {
-        open: string;
-        close: string;
-    }, {
-        open: string;
-        close: string;
-    }>, "many">>;
-}, "strict", z.ZodTypeAny, {
-    open?: string | null | undefined;
-    close?: string | null | undefined;
-    intervals?: {
-        open: string;
-        close: string;
-    }[] | undefined;
-}, {
-    open?: string | null | undefined;
-    close?: string | null | undefined;
-    intervals?: {
-        open: string;
-        close: string;
-    }[] | undefined;
-}>;
+    }, z.core.$strip>>>;
+}, z.core.$strict>;
 /**
  * A day the business is shut whatever the weekly grid says.
  *
@@ -4519,35 +4451,13 @@ declare const ClosureSchema: z.ZodObject<{
     date: z.ZodString;
     until: z.ZodOptional<z.ZodString>;
     note: z.ZodOptional<z.ZodString>;
-}, "strip", z.ZodTypeAny, {
-    date: string;
-    note?: string | undefined;
-    until?: string | undefined;
-}, {
-    date: string;
-    note?: string | undefined;
-    until?: string | undefined;
-}>;
+}, z.core.$strip>;
 declare const DAYS: readonly ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 declare const ServiceSchema: z.ZodObject<{
     name: z.ZodString;
-    /** Minutes. The receptionist is asked "how long does it take" constantly. */
     duration_min: z.ZodOptional<z.ZodNumber>;
-    /**
-     * Free text, not a number, and deliberately so: "from $45", "quoted at
-     * consult", "varies by length". A price the business cannot state flatly
-     * must not be forced into a field that looks like it can.
-     */
     price_note: z.ZodOptional<z.ZodString>;
-}, "strict", z.ZodTypeAny, {
-    name: string;
-    duration_min?: number | undefined;
-    price_note?: string | undefined;
-}, {
-    name: string;
-    duration_min?: number | undefined;
-    price_note?: string | undefined;
-}>;
+}, z.core.$strict>;
 /**
  * The rules that must survive editing.
  *
@@ -4560,24 +4470,8 @@ declare const GuardrailsSchema: z.ZodObject<{
     never_quote_prices: z.ZodOptional<z.ZodBoolean>;
     never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
     disclose_ai: z.ZodOptional<z.ZodBoolean>;
-    /**
-     * OPT-IN, unlike the three above. Those default on because absent means
-     * "the safe reading"; this one arrived after prompts were live, and a
-     * rule that defaulted on would have changed every composed prompt in
-     * production the moment it deployed.
-     */
     no_health_advice: z.ZodOptional<z.ZodBoolean>;
-}, "strict", z.ZodTypeAny, {
-    never_quote_prices?: boolean | undefined;
-    never_confirm_booking?: boolean | undefined;
-    disclose_ai?: boolean | undefined;
-    no_health_advice?: boolean | undefined;
-}, {
-    never_quote_prices?: boolean | undefined;
-    never_confirm_booking?: boolean | undefined;
-    disclose_ai?: boolean | undefined;
-    no_health_advice?: boolean | undefined;
-}>;
+}, z.core.$strict>;
 /**
  * A thing the receptionist should know that fits no field — the academy, the
  * chair rental, the parking. One topic each, said by BOTH receptionists. The
@@ -4587,294 +4481,78 @@ declare const GuardrailsSchema: z.ZodObject<{
 declare const NoteSchema: z.ZodObject<{
     title: z.ZodString;
     text: z.ZodString;
-}, "strict", z.ZodTypeAny, {
-    text: string;
-    title: string;
-}, {
-    text: string;
-    title: string;
-}>;
+}, z.core.$strict>;
 type Note = z.infer<typeof NoteSchema>;
 /**
  * How bookings may be OFFERED — never made. The receptionist sends the link;
  * these shape which open times it names first and what it says about them.
  */
 declare const BookingRulesSchema: z.ZodObject<{
-    /** Least notice for a slot, in hours. Absent = 2. */
     lead_hours: z.ZodOptional<z.ZodNumber>;
-    /** Gap kept around each existing appointment, in minutes. Absent = 0. */
     buffer_min: z.ZodOptional<z.ZodNumber>;
-    /** How far ahead open times are offered, in days. Absent = 14. */
     max_days_ahead: z.ZodOptional<z.ZodNumber>;
-    /** The shortest window worth naming, in minutes. Absent = 30. */
     slot_min: z.ZodOptional<z.ZodNumber>;
-    /** Services that need a consultation before they can be booked. */
-    consult_first: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
     party_max: z.ZodOptional<z.ZodNumber>;
-    /** Anything else about booking, one short line each. */
-    notes: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
-}, "strict", z.ZodTypeAny, {
-    lead_hours?: number | undefined;
-    buffer_min?: number | undefined;
-    max_days_ahead?: number | undefined;
-    slot_min?: number | undefined;
-    consult_first?: string[] | undefined;
-    party_max?: number | undefined;
-    notes?: string[] | undefined;
-}, {
-    lead_hours?: number | undefined;
-    buffer_min?: number | undefined;
-    max_days_ahead?: number | undefined;
-    slot_min?: number | undefined;
-    consult_first?: string[] | undefined;
-    party_max?: number | undefined;
-    notes?: string[] | undefined;
-}>;
+    notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+}, z.core.$strict>;
 type BookingRules = z.infer<typeof BookingRulesSchema>;
 /** E.164: a plus, then 7–15 digits, no leading zero. */
 declare const E164: RegExp;
 declare const BusinessProfileSchema: z.ZodObject<{
     address: z.ZodOptional<z.ZodString>;
-    hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
-        /** "09:00". Absent or null = closed that day, which is a real answer. */
+    hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+        mon: "mon";
+        tue: "tue";
+        wed: "wed";
+        thu: "thu";
+        fri: "fri";
+        sat: "sat";
+        sun: "sun";
+    }> & z.core.$partial, z.ZodObject<{
         open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
         close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-        /**
-         * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-         * actually keeps. Additive: a day that has always been one stretch keeps
-         * saying so with open/close, and no stored config is rewritten.
-         */
         intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
             open: z.ZodString;
             close: z.ZodString;
-        }, "strip", z.ZodTypeAny, {
-            open: string;
-            close: string;
-        }, {
-            open: string;
-            close: string;
-        }>, "many">>;
-    }, "strict", z.ZodTypeAny, {
-        open?: string | null | undefined;
-        close?: string | null | undefined;
-        intervals?: {
-            open: string;
-            close: string;
-        }[] | undefined;
-    }, {
-        open?: string | null | undefined;
-        close?: string | null | undefined;
-        intervals?: {
-            open: string;
-            close: string;
-        }[] | undefined;
-    }>>>;
-    /** Dates the business is shut regardless of the weekly grid. */
+        }, z.core.$strip>>>;
+    }, z.core.$strict>>>;
     closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
         date: z.ZodString;
         until: z.ZodOptional<z.ZodString>;
         note: z.ZodOptional<z.ZodString>;
-    }, "strip", z.ZodTypeAny, {
-        date: string;
-        note?: string | undefined;
-        until?: string | undefined;
-    }, {
-        date: string;
-        note?: string | undefined;
-        until?: string | undefined;
-    }>, "many">>;
+    }, z.core.$strip>>>;
     services: z.ZodOptional<z.ZodArray<z.ZodObject<{
         name: z.ZodString;
-        /** Minutes. The receptionist is asked "how long does it take" constantly. */
         duration_min: z.ZodOptional<z.ZodNumber>;
-        /**
-         * Free text, not a number, and deliberately so: "from $45", "quoted at
-         * consult", "varies by length". A price the business cannot state flatly
-         * must not be forced into a field that looks like it can.
-         */
         price_note: z.ZodOptional<z.ZodString>;
-    }, "strict", z.ZodTypeAny, {
-        name: string;
-        duration_min?: number | undefined;
-        price_note?: string | undefined;
-    }, {
-        name: string;
-        duration_min?: number | undefined;
-        price_note?: string | undefined;
-    }>, "many">>;
-    languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    }, z.core.$strict>>>;
+    languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
     guardrails: z.ZodOptional<z.ZodObject<{
         never_quote_prices: z.ZodOptional<z.ZodBoolean>;
         never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
         disclose_ai: z.ZodOptional<z.ZodBoolean>;
-        /**
-         * OPT-IN, unlike the three above. Those default on because absent means
-         * "the safe reading"; this one arrived after prompts were live, and a
-         * rule that defaulted on would have changed every composed prompt in
-         * production the moment it deployed.
-         */
         no_health_advice: z.ZodOptional<z.ZodBoolean>;
-    }, "strict", z.ZodTypeAny, {
-        never_quote_prices?: boolean | undefined;
-        never_confirm_booking?: boolean | undefined;
-        disclose_ai?: boolean | undefined;
-        no_health_advice?: boolean | undefined;
-    }, {
-        never_quote_prices?: boolean | undefined;
-        never_confirm_booking?: boolean | undefined;
-        disclose_ai?: boolean | undefined;
-        no_health_advice?: boolean | undefined;
-    }>>;
-    /** What must reach a person. One short line each. */
-    escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+    }, z.core.$strict>>;
+    escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
     tone: z.ZodOptional<z.ZodString>;
-    /**
-     * The line a PERSON answers. The phone receptionist warm-transfers here
-     * during opening hours; absent, it takes a message instead. Never the
-     * receptionist's own line — that would ring itself.
-     */
     handoff_number: z.ZodOptional<z.ZodString>;
     website: z.ZodOptional<z.ZodString>;
     notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
         title: z.ZodString;
         text: z.ZodString;
-    }, "strict", z.ZodTypeAny, {
-        text: string;
-        title: string;
-    }, {
-        text: string;
-        title: string;
-    }>, "many">>;
+    }, z.core.$strict>>>;
     booking_rules: z.ZodOptional<z.ZodObject<{
-        /** Least notice for a slot, in hours. Absent = 2. */
         lead_hours: z.ZodOptional<z.ZodNumber>;
-        /** Gap kept around each existing appointment, in minutes. Absent = 0. */
         buffer_min: z.ZodOptional<z.ZodNumber>;
-        /** How far ahead open times are offered, in days. Absent = 14. */
         max_days_ahead: z.ZodOptional<z.ZodNumber>;
-        /** The shortest window worth naming, in minutes. Absent = 30. */
         slot_min: z.ZodOptional<z.ZodNumber>;
-        /** Services that need a consultation before they can be booked. */
-        consult_first: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
         party_max: z.ZodOptional<z.ZodNumber>;
-        /** Anything else about booking, one short line each. */
-        notes: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
-    }, "strict", z.ZodTypeAny, {
-        lead_hours?: number | undefined;
-        buffer_min?: number | undefined;
-        max_days_ahead?: number | undefined;
-        slot_min?: number | undefined;
-        consult_first?: string[] | undefined;
-        party_max?: number | undefined;
-        notes?: string[] | undefined;
-    }, {
-        lead_hours?: number | undefined;
-        buffer_min?: number | undefined;
-        max_days_ahead?: number | undefined;
-        slot_min?: number | undefined;
-        consult_first?: string[] | undefined;
-        party_max?: number | undefined;
-        notes?: string[] | undefined;
-    }>>;
-    /**
-     * Anything the owner wants said that no field covers.
-     *
-     * The escape hatch that keeps this model honest — without it, structuring
-     * the facts would mean losing whatever did not fit, and the first migration
-     * would be a downgrade.
-     */
+        notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+    }, z.core.$strict>>;
     extra_instructions: z.ZodOptional<z.ZodString>;
-}, "strict", z.ZodTypeAny, {
-    hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-        open?: string | null | undefined;
-        close?: string | null | undefined;
-        intervals?: {
-            open: string;
-            close: string;
-        }[] | undefined;
-    }>> | undefined;
-    services?: {
-        name: string;
-        duration_min?: number | undefined;
-        price_note?: string | undefined;
-    }[] | undefined;
-    address?: string | undefined;
-    website?: string | undefined;
-    handoff_number?: string | undefined;
-    tone?: string | undefined;
-    notes?: {
-        text: string;
-        title: string;
-    }[] | undefined;
-    closures?: {
-        date: string;
-        note?: string | undefined;
-        until?: string | undefined;
-    }[] | undefined;
-    languages?: string[] | undefined;
-    guardrails?: {
-        never_quote_prices?: boolean | undefined;
-        never_confirm_booking?: boolean | undefined;
-        disclose_ai?: boolean | undefined;
-        no_health_advice?: boolean | undefined;
-    } | undefined;
-    escalate_when?: string[] | undefined;
-    booking_rules?: {
-        lead_hours?: number | undefined;
-        buffer_min?: number | undefined;
-        max_days_ahead?: number | undefined;
-        slot_min?: number | undefined;
-        consult_first?: string[] | undefined;
-        party_max?: number | undefined;
-        notes?: string[] | undefined;
-    } | undefined;
-    extra_instructions?: string | undefined;
-}, {
-    hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-        open?: string | null | undefined;
-        close?: string | null | undefined;
-        intervals?: {
-            open: string;
-            close: string;
-        }[] | undefined;
-    }>> | undefined;
-    services?: {
-        name: string;
-        duration_min?: number | undefined;
-        price_note?: string | undefined;
-    }[] | undefined;
-    address?: string | undefined;
-    website?: string | undefined;
-    handoff_number?: string | undefined;
-    tone?: string | undefined;
-    notes?: {
-        text: string;
-        title: string;
-    }[] | undefined;
-    closures?: {
-        date: string;
-        note?: string | undefined;
-        until?: string | undefined;
-    }[] | undefined;
-    languages?: string[] | undefined;
-    guardrails?: {
-        never_quote_prices?: boolean | undefined;
-        never_confirm_booking?: boolean | undefined;
-        disclose_ai?: boolean | undefined;
-        no_health_advice?: boolean | undefined;
-    } | undefined;
-    escalate_when?: string[] | undefined;
-    booking_rules?: {
-        lead_hours?: number | undefined;
-        buffer_min?: number | undefined;
-        max_days_ahead?: number | undefined;
-        slot_min?: number | undefined;
-        consult_first?: string[] | undefined;
-        party_max?: number | undefined;
-        notes?: string[] | undefined;
-    } | undefined;
-    extra_instructions?: string | undefined;
-}>;
+}, z.core.$strict>;
 type BusinessProfile = z.infer<typeof BusinessProfileSchema>;
 type Hours = z.infer<typeof HoursSchema>;
 type Service = z.infer<typeof ServiceSchema>;
@@ -4882,406 +4560,69 @@ type Interval = z.infer<typeof IntervalSchema>;
 type Closure = z.infer<typeof ClosureSchema>;
 declare const BrainConfigSchema: z.ZodObject<{
     business_name: z.ZodString;
-    /**
-     * The number the receptionist tells customers to call — an OVERRIDE, and
-     * optional because it should almost never be set.
-     *
-     * It was required, free text, and named the same as the line the
-     * receptionist answers, so every workspace typed something into it and
-     * nothing checked what. On the first live salon that produced a
-     * receptionist publishing the number it transfers to: customers who rang
-     * it reached a person's mobile and never the receptionist standing by,
-     * and the same string went to Google.
-     *
-     * Absent is now the right answer and the default: resolveFacts falls back
-     * to the provisioned voice line, formatted for speech, so the number
-     * published is the number answered by construction. A value here means a
-     * business deliberately publishes something else — a tracking line, a
-     * shopfront — and the pane says so in those words.
-     */
     phone_display: z.ZodOptional<z.ZodString>;
     booking_link: z.ZodString;
-    /** The complete system prompt the model receives — the "AI memory" pane's
-     *  one hard promise is that what it shows is EXACTLY this, nothing more. */
     system_prompt: z.ZodString;
-    /**
-     * The business's facts, as fields.
-     *
-     * Optional: every config written before this existed stays valid, and
-     * nothing composes until a workspace actually fills it in. When present
-     * it REPLACES system_prompt as the source the prompt is built from.
-     */
     profile: z.ZodOptional<z.ZodObject<{
         address: z.ZodOptional<z.ZodString>;
-        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
-            /** "09:00". Absent or null = closed that day, which is a real answer. */
+        hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+            mon: "mon";
+            tue: "tue";
+            wed: "wed";
+            thu: "thu";
+            fri: "fri";
+            sat: "sat";
+            sun: "sun";
+        }> & z.core.$partial, z.ZodObject<{
             open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
             close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-            /**
-             * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-             * actually keeps. Additive: a day that has always been one stretch keeps
-             * saying so with open/close, and no stored config is rewritten.
-             */
             intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 open: z.ZodString;
                 close: z.ZodString;
-            }, "strip", z.ZodTypeAny, {
-                open: string;
-                close: string;
-            }, {
-                open: string;
-                close: string;
-            }>, "many">>;
-        }, "strict", z.ZodTypeAny, {
-            open?: string | null | undefined;
-            close?: string | null | undefined;
-            intervals?: {
-                open: string;
-                close: string;
-            }[] | undefined;
-        }, {
-            open?: string | null | undefined;
-            close?: string | null | undefined;
-            intervals?: {
-                open: string;
-                close: string;
-            }[] | undefined;
-        }>>>;
-        /** Dates the business is shut regardless of the weekly grid. */
+            }, z.core.$strip>>>;
+        }, z.core.$strict>>>;
         closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
             date: z.ZodString;
             until: z.ZodOptional<z.ZodString>;
             note: z.ZodOptional<z.ZodString>;
-        }, "strip", z.ZodTypeAny, {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }, {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }>, "many">>;
+        }, z.core.$strip>>>;
         services: z.ZodOptional<z.ZodArray<z.ZodObject<{
             name: z.ZodString;
-            /** Minutes. The receptionist is asked "how long does it take" constantly. */
             duration_min: z.ZodOptional<z.ZodNumber>;
-            /**
-             * Free text, not a number, and deliberately so: "from $45", "quoted at
-             * consult", "varies by length". A price the business cannot state flatly
-             * must not be forced into a field that looks like it can.
-             */
             price_note: z.ZodOptional<z.ZodString>;
-        }, "strict", z.ZodTypeAny, {
-            name: string;
-            duration_min?: number | undefined;
-            price_note?: string | undefined;
-        }, {
-            name: string;
-            duration_min?: number | undefined;
-            price_note?: string | undefined;
-        }>, "many">>;
-        languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        }, z.core.$strict>>>;
+        languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
         guardrails: z.ZodOptional<z.ZodObject<{
             never_quote_prices: z.ZodOptional<z.ZodBoolean>;
             never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
             disclose_ai: z.ZodOptional<z.ZodBoolean>;
-            /**
-             * OPT-IN, unlike the three above. Those default on because absent means
-             * "the safe reading"; this one arrived after prompts were live, and a
-             * rule that defaulted on would have changed every composed prompt in
-             * production the moment it deployed.
-             */
             no_health_advice: z.ZodOptional<z.ZodBoolean>;
-        }, "strict", z.ZodTypeAny, {
-            never_quote_prices?: boolean | undefined;
-            never_confirm_booking?: boolean | undefined;
-            disclose_ai?: boolean | undefined;
-            no_health_advice?: boolean | undefined;
-        }, {
-            never_quote_prices?: boolean | undefined;
-            never_confirm_booking?: boolean | undefined;
-            disclose_ai?: boolean | undefined;
-            no_health_advice?: boolean | undefined;
-        }>>;
-        /** What must reach a person. One short line each. */
-        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+        }, z.core.$strict>>;
+        escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
         tone: z.ZodOptional<z.ZodString>;
-        /**
-         * The line a PERSON answers. The phone receptionist warm-transfers here
-         * during opening hours; absent, it takes a message instead. Never the
-         * receptionist's own line — that would ring itself.
-         */
         handoff_number: z.ZodOptional<z.ZodString>;
         website: z.ZodOptional<z.ZodString>;
         notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
             title: z.ZodString;
             text: z.ZodString;
-        }, "strict", z.ZodTypeAny, {
-            text: string;
-            title: string;
-        }, {
-            text: string;
-            title: string;
-        }>, "many">>;
+        }, z.core.$strict>>>;
         booking_rules: z.ZodOptional<z.ZodObject<{
-            /** Least notice for a slot, in hours. Absent = 2. */
             lead_hours: z.ZodOptional<z.ZodNumber>;
-            /** Gap kept around each existing appointment, in minutes. Absent = 0. */
             buffer_min: z.ZodOptional<z.ZodNumber>;
-            /** How far ahead open times are offered, in days. Absent = 14. */
             max_days_ahead: z.ZodOptional<z.ZodNumber>;
-            /** The shortest window worth naming, in minutes. Absent = 30. */
             slot_min: z.ZodOptional<z.ZodNumber>;
-            /** Services that need a consultation before they can be booked. */
-            consult_first: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
             party_max: z.ZodOptional<z.ZodNumber>;
-            /** Anything else about booking, one short line each. */
-            notes: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
-        }, "strict", z.ZodTypeAny, {
-            lead_hours?: number | undefined;
-            buffer_min?: number | undefined;
-            max_days_ahead?: number | undefined;
-            slot_min?: number | undefined;
-            consult_first?: string[] | undefined;
-            party_max?: number | undefined;
-            notes?: string[] | undefined;
-        }, {
-            lead_hours?: number | undefined;
-            buffer_min?: number | undefined;
-            max_days_ahead?: number | undefined;
-            slot_min?: number | undefined;
-            consult_first?: string[] | undefined;
-            party_max?: number | undefined;
-            notes?: string[] | undefined;
-        }>>;
-        /**
-         * Anything the owner wants said that no field covers.
-         *
-         * The escape hatch that keeps this model honest — without it, structuring
-         * the facts would mean losing whatever did not fit, and the first migration
-         * would be a downgrade.
-         */
+            notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+        }, z.core.$strict>>;
         extra_instructions: z.ZodOptional<z.ZodString>;
-    }, "strict", z.ZodTypeAny, {
-        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-            open?: string | null | undefined;
-            close?: string | null | undefined;
-            intervals?: {
-                open: string;
-                close: string;
-            }[] | undefined;
-        }>> | undefined;
-        services?: {
-            name: string;
-            duration_min?: number | undefined;
-            price_note?: string | undefined;
-        }[] | undefined;
-        address?: string | undefined;
-        website?: string | undefined;
-        handoff_number?: string | undefined;
-        tone?: string | undefined;
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
-        languages?: string[] | undefined;
-        guardrails?: {
-            never_quote_prices?: boolean | undefined;
-            never_confirm_booking?: boolean | undefined;
-            disclose_ai?: boolean | undefined;
-            no_health_advice?: boolean | undefined;
-        } | undefined;
-        escalate_when?: string[] | undefined;
-        booking_rules?: {
-            lead_hours?: number | undefined;
-            buffer_min?: number | undefined;
-            max_days_ahead?: number | undefined;
-            slot_min?: number | undefined;
-            consult_first?: string[] | undefined;
-            party_max?: number | undefined;
-            notes?: string[] | undefined;
-        } | undefined;
-        extra_instructions?: string | undefined;
-    }, {
-        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-            open?: string | null | undefined;
-            close?: string | null | undefined;
-            intervals?: {
-                open: string;
-                close: string;
-            }[] | undefined;
-        }>> | undefined;
-        services?: {
-            name: string;
-            duration_min?: number | undefined;
-            price_note?: string | undefined;
-        }[] | undefined;
-        address?: string | undefined;
-        website?: string | undefined;
-        handoff_number?: string | undefined;
-        tone?: string | undefined;
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
-        languages?: string[] | undefined;
-        guardrails?: {
-            never_quote_prices?: boolean | undefined;
-            never_confirm_booking?: boolean | undefined;
-            disclose_ai?: boolean | undefined;
-            no_health_advice?: boolean | undefined;
-        } | undefined;
-        escalate_when?: string[] | undefined;
-        booking_rules?: {
-            lead_hours?: number | undefined;
-            buffer_min?: number | undefined;
-            max_days_ahead?: number | undefined;
-            slot_min?: number | undefined;
-            consult_first?: string[] | undefined;
-            party_max?: number | undefined;
-            notes?: string[] | undefined;
-        } | undefined;
-        extra_instructions?: string | undefined;
-    }>>;
+    }, z.core.$strict>>;
     fallbacks: z.ZodObject<{
-        /** Sent when no model key is configured. */
         greeting: z.ZodString;
-        /** Sent when the model call failed. */
         error: z.ZodString;
-        /** Sent for voice notes / photos before escalating. */
         non_text: z.ZodString;
-    }, "strict", z.ZodTypeAny, {
-        non_text: string;
-        error: string;
-        greeting: string;
-    }, {
-        non_text: string;
-        error: string;
-        greeting: string;
-    }>;
-}, "strict", z.ZodTypeAny, {
-    business_name: string;
-    booking_link: string;
-    system_prompt: string;
-    fallbacks: {
-        non_text: string;
-        error: string;
-        greeting: string;
-    };
-    profile?: {
-        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-            open?: string | null | undefined;
-            close?: string | null | undefined;
-            intervals?: {
-                open: string;
-                close: string;
-            }[] | undefined;
-        }>> | undefined;
-        services?: {
-            name: string;
-            duration_min?: number | undefined;
-            price_note?: string | undefined;
-        }[] | undefined;
-        address?: string | undefined;
-        website?: string | undefined;
-        handoff_number?: string | undefined;
-        tone?: string | undefined;
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
-        languages?: string[] | undefined;
-        guardrails?: {
-            never_quote_prices?: boolean | undefined;
-            never_confirm_booking?: boolean | undefined;
-            disclose_ai?: boolean | undefined;
-            no_health_advice?: boolean | undefined;
-        } | undefined;
-        escalate_when?: string[] | undefined;
-        booking_rules?: {
-            lead_hours?: number | undefined;
-            buffer_min?: number | undefined;
-            max_days_ahead?: number | undefined;
-            slot_min?: number | undefined;
-            consult_first?: string[] | undefined;
-            party_max?: number | undefined;
-            notes?: string[] | undefined;
-        } | undefined;
-        extra_instructions?: string | undefined;
-    } | undefined;
-    phone_display?: string | undefined;
-}, {
-    business_name: string;
-    booking_link: string;
-    system_prompt: string;
-    fallbacks: {
-        non_text: string;
-        error: string;
-        greeting: string;
-    };
-    profile?: {
-        hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-            open?: string | null | undefined;
-            close?: string | null | undefined;
-            intervals?: {
-                open: string;
-                close: string;
-            }[] | undefined;
-        }>> | undefined;
-        services?: {
-            name: string;
-            duration_min?: number | undefined;
-            price_note?: string | undefined;
-        }[] | undefined;
-        address?: string | undefined;
-        website?: string | undefined;
-        handoff_number?: string | undefined;
-        tone?: string | undefined;
-        notes?: {
-            text: string;
-            title: string;
-        }[] | undefined;
-        closures?: {
-            date: string;
-            note?: string | undefined;
-            until?: string | undefined;
-        }[] | undefined;
-        languages?: string[] | undefined;
-        guardrails?: {
-            never_quote_prices?: boolean | undefined;
-            never_confirm_booking?: boolean | undefined;
-            disclose_ai?: boolean | undefined;
-            no_health_advice?: boolean | undefined;
-        } | undefined;
-        escalate_when?: string[] | undefined;
-        booking_rules?: {
-            lead_hours?: number | undefined;
-            buffer_min?: number | undefined;
-            max_days_ahead?: number | undefined;
-            slot_min?: number | undefined;
-            consult_first?: string[] | undefined;
-            party_max?: number | undefined;
-            notes?: string[] | undefined;
-        } | undefined;
-        extra_instructions?: string | undefined;
-    } | undefined;
-    phone_display?: string | undefined;
-}>;
+    }, z.core.$strict>;
+}, z.core.$strict>;
 type BrainConfig = z.infer<typeof BrainConfigSchema>;
 /**
  * The parts of a brand-new receptionist nobody should have to write.
@@ -5302,15 +4643,9 @@ type BrainConfig = z.infer<typeof BrainConfigSchema>;
  */
 declare function newReceptionistDefaults(businessName: string, phoneDisplay: string, bookingLink: string): Pick<BrainConfig, "system_prompt" | "fallbacks">;
 declare const NotificationsConfigSchema: z.ZodObject<{
-    escalation_emails: z.ZodArray<z.ZodString, "many">;
+    escalation_emails: z.ZodArray<z.ZodString>;
     from: z.ZodOptional<z.ZodString>;
-}, "strict", z.ZodTypeAny, {
-    escalation_emails: string[];
-    from?: string | undefined;
-}, {
-    escalation_emails: string[];
-    from?: string | undefined;
-}>;
+}, z.core.$strict>;
 type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
 /**
  * The whole tenant_config.config column. Sections are optional — a tenant with
@@ -5340,12 +4675,8 @@ type NotificationsConfig = z.infer<typeof NotificationsConfigSchema>;
  * whichever tool is behind it.
  */
 declare const CalendarConfigSchema: z.ZodObject<{
-    ical_url: z.ZodEffects<z.ZodString, string, string>;
-}, "strict", z.ZodTypeAny, {
-    ical_url: string;
-}, {
-    ical_url: string;
-}>;
+    ical_url: z.ZodString;
+}, z.core.$strict>;
 type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
 /**
  * Opt-in abilities, off unless the workspace turns them on.
@@ -5356,576 +4687,85 @@ type CalendarConfig = z.infer<typeof CalendarConfigSchema>;
  */
 declare const FeaturesConfigSchema: z.ZodObject<{
     vision: z.ZodOptional<z.ZodBoolean>;
-}, "strict", z.ZodTypeAny, {
-    vision?: boolean | undefined;
-}, {
-    vision?: boolean | undefined;
-}>;
+}, z.core.$strict>;
 type FeaturesConfig = z.infer<typeof FeaturesConfigSchema>;
 declare const TenantConfigSchema: z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
-        /**
-         * The number the receptionist tells customers to call — an OVERRIDE, and
-         * optional because it should almost never be set.
-         *
-         * It was required, free text, and named the same as the line the
-         * receptionist answers, so every workspace typed something into it and
-         * nothing checked what. On the first live salon that produced a
-         * receptionist publishing the number it transfers to: customers who rang
-         * it reached a person's mobile and never the receptionist standing by,
-         * and the same string went to Google.
-         *
-         * Absent is now the right answer and the default: resolveFacts falls back
-         * to the provisioned voice line, formatted for speech, so the number
-         * published is the number answered by construction. A value here means a
-         * business deliberately publishes something else — a tracking line, a
-         * shopfront — and the pane says so in those words.
-         */
         phone_display: z.ZodOptional<z.ZodString>;
         booking_link: z.ZodString;
-        /** The complete system prompt the model receives — the "AI memory" pane's
-         *  one hard promise is that what it shows is EXACTLY this, nothing more. */
         system_prompt: z.ZodString;
-        /**
-         * The business's facts, as fields.
-         *
-         * Optional: every config written before this existed stays valid, and
-         * nothing composes until a workspace actually fills it in. When present
-         * it REPLACES system_prompt as the source the prompt is built from.
-         */
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
-            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
-                /** "09:00". Absent or null = closed that day, which is a real answer. */
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                mon: "mon";
+                tue: "tue";
+                wed: "wed";
+                thu: "thu";
+                fri: "fri";
+                sat: "sat";
+                sun: "sun";
+            }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                /**
-                 * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-                 * actually keeps. Additive: a day that has always been one stretch keeps
-                 * saying so with open/close, and no stored config is rewritten.
-                 */
                 intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
                     open: z.ZodString;
                     close: z.ZodString;
-                }, "strip", z.ZodTypeAny, {
-                    open: string;
-                    close: string;
-                }, {
-                    open: string;
-                    close: string;
-                }>, "many">>;
-            }, "strict", z.ZodTypeAny, {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }, {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>>>;
-            /** Dates the business is shut regardless of the weekly grid. */
+                }, z.core.$strip>>>;
+            }, z.core.$strict>>>;
             closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 date: z.ZodString;
                 until: z.ZodOptional<z.ZodString>;
                 note: z.ZodOptional<z.ZodString>;
-            }, "strip", z.ZodTypeAny, {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }, {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }>, "many">>;
+            }, z.core.$strip>>>;
             services: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 name: z.ZodString;
-                /** Minutes. The receptionist is asked "how long does it take" constantly. */
                 duration_min: z.ZodOptional<z.ZodNumber>;
-                /**
-                 * Free text, not a number, and deliberately so: "from $45", "quoted at
-                 * consult", "varies by length". A price the business cannot state flatly
-                 * must not be forced into a field that looks like it can.
-                 */
                 price_note: z.ZodOptional<z.ZodString>;
-            }, "strict", z.ZodTypeAny, {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }, {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }>, "many">>;
-            languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            }, z.core.$strict>>>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
             guardrails: z.ZodOptional<z.ZodObject<{
                 never_quote_prices: z.ZodOptional<z.ZodBoolean>;
                 never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
                 disclose_ai: z.ZodOptional<z.ZodBoolean>;
-                /**
-                 * OPT-IN, unlike the three above. Those default on because absent means
-                 * "the safe reading"; this one arrived after prompts were live, and a
-                 * rule that defaulted on would have changed every composed prompt in
-                 * production the moment it deployed.
-                 */
                 no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, "strict", z.ZodTypeAny, {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            }, {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            }>>;
-            /** What must reach a person. One short line each. */
-            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            }, z.core.$strict>>;
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
             tone: z.ZodOptional<z.ZodString>;
-            /**
-             * The line a PERSON answers. The phone receptionist warm-transfers here
-             * during opening hours; absent, it takes a message instead. Never the
-             * receptionist's own line — that would ring itself.
-             */
             handoff_number: z.ZodOptional<z.ZodString>;
             website: z.ZodOptional<z.ZodString>;
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;
                 text: z.ZodString;
-            }, "strict", z.ZodTypeAny, {
-                text: string;
-                title: string;
-            }, {
-                text: string;
-                title: string;
-            }>, "many">>;
+            }, z.core.$strict>>>;
             booking_rules: z.ZodOptional<z.ZodObject<{
-                /** Least notice for a slot, in hours. Absent = 2. */
                 lead_hours: z.ZodOptional<z.ZodNumber>;
-                /** Gap kept around each existing appointment, in minutes. Absent = 0. */
                 buffer_min: z.ZodOptional<z.ZodNumber>;
-                /** How far ahead open times are offered, in days. Absent = 14. */
                 max_days_ahead: z.ZodOptional<z.ZodNumber>;
-                /** The shortest window worth naming, in minutes. Absent = 30. */
                 slot_min: z.ZodOptional<z.ZodNumber>;
-                /** Services that need a consultation before they can be booked. */
-                consult_first: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 party_max: z.ZodOptional<z.ZodNumber>;
-                /** Anything else about booking, one short line each. */
-                notes: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
-            }, "strict", z.ZodTypeAny, {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            }, {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            }>>;
-            /**
-             * Anything the owner wants said that no field covers.
-             *
-             * The escape hatch that keeps this model honest — without it, structuring
-             * the facts would mean losing whatever did not fit, and the first migration
-             * would be a downgrade.
-             */
+                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>>;
             extra_instructions: z.ZodOptional<z.ZodString>;
-        }, "strict", z.ZodTypeAny, {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        }, {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        }>>;
+        }, z.core.$strict>>;
         fallbacks: z.ZodObject<{
-            /** Sent when no model key is configured. */
             greeting: z.ZodString;
-            /** Sent when the model call failed. */
             error: z.ZodString;
-            /** Sent for voice notes / photos before escalating. */
             non_text: z.ZodString;
-        }, "strict", z.ZodTypeAny, {
-            non_text: string;
-            error: string;
-            greeting: string;
-        }, {
-            non_text: string;
-            error: string;
-            greeting: string;
-        }>;
-    }, "strict", z.ZodTypeAny, {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    }, {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    }>>;
+        }, z.core.$strict>;
+    }, z.core.$strict>>;
     notifications: z.ZodOptional<z.ZodObject<{
-        escalation_emails: z.ZodArray<z.ZodString, "many">;
+        escalation_emails: z.ZodArray<z.ZodString>;
         from: z.ZodOptional<z.ZodString>;
-    }, "strict", z.ZodTypeAny, {
-        escalation_emails: string[];
-        from?: string | undefined;
-    }, {
-        escalation_emails: string[];
-        from?: string | undefined;
-    }>>;
+    }, z.core.$strict>>;
     calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodEffects<z.ZodString, string, string>;
-    }, "strict", z.ZodTypeAny, {
-        ical_url: string;
-    }, {
-        ical_url: string;
-    }>>;
+        ical_url: z.ZodString;
+    }, z.core.$strict>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;
-    }, "strict", z.ZodTypeAny, {
-        vision?: boolean | undefined;
-    }, {
-        vision?: boolean | undefined;
-    }>>;
-}, "strip", z.ZodTypeAny, {
-    calendar?: {
-        ical_url: string;
-    } | undefined;
-    notifications?: {
-        escalation_emails: string[];
-        from?: string | undefined;
-    } | undefined;
-    features?: {
-        vision?: boolean | undefined;
-    } | undefined;
-    brain?: {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    } | undefined;
-}, {
-    calendar?: {
-        ical_url: string;
-    } | undefined;
-    notifications?: {
-        escalation_emails: string[];
-        from?: string | undefined;
-    } | undefined;
-    features?: {
-        vision?: boolean | undefined;
-    } | undefined;
-    brain?: {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    } | undefined;
-}>;
+    }, z.core.$strict>>;
+}, z.core.$strip>;
 type TenantConfig = z.infer<typeof TenantConfigSchema>;
 /** The most shifts one day may be split into. Must match the editor's cap. */
 declare const MAX_INTERVALS_PER_DAY = 4;
@@ -5940,706 +4780,83 @@ declare function isRealDate(key: string): boolean;
  * lenience stay defined in exactly one place and this can only ever be
  * stricter.
  */
-declare const TenantConfigWriteSchema: z.ZodEffects<z.ZodObject<{
+declare const TenantConfigWriteSchema: z.ZodObject<{
     brain: z.ZodOptional<z.ZodObject<{
         business_name: z.ZodString;
-        /**
-         * The number the receptionist tells customers to call — an OVERRIDE, and
-         * optional because it should almost never be set.
-         *
-         * It was required, free text, and named the same as the line the
-         * receptionist answers, so every workspace typed something into it and
-         * nothing checked what. On the first live salon that produced a
-         * receptionist publishing the number it transfers to: customers who rang
-         * it reached a person's mobile and never the receptionist standing by,
-         * and the same string went to Google.
-         *
-         * Absent is now the right answer and the default: resolveFacts falls back
-         * to the provisioned voice line, formatted for speech, so the number
-         * published is the number answered by construction. A value here means a
-         * business deliberately publishes something else — a tracking line, a
-         * shopfront — and the pane says so in those words.
-         */
         phone_display: z.ZodOptional<z.ZodString>;
         booking_link: z.ZodString;
-        /** The complete system prompt the model receives — the "AI memory" pane's
-         *  one hard promise is that what it shows is EXACTLY this, nothing more. */
         system_prompt: z.ZodString;
-        /**
-         * The business's facts, as fields.
-         *
-         * Optional: every config written before this existed stays valid, and
-         * nothing composes until a workspace actually fills it in. When present
-         * it REPLACES system_prompt as the source the prompt is built from.
-         */
         profile: z.ZodOptional<z.ZodObject<{
             address: z.ZodOptional<z.ZodString>;
-            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>, z.ZodObject<{
-                /** "09:00". Absent or null = closed that day, which is a real answer. */
+            hours: z.ZodOptional<z.ZodRecord<z.ZodEnum<{
+                mon: "mon";
+                tue: "tue";
+                wed: "wed";
+                thu: "thu";
+                fri: "fri";
+                sat: "sat";
+                sun: "sun";
+            }> & z.core.$partial, z.ZodObject<{
                 open: z.ZodOptional<z.ZodNullable<z.ZodString>>;
                 close: z.ZodOptional<z.ZodNullable<z.ZodString>>;
-                /**
-                 * Split shifts — 09:30-13:00 and 15:00-19:00, the lunch break a salon
-                 * actually keeps. Additive: a day that has always been one stretch keeps
-                 * saying so with open/close, and no stored config is rewritten.
-                 */
                 intervals: z.ZodOptional<z.ZodArray<z.ZodObject<{
                     open: z.ZodString;
                     close: z.ZodString;
-                }, "strip", z.ZodTypeAny, {
-                    open: string;
-                    close: string;
-                }, {
-                    open: string;
-                    close: string;
-                }>, "many">>;
-            }, "strict", z.ZodTypeAny, {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }, {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>>>;
-            /** Dates the business is shut regardless of the weekly grid. */
+                }, z.core.$strip>>>;
+            }, z.core.$strict>>>;
             closures: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 date: z.ZodString;
                 until: z.ZodOptional<z.ZodString>;
                 note: z.ZodOptional<z.ZodString>;
-            }, "strip", z.ZodTypeAny, {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }, {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }>, "many">>;
+            }, z.core.$strip>>>;
             services: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 name: z.ZodString;
-                /** Minutes. The receptionist is asked "how long does it take" constantly. */
                 duration_min: z.ZodOptional<z.ZodNumber>;
-                /**
-                 * Free text, not a number, and deliberately so: "from $45", "quoted at
-                 * consult", "varies by length". A price the business cannot state flatly
-                 * must not be forced into a field that looks like it can.
-                 */
                 price_note: z.ZodOptional<z.ZodString>;
-            }, "strict", z.ZodTypeAny, {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }, {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }>, "many">>;
-            languages: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            }, z.core.$strict>>>;
+            languages: z.ZodOptional<z.ZodArray<z.ZodString>>;
             guardrails: z.ZodOptional<z.ZodObject<{
                 never_quote_prices: z.ZodOptional<z.ZodBoolean>;
                 never_confirm_booking: z.ZodOptional<z.ZodBoolean>;
                 disclose_ai: z.ZodOptional<z.ZodBoolean>;
-                /**
-                 * OPT-IN, unlike the three above. Those default on because absent means
-                 * "the safe reading"; this one arrived after prompts were live, and a
-                 * rule that defaulted on would have changed every composed prompt in
-                 * production the moment it deployed.
-                 */
                 no_health_advice: z.ZodOptional<z.ZodBoolean>;
-            }, "strict", z.ZodTypeAny, {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            }, {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            }>>;
-            /** What must reach a person. One short line each. */
-            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+            }, z.core.$strict>>;
+            escalate_when: z.ZodOptional<z.ZodArray<z.ZodString>>;
             tone: z.ZodOptional<z.ZodString>;
-            /**
-             * The line a PERSON answers. The phone receptionist warm-transfers here
-             * during opening hours; absent, it takes a message instead. Never the
-             * receptionist's own line — that would ring itself.
-             */
             handoff_number: z.ZodOptional<z.ZodString>;
             website: z.ZodOptional<z.ZodString>;
             notes: z.ZodOptional<z.ZodArray<z.ZodObject<{
                 title: z.ZodString;
                 text: z.ZodString;
-            }, "strict", z.ZodTypeAny, {
-                text: string;
-                title: string;
-            }, {
-                text: string;
-                title: string;
-            }>, "many">>;
+            }, z.core.$strict>>>;
             booking_rules: z.ZodOptional<z.ZodObject<{
-                /** Least notice for a slot, in hours. Absent = 2. */
                 lead_hours: z.ZodOptional<z.ZodNumber>;
-                /** Gap kept around each existing appointment, in minutes. Absent = 0. */
                 buffer_min: z.ZodOptional<z.ZodNumber>;
-                /** How far ahead open times are offered, in days. Absent = 14. */
                 max_days_ahead: z.ZodOptional<z.ZodNumber>;
-                /** The shortest window worth naming, in minutes. Absent = 30. */
                 slot_min: z.ZodOptional<z.ZodNumber>;
-                /** Services that need a consultation before they can be booked. */
-                consult_first: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
+                consult_first: z.ZodOptional<z.ZodArray<z.ZodString>>;
                 party_max: z.ZodOptional<z.ZodNumber>;
-                /** Anything else about booking, one short line each. */
-                notes: z.ZodOptional<z.ZodArray<z.ZodString, "many">>;
-            }, "strict", z.ZodTypeAny, {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            }, {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            }>>;
-            /**
-             * Anything the owner wants said that no field covers.
-             *
-             * The escape hatch that keeps this model honest — without it, structuring
-             * the facts would mean losing whatever did not fit, and the first migration
-             * would be a downgrade.
-             */
+                notes: z.ZodOptional<z.ZodArray<z.ZodString>>;
+            }, z.core.$strict>>;
             extra_instructions: z.ZodOptional<z.ZodString>;
-        }, "strict", z.ZodTypeAny, {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        }, {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        }>>;
+        }, z.core.$strict>>;
         fallbacks: z.ZodObject<{
-            /** Sent when no model key is configured. */
             greeting: z.ZodString;
-            /** Sent when the model call failed. */
             error: z.ZodString;
-            /** Sent for voice notes / photos before escalating. */
             non_text: z.ZodString;
-        }, "strict", z.ZodTypeAny, {
-            non_text: string;
-            error: string;
-            greeting: string;
-        }, {
-            non_text: string;
-            error: string;
-            greeting: string;
-        }>;
-    }, "strict", z.ZodTypeAny, {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    }, {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    }>>;
+        }, z.core.$strict>;
+    }, z.core.$strict>>;
     notifications: z.ZodOptional<z.ZodObject<{
-        escalation_emails: z.ZodArray<z.ZodString, "many">;
+        escalation_emails: z.ZodArray<z.ZodString>;
         from: z.ZodOptional<z.ZodString>;
-    }, "strict", z.ZodTypeAny, {
-        escalation_emails: string[];
-        from?: string | undefined;
-    }, {
-        escalation_emails: string[];
-        from?: string | undefined;
-    }>>;
+    }, z.core.$strict>>;
     calendar: z.ZodOptional<z.ZodObject<{
-        ical_url: z.ZodEffects<z.ZodString, string, string>;
-    }, "strict", z.ZodTypeAny, {
-        ical_url: string;
-    }, {
-        ical_url: string;
-    }>>;
+        ical_url: z.ZodString;
+    }, z.core.$strict>>;
     features: z.ZodOptional<z.ZodObject<{
         vision: z.ZodOptional<z.ZodBoolean>;
-    }, "strict", z.ZodTypeAny, {
-        vision?: boolean | undefined;
-    }, {
-        vision?: boolean | undefined;
-    }>>;
-}, "strip", z.ZodTypeAny, {
-    calendar?: {
-        ical_url: string;
-    } | undefined;
-    notifications?: {
-        escalation_emails: string[];
-        from?: string | undefined;
-    } | undefined;
-    features?: {
-        vision?: boolean | undefined;
-    } | undefined;
-    brain?: {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    } | undefined;
-}, {
-    calendar?: {
-        ical_url: string;
-    } | undefined;
-    notifications?: {
-        escalation_emails: string[];
-        from?: string | undefined;
-    } | undefined;
-    features?: {
-        vision?: boolean | undefined;
-    } | undefined;
-    brain?: {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    } | undefined;
-}>, {
-    calendar?: {
-        ical_url: string;
-    } | undefined;
-    notifications?: {
-        escalation_emails: string[];
-        from?: string | undefined;
-    } | undefined;
-    features?: {
-        vision?: boolean | undefined;
-    } | undefined;
-    brain?: {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    } | undefined;
-}, {
-    calendar?: {
-        ical_url: string;
-    } | undefined;
-    notifications?: {
-        escalation_emails: string[];
-        from?: string | undefined;
-    } | undefined;
-    features?: {
-        vision?: boolean | undefined;
-    } | undefined;
-    brain?: {
-        business_name: string;
-        booking_link: string;
-        system_prompt: string;
-        fallbacks: {
-            non_text: string;
-            error: string;
-            greeting: string;
-        };
-        profile?: {
-            hours?: Partial<Record<"mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun", {
-                open?: string | null | undefined;
-                close?: string | null | undefined;
-                intervals?: {
-                    open: string;
-                    close: string;
-                }[] | undefined;
-            }>> | undefined;
-            services?: {
-                name: string;
-                duration_min?: number | undefined;
-                price_note?: string | undefined;
-            }[] | undefined;
-            address?: string | undefined;
-            website?: string | undefined;
-            handoff_number?: string | undefined;
-            tone?: string | undefined;
-            notes?: {
-                text: string;
-                title: string;
-            }[] | undefined;
-            closures?: {
-                date: string;
-                note?: string | undefined;
-                until?: string | undefined;
-            }[] | undefined;
-            languages?: string[] | undefined;
-            guardrails?: {
-                never_quote_prices?: boolean | undefined;
-                never_confirm_booking?: boolean | undefined;
-                disclose_ai?: boolean | undefined;
-                no_health_advice?: boolean | undefined;
-            } | undefined;
-            escalate_when?: string[] | undefined;
-            booking_rules?: {
-                lead_hours?: number | undefined;
-                buffer_min?: number | undefined;
-                max_days_ahead?: number | undefined;
-                slot_min?: number | undefined;
-                consult_first?: string[] | undefined;
-                party_max?: number | undefined;
-                notes?: string[] | undefined;
-            } | undefined;
-            extra_instructions?: string | undefined;
-        } | undefined;
-        phone_display?: string | undefined;
-    } | undefined;
-}>;
+    }, z.core.$strict>>;
+}, z.core.$strip>;
 type TenantConfigParse = {
     ok: true;
     config: TenantConfig;
@@ -6931,64 +5148,46 @@ declare function cleanAnswer(raw: string): string;
 /** Citations the model wrote into the wrong field, when the answer carried them as JSON. */
 declare function recoverCitations(raw: string): AskCitation[];
 declare const AskFinishSchema: z.ZodObject<{
-    answer: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
-    citations: z.ZodEffects<z.ZodCatch<z.ZodArray<z.ZodObject<{
-        kind: z.ZodCatch<z.ZodEnum<["thread", "conversation", "call", "person", "page"]>>;
-        id: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
-        label: z.ZodEffects<z.ZodCatch<z.ZodString>, string, unknown>;
-    }, "strip", z.ZodTypeAny, {
-        id: string;
+    answer: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
+    citations: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodObject<{
+        kind: z.ZodCatch<z.ZodEnum<{
+            conversation: "conversation";
+            call: "call";
+            thread: "thread";
+            person: "person";
+            page: "page";
+        }>>;
+        id: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
+        label: z.ZodPipe<z.ZodCatch<z.ZodString>, z.ZodTransform<string, string>>;
+    }, z.core.$strip>>>, z.ZodTransform<{
         kind: "conversation" | "call" | "thread" | "person" | "page";
-        label: string;
-    }, {
-        id?: unknown;
-        kind?: unknown;
-        label?: unknown;
-    }>, "many">>, {
         id: string;
-        kind: "conversation" | "call" | "thread" | "person" | "page";
         label: string;
-    }[], unknown>;
-    followups: z.ZodEffects<z.ZodCatch<z.ZodArray<z.ZodString, "many">>, string[], unknown>;
-    navigate: z.ZodEffects<z.ZodCatch<z.ZodObject<{
+    }[], {
+        kind: "conversation" | "call" | "thread" | "person" | "page";
+        id: string;
+        label: string;
+    }[]>>;
+    followups: z.ZodPipe<z.ZodCatch<z.ZodArray<z.ZodString>>, z.ZodTransform<string[], string[]>>;
+    navigate: z.ZodPipe<z.ZodCatch<z.ZodObject<{
         to: z.ZodCatch<z.ZodString>;
         label: z.ZodCatch<z.ZodString>;
         now: z.ZodCatch<z.ZodBoolean>;
-    }, "strip", z.ZodTypeAny, {
-        now: boolean;
-        to: string;
-        label: string;
-    }, {
-        now?: unknown;
-        to?: unknown;
-        label?: unknown;
-    }>>, {
+    }, z.core.$strip>>, z.ZodTransform<{
         to: string;
         label: string;
         now: boolean;
-    } | null, unknown>;
-    language: z.ZodCatch<z.ZodEnum<["en", "es", "other"]>>;
-}, "strip", z.ZodTypeAny, {
-    language: "other" | "en" | "es";
-    answer: string;
-    citations: {
-        id: string;
-        kind: "conversation" | "call" | "thread" | "person" | "page";
-        label: string;
-    }[];
-    followups: string[];
-    navigate: {
+    } | null, {
         to: string;
         label: string;
         now: boolean;
-    } | null;
-}, {
-    language?: unknown;
-    answer?: unknown;
-    citations?: unknown;
-    followups?: unknown;
-    navigate?: unknown;
-}>;
+    }>>;
+    language: z.ZodCatch<z.ZodEnum<{
+        other: "other";
+        en: "en";
+        es: "es";
+    }>>;
+}, z.core.$strip>;
 type AskFinish = z.infer<typeof AskFinishSchema>;
 declare function parseAskFinish(raw: unknown): {
     ok: true;
@@ -7089,21 +5288,16 @@ declare const ASK_UNDO_MS: number;
  */
 declare function askUndoOpen(kind: string, undo: Record<string, unknown> | null | undefined, atMs: number, nowMs: number, settingsVersion: number | null): boolean;
 declare const AskProposalOutcomeSchema: z.ZodObject<{
-    state: z.ZodEnum<["done", "dismissed", "failed", "undone"]>;
+    state: z.ZodEnum<{
+        failed: "failed";
+        done: "done";
+        dismissed: "dismissed";
+        undone: "undone";
+    }>;
     receipt: z.ZodCatch<z.ZodString>;
     atMs: z.ZodCatch<z.ZodNumber>;
     undo: z.ZodOptional<z.ZodNullable<z.ZodRecord<z.ZodString, z.ZodUnknown>>>;
-}, "strip", z.ZodTypeAny, {
-    state: "failed" | "done" | "dismissed" | "undone";
-    receipt: string;
-    atMs: number;
-    undo?: Record<string, unknown> | null | undefined;
-}, {
-    state: "failed" | "done" | "dismissed" | "undone";
-    undo?: Record<string, unknown> | null | undefined;
-    receipt?: unknown;
-    atMs?: unknown;
-}>;
+}, z.core.$strip>;
 interface AskMessageVM {
     id: string;
     role: AskRole;
@@ -7259,61 +5453,33 @@ type AskSettingsChange = {
     name: string;
     duration_min?: number;
 };
-declare const AskSettingsChangeSchema: z.ZodDiscriminatedUnion<"op", [z.ZodObject<{
+declare const AskSettingsChangeSchema: z.ZodDiscriminatedUnion<[z.ZodObject<{
     op: z.ZodLiteral<"add_closure">;
     date: z.ZodString;
     until: z.ZodOptional<z.ZodString>;
     note: z.ZodOptional<z.ZodString>;
-}, "strip", z.ZodTypeAny, {
-    date: string;
-    op: "add_closure";
-    note?: string | undefined;
-    until?: string | undefined;
-}, {
-    date: string;
-    op: "add_closure";
-    note?: string | undefined;
-    until?: string | undefined;
-}>, z.ZodObject<{
+}, z.core.$strip>, z.ZodObject<{
     op: z.ZodLiteral<"set_hours">;
-    day: z.ZodEnum<["mon", "tue", "wed", "thu", "fri", "sat", "sun"]>;
+    day: z.ZodEnum<{
+        mon: "mon";
+        tue: "tue";
+        wed: "wed";
+        thu: "thu";
+        fri: "fri";
+        sat: "sat";
+        sun: "sun";
+    }>;
     open: z.ZodNullable<z.ZodString>;
     close: z.ZodNullable<z.ZodString>;
-}, "strip", z.ZodTypeAny, {
-    open: string | null;
-    day: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-    close: string | null;
-    op: "set_hours";
-}, {
-    open: string | null;
-    day: "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-    close: string | null;
-    op: "set_hours";
-}>, z.ZodObject<{
+}, z.core.$strip>, z.ZodObject<{
     op: z.ZodLiteral<"add_note">;
     title: z.ZodString;
     text: z.ZodString;
-}, "strip", z.ZodTypeAny, {
-    text: string;
-    title: string;
-    op: "add_note";
-}, {
-    text: string;
-    title: string;
-    op: "add_note";
-}>, z.ZodObject<{
+}, z.core.$strip>, z.ZodObject<{
     op: z.ZodLiteral<"add_service">;
     name: z.ZodString;
     duration_min: z.ZodOptional<z.ZodNumber>;
-}, "strip", z.ZodTypeAny, {
-    name: string;
-    op: "add_service";
-    duration_min?: number | undefined;
-}, {
-    name: string;
-    op: "add_service";
-    duration_min?: number | undefined;
-}>]>;
+}, z.core.$strip>], "op">;
 type Cfg = {
     brain?: {
         profile?: Record<string, unknown>;
@@ -9159,37 +7325,10 @@ declare const SIGNUP_NAME_MAX = 120;
 declare const SignupSchema: z.ZodObject<{
     name: z.ZodString;
     email: z.ZodString;
-    /**
-     * The credential, and the reason it is OPTIONAL here rather than required.
-     *
-     * The waitlist posture takes details and creates nothing -- no account, so
-     * no password -- and its form shows no such field. A schema that demanded
-     * one would refuse the queue, which is the posture a launch actually runs
-     * in. So the shape admits it and the CREATING path insists on it: the
-     * route calls `passwordProblem` the moment it knows the posture is not the
-     * list, and that one function is also what the page checks with, so the
-     * browser's rule and the server's rule cannot drift.
-     *
-     * The cap here is a body-size guard, not the rule; the rule is bytes.
-     */
     password: z.ZodOptional<z.ZodString>;
-    /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
     timezone: z.ZodOptional<z.ZodString>;
-    /** The invite code, when sign-up is by invitation. */
     code: z.ZodOptional<z.ZodString>;
-}, "strict", z.ZodTypeAny, {
-    email: string;
-    name: string;
-    code?: string | undefined;
-    password?: string | undefined;
-    timezone?: string | undefined;
-}, {
-    email: string;
-    name: string;
-    code?: string | undefined;
-    password?: string | undefined;
-    timezone?: string | undefined;
-}>;
+}, z.core.$strict>;
 type SignupInput = z.infer<typeof SignupSchema>;
 /**
  * The three postures sign-up can be in, and the one switch that chooses.
@@ -9227,14 +7366,8 @@ declare function signupPosture(code: string | undefined | null): SignupPosture;
 declare const PENDING_WORKSPACE_KEY = "pending_workspace";
 declare const PendingWorkspaceSchema: z.ZodObject<{
     name: z.ZodString;
-    timezone: z.ZodEffects<z.ZodOptional<z.ZodNullable<z.ZodString>>, string | null, string | null | undefined>;
-}, "strip", z.ZodTypeAny, {
-    name: string;
-    timezone: string | null;
-}, {
-    name: string;
-    timezone?: string | null | undefined;
-}>;
+    timezone: z.ZodPipe<z.ZodOptional<z.ZodNullable<z.ZodString>>, z.ZodTransform<string | null, string | null | undefined>>;
+}, z.core.$strip>;
 type PendingWorkspace = z.infer<typeof PendingWorkspaceSchema>;
 /** The pending workspace on a user's metadata, or null when there is none worth showing. Never throws: metadata is whatever Supabase holds. */
 declare function pendingWorkspaceOf(metadata: unknown): PendingWorkspace | null;

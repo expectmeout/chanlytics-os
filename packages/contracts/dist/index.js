@@ -1978,7 +1978,7 @@ var BookingRulesSchema = z2.object({
 var E164 = /^\+[1-9]\d{6,14}$/;
 var BusinessProfileSchema = z2.object({
   address: z2.string().max(300).optional(),
-  hours: z2.record(z2.enum(DAYS), HoursSchema).optional(),
+  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
   /** Dates the business is shut regardless of the weekly grid. */
   closures: z2.array(ClosureSchema).optional(),
   services: z2.array(ServiceSchema).max(60).optional(),
@@ -4671,7 +4671,7 @@ var AskProposalOutcomeSchema = z3.object({
   state: z3.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z3.string().max(300).catch(""),
   atMs: z3.number().catch(0),
-  undo: z3.record(z3.unknown()).nullable().optional()
+  undo: z3.record(z3.string(), z3.unknown()).nullable().optional()
 });
 function scopeFromRoute(page, param, label) {
   if (!param) return null;
