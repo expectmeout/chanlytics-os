@@ -139,18 +139,28 @@ which live in 26 files and skip as a block without credentials.
 The nightly sets the flag; `ci.yml`, which holds no live service secrets by
 policy, does not.
 
-There is no password anywhere in this product — sign-in is an emailed
-code — so `e2e/session.ts` mints a session over the API and hands the browser
-the cookie `@supabase/ssr` reads, rather than typing anything into the form.
+The harness never types a password or a code: `e2e/session.ts` mints a session
+over the API and hands the browser the cookie `@supabase/ssr` reads.
 `generate_link` does **not** send mail, so this cannot reach a real inbox even
 pointed at production. One session is minted per RUN, not per test: Supabase
 allows 30 token verifications an hour, and a session per test spent a third of
 that budget in one go.
 
-The signed-in specs are read-only against real data with one deliberate
-exception: `e2e/team-card.spec.ts` intercepts its own `POST`/`PATCH` and
-answers them itself, so it proves the button issued the request without any
-invitation being sent or any membership changing.
+The signed-in specs run in the suite's own workspace, never a customer's.
+`tooling/scripts/e2e-workspace.mjs --apply` makes it, or puts it back, before
+each nightly run: a test owner and a teammate at example.com, two fictional
+people, one conversation, one call, and a WhatsApp channel with no credentials.
+Every row is one the production sweeps leave alone, and the script refuses an
+address outside example.com, so `E2E_USER_EMAIL` can never name a real account.
+The specs do write there (a profile name, a saved view, a probe workspace that
+`workspace-create.spec.ts` makes and deletes), and the script resets all of it.
+Writes that would reach a person, such as consent, erasure, invitations, role
+changes, lists, and autonomy or notification settings, are intercepted and
+answered by the spec itself.
+
+Two kinds of test skip unless asked for, and each says why. The five Ask tests
+that run a real model turn cost money, so they need `E2E_PAID_MODEL=1`. The
+sign-up probe needs `E2E_SIGNUP_EMAIL`, a real inbox its code can reach.
 
 ## Operational levers
 

@@ -37,7 +37,7 @@ test("the nightly e2e job exists, runs against production, and is honest about w
   assert.ok(y.includes("workflow_dispatch:"));
   assert.ok(y.includes("E2E_BASE_URL: https://app.chanlytics.com"), "the nightly run exercises the address people actually use");
   assert.ok(y.includes("run: pnpm e2e:install") && y.includes("run: pnpm e2e"));
-  for (const s of ["E2E_SUPABASE_URL", "E2E_SUPABASE_ANON_KEY", "E2E_SERVICE_ROLE_KEY", "E2E_USER_EMAIL"]) {
+  for (const s of ["E2E_SUPABASE_URL", "E2E_SUPABASE_ANON_KEY", "E2E_SERVICE_ROLE_KEY"]) {
     assert.ok(y.includes(`secrets.${s}`), s);
   }
   assert.ok(y.includes("the owner's decision"), "the rule about live secrets in CI is stated, not silently broken");

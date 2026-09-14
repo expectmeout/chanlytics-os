@@ -57,12 +57,16 @@ test.describe("sign-up", () => {
 
   test("a sign-up makes the user with what the form said, sends the code, and makes no workspace (opt-in probe)", async ({ request, baseURL }) => {
     test.skip(process.env.E2E_SIGNUP_PROBE !== "1" || !URL_ || !KEY, "set E2E_SIGNUP_PROBE=1 with the service role to run the probe");
+    // The probe proves a code went out, and no example.com address can receive
+    // one: production's mailer refuses the send, so without a real inbox the
+    // probe could only fail, and open an issue every night saying so (#467).
+    test.skip(!process.env.E2E_SIGNUP_EMAIL, "set E2E_SIGNUP_EMAIL to a real inbox, with {stamp} for a fresh address each run, to run the probe");
     const admin = { apikey: KEY!, Authorization: `Bearer ${KEY}` };
     const rest = (path: string, init: RequestInit = {}) =>
       fetch(`${URL_}/rest/v1/${path}`, { ...init, headers: { ...admin, "content-type": "application/json", Prefer: "return=representation", ...(init.headers ?? {}) } });
     const stamp = Date.now();
     const name = `E2E signup probe ${stamp}`;
-    const email = (process.env.E2E_SIGNUP_EMAIL || "e2e-signup-{stamp}@example.com").replace("{stamp}", String(stamp));
+    const email = process.env.E2E_SIGNUP_EMAIL!.replace("{stamp}", String(stamp));
     let userId: string | null = null;
     try {
       const res = await request.post("/api/v1/signup", {
