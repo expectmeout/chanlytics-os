@@ -266,9 +266,10 @@ are written and their briefs are ready.
 
 **What CI does not cover:**
 
-- **No production build, anywhere.** Neither `next build` nor any build of
-  `apps/edge` runs in CI — only typecheck and lint. A build-time failure reaches
-  Vercel before it reaches a reviewer.
+- ~~**No production build, anywhere.**~~ **Closed for the dashboard 14 September.**
+  `ci.yml`'s Typecheck job, the check branch protection requires, now ends with
+  `next build` run the way Vercel runs it, so a build that fails blocks the
+  merge. `apps/edge` is still built by Vercel alone.
 - **e2e never runs on a pull request.** `pnpm e2e` appears only in the 09:00 UTC
   nightly, against **production**.
 - **The 112 database tests do not run on a PR.** They are in `ci.yml`'s `pnpm test`
@@ -391,7 +392,7 @@ estimates.
 | 8 | **Set `EDGE_CALL_SECRET`** and delete the 4 retired endpoints | One shared key currently opens 22 admin doors; four deployed doors have no caller. | ~half day |
 | 9 | **Drain the waitlist** | People are joining a list nothing reads. | 1–2 days |
 | 10 | **The four `revoke` migrations and the eight `TO authenticated` clauses** | Consistency, not exposure. Cheap, and it makes the tenancy floor uniform enough to audit at a glance. **Done 13 Sep** (`f9a7b00` — nine clauses, not eight); replayed green in CI and applied to production the same day, as `00120` after a renumber. | ~2 hours |
-| 11 | **Add `next build` to CI** | A build failure should not first appear on Vercel. | ~1 hour |
+| 11 | **Add `next build` to CI** | A build failure should not first appear on Vercel. **Done 14 Sep** for the dashboard, as the last step of the required Typecheck job; `apps/edge` is still built by Vercel alone. | done |
 
 Not on this list, deliberately: outbound calling, email as a channel, and the six
 mockup surfaces. All three are real work; none of them is between here and the
