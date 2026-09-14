@@ -114,7 +114,7 @@ export interface TriggerPool {
  * the one page of People it had loaded, which slice D of the data program had
  * made a page of a thousand.
  */
-export async function triggerPools(ctx: RouteContext, tenantId: string, touched: Record<string, string>, now: Date): Promise<{ pools: Record<string, TriggerPool>; calendar: "ok" | "unavailable" | "none" }> {
+export async function triggerPools(ctx: RouteContext, tenantId: string, touched: Record<string, string>, tz: string, now: Date): Promise<{ pools: Record<string, TriggerPool>; calendar: "ok" | "unavailable" | "none" }> {
   // The pools are a reading, never the page: a People read that fails leaves
   // the chips at zero and the playbooks themselves untouched.
   let rows: PersonRowDto[];
@@ -129,7 +129,7 @@ export async function triggerPools(ctx: RouteContext, tenantId: string, touched:
     return null;
   });
   const calendar = pv?.calendar.state ?? "none";
-  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, now));
+  const vms = rows.map((r) => toPersonRowVM({ ...r, visits: pv && pv.calendar.state === "ok" ? (pv.visits.get(r.id) ?? null) : null }, tz, now));
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
   const breath = { byThis: new Map<string, number>(), byAny: new Map(Object.entries(touched).map(([id, at]) => [id, Date.parse(at)])) };
   const count = (trigger: string, touches: typeof untouched) =>

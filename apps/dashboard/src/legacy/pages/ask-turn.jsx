@@ -160,7 +160,7 @@ const AskCard = ({ p, messageId, t, onNav }) => {
 const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash, onRetry }) => {
   const A = window.__ask;
   const shape = streaming || !A ? { open: null, citations: [], followups: [] } : A.shape(m, lang);
-  const at = m.atMs ? new Date(m.atMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const at = m.atMs ? window.__clock.stamp(m.atMs) : "";
   return (
     <div className={`ask-msg ai ${m.failed ? "failed" : ""} ${latest ? "latest" : ""}`} data-testid="ask-turn">
       <span className="ask-msg-avatar" title={at}><Icon name="sparkle" size={11} /></span>

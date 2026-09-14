@@ -17,7 +17,8 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf } from "@chanlytics/contracts";
+import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn } from "@chanlytics/contracts";
+import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
 
@@ -129,7 +130,8 @@ async function runVerb(
       result = await api()("POST conversations/[id]/hand-back", { params: { id } });
       break;
     case "snooze": {
-      const until = payload?.until ?? tomorrowAt(10);
+      // Ten tomorrow where the business is, not where the browser is (zone.ts).
+      const until = payload?.until ?? new Date(tomorrowAtIn(await workspaceZone(), Date.now(), 10)).toISOString();
       result = await api()("POST conversations/[id]/snooze", { params: { id }, body: { until } });
       break;
     }
@@ -162,13 +164,6 @@ async function runVerb(
   }
   // The refresh map re-reads the Inbox, the threads and Today after each of these lands.
   return result;
-}
-
-function tomorrowAt(hour: number): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(hour, 0, 0, 0);
-  return d.toISOString();
 }
 
 /** The honest undo: cancel a queued send inside its grace window. */

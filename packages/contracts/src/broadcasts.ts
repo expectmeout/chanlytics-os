@@ -23,6 +23,7 @@
  * exactly the rows most likely to matter.
  */
 import { templateTitle } from "./template-library";
+import { clockDate, clockWhen } from "./clock";
 import { PEOPLE_LISTS, mayReceive, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
 import type { SendPurpose } from "./consent";
@@ -113,8 +114,9 @@ export function cleanParam(raw: unknown): string | null {
 }
 
 /** A name when the owner gave none: the template and the day. */
-export function broadcastName(templateName: string, now = new Date(), title?: string | null): string {
-  const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+export function broadcastName(templateName: string, tz: string, now = new Date(), title?: string | null): string {
+  // The business's day (clock.ts): a broadcast made at 11 PM in New York is named for that day, wherever the server runs.
+  const day = clockDate(now.getTime(), tz, now.getTime());
   return `${templateTitle(templateName, title)} · ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 
@@ -163,23 +165,19 @@ export interface BroadcastVM extends BroadcastDto {
   progress: number;
 }
 
-export function whenLabel(iso: string, now = new Date()): string {
-  const d = new Date(iso);
-  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  const sameDay = d.toDateString() === now.toDateString();
-  if (sameDay) return `today ${time}`;
-  const tomorrow = new Date(now.getTime() + 86_400_000);
-  if (d.toDateString() === tomorrow.toDateString()) return `tomorrow ${time}`;
-  return `${d.toLocaleDateString("en-US", { month: "short", day: "numeric" })} · ${time}`;
+/** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */
+export function whenLabel(iso: string, tz: string, now = new Date()): string {
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? clockWhen(ms, tz, now.getTime()) : "";
 }
 
-export function toBroadcastVM(d: BroadcastDto, now = new Date()): BroadcastVM {
+export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): BroadcastVM {
   const c = d.counts;
   const attempted = c.sent + c.skipped + c.failed;
   return {
     ...d,
     stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
-    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, now),
+    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
     deliveredPct: c.sent > 0 ? Math.round((c.delivered / c.sent) * 100) : null,
     readPct: c.sent > 0 ? Math.round((c.read / c.sent) * 100) : null,
     open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",

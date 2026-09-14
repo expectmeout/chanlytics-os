@@ -19,6 +19,9 @@ import {
   PEOPLE_TABS,
 } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const S = 1000, M = 60 * S, H = 60 * M, D = 24 * H;
 const NOW = new Date("2026-09-04T16:00:00Z");
 const nowMs = NOW.getTime();
@@ -110,48 +113,48 @@ test("the tabs are the states, in the order they are evaluated", () => {
 /* --------------------------------- names --------------------------------- */
 
 test("name falls back display name → WhatsApp name → phone, and phone-only initials are the last two digits", () => {
-  assert.equal(toPersonRowVM(row(), NOW).name, "Daniela R.");
-  assert.equal(toPersonRowVM(row({ display_name: null }), NOW).name, "Dani");
-  const phoneOnly = toPersonRowVM(row({ display_name: null, wa_profile_name: null }), NOW);
+  assert.equal(toPersonRowVM(row(), ZONE, NOW).name, "Daniela R.");
+  assert.equal(toPersonRowVM(row({ display_name: null }), ZONE, NOW).name, "Dani");
+  const phoneOnly = toPersonRowVM(row({ display_name: null, wa_profile_name: null }), ZONE, NOW);
   assert.match(phoneOnly.name, /81$/);
   assert.equal(phoneOnly.initials, "81");
-  assert.equal(toPersonRowVM(row(), NOW).initials, "DR");
+  assert.equal(toPersonRowVM(row(), ZONE, NOW).initials, "DR");
 });
 
 /* ----------------------------- first contact ----------------------------- */
 
 test("first contact is a date when there is evidence, and 'Before <import>' when there is only imported history", () => {
-  const dated = toPersonRowVM(row({ first_contact_at: "2026-07-14T12:00:00Z" }), NOW).firstContact;
+  const dated = toPersonRowVM(row({ first_contact_at: "2026-07-14T12:00:00Z" }), ZONE, NOW).firstContact;
   assert.equal(dated.label, "Jul 14");
   assert.equal(dated.estimate, false);
 
   const imported = toPersonRowVM(
     row({ first_contact_at: null, has_backfill: true, earliest_row_at: "2026-08-27T12:00:00Z" }),
-    NOW,
+    ZONE, NOW,
   ).firstContact;
   assert.equal(imported.label, "Before Aug 27");
   assert.equal(imported.estimate, true);
 
-  assert.equal(toPersonRowVM(row({ first_contact_at: null, earliest_row_at: null }), NOW).firstContact.label, "—");
+  assert.equal(toPersonRowVM(row({ first_contact_at: null, earliest_row_at: null }), ZONE, NOW).firstContact.label, "—");
 });
 
 /* ------------------------------ last contact ----------------------------- */
 
 test("last contact says who and how long ago, and the newer of message vs call wins", () => {
-  assert.equal(toPersonRowVM(row(), NOW).lastContact.label, "They wrote · 2h ago");
+  assert.equal(toPersonRowVM(row(), ZONE, NOW).lastContact.label, "They wrote · 2h ago");
   assert.equal(
-    toPersonRowVM(row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "ai" }), NOW).lastContact.label,
+    toPersonRowVM(row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "ai" }), ZONE, NOW).lastContact.label,
     "Receptionist replied · 3d ago",
   );
   assert.equal(
-    toPersonRowVM(row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "human" }), NOW).lastContact.label,
+    toPersonRowVM(row({ last_message_at: iso(3 * D), last_message_direction: "outbound", last_message_sender: "human" }), ZONE, NOW).lastContact.label,
     "You replied · 3d ago",
   );
-  const called = toPersonRowVM(row({ last_call_at: iso(H) }), NOW).lastContact;
+  const called = toPersonRowVM(row({ last_call_at: iso(H) }), ZONE, NOW).lastContact;
   assert.equal(called.kind, "call");
   assert.equal(called.label, "Phoned · 1h ago");
-  assert.match(toPersonRowVM(row({ last_message_at: iso(20 * D) }), NOW).lastContact.label, /^They wrote · [A-Z][a-z]{2} \d{1,2}$/);
-  assert.equal(toPersonRowVM(row({ last_message_at: null, last_call_at: null }), NOW).lastContact.label, "No contact recorded");
+  assert.match(toPersonRowVM(row({ last_message_at: iso(20 * D) }), ZONE, NOW).lastContact.label, /^They wrote · [A-Z][a-z]{2} \d{1,2}$/);
+  assert.equal(toPersonRowVM(row({ last_message_at: null, last_call_at: null }), ZONE, NOW).lastContact.label, "No contact recorded");
 });
 
 /* --------------------------- channels are facts -------------------------- */
@@ -159,18 +162,18 @@ test("last contact says who and how long ago, and the newer of message vs call w
 test("channels come from identities OR from what actually happened — a chat implies WhatsApp, a call implies phone", () => {
   // Production: the backfilled thread's contact carries only a 'voice'
   // identity, yet has a WhatsApp transcript. The glyphs must not lie.
-  const vm = toPersonRowVM(row({ channels: ["voice"], has_chat: true, call_count: 3 }), NOW);
+  const vm = toPersonRowVM(row({ channels: ["voice"], has_chat: true, call_count: 3 }), ZONE, NOW);
   assert.deepEqual(vm.channels, ["whatsapp", "voice"]);
-  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: false, call_count: 1 }), NOW).channels, ["voice"]);
+  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: false, call_count: 1 }), ZONE, NOW).channels, ["voice"]);
 });
 
 /* ------------------------- lists and aggregates -------------------------- */
 
 test("smart lists: phoned-only, and opted-out includes someone who also needs you", () => {
-  const phoned = toPersonRowVM(row({ has_chat: false, call_count: 1, last_message_at: null, last_message_direction: null, last_call_at: iso(2 * D) }), NOW);
+  const phoned = toPersonRowVM(row({ has_chat: false, call_count: 1, last_message_at: null, last_message_direction: null, last_call_at: iso(2 * D) }), ZONE, NOW);
   assert.equal(list("phoned_only").test(phoned), true);
-  assert.equal(list("phoned_only").test(toPersonRowVM(row(), NOW)), false);
-  const both = toPersonRowVM(row({ open_escalation_reason: "human_token", consent: "opted_out" }), NOW);
+  assert.equal(list("phoned_only").test(toPersonRowVM(row(), ZONE, NOW)), false);
+  const both = toPersonRowVM(row({ open_escalation_reason: "human_token", consent: "opted_out" }), ZONE, NOW);
   assert.equal(both.state, "needs_you");
   assert.equal(list("opted_out").test(both), true, "the list is a fact, not the state");
   assert.equal(list("needs_you").test(both), true);
@@ -182,7 +185,7 @@ test("aggregates count measured facts and honour the evidence rule", () => {
     row({ id: "b", first_contact_at: iso(2 * D) }),
     row({ id: "c", first_contact_at: iso(5 * D), has_backfill: true }),
     row({ id: "d", last_message_at: iso(35 * D), last_inbound_at: iso(35 * D), first_contact_at: iso(90 * D) }),
-  ].map((r) => toPersonRowVM(r, NOW));
+  ].map((r) => toPersonRowVM(r, ZONE, NOW));
   const agg = peopleAggregates(rows, nowMs);
   assert.equal(agg.total, 4);
   assert.equal(agg.needsYou, 1);
@@ -192,7 +195,7 @@ test("aggregates count measured facts and honour the evidence rule", () => {
 });
 
 test("recency cells put a two-hour-old contact in the first bucket and a quiet one at the tail", () => {
-  const cells = recencyCells([toPersonRowVM(row(), NOW), toPersonRowVM(row({ last_message_at: iso(100 * D), last_inbound_at: iso(100 * D) }), NOW)], nowMs);
+  const cells = recencyCells([toPersonRowVM(row(), ZONE, NOW), toPersonRowVM(row({ last_message_at: iso(100 * D), last_inbound_at: iso(100 * D) }), ZONE, NOW)], nowMs);
   assert.equal(cells[0].count, 1);
   assert.equal(cells[cells.length - 1].count, 1);
   assert.equal(cells.reduce((a, c) => a + c.count, 0), 2);
@@ -240,7 +243,7 @@ function detail(over = {}) {
 }
 
 test("the timeline merges messages, calls, escalations and decisions in true order, newest first", () => {
-  const vm = toPersonVM(detail(), NOW);
+  const vm = toPersonVM(detail(), ZONE, NOW);
   assert.deepEqual(
     vm.timeline.map((i) => i.kind),
     ["escalation", "receptionist", "customer", "decision", "you", "decision", "call", "customer"],
@@ -256,18 +259,18 @@ test("the timeline merges messages, calls, escalations and decisions in true ord
 });
 
 test("last exchange is the customer's last line and the reply that followed it, verbatim", () => {
-  const vm = toPersonVM(detail(), NOW);
+  const vm = toPersonVM(detail(), ZONE, NOW);
   assert.equal(vm.lastExchange.customer.text, "Can I move Saturday to 11?");
   assert.equal(vm.lastExchange.reply.text, "Of course — let me get someone.");
   assert.equal(vm.lastExchange.reply.who, "Receptionist");
 });
 
 test("right now: escalation → paused-for-you with a deep link; queued, owned, opted-out and answering each have their own shape", () => {
-  const esc = toPersonVM(detail(), NOW).rightNow;
+  const esc = toPersonVM(detail(), ZONE, NOW).rightNow;
   assert.equal(esc.tone, "escalated");
   assert.equal(esc.cta.to, "inbox/th-cv1");
 
-  const bare = (over) => toPersonVM(detail({ row: row(over), escalations: [], decisions: [] }), NOW).rightNow;
+  const bare = (over) => toPersonVM(detail({ row: row(over), escalations: [], decisions: [] }), ZONE, NOW).rightNow;
   assert.equal(bare({ queued_reply_at: iso(5 * S) }).tone, "queued");
   assert.equal(bare({ latest_assignee_user_id: "u1" }).tone, "paused");
   assert.equal(bare({ consent: "opted_out" }).tone, "silent");
@@ -276,7 +279,7 @@ test("right now: escalation → paused-for-you with a deep link; queued, owned, 
 });
 
 test("the profile's facts, about rail and thread link are measured, and a phone-only person has no thread to open", () => {
-  const vm = toPersonVM(detail(), NOW);
+  const vm = toPersonVM(detail(), ZONE, NOW);
   assert.deepEqual(vm.facts.map((f) => f.label), ["First contact", "Last contact", "Conversations", "Calls", "Consent", "Receptionist"]);
   assert.equal(vm.facts[3].value, 1);
   assert.equal(vm.openThread, "inbox/th-cv1");
@@ -285,14 +288,14 @@ test("the profile's facts, about rail and thread link are measured, and a phone-
 
   const phoneOnly = toPersonVM(
     detail({ row: row({ has_chat: false, call_count: 1, latest_conversation_id: "cv1" }), conversations: [] }),
-    NOW,
+    ZONE, NOW,
   );
   assert.equal(phoneOnly.openThread, null);
   assert.ok(!phoneOnly.about.some((a) => a.k === "Reply window"), "no WhatsApp thread, no reply window");
 });
 
 test("the view model never carries a number the schema does not hold", () => {
-  const vm = toPersonVM(detail(), NOW);
+  const vm = toPersonVM(detail(), ZONE, NOW);
   const banned = /ltv|revenue|visits|no.?show|health|temperature|package|therapist/i;
   for (const k of Object.keys(vm)) assert.ok(!banned.test(k), `field ${k}`);
   for (const f of vm.facts) assert.ok(!banned.test(f.label), f.label);
@@ -302,7 +305,7 @@ test("a person known only by number is never called \"+1\": the speaker label is
   const d = detail({ row: row({ display_name: null, wa_profile_name: null }) });
   d.conversations[0].contact.display_name = null;
   d.conversations[0].contact.wa_profile_name = null;
-  const vm = toPersonVM(d, NOW);
+  const vm = toPersonVM(d, ZONE, NOW);
   const customer = vm.timeline.find((i) => i.kind === "customer");
   assert.notEqual(customer.who, "+1");
   assert.equal(customer.who, vm.name);
@@ -310,33 +313,33 @@ test("a person known only by number is never called \"+1\": the speaker label is
 });
 
 test("the profile carries the person's own receptionist mode and the workspace's, and never invents one", () => {
-  const vm = toPersonVM(detail({ receptionist_mode: "never", workspace_reply_mode: "veto" }), NOW);
+  const vm = toPersonVM(detail({ receptionist_mode: "never", workspace_reply_mode: "veto" }), ZONE, NOW);
   assert.deepEqual(vm.receptionistMode, { person: "never", workspace: "auto" }, "veto answers after a hold, so it reads as Answer");
-  const following = toPersonVM(detail({ receptionist_mode: null, workspace_reply_mode: "ask" }), NOW);
+  const following = toPersonVM(detail({ receptionist_mode: null, workspace_reply_mode: "ask" }), ZONE, NOW);
   assert.deepEqual(following.receptionistMode, { person: null, workspace: "ask" });
-  const junk = toPersonVM(detail({ receptionist_mode: "sometimes", workspace_reply_mode: undefined }), NOW);
+  const junk = toPersonVM(detail({ receptionist_mode: "sometimes", workspace_reply_mode: undefined }), ZONE, NOW);
   assert.deepEqual(junk.receptionistMode, { person: null, workspace: null });
 });
 
 test("consent reads with how it was given; the offers list is exactly the opted-in", () => {
-  const yes = toPersonRowVM(row({ consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(2 * D) }), NOW);
+  const yes = toPersonRowVM(row({ consent: "opted_in", consent_source: "in_person", consent_updated_at: iso(2 * D) }), ZONE, NOW);
   assert.equal(yes.consent.state, "opted_in");
   assert.ok(yes.consent.sub.startsWith("In person · "), yes.consent.sub);
   assert.equal(yes.consent.source, "in_person");
   assert.equal(list("opted_in").test(yes), true);
   assert.equal(list("opted_out").test(yes), false);
-  const stop = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "customer_message", consent_updated_at: iso(D) }), NOW);
+  const stop = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "customer_message", consent_updated_at: iso(D) }), ZONE, NOW);
   assert.ok(stop.consent.sub.startsWith("STOP received"), stop.consent.sub);
   assert.equal(list("opted_in").test(stop), false);
-  const no = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "phone", consent_updated_at: iso(D) }), NOW);
+  const no = toPersonRowVM(row({ consent: "opted_out", dnc: true, consent_source: "phone", consent_updated_at: iso(D) }), ZONE, NOW);
   assert.ok(no.consent.sub.startsWith("On the phone · "), no.consent.sub);
-  assert.equal(list("opted_in").test(toPersonRowVM(row(), NOW)), false, "not asked is not a yes");
+  assert.equal(list("opted_in").test(toPersonRowVM(row(), ZONE, NOW)), false, "not asked is not a yes");
 });
 
 test("the offers answer in a word, as People's Offers column says it -- so a list's Offers column can never show the other answer", () => {
-  assert.equal(toPersonRowVM(row(), NOW).consent.marketingLabel, "Not asked");
-  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_in" }), NOW).consent.marketingLabel, "Yes");
-  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_out" }), NOW).consent.marketingLabel, "No");
-  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: null }), NOW).consent.marketingLabel, "Not asked", "a yes to messages is not a yes to offers");
-  assert.equal(toPersonRowVM(row({ consent: "opted_out", marketing_consent: "opted_in" }), NOW).consent.marketingLabel, "No", "a STOP stops offers too");
+  assert.equal(toPersonRowVM(row(), ZONE, NOW).consent.marketingLabel, "Not asked");
+  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel, "Yes");
+  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_out" }), ZONE, NOW).consent.marketingLabel, "No");
+  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: null }), ZONE, NOW).consent.marketingLabel, "Not asked", "a yes to messages is not a yes to offers");
+  assert.equal(toPersonRowVM(row({ consent: "opted_out", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel, "No", "a STOP stops offers too");
 });

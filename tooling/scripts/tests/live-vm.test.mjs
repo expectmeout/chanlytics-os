@@ -13,6 +13,9 @@ import {
   LIVE_STALE_MS, LIVE_OVERLONG_MS, ANALYSIS_GRACE_MS, RECENT_MAX, CALL_HEARTBEAT_MS,
 } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = new Date("2026-09-04T18:14:00.000Z");
 const ago = (ms) => new Date(NOW.getTime() - ms).toISOString();
 
@@ -39,19 +42,19 @@ test("right now = ongoing under the heartbeat rule; oldest first; recent newest 
     ...Array.from({ length: RECENT_MAX + 3 }, (_, i) =>
       call(`e${i}`, { status: "ended", started_at: ago(600_000 + i * 60_000), ended_at: ago(500_000 + i * 60_000), duration_ms: 90_000, summary: "Booked." })),
   ];
-  const vm = toLiveVM(calls, [voice], NOW);
+  const vm = toLiveVM(calls, [voice], ZONE, NOW);
   assert.deepEqual(vm.now.map((c) => c.callId), ["a", "b"], "the caller who has waited longest leads");
   assert.ok(!vm.now.some((c) => c.callId === "phantom"), "a stale 'ongoing' row is never live");
   assert.equal(vm.recent.length, RECENT_MAX);
   assert.deepEqual(vm.recent.map((c) => c.callId), ["e0", "e1", "e2", "e3", "e4", "e5", "e6", "e7"], "newest first, capped — the hour-old phantom falls off the end");
-  const uncapped = toLiveVM(calls.slice(0, 4), [voice], NOW);
+  const uncapped = toLiveVM(calls.slice(0, 4), [voice], ZONE, NOW);
   assert.deepEqual(uncapped.recent.map((c) => c.callId), ["e0", "phantom"], "the phantom is listed with the finished calls, by its start time");
   assert.equal(vm.heartbeatMs, CALL_HEARTBEAT_MS);
   assert.equal(vm.fetchedAtMs, NOW.getTime());
 });
 
 test("a live call carries its real start for the page's clock and no invented duration", () => {
-  const c = toLiveCallVM(call("a"), NOW);
+  const c = toLiveCallVM(call("a"), ZONE, NOW);
   assert.equal(c.live, true);
   assert.equal(c.startedAtMs, NOW.getTime() - 161_000);
   assert.equal(c.heartbeatAtMs, NOW.getTime() - 2_000);
@@ -63,32 +66,32 @@ test("a live call carries its real start for the page's clock and no invented du
 });
 
 test("still marked live: a silent heartbeat, or a call past the long mark, says 'checking'", () => {
-  const silent = toLiveCallVM(call("s", { updated_at: ago(LIVE_STALE_MS + 60_000) }), NOW);
+  const silent = toLiveCallVM(call("s", { updated_at: ago(LIVE_STALE_MS + 60_000) }), ZONE, NOW);
   assert.equal(silent.live, true, "inside the heartbeat window it is still live…");
   assert.equal(silent.checking, true, "…but the page says it is checking");
   assert.match(silent.checkingWhy, /no word from the phone provider for 6 minutes/);
 
-  const long = toLiveCallVM(call("l", { started_at: ago(LIVE_OVERLONG_MS + 120_000), updated_at: ago(1_000) }), NOW);
+  const long = toLiveCallVM(call("l", { started_at: ago(LIVE_OVERLONG_MS + 120_000), updated_at: ago(1_000) }), ZONE, NOW);
   assert.equal(long.checking, true);
   assert.match(long.checkingWhy, /live for over 32 minutes/);
 });
 
 test("a call that just ended waits for its summary; an old one without a summary says so", () => {
-  const just = toLiveCallVM(call("j", { status: "ended", ended_at: ago(30_000), duration_ms: 112_000, disconnection_reason: "user_hangup" }), NOW);
+  const just = toLiveCallVM(call("j", { status: "ended", ended_at: ago(30_000), duration_ms: 112_000, disconnection_reason: "user_hangup" }), ZONE, NOW);
   assert.equal(just.live, false);
   assert.equal(just.summaryState, "pending");
   assert.equal(just.duration, "1:52");
   assert.equal(just.endedHow, "Customer hung up");
-  const old = toLiveCallVM(call("o", { status: "ended", ended_at: ago(ANALYSIS_GRACE_MS + 1_000), duration_ms: 5_000 }), NOW);
+  const old = toLiveCallVM(call("o", { status: "ended", ended_at: ago(ANALYSIS_GRACE_MS + 1_000), duration_ms: 5_000 }), ZONE, NOW);
   assert.equal(old.summaryState, "none");
-  const done = toLiveCallVM(call("d", { status: "ended", ended_at: ago(30_000), summary: "  Asked for Saturday.  ", sentiment: "Positive", recording: { fetch_state: "stored" } }), NOW);
+  const done = toLiveCallVM(call("d", { status: "ended", ended_at: ago(30_000), summary: "  Asked for Saturday.  ", sentiment: "Positive", recording: { fetch_state: "stored" } }), ZONE, NOW);
   assert.equal(done.summaryState, "ready");
   assert.equal(done.summary, "Asked for Saturday.");
   assert.equal(done.recordingState, "ready");
 });
 
 test("a dial that never connected is 'missed' with nothing to review", () => {
-  const m = toLiveCallVM(call("m", { status: "not_connected", disconnection_reason: "dial_failed" }), NOW);
+  const m = toLiveCallVM(call("m", { status: "not_connected", disconnection_reason: "dial_failed" }), ZONE, NOW);
   assert.equal(m.missed, true);
   assert.equal(m.live, false);
   assert.equal(m.summaryState, "missed");
@@ -103,7 +106,7 @@ test("the transcript keeps only spoken turns, with the provider's timings", () =
       { role: "tool_call_invocation", content: "" },
       { role: "user", content: "Saturday?", words: [{ word: "Saturday", start: 65.2, end: 65.9 }] },
     ],
-  }), NOW);
+  }), ZONE, NOW);
   assert.deepEqual(c.transcript, [
     { speaker: "agent", text: "Melany's, how can I help?", t: "0:00" },
     { speaker: "client", text: "Saturday?", t: "1:05" },
@@ -111,27 +114,27 @@ test("the transcript keeps only spoken turns, with the provider's timings", () =
 });
 
 test("who: a name, else the number, else 'withheld' — and a phone-like name is never split", () => {
-  const named = toLiveCallVM(call("n", { contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+17865550181" } }), NOW);
+  const named = toLiveCallVM(call("n", { contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+17865550181" } }), ZONE, NOW);
   assert.equal(named.who, "Daniela Ruiz");
   assert.equal(named.whoShort, "Daniela");
   assert.equal(named.initials, "DR");
-  const numbered = toLiveCallVM(call("p"), NOW);
+  const numbered = toLiveCallVM(call("p"), ZONE, NOW);
   assert.equal(numbered.who, "+1 (786) 555-0181");
   assert.equal(numbered.whoShort, "the caller");
   assert.equal(numbered.number, "+1 (786) 555-0181");
-  const withheld = toLiveCallVM(call("w", { from_e164: null, from_raw: null }), NOW);
+  const withheld = toLiveCallVM(call("w", { from_e164: null, from_raw: null }), ZONE, NOW);
   assert.equal(withheld.who, "Caller ID withheld");
   assert.equal(withheld.number, null);
   assert.equal(withheld.initials, "–");
 });
 
 test("the line: number and switch from the voice channel; null when there is none", () => {
-  const vm = toLiveVM([], [voice], NOW);
+  const vm = toLiveVM([], [voice], ZONE, NOW);
   assert.deepEqual(vm.line, { number: "+1 (308) 336-8109", on: true, lastCallLabel: vm.line.lastCallLabel });
   assert.ok(vm.line.lastCallLabel);
-  assert.equal(toLiveVM([], [{ ...voice, status: "disabled" }], NOW).line.on, false);
-  assert.equal(toLiveVM([], [{ ...voice, kind: "whatsapp" }], NOW).line, null);
-  assert.equal(toLiveVM([], null, NOW).line, null);
+  assert.equal(toLiveVM([], [{ ...voice, status: "disabled" }], ZONE, NOW).line.on, false);
+  assert.equal(toLiveVM([], [{ ...voice, kind: "whatsapp" }], ZONE, NOW).line, null);
+  assert.equal(toLiveVM([], null, ZONE, NOW).line, null);
   assert.deepEqual(vm.now, []);
   assert.deepEqual(vm.recent, []);
 });

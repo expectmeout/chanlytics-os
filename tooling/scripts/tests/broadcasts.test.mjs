@@ -19,6 +19,9 @@ import {
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { dispatchJob } = await import(pathToFileURL(path.join(here, "../../../packages/jobs/dist/index.js")).href);
 
@@ -143,7 +146,7 @@ test("the words a person will read, and the values Meta will accept", () => {
   assert.equal(cleanParam(""), null);
   assert.equal(cleanParam("x".repeat(1025)), null);
   assert.equal(cleanParam(42), null);
-  assert.ok(broadcastName("spring_offer", new Date("2026-09-05T15:00:00")).startsWith("Spring offer · Sep 5"));
+  assert.ok(broadcastName("spring_offer", ZONE, new Date("2026-09-05T15:00:00")).startsWith("Spring offer · Sep 5"));
 });
 
 test("the view model: delivered and read over sent, open while scheduled or sending, progress over enrolled", () => {
@@ -154,21 +157,21 @@ test("the view model: delivered and read over sent, open while scheduled or send
     recipient_count: 10, failure: null, created_at: "2026-09-05T12:50:00Z",
     counts: { queued: 0, sent: 8, skipped: 2, failed: 0, delivered: 6, read: 4, replied: 1 },
   };
-  const vm = toBroadcastVM(base, new Date("2026-09-06T10:00:00Z"));
+  const vm = toBroadcastVM(base, ZONE, new Date("2026-09-06T10:00:00Z"));
   assert.equal(vm.deliveredPct, 75);
   assert.equal(vm.readPct, 50);
   assert.equal(vm.open, false);
   assert.equal(vm.progress, 1);
   assert.equal(vm.stateLabel, "Sent");
-  const sending = toBroadcastVM({ ...base, state: "sending", finished_at: null, counts: { ...base.counts, sent: 3, skipped: 1, queued: 6 } });
+  const sending = toBroadcastVM({ ...base, state: "sending", finished_at: null, counts: { ...base.counts, sent: 3, skipped: 1, queued: 6 } }, ZONE);
   assert.equal(sending.open, true);
   assert.equal(sending.progress, 0.4);
-  const fresh = toBroadcastVM({ ...base, state: "scheduled", started_at: null, finished_at: null, counts: { queued: 10, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } });
+  const fresh = toBroadcastVM({ ...base, state: "scheduled", started_at: null, finished_at: null, counts: { queued: 10, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } }, ZONE);
   assert.equal(fresh.deliveredPct, null, "nothing to divide by yet");
   const now = new Date("2026-09-05T09:00:00");
-  assert.ok(whenLabel("2026-09-05T15:30:00", now).startsWith("today "));
-  assert.ok(whenLabel("2026-09-06T15:30:00", now).startsWith("tomorrow "));
-  assert.ok(/^Sep 12 · /.test(whenLabel("2026-09-12T15:30:00", now)));
+  assert.ok(whenLabel("2026-09-05T15:30:00", ZONE, now).startsWith("today "));
+  assert.ok(whenLabel("2026-09-06T15:30:00", ZONE, now).startsWith("tomorrow "));
+  assert.ok(/^Sep 12 · /.test(whenLabel("2026-09-12T15:30:00", ZONE, now)));
 });
 
 test("the job: its rules are run (core-broadcast.test.mjs); the adapter still reads what the run needs and writes where it did", () => {

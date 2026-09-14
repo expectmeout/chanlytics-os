@@ -215,7 +215,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   assert.ok(bridge.includes("spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel"), "the arithmetic reaches the page, all of it");
   assert.ok(bridge.includes("export async function refresh(): Promise<void>"), "and a refresh the board can call");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("const w = from ? { from, days } : windowFor(localDayKey());"), "the first read is the window around today");
+  assert.ok(sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"), "the first read is the window around the business's today");
   assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
   assert.ok(css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"), "a quiet arrival, none for those who asked for none");

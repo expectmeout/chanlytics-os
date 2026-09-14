@@ -174,7 +174,7 @@ export async function buildSnapshot(t: ToolContext, timezone: string, scope: Ask
 
   const callDtos: CallDto[] = (calls.data ?? []).map(toCallDto);
   const callRows = callDtos.map((c) => {
-    const v = toCallVM(c, now);
+    const v = toCallVM(c, timezone, now);
     t.read.call.add(c.id);
     if (c.contact_id) t.read.person.add(c.contact_id);
     return {

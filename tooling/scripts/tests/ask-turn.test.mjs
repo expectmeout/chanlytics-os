@@ -258,6 +258,22 @@ test("the history is folded so no two neighbours share a role and the person spe
   assert.deepEqual(foldHistory([], "d"), [{ role: "user", content: "d" }]);
 });
 
+test("REGRESSION: the assistant's people search says when someone was last in touch -- it handed ago the time since, and said Dec 31, 1969 of everyone", async () => {
+  const wrote = iso(NOW.getTime() - 2 * 3600_000);
+  const rosa = {
+    id: P1, display_name: "Rosa", wa_profile_name: null, phone_e164: "+13055550100", consent: "opted_in", consent_source: null, consent_updated_at: null, dnc: false,
+    channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+    latest_conversation_id: C1, latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null,
+    latest_wa_inbound_at: wrote, last_message_at: wrote, last_message_direction: "inbound", last_message_sender: "customer",
+    last_inbound_text: "Are you open Saturday?", last_inbound_at: wrote, last_call_at: null, call_count: 0, call_seconds: 0,
+    first_contact_at: wrote, earliest_row_at: wrote, has_backfill: false, has_chat: true, queued_reply_at: null,
+  };
+  const tc = newToolContext(ctxFor(tables(), { ...RPCS, people_list: () => [rosa] }), A, "operator", TZ, NOW);
+  const r = await runTool(tc, { name: "search_people", input: { query: "rosa" } });
+  assert.equal(r.isError, false, r.result);
+  assert.deepEqual(JSON.parse(r.result).people.map((p) => [p.name, p.last_contact]), [["Rosa", "2h ago"]]);
+});
+
 test("the round gathers the stream: blocks in order, the finish's answer streamed as it grows, the stop reason, and an error after the start kept beside the blocks", async () => {
   async function* stream() {
     yield { type: "block_start", index: 0, block: { type: "text" } };

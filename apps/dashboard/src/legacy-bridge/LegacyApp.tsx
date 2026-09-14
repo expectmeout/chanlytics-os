@@ -48,8 +48,11 @@ import { installPlatform } from "./platform";
 import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
 import { installShell, publishShellStatus } from "./shell";
+import { installClock } from "./zone";
 import CreateWorkspace from "./CreateWorkspace";
 
+// First: every page says a time by the workspace's clock (zone.ts), from the first paint.
+installClock();
 installInboxVerbs();
 installPeopleCourier();
 installLists();

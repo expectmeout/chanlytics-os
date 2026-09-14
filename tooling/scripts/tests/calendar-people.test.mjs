@@ -163,22 +163,22 @@ const detail_ = (over = {}) => ({ row: { ...ROW, ...over }, identities: [], conv
 
 test("the profile: a Next visit fact and About rows when the calendar is connected; nothing invented when it is not", () => {
   const now = new Date(NOW);
-  const none = toPersonVM(detail(null), now);
+  const none = toPersonVM(detail(null), TZ, now);
   assert.ok(!none.facts.some((f) => f.label === "Next visit") && !none.about.some((a) => a.k === "Next visit"), "no calendar, no line");
   const next = { id: "b1:1", start: "2026-09-08T18:00:00.000Z", end: "2026-09-08T21:00:00.000Z", title: "Maria Lopez - Balayage", all_day: false, via: "phone" };
   const last = { id: "b0:1", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "name" };
-  const vm = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), now);
+  const vm = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next, last }), TZ, now);
   const fact = vm.facts.find((f) => f.label === "Next visit");
   assert.deepEqual(fact, { label: "Next visit", value: "Tue, Sep 8", meta: "2:00 – 5:00 PM" }, "the cell is narrow: the time here, the service in About");
   assert.deepEqual(vm.about.filter((a) => a.k === "Next visit" || a.k === "Last visit"), [
     { k: "Next visit", v: "Tue, Sep 8 · 2:00 – 5:00 PM · Maria Lopez - Balayage" },
     { k: "Last visit", v: "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour" },
   ]);
-  const empty = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null }), now);
+  const empty = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null }), TZ, now);
   assert.deepEqual(empty.facts.find((f) => f.label === "Next visit"), { label: "Next visit", value: "—", meta: "none booked" });
-  const down = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "unavailable", next: null, last: null }), now);
+  const down = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "unavailable", next: null, last: null }), TZ, now);
   assert.equal(down.about.find((a) => a.k === "Next visit").v, "Calendar could not be read");
-  const byName = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: { ...next, via: "name" }, last: null }), now);
+  const byName = toPersonVM(detail({ timezone: TZ, source: "Google Calendar", state: "ok", next: { ...next, via: "name" }, last: null }), TZ, now);
   assert.ok(byName.facts.find((f) => f.label === "Next visit").meta.endsWith("· by name"));
   assert.equal(down.facts.find((f) => f.label === "Next visit").meta, "could not be read");
 });
@@ -309,11 +309,11 @@ test("automatically: an hourly sweep on the edge and the owner's own read both p
 
 test("the profile: Added from your calendar, with the appointment that named them", () => {
   const now = new Date(NOW);
-  const vm = toPersonVM(detail(null), now);
+  const vm = toPersonVM(detail(null), TZ, now);
   assert.ok(!vm.about.some((a) => a.k === "Added"));
-  const fromCal = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "calendar", title: "Maria Lopez - Balayage" } }, now);
+  const fromCal = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "calendar", title: "Maria Lopez - Balayage" } }, TZ, now);
   assert.equal(fromCal.about.find((a) => a.k === "Added").v, "Sep 6, 2026 · from your calendar (Maria Lopez - Balayage)");
-  const byHand = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "manual", title: null } }, now);
+  const byHand = toPersonVM({ ...detail(null), added: { at: "2026-09-06T14:00:00.000Z", source: "manual", title: null } }, TZ, now);
   assert.equal(byHand.about.find((a) => a.k === "Added").v, "Sep 6, 2026 · by hand");
 });
 
@@ -337,20 +337,20 @@ test("Booked and Asked-never-booked are facts from the calendar on the row: the 
   const last = { id: "b0:1", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "phone" };
   const cal = (v) => ({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null, ...v });
   const asked = { ...ROW, id: "a", last_inbound_at: "2026-09-04T12:00:00.000Z", last_call_at: null };
-  const booked = toPersonRowVM({ ...asked, id: "b", visits: cal({ next }) }, now);
+  const booked = toPersonRowVM({ ...asked, id: "b", visits: cal({ next }) }, TZ, now);
   assert.equal(booked.booked, true);
   assert.equal(booked.nextVisitDay, "Tue, Sep 8");
   assert.equal(booked.nextVisit, "Tue, Sep 8 · 2:00 – 5:00 PM · Balayage");
   assert.equal(booked.askedNotBooked, false, "booked is not asked-never-booked");
-  const gap = toPersonRowVM({ ...asked, visits: cal({}) }, now);
+  const gap = toPersonRowVM({ ...asked, visits: cal({}) }, TZ, now);
   assert.equal(gap.askedNotBooked, true, "wrote this month, the calendar never had them");
   assert.equal(gap.askedMs, Date.parse("2026-09-04T12:00:00.000Z"));
-  const visited = toPersonRowVM({ ...asked, id: "v", visits: cal({ last }) }, now);
+  const visited = toPersonRowVM({ ...asked, id: "v", visits: cal({ last }) }, TZ, now);
   assert.equal(visited.askedNotBooked, false, "they have been on the calendar before");
   assert.equal(visited.lastVisit, "Thu, Aug 20 · 10:00 AM – 12:00 PM · Colour");
-  const stale = toPersonRowVM({ ...asked, id: "s", last_inbound_at: "2026-07-01T12:00:00.000Z", visits: cal({}) }, now);
+  const stale = toPersonRowVM({ ...asked, id: "s", last_inbound_at: "2026-07-01T12:00:00.000Z", visits: cal({}) }, TZ, now);
   assert.equal(stale.askedNotBooked, false, "asked more than a month ago is not this list");
-  const noCal = toPersonRowVM({ ...asked, id: "n", visits: null }, now);
+  const noCal = toPersonRowVM({ ...asked, id: "n", visits: null }, TZ, now);
   assert.equal(noCal.calendar, "none");
   assert.equal(noCal.askedNotBooked, false, "no calendar: nothing to say");
   const bookedList = PEOPLE_LISTS.find((l) => l.id === "booked");
@@ -387,7 +387,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
   assert.ok(rep.includes(".then((rows) => bookingReport(ctx, tenantId, rows, days))") && rep.includes("return { report, booking };"), "never fatal to the report");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
-  assert.ok(tools.includes('list: { type: "string" }') && tools.includes("if (list && !list.test(toPersonRowVM(r, t.now))) return false;") && tools.includes("next_visit: r.visits?.next"), "the assistant answers who booked and who never did");
+  assert.ok(tools.includes('list: { type: "string" }') && tools.includes("if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;") && tools.includes("next_visit: r.visits?.next"), "the assistant answers who booked and who never did");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("lists: PEOPLE_LISTS.filter((l) => !l.needsCalendar || calendar.state === \"ok\")") && sd.includes("booking: toBookingReportVM(data.booking),"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -417,10 +417,10 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   for (const id of ["person-rename", "person-name-input", "person-name-save", "person-notes", "person-notes-input", "person-notes-save"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes("Notes · the receptionist reads these") && page.includes("the receptionist uses these as facts and never reads them aloud"));
   assert.ok(page.includes("<PersonName p={p} canEdit={canRecord} flash={ppFlash} />"), "the hero name is the editable one");
-  const vm = toPersonVM({ ...detail_(), notes: "  Sees Sofia  " }, new Date(NOW));
+  const vm = toPersonVM({ ...detail_(), notes: "  Sees Sofia  " }, TZ, new Date(NOW));
   assert.equal(vm.notes, "Sees Sofia");
   assert.equal(vm.givenName, "Maria Lopez");
-  const numbered = toPersonVM(detail_({ display_name: null }), new Date(NOW));
+  const numbered = toPersonVM(detail_({ display_name: null }), TZ, new Date(NOW));
   assert.equal(numbered.givenName, null, "a number is not a given name");
   assert.equal(numbered.notes, null);
 });
@@ -433,11 +433,11 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   const far = { ...soon, start: new Date(NOW + 20 * 86_400_000).toISOString(), end: new Date(NOW + 20 * 86_400_000 + 3_600_000).toISOString() };
   const old = { ...soon, id: "o", start: new Date(NOW - 60 * 86_400_000).toISOString(), end: new Date(NOW - 60 * 86_400_000 + 3_600_000).toISOString() };
   const recent = { ...old, start: new Date(NOW - 10 * 86_400_000).toISOString(), end: new Date(NOW - 10 * 86_400_000 + 3_600_000).toISOString() };
-  const week = toPersonRowVM({ ...ROW, id: "w", visits: cal({ next: soon }) }, now);
-  const later = toPersonRowVM({ ...ROW, id: "l", visits: cal({ next: far }) }, now);
-  const lapsed = toPersonRowVM({ ...ROW, id: "x", visits: cal({ last: old }) }, now);
-  const regular = toPersonRowVM({ ...ROW, id: "r", visits: cal({ last: recent }) }, now);
-  const back = toPersonRowVM({ ...ROW, id: "b", visits: cal({ last: old, next: far }) }, now);
+  const week = toPersonRowVM({ ...ROW, id: "w", visits: cal({ next: soon }) }, TZ, now);
+  const later = toPersonRowVM({ ...ROW, id: "l", visits: cal({ next: far }) }, TZ, now);
+  const lapsed = toPersonRowVM({ ...ROW, id: "x", visits: cal({ last: old }) }, TZ, now);
+  const regular = toPersonRowVM({ ...ROW, id: "r", visits: cal({ last: recent }) }, TZ, now);
+  const back = toPersonRowVM({ ...ROW, id: "b", visits: cal({ last: old, next: far }) }, TZ, now);
   assert.equal(week.nextVisitDays, 3);
   assert.equal(lapsed.lastVisitDays, 60);
   const L = (id) => PEOPLE_LISTS.find((l) => l.id === id);
@@ -480,17 +480,18 @@ test("the list page: Next visit takes the receptionist's column with a calendar,
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("action: peopleListAction(l.id, members)") && sd.includes("groups: PEOPLE_LIST_GROUPS.map("));
   assert.ok(sd.includes('(!l.needsCalendar || people.calendar?.state === "ok")'), "a calendar list is an audience only with a calendar");
-  assert.ok(readCode("apps/dashboard/src/server/campaign-ports.ts").includes("withVisits(ctx, tenantId, await everyone(ctx, tenantId), now)"), "the enrol path counts what the page counted, every page of it");
+  const ports = readCode("apps/dashboard/src/server/campaign-ports.ts");
+  assert.ok(ports.includes("await Promise.all([everyone(ctx, tenantId), zone()]);") && ports.includes("withVisits(ctx, tenantId, rows, now)"), "the enrol path counts what the page counted, every page of it");
 });
 
 test("asked means they reached out: the call they placed counts, a call the owner made does not", async () => {
   const { toPersonRowVM } = await import("@chanlytics/contracts");
   const now = new Date(NOW);
   const cal = { timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null };
-  const theyCalled = toPersonRowVM({ ...ROW, id: "t", last_call_at: "2026-09-05T12:00:00.000Z", last_inbound_call_at: "2026-09-05T12:00:00.000Z", visits: cal }, now);
+  const theyCalled = toPersonRowVM({ ...ROW, id: "t", last_call_at: "2026-09-05T12:00:00.000Z", last_inbound_call_at: "2026-09-05T12:00:00.000Z", visits: cal }, TZ, now);
   assert.equal(theyCalled.askedMs, Date.parse("2026-09-05T12:00:00.000Z"));
   assert.equal(theyCalled.askedNotBooked, true);
-  const weCalled = toPersonRowVM({ ...ROW, id: "w", last_call_at: "2026-09-05T12:00:00.000Z", last_inbound_call_at: null, visits: cal }, now);
+  const weCalled = toPersonRowVM({ ...ROW, id: "w", last_call_at: "2026-09-05T12:00:00.000Z", last_inbound_call_at: null, visits: cal }, TZ, now);
   assert.equal(weCalled.askedMs, null, "an outbound call is not them asking");
   assert.equal(weCalled.askedNotBooked, false);
   assert.equal(weCalled.lastContact.label.startsWith("Phoned"), true, "but it is still the last contact");
@@ -535,16 +536,16 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   const now = new Date(NOW);
   const past = { id: "a", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "phone" };
   const ahead = { id: "b", start: "2026-09-08T18:00:00.000Z", end: "2026-09-08T21:00:00.000Z", title: "Balayage", all_day: false, via: "phone" };
-  const vm = toPersonVM({ ...detail_(), booking_link: " https://booksy.com/melanys ", visits: { timezone: TZ, source: "Google Calendar", state: "ok", next: ahead, last: past, all: [past, ahead] }, added: { at: "2026-09-01T12:00:00.000Z", source: "calendar", title: "Colour" } }, now);
+  const vm = toPersonVM({ ...detail_(), booking_link: " https://booksy.com/melanys ", visits: { timezone: TZ, source: "Google Calendar", state: "ok", next: ahead, last: past, all: [past, ahead] }, added: { at: "2026-09-01T12:00:00.000Z", source: "calendar", title: "Colour" } }, TZ, now);
   const visits = vm.timeline.filter((i) => i.kind === "visit");
   assert.deepEqual(visits.map((i) => [i.text, i.who]), [["Booked · Balayage", "Calendar"], ["Visited · Colour", "Calendar"]], "newest first, ahead reads as booked");
   assert.equal(visits[1].sub, "10:00 AM – 12:00 PM · from Google Calendar");
   assert.equal(vm.timeline.find((i) => i.id === "added").text, "Added from your calendar (Colour)");
   assert.equal(vm.bookingLink, "https://booksy.com/melanys");
   assert.equal(vm.replyWindow, null, "no chat, no window");
-  const chat = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 2 * 3_600_000).toISOString() }), now);
+  const chat = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 2 * 3_600_000).toISOString() }), TZ, now);
   assert.deepEqual(chat.replyWindow, { open: true, hoursLeft: 22 });
-  const closed = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 30 * 3_600_000).toISOString() }), now);
+  const closed = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 30 * 3_600_000).toISOString() }), TZ, now);
   assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(page.includes('data-testid="text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"') && page.includes("Send the booking-link template"), "inside the window a reply is carried in; outside it the thread offers the template");
@@ -561,10 +562,10 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   const now = new Date(NOW);
   const cal = (v) => ({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null, ...v });
   const last = { id: "b0:1", start: "2026-08-20T14:00:00.000Z", end: "2026-08-20T16:00:00.000Z", title: "Colour", all_day: false, via: "phone" };
-  const row = toPersonRowVM({ ...ROW, has_chat: true, latest_wa_inbound_at: new Date(NOW - 3_600_000).toISOString(), visits: cal({ last }) }, now);
+  const row = toPersonRowVM({ ...ROW, has_chat: true, latest_wa_inbound_at: new Date(NOW - 3_600_000).toISOString(), visits: cal({ last }) }, TZ, now);
   assert.equal(row.lastVisitDay, "Thu, Aug 20");
   assert.deepEqual(row.replyWindow, { open: true, hoursLeft: 23 });
-  assert.equal(toPersonRowVM({ ...ROW, has_chat: false }, now).replyWindow, null);
+  assert.equal(toPersonRowVM({ ...ROW, has_chat: false }, TZ, now).replyWindow, null);
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.ok(page.includes('withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false }') && page.includes('{ key: "offers", label: "Offers", sortable: true }') && !page.includes('label: "First contact"'), "the columns");
   assert.ok(page.includes('cl-row-avatar-glyph') && page.includes('data-testid="row-name-them"'), "a number is not initials; it can be named");

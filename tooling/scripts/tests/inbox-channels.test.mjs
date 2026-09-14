@@ -8,6 +8,9 @@ import assert from "node:assert/strict";
 import { toInboxThreadVM, contactMeta } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = new Date("2026-09-06T23:00:00Z");
 const conv = (over = {}) => ({
   id: "c1", state: "needs_human", paused_until: "2026-09-07T19:00:00Z", snooze_until: null,
@@ -20,7 +23,7 @@ const conv = (over = {}) => ({
 const callback = { id: "e1", reason: "callback", state: "open", created_at: "2026-09-06T22:04:00Z", details: "Call Emily back to confirm the bridal trial on Oct 3" };
 
 test("a caller with no WhatsApp thread: phone is the channel, no reply window, the number to call, the reason's own sentence", () => {
-  const vm = toInboxThreadVM(conv(), callback, NOW);
+  const vm = toInboxThreadVM(conv(), callback, ZONE, NOW);
   assert.deepEqual([vm.channels, vm.primaryChannel, vm.hasChat, vm.phone], [["phone"], "phone", false, "+19175550106"]);
   assert.equal(vm.whoMeta, "Phone · +1 (917) 555-0106");
   assert.ok(vm.contextStrip.some((c) => c.label === "WhatsApp" && c.value === "No thread yet — they have only phoned"), "no window for a window that never opened");
@@ -31,10 +34,10 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
 });
 
 test("a WhatsApp thread keeps its window, and a thread with both keeps both channels", () => {
-  const chat = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T22:00:00Z", messages: [{ id: "m2", direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: "2026-09-06T22:00:00Z" }] }), null, NOW);
+  const chat = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T22:00:00Z", messages: [{ id: "m2", direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: "2026-09-06T22:00:00Z" }] }), null, ZONE, NOW);
   assert.deepEqual([chat.channels, chat.primaryChannel, chat.hasChat], [["whatsapp"], "whatsapp", true]);
   assert.ok(chat.contextStrip.some((c) => c.label === "Reply window" && c.value === "Open — you can write freely"));
-  const both = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T22:00:00Z", messages: [...conv().messages, { id: "m2", direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: "2026-09-06T22:10:00Z" }] }), null, NOW);
+  const both = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T22:00:00Z", messages: [...conv().messages, { id: "m2", direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: "2026-09-06T22:10:00Z" }] }), null, ZONE, NOW);
   assert.deepEqual([both.channels, both.primaryChannel], [["whatsapp", "phone"], "whatsapp"]);
   assert.equal(contactMeta(conv()), "WhatsApp · +1 (917) 555-0106", "the default stays what Today's rows print");
 });

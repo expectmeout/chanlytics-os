@@ -16,6 +16,9 @@ import { frameWhisper, whisperText, toLiveCallVM, toCallVM } from "@chanlytics/c
 import { liveTurns } from "@chanlytics/channels";
 import { readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 test("the frame is an owner instruction with the words quoted, and its inverse gives the words back", () => {
   const framed = frameWhisper("  tell them we have a haircut special ");
   assert.ok(framed.startsWith("A whisper from the business owner, who is listening to this call."));
@@ -56,10 +59,10 @@ test("both transcripts show the whisper as the owner's own words, where it lande
     { role: "injected", content: frameWhisper("tell them we have a haircut special") },
     { role: "agent", content: "Great! We're open today until 7 PM.", words: [{ start: 30.1 }] },
   ];
-  const live = toLiveCallVM(dto(turns), new Date());
+  const live = toLiveCallVM(dto(turns), ZONE, new Date());
   assert.deepEqual(live.transcript.map((t) => t.speaker), ["client", "whisper", "agent"]);
   assert.equal(live.transcript[1].text, "tell them we have a haircut special", "never the frame");
-  const call = toCallVM(dto(turns), new Date());
+  const call = toCallVM(dto(turns), ZONE, new Date());
   assert.deepEqual(call.transcript.map((t) => t.speaker), ["client", "whisper", "agent"]);
   assert.equal(call.transcript[1].text, "tell them we have a haircut special");
   const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");

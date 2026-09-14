@@ -18,6 +18,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toTodayVM, toCallVM, stateOf } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 // 10:00 in New York on Sunday 6 September 2026.
 const NOW = new Date("2026-09-06T14:00:00Z");
 
@@ -81,24 +84,24 @@ const call = (over = {}) => ({
 });
 
 test("a call that asked for a call back is never pilled 'handled', and the words stay true after someone calls back", () => {
-  const vm = toCallVM(call(), NOW);
+  const vm = toCallVM(call(), ZONE, NOW);
   assert.equal(vm.outcome, "callback");
   assert.deepEqual(stateOf("call", "callback"), { tone: "warn", label: "Asked for a call back" });
 });
 
 test("the caller who hung up in seconds is pilled as that, the same rule Today already uses", () => {
-  const vm = toCallVM(call({ duration_ms: 6_000, disconnection_reason: "user_hangup", outcome: null, follow_up: null }), NOW);
+  const vm = toCallVM(call({ duration_ms: 6_000, disconnection_reason: "user_hangup", outcome: null, follow_up: null }), ZONE, NOW);
   assert.equal(vm.outcome, "abandoned");
   assert.equal(stateOf("call", "abandoned").label, "Hung up early");
 });
 
 test("a call that neither asked for anything nor ended early is still handled", () => {
-  assert.equal(toCallVM(call({ outcome: null, follow_up: null }), NOW).outcome, "handled");
-  assert.equal(toCallVM(call({ status: "not_connected", duration_ms: 0, outcome: null }), NOW).outcome, "missed", "a dial that never connected keeps its own word");
+  assert.equal(toCallVM(call({ outcome: null, follow_up: null }), ZONE, NOW).outcome, "handled");
+  assert.equal(toCallVM(call({ status: "not_connected", duration_ms: 0, outcome: null }), ZONE, NOW).outcome, "missed", "a dial that never connected keeps its own word");
 });
 
 test("a call's note names the thread it went to, never a channel the caller may not have", () => {
-  const bullets = toCallVM(call(), NOW).summary.bullets;
+  const bullets = toCallVM(call(), ZONE, NOW).summary.bullets;
   assert.ok(bullets.includes("Noted on Emily's thread in the Inbox"), JSON.stringify(bullets));
   assert.ok(!bullets.some((b) => b.includes("WhatsApp thread")), "a phone-only caller has no WhatsApp thread");
 });
@@ -146,15 +149,15 @@ const textOf = (n) => { const out = []; walk(n, (x) => { for (const k of x.props
 const pillClass = (n) => (n.rendered ?? n).props.className;
 
 test("Conversations draws a call's own story in amber -- 'Asked for a call back', 'Hung up early' -- and keeps 'Receptionist handled it' for the calls it describes", () => {
-  const callback = OutcomePill({ outcome: toCallVM(call(), NOW).outcome, channel: "phone" });
+  const callback = OutcomePill({ outcome: toCallVM(call(), ZONE, NOW).outcome, channel: "phone" });
   assert.equal(textOf(callback), "Asked for a call back");
   assert.ok(pillClass(callback).includes("pill-warn"), pillClass(callback));
 
-  const quick = OutcomePill({ outcome: toCallVM(call({ duration_ms: 6_000, disconnection_reason: "user_hangup", outcome: null, follow_up: null }), NOW).outcome, channel: "phone" });
+  const quick = OutcomePill({ outcome: toCallVM(call({ duration_ms: 6_000, disconnection_reason: "user_hangup", outcome: null, follow_up: null }), ZONE, NOW).outcome, channel: "phone" });
   assert.equal(textOf(quick), "Hung up early");
   assert.ok(pillClass(quick).includes("pill-warn"), pillClass(quick));
 
-  const handled = OutcomePill({ outcome: toCallVM(call({ outcome: null, follow_up: null }), NOW).outcome, channel: "phone" });
+  const handled = OutcomePill({ outcome: toCallVM(call({ outcome: null, follow_up: null }), ZONE, NOW).outcome, channel: "phone" });
   assert.equal(textOf(handled), "Receptionist handled it");
 });
 
@@ -376,6 +379,9 @@ test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -
 
 /* ------------- Campaigns: an approve says when the run really goes ------------- */
 
+// The pages' one clock (legacy-bridge/zone.ts): the workspace's zone once one is published.
+const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
+installClock();
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 
@@ -403,6 +409,55 @@ test("REGRESSION: approving a run the server moved to nine says so -- the toast 
   const said = textOf(toasts.at(-1).msg);
   assert.ok(!said.includes("sending now"), said);
   assert.ok(said.includes("scheduled for"), said);
+});
+
+/** A Tokyo workspace, with "now" pinned, for one page test: New York and UTC disagree with it about the day. */
+const inTokyo = (nowIso, fn) => {
+  const before = { ws: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE, bc: globalThis.window.__BROADCASTS };
+  const realNow = Date.now;
+  Object.assign(globalThis.window, { __WORKSPACES: [{ id: "t-tokyo", slug: "tokyo", name: "Tokyo Salon", status: "active", timezone: "Asia/Tokyo" }], __ACTIVE_WORKSPACE: "t-tokyo" });
+  Date.now = () => Date.parse(nowIso);
+  try {
+    return fn();
+  } finally {
+    Date.now = realNow;
+    Object.assign(globalThis.window, { __WORKSPACES: before.ws, __ACTIVE_WORKSPACE: before.active, __BROADCASTS: before.bc });
+  }
+};
+
+test("REGRESSION (C11): the schedule box reads and writes the business's clock, and says before Schedule when the send will really go", () => {
+  // Noon on 15 December in Tokyo; 10 PM on the 14th in New York.
+  inTokyo("2026-12-15T03:00:00Z", () => {
+    let picked;
+    cells = []; seq = 0;
+    const box = globalThis.window.BcWhenBox({ at: null, maxDays: 30, onChange: (v) => { picked = v; } });
+    assert.equal(box.props.min, "2026-12-15T12:00", "no earlier than now, by the clock in Tokyo");
+    assert.equal(box.props.max, "2027-01-14T12:00", "and within thirty days");
+    box.props.onChange({ target: { value: "2026-12-15T22:30" } });
+    assert.equal(picked, Date.parse("2026-12-15T13:30:00Z"), "REGRESSION: 10:30 PM was read on the device's clock");
+    const late = globalThis.window.bcWhenNote(picked, 30);
+    assert.deepEqual([late.ok, late.words], [true, "Goes out tomorrow 9:00 AM, Tokyo time — sends wait for 9:00–20:59"]);
+    assert.equal(globalThis.window.bcWhenNote(Date.parse("2026-12-15T05:00:00Z"), 30).words, "Goes out today 2:00 PM, Tokyo time");
+    assert.equal(globalThis.window.bcWhenNote(Date.parse("2026-12-15T02:00:00Z"), 30).ok, false, "a time that has passed is not scheduled");
+    assert.equal(globalThis.window.bcWhenNote(Date.parse("2027-02-01T02:00:00Z"), 30).ok, false, "nor one past thirty days");
+    assert.equal(globalThis.window.bcWhenNote(null, 30).words, "By Tokyo time · within 30 days");
+    const receipt = globalThis.window.bcWhenWords({ scheduled_for: "2026-12-16T00:00:00Z", moved_from: "2026-12-15T13:30:00Z" });
+    assert.ok(receipt.startsWith("scheduled for tomorrow 9:00 AM"), `the receipt, by the same clock: ${receipt}`);
+  });
+});
+
+test("REGRESSION (D5): Today's 'went out' line is the business's today, at the business's time", () => {
+  // 2 PM on the 7th in Tokyo; 1 AM on the 7th in New York. The run went out at 1:30 AM on the 7th in Tokyo.
+  inTokyo("2026-09-07T05:00:00Z", () => {
+    globalThis.window.__BROADCASTS = { rows: [{ id: "b1", name: "Spring offer", state: "sent", started_at: "2026-09-06T16:30:00Z", playbook_id: null, audience: { label: "Everyone" }, counts: { sent: 8, replied: 1 } }] };
+    globalThis.window.TODAY_DATA = todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]);
+    cells = []; seq = 0;
+    // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
+    let lines = null;
+    walk(globalThis.window.HeroBrief(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
+    const said = (lines || []).map(textOf).join(" | ");
+    assert.ok(said.includes("went out at 1:30 AM — 8 sent, 1 replied") && said.includes("Spring offer"), `REGRESSION: yesterday in New York, so not said at all: ${said}`);
+  });
 });
 
 /* ------ Messages: an unread number, and the business the preview names ------ */

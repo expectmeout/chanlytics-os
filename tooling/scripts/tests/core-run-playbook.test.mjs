@@ -173,7 +173,7 @@ test("ask: the row waits, nobody is scheduled, the owner is told in these words,
 
 test("a visit run keeps each person's words on their row, from the visit the run read", async () => {
   const next = visit("2026-09-07T18:00:00Z", "Balayage"); // tomorrow, 2:00 PM in New York
-  const row = toPersonRowVM(dto("a", { visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null } }), NOW);
+  const row = toPersonRowVM(dto("a", { visits: { timezone: TZ, source: "calendar", state: "ok", next, last: null } }), TZ, NOW);
   const { ports, of } = fakes();
   const r = await runPlaybook(ports, cmd({
     playbook: playbook({ trigger: "visit_tomorrow", policy_class: "booking", template_name: "visit_reminder", params: [{ kind: "first_name" }, { kind: "visit_when" }, { kind: "visit_service" }] }),

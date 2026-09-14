@@ -18,6 +18,9 @@ import assert from "node:assert/strict";
 import { messageStatusLabel, reachedCustomer, toConversationVM } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const msg = (status, body, over = {}) => ({
   id: `m-${status}`,
   sender: "ai",
@@ -50,7 +53,7 @@ const dto = (messages) => ({
 test("the same words, canceled and delivered, do not render the same", () => {
   // The literal case from the live account.
   const text = "Hi! Thanks for calling Melany's Beauty Salon.";
-  const vm = toConversationVM(dto([msg("canceled", text), msg("delivered", text)]));
+  const vm = toConversationVM(dto([msg("canceled", text), msg("delivered", text)]), ZONE);
   const [a, b] = vm.messages;
   assert.equal(a.text, b.text, "the fixture is only interesting if the text matches");
   assert.equal(a.reachedCustomer, false);
@@ -61,18 +64,18 @@ test("the same words, canceled and delivered, do not render the same", () => {
 
 test("every way of not arriving is marked as not arriving", () => {
   for (const status of ["canceled", "failed", "queued"]) {
-    const vm = toConversationVM(dto([msg(status, "x")]));
+    const vm = toConversationVM(dto([msg(status, "x")]), ZONE);
     assert.equal(vm.messages[0].reachedCustomer, false, status);
     assert.ok(vm.messages[0].statusLabel, `${status} must say what happened`);
   }
   for (const status of ["sent", "delivered", "read"]) {
-    assert.equal(toConversationVM(dto([msg(status, "x")])).messages[0].reachedCustomer, true, status);
+    assert.equal(toConversationVM(dto([msg(status, "x")]), ZONE).messages[0].reachedCustomer, true, status);
   }
 });
 
 test("a customer's own message is never given a send status", () => {
   // Inventing one would be describing something that does not exist.
-  const vm = toConversationVM(dto([msg("received", "hello", { sender: "customer", direction: "inbound" })]));
+  const vm = toConversationVM(dto([msg("received", "hello", { sender: "customer", direction: "inbound" })]), ZONE);
   assert.equal(vm.messages[0].statusLabel, undefined);
   assert.equal(vm.messages[0].reachedCustomer, undefined);
   assert.equal(vm.messages[0].from, "client");
