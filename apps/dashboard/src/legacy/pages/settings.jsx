@@ -160,15 +160,21 @@ const SetRow = ({ label, hint, children }) => {
   );
 };
 
-const SetSeg = ({ value, options, onChange, ...rest }) => (
+const SetSeg = ({ value, options, onChange, ...rest }) => {
   // role=group so the label SetRow supplies has something to name; the buttons
-  // inside stay plain buttons, which is what they already were.
-  <div className="cl-tabs" role="group" {...rest}>
-    {options.map(o => (
-      <button key={o} className={`cl-tab ${value === o ? "active" : ""}`} onClick={() => onChange(o)}>{o}</button>
-    ))}
-  </div>
-);
+  // inside stay plain buttons, which is what they already were. `gate` is
+  // window.gate(...)'s props, on every option -- a dial a role may not turn says
+  // why when pressed, where it used to take the press and show the server's
+  // refusal -- and it stays off the group, which gets everything else it is given.
+  const { gate = null, ...group } = rest;
+  return (
+    <div className="cl-tabs" role="group" {...group}>
+      {options.map(o => (
+        <button key={o} className={`cl-tab ${value === o ? "active" : ""}`} onClick={() => onChange(o)} {...(gate || {})}>{o}</button>
+      ))}
+    </div>
+  );
+};
 
 // Veto window — the third autonomy mode (ask-first < veto < auto); ST_STORE-backed
 const VetoModeRow = () => {
@@ -1903,7 +1909,7 @@ const PaneWorkspace = ({ flash }) => {
           the form exists; the first thing an owner needs is to be told there
           is something to fill in, and given the button. */}
       {real && !profile && (
-        <EmptyState kind="card" glyph="edit" title="Tell the receptionist about your business" body="Your hours, services and address are still written inside the assistant's instructions, as prose. Fill them in as fields and the WhatsApp receptionist answers from them within a minute — and the phone agent reads the same ones, once it has been pointed at them." action={{ label: "Add your business details", onClick: () => setEditing(true), gate: window.gate("autonomy") }} />
+        <EmptyState kind="card" glyph="edit" title="Tell the receptionist about your business" body="Your hours, services and address are still written inside the assistant's instructions, as prose. Fill them in as fields and the WhatsApp receptionist answers from them within a minute — and the phone agent reads the same ones, once it has been pointed at them." action={{ label: "Add your business details", onClick: () => setEditing(true), gate: window.gate("settings") }} />
       )}
     </section>
     {real && <PromptPreview />}
@@ -2202,6 +2208,7 @@ const PaneAutonomyReal = ({ flash }) => {
         </div>
         <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox. A booking link a caller asks for on the phone is texted right away — there is nothing to hold.">
           <SetSeg
+            gate={window.gate("autonomy")}
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}
             onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, d[1]); }}
@@ -2209,6 +2216,7 @@ const PaneAutonomyReal = ({ flash }) => {
         </SetRow>
         <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything, and so does a reply with no confidence on record.">
           <SetSeg
+            gate={window.gate("autonomy")}
             value={confLabel}
             options={AUT_CONF.map((c) => c[0])}
             onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, undefined, c[1]); }}
@@ -2216,6 +2224,7 @@ const PaneAutonomyReal = ({ flash }) => {
         </SetRow>
         <SetRow label="Day's model budget" hint="Model tokens the receptionist may use in a rolling 24 hours, in and out. Over it, it stops answering for the day and each new message lands in Needs you. Off is no budget.">
           <SetSeg
+            gate={window.gate("autonomy")}
             value={budgetLabel}
             options={AUT_BUDGET.map((b) => b[0])}
             onChange={(v) => { const b = AUT_BUDGET.find((x) => x[0] === v); if (b && reply) put(reply, undefined, undefined, undefined, b[1]); }}

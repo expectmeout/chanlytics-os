@@ -60,7 +60,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
                 : " Nothing happens until then."}
               {thread.real && thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}
             </span>
-            <button className="cl-bucket-link" onClick={() => onWake(thread.id)}>
+            <button className="cl-bucket-link" onClick={() => onWake(thread.id)} {...window.gate("approve", "wake a conversation")}>
               Wake now <Icon name="arrow-right" size={10} />
             </button>
           </div>
@@ -79,11 +79,11 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
                 ? <>{thread.summary}</>
                 : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
             </div>
-            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve")}>
+            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
               {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
             </button>
             {thread.real && thread.escalationId && (
-              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve")}>
+              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve", "hand a conversation back")}>
                 Nothing needed — hand it back to the receptionist
               </button>
             )}
@@ -99,7 +99,7 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
           <div className="ix-resolved">
             <Icon name="users" size={13} />
             <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
-            <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)}>
+            <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)} {...window.gate("approve", "hand a conversation back")}>
               Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
             </button>
           </div>
@@ -208,7 +208,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             <Icon name="phone" size={12} /> Call back
           </a>
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(thread.id)} disabled={snoozed} {...window.gate("approve")}>
+        <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(thread.id)} disabled={snoozed} {...window.gate("approve", "snooze a conversation")}>
           <Icon name={snoozed ? "check" : "clock"} size={12} /> {snoozed ? `Wakes ${thread.wake || "tomorrow"}` : "Snooze"}
         </button>
         {thread.clientId && (
@@ -227,7 +227,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           // happen. The real way to stop the receptionist for one person is
           // the mode on their profile, so that is where a real session goes.
           ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
-          { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id) },
+          { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") },
           ...(window.__DEMO_MODE
             ? [{ divider: true }, { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }]
             : thread.clientId

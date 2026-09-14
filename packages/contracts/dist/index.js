@@ -5690,6 +5690,7 @@ function visitFactsFor(trigger, visit, tz) {
 }
 
 // src/refusal.ts
+var NEEDS_TITLE = { owner: "Owner only", operator: "Not for viewers" };
 var TITLES = /* @__PURE__ */ new Map([
   ["unauthorized", "Signed out"],
   ["forbidden", "Not allowed"],
@@ -5785,11 +5786,27 @@ function refusalOf(input) {
       return refusal(code2, "Too many at once", said || `Too many at once \u2014 try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`);
     case "forbidden": {
       const needs = input.details && typeof input.details === "object" ? input.details.needs : void 0;
-      return refusal(code2, needs === "owner" ? "Owner only" : needs === "operator" ? "Not for viewers" : "Not allowed", said || SAID.get(code2));
+      return refusal(code2, needs === "owner" || needs === "operator" ? NEEDS_TITLE[needs] : "Not allowed", said || SAID.get(code2));
     }
     default:
       return refusal(code2, TITLES.get(code2) ?? "Not done", said || SAID.get(code2) || "That didn't go through.");
   }
+}
+var PERM_DOING = {
+  approve: "approve or send",
+  autonomy: "change what the receptionist may do on its own",
+  disconnect: "disconnect a channel",
+  billing: "change billing",
+  team: "manage the team",
+  settings: "change the business details",
+  export: "export the customer list"
+};
+function roleGate(role, perm, doing) {
+  const who = ROLES.includes(role ?? "") ? role : "viewer";
+  if (ROLE_PERMS[who]?.[perm]) return null;
+  const needs = ROLE_PERMS.operator?.[perm] ? "operator" : "owner";
+  const what = doing?.trim() || PERM_DOING[perm] || "do this";
+  return { needs, title: NEEDS_TITLE[needs], reason: needs === "owner" ? `Only an owner can ${what}.` : `Only an owner or operator can ${what}.` };
 }
 
 // src/reports.ts
@@ -8695,6 +8712,7 @@ export {
   MESSAGE_TYPES,
   MOCK_TEXTING_SENTENCE,
   MODE_WORDS,
+  NEEDS_TITLE,
   NEW_WINDOW_MS,
   NoteSchema,
   NotificationsConfigSchema,
@@ -8714,6 +8732,7 @@ export {
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   PEOPLE_TABS,
+  PERM_DOING,
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_STATE_LABELS,
@@ -9066,6 +9085,7 @@ export {
   reviewReplyWords,
   reviewSnippet,
   reviewsWords,
+  roleGate,
   rulesLine,
   runDueNow,
   safeNavigate,

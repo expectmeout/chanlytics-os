@@ -5,8 +5,9 @@
 // Today's queue both draw it. The classes are the strip's (clients.css), so
 // the two read alike wherever a row appears.
 //
-// Verbs are the caller's: `cta.onClick` and `also.onClick` do the work; the row
-// itself opens whatever `onOpen` says. Nothing here reads a surface.
+// Verbs are the caller's: `cta.onClick` and `also.onClick` do the work, and
+// `cta.gate` and `also.gate` carry window.gate(...)'s props; the row itself
+// opens whatever `onOpen` says. Nothing here reads a surface.
 //
 // The lead line's colour is the row's tone: one of contracts' six (tone.ts),
 // or the receptionist's standing on a thread (people.ts: escalated, queued,
@@ -38,7 +39,8 @@ const AttnRow = ({
     role="button"
     tabIndex={0}
     onClick={onOpen}
-    onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onOpen(); } }}
+    // Its own Enter and Space only: a key pressed on a button inside the row is that button's.
+    onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
     data-testid={testid}
   >
     <div className={`cl-attn-avatar ${glyph ? "glyph" : ""}`} title={glyph === "phone" ? "No name yet" : undefined}>
@@ -62,7 +64,7 @@ const AttnRow = ({
           <button className="cl-attn-cta ghost" onClick={also.onClick} {...(also.gate || {})} data-testid={also.testid || "attention-also"}>{also.label}</button>
         )}
         {cta && (
-          <button className={`cl-attn-cta ${cta.kind || "primary"}`} onClick={cta.onClick} data-testid={ctaTestid}>{cta.label}</button>
+          <button className={`cl-attn-cta ${cta.kind || "primary"}`} onClick={cta.onClick} {...(cta.gate || {})} data-testid={ctaTestid}>{cta.label}</button>
         )}
       </span>
     )}

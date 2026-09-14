@@ -135,7 +135,7 @@ const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approv
         </span>
       </div>
       <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
-      {canSend && !armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve">Approve</button>}
+      {!armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve" {...(canSend || !window.gate ? {} : window.gate("approve", "approve a run"))}>Approve</button>}
       {canSend && !armed && <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">{stop.verb}</button>}
       {canSend && armed && (
         <Confirm question={stop.question(row)} detail={stop.detail} yes={stop.yes} danger busy={stopping} onYes={() => cancel(row)} onNo={() => onArm(false)} testid="bc-stop" />
@@ -218,7 +218,8 @@ window.BcHistoryStats = BcHistoryStats;
 const BroadcastsReal = ({ initialSegment = null }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
-  const canSend = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may send, approve or stop: the role store's answer, View-as included.
+  const canSend = !!(window.canDo && window.canDo("approve"));
   const audiences = data.audiences || BC_NONE;
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
@@ -288,7 +289,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const history = rows.filter((r) => !r.open);
 
   const submit = async (scheduled) => {
-    if (!window.__broadcasts || !ready) return;
+    if (!window.__broadcasts || !ready || !canSend) return;
     setBusy(true);
     const r = await window.__broadcasts.send({
       template_id: tpl.id,
@@ -315,7 +316,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
   const cancel = async (row) => {
-    if (!window.__broadcasts || stopping) return;
+    if (!window.__broadcasts || stopping || !canSend) return;
     setStopping(row.id);
     const r = await window.__broadcasts.cancel(row.id);
     setStopping(null);
@@ -323,7 +324,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
   };
   const approve = async (row) => {
-    if (!window.__broadcasts) return;
+    if (!window.__broadcasts || !canSend) return;
     const r = await window.__broadcasts.approve(row.id);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
   };
@@ -365,16 +366,16 @@ const BroadcastsReal = ({ initialSegment = null }) => {
                   : "No approved template yet — add the starter set, write one here, or write one in WhatsApp Manager and sync it under Campaigns › Messages."}
               </span>
             )}
-            {templatesRead && templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
-              <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters"><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
+            {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (
+              <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters" {...window.gate("approve", "add the starter set")}><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
             )}
             {templates.map((t) => (
               <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="bc-template">
                 {bcTitle(t.name)}<span className="bc-chip-count">{bcIsStarter(t.name) ? "starter" : (t.category || "")}</span>
               </button>
             ))}
-            {canSend && window.TemplateComposer && (
-              <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template"><Icon name="plus" size={10} /> New template</button>
+            {window.TemplateComposer && (
+              <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template" {...window.gate("approve", "write a template")}><Icon name="plus" size={10} /> New template</button>
             )}
           </div>
         </div>
@@ -437,11 +438,12 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
           <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
-          <button className="btn btn-sm" disabled={!ready || !whenNote.ok || !canSend} onClick={() => submit(true)}>Schedule</button>
-          <button className="btn btn-primary btn-sm" disabled={!ready || !canSend} onClick={() => submit(false)} data-testid="bc-send">Send now</button>
+          <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>
+          <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => submit(false)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>
         </div>
         <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
-        {!canSend && <div className="bc-excl-hint">Only an owner or operator can send.</div>}
+        {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
+        {!canSend && <div className="bc-excl-hint" data-testid="bc-role">{window.gateTitle("approve", "stop or cancel a broadcast")}</div>}
         {canSend && active && activeCount === 0 && (
           <div className="bc-excl-hint" data-testid="bc-nobody">
             {purpose === "marketing"

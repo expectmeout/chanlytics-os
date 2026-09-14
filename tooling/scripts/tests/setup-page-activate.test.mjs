@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay } from "@chanlytics/contracts";
+import { setupSteps, forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, roleGate } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -136,6 +136,32 @@ test("the page: the row's Activate reaches the bridge with the capability's name
   assert.deepEqual(calls.activate, ["voice"]);
   assert.equal(calls.flash.length, 1, "the owner is told once");
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
+});
+
+test("REGRESSION (S15): an operator sees Activate gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
+  const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
+  Object.assign(globalThis.window, { ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" }, __roleGate: roleGate });
+  try {
+    const tree = mount();
+    let row = null;
+    walk(tree, (n) => { if (!row && n.props?.cta?.label === "Activate") row = n.props; });
+    assert.ok(row, "a row offers Activate");
+    assert.ok(row.cta.gate, "REGRESSION: the verb was offered as if it would work");
+    assert.equal(row.cta.gate["data-tip"], "Only an owner can activate a capability.");
+    assert.equal(row.onOpen, undefined, "the row is not a way around its own gated button");
+    // Pressed as the page draws it: the gate spread after the verb.
+    const drawn = { onClick: row.cta.onClick, ...row.cta.gate };
+    await drawn.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: {} });
+    // And the verb itself, reached any other way: it does nothing, and says nothing after the fact.
+    await row.cta.onClick();
+    await tick();
+    assert.equal(calls.activate.length, before.activate, "nothing reached the bridge");
+    assert.equal(calls.flash.length, before.flash, "REGRESSION: 'Only an owner can activate a capability.' arrived as a toast after the press");
+    assert.equal(calls.nav.length, before.nav);
+  } finally {
+    delete globalThis.window.ST_STORE;
+    delete globalThis.window.__roleGate;
+  }
 });
 
 test("the page: a row that dials is not itself a dial; an activated row offers to withdraw the activation, it reaches the bridge, and the words never claim the receptionist stops", async () => {

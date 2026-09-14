@@ -90,7 +90,7 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.equal(ROLE_PERMS.owner.settings, true);
   assert.equal(ROLE_PERMS.operator.settings, false, "PUT /settings is owner-only; an operator's form opened on the autonomy gate and was refused at Save");
   assert.equal(ROLE_PERMS.viewer.settings, false);
-  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 6, "Edit, Save, Set up, Change timezone, and the two numbers edited in their own rows — every one of them a PUT an operator is refused");
+  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 7, "Edit, Save, Set up, Add your business details, Change timezone, and the two numbers edited in their own rows — every one of them a PUT an operator is refused");
   const editor = pane.slice(pane.indexOf("const BusinessEditor"), pane.indexOf("const PaneWorkspace"));
   assert.ok(!editor.includes('gate("autonomy")'), "the form no longer opens on a gate the door refuses");
   assert.ok(pane.includes('gate("autonomy")'), "the autonomy matrix keeps its own gate — PUT /policies is operator-or-owner");
