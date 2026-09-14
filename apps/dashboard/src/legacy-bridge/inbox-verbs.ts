@@ -73,15 +73,63 @@ export async function inboxVerb(
   thread: RealThread,
   verb: InboxVerb,
   payload?: { text?: string; until?: string; template?: { name: string; language: string } },
+  /** `refresh: false` for one step of a bulk act, which reads the surfaces again once, at its end. */
+  opts: { refresh?: boolean } = {},
 ): Promise<VerbResult> {
   const lock = `${thread.conversationId}:${verb}`;
   if (inFlight.has(lock)) return local("Still working on that one…");
   inFlight.add(lock);
   try {
-    return await runVerb(thread, verb, payload);
+    return await runVerb(thread, verb, payload, opts.refresh !== false);
   } finally {
     inFlight.delete(lock);
   }
+}
+
+/** What a bulk bar does to many threads at once, and the wake its Undo sends. */
+export type BulkVerb = "snooze" | "wake" | "archive";
+
+const BULK_ROUTE = {
+  snooze: "POST conversations/[id]/snooze",
+  wake: "POST conversations/[id]/wake",
+  archive: "POST conversations/[id]/archive",
+} as const satisfies Record<BulkVerb, RouteKey>;
+
+/** Asks one bulk act has out at once: quick over a page of threads, never a hundred together. */
+const BULK_AT_ONCE = 4;
+
+/**
+ * One act over many threads: one ask per thread, the surfaces read again once
+ * every ask has its answer, and each refusal kept beside the thread it names.
+ *
+ * The bulk bar called the single verb once per thread. Each one re-read the
+ * Inbox, the threads and Today the moment it landed, racing the next ask, and
+ * each put up its own toast on a stack that keeps three, so no count, no
+ * refusal and no Undo was left to read. The page says the count and names the
+ * refused from what this returns.
+ */
+export async function inboxBulk<T extends RealThread>(
+  threads: T[],
+  verb: BulkVerb,
+): Promise<{ done: T[]; refused: Array<{ thread: T; message: string }> }> {
+  // One queue the workers share: each takes the next thread when its last ask is answered.
+  const queue = threads.entries();
+  const answers = new Map<number, VerbResult>();
+  const worker = async () => {
+    for (const [i, thread] of queue) answers.set(i, await inboxVerb(thread, verb, undefined, { refresh: false }));
+  };
+  await Promise.all(Array.from({ length: Math.min(BULK_AT_ONCE, threads.length) }, worker));
+  const done: T[] = [];
+  const refused: Array<{ thread: T; message: string }> = [];
+  threads.forEach((thread, i) => {
+    const r = answers.get(i);
+    if (!r) return;
+    if (r.ok) done.push(thread);
+    else refused.push({ thread, message: r.message });
+  });
+  // Once, by the same table a single verb's re-read follows (refresh-map.ts).
+  if (threads.length) await import("./refresh-map").then((m) => m.refreshAfter(BULK_ROUTE[verb]));
+  return { done, refused };
 }
 
 /** FNV-1a over the message body. Not a security hash — it only has to be
@@ -99,6 +147,7 @@ async function runVerb(
   thread: RealThread,
   verb: InboxVerb,
   payload?: { text?: string; until?: string; template?: { name: string; language: string } },
+  refresh = true,
 ): Promise<VerbResult> {
   // A replayed send must return the ORIGINAL result, never a second message.
   //
@@ -124,45 +173,45 @@ async function runVerb(
   let result: VerbResult;
   switch (verb) {
     case "take-over":
-      result = await api()("POST conversations/[id]/take-over", { params: { id } });
+      result = await api()("POST conversations/[id]/take-over", { params: { id }, refresh });
       break;
     case "hand-back":
-      result = await api()("POST conversations/[id]/hand-back", { params: { id } });
+      result = await api()("POST conversations/[id]/hand-back", { params: { id }, refresh });
       break;
     case "snooze": {
       // Ten tomorrow where the business is, not where the browser is (zone.ts).
       const until = payload?.until ?? new Date(tomorrowAtIn(await workspaceZone(), Date.now(), 10)).toISOString();
-      result = await api()("POST conversations/[id]/snooze", { params: { id }, body: { until } });
+      result = await api()("POST conversations/[id]/snooze", { params: { id }, body: { until }, refresh });
       break;
     }
     case "wake":
       // Its own verb, not hand-back: waking ends the snooze and leaves the
       // thread exactly as it was, rather than resolving what it was about.
-      result = await api()("POST conversations/[id]/wake", { params: { id } });
+      result = await api()("POST conversations/[id]/wake", { params: { id }, refresh });
       break;
     case "archive":
-      result = await api()("POST conversations/[id]/archive", { params: { id } });
+      result = await api()("POST conversations/[id]/archive", { params: { id }, refresh });
       break;
     case "resolve":
       result = thread.escalationId
-        ? await api()("POST escalations/[id]/resolve", { params: { id: thread.escalationId } })
+        ? await api()("POST escalations/[id]/resolve", { params: { id: thread.escalationId }, refresh })
         : local("No open escalation on this thread.");
       break;
     case "reply":
-      result = await api()("POST conversations/[id]/reply", { params: { id }, body: { text: payload?.text ?? "" }, idempotencyKey: sendKey });
+      result = await api()("POST conversations/[id]/reply", { params: { id }, body: { text: payload?.text ?? "" }, idempotencyKey: sendKey, refresh });
       break;
     case "reply-template":
       // Refuse in the browser rather than sending a request the server must
       // reject: "we do not know of an approved template" is a clearer thing to
       // say than "Template not found or not approved".
       result = tpl
-        ? await api()("POST conversations/[id]/reply", { params: { id }, body: { template: tpl }, idempotencyKey: sendKey })
+        ? await api()("POST conversations/[id]/reply", { params: { id }, body: { template: tpl }, idempotencyKey: sendKey, refresh })
         : local("This workspace has no approved template yet, so nothing can be sent outside the 24-hour window.");
       break;
     default:
       result = local(`Unknown verb ${verb as string}.`);
   }
-  // The refresh map re-reads the Inbox, the threads and Today after each of these lands.
+  // The refresh map re-reads the Inbox, the threads and Today after each of these lands, unless a bulk act reads them once at its end.
   return result;
 }
 
@@ -292,6 +341,7 @@ declare global {
     __refreshSettings?: () => Promise<void>;
     __refreshLive?: () => Promise<void>;
     __inboxVerb: typeof inboxVerb;
+    __inboxBulk: typeof inboxBulk;
     __href: typeof href;
     __steerDraft: typeof steerDraft;
     __teamInvite: typeof teamInvite;
@@ -361,6 +411,7 @@ const href = <K extends RouteKey>(key: K, params?: Params<K>) => api().url(key, 
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;
+  window.__inboxBulk = inboxBulk;
   // A download is a plain link to a route, and the route needs the workspace
   // named like every other request; the page builds the href with this.
   window.__href = href;

@@ -1,6 +1,6 @@
 /* global React, InboxList, InboxThread, InboxAgentRail, EmptyState */
 // Inbox — composition layer + decide engine.
-// Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px).
+// Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px, the mockup's: a seeded thread only).
 // Decisions are REAL here: approve/decline/snooze move threads, append timeline
 // events, update counts (sidebar badge syncs via "inbox:counts"), offer undo,
 // and auto-advance to the next decision. Keyboard: A approve · D decline · E edit.
@@ -67,7 +67,18 @@ const ixRepaintNotice = (before, after, answerer = null) => {
   return null;
 };
 
-Object.assign(window, { ixHoldAll, ixRouteThread, ixRepaintNotice });
+// The people a bulk act could not act on, named beside the server's sentence: grouped by the sentence,
+// so twenty refused for one reason read as one line, with no more than three names in it.
+const ixNames = (whos) => (whos.length > 3
+  ? `${whos.slice(0, 2).join(", ")} and ${whos.length - 2} more`
+  : whos.length > 1 ? `${whos.slice(0, -1).join(", ")} and ${whos[whos.length - 1]}` : whos[0] || "");
+const ixRefusedWords = (refused) => {
+  const by = new Map();
+  for (const r of refused) by.set(r.message, [...(by.get(r.message) || []), r.thread.who]);
+  return [...by].map(([message, whos]) => `${ixNames(whos)}: ${message}`).join(" ");
+};
+
+Object.assign(window, { ixHoldAll, ixRouteThread, ixRepaintNotice, ixRefusedWords });
 
 const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
@@ -93,6 +104,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     initialThreadId || (THREADS.find((x) => x.state === "needs") || THREADS[0] || {}).id || null,
   );
   const [selected, setSelected] = React.useState([]);
+  // A bulk act on real threads while it runs: the bar says so, and a second press asks nothing.
+  const [bulkBusy, setBulkBusy] = React.useState(null); // "snooze" | "archive" | "wake"
+  const bulkRunRef = React.useRef(false);
   // On a phone the list and the thread take turns on the screen: a tap opens
   // the thread, Back returns to the list. A deep link opens straight onto the
   // thread. Desktop ignores the flag (mobile.css owns the breakpoint).
@@ -556,7 +570,52 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       : `${safe.length} approved \u00b7 ${picks.length - safe.length} need${picks.length - safe.length === 1 ? "s" : ""} individual review`);
     setSelected([]);
   };
+  // A bulk act on real threads is one act. Each thread went through the single verb: a toast apiece on a
+  // stack that keeps three, a re-read of three surfaces apiece, no count, no busy state and no Undo (the
+  // wiring audit's A19). Now one ask per thread through the bulk courier and one re-read at its end, one
+  // toast with the count and each refusal named, and the refused left selected to try again.
+  const runBulk = async (picks, verb) => {
+    if (bulkRunRef.current || !window.__inboxBulk) return null;
+    bulkRunRef.current = true;
+    setBulkBusy(verb);
+    ownVerbsRef.current += 1;
+    try {
+      return await window.__inboxBulk(picks, verb);
+    } finally {
+      ownVerbsRef.current -= 1;
+      bulkRunRef.current = false;
+      setBulkBusy(null);
+    }
+  };
+  const wakeAgain = async (snoozed) => {
+    const r = await runBulk(snoozed, "wake");
+    if (!r) return;
+    ppFlash(r.refused.length
+      ? { tone: "danger", msg: <><b>{r.done.length} of {snoozed.length}</b> woken — {ixRefusedWords(r.refused)}</> }
+      : { msg: <>Snooze undone — <b>{r.done.length}</b> back where {r.done.length === 1 ? "it was" : "they were"}</> });
+  };
+  const bulkReal = async (verb) => {
+    if (!window.canDo("approve")) return;
+    const picks = selected.map((id) => threads.find((t) => t.id === id)).filter((t) => t && t.real);
+    const todo = picks.filter((t) => (verb === "snooze" ? t.state !== "snoozed" : !t.archived));
+    if (!todo.length) {
+      ppFlash({ tone: "info", msg: <>{verb === "snooze" ? "Those are snoozed already" : "Those are archived already"}</> });
+      return;
+    }
+    const r = await runBulk(todo, verb);
+    if (!r) return;
+    setSelected(r.refused.map((x) => x.thread.id));
+    const past = verb === "snooze" ? "snoozed" : "archived";
+    const undo = verb === "snooze" && r.done.length ? () => wakeAgain(r.done) : null;
+    if (r.refused.length) {
+      ppFlash({ tone: "danger", msg: <>{r.done.length ? <><b>{r.done.length} of {todo.length}</b> {past}</> : <>Nothing was {past}</>} — {ixRefusedWords(r.refused)}</>, undo });
+    } else {
+      ppFlash({ msg: verb === "snooze" ? <><b>{r.done.length}</b> snoozed until tomorrow 10:00</> : <><b>{r.done.length}</b> archived — if they write again, they come back</>, undo });
+    }
+  };
+  const isRealPick = () => selected.some((id) => (threads.find((t) => t.id === id) || {}).real);
   const bulkSnooze = () => {
+    if (isRealPick()) return bulkReal("snooze");
     const prevs = selected.map((id) => snooze(id, "tomorrow 10:00", { silent: true })).filter(Boolean);
     if (prevs.length) ppFlash({
       msg: <><b>{prevs.length}</b> snoozed · wake tomorrow 10:00</>,
@@ -568,6 +627,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     setSelected([]);
   };
   const bulkArchive = () => {
+    if (isRealPick()) return bulkReal("archive");
     const prevs = selected.map((id) => archiveThread(id, { silent: true })).filter(Boolean);
     if (prevs.length) ppFlash({
       msg: <><b>{prevs.length}</b> archived</>,
@@ -661,8 +721,14 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     oldest: needsThreads.reduce((a, t) => Math.max(a, t.waitingMin || 0), 0),
   };
 
+  // The agent rail is the mockup's, drawn for a seeded thread only. On a real one it invented the
+  // receptionist -- an autonomy line and a voice nobody set, an Ask box answering with canned text, a
+  // menu to a page this release hides (D11; the wiring audit's A3 and A17) -- and with no thread to show
+  // it kept an empty column.
+  const railThread = showAgentRail && !requestedMissing && activeThread && !activeThread.real ? activeThread : null;
+
   return (
-    <div className={`inbox ${showAgentRail ? "with-rail" : ""} ${phoneThreadOpen ? "phone-thread" : ""}`}>
+    <div className={`inbox ${railThread ? "with-rail" : ""} ${phoneThreadOpen ? "phone-thread" : ""}`}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -680,6 +746,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
         onBulkApprove={bulkApproveSafe}
         onBulkSnooze={bulkSnooze}
         onBulkArchive={bulkArchive}
+        bulkBusy={bulkBusy}
         stake={stake}
         density={density}
       />
@@ -722,7 +789,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
           onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
         />
       )}
-      {showAgentRail && !requestedMissing && <InboxAgentRail thread={activeThread} />}
+      {railThread && <InboxAgentRail thread={railThread} />}
 
       {(() => {
         const vetoLive = threads.filter((t) => t.veto && vetoRemaining(t.id) != null);

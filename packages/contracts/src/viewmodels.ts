@@ -421,7 +421,8 @@ export interface InboxThreadVM {
   phone: string | null;
   /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
   waited?: string;
-  agent: { name: string; glyph: string; autonomy: string; tone: string };
+  /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
+  agent: { name: string; glyph: string };
   subject: string;
   preview: string;
   summary: string;
@@ -646,7 +647,7 @@ export function toInboxThreadVM(
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
     ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
-    agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm · bilingual (EN/ES)" },
+    agent: AGENT,
     subject:
       (claimedByOther ? "A teammate is answering this" : null) ??
       reasonLabel ??
