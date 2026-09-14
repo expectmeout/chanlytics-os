@@ -106,7 +106,8 @@ test("a playbook's totals and history come from every run it made, not the recen
   assert.deepEqual(p.totals.history.slice(0, 2).map((h) => [h.run_for, h.sent, h.held, h.state]), [["2026-07-30", 2, 1, "sent"], ["2026-07-29", 2, 1, "sent"]], "newest first, with what each earned");
   assert.equal(p.totals.lastRun.run_for, "2026-07-30");
   const hand = (await B.listBroadcasts(ctx({ broadcasts, broadcast_recipients, messages: [] }), T));
-  assert.equal(hand.length, 50, "the Broadcasts page's own window is unchanged");
+  assert.equal(hand.broadcasts.length, 50, "the Broadcasts page's own window is unchanged");
+  assert.equal(hand.more, true, "and with 130 on file, the page is told older ones exist");
 });
 
 test("the week's touches: who any broadcast reached, or is about to, within the breath -- by hand or by a playbook -- and nobody older or canceled", async () => {
