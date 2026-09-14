@@ -354,6 +354,29 @@
 
 .topbar-spacer { flex: 1; }
 
+/* ---------- The shell's one line (topbar.jsx ShellStatusBar) ----------
+   Under the top bar and above the page, on every screen size: one thing at a
+   time, toned by what it costs -- danger when customers are affected, warn
+   when this screen is behind, plain when nothing is lost. */
+.shell-status-slot { flex-shrink: 0; }
+.shell-status {
+  display: flex; align-items: center; gap: 10px;
+  min-height: 38px; padding: 7px 24px;
+  border-bottom: 1px solid var(--line);
+  background: var(--bg-raised); color: var(--ink);
+  font-size: 12.5px; line-height: 1.35;
+}
+.shell-status > .icon { flex: none; color: var(--ink); }
+.shell-status-words { flex: 1; min-width: 0; display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; row-gap: 1px; }
+.shell-status-text { font-weight: 500; }
+.shell-status-detail { color: var(--ink-muted); }
+.shell-status-cta { flex: none; }
+.shell-status-cta[aria-busy="true"] { cursor: progress; }
+.shell-status.tone-warn { background: var(--warn-soft); }
+.shell-status.tone-warn > .icon { color: var(--warn); }
+.shell-status.tone-danger { background: var(--danger-soft); }
+.shell-status.tone-danger > .icon { color: var(--danger); }
+
 /* ---------- Ask Chanlytics — unified topbar affordance ---------- */
 .tb-ask {
   display: inline-flex;
@@ -1901,8 +1924,7 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .sidebar.collapsed .sb-team-body,
 .sidebar.collapsed .sb-team > .icon,
 .sidebar.collapsed .user-chip .who,
-.sidebar.collapsed .sb-collapse-label,
-.sidebar.collapsed .sb-attn span { display: none; }
+.sidebar.collapsed .sb-collapse-label { display: none; }
 .sidebar.collapsed .nav-item { justify-content: center; padding: 9px 0; }
 .sidebar.collapsed .sidebar-section { padding: 4px 6px; }
 .sidebar.collapsed .sb-team { justify-content: center; padding: 14px 0 10px; }
@@ -1910,7 +1932,7 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .sidebar.collapsed .sb-newchat .btn { padding: 0; }
 .sidebar.collapsed .sidebar-foot { padding: 8px 6px; }
 .sidebar.collapsed .user-chip { justify-content: center; padding: 8px 0; }
-.sidebar.collapsed .sb-collapse, .sidebar.collapsed .sb-attn { justify-content: center; padding: 8px 0; }
+.sidebar.collapsed .sb-collapse { justify-content: center; padding: 8px 0; }
 .nav-dot { position: absolute; top: 7px; right: 9px; width: 6px; height: 6px; border-radius: 50%; background: var(--ink-dim); }
 .nav-dot.urgent { background: var(--accent); }
 
@@ -1950,17 +1972,6 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 }
 .sb-theme-opt:hover { color: var(--ink); background: var(--bg-hover); }
 .sb-theme-opt.active { color: var(--ink); border-color: var(--ink-muted); background: var(--bg-hover); }
-
-.sb-attn {
-  display: flex; align-items: center; gap: 8px; width: 100%;
-  padding: 7px 10px; margin-bottom: 4px;
-  border: 1px solid var(--line); border-radius: var(--radius-sm);
-  background: var(--bg-raised); color: var(--ink-muted); font-size: 11.5px; text-align: left;
-}
-.sb-attn > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sb-attn-act { color: var(--ink); border-color: var(--accent); }
-.sb-attn-act:hover { background: var(--bg-hover); }
-.sb-attn-cta { margin-left: auto; color: var(--accent); font-weight: 500; flex: none; }
 
 .sb-sheet-backdrop { position: fixed; inset: 0; z-index: 400; background: oklch(from var(--ink) l c h / 0.35); }
 .sb-sheet {

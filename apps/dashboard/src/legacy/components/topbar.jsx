@@ -486,3 +486,56 @@ const Topbar = ({
 };
 
 window.Topbar = Topbar;
+
+// The shell's one line, under the top bar: this device offline, the
+// receptionist paused, a newer build, surfaces that stopped refreshing, the
+// live feed not coming through -- one at a time, with the one press that
+// helps. Which one, its words and its press are contracts' (chrome.ts
+// shellStatusLine); the status is the bridge's (legacy-bridge/shell.ts). It
+// used to be a line at the sidebar's foot, which a phone keeps in its drawer
+// and the rail cut to an icon. The live region stays mounted while all is
+// well, so the next change is announced.
+const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", stale: "sparkle", degraded: "clock", disconnected: "bolt" };
+const ShellStatusBar = () => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => {
+    window.addEventListener("shell:status", bump);
+    window.addEventListener("surface:billing", bump);
+    return () => { window.removeEventListener("shell:status", bump); window.removeEventListener("surface:billing", bump); };
+  }, []);
+  // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the line says so.
+  const B = window.__BILLING_ACCOUNT;
+  const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
+  const line = window.__chrome ? window.__chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused }) : null;
+  const press = () => {
+    if (!line) return;
+    if (line.action === "billing") { if (window.CHANLY) window.CHANLY.nav("admin/billing"); return; }
+    if (line.action === "reload") { window.location.reload(); return; }
+    // Busy, not disabled: the focus stays on the button, and a second press waits for the first read.
+    if (line.action === "retry" && window.__shell && !busy) {
+      setBusy(true);
+      Promise.resolve(window.__shell.retry()).catch(() => {}).then(() => setBusy(false));
+    }
+  };
+  return (
+    <div className="shell-status-slot" role="status" aria-live="polite">
+      {line && (
+        <div className={`shell-status tone-${line.tone}`} data-kind={line.kind} data-testid="shell-status">
+          <Icon name={SHELL_STATUS_ICON[line.kind] || "alert"} size={13} />
+          <span className="shell-status-words">
+            <span className="shell-status-text">{line.text}</span>
+            {line.detail && <span className="shell-status-detail">{line.detail}</span>}
+          </span>
+          {line.cta && (
+            <button type="button" className="btn btn-sm shell-status-cta" onClick={press} aria-busy={busy || undefined} data-testid="shell-status-cta">
+              {busy && line.busy ? line.busy : line.cta}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
+
+window.ShellStatusBar = ShellStatusBar;

@@ -1,9 +1,9 @@
 /**
  * The SurfaceData runner: one place that owns apply-with-retry, the shared
  * realtime subscription, per-surface debounce, degraded-state tracking,
- * session-expiry redirects, and focus/reconnect refetch. Flipping the next
- * surface = write its override in surface-data.ts and add it to the array in
- * LegacyApp — nothing else.
+ * session-expiry redirects, focus/reconnect refetch, and what the shell is
+ * told about the connection. Flipping the next surface = write its override in
+ * surface-data.ts and add it to the array in LegacyApp — nothing else.
  *
  * The ready/failed/status bookkeeping this file drives lives in
  * ./surface-status, which is pure and unit-tested; everything here is the
@@ -14,12 +14,13 @@ import { subscribeMessagesInserts } from "@chanlytics/db";
 import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
-import { isSurfaceReady, setStatus } from "./surface-status";
-import { subscribesToRealtime, wantsRefresh } from "./surface-realtime";
-import { getActiveWorkspace } from "./workspace";
+import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
+import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
+import { getActiveWorkspace, signInHref } from "./workspace";
 
 // Re-exported so consumers keep importing the seam from one place.
 export {
+  getConnection,
   getSurfaceStatuses,
   isSurfaceFailed,
   isSurfaceReady,
@@ -37,11 +38,18 @@ export {
  * "Needs you", under a pill still claiming "live".
  */
 let activeRefresh: ((o: SurfaceOverride) => Promise<void>) | null = null;
+/** The running runner's surfaces: what the shell's Retry reads again. */
+let activeOverrides: SurfaceOverride[] = [];
 
 export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<void> {
   const fn = activeRefresh;
   if (!fn) return; // no runner mounted (standalone mockup) — nothing to sync
   await Promise.all(overrides.map((o) => fn(o)));
+}
+
+/** The shell's Retry: every surface the running runner holds, read again now. */
+export async function refreshAllSurfaces(): Promise<void> {
+  await refreshSurfaces(activeOverrides);
 }
 
 let runnerSeq = 0;
@@ -60,7 +68,8 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   const onUnauthorized = () => {
     // Cached customer data must never outlive the session allowed to see it.
     clearSurfaceCache();
-    if (!cancelled) window.location.assign("/login");
+    // The page's hash goes along, so signing in again lands where they were.
+    if (!cancelled) window.location.assign(signInHref(window.location.hash));
   };
 
   // The cache is keyed on this, so it must be the workspace actually being
@@ -122,6 +131,7 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   };
 
   activeRefresh = (o: SurfaceOverride) => refresh(o, "refresh");
+  activeOverrides = overrides;
 
   const scheduleRefresh = (o: SurfaceOverride) => {
     const prev = timers.get(o.key);
@@ -134,7 +144,16 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
 
   const realtimeOverrides = overrides.filter(subscribesToRealtime);
   let unsubscribe: (() => void) | null = null;
-  let everSubscribed = false;
+  // What the live feed's own reports mean for the page (surface-realtime.ts):
+  // a rejoin reads the gap, and a drop that outlasts the grace is the shell's
+  // to say.
+  const feed = feedWatch({
+    graceMs: REALTIME_GRACE_MS,
+    onDown: (down) => setConnection({ realtimeDown: down }),
+    // reconnect after sleep/offline: postgres_changes has no backfill, so
+    // refetch to close the gap
+    onReconnect: () => realtimeOverrides.forEach(scheduleRefresh),
+  });
 
   // Restored cache belongs to whoever was signed in when it was written. If a
   // different workspace comes back, that data was never theirs to see: drop it
@@ -183,14 +202,8 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
         topic: ws ? `${topic}:${ws}` : topic,
         tenantId: ws ?? undefined,
         onStatus: (status) => {
-          if (status === "SUBSCRIBED") {
-            // reconnect after sleep/offline: postgres_changes has no backfill,
-            // so refetch to close the gap
-            if (everSubscribed) realtimeOverrides.forEach(scheduleRefresh);
-            everSubscribed = true;
-          } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") {
-            console.warn("realtime_status", topic, status);
-          }
+          if (status === "CHANNEL_ERROR" || status === "TIMED_OUT") console.warn("realtime_status", topic, status);
+          feed.onStatus(status);
         },
       },
     );
@@ -204,11 +217,30 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   };
   document.addEventListener("visibilitychange", onVisible);
 
+  // The browser says when this device loses its connection and when it has it
+  // back. Offline is the shell's to say at once; back online, every surface is
+  // read again now rather than at the next focus, because anything may have
+  // changed meanwhile.
+  const onOffline = () => setConnection({ offline: true });
+  const onOnline = () => {
+    setConnection({ offline: false });
+    overrides.forEach(scheduleRefresh);
+  };
+  if (typeof navigator !== "undefined" && navigator.onLine === false) setConnection({ offline: true });
+  window.addEventListener("offline", onOffline);
+  window.addEventListener("online", onOnline);
+
   return () => {
     cancelled = true;
     activeRefresh = null;
+    activeOverrides = [];
     document.removeEventListener("visibilitychange", onVisible);
+    window.removeEventListener("offline", onOffline);
+    window.removeEventListener("online", onOnline);
     timers.forEach((t) => clearTimeout(t));
+    feed.stop();
     if (unsubscribe) unsubscribe();
+    // What this runner watched goes with it; the next one says what it finds.
+    setConnection({ offline: false, realtimeDown: false });
   };
 }

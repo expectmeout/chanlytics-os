@@ -71,3 +71,13 @@ export function homeHref(
   const active = answer?.workspaces.find((w) => w.id === answer.activeWorkspaceId);
   return active ? workspaceHref(active.slug, after) : null;
 }
+
+/**
+ * Where a session that ended mid-page signs in again: /login, carrying the
+ * page's hash, which the sign-in page keeps and lands on (login's landed()),
+ * and the home then carries to the workspace. Only an app route rides along;
+ * any other fragment is not a page to return to.
+ */
+export function signInHref(hash: string | null | undefined): string {
+  return typeof hash === "string" && hash.startsWith("#/") ? `/login${hash}` : "/login";
+}

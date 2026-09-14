@@ -36,20 +36,70 @@ export function isTypingTarget(tagName: string | null | undefined, contentEditab
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
 }
 
-/** What the shell knows that the page does not: a newer build, surfaces that stopped refreshing. */
+/** A crumb as the shell draws it: words, or words and the route they open. */
+export type Crumb = string | { label: string; to?: string | null };
+
+/**
+ * The browser tab's name: where you are, most particular first, then the
+ * product -- "Rosa · Inbox · Chanlytics" -- because a narrow tab keeps only its
+ * first words, and those are what tell a row of tabs apart. What needs you is
+ * counted in front, so a tab in the background still says someone is waiting.
+ */
+export function pageTitle(crumbs: readonly Crumb[] | null | undefined, needs?: number | null): string {
+  const words = (crumbs ?? [])
+    .map((c) => (typeof c === "string" ? c : c?.label ?? "").trim())
+    .filter(Boolean)
+    .reverse();
+  const where = [...words, "Chanlytics"].join(" · ");
+  const n = Math.floor(Number(needs));
+  return n > 0 ? `(${n}) ${where}` : where;
+}
+
+/** What the shell knows that the page does not: the connection, the live feed, a pause, a newer build, surfaces that stopped refreshing. */
 export interface ShellStatus {
   stale: boolean;
   degraded: string[];
-  /** The workspace is paused (billing stopped): nothing is answered until Billing resumes it. */
+  /** The workspace is paused (billing stopped): the receptionist answers nothing until Billing resumes it. */
   paused?: boolean;
+  /** This device has no connection: nothing on screen is kept current, and nothing pressed reaches the workspace. */
+  offline?: boolean;
+  /** The live feed dropped and did not come back within its grace: the page is current only as of its last read. */
+  disconnected?: boolean;
 }
 
-/** The one line the sidebar's foot shows, or nothing. A pause outranks everything: nothing is answered until Billing resumes it. Then a new build outranks stale surfaces: refreshing fixes both. */
-export function shellStatusLine(s: ShellStatus | null | undefined): { text: string; action: "reload" | "billing" | null } | null {
+export interface ShellStatusLine {
+  kind: "offline" | "paused" | "stale" | "degraded" | "disconnected";
+  /** How loud: danger when customers are affected, warn when this screen is, info when nothing is lost. */
+  tone: "danger" | "warn" | "info";
+  text: string;
+  /** What it means for the person, when the line alone would leave them guessing. */
+  detail: string | null;
+  action: "reload" | "billing" | "retry" | null;
+  /** The press's words, and its words while it works. */
+  cta: string | null;
+  busy: string | null;
+}
+
+/** "Inbox", "Inbox and Calendar", "Inbox, Calendar and Calls". */
+function namesAnd(names: readonly string[]): string {
+  return names.length <= 1 ? (names[0] ?? "") : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
+
+/**
+ * The one line the shell shows over the page, or nothing: one thing at a time,
+ * in the order that matters. Offline first: while nothing reaches the
+ * workspace, nothing else the line could offer would work. Then a pause, which
+ * reaches the customers. Then a newer build, which a reload fixes along with
+ * anything stale. Then surfaces that stopped refreshing, and last the live
+ * feed, which only delays what the next read shows.
+ */
+export function shellStatusLine(s: ShellStatus | null | undefined): ShellStatusLine | null {
   if (!s) return null;
-  if (s.paused) return { text: "Your receptionist is paused", action: "billing" };
-  if (s.stale) return { text: "A newer version is ready", action: "reload" };
-  if (s.degraded.length) return { text: `${s.degraded.join(", ")} not refreshing`, action: null };
+  if (s.offline) return { kind: "offline", tone: "warn", text: "You're offline", detail: "What's on screen may be out of date. It catches up when you're back online.", action: null, cta: null, busy: null };
+  if (s.paused) return { kind: "paused", tone: "danger", text: "Your receptionist is paused", detail: "New messages still land in the Inbox, for you to answer.", action: "billing", cta: "Billing", busy: null };
+  if (s.stale) return { kind: "stale", tone: "info", text: "A newer version is ready", detail: null, action: "reload", cta: "Reload", busy: null };
+  if (s.degraded.length) return { kind: "degraded", tone: "warn", text: `${namesAnd(s.degraded)} stopped refreshing`, detail: "You're seeing what was last loaded.", action: "retry", cta: "Retry", busy: "Retrying…" };
+  if (s.disconnected) return { kind: "disconnected", tone: "info", text: "Live updates aren't coming through", detail: "Reconnecting. Until then, refresh to see anything new.", action: "retry", cta: "Refresh now", busy: "Refreshing…" };
   return null;
 }
 

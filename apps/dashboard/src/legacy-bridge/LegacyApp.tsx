@@ -18,6 +18,7 @@ import "./manifest";
 // with this chunk, rather than serially behind it.
 import { workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, switchWorkspace, type Workspace, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride } from "./surface-data";
 import {
+  getConnection,
   getSurfaceStatuses,
   isSurfaceFailed,
   isSurfaceReady,
@@ -47,7 +48,7 @@ import { installBusinessRecord } from "./business-record";
 import { installPlatform } from "./platform";
 import { installActivity } from "./activity";
 import { installIdentity } from "./identity";
-import { installShell, publishShellStatus } from "./shell";
+import { installShell, publishShellStatus, shellStatusOf } from "./shell";
 import { installClock } from "./zone";
 import CreateWorkspace from "./CreateWorkspace";
 
@@ -217,16 +218,13 @@ export default function LegacyApp() {
     () => (window as unknown as { __WORKSPACES?: Workspace[] }).__WORKSPACES ?? [],
   );
   const [, setStatusTick] = useState(0);
-  // What the shell alone knows — a newer build, surfaces that stopped
-  // refreshing — goes to the sidebar's foot through the shell bridge, which
-  // is where the floating pill used to say it.
+  // What the shell alone knows — the connection, the live feed, a newer
+  // build, surfaces that stopped refreshing — goes to the line under the top
+  // bar through the shell bridge, which is where the floating pill used to
+  // say it. The connection changes through the surfaces' own listeners.
   const staleRef = useRef(false);
   const publishStatus = useCallback(() => {
-    const statuses = getSurfaceStatuses();
-    const degraded = Object.entries(SURFACE_LABELS)
-      .filter(([key]) => statuses.get(key) === "degraded")
-      .map(([, label]) => label);
-    publishShellStatus({ stale: staleRef.current, degraded });
+    publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));
   }, []);
 
   const missing = useMemo(
@@ -282,10 +280,14 @@ export default function LegacyApp() {
     };
     void check();
     const onVisible = () => document.visibilityState === "visible" && void check();
+    // Back from offline: a deploy may have landed meanwhile.
+    const onOnline = () => void check();
     document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("online", onOnline);
     const t = setInterval(() => void check(), 15 * 60 * 1000);
     return () => {
       document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("online", onOnline);
       clearInterval(t);
     };
   }, [publishStatus]);

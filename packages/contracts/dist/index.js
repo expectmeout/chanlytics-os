@@ -7328,11 +7328,22 @@ function isTypingTarget(tagName, contentEditable) {
   const t = (tagName ?? "").toUpperCase();
   return contentEditable || t === "INPUT" || t === "TEXTAREA" || t === "SELECT";
 }
+function pageTitle(crumbs, needs) {
+  const words = (crumbs ?? []).map((c) => (typeof c === "string" ? c : c?.label ?? "").trim()).filter(Boolean).reverse();
+  const where = [...words, "Chanlytics"].join(" \xB7 ");
+  const n = Math.floor(Number(needs));
+  return n > 0 ? `(${n}) ${where}` : where;
+}
+function namesAnd(names) {
+  return names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
+}
 function shellStatusLine(s) {
   if (!s) return null;
-  if (s.paused) return { text: "Your receptionist is paused", action: "billing" };
-  if (s.stale) return { text: "A newer version is ready", action: "reload" };
-  if (s.degraded.length) return { text: `${s.degraded.join(", ")} not refreshing`, action: null };
+  if (s.offline) return { kind: "offline", tone: "warn", text: "You're offline", detail: "What's on screen may be out of date. It catches up when you're back online.", action: null, cta: null, busy: null };
+  if (s.paused) return { kind: "paused", tone: "danger", text: "Your receptionist is paused", detail: "New messages still land in the Inbox, for you to answer.", action: "billing", cta: "Billing", busy: null };
+  if (s.stale) return { kind: "stale", tone: "info", text: "A newer version is ready", detail: null, action: "reload", cta: "Reload", busy: null };
+  if (s.degraded.length) return { kind: "degraded", tone: "warn", text: `${namesAnd(s.degraded)} stopped refreshing`, detail: "You're seeing what was last loaded.", action: "retry", cta: "Retry", busy: "Retrying\u2026" };
+  if (s.disconnected) return { kind: "disconnected", tone: "info", text: "Live updates aren't coming through", detail: "Reconnecting. Until then, refresh to see anything new.", action: "retry", cta: "Refresh now", busy: "Refreshing\u2026" };
   return null;
 }
 var SHORTCUTS = [
@@ -9015,6 +9026,7 @@ export {
   optInLink,
   optInPurposeOf,
   overLimitRefusal,
+  pageTitle,
   paramLabel,
   parseAskFinish,
   parseBrainOutput,
