@@ -710,6 +710,8 @@ export interface BroadcastsSurface {
   bookingLink: boolean;
   /** Why offers go by WhatsApp only, said once on the page (contracts OFFERS_BY_WHATSAPP_NOTE). */
   offersNote: string;
+  /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
+  more: boolean;
   fetchedAt: number;
 }
 
@@ -738,7 +740,19 @@ export const broadcastsOverride: SurfaceOverride = {
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
-    const rows = people.people.map((r) => toPersonRowVM(r, now));
+    // Every page of people, not the first: the send enrols everyone, so an
+    // audience counted over one page promised fewer people than the send
+    // reaches. Bounded, so a page chain that never ends cannot hang the surface.
+    const PEOPLE_PAGES_FOR_COUNTS = 50;
+    const everyone = [...people.people];
+    let page = people.page;
+    for (let pages = 1; page?.has_more && pages < PEOPLE_PAGES_FOR_COUNTS; pages++) {
+      const next = await read("GET contacts", { query: { offset: everyone.length } });
+      if (!next.people.length) break;
+      everyone.push(...next.people);
+      page = next.page;
+    }
+    const rows = everyone.map((r) => toPersonRowVM(r, now));
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
     const countsFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null): Record<SendPurpose, number> => ({
@@ -764,6 +778,7 @@ export const broadcastsOverride: SurfaceOverride = {
     const slug = workspaceOverride.current()?.slug ?? null;
     (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
       rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
+      more: bc.more === true,
       listsRead: !(saved instanceof Error),
       templates: tpl instanceof Error
         ? null

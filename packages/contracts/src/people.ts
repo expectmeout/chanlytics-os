@@ -365,6 +365,8 @@ export interface PersonConsent {
   marketingSource: string | null;
   /** One line for the person's profile: what they said about offers, and when. */
   marketingSub: string;
+  /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
+  marketingLabel: string;
 }
 
 /**
@@ -449,6 +451,8 @@ function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
     marketing,
     marketingSource: r.marketing_consent_source ?? null,
     marketingSub,
+    // The offers answer in the words People's Offers column uses, so a list and the page agree.
+    marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked",
   };
 }
 

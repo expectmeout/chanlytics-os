@@ -3362,6 +3362,8 @@ interface PersonConsent {
     marketingSource: string | null;
     /** One line for the person's profile: what they said about offers, and when. */
     marketingSub: string;
+    /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
+    marketingLabel: string;
 }
 /**
  * How a customer's answer about marketing messages was given. The ingest

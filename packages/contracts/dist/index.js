@@ -3248,7 +3248,9 @@ function consentOf(r, nowMs) {
     source: r.consent_source ?? null,
     marketing,
     marketingSource: r.marketing_consent_source ?? null,
-    marketingSub
+    marketingSub,
+    // The offers answer in the words People's Offers column uses, so a list and the page agree.
+    marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked"
   };
 }
 function mayReceive(r, purpose) {

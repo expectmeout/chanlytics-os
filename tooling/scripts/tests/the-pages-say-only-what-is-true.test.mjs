@@ -271,3 +271,152 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   const seed = globalThis.window.InboxComposer({ thread: { id: "t-seed", real: false, who: "Aisha", primaryChannel: "sms" }, reply: "" });
   assert.ok(buttons(seed).some((b) => b.includes("Save draft")), "the demo keeps its mockup control");
 });
+
+/* -------- People › Lists: the Offers column is the answer about offers -------- */
+
+globalThis.Confirm = globalThis.window.Confirm;
+await import("../../../apps/dashboard/src/legacy/pages/segments-real.jsx");
+
+test("REGRESSION: on a list, the Offers column shows the answer about offers -- it showed the yes to messages under the Offers heading", () => {
+  const person = (id, name, marketing, marketingLabel) => ({
+    id, real: true, name, initials: name.split(" ").map((w) => w[0]).join(""), phone: "+1 (917) 555-0109",
+    consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person", marketing, marketingSource: null, marketingSub: "", marketingLabel },
+    lastContact: { label: "You replied · 7d ago" }, stateLabel: "Active",
+  });
+  Object.assign(globalThis.window, {
+    __ME: { role: "owner" },
+    __mayReceive: (p, purpose) => (purpose === "marketing" ? p.consent.marketing === "opted_in" : p.consent.state === "opted_in"),
+    __PEOPLE: {
+      rows: [person("p1", "Nina Petrova", "unknown", "Not asked"), person("p2", "Tom Baker", "opted_in", "Yes")],
+      lists: [{ id: "opted_in", label: "Said yes to messages", group: "reach", count: 2, ids: ["p1", "p2"] }],
+      saved: [], groups: [],
+    },
+  });
+  cells = []; seq = 0;
+  const tree = globalThis.window.SegmentsPage({ initialId: "opted_in" });
+  const rows = [];
+  walk(tree, (n) => { if (n.type === "tr" && n.props?.onClick) rows.push(n); });
+  const cellsOf = (tr) => (tr.props.children || []).filter((c) => c && c.type === "td").map((td) => textOf(td));
+  assert.deepEqual(rows.map((tr) => cellsOf(tr)[1]), ["Not asked", "Yes"], `the cells: ${JSON.stringify(rows.map(cellsOf))}`);
+});
+
+/* ---------------------- Calendar: Day view steps a day ---------------------- */
+
+await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
+
+test("REGRESSION: in Day view the arrows move one day -- they moved seven", async () => {
+  const { shiftKey, shiftMonth } = await import("@chanlytics/contracts");
+  assert.equal(typeof globalThis.window.crStep, "function", "the step is one rule that can be run");
+  const kit = { shiftKey, shiftMonth };
+  assert.equal(globalThis.window.crStep("day", "2026-09-14", 1, kit), "2026-09-15");
+  assert.equal(globalThis.window.crStep("day", "2026-09-14", -1, kit), "2026-09-13");
+  assert.equal(globalThis.window.crStep("week", "2026-09-14", 1, kit), "2026-09-21");
+  assert.equal(globalThis.window.crStep("agenda", "2026-09-14", 1, kit), "2026-09-28");
+  assert.equal(globalThis.window.crStep("month", "2026-09-14", 1, kit), shiftMonth("2026-09-14", 1));
+});
+
+/* ---------------- the policy chip: no invented trust figures ---------------- */
+
+test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
+  const PolicyChip = globalThis.window.PolicyChip;
+  Object.assign(globalThis.window, {
+    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
+    TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },
+    __POLICIES: { rows: [] },
+  });
+  cells = []; seq = 0;
+  const real = PolicyChip({ cls: "reengage" });
+  assert.equal(real.props["data-tip"], "Workspace policy — Settings · Autonomy");
+  delete globalThis.window.__POLICIES;
+  cells = []; seq = 0;
+  const demo = PolicyChip({ cls: "reengage" });
+  assert.ok(String(demo.props["data-tip"]).includes("128 auto-sent"), "the demo keeps its own figures");
+});
+
+/* ------------- Campaigns: an approve says when the run really goes ------------- */
+
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+
+test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
+  assert.equal(typeof globalThis.window.bcWhenWords, "function", "one sentence for when a send really goes");
+  const moved = globalThis.window.bcWhenWords({ scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" });
+  assert.ok(moved.startsWith("scheduled for "), moved);
+  assert.ok(moved.includes("between 9:00 and 20:59"), moved);
+  assert.equal(globalThis.window.bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }), "sending now");
+
+  const toasts = [];
+  globalThis.window.__playbooks = { approveRun: async () => ({ ok: true, data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" } }) };
+  const p = {
+    id: "pb-1", name: "Win-back", state: "running", trigger: "winback", triggerLabel: "Quiet 30 days", triggerHint: "",
+    schedule: "daily at 10:00", next: "tomorrow 10:00", policy_class: "marketing", template_name: "winback_offer", template_language: "en_US",
+    candidates: 3, last_run_for: null,
+    totals: { waiting: { id: "b-w", recipient_count: 3 }, runs: 1, sent: 0, delivered: 0, replied: 0, held: 0, history: [] },
+  };
+  cells = []; seq = 0;
+  const tree = globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+  let approve = null;
+  walk(tree, (n) => { if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n; });
+  assert.ok(approve, "a waiting run offers Approve");
+  await approve.props.onClick();
+  const said = textOf(toasts.at(-1).msg);
+  assert.ok(!said.includes("sending now"), said);
+  assert.ok(said.includes("scheduled for"), said);
+});
+
+/* ------ Messages: an unread number, and the business the preview names ------ */
+
+await import("../../../apps/dashboard/src/legacy/pages/messages.jsx");
+
+const mountMessages = (over) => {
+  Object.assign(globalThis.window, {
+    __TEMPLATES_ALL: [], __CHANNELS: [], __ME: { role: "owner" }, __starters: undefined,
+    __SETTINGS: { config: { brain: { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/melany" } } },
+    WaBubble: (p) => ({ type: "wa-bubble", props: { children: [p.body] } }),
+  }, over);
+  cells = []; seq = 0;
+  return globalThis.window.MessagesPage();
+};
+const byId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+
+test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", () => {
+  const failed = mountMessages({ __CHANNELS: null });
+  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
+  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
+  const none = mountMessages({ __CHANNELS: [] });
+  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
+});
+
+test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", () => {
+  const tpl = {
+    id: "t1", name: "winback_offer", language: "en_US", meta_status: "approved", category: "MARKETING", source: "chanlytics", hidden_at: null,
+    body_preview: "Hi {{1}}, it's been a while since we saw you at {{2}}. Book here: {{3}}",
+    variables: [{ kind: "first_name", example: "Dani" }, { kind: "business_name", example: "Luna Studio" }, { kind: "booking_link", example: "https://booksy.com/luna-studio" }],
+  };
+  const said = textOf(mountMessages({ __CHANNELS: [{ kind: "whatsapp" }], __TEMPLATES_ALL: [tpl] }));
+  assert.ok(said.includes("Melany's Beauty Salon"), said);
+  assert.ok(said.includes("https://booksy.com/melany"), said);
+  assert.ok(!said.includes("Luna Studio"), "REGRESSION: another business's name in this business's message");
+  assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
+});
+
+/* ------ Broadcasts: numbers over the latest fifty say they are the latest fifty ------ */
+
+test("REGRESSION (D12): past fifty broadcasts the header says its numbers are the latest fifty -- they read as everything", () => {
+  assert.equal(typeof globalThis.window.BcHistoryStats, "function", "the history's numbers are one piece that can be drawn");
+  const cellWords = (p) => ({ type: "stat", props: { children: [String(p.label), " ", String(p.value), " ", String(p.meta || "")] } });
+  const keep = globalThis.StatCell;
+  globalThis.StatCell = cellWords;
+  try {
+    const row = (i) => ({ id: `b${i}`, open: false, state: "sent", counts: { sent: 2, delivered: 1, replied: 1, skipped: 0, failed: 0 } });
+    cells = []; seq = 0;
+    const capped = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: true }));
+    assert.ok(capped.includes("latest 50"), capped);
+    cells = []; seq = 0;
+    const whole = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: false }));
+    assert.ok(!whole.includes("latest 50"), whole);
+    assert.ok(whole.includes("4 messages"), whole);
+  } finally {
+    globalThis.StatCell = keep;
+  }
+});

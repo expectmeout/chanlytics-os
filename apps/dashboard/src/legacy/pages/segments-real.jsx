@@ -220,7 +220,8 @@ const ListsReal = ({ initialId = null }) => {
                           </div>
                         </div>
                       </td>
-                      <td className="shrink dim">{p.consent.label}</td>
+                      {/* Under the Offers heading: the answer about offers, never the yes to messages. */}
+                      <td className="shrink dim">{p.consent.marketingLabel}</td>
                       <td className="shrink dim">{p.lastContact.label}</td>
                       <td className="shrink dim">{p.stateLabel}</td>
                       {kind === "saved" && canEdit && (

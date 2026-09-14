@@ -268,7 +268,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
       : d.outcome === "held" ? <><b>{p.name}</b> — {pbPeople(d.eligible)} waiting for your approval</>
       : <><b>{p.name}</b> — nobody new to send to right now</>),
   );
-  const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, sending now</>);
+  // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts-real.jsx bcWhenWords).
+  const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
   const skip = () => act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
   const remove = () => {
     setSure(false);
