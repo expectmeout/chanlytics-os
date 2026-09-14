@@ -132,7 +132,7 @@ test("the row: nothing to forward to yet, then set it up, dial and test, testing
   assert.ok(!JSON.stringify(dial).includes("carrier\":\"verizon") || true, "provider words stay in the details, never a sid");
 });
 
-test("the wiring: the migration, the edge's rule, the routes are owner-only, the bridge and the page carry the card", () => {
+test("the wiring: the migration, the forwarding event kind, and the bridge and the page carry the card", () => {
   const mig = readRaw("supabase/migrations/00067_forwarding.sql");
   for (const pin of [
     "check (provider in ('twilio', 'dry', 'carrier'))",
@@ -143,16 +143,10 @@ test("the wiring: the migration, the edge's rule, the routes are owner-only, the
     "grant execute on function public.line_forwarding_test(uuid, uuid) to authenticated;",
     "Your receptionist has no line to forward to yet.",
   ]) assert.ok(mig.includes(pin), pin);
-  const edge = readCode("apps/edge/lib/forwarding.ts");
-  assert.ok(edge.includes("if (!forwardingMatch(facts, call)) continue;") && edge.includes('.eq("forwarding_state", "instructed")'), "the contracts' rule, and a guarded update");
-  assert.ok(edge.includes("Forwarding works: calls to ${kept} reach your receptionist"), "the bell says so");
+  // The edge's half (a test call on an instructed line marks it verified, and
+  // the bell says so) runs in retell-webhook-door.test.mjs; the two routes'
+  // owner policy and their database calls run in settings-routes.test.mjs.
   assert.ok(EVENT_KINDS.includes("line.forwarding_verified"));
-  for (const file of ["forwarding/route.ts", "forwarding/test/route.ts"]) {
-    const src = readCode(`apps/dashboard/app/api/v1/lines/${file}`);
-    assert.ok(src.includes('role: "owner",') && src.includes('rate: "lines_forwarding",'), file);
-  }
-  assert.ok(readCode("apps/dashboard/app/api/v1/lines/forwarding/route.ts").includes('rpc("line_forwarding_set"'));
-  assert.ok(readCode("apps/dashboard/app/api/v1/lines/forwarding/test/route.ts").includes('rpc("line_forwarding_test"'));
   assert.ok(readCode("apps/dashboard/src/server/lines.ts").includes("forwarding: r.kind === \"forwarded\""), "only a forwarded row shows its facts, and only the words");
   const bridge = readCode("apps/dashboard/src/legacy-bridge/setup.ts");
   for (const pin of ['"POST lines/forwarding"', '"POST lines/forwarding/test"', "win.__forwarding = {"]) assert.ok(bridge.includes(pin), pin);
