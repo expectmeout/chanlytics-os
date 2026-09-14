@@ -152,7 +152,7 @@ const TodayQueue = ({ vm }) => {
         <span className="tq-title">Your queue</span>
         <span className={`tq-count tabular ${total ? "" : "calm"}`}>{total}</span>
         <span className="tq-sub">
-          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || "nothing needs you"}
+          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || (vm.standing.alert ? "nothing in the queue" : "nothing needs you")}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>
@@ -176,8 +176,10 @@ const TodayQueue = ({ vm }) => {
           />
         ))}
         {runs}
-        {total === 0 && (
-          <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
+        {total === 0 && (vm.standing.alert
+          // A dark line: an empty queue is not "the receptionist is answering".
+          ? <EmptyState kind="line" glyph="alert" tone="warn" title="Nothing in the queue — new messages go unanswered until the line is back." testid="today-queue-empty-down" />
+          : <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
         )}
       </div>
       {vm.queue.more > 0 && (

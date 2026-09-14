@@ -887,9 +887,12 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
           <span>{thread.real ? "WhatsApp" : (thread.primaryChannel?.toUpperCase() || "SMS")} · to {thread.who}</span>
         </div>
         <div className="ix-composer-actions">
-          <button className="btn btn-ghost btn-sm" onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }} disabled={saved}>
-            {saved ? "Draft saved ✓" : "Save draft"}
-          </button>
+          {/* The mockup's Save draft kept nothing: a real thread keeps no drafts, so it offers none. */}
+          {!thread.real && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }} disabled={saved}>
+              {saved ? "Draft saved ✓" : "Save draft"}
+            </button>
+          )}
           <button
             className="btn btn-primary btn-sm"
             disabled={!text.trim() || sending}
@@ -911,3 +914,5 @@ const InboxEmpty = () => (
 
 window.InboxThread = InboxThread;
 window.InboxEmpty = InboxEmpty;
+// Published for the-pages-say-only-what-is-true.test.mjs, which draws the composer on its own.
+window.InboxComposer = Composer;

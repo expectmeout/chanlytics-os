@@ -157,3 +157,117 @@ test("Conversations draws a call's own story in amber -- 'Asked for a call back'
   const handled = OutcomePill({ outcome: toCallVM(call({ outcome: null, follow_up: null }), NOW).outcome, channel: "phone" });
   assert.equal(textOf(handled), "Receptionist handled it");
 });
+
+/* ------------- Today: a dark line silences the reassurance -------------- */
+
+globalThis.EmptyState = globalThis.window.EmptyState;
+globalThis.FailedRead = globalThis.window.FailedRead;
+globalThis.PolicyChip = globalThis.window.PolicyChip;
+globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
+globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
+globalThis.useHotkey = () => {};
+Object.assign(globalThis.window, { canDo: () => true, appNavigate() {}, setInterval: () => 1, clearInterval() {}, dispatchEvent() {} });
+await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+
+const todayWith = (channels) => toTodayVM({
+  ...metrics(null),
+  channels,
+  now: { escalations_open: 0, oldest_open_escalation_at: null, threads_needing_human: 0, threads_snoozed: 0, threads_awaiting_reply: 0, last_inbound_at: null, last_outbound_at: null },
+}, [], [], [], NOW);
+const mountToday = (vm) => {
+  globalThis.window.TODAY_DATA = vm;
+  cells = []; seq = 0;
+  const hero = textOf(globalThis.window.HeroBrief());
+  cells = []; seq = 0;
+  const queue = textOf(globalThis.window.AgentCommand());
+  return { hero, queue };
+};
+
+test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say new messages go unanswered", () => {
+  const down = todayWith([{ kind: "whatsapp", status: "disconnected", number: "+1 305" }]);
+  assert.ok(down.standing.alert, "the fixture is a day with a dark line");
+  const { hero, queue } = mountToday(down);
+  assert.ok(!hero.includes("Queue clear"), hero);
+  assert.ok(!queue.includes("All caught up"), queue);
+  assert.ok(!queue.includes("nothing needs you"), `the queue's own heading does not reassure either: ${queue}`);
+  assert.ok(hero.includes("Nothing waiting in the Inbox — new messages go unanswered until the line is back"), hero);
+  assert.ok(queue.includes("Nothing in the queue — new messages go unanswered until the line is back."), queue);
+});
+
+test("with every line up and nothing waiting, the reassurance stands", () => {
+  const { hero, queue } = mountToday(todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
+  assert.ok(hero.includes("Queue clear — nothing needs you"), hero);
+  assert.ok(queue.includes("All caught up — the receptionist is answering on its own."), queue);
+});
+
+/* ---------------- the Inbox: Hold all, and a missing link ---------------- */
+
+globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
+await import("../../../apps/dashboard/src/legacy/pages/inbox.jsx");
+
+test("REGRESSION: Hold all withdraws every real draft through the door the single Hold uses, stops every countdown at once, and names a draft the server would not hold", async () => {
+  assert.equal(typeof globalThis.window.ixHoldAll, "function", "Hold all is one act that can be run");
+  const state = {};
+  const calls = [];
+  const heldWhenAsked = [];
+  const cancelSend = async (messageId) => {
+    calls.push(messageId);
+    heldWhenAsked.push(Object.values(state).every((s) => s.held));
+    return messageId === "m2" ? { ok: false, message: "It has already gone out." } : { ok: true };
+  };
+  const drafts = [
+    { id: "th-1", real: true, who: "Rosa", veto: { messageId: "m1" } },
+    { id: "th-2", real: true, who: "Ana", veto: { messageId: "m2" } },
+  ];
+  const result = await globalThis.window.ixHoldAll(drafts, { state, cancelSend });
+  assert.deepEqual(calls, ["m1", "m2"], "REGRESSION: the old Hold all never called the server, so every draft still sent");
+  assert.ok(heldWhenAsked.length === 2 && heldWhenAsked.every(Boolean), "every countdown stopped before the first answer came back");
+  assert.equal(state["th-1"].held, true);
+  assert.equal(state["th-2"].held, false, "a draft the server could not hold is not shown as held");
+  assert.equal(result.held, 1);
+  assert.deepEqual(result.refused.map((r) => r.who), ["Ana"]);
+});
+
+test("REGRESSION: the shell passes a thread id on even when the Inbox has not loaded it, instead of dropping it", () => {
+  assert.equal(typeof globalThis.window.ixRouteThread, "function", "the route's thread is one rule that can be run");
+  const threads = [{ id: "th-a", who: "Emily Chen" }];
+  assert.deepEqual(globalThis.window.ixRouteThread("th-missing", threads), { id: "th-missing", who: null });
+  assert.deepEqual(globalThis.window.ixRouteThread("th-a", threads), { id: "th-a", who: "Emily Chen" });
+  assert.deepEqual(globalThis.window.ixRouteThread(undefined, threads), { id: null, who: null });
+});
+
+test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing notice in the pane and opens nobody else's conversation", () => {
+  const opened = [];
+  globalThis.InboxList = () => null;
+  globalThis.InboxThread = (p) => { opened.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxAgentRail = () => null;
+  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  globalThis.window.INBOX_DATA = {
+    INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {},
+    THREADS: [{ id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" }],
+  };
+  cells = []; seq = 0;
+  const tree = globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+  const missing = (() => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === "inbox-missing-thread") hit = n; }); return hit; })();
+  assert.ok(missing, "the pane says the conversation is not among those loaded");
+  assert.ok(textOf(missing).includes("isn't among the newest"), textOf(missing));
+  assert.deepEqual(opened.filter(Boolean), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
+});
+
+/* ---------- the composer: no Save draft that keeps nothing ---------- */
+
+await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+
+test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'Draft saved' and kept nothing", () => {
+  assert.equal(typeof globalThis.window.InboxComposer, "function", "the composer can be drawn on its own");
+  const buttons = (tree) => { const out = []; walk(tree, (n) => { if (n.type === "button") out.push(textOf(n)); }); return out; };
+  cells = []; seq = 0;
+  const real = globalThis.window.InboxComposer({ thread: { id: "th-1", real: true, who: "Rosa", primaryChannel: "whatsapp", hasChat: true, windowOpen: true, optedOut: false }, reply: "" });
+  assert.ok(!buttons(real).some((b) => b.includes("Save draft")), JSON.stringify(buttons(real)));
+  assert.ok(buttons(real).some((b) => b.includes("Send")), "the send stays");
+  cells = []; seq = 0;
+  const seed = globalThis.window.InboxComposer({ thread: { id: "t-seed", real: false, who: "Aisha", primaryChannel: "sms" }, reply: "" });
+  assert.ok(buttons(seed).some((b) => b.includes("Save draft")), "the demo keeps its mockup control");
+});

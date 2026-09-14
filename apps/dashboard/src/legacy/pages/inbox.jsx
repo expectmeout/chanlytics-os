@@ -1,4 +1,4 @@
-/* global React, InboxList, InboxThread, InboxAgentRail */
+/* global React, InboxList, InboxThread, InboxAgentRail, EmptyState */
 // Inbox — composition layer + decide engine.
 // Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px).
 // Decisions are REAL here: approve/decline/snooze move threads, append timeline
@@ -14,6 +14,38 @@ const IX_VIEW_FILTERS = {
   "high-conf": (t) => !!t.approval && t.confidence >= window.CHANLY.CONF.SAFE,
   "new-leads": (t) => /lead/i.test(t.whoMeta),
 };
+
+// Hold every draft still counting down. A real draft is a send job on the
+// server, so holding it is the withdraw the single Hold makes
+// (window.__cancelSend), once per draft. Every countdown stops at once; a
+// draft the server refused -- it may already have gone out -- is released and
+// named, never shown as held.
+const ixHoldAll = async (drafts, { state, cancelSend }) => {
+  for (const t of drafts) state[t.id] = { ...(state[t.id] || {}), held: true };
+  const real = drafts.filter((t) => t.real && t.veto && t.veto.messageId);
+  const answers = await Promise.all(real.map((t) => (cancelSend
+    ? cancelSend(t.veto.messageId)
+    : Promise.resolve({ ok: false, message: "The Inbox could not reach the server." }))));
+  const refused = [];
+  answers.forEach((r, i) => {
+    if (r && r.ok) return;
+    const t = real[i];
+    state[t.id] = { ...(state[t.id] || {}), held: false };
+    refused.push({ id: t.id, who: t.who, message: (r && r.message) || null });
+  });
+  return { held: drafts.length - refused.length, refused };
+};
+
+// The thread a route names. The id is passed on even when the Inbox has not
+// loaded that thread: dropping it opened the first thread in the list --
+// another customer's -- in silence, where the Inbox knows to say it is missing.
+const ixRouteThread = (param, threads) => {
+  const id = typeof param === "string" && param ? param : null;
+  const found = id ? (threads || []).find((t) => t.id === id) : null;
+  return { id, who: found ? found.who : null };
+};
+
+Object.assign(window, { ixHoldAll, ixRouteThread });
 
 const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
@@ -597,46 +629,67 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
         stake={stake}
         density={density}
       />
-      <InboxThread
-        key={activeThread?.id}
-        thread={activeThread}
-        onBack={() => setPhoneThreadOpen(false)}
-        notice={requestedMissing ? "That conversation isn't among the newest shown here — open the person in People to find it." : null}
-        channelLabels={CHANNEL_LABELS}
-        stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
-        onReconcile={reconcile}
-        onDismissStale={() => setStale(null)}
-        onOpenClient={onOpenClient}
-        onDecide={decide}
-        onVerdict={verdictDecide}
-        veto={activeThread ? vetoRemaining(activeThread.id) : null}
-        vetoPaused={!!(window.PR_STORE && window.PR_STORE.away)}
-        onVetoAct={vetoAct}
-        onSnooze={snooze}
-        onSend={sendReply}
-        onTakeOver={takeOver}
-        onWake={wake}
-        onHandBack={handBack}
-        onMarkUnread={markUnread}
-        planParam={planParams[activeThread?.id] || 0}
-        onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
-      />
-      {showAgentRail && <InboxAgentRail thread={activeThread} />}
+      {requestedMissing ? (
+        // A link to a thread outside the loaded list: say so in the pane, and
+        // open nobody else's conversation in its place.
+        <EmptyState
+          kind="page"
+          glyph="inbox"
+          title="That conversation isn't among the newest shown here"
+          body="The Inbox loads the newest threads first. Open the person in People to find this one — no other conversation opens in its place."
+          action={{ label: "Open People", to: "clients" }}
+          also={{ label: "Show the Inbox", onClick: () => { setActiveThreadId(null); setPhoneThreadOpen(false); } }}
+          testid="inbox-missing-thread"
+        />
+      ) : (
+        <InboxThread
+          key={activeThread?.id}
+          thread={activeThread}
+          onBack={() => setPhoneThreadOpen(false)}
+          channelLabels={CHANNEL_LABELS}
+          stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
+          onReconcile={reconcile}
+          onDismissStale={() => setStale(null)}
+          onOpenClient={onOpenClient}
+          onDecide={decide}
+          onVerdict={verdictDecide}
+          veto={activeThread ? vetoRemaining(activeThread.id) : null}
+          vetoPaused={!!(window.PR_STORE && window.PR_STORE.away)}
+          onVetoAct={vetoAct}
+          onSnooze={snooze}
+          onSend={sendReply}
+          onTakeOver={takeOver}
+          onWake={wake}
+          onHandBack={handBack}
+          onMarkUnread={markUnread}
+          planParam={planParams[activeThread?.id] || 0}
+          onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
+        />
+      )}
+      {showAgentRail && !requestedMissing && <InboxAgentRail thread={activeThread} />}
 
       {(() => {
         const vetoLive = threads.filter((t) => t.veto && vetoRemaining(t.id) != null);
         if (vetoLive.length < 2) return null;
         const soonest = [...vetoLive].sort((a, b) => vetoRemaining(a.id) - vetoRemaining(b.id))[0];
+        // The same withdraw the single Hold makes, per draft (ixHoldAll): the
+        // countdowns stop at once, and a draft the server refused is named.
+        const holdAll = async () => {
+          if (!window.canDo("approve")) return;
+          const pending = window.ixHoldAll(vetoLive, { state: VW.state, cancelSend: window.__cancelSend });
+          setVetoTick((n) => n + 1);
+          const r = await pending;
+          setVetoTick((n) => n + 1);
+          ppFlash(r.refused.length
+            ? { tone: "danger", msg: <><b>{r.held} of {vetoLive.length} drafts</b> held — {r.refused.map((x) => x.who).join(", ")} may already have gone out</> }
+            : { msg: <><b>{r.held} drafts</b> held — nothing sends until you act</> });
+        };
         return (
           <div className="ix-sending-strip">
             <span className="ix-veto-dot"></span>
             {window.PR_STORE && window.PR_STORE.away ? <span><b>{vetoLive.length} drafts</b> paused — you're away</span> : <span><b>{vetoLive.length} drafts</b> sending — soonest {vetoRemaining(soonest.id)}s</span>}
             <button className="btn btn-ghost btn-sm" onClick={() => selectThread(soonest.id)}>Review</button>
-            <button className="btn btn-sm" onClick={() => {
-              vetoLive.forEach((t) => { VW.state[t.id] = { held: true }; });
-              setVetoTick((n) => n + 1);
-              ppFlash({ msg: <><b>{vetoLive.length} drafts</b> held — manual send</> });
-            }}>Hold all</button>
+            <button className="btn btn-sm" onClick={holdAll} {...window.gate("approve")}>Hold all</button>
           </div>
         );
       })()}
