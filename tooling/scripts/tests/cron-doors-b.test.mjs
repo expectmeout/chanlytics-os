@@ -351,6 +351,41 @@ test("calls: a copy still pending is retried with a fresh URL from the provider 
   neverAskedAboutSpent();
 });
 
+test("calls: a CDN that refuses a recording for good (401, 403, 410) fails the copy at once and is never asked about again; a 404 is a recording not published yet, and waits for the next try", async () => {
+  const T = tenant(3);
+  const pending = (id, over = {}) => callRow(T, id, { status: "ended", ended_at: ago(20 * MIN), updated_at: ago(10 * MIN), recording: { fetch_state: "pending", attempts: 0 }, ...over });
+  const tables = { calls: [pending("refused"), pending("unpublished", { updated_at: ago(9 * MIN) })], messages: [], events: [] };
+  use(tables, { ingest_call: ingestRpc(tables) });
+  const GET_CALL = "https://api.retellai.com/v2/get-call/";
+  const net = wired((req) => {
+    if (req.url.startsWith(GET_CALL)) {
+      const id = req.url.slice(GET_CALL.length);
+      return { status: 200, body: { call_id: id, call_status: "ended", recording_url: "https://cdn.retell.test/" + id + ".wav" } };
+    }
+    // The provider's CDN: one recording refused for good, the other not published yet.
+    if (req.url === "https://cdn.retell.test/call_refused.wav") return new Response("Forbidden", { status: 403 });
+    if (req.url === "https://cdn.retell.test/call_unpublished.wav") return new Response("Not Found", { status: 404 });
+    throw new Error("unexpected " + req.method + " " + req.url);
+  });
+  const rec = (id) => tables.calls.find((c) => c.id === id).recording;
+  const asksAbout = (id) => net.calls.filter((c) => c.url.endsWith("/call_" + id) || c.url.endsWith("/call_" + id + ".wav")).length;
+
+  let [status, body] = await answer(await knock("calls"));
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body.recordings, { candidates: 2, stored: 0, retry: 1, failed: 1 });
+  assert.equal(rec("refused").fetch_state, "failed", "a refusal is the provider's final word: it will not hand this recording over");
+  assert.equal(rec("refused").error, "provider_refused_403");
+  assert.equal(rec("unpublished").fetch_state, "pending", "a 404 is a recording the CDN has not published yet");
+  assert.equal(rec("unpublished").error, "provider_404");
+  assert.equal(rec("unpublished").attempts, 1, "and the try is counted");
+
+  const refusedAsks = asksAbout("refused");
+  [status, body] = await answer(await knock("calls"));
+  assert.deepEqual(body.recordings, { candidates: 1, stored: 0, retry: 1, failed: 0 }, "only the unpublished copy is still owed a try");
+  assert.equal(asksAbout("refused"), refusedAsks, "a refused copy is not asked about again");
+  assert.equal(rec("unpublished").attempts, 2);
+});
+
 test("calls: recordings past the ninety days the privacy page states are removed from the bucket and the row says so — before the provider is asked, so a deployment without the key still keeps that promise; a call that ended, or errored, without an analysis still gets its line in the customer's thread, once", async () => {
   const T = tenant(3);
   const CONV = uuid(31);

@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { normalizeCall, liveTurns, fetchRecording } from "@chanlytics/channels";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
-import { readCode, readRaw } from "./_source.mjs";
+import { readCode, readRaw, importSrc } from "./_source.mjs";
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");
 const agoIso = (ms) => new Date(NOW.getTime() - ms).toISOString();
@@ -162,15 +162,14 @@ test("the upsert is forward-only and tells the caller when it declined", () => {
   assert.equal((sql.match(/<> 'not_connected'/g) ?? []).length, 5, "metrics (2), people (1), reports (2)");
 });
 
-test("a copy given up on stops waking the edge, and the copy's own bound agrees", () => {
+test("a copy given up on stops waking the edge, and the copy's own bound agrees", async () => {
   // The sweep's half -- pending copies retried on its own budget, the count
   // advanced on a timeout, the third attempt the last -- runs in
   // cron-doors-b.test.mjs. This holds the trigger and the library to one number.
   const sql = readRaw("supabase/migrations/00031_call_lifecycle.sql");
   assert.ok(sql.includes("coalesce((recording->>'attempts')::int, 0) < 3"), "a copy given up on stops waking the edge");
-  const lib = readCode("apps/edge/lib/call-recording.ts");
-  assert.ok(lib.includes("export const RECORDING_MAX_ATTEMPTS = 3;"));
-  assert.ok(lib.includes('settle(exhausted ? "failed" : "pending"'));
+  const { RECORDING_MAX_ATTEMPTS } = await importSrc("apps/edge/lib/call-recording.ts");
+  assert.equal(RECORDING_MAX_ATTEMPTS, 3, "the copy gives up at the trigger's own number");
 });
 
 test("the Conversations viewer runs a real live call's clock from its start, and no longer offers to 'listen in'", () => {
