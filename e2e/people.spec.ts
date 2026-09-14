@@ -161,16 +161,37 @@ test.describe("People on a real workspace", () => {
     await expect(bar).toContainText("2 selected");
 
     const seen: { method: string; url: string; body: unknown }[] = [];
+    // Registered FIRST, so it runs LAST: a write to a person or a list that no
+    // handler below answers is stopped here instead of reaching the workspace.
+    // This spec signs in to a live workspace. When #426 moved "Record a yes" to
+    // one batch request, the per-person route this test had stopped matching,
+    // and every nightly run recorded a real consent, in person, on two real
+    // customers. A door that moves again now fails the counts below, and the
+    // person it would have written to is left alone.
+    const stopped: string[] = [];
+    await page.route(/\/api\/v1\/(?:contacts|segments)(?:[/?#]|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET") { await route.continue(); return; }
+      stopped.push(`${req.method()} ${new URL(req.url()).pathname}`);
+      await route.abort();
+    });
     await page.route("**/api/v1/segments*", async (route) => {
       const req = route.request();
       if (req.method() === "GET") { await route.continue(); return; }
       seen.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { lists: [] } }) });
     });
-    await page.route("**/api/v1/contacts/*/consent*", async (route) => {
+    // Both consent doors, for one person or many, conversational or offers. The
+    // batch door answers with counts (server/consent.ts), a person's with the row.
+    await page.route(/\/api\/v1\/contacts\/(?:[^/?#]+\/)?(?:marketing-)?consent(?:[?#]|$)/, async (route) => {
       const req = route.request();
-      seen.push({ method: req.method(), url: req.url(), body: req.postDataJSON() });
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { contact_id: "intercepted", consent: "opted_in", dnc: false, source: "in_person" } }) });
+      const body = req.postDataJSON() as { ids?: unknown } | null;
+      seen.push({ method: req.method(), url: req.url(), body });
+      const ids = body?.ids;
+      const data = Array.isArray(ids)
+        ? { done: ids.length, failed: [], skipped: [] }
+        : { contact_id: "intercepted", consent: "opted_in", dnc: false, source: "in_person" };
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data }) });
     });
 
     // A new list from the bar: one POST with the name.
@@ -184,16 +205,22 @@ test.describe("People on a real workspace", () => {
     await expect(page.getByTestId("bulk-list-name")).toHaveCount(0);
     await expect(bar.getByRole("button", { name: "Record a yes" })).toBeEnabled();
 
-    // A yes for both: one PUT each, saying how it was given.
+    // A yes for both: ONE request through the batch door, both people in it,
+    // saying how it was given. The bar has not sent one request per person
+    // since #426.
     await boxes.nth(0).check();
     await boxes.nth(1).check();
     await bar.getByRole("button", { name: "Record a yes" }).click();
     await page.getByText("In person", { exact: true }).click();
-    await expect.poll(() => seen.filter((r) => r.url.includes("/consent")).length).toBe(2);
-    for (const r of seen.filter((x) => x.url.includes("/consent"))) {
-      expect(r.method).toBe("PUT");
-      expect(r.body).toEqual({ consent: "opted_in", source: "in_person" });
-    }
+    const consentWrites = () => seen.filter((r) => r.url.includes("consent"));
+    await expect.poll(() => consentWrites().length).toBe(1);
+    const [yes] = consentWrites();
+    expect(yes.method).toBe("PUT");
+    expect(new URL(yes.url).pathname).toBe("/api/v1/contacts/consent");
+    const sent = yes.body as { ids: string[]; consent: string; source: string };
+    expect(sent).toEqual({ ids: sent.ids, consent: "opted_in", source: "in_person" });
+    expect(new Set(sent.ids).size, "both selected people, once each").toBe(2);
+    expect(stopped, "a write this spec did not answer was stopped before it reached the live workspace").toEqual([]);
   });
 
   test("the booking link is one step from a profile with a thread: the button lands on the thread", async ({ page }) => {
