@@ -339,9 +339,11 @@ const PaneSetup = () => {
       return;
     }
     if (verb.to.startsWith("verb:deactivate:")) {
-      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can switch a capability off.</> }); return; }
+      if (!(window.canDo && window.canDo("team"))) { flash({ msg: <>Only an owner can withdraw an activation.</> }); return; }
       const r = await window.__setup.deactivate(verb.to.slice("verb:deactivate:".length));
-      flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Switched off — the record stays, and you can activate it again whenever you like.</> : <>{r.message}</> });
+      // An activation is the owner's record that a capability is theirs; it
+      // gates nothing at runtime. Withdrawing it stops nothing, and says so.
+      flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Activation withdrawn — nothing stops answering; Setup no longer marks it as yours. Activate it again whenever you like.</> : <>{r.message}</> });
       return;
     }
     if (verb.to.startsWith("tel:")) { window.location.href = verb.to; return; }

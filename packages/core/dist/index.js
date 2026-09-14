@@ -4667,6 +4667,7 @@ var AskFinishSchema = external_exports.object({
   navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch(""), now: external_exports.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
   language: external_exports.enum(ASK_LANGUAGES).catch("other")
 });
+var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = external_exports.object({
   state: external_exports.enum(["done", "dismissed", "failed", "undone"]),
   receipt: external_exports.string().max(300).catch(""),
@@ -9709,6 +9710,7 @@ var AskFinishSchema2 = external_exports2.object({
   navigate: external_exports2.object({ to: external_exports2.string().catch(""), label: external_exports2.string().catch(""), now: external_exports2.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
   language: external_exports2.enum(ASK_LANGUAGES2).catch("other")
 });
+var ASK_UNDO_MS2 = 10 * 6e4;
 var AskProposalOutcomeSchema2 = external_exports2.object({
   state: external_exports2.enum(["done", "dismissed", "failed", "undone"]),
   receipt: external_exports2.string().max(300).catch(""),
@@ -14843,6 +14845,7 @@ var AskFinishSchema3 = external_exports3.object({
   navigate: external_exports3.object({ to: external_exports3.string().catch(""), label: external_exports3.string().catch(""), now: external_exports3.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
   language: external_exports3.enum(ASK_LANGUAGES3).catch("other")
 });
+var ASK_UNDO_MS3 = 10 * 6e4;
 var AskProposalOutcomeSchema3 = external_exports3.object({
   state: external_exports3.enum(["done", "dismissed", "failed", "undone"]),
   receipt: external_exports3.string().max(300).catch(""),

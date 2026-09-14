@@ -1150,7 +1150,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
       recState === "ready" ? "Recording saved" : recState === "pending" ? "Recording still processing" : recState === "failed" ? "Recording couldn't be saved from the voice provider" : recState === "purged" ? RECORDING_PURGED_WORDS : "No recording for this call"
     );
   }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.start ?? turn.words?.[0]?.start;
     if (turn.role === "injected") {
@@ -1176,7 +1176,7 @@ function toCallVM(dto, now = /* @__PURE__ */ new Date()) {
     at: shortTime(dto.started_at, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...dur ? { duration: dur } : {},
-    outcome: live ? "live" : missed ? "missed" : "handled",
+    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
     ...live ? { live: true } : {},
     snippet: withheld ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 caller ID withheld, so this call isn't linked to a customer.` : `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` \xB7 ${dur}` : ""} \u2014 ${snippetBody}`,
     summary: { headline: wanted || firstSentence || snippetBody, bullets },
@@ -3248,7 +3248,9 @@ function consentOf(r, nowMs) {
     source: r.consent_source ?? null,
     marketing,
     marketingSource: r.marketing_consent_source ?? null,
-    marketingSub
+    marketingSub,
+    // The offers answer in the words People's Offers column uses, so a list and the page agree.
+    marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked"
   };
 }
 function mayReceive(r, purpose) {
@@ -3736,6 +3738,28 @@ function tzClock(iso, tz, now) {
     return t;
   }
 }
+function tzSince(iso, tz, now) {
+  const t = tzTime(iso, tz);
+  if (!iso || !t) return t;
+  const dayNumber2 = (d) => {
+    try {
+      const parts2 = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d).split("-").map(Number);
+      return Date.UTC(parts2[0] ?? 1970, (parts2[1] ?? 1) - 1, parts2[2] ?? 1) / 864e5;
+    } catch {
+      return Math.floor(d.getTime() / 864e5);
+    }
+  };
+  const days = dayNumber2(now) - dayNumber2(new Date(iso));
+  if (days <= 0) return t;
+  if (days === 1) return `yesterday ${t}`;
+  try {
+    const within = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
+    const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
+    return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
+  } catch {
+    return t;
+  }
+}
 function tzTime(iso, tz) {
   if (!iso) return null;
   try {
@@ -3905,7 +3929,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       }
     };
   }
-  const oldest = tzTime(live.oldest_open_escalation_at, tz);
+  const oldest = tzSince(live.oldest_open_escalation_at, tz, now);
   let headline;
   let detail = null;
   let tone = "calm";
@@ -3999,7 +4023,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   for (const e of openEsc) {
     const conv = byConv.get(e.conversation_id);
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
-    const since = tzTime(e.created_at, tz) ?? "";
+    const since = tzSince(e.created_at, tz, now) ?? "";
     const warn = waitedMs > 30 * 6e4;
     if (e.reason === "callback") {
       const call = callByConv.get(e.conversation_id) ?? null;
@@ -4292,7 +4316,9 @@ function buildNotificationFeed(input) {
       at: Number.isNaN(at2) ? now : at2,
       title: `Invitation pending \xB7 ${i.email}`,
       message: "They have not accepted yet.",
-      to: "admin/workspace",
+      // Invitations live on the Team pane since Team split from Workspace;
+      // the row's own button says "Team", so its door must open Team.
+      to: "admin/team",
       icon: "users",
       tone: "",
       action: "Team"
@@ -4630,6 +4656,17 @@ var PROPOSAL_GATE = {
   broadcast: "approve",
   playbook: "approve"
 };
+var ASK_UNDO_MS = 10 * 6e4;
+function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
+  if (!undo) return false;
+  if (kind === "reply") {
+    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
+    return Number.isFinite(until) && nowMs < until;
+  }
+  if (nowMs - atMs > ASK_UNDO_MS) return false;
+  if (kind === "settings") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
+  return true;
+}
 var AskProposalOutcomeSchema = z3.object({
   state: z3.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z3.string().max(300).catch(""),
@@ -6691,7 +6728,7 @@ function setupSteps(i, nowMs = Date.now()) {
     if (!i.business.name || !i.business.hours) {
       row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
     } else {
-      row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null, undo: cap.live ? { label: "Switch off", to: "verb:deactivate:voice" } : null });
+      row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet \u2014 callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null, undo: cap.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null });
     }
   } else if (voice.present) {
     row2({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
@@ -6730,7 +6767,7 @@ function setupSteps(i, nowMs = Date.now()) {
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap, nowMs));
-    row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : void 0, required: !answering, sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" }, undo: cap.live && !metaWaits ? { label: "Switch off", to: "verb:deactivate:whatsapp" } : null });
+    row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : void 0, required: !answering, sentence: metaWaits ? `Connected on ${waNum} \u2014 your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" }, undo: cap.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null });
   } else if (wa.present) {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: `${waNum ?? "Your number"} is connected but switched off.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else {
@@ -8315,7 +8352,7 @@ var TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
 var TONE_OF = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
-  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn" },
+  call: { live: "accent", missed: "plain", handled: "plain", stale: "plain", ended: "plain", abandoned: "warn", callback: "warn" },
   person: { needs_you: "warn", waiting_on_you: "warn", new: "info", active: "ok", quiet: "plain", opted_out: "plain" },
   consent: { opted_in: "ok", opted_out: "warn", unknown: "plain" },
   mode: { auto: "ok", ask: "warn", never: "plain", inherit: "plain" },
@@ -8330,7 +8367,7 @@ var TONE_OF = {
 var LABEL_OF = {
   thread: { escalated: "Needs you", needs_you: "Needs you", snoozed: "Snoozed", done: "Done", open: "Customer wrote last", handled: "Receptionist replied", booked: "Booked", decided: "Handled" },
   standing: { escalated: "Needs you", queued: "Reply queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent", answering: "Answering" },
-  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early" },
+  call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
   mode: PERSON_MODE_LABELS,
@@ -8371,6 +8408,7 @@ export {
   ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
+  ASK_UNDO_MS,
   AUDIENCE_KINDS,
   AppError,
   AskFinishSchema,
@@ -8586,6 +8624,7 @@ export {
   applySettingsChange,
   asPersonMode,
   askJump,
+  askUndoOpen,
   attentionRow,
   autoReplyBell,
   autoReplyCandidates,

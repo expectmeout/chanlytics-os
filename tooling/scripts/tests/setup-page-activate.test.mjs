@@ -138,8 +138,9 @@ test("the page: the row's Activate reaches the bridge with the capability's name
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
 });
 
-test("the page: a row that dials is not itself a dial, an activated row offers Switch off and it reaches the bridge", async () => {
+test("the page: a row that dials is not itself a dial; an activated row offers to withdraw the activation, it reaches the bridge, and the words never claim the receptionist stops", async () => {
   const before = calls.deactivate.length;
+  const flashed = calls.flash.length;
   globalThis.window.__SETUP = { dto, role: "owner", vm: setupSteps({ ...dto, activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }], later: [] }, NOW), fetchedAt: NOW };
   const tree = mount();
   let row = null;
@@ -147,9 +148,12 @@ test("the page: a row that dials is not itself a dial, an activated row offers S
   assert.ok(row, "the receptionist row");
   assert.equal(row.cta.label, "Call it");
   assert.equal(row.onOpen, undefined, "the row itself does not dial; only its button does");
-  assert.equal(row.also.label, "Switch off");
+  assert.equal(row.also.label, "Withdraw activation", "REGRESSION: 'Switch off' promised the receptionist would stop, and an activation gates nothing at runtime");
   await row.also.onClick();
   assert.deepEqual(calls.deactivate.slice(before), ["voice"]);
+  const said = String(calls.flash[flashed].msg.props.children.join(""));
+  assert.ok(!said.includes("Switched off"), said);
+  assert.ok(said.startsWith("Activation withdrawn"), said);
   let nav = null;
   walk(tree, (n) => { if (!nav && n.props?.testid === "setup-row-team") nav = n.props; });
   assert.equal(typeof nav.onOpen, "function", "a row that navigates is a click target");

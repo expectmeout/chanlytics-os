@@ -23,7 +23,8 @@ import { listBroadcasts } from "@/server/broadcasts";
  */
 export const GET = read({
   scope: workspace,
-  handle: async ({ ctx, member }) => ({ broadcasts: await listBroadcasts(ctx, member.tenantId) }),
+  // { broadcasts, more }: the recent fifty, and whether older ones exist beyond them.
+  handle: async ({ ctx, member }) => listBroadcasts(ctx, member.tenantId),
 });
 
 export const POST = write({

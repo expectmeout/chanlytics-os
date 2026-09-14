@@ -51,5 +51,5 @@ test("the wiring: every surface reads the one function, and Today's queue is nam
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   assert.ok(page.includes('<span className="tq-title">Your queue</span>') && page.includes("vm.queue.parts"), "the queue says what it holds");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes("need you` : \"Queue clear — nothing needs you\""), "the hero's word matches the Inbox's");
+  assert.ok(brief.includes('"Queue clear — nothing needs you"'), "the hero's word matches the Inbox's when nothing is waiting and every line is up");
 });

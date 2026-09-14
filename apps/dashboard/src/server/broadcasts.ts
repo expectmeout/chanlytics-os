@@ -150,16 +150,21 @@ async function withCounts(ctx: RouteContext, tenantId: string, rows: BroadcastRo
   return rows.map((r) => toDto(r, counts.get(r.id) ?? emptyCounts()));
 }
 
-/** The recent fifty, newest first: the Broadcasts page's history. */
-export async function listBroadcasts(ctx: RouteContext, tenantId: string): Promise<BroadcastDto[]> {
+/**
+ * The recent fifty, newest first: the Broadcasts page's history -- and whether
+ * older broadcasts exist beyond it. The page summed these fifty under headings
+ * that read as everything; one row past the fifty is how it knows to say "latest".
+ */
+export async function listBroadcasts(ctx: RouteContext, tenantId: string): Promise<{ broadcasts: BroadcastDto[]; more: boolean }> {
   const { data: rows, error } = await ctx.supabase
     .from("broadcasts")
     .select(ROW_COLUMNS)
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false })
-    .limit(RECENT);
+    .limit(RECENT + 1);
   if (error) throw new Error(error.message);
-  return withCounts(ctx, tenantId, (rows ?? []) as BroadcastRow[]);
+  const all = (rows ?? []) as BroadcastRow[];
+  return { broadcasts: await withCounts(ctx, tenantId, all.slice(0, RECENT)), more: all.length > RECENT };
 }
 
 /**

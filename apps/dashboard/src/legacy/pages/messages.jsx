@@ -26,8 +26,16 @@ const tplAgo = (iso) => {
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 // Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
 const TPL_SAMPLES = new Set(["hello_world"]);
-// The words WhatsApp reviewed for each slot, so a synced template reads as a message and not as {{1}}.
-const tplExamples = (t) => (Array.isArray(t.variables) ? t.variables : []).map((x) => (x && typeof x === "object" && typeof x.example === "string" ? x.example : null));
+// The words WhatsApp reviewed for each slot, so a synced template reads as a message and not as {{1}} --
+// except a slot that names this business: it shows this business's own name and booking link, never the
+// sample filed with Meta (the starters' "Luna Studio"). A customer's name stays a sample: no one customer is shown.
+const tplExamples = (t) => {
+  const brain = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || {};
+  const own = { business_name: brain.business_name || null, booking_link: brain.booking_link || null };
+  return (Array.isArray(t.variables) ? t.variables : []).map((x) => (x && typeof x === "object"
+    ? ((x.kind && own[x.kind]) || (typeof x.example === "string" ? x.example : null))
+    : null));
+};
 const tplRender = (body, examples) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => examples[Number(n) - 1] || m);
 
 const useMessages = () => {
@@ -211,7 +219,10 @@ const MessagesReal = () => {
       </div>
 
       <div className="rp-body">
-        {!hasWhatsApp && (
+        {/* A failed read of the numbers is not "no number": say what could not be read. */}
+        {window.__CHANNELS === null ? (
+          <FailedRead kind="card" what="your WhatsApp number" body="What is on file is below; adding and syncing wait until the number can be read." surface="settings" testid="messages-channels-failed" />
+        ) : !hasWhatsApp && (
           <EmptyState kind="card" glyph="phone" title="Connect a WhatsApp number first" body="Messages belong to a number's account." action={{ label: "Open Connections", to: "admin/integrations" }} testid="messages-no-number" />
         )}
         {composing && window.TemplateComposer && (

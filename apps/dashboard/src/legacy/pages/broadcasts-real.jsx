@@ -148,6 +148,37 @@ const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approv
 };
 window.BroadcastOpenRow = BroadcastOpenRow;
 
+// When a send really goes, in one sentence for every receipt that has one. The
+// server moves a send outside 9:00-20:59 by the business's clock to the next
+// nine o'clock (moved_from set); an approve or a send says so, rather than
+// "sending now" over a run that waits until morning.
+const bcWhenWords = (d) => {
+  const at = d && d.scheduled_for ? Date.parse(d.scheduled_for) : NaN;
+  const when = Number.isNaN(at) ? null : new Date(at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  if (d && d.moved_from && when) return `scheduled for ${when} — messages go out between 9:00 and 20:59 by your clock`;
+  if (when && at - Date.now() > 60_000) return `scheduled for ${when}`;
+  return "sending now";
+};
+window.bcWhenWords = bcWhenWords;
+
+// The history's numbers -- sent, delivered, replies -- over the rows the route
+// returned. Past fifty broadcasts the route says older ones exist (more), and
+// the numbers say they are the latest fifty rather than reading as everything.
+const BcHistoryStats = ({ rows, more }) => {
+  const history = (rows || []).filter((r) => !r.open);
+  const messages = history.reduce((a, r) => a + r.counts.sent, 0);
+  const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
+  const scope = more ? " · latest 50 broadcasts" : "";
+  return (
+    <StatStrip>
+      <StatCell label="Sent" value={history.filter((r) => r.state === "sent").length} meta={`${messages.toLocaleString()} messages${scope}`} />
+      <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={messages ? `${Math.round((delivered / messages) * 100)}%` : "—"} meta={`from WhatsApp receipts${scope}`} />
+      <StatCell label="Replies" tip="Threads that heard from the customer within 3 days of a broadcast" value={history.reduce((a, r) => a + r.counts.replied, 0)} meta={`answered in the Inbox${scope}`} accent />
+    </StatStrip>
+  );
+};
+window.BcHistoryStats = BcHistoryStats;
+
 const BroadcastsReal = ({ initialSegment = null }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
@@ -216,14 +247,6 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const rows = data.rows || [];
   const open = rows.filter((r) => r.open);
   const history = rows.filter((r) => !r.open);
-  const sentMessages = history.reduce((a, r) => a + r.counts.sent, 0);
-  const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
-  const stats = {
-    sent: history.filter((r) => r.state === "sent").length,
-    messages: sentMessages,
-    delivered: sentMessages ? `${Math.round((delivered / sentMessages) * 100)}%` : "—",
-    replies: history.reduce((a, r) => a + r.counts.replied, 0),
-  };
 
   const submit = async (scheduled) => {
     if (!window.__broadcasts || !ready) return;
@@ -240,11 +263,10 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     setName("");
     setWhen("");
     const n = r.data.recipient_count;
-    // Outside nine to twenty by the business's clock, the send moved to the next
-    // nine o'clock, and the receipt says so: an owner scheduling at midnight is
-    // told when it really goes.
-    const moved = r.data.moved_from ? ` — moved to ${new Date(r.data.scheduled_for).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}: messages go out between 9:00 and 20:59 by your clock` : "";
-    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {r.data.moved_from ? "scheduled" : scheduled && when ? "scheduled" : "sending now, 25 at a time"}{moved}</> });
+    // Outside nine to twenty by the business's clock the send moved to the next
+    // nine o'clock: the receipt says when it really goes (bcWhenWords).
+    const words = bcWhenWords(r.data);
+    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" ? "sending now, 25 at a time" : words}</> });
   };
   const addStarters = async () => {
     if (!window.__templates || !window.__templates.addStarters || addingStarters) return;
@@ -264,7 +286,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const approve = async (row) => {
     if (!window.__broadcasts) return;
     const r = await window.__broadcasts.approve(row.id);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, sending now</> : <>{r.message}</> });
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
   };
 
   return (
@@ -276,11 +298,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         </div>
       </header>
 
-      <StatStrip>
-        <StatCell label="Sent" value={stats.sent} meta={`${stats.messages.toLocaleString()} messages`} />
-        <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={stats.delivered} meta="from WhatsApp receipts" />
-        <StatCell label="Replies" tip="Threads that heard from the customer within 3 days of a broadcast" value={stats.replies} meta="answered in the Inbox" accent />
-      </StatStrip>
+      <BcHistoryStats rows={rows} more={data.more} />
 
       <section className="bc-composer" data-testid="bc-composer">
         <div className="ct-sec-head">

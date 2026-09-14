@@ -354,8 +354,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   let content, crumbs, activeNav, pane = false, primaryAction = null;
 
   if (page === "inbox") {
-    const threadParam = param && (window.INBOX_DATA?.THREADS || []).some(t => t.id === param) ? param : null;
-    const threadWho = threadParam && ((window.INBOX_DATA?.THREADS || []).find(t => t.id === threadParam) || {}).who;
+    // The id is passed on even when that thread is not loaded: the Inbox says
+    // it is missing, rather than opening the first thread in its place.
+    const routed = window.ixRouteThread ? window.ixRouteThread(param, window.INBOX_DATA?.THREADS) : { id: param || null, who: null };
+    const threadParam = routed.id;
+    const threadWho = routed.who;
     activeNav = "inbox";
     crumbs = threadWho ? [{ label: "Inbox", to: "inbox" }, threadWho] : ["Inbox"];
     pane = true;

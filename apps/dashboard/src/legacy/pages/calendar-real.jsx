@@ -31,6 +31,16 @@ const CR_REFRESH_MS = 5 * 60 * 1000;
 // one implementation for the page, the surface and the tests.
 const crTyping = () => { const el = document.activeElement; return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable); };
 
+// Where ‹ › and ← → take the board, one rule per view: a day in Day view, a
+// week in Week view, fourteen days in Agenda, a month in Month. Day view used
+// to fall through to the week branch and jump seven days.
+const crStep = (view, anchor, n, cal) =>
+  view === "month" ? cal.shiftMonth(anchor, n)
+  : view === "agenda" ? cal.shiftKey(anchor, 14 * n)
+  : view === "day" ? cal.shiftKey(anchor, n)
+  : cal.shiftKey(anchor, 7 * n);
+window.crStep = crStep;
+
 // One taken block from the feed. Neutral, never an agent's colour: the
 // calendar did not say who booked it, only that the time is taken.
 const CrBlock = ({ b, hours, onOpen, wide }) => {
@@ -309,11 +319,7 @@ const CalendarReal = () => {
   const fit = (w) => !service || !service.duration || w.dur >= service.duration;
   const monthKey = view === "month" ? anchor.slice(0, 7) : null;
 
-  const move = (n) => {
-    if (view === "month") setAnchorKey(cal.shiftMonth(anchor, n));
-    else if (view === "agenda") setAnchorKey(cal.shiftKey(anchor, 14 * n));
-    else setAnchorKey(cal.shiftKey(anchor, 7 * n));
-  };
+  const move = (n) => setAnchorKey(crStep(view, anchor, n, cal));
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(vm.bookingLink); flash({ msg: <>Booking link copied.</> }); }
     catch { flash({ tone: "warn", msg: <>Could not copy — the link is {vm.bookingLink}</> }); }

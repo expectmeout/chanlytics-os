@@ -29,23 +29,33 @@ const BusinessRecordForm = ({ line, flash }) => {
   const [problems, setProblems] = React.useState({});
   const [busy, setBusy] = React.useState(false);
   const [arm, setArm] = React.useState(false);
+  // A read that failed is its own state -- never an empty record, and never the
+  // one-time question asked over a record that may well be on file.
+  const [readFailed, setReadFailed] = React.useState(null);
   const owner = window.canDo ? window.canDo("team") : false;
+
+  const load = (isOn = () => true) => API.read().then((r) => {
+    if (!isOn()) return;
+    if (!r.ok) { setReadFailed(r.message || "The record could not be read."); return; }
+    setReadFailed(null);
+    // No website is guessed. Left empty, the filing names the page this
+    // product publishes for the workspace (/b/<slug>), as the field's hint
+    // says. The guess this replaced was saved as the website and filed with
+    // the carriers: the opt-in page, of whichever workspace sorted first.
+    setRecord(r.record ?? API.empty({ email: window.__ME?.email ?? "" }));
+    setPath(r.path ?? null);
+    setProblems(r.problems || {});
+  });
 
   React.useEffect(() => {
     let on = true;
-    API.read().then((r) => {
-      if (!on) return;
-      // No website is guessed. Left empty, the filing names the page this
-      // product publishes for the workspace (/b/<slug>), as the field's hint
-      // says. The guess this replaced was saved as the website and filed with
-      // the carriers: the opt-in page, of whichever workspace sorted first.
-      setRecord(r.record ?? API.empty({ email: window.__ME?.email ?? "" }));
-      setPath(r.path ?? null);
-      setProblems(r.problems || {});
-    });
+    load(() => on);
     return () => { on = false; };
-  }, [API]);
+  }, [API]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (!record && readFailed) {
+    return <window.FailedRead kind="line" what="the business on record" why={readFailed} body="Nothing was changed. Retry reads it again." onRetry={() => { setReadFailed(null); load(); }} testid="business-record-failed" />;
+  }
   if (!record) return <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading what is on record…</span></div></div>;
 
   // A registration already with the carriers. It cannot be withdrawn, so the

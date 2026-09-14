@@ -1,0 +1,514 @@
+/**
+ * The pages say only what is true.
+ *
+ * Walking the live app on 14 September 2026 turned up sentences the data
+ * underneath contradicts, on a real workspace, in front of its owner:
+ *
+ * - Today said "The oldest has been waiting since 6:51 PM" of a customer who
+ *   had been waiting eight days, because the time was printed without its date.
+ * - Conversations pilled a call "Receptionist handled it" directly above its own
+ *   "Needs a call back" and "To do: Call Emily back" -- the pill only knew
+ *   live, missed and everything else.
+ * - The same call's notes said "Noted on Emily's WhatsApp thread" of a caller
+ *   who has no WhatsApp thread at all.
+ *
+ * Each is pinned here as behaviour, run against the contracts that decide it.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { toTodayVM, toCallVM, stateOf } from "@chanlytics/contracts";
+
+// 10:00 in New York on Sunday 6 September 2026.
+const NOW = new Date("2026-09-06T14:00:00Z");
+
+const metrics = (oldest) => ({
+  workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }, { kind: "voice", status: "active", number: "+1 786" }],
+  window: { days: 1, since: "2026-09-06T04:00:00Z", since_local: "2026-09-06T00:00:00", now_local: "2026-09-06T10:00:00" },
+  now: { escalations_open: 2, oldest_open_escalation_at: oldest, threads_needing_human: 2, threads_snoozed: 0, threads_awaiting_reply: 0, last_inbound_at: "2026-09-06T13:00:00Z", last_outbound_at: "2026-09-06T13:01:00Z" },
+  period: { messages_in: 5, messages_out_ai: 4, messages_out_you: 0, conversations_active: 3, answered_by_ai: 4, answered_by_you: 0, unanswered_in_window: 1, median_reply_seconds_ai: 40, send_failures: 0, escalations_new: 2, escalation_reasons: {}, calls: 0, call_seconds: 0, call_sentiments: {}, calls_voicemail: 0, new_contacts: 0 },
+});
+const contact = (id, name) => ({ id, display_name: name, wa_profile_name: null, phone_e164: "+17865550181", consent: "opted_in", dnc: false });
+const conversation = (id, name) => ({
+  id, state: "needs_human", paused_until: null, last_wa_inbound_at: null, last_message_at: "2026-08-29T12:00:00Z",
+  contact: contact(`c-${id}`, name),
+  messages: [{ id: `m-${id}`, conversation_id: id, direction: "inbound", sender: "customer", type: "text", body: "Can I move Saturday?", media: null, meta: null, status: "received", created_at: "2026-08-29T12:00:00Z" }],
+});
+const escalation = (id, conversationId, createdAt) => ({ id, reason: "human_token", details: null, state: "open", created_at: createdAt, conversation_id: conversationId });
+
+/* ---------------------- a wait is said with its day --------------------- */
+
+test("a wait from an earlier day says which day: yesterday, the weekday inside a week, the date beyond it -- and today stays a bare time", () => {
+  const cases = [
+    ["2026-09-06T12:00:00Z", "since 8:00 AM"],
+    ["2026-09-05T12:00:00Z", "since yesterday 8:00 AM"],
+    ["2026-09-04T12:00:00Z", "since Fri 8:00 AM"],
+    ["2026-08-31T12:00:00Z", "since Mon 8:00 AM"],
+    ["2026-08-29T12:00:00Z", "since Aug 29, 8:00 AM"],
+  ];
+  for (const [createdAt, words] of cases) {
+    const vm = toTodayVM(metrics(createdAt), [conversation("cv1", "Zoe Martin")], [escalation("e1", "cv1", createdAt)], [], NOW);
+    const row = vm.queue.rows.find((r) => r.kind === "handoff");
+    assert.ok(row, `a handoff row for ${createdAt}`);
+    assert.ok(row.status.includes(words), `${createdAt}: expected "${words}" in ${JSON.stringify(row.status)}`);
+  }
+});
+
+test("the headline's oldest wait carries its day too: eight days is not 'since 6:51 PM'", () => {
+  const vm = toTodayVM(
+    metrics("2026-08-29T22:51:00Z"),
+    [conversation("cv1", "Zoe Martin"), conversation("cv2", "Daniela Reyes")],
+    [escalation("e1", "cv1", "2026-08-29T22:51:00Z"), escalation("e2", "cv2", "2026-08-29T22:57:00Z")],
+    [],
+    NOW,
+  );
+  assert.equal(vm.standing.detail, "The oldest has been waiting since Aug 29, 6:51 PM.");
+});
+
+/* --------------------- a call's pill tells its story -------------------- */
+
+const call = (over = {}) => ({
+  id: "k7", retell_call_id: "r-k7", direction: "inbound", call_type: "phone_call", status: "ended",
+  from_e164: "+19175550106", from_raw: null, to_e164: "+13083368109",
+  started_at: "2026-09-06T13:00:00Z", ended_at: "2026-09-06T13:03:10Z", duration_ms: 190_000,
+  disconnection_reason: "agent_hangup", sentiment: "Positive", call_successful: true, in_voicemail: false,
+  summary: "The user called Melany's Beauty Salon to arrange a bridal trial.", transcript_object: null, recording: null,
+  conversation_id: "cv7", contact_id: "c7", message_id: "m7",
+  contact: { display_name: "Emily Chen", wa_profile_name: null, phone_e164: "+19175550106" },
+  wanted: "Wants to book a bridal trial on October 3", outcome: "callback_needed",
+  follow_up: "Call Emily back to confirm the bridal trial", caller_name: "Emily",
+  ...over,
+});
+
+test("a call that asked for a call back is never pilled 'handled', and the words stay true after someone calls back", () => {
+  const vm = toCallVM(call(), NOW);
+  assert.equal(vm.outcome, "callback");
+  assert.deepEqual(stateOf("call", "callback"), { tone: "warn", label: "Asked for a call back" });
+});
+
+test("the caller who hung up in seconds is pilled as that, the same rule Today already uses", () => {
+  const vm = toCallVM(call({ duration_ms: 6_000, disconnection_reason: "user_hangup", outcome: null, follow_up: null }), NOW);
+  assert.equal(vm.outcome, "abandoned");
+  assert.equal(stateOf("call", "abandoned").label, "Hung up early");
+});
+
+test("a call that neither asked for anything nor ended early is still handled", () => {
+  assert.equal(toCallVM(call({ outcome: null, follow_up: null }), NOW).outcome, "handled");
+  assert.equal(toCallVM(call({ status: "not_connected", duration_ms: 0, outcome: null }), NOW).outcome, "missed", "a dial that never connected keeps its own word");
+});
+
+test("a call's note names the thread it went to, never a channel the caller may not have", () => {
+  const bullets = toCallVM(call(), NOW).summary.bullets;
+  assert.ok(bullets.includes("Noted on Emily's thread in the Inbox"), JSON.stringify(bullets));
+  assert.ok(!bullets.some((b) => b.includes("WhatsApp thread")), "a phone-only caller has no WhatsApp thread");
+});
+
+/* ------------------- the Conversations pill, mounted -------------------- */
+
+let cells = [];
+let seq = 0;
+globalThis.Icon = "Icon";
+globalThis.React = {
+  Fragment: "Fragment",
+  createElement: (type, p, ...kids) => {
+    const props = { ...(p || {}), children: kids.flat(Infinity) };
+    const node = { type, props };
+    if (typeof type === "function") node.rendered = type(props);
+    return node;
+  },
+  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
+  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
+  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useMemo: (fn) => { const k = seq++; if (!(k in cells)) cells[k] = fn(); return cells[k]; },
+  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useCallback: (fn) => fn,
+};
+globalThis.ReactDOM = { createPortal: (node) => node };
+globalThis.document = { body: {}, addEventListener() {}, createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }) };
+globalThis.window = {
+  __chrome: { state: stateOf },
+  CHANLY: { nav() {}, R: {} },
+  gate: () => ({}),
+  __surfaceState: () => "live",
+  __DEMO_MODE: false,
+  addEventListener() {},
+  removeEventListener() {},
+  setTimeout: () => 1,
+  clearTimeout() {},
+};
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+globalThis.StatePill = globalThis.window.StatePill;
+await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
+const { OutcomePill } = globalThis.window;
+
+const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
+const textOf = (n) => { const out = []; walk(n, (x) => { for (const k of x.props?.children ?? []) if (typeof k === "string" || typeof k === "number") out.push(String(k)); }); return out.join(""); };
+const pillClass = (n) => (n.rendered ?? n).props.className;
+
+test("Conversations draws a call's own story in amber -- 'Asked for a call back', 'Hung up early' -- and keeps 'Receptionist handled it' for the calls it describes", () => {
+  const callback = OutcomePill({ outcome: toCallVM(call(), NOW).outcome, channel: "phone" });
+  assert.equal(textOf(callback), "Asked for a call back");
+  assert.ok(pillClass(callback).includes("pill-warn"), pillClass(callback));
+
+  const quick = OutcomePill({ outcome: toCallVM(call({ duration_ms: 6_000, disconnection_reason: "user_hangup", outcome: null, follow_up: null }), NOW).outcome, channel: "phone" });
+  assert.equal(textOf(quick), "Hung up early");
+  assert.ok(pillClass(quick).includes("pill-warn"), pillClass(quick));
+
+  const handled = OutcomePill({ outcome: toCallVM(call({ outcome: null, follow_up: null }), NOW).outcome, channel: "phone" });
+  assert.equal(textOf(handled), "Receptionist handled it");
+});
+
+/* ------------- Today: a dark line silences the reassurance -------------- */
+
+globalThis.EmptyState = globalThis.window.EmptyState;
+globalThis.FailedRead = globalThis.window.FailedRead;
+globalThis.PolicyChip = globalThis.window.PolicyChip;
+globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
+globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
+globalThis.useHotkey = () => {};
+Object.assign(globalThis.window, { canDo: () => true, appNavigate() {}, setInterval: () => 1, clearInterval() {}, dispatchEvent() {} });
+await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+
+const todayWith = (channels) => toTodayVM({
+  ...metrics(null),
+  channels,
+  now: { escalations_open: 0, oldest_open_escalation_at: null, threads_needing_human: 0, threads_snoozed: 0, threads_awaiting_reply: 0, last_inbound_at: null, last_outbound_at: null },
+}, [], [], [], NOW);
+const mountToday = (vm) => {
+  globalThis.window.TODAY_DATA = vm;
+  cells = []; seq = 0;
+  const hero = textOf(globalThis.window.HeroBrief());
+  cells = []; seq = 0;
+  const queue = textOf(globalThis.window.AgentCommand());
+  return { hero, queue };
+};
+
+test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say new messages go unanswered", () => {
+  const down = todayWith([{ kind: "whatsapp", status: "disconnected", number: "+1 305" }]);
+  assert.ok(down.standing.alert, "the fixture is a day with a dark line");
+  const { hero, queue } = mountToday(down);
+  assert.ok(!hero.includes("Queue clear"), hero);
+  assert.ok(!queue.includes("All caught up"), queue);
+  assert.ok(!queue.includes("nothing needs you"), `the queue's own heading does not reassure either: ${queue}`);
+  assert.ok(hero.includes("Nothing waiting in the Inbox — new messages go unanswered until the line is back"), hero);
+  assert.ok(queue.includes("Nothing in the queue — new messages go unanswered until the line is back."), queue);
+});
+
+test("with every line up and nothing waiting, the reassurance stands", () => {
+  const { hero, queue } = mountToday(todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
+  assert.ok(hero.includes("Queue clear — nothing needs you"), hero);
+  assert.ok(queue.includes("All caught up — the receptionist is answering on its own."), queue);
+});
+
+/* ---------------- the Inbox: Hold all, and a missing link ---------------- */
+
+globalThis.window.CHANLY = { ...globalThis.window.CHANLY, IX_NOW: "12:04", CONF: { SAFE: 0.8, MED: 0.5 } };
+await import("../../../apps/dashboard/src/legacy/pages/inbox.jsx");
+
+test("REGRESSION: Hold all withdraws every real draft through the door the single Hold uses, stops every countdown at once, and names a draft the server would not hold", async () => {
+  assert.equal(typeof globalThis.window.ixHoldAll, "function", "Hold all is one act that can be run");
+  const state = {};
+  const calls = [];
+  const heldWhenAsked = [];
+  const cancelSend = async (messageId) => {
+    calls.push(messageId);
+    heldWhenAsked.push(Object.values(state).every((s) => s.held));
+    return messageId === "m2" ? { ok: false, message: "It has already gone out." } : { ok: true };
+  };
+  const drafts = [
+    { id: "th-1", real: true, who: "Rosa", veto: { messageId: "m1" } },
+    { id: "th-2", real: true, who: "Ana", veto: { messageId: "m2" } },
+  ];
+  const result = await globalThis.window.ixHoldAll(drafts, { state, cancelSend });
+  assert.deepEqual(calls, ["m1", "m2"], "REGRESSION: the old Hold all never called the server, so every draft still sent");
+  assert.ok(heldWhenAsked.length === 2 && heldWhenAsked.every(Boolean), "every countdown stopped before the first answer came back");
+  assert.equal(state["th-1"].held, true);
+  assert.equal(state["th-2"].held, false, "a draft the server could not hold is not shown as held");
+  assert.equal(result.held, 1);
+  assert.deepEqual(result.refused.map((r) => r.who), ["Ana"]);
+});
+
+test("REGRESSION: the shell passes a thread id on even when the Inbox has not loaded it, instead of dropping it", () => {
+  assert.equal(typeof globalThis.window.ixRouteThread, "function", "the route's thread is one rule that can be run");
+  const threads = [{ id: "th-a", who: "Emily Chen" }];
+  assert.deepEqual(globalThis.window.ixRouteThread("th-missing", threads), { id: "th-missing", who: null });
+  assert.deepEqual(globalThis.window.ixRouteThread("th-a", threads), { id: "th-a", who: "Emily Chen" });
+  assert.deepEqual(globalThis.window.ixRouteThread(undefined, threads), { id: null, who: null });
+});
+
+test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing notice in the pane and opens nobody else's conversation", () => {
+  const opened = [];
+  globalThis.InboxList = () => null;
+  globalThis.InboxThread = (p) => { opened.push(p.thread ? p.thread.id : null); return null; };
+  globalThis.InboxAgentRail = () => null;
+  globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+  globalThis.window.INBOX_DATA = {
+    INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {},
+    THREADS: [{ id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" }],
+  };
+  cells = []; seq = 0;
+  const tree = globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false });
+  const missing = (() => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === "inbox-missing-thread") hit = n; }); return hit; })();
+  assert.ok(missing, "the pane says the conversation is not among those loaded");
+  assert.ok(textOf(missing).includes("isn't among the newest"), textOf(missing));
+  assert.deepEqual(opened.filter(Boolean), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
+});
+
+/* ---------- the composer: no Save draft that keeps nothing ---------- */
+
+await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
+
+test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'Draft saved' and kept nothing", () => {
+  assert.equal(typeof globalThis.window.InboxComposer, "function", "the composer can be drawn on its own");
+  const buttons = (tree) => { const out = []; walk(tree, (n) => { if (n.type === "button") out.push(textOf(n)); }); return out; };
+  cells = []; seq = 0;
+  const real = globalThis.window.InboxComposer({ thread: { id: "th-1", real: true, who: "Rosa", primaryChannel: "whatsapp", hasChat: true, windowOpen: true, optedOut: false }, reply: "" });
+  assert.ok(!buttons(real).some((b) => b.includes("Save draft")), JSON.stringify(buttons(real)));
+  assert.ok(buttons(real).some((b) => b.includes("Send")), "the send stays");
+  cells = []; seq = 0;
+  const seed = globalThis.window.InboxComposer({ thread: { id: "t-seed", real: false, who: "Aisha", primaryChannel: "sms" }, reply: "" });
+  assert.ok(buttons(seed).some((b) => b.includes("Save draft")), "the demo keeps its mockup control");
+});
+
+/* -------- People › Lists: the Offers column is the answer about offers -------- */
+
+globalThis.Confirm = globalThis.window.Confirm;
+await import("../../../apps/dashboard/src/legacy/pages/segments-real.jsx");
+
+test("REGRESSION: on a list, the Offers column shows the answer about offers -- it showed the yes to messages under the Offers heading", () => {
+  const person = (id, name, marketing, marketingLabel) => ({
+    id, real: true, name, initials: name.split(" ").map((w) => w[0]).join(""), phone: "+1 (917) 555-0109",
+    consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person", marketing, marketingSource: null, marketingSub: "", marketingLabel },
+    lastContact: { label: "You replied · 7d ago" }, stateLabel: "Active",
+  });
+  Object.assign(globalThis.window, {
+    __ME: { role: "owner" },
+    __mayReceive: (p, purpose) => (purpose === "marketing" ? p.consent.marketing === "opted_in" : p.consent.state === "opted_in"),
+    __PEOPLE: {
+      rows: [person("p1", "Nina Petrova", "unknown", "Not asked"), person("p2", "Tom Baker", "opted_in", "Yes")],
+      lists: [{ id: "opted_in", label: "Said yes to messages", group: "reach", count: 2, ids: ["p1", "p2"] }],
+      saved: [], groups: [],
+    },
+  });
+  cells = []; seq = 0;
+  const tree = globalThis.window.SegmentsPage({ initialId: "opted_in" });
+  const rows = [];
+  walk(tree, (n) => { if (n.type === "tr" && n.props?.onClick) rows.push(n); });
+  const cellsOf = (tr) => (tr.props.children || []).filter((c) => c && c.type === "td").map((td) => textOf(td));
+  assert.deepEqual(rows.map((tr) => cellsOf(tr)[1]), ["Not asked", "Yes"], `the cells: ${JSON.stringify(rows.map(cellsOf))}`);
+});
+
+/* ---------------------- Calendar: Day view steps a day ---------------------- */
+
+await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
+
+test("REGRESSION: in Day view the arrows move one day -- they moved seven", async () => {
+  const { shiftKey, shiftMonth } = await import("@chanlytics/contracts");
+  assert.equal(typeof globalThis.window.crStep, "function", "the step is one rule that can be run");
+  const kit = { shiftKey, shiftMonth };
+  assert.equal(globalThis.window.crStep("day", "2026-09-14", 1, kit), "2026-09-15");
+  assert.equal(globalThis.window.crStep("day", "2026-09-14", -1, kit), "2026-09-13");
+  assert.equal(globalThis.window.crStep("week", "2026-09-14", 1, kit), "2026-09-21");
+  assert.equal(globalThis.window.crStep("agenda", "2026-09-14", 1, kit), "2026-09-28");
+  assert.equal(globalThis.window.crStep("month", "2026-09-14", 1, kit), shiftMonth("2026-09-14", 1));
+});
+
+/* ---------------- the policy chip: no invented trust figures ---------------- */
+
+test("REGRESSION: on a real workspace a policy chip's tooltip names the policy -- it quoted the mockup's '128 auto-sent · 9% edited'", () => {
+  const PolicyChip = globalThis.window.PolicyChip;
+  Object.assign(globalThis.window, {
+    POLICY: { row: () => ({ id: "reengage", chip: "Re-engage", locked: false }), modeOf: () => "Ask" },
+    TRUST: { cls: () => ({ sent: 128 }), rate: () => 9 },
+    __POLICIES: { rows: [] },
+  });
+  cells = []; seq = 0;
+  const real = PolicyChip({ cls: "reengage" });
+  assert.equal(real.props["data-tip"], "Workspace policy — Settings · Autonomy");
+  delete globalThis.window.__POLICIES;
+  cells = []; seq = 0;
+  const demo = PolicyChip({ cls: "reengage" });
+  assert.ok(String(demo.props["data-tip"]).includes("128 auto-sent"), "the demo keeps its own figures");
+});
+
+/* ------------- Campaigns: an approve says when the run really goes ------------- */
+
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+
+test("REGRESSION: approving a run the server moved to nine says so -- the toast said 'sending now'", async () => {
+  assert.equal(typeof globalThis.window.bcWhenWords, "function", "one sentence for when a send really goes");
+  const moved = globalThis.window.bcWhenWords({ scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" });
+  assert.ok(moved.startsWith("scheduled for "), moved);
+  assert.ok(moved.includes("between 9:00 and 20:59"), moved);
+  assert.equal(globalThis.window.bcWhenWords({ scheduled_for: new Date(Date.now() + 5_000).toISOString(), moved_from: null }), "sending now");
+
+  const toasts = [];
+  globalThis.window.__playbooks = { approveRun: async () => ({ ok: true, data: { recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", moved_from: "2026-09-15T02:00:00Z" } }) };
+  const p = {
+    id: "pb-1", name: "Win-back", state: "running", trigger: "winback", triggerLabel: "Quiet 30 days", triggerHint: "",
+    schedule: "daily at 10:00", next: "tomorrow 10:00", policy_class: "marketing", template_name: "winback_offer", template_language: "en_US",
+    candidates: 3, last_run_for: null,
+    totals: { waiting: { id: "b-w", recipient_count: 3 }, runs: 1, sent: 0, delivered: 0, replied: 0, held: 0, history: [] },
+  };
+  cells = []; seq = 0;
+  const tree = globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) });
+  let approve = null;
+  walk(tree, (n) => { if (!approve && n.props?.["data-testid"] === "pb-approve") approve = n; });
+  assert.ok(approve, "a waiting run offers Approve");
+  await approve.props.onClick();
+  const said = textOf(toasts.at(-1).msg);
+  assert.ok(!said.includes("sending now"), said);
+  assert.ok(said.includes("scheduled for"), said);
+});
+
+/* ------ Messages: an unread number, and the business the preview names ------ */
+
+await import("../../../apps/dashboard/src/legacy/pages/messages.jsx");
+
+const mountMessages = (over) => {
+  Object.assign(globalThis.window, {
+    __TEMPLATES_ALL: [], __CHANNELS: [], __ME: { role: "owner" }, __starters: undefined,
+    __SETTINGS: { config: { brain: { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/melany" } } },
+    WaBubble: (p) => ({ type: "wa-bubble", props: { children: [p.body] } }),
+  }, over);
+  cells = []; seq = 0;
+  return globalThis.window.MessagesPage();
+};
+const byId = (tree, id) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === id) hit = n; }); return hit; };
+
+test("REGRESSION: when the number could not be read, Messages says that -- it said 'Connect a WhatsApp number first' on a workspace that has one", () => {
+  const failed = mountMessages({ __CHANNELS: null });
+  assert.ok(byId(failed, "messages-channels-failed"), "the failed read has its own card");
+  assert.equal(byId(failed, "messages-no-number"), null, "REGRESSION: a null read was shown as no number");
+  const none = mountMessages({ __CHANNELS: [] });
+  assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
+});
+
+test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", () => {
+  const tpl = {
+    id: "t1", name: "winback_offer", language: "en_US", meta_status: "approved", category: "MARKETING", source: "chanlytics", hidden_at: null,
+    body_preview: "Hi {{1}}, it's been a while since we saw you at {{2}}. Book here: {{3}}",
+    variables: [{ kind: "first_name", example: "Dani" }, { kind: "business_name", example: "Luna Studio" }, { kind: "booking_link", example: "https://booksy.com/luna-studio" }],
+  };
+  const said = textOf(mountMessages({ __CHANNELS: [{ kind: "whatsapp" }], __TEMPLATES_ALL: [tpl] }));
+  assert.ok(said.includes("Melany's Beauty Salon"), said);
+  assert.ok(said.includes("https://booksy.com/melany"), said);
+  assert.ok(!said.includes("Luna Studio"), "REGRESSION: another business's name in this business's message");
+  assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
+});
+
+/* ------ Broadcasts: numbers over the latest fifty say they are the latest fifty ------ */
+
+test("REGRESSION (D12): past fifty broadcasts the header says its numbers are the latest fifty -- they read as everything", () => {
+  assert.equal(typeof globalThis.window.BcHistoryStats, "function", "the history's numbers are one piece that can be drawn");
+  const cellWords = (p) => ({ type: "stat", props: { children: [String(p.label), " ", String(p.value), " ", String(p.meta || "")] } });
+  const keep = globalThis.StatCell;
+  globalThis.StatCell = cellWords;
+  try {
+    const row = (i) => ({ id: `b${i}`, open: false, state: "sent", counts: { sent: 2, delivered: 1, replied: 1, skipped: 0, failed: 0 } });
+    cells = []; seq = 0;
+    const capped = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: true }));
+    assert.ok(capped.includes("latest 50"), capped);
+    cells = []; seq = 0;
+    const whole = textOf(globalThis.window.BcHistoryStats({ rows: [row(1), row(2)], more: false }));
+    assert.ok(!whole.includes("latest 50"), whole);
+    assert.ok(whole.includes("4 messages"), whole);
+  } finally {
+    globalThis.StatCell = keep;
+  }
+});
+
+/* -------------- Ask: an undo stays open only while it can still be true -------------- */
+
+test("REGRESSION: an Ask card's undo expires -- it was offered forever, and a settings undo wrote the whole earlier config over later saves", async () => {
+  const { askUndoOpen, ASK_UNDO_MS } = await import("@chanlytics/contracts");
+  assert.equal(typeof askUndoOpen, "function", "one rule for when an undo is still true");
+  const T = Date.parse("2026-09-14T12:00:00Z");
+  // A reply: until the send's own cancel window closes, and not a moment after.
+  assert.equal(askUndoOpen("reply", { message_id: "m", cancelable_until: new Date(T + 5_000).toISOString() }, T, T, null), true);
+  assert.equal(askUndoOpen("reply", { message_id: "m", cancelable_until: new Date(T - 1).toISOString() }, T - 20_000, T, null), false, "a message already sent cannot be canceled");
+  // Everything else: ten minutes after the act.
+  assert.equal(ASK_UNDO_MS, 10 * 60_000);
+  assert.equal(askUndoOpen("thread_verb", { verb: "wake", conversation_id: "c" }, T - ASK_UNDO_MS + 1_000, T, null), true);
+  assert.equal(askUndoOpen("thread_verb", { verb: "wake", conversation_id: "c" }, T - ASK_UNDO_MS - 1, T, null), false);
+  // Settings: and only while nobody has saved since.
+  assert.equal(askUndoOpen("settings", { config: {}, version_after: 4 }, T - 1_000, T, 4), true);
+  assert.equal(askUndoOpen("settings", { config: {}, version_after: 4 }, T - 1_000, T, 5), false, "REGRESSION: the whole earlier config restored over a later save");
+  assert.equal(askUndoOpen("settings", { config: {} }, T - 1_000, T, 4), false, "an undo that does not know what it wrote cannot prove nobody saved since");
+  assert.equal(askUndoOpen("reply", null, T, T, null), false);
+});
+
+await import("../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
+
+test("REGRESSION: a reopened card whose undo has expired offers none, and undoing a new playbook asks first -- it deleted the playbook in one click", async () => {
+  const { askUndoOpen } = await import("@chanlytics/contracts");
+  const undone = [];
+  globalThis.window.__ask = { undoOpen: askUndoOpen, undo: async (p) => { undone.push(p.kind); return { ok: true, receipt: "Deleted — nothing will run" }; }, outcome: async () => true, commit: async () => ({ ok: true, receipt: "", undo: null }) };
+  globalThis.window.canDo = () => true;
+  const t = globalThis.window.askText("en");
+  const buttons = (tree) => { const out = []; walk(tree, (n) => { if (n.type === "button") out.push(n); }); return out; };
+
+  // A reply sent two days ago: its cancel window closed long since.
+  const sentAt = Date.now() - 2 * 86_400_000;
+  const old = {
+    id: "p1", kind: "reply", title: "Reply to Rosa", summary: "On our way.", payload: { conversation_id: "c1", text: "On our way.", who: "Rosa" }, undo: "Cancel within 15 seconds of sending",
+    outcome: { state: "done", receipt: "Sent to Rosa", atMs: sentAt, undo: { message_id: "m9", cancelable_until: new Date(sentAt + 15_000).toISOString() } },
+  };
+  cells = []; seq = 0;
+  assert.ok(!buttons(globalThis.window.AskCard({ p: old, messageId: "x", t, onNav() {} })).some((b) => textOf(b).includes("Cancel within")), "REGRESSION: the undo outlived the send");
+
+  // A playbook made a minute ago: undoing it deletes it, so the card asks first.
+  const made = {
+    id: "p2", kind: "playbook", title: "Win-back", summary: "Every 30 days", payload: {}, undo: "Delete it — nothing will run",
+    outcome: { state: "done", receipt: "Playbook “Win-back” is running", atMs: Date.now() - 60_000, undo: { playbook_id: "pb1" } },
+  };
+  cells = []; seq = 0;
+  let tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
+  const undoButton = buttons(tree).find((b) => textOf(b).includes("Delete it"));
+  assert.ok(undoButton, "a fresh undo is offered");
+  await undoButton.props.onClick();
+  assert.deepEqual(undone, [], "REGRESSION: one click deleted the playbook");
+  seq = 0;
+  tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
+  let yes = null;
+  walk(tree, (n) => { if (!yes && n.props?.["data-testid"] === "ask-card-undo-yes") yes = n; });
+  assert.ok(yes, "the card asks before it deletes");
+  await yes.props.onClick();
+  assert.deepEqual(undone, ["playbook"]);
+});
+
+/* -------------------- Ask: a failure says what failed -------------------- */
+
+test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread deleted', a failed delete and a failed copy said the calendar could not be read", () => {
+  for (const lang of ["en", "es"]) {
+    const t = globalThis.window.askText(lang);
+    for (const k of ["threadUnreadable", "deleteFailed", "copyFailed"]) {
+      assert.equal(typeof t[k], "string", `${lang}.${k}`);
+      assert.notEqual(t[k], t.unavailable, `${lang}.${k} is not the calendar's sentence`);
+      assert.notEqual(t[k], t.deleted, `${lang}.${k} is not "deleted"`);
+    }
+  }
+});
+
+/* ------------------ the Terms: the ways in, as they are ------------------ */
+
+test("REGRESSION: the Terms name the password among the ways to sign in -- they said Google or a code after the password became the everyday credential", async () => {
+  const { default: TermsPage } = await import("../../../apps/dashboard/app/terms/page.tsx");
+  const lines = [];
+  const collect = (n) => {
+    if (n == null || typeof n !== "object") return;
+    const kids = n.props?.children;
+    for (const k of Array.isArray(kids) ? kids : [kids]) {
+      if (typeof k === "string") lines.push(k);
+      else collect(k);
+    }
+  };
+  collect(TermsPage());
+  const signIn = lines.find((s) => s.startsWith("Sign-in is"));
+  assert.ok(signIn, `the sign-in sentence among ${lines.length} lines`);
+  assert.ok(signIn.includes("password"), signIn);
+});

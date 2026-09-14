@@ -1174,7 +1174,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     put("notes", noteRows.length ? noteRows : undefined);
     // Booking rules: a blank field is "no rule", never zero.
     const num = (v, lo, hi) => { const n = parseInt(String(v).trim(), 10); return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined; };
-    const rules = {};
+    // Start from the stored rules the form does not edit (settingsRulesKept):
+    // a rebuild from {} deleted the slot length on every save.
+    const rules = settingsRulesKept(p0.booking_rules);
     const lead = num(leadHours, 0, 168); if (lead !== undefined) rules.lead_hours = lead;
     const buf = num(bufferMin, 0, 120); if (buf !== undefined) rules.buffer_min = buf;
     const ahead = num(daysAhead, 1, 90); if (ahead !== undefined) rules.max_days_ahead = ahead;
@@ -2739,3 +2741,13 @@ window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the shell names the crumb; the 
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
+
+// The booking-rule keys the Business editor edits. Everything else stored under
+// booking_rules -- the slot length today, a rule added later -- is kept by a
+// save rather than rebuilt away: the editor used to start the rules from {} and
+// deleted slot_min every time an owner pressed Save.
+const SET_EDITED_RULES = ["lead_hours", "buffer_min", "max_days_ahead", "party_max", "consult_first", "notes"];
+function settingsRulesKept(saved) {
+  return Object.fromEntries(Object.entries(saved || {}).filter(([k]) => !SET_EDITED_RULES.includes(k)));
+}
+window.settingsRulesKept = settingsRulesKept; // run on its own by settings-save-keeps-rules.test

@@ -332,3 +332,11 @@ test("consent reads with how it was given; the offers list is exactly the opted-
   assert.ok(no.consent.sub.startsWith("On the phone · "), no.consent.sub);
   assert.equal(list("opted_in").test(toPersonRowVM(row(), NOW)), false, "not asked is not a yes");
 });
+
+test("the offers answer in a word, as People's Offers column says it -- so a list's Offers column can never show the other answer", () => {
+  assert.equal(toPersonRowVM(row(), NOW).consent.marketingLabel, "Not asked");
+  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_in" }), NOW).consent.marketingLabel, "Yes");
+  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_out" }), NOW).consent.marketingLabel, "No");
+  assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: null }), NOW).consent.marketingLabel, "Not asked", "a yes to messages is not a yes to offers");
+  assert.equal(toPersonRowVM(row({ consent: "opted_out", marketing_consent: "opted_in" }), NOW).consent.marketingLabel, "No", "a STOP stops offers too");
+});

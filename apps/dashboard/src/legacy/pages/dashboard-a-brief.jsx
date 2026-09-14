@@ -176,8 +176,9 @@ const HeroBriefReal = ({ vm }) => {
               </div>
             ))}
             <button className="brief-forecast brief-inbox-link" onClick={() => nav("inbox")}>
-              <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : "var(--ok)" }} />
-              <span>{waiting > 0 ? `${waiting} need you` : "Queue clear — nothing needs you"}</span>
+              <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : standing.alert ? "var(--danger)" : "var(--ok)" }} />
+              {/* While a line is down nothing reassures: the alert above is the truth, and an empty queue is not "nothing needs you". */}
+              <span>{waiting > 0 ? `${waiting} need you` : standing.alert ? "Nothing waiting in the Inbox — new messages go unanswered until the line is back" : "Queue clear — nothing needs you"}</span>
               <Icon name="arrow-right" size={11} style={{ color: "var(--ink-faint)" }} />
             </button>
           </div>

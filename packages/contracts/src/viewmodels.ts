@@ -143,7 +143,7 @@ import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
 import { replyWindow, isLiveCall } from "./policy";
-import { callOutcomeWords, tidyCallSummary } from "./call-words";
+import { callOutcomeOf, callOutcomeWords, tidyCallSummary } from "./call-words";
 import { RECORDING_PURGED_WORDS } from "./retention";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
@@ -871,7 +871,7 @@ export interface CallVM {
   ts: number;
   /** live: in progress under the heartbeat rule · missed: the dial never
    *  connected (Retell's not_connected) · handled: everything else. */
-  outcome: "live" | "handled" | "missed";
+  outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -944,7 +944,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
       "No recording for this call",
     );
   }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
 
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.start ?? turn.words?.[0]?.start;
@@ -975,7 +975,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     at: shortTime(dto.started_at, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
-    outcome: live ? "live" : missed ? "missed" : "handled",
+    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`
