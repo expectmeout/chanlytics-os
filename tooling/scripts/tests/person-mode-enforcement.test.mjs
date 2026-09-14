@@ -10,8 +10,9 @@
  * "pricing question" and emailed the owner once per message.
  *
  * These pin the order of the WhatsApp handler (the lookup before the first
- * branch that can speak), the voice send's use of the person's mode, the
- * gate's reading of Veto, and the reason with its labels, end to end.
+ * branch that can speak), the gate's reading of Veto, and the reason with its
+ * labels, end to end. The voice send's use of the person's mode is run, in
+ * retell-fn-door.test.mjs.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -25,7 +26,6 @@ const { outboundGate } = await import(pathToFileURL(path.join(here, "../../../ap
 
 const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
 const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
-const fn = readCode("apps/edge/api/retell-fn.ts");
 
 test("WhatsApp: the person's mode is looked up before the first branch that can speak", () => {
   const lookup = wa.indexOf("personMode = await ports.leads.personReplyMode(");
@@ -49,15 +49,6 @@ test("WhatsApp: a person's hold is its own reason, alerted once per open hold", 
   // The workspace-level hold keeps its per-message alert: that behaviour is
   // unchanged here on purpose.
   assert.ok(steps.includes("const personHold = !!x.brainCfg && !!x.personMode;"));
-});
-
-test("voice: the booking-link send reads the person's mode, before the gate", () => {
-  const lookup = fn.indexOf("personReplyMode(db, routed.tenantId, contact.contactId)");
-  const gate = fn.indexOf("outboundGate({");
-  assert.ok(lookup > 0 && gate > 0);
-  assert.ok(lookup < gate, "the person's mode must be known before the gate decides");
-  assert.ok(fn.includes("effectiveReplyMode({ drFallback: false, replyMode: workspaceMode }, personMode)"));
-  assert.ok(!fn.includes('replyMode: rt.policy?.reply?.mode ?? "ask"'), "REGRESSION: the gate read the workspace mode alone");
 });
 
 test("the gate: Veto sends a caller's link, Never and Ask hold it", () => {

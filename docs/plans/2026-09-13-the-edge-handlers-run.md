@@ -108,10 +108,10 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 
 **The world:** `planCallStart` is executed already (`call-start` tests) — for the door assert the 401, the `dynamic_variables` shape for a routed agent, the `unrouted`/`missing` warnings, and that the alert is *awaited* but bounded (a `fetch` that never resolves must not hold the answer past ~3 s — use a fake timer or a slow `fetch` and assert the response arrives). For `retell-fn`: `x-fn-secret`; an unparseable number → the "read it back" result; no db / no agent → `CANNOT_SEND`; unknown agent → `CANNOT_SEND`; a routed agent → `loadTenantRuntime`, `resolveOutboundTarget`, `personReplyMode`, `countSentToday`, then `outboundGate` (executed already) → a refusal script or `deliver` on the **tenant's** WhatsApp credentials (captured `fetch`), `paused: rt.paused` honoured, a caller's own number allowed, a third party's number allowed only when already a contact.
 
-- [ ] **Step 1: the two doors' refusals.**
-- [ ] **Step 2: retell-inbound's answer and its bounded alert.**
-- [ ] **Step 3: retell-fn's decisions, one case per pin above, then the send.**
-- [ ] **Step 4: delete the six pins, bank, full suite.**
+- [x] **Step 1: the two doors' refusals.**
+- [x] **Step 2: retell-inbound's answer and its bounded alert.**
+- [x] **Step 3: retell-fn's decisions, one case per pin above, then the send.**
+- [x] **Step 4: delete the six pins, bank, full suite.**
 
 ## Task E — Four sweeps: health, deadman, playbooks, calendar
 

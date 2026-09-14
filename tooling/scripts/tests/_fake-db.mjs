@@ -45,6 +45,17 @@ function matches(row, filters) {
     : op === "lte" ? cell(row, col) != null && cell(row, col) <= val
     : op === "neq" ? cell(row, col) !== val
     : op === "in" ? val.includes(cell(row, col))
+    // PostgREST's `.contains(col, value)`, jsonb's @> for a flat object: every
+    // key the value names holds that value in the column. Modelled for the voice
+    // booking link's daily cap, which counts the sends whose meta carries its
+    // source -- a count the door swallows as zero when it throws, so leaving it
+    // unmodelled would pass while proving nothing. A nested value is not
+    // modelled, and says so.
+    : op === "contains" ? (() => {
+        const have = cell(row, col);
+        if (Array.isArray(val) || Object.values(val).some((v) => v !== null && typeof v === "object")) throw new Error("fakeDb: contains(" + col + ") with a nested value is not modelled");
+        return !!have && typeof have === "object" && !Array.isArray(have) && Object.entries(val).every(([k, v]) => have[k] === v);
+      })()
     // PostgREST's `.not(col, "is", null)`: "has one". Modelled for Setup's count of
     // who a broadcast can reach, which requires a number to send to -- the same rule
     // `mayReceive` applies to a list, spelled in SQL because that one is a count.
@@ -197,6 +208,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
       gte(col, val) { q.filters.push(["gte", col, val]); return proxy; },
       neq(col, val) { q.filters.push(["neq", col, val]); return proxy; },
       in(col, vals) { q.filters.push(["in", col, vals]); return proxy; },
+      contains(col, val) { q.filters.push(["contains", col, val]); return proxy; },
       is(col, val) { q.filters.push(["is", col, val]); return proxy; },
       lt(col, val) { q.filters.push(["lt", col, val]); return proxy; },
       lte(col, val) { q.filters.push(["lte", col, val]); return proxy; },

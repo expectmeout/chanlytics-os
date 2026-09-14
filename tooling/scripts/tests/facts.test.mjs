@@ -222,17 +222,16 @@ test("every voice line a caller hears comes through the resolver too", () => {
   // The refusal scripts and the delivery-failure line are spoken to a caller
   // who is waiting, and both read brain.phone_display straight from the
   // document -- so on the live salon, a caller who could not be texted was
-  // told to ring the transfer number instead of the receptionist.
-  const fn = readCode("apps/edge/api/retell-fn.ts");
-  assert.ok(fn.includes("resolveFacts(brain, rt.known).phone_display.value"), "the voice path resolves");
-  assert.ok(!fn.includes("brain.phone_display"), "and nothing reads the raw field any more");
+  // told to ring the transfer number instead of the receptionist. The voice
+  // path is run in retell-fn-door.test.mjs: a hold and a failed delivery each
+  // name the number the resolver publishes, and with none to give, each says
+  // something true instead.
 
   // Optional means a workspace can have none, and a receptionist reading
   // "reach the team on undefined" to a caller is worse than offering nothing.
   const gate = readCode("apps/edge/lib/outbound-gate.ts");
   assert.ok(gate.includes("phoneDisplay: string | null | undefined"), "the script accepts an absent number");
   assert.ok(gate.includes('"I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name."'), "and says something true instead");
-  assert.ok(fn.includes('"The text could not be delivered — that number may not have WhatsApp. Tell the caller they can book online, and take their name."'));
 });
 
 test("a config change records who and what, and neither is the values", async () => {
