@@ -293,7 +293,6 @@
   .inbox.phone-thread .ix-list { display: none; }
   .inbox.phone-thread .ix-thread-pane { display: flex; }
   .ix-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }
-  .ix-th-head { grid-template-columns: minmax(0, 1fr) auto; }
 
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
@@ -331,7 +330,7 @@
   .phone-tab-icon { position: relative; display: inline-flex; }
   .phone-tab-badge {
     position: absolute; top: -6px; right: -12px; min-width: 16px; height: 16px; padding: 0 4px;
-    border-radius: 999px; background: var(--accent); color: #fff; font-size: 10px; line-height: 16px; text-align: center;
+    border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 10px; line-height: 16px; text-align: center;
   }
   /* The tab bar's More replaces the hamburger */
   .tb-menu { display: none; }

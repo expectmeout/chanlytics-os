@@ -215,7 +215,6 @@
 
 .ld-drawer-stats {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   overflow: hidden;

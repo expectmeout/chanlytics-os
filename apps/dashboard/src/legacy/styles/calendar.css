@@ -54,7 +54,6 @@
   border-left: 1px solid var(--line);
   padding: 10px 10px 8px;
   display: flex;
-  align-items: baseline;
   gap: 6px;
 }
 .cal-dow {

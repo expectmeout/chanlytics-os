@@ -316,6 +316,8 @@
   background: var(--bg-raised);
 }
 .cl-triage-tab.active::after {
+  animation: grow-x 0.24s var(--ease-out);
+  transform-origin: left center;
   content: "";
   position: absolute;
   left: 0; right: 0; bottom: -1px;
@@ -850,9 +852,6 @@
   font-size: 12.5px;
   font-weight: 500;
   color: var(--ink);
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1285,7 +1284,6 @@
 .cl-prof-queue-tag.approval { color: var(--accent); border-color: var(--accent); background: var(--accent-soft); }
 .cl-prof-queue-tag.scheduled { color: var(--info); border-color: transparent; background: var(--info-soft); }
 .cl-prof-queue-tag.in-flight { color: var(--ok); border-color: transparent; background: var(--ok-soft); }
-.cl-prof-queue-tag.paused { color: var(--ink-dim); }
 
 .cl-prof-queue-action {
   font-size: 12px;

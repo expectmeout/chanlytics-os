@@ -174,8 +174,7 @@
   border-right: 1px solid var(--line);
   display: flex; justify-content: center; padding-top: 16px;
 }
-.cmd2-row.is-urgent .cmd2-spine { background: var(--accent); border-right-color: var(--accent); width: 3px; }
-.cmd2-row.is-urgent .cmd2-spine { padding: 0; }
+.cmd2-row.is-urgent .cmd2-spine { background: var(--accent); border-right-color: var(--accent); width: 3px; padding: 0; }
 .cmd2-row:not(.is-urgent) .cmd2-priority {
   font-size: 9.5px;
   letter-spacing: 0.05em;

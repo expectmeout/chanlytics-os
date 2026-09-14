@@ -205,7 +205,7 @@
 .pol-note{display:block;font-size:11px;color:var(--ink-dim)}
 .pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
 .pol-dot:hover{border-color:var(--accent)}
-.pol-dot.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.pol-dot.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .pol-locked .pol-dot.on{background:var(--ink-dim);border-color:var(--ink-dim)}
 .pol-locked .pol-dot{cursor:not-allowed}
 .pol-dash{color:var(--ink-faint)}
@@ -521,7 +521,7 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .cw-submit {
   margin-top: 4px;
   background: var(--accent);
-  color: var(--on-accent, #fff);
+  color: var(--accent-fg);
   border: none;
   border-radius: var(--radius-md, 8px);
   padding: 11px 16px;

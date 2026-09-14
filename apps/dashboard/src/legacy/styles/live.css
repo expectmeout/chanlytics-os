@@ -345,4 +345,4 @@
 
 /* Hold to talk: the button is the microphone. */
 .lm-talk { white-space: nowrap; user-select: none; -webkit-user-select: none; touch-action: none; }
-.lm-talk.on { background: var(--accent); color: #fff; border-color: var(--accent); }
+.lm-talk.on { background: var(--accent); color: var(--accent-fg); border-color: var(--accent); }

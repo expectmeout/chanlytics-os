@@ -102,6 +102,7 @@
   /* Used ONLY for live/active agent state. Never decorative. */
   --accent: oklch(0.62 0.19 25);
   --accent-soft: oklch(0.62 0.19 25 / 0.12);
+  /* The words on an accent fill: badges, chips and buttons filled with the accent (4.0:1 on it). */
   --accent-fg: oklch(0.99 0 0);
 
   /* ---------- Semantic (status) ---------- */
@@ -172,6 +173,8 @@
   /* Slightly bumped accent in dark for legibility */
   --accent: oklch(0.7 0.18 28);
   --accent-soft: oklch(0.7 0.18 28 / 0.18);
+  /* The dark theme's accent is lighter, so its words are dark: white on it measures 2.9:1, these 6.7:1. */
+  --accent-fg: oklch(0.16 0.005 260);
 }
 
 /* ============================================================
