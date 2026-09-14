@@ -322,8 +322,9 @@ export default function LegacyApp() {
         onCreated={(w) => {
           // switchWorkspace persists the choice and re-runs every surface, so
           // the new workspace is the one the app opens on — which is where the
-          // "no receptionist yet" setup card is waiting.
-          switchWorkspace(w.id);
+          // "no receptionist yet" setup card is waiting. By its slug: it is not
+          // in __WORKSPACES yet, and by id the app boots twice.
+          switchWorkspace(w.id, w.slug);
         }}
       />
     );
@@ -337,8 +338,9 @@ export default function LegacyApp() {
         onCancel={() => setCreating(false)}
         onCreated={(w) => {
           setCreating(false);
-          // The new workspace is the one the app opens on — where its Setup is waiting.
-          switchWorkspace(w.id);
+          // The new workspace is the one the app opens on — where its Setup is
+          // waiting — at its slug, so the app boots once and the landing holds.
+          switchWorkspace(w.id, w.slug);
         }}
       />
     );
