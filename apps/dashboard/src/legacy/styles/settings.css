@@ -776,9 +776,7 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 .biz-input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
 .biz-input:disabled { opacity: 0.6; }
 .biz-bad { border-color: var(--danger); }
-.biz-hint, .biz-problem { font-size: 10.5px; line-height: 1.4; }
-.biz-hint { color: var(--ink-dim); }
-.biz-problem { color: var(--danger); }
+.biz-hint { font-size: 10.5px; line-height: 1.4; color: var(--ink-dim); }
 
 /* The fork: which of the two carrier registrations this business is on. Two
    answers, side by side on a desk and stacked on a phone, each carrying what

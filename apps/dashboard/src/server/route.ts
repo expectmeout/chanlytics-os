@@ -169,7 +169,13 @@ function parse<T>(schema: ZodType<T>, raw: unknown): T {
     return field ? `${field}: ${i.message}` : i.message;
   });
   const more = out.error.issues.length - said.length;
-  throw new AppError("validation", `${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`);
+  // Every field it refuses, by name, with its first sentence: a form marks the box each belongs to.
+  const fields: Record<string, string> = {};
+  for (const i of out.error.issues) {
+    const field = i.path.filter((p) => typeof p === "string").join(".");
+    if (field && !Object.prototype.hasOwnProperty.call(fields, field)) fields[field] = i.message;
+  }
+  throw new AppError("validation", `${said.join(" ")}${more > 0 ? ` (and ${more} more)` : ""}`, 400, Object.keys(fields).length ? { fields } : undefined);
 }
 
 interface Spec<S extends Scope, I, O> {

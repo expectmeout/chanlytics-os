@@ -777,7 +777,7 @@ const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint
         {hint}
         {!canRecord && " Only an owner or operator can change this."}
       </div>
-      {st.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{st.error}</div>}
+      <window.FieldError message={st.error} testid={testid ? `${testid}-error` : null} />
     </div>
   );
 };
@@ -1064,7 +1064,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               Use the workspace setting <Icon name="arrow-right" size={10} />
             </button>
           )}
-          {rm.error && <div className="cl-prof-aut-hint" style={{ color: "var(--danger)" }}>{rm.error}</div>}
+          <window.FieldError message={rm.error} testid="receptionist-mode-error" />
         </div>
         {/*
           TWO ASKS, the same pair the public /yes page renders. One control that

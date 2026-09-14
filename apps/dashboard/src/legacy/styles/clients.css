@@ -1512,6 +1512,9 @@
 
 /* Saved lists on the rail: the empty line and the name box. */
 .cl-rail-hint { font-size: 11px; line-height: 1.45; color: var(--ink-faint); padding: 2px 10px 8px; }
+/* A field error sits where the rail's hint does, and on a naming row it takes its own line. */
+.cl-rail-foot > .field-error { padding: 2px 10px 8px; }
+.cl-bulk-naming > .field-error { flex-basis: 100%; }
 .cl-rail-newlist { display: flex; gap: 6px; align-items: center; }
 .cl-rail-newlist input {
   flex: 1;

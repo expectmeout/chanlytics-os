@@ -84,14 +84,14 @@ const runRows = (nav, flash) => {
     if (!can || !window.__broadcasts) return;
     const res = await window.__broadcasts.cancel(r.id);
     if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : { msg: <>{res.message}</> });
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : window.refusalToast(res, "Not stopped"));
   };
   const approve = async (r) => {
     if (!can || !window.__broadcasts) return;
     const res = await window.__broadcasts.approve(r.id);
     if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
     const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> } : { msg: <>{res.message}</> });
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> } : window.refusalToast(res, "Not approved"));
   };
   return [
     ...waiting.map((r) => (
@@ -141,7 +141,7 @@ const TodayQueue = ({ vm }) => {
     );
     ppFlash(res.ok
       ? { msg: which === "snooze" ? <><b>{r.who}</b> snoozed — hidden until they wake or reply</> : <><b>{r.who}</b> — done, the receptionist has the thread back</> }
-      : { msg: <>Couldn&rsquo;t {which === "snooze" ? "snooze" : "resolve"} — {res.message}</> });
+      : window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
   };
   const rows = vm.queue.rows;
   const runs = runRows(nav, ppFlash);

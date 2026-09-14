@@ -141,7 +141,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
       </div>
       {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><WaBubble from={businessName} body={preview} footer={footer} /></div>}
       {warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
-      {error && <div className="bc-excl-hint" style={{ color: "var(--danger)" }} data-testid="tpl-error">{error}</div>}
+      <window.FieldError message={error} testid="tpl-error" />
       <div className="bc-actions">
         <span className="bc-excl-hint">The words are yours; WhatsApp approves them. {businessName ? `Sent as ${businessName}.` : ""}</span>
         <span className="bc-actions-spacer" />

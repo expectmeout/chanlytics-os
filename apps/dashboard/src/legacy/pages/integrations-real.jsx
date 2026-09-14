@@ -178,9 +178,9 @@ const PaneIntegrationsReal = () => {
     const res = what === "remove" ? await window.__google.unlink() : await window.__google.disconnect();
     setBusy(false);
     setArm(null);
-    flash({ msg: res.ok
-      ? (what === "remove" ? <>The listing is off the record, with what was read from it{G && G.dto.connection ? " — and the Business Profile is disconnected" : ""}.</> : <>Google is disconnected. The public listing stays; replies and the full history do not.</>)
-      : <>{res.message}</> });
+    flash(res.ok
+      ? { msg: what === "remove" ? <>The listing is off the record, with what was read from it{G && G.dto.connection ? " — and the Business Profile is disconnected" : ""}.</> : <>Google is disconnected. The public listing stays; replies and the full history do not.</> }
+      : window.refusalToast(res, what === "remove" ? "Listing not removed" : "Google not disconnected"));
   };
 
   const W = window.__connections.groupWords;

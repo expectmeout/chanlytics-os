@@ -25,7 +25,7 @@ export interface BusinessRecordApi {
    */
   read(): Promise<{ ok: boolean; record: BusinessRecordDto | null; path: RegistrationPath | null; problems: Record<string, string>; message: string }>;
   /** Keep it, for the registration the owner said it is for. Owners only; the route says so. */
-  save(record: BusinessRecordDto, path: RegistrationPath): Promise<{ ok: boolean; message: string }>;
+  save(record: BusinessRecordDto, path: RegistrationPath): Promise<{ ok: boolean; message: string; title?: string; problems: Record<string, string> }>;
   /** File this line with the carriers. Costs money, so the page asks first. */
   register(lineId: string): Promise<{ ok: boolean; pending: boolean; message: string }>;
   /** The fields this registration asks for, their words and their closed lists. */
@@ -63,7 +63,9 @@ export function installBusinessRecord(win: Window = window): void {
     },
     async save(record, path) {
       const r = await api()("PUT business-record", { body: { record, path } });
-      return { ok: r.ok, message: r.ok ? "Saved. The carriers see this when you file." : r.message };
+      if (r.ok) return { ok: true, message: "Saved. The carriers see this when you file.", problems: {} };
+      // The route names every field it refuses, so the form marks each box.
+      return { ok: false, message: r.message, title: r.title, problems: { ...(r.fields ?? {}) } };
     },
     async register(lineId) {
       const r = await api()("POST lines/register", { body: { line_id: lineId } });

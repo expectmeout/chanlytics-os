@@ -472,7 +472,34 @@ const FailedRead = ({ kind = "card", what = "this", why = null, title = null, bo
     </div>
   );
 };
-Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead });
+// ---- FieldError — the one way a field says what is wrong with it -------------
+// Six forms coloured their own hint red inline, one had a class of its own, and
+// none was announced. One sentence under the box it belongs to, read out as it
+// appears, with the id the box names:
+//   <input aria-invalid={error ? true : undefined} aria-describedby={error ? "list-name-error" : undefined} />
+//   <FieldError id="list-name-error" message={error} />
+const FieldError = ({ id = null, message = null, testid = null }) => {
+  if (!message) return null;
+  return (
+    <span className="field-error" id={id || undefined} role="alert" data-testid={testid || undefined}>
+      <Icon name="alert" size={11} />
+      <span className="field-error-words">{message}</span>
+    </span>
+  );
+};
+
+// ---- refusalToast — a refusal, as a toast ------------------------------------
+// The client names every refusal (contracts refusalOf): a title for the kind of
+// no, and the sentence in the owner's words. The page says what did not happen
+// ("Not stopped") and the refusal says why; with no words of the page's own,
+// the refusal's title leads. Always the danger tone: nothing happened.
+//   flash(res.ok ? { msg: <>Stopped</> } : window.refusalToast(res, "Not stopped"))
+const refusalToast = (r, what = null) => {
+  const lead = what || (r && r.title) || null;
+  const why = (r && r.message) || "That didn't go through.";
+  return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
+};
+Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {

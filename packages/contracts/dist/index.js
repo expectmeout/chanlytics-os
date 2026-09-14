@@ -5624,6 +5624,109 @@ function visitFactsFor(trigger, visit, tz) {
   };
 }
 
+// src/refusal.ts
+var TITLES = /* @__PURE__ */ new Map([
+  ["unauthorized", "Signed out"],
+  ["forbidden", "Not allowed"],
+  ["not_found", "Not found"],
+  ["validation", "Check the details"],
+  ["choose_workspace", "Choose a workspace"],
+  ["conflict", "Not possible right now"],
+  ["rate_limited", "Too many at once"],
+  ["payment_required", "Needs a subscription"],
+  ["window_closed", "WhatsApp's 24 hours have passed"],
+  ["upstream_meta", "WhatsApp didn't accept it"],
+  ["upstream_retell", "The phone line didn't answer"],
+  ["upstream_anthropic", "The assistant didn't answer"],
+  ["upstream_email", "The email didn't go"],
+  ["upstream_auth", "Couldn't check your sign-in"],
+  ["internal", "Something went wrong"],
+  ["network", "No connection"],
+  ["timeout", "No answer in time"],
+  ["client", "Not sent"]
+]);
+var SAID = /* @__PURE__ */ new Map([
+  ["forbidden", "Your role can't do this."],
+  ["not_found", "That isn't here any more."],
+  ["validation", "Something in this form wasn't accepted."],
+  ["choose_workspace", "Choose which workspace first."],
+  ["conflict", "That isn't possible right now."],
+  ["payment_required", "This needs a subscription \u2014 see Billing."],
+  ["window_closed", "WhatsApp's 24 hours have passed \u2014 send an approved message instead."],
+  ["upstream_meta", "WhatsApp didn't accept it \u2014 try again in a moment."],
+  ["upstream_retell", "The phone line didn't answer \u2014 try again in a moment."],
+  ["upstream_anthropic", "The assistant didn't answer \u2014 try again in a moment."],
+  ["upstream_email", "The email didn't go \u2014 try again in a moment."],
+  ["upstream_auth", "Couldn't check your sign-in just now \u2014 try again."],
+  ["client", "Not sent."]
+]);
+var SERVER_CATCH_ALL = "Something went wrong.";
+var NETWORK_WRITE = "Network error \u2014 nothing was changed.";
+var NETWORK_READ = "Chanlytics could not be reached.";
+var TIMEOUT_WRITE = "Chanlytics took too long to answer \u2014 this may still go through, so check before trying again.";
+var TIMEOUT_READ = "Chanlytics took too long to answer \u2014 try again in a moment.";
+var NO_ANSWER_WRITE = "Chanlytics didn't answer properly, so this may or may not have gone through \u2014 check before trying again.";
+var UNCONFIRMED_WRITE = "Chanlytics hit a problem and couldn't confirm this \u2014 check whether it went through before trying again.";
+var READ_AGAIN = "Chanlytics couldn't read this just now \u2014 try again in a moment.";
+var OUT_OF_DATE = "This page is out of date \u2014 reload it and try again.";
+function waitWords(seconds) {
+  if (seconds < 60) return `${seconds} second${seconds === 1 ? "" : "s"}`;
+  const m = Math.ceil(seconds / 60);
+  return `${m} minute${m === 1 ? "" : "s"}`;
+}
+function retryAfterOf(details, header, nowMs) {
+  const counted = details && typeof details === "object" ? details.retry_after_s : void 0;
+  if (typeof counted === "number" && Number.isFinite(counted) && counted >= 0) return Math.max(1, Math.ceil(counted));
+  const h = typeof header === "string" ? header.trim() : "";
+  if (!h) return null;
+  if (/^[0-9]+$/.test(h)) return Math.max(1, Number(h));
+  const at2 = Date.parse(h);
+  if (!Number.isFinite(at2)) return null;
+  const s = Math.ceil((at2 - nowMs) / 1e3);
+  return s > 0 ? s : null;
+}
+function fieldsOf(details) {
+  const f = details && typeof details === "object" ? details.fields : void 0;
+  if (!f || typeof f !== "object" || Array.isArray(f)) return null;
+  const out = {};
+  for (const [name, said] of Object.entries(f)) {
+    if (name && typeof said === "string" && said.trim()) out[name] = said;
+  }
+  return Object.keys(out).length ? out : null;
+}
+function refusalOf(input) {
+  const status = Number.isFinite(input.status) ? input.status : 0;
+  const said = typeof input.message === "string" ? input.message.trim() : "";
+  const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
+  const fields = fieldsOf(input.details);
+  const code2 = typeof input.code === "string" && input.code ? input.code : null;
+  const refusal = (c, title, message) => ({ code: c, status, title, message, retryAfterS, fields });
+  if (!code2) {
+    if (status === 0) return refusal("network", "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
+    if (status >= 500) return refusal("internal", "No answer", input.write ? NO_ANSWER_WRITE : READ_AGAIN);
+    if (status === 413) return refusal("internal", "Too large", "That was too large to send.");
+    return refusal("internal", "Out of date", OUT_OF_DATE);
+  }
+  switch (code2) {
+    case "unauthorized":
+      return refusal(code2, "Signed out", "Signed out.");
+    case "network":
+      return refusal(code2, "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
+    case "timeout":
+      return refusal(code2, "No answer in time", input.write ? TIMEOUT_WRITE : TIMEOUT_READ);
+    case "internal":
+      return refusal(code2, "Something went wrong", said && said !== SERVER_CATCH_ALL ? said : input.write ? UNCONFIRMED_WRITE : READ_AGAIN);
+    case "rate_limited":
+      return refusal(code2, "Too many at once", said || `Too many at once \u2014 try again in ${retryAfterS ? waitWords(retryAfterS) : "a moment"}.`);
+    case "forbidden": {
+      const needs = input.details && typeof input.details === "object" ? input.details.needs : void 0;
+      return refusal(code2, needs === "owner" ? "Owner only" : needs === "operator" ? "Not for viewers" : "Not allowed", said || SAID.get(code2));
+    }
+    default:
+      return refusal(code2, TITLES.get(code2) ?? "Not done", said || SAID.get(code2) || "That didn't go through.");
+  }
+}
+
 // src/reports.ts
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
@@ -8870,6 +8973,7 @@ export {
   recencyCells,
   receptionistOn,
   recoverCitations,
+  refusalOf,
   registrationPathOf,
   registrationPreflight,
   renderTemplate,
