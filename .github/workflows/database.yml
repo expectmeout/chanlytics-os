@@ -58,7 +58,7 @@ jobs:
           fi
           printf '%s\n' "$files" | node tooling/scripts/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
       - if: steps.changed.outputs.db == 'true'
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@v6
       - if: steps.changed.outputs.db == 'true'
         uses: actions/setup-node@v4
         with:
