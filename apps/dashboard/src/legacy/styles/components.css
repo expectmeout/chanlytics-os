@@ -694,7 +694,6 @@
   color: var(--ink);
   vertical-align: middle;
 }
-.tbl tbody tr { transition: background var(--duration-fast) var(--ease-out); }
 .tbl tbody tr:hover { background: var(--bg-hover); }
 .tbl tbody tr:last-child td { border-bottom: none; }
 /* Digits in a column line up, always.
@@ -884,7 +883,7 @@
   padding: 0 4px;
   border-radius: 999px;
   background: var(--accent);
-  color: white;
+  color: var(--accent-fg);
   font-size: 9px;
   font-weight: 600;
   line-height: 14px;
@@ -1005,9 +1004,6 @@
 .ix-bucket:active,
 .cl-triage-tab:active { transform: translateY(0.5px) scale(0.985); }
 
-/* --- Active-tab underline grows in --- */
-.cl-triage-tab.active::after { animation: grow-x 0.24s var(--ease-out); transform-origin: left center; }
-
 /* --- Charts draw themselves --- */
 .kpi-spark polyline, .rail-chart polyline {
   stroke-dasharray: 400;
@@ -1044,8 +1040,7 @@
 .rp-body > :nth-child(3) { animation-delay: 0.1s; }
 .rp-body > :nth-child(4) { animation-delay: 0.15s; }
 .rp-body > :nth-child(5) { animation-delay: 0.2s; }
-.fl-detail { animation: route-in 0.24s var(--ease-out); }
-.tbl tbody tr { animation: tbl-fade 0.3s var(--ease-out) backwards; }
+.tbl tbody tr { transition: background var(--duration-fast) var(--ease-out); animation: tbl-fade 0.3s var(--ease-out) backwards; }
 .tbl tbody tr:nth-child(2) { animation-delay: 0.03s; }
 .tbl tbody tr:nth-child(3) { animation-delay: 0.06s; }
 .tbl tbody tr:nth-child(4) { animation-delay: 0.09s; }
@@ -1250,7 +1245,6 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tbn-empty { display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 32px; color: var(--ink-dim); font-size: 12px; }
 .tbn-empty .icon { color: var(--ok); }
 .tbn-item {
-  position: relative;
   display: grid;
   grid-template-columns: 26px 1fr;
   gap: 10px;
@@ -1523,7 +1517,6 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
-  z-index: 250;
   animation: route-in 140ms var(--ease-out);
 }
 .more-menu.align-right { right: 0; }
@@ -1763,13 +1756,12 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .conf-word.conf-med { color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); }
 .conf-word.conf-low { color: var(--warn); background: color-mix(in oklab, var(--warn) 12%, transparent); }
 /* Zero-state = demo-state */
-.ac-empty { flex-direction: column; gap: 14px; }
+.ac-empty { flex-direction: column; }
 .ac-empty-line { display: flex; align-items: center; gap: 10px; }
 .ghost-row { display: flex; align-items: center; gap: 8px; font-size: 12px; color: var(--ink-faint); border: 1px dashed var(--line-strong); border-radius: var(--radius-md); padding: 10px 14px; opacity: 0.75; }
 .ghost-row .dot { width: 3px; height: 3px; border-radius: 50%; background: var(--ink-faint); }
 .ghost-tag { margin-left: 8px; font-size: 9px; text-transform: uppercase; letter-spacing: 0.06em; border: 1px solid var(--line); border-radius: 999px; padding: 1px 7px; }
 .ac-bar-r { margin-left: auto; display: flex; align-items: center; gap: 4px; }
-.ac-bar-inbox { margin-left: 0; }
 @media (max-width: 900px) { .stabs { padding: 4px 12px 0; overflow-x: auto; scrollbar-width: none; } }
 
 /* ---------- Attachments in a thread ---------- */

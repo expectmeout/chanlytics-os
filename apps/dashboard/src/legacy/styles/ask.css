@@ -87,7 +87,7 @@
     display: grid; place-items: center;
     position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));
     width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--accent); color: #fff; z-index: 121;
+    background: var(--accent); color: var(--accent-fg); z-index: 121;
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
   }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
