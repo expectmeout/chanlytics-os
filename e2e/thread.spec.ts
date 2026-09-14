@@ -1,0 +1,279 @@
+import { test, expect, type Locator, type Page } from "@playwright/test";
+import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
+import { activeWorkspace, scoped, apiGet } from "./workspace";
+
+/**
+ * The conversation thread, in a real browser, in the nightly's own workspace.
+ *
+ * Every verb on the thread was tested from the inside and none from the page.
+ * This drives them the way an operator does, on the one conversation
+ * tooling/scripts/e2e-workspace.mjs seeds: Robin Example, at a number set aside
+ * for fiction, on a WhatsApp channel with no credentials.
+ *
+ * So the reply cannot leave. The job finds no wire, records the row `failed`,
+ * opens a `send_failed` escalation and alerts the owner, and the owner's one
+ * address is Resend's test inbox (the seed's header says why): nothing here
+ * reaches a person or the platform's mailbox. The escalation is resolved before
+ * the end, and afterAll resolves whatever a failed run left open and hands the
+ * thread back, so the deadman never finds one two hours old.
+ *
+ * A quiet thread offers no Take over: the page offers it to a thread that is
+ * waiting on a person and held by nobody, and a reply makes the thread yours.
+ * So the thread is snoozed, which lets go of it and keeps what it was about
+ * open, then woken, and then taken over from its own button.
+ *
+ * A write over the API carries the app's origin, as the app's own requests do
+ * (steer.spec.ts), and names the workspace.
+ */
+const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
+const fromTheApp = { headers: { origin: new URL(BASE).origin } };
+
+/** The seed's workspace and person (tooling/scripts/e2e-workspace.mjs). */
+const SLUG = "chanlytics-e2e";
+const ROBIN = { name: "Robin Example", phone: "+12125550143" };
+const ONLY_HERE =
+  `this spec sends a reply, so it runs only in the nightly's own workspace (${SLUG}), on its seeded ` +
+  `conversation with ${ROBIN.name}; tooling/scripts/e2e-workspace.mjs --apply makes both`;
+
+interface ThreadRead {
+  conversation: { id: string; state: string; paused_until: string | null; assignee_user_id: string | null; assignee_is_me?: boolean };
+  messages: Array<{ id: string; sender: string; status: string | null }>;
+}
+interface EscalationRead {
+  id: string;
+  reason: string;
+  details: string | null;
+  conversation_id: string;
+}
+
+/** The workspace this session is in and Robin's conversation there, or null anywhere else. */
+async function theSeededThread(page: Page): Promise<{ ws: string; id: string } | null> {
+  const ws = await activeWorkspace(page);
+  const { data } = await (await page.request.get("/api/v1/workspaces")).json();
+  const here = ((data?.workspaces ?? []) as Array<{ id: string; slug: string }>).find((w) => w.id === ws);
+  if (here?.slug !== SLUG) return null;
+  const { data: list } = await (await apiGet(page, "/api/v1/conversations")).json();
+  const robin = ((list?.conversations ?? []) as Array<{ id: string; contact?: { phone_e164?: string | null } }>).find(
+    (c) => c.contact?.phone_e164 === ROBIN.phone,
+  );
+  return robin ? { ws, id: robin.id } : null;
+}
+
+async function readThread(page: Page, id: string): Promise<ThreadRead> {
+  const res = await apiGet(page, `/api/v1/conversations/${id}`);
+  expect(res.status(), "the thread reads").toBe(200);
+  return (await res.json()).data as ThreadRead;
+}
+
+async function openEscalations(page: Page): Promise<EscalationRead[]> {
+  const res = await apiGet(page, "/api/v1/escalations?state=open");
+  expect(res.status(), "the open escalations read").toBe(200);
+  return (await res.json()).data.escalations as EscalationRead[];
+}
+
+/**
+ * The page as the server holds it now. A change the job or the API made does
+ * not repaint a tab that read before it, and moving between hash routes is
+ * not a load; a blank page in between is.
+ */
+async function freshLoad(page: Page, hash: string): Promise<void> {
+  await page.goto("about:blank");
+  await page.goto(`/${hash}`);
+  await page.waitForLoadState("networkidle");
+}
+
+/**
+ * Robin's thread, opened from the bucket the page files it under. The pane
+ * shows a thread of the selected bucket only, so finding the row there is
+ * itself what the page says about the thread. Retried while a load settles.
+ */
+async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"): Promise<Locator> {
+  const list = page.locator(".ix-list");
+  const pane = page.locator(".ix-thread-pane");
+  await expect(async () => {
+    await list.getByRole("button", { name: new RegExp(`^${bucket}`) }).click({ timeout: 5_000 });
+    await list.locator(".ix-thread").filter({ hasText: ROBIN.name }).click({ timeout: 5_000 });
+    await expect(pane.locator(".ix-th-name")).toContainText(ROBIN.name, { timeout: 2_000 });
+  }).toPass({ timeout: 30_000 });
+  return pane;
+}
+
+/** The context strip's word for the receptionist on this thread: answering, or paused for a person. */
+const receptionist = (pane: Locator) => pane.locator(".ix-ctx").filter({ hasText: /^Receptionist/ });
+
+/**
+ * The thread as the seed left it, whatever a run did: a reply still inside its
+ * grace window called back, one the job already holds allowed to land, every
+ * open escalation in the workspace resolved, and the thread handed back.
+ */
+async function putItBack(page: Page, ws: string, id: string): Promise<void> {
+  for (const m of (await readThread(page, id)).messages) {
+    // A 409 means the job has it already; the wait below lets it land.
+    if (m.sender === "human" && m.status === "queued") await page.request.post(scoped(`/api/v1/messages/${m.id}/cancel-send`, ws), fromTheApp);
+  }
+  await expect
+    .poll(async () => (await readThread(page, id)).messages.filter((m) => m.status === "queued").length, { timeout: 60_000, intervals: [2_000] })
+    .toBe(0);
+  for (const e of await openEscalations(page)) {
+    const res = await page.request.post(scoped(`/api/v1/escalations/${e.id}/resolve`, ws), fromTheApp);
+    expect(res.status(), `resolving the escalation ${e.id}`).toBe(200);
+  }
+  const { conversation: c } = await readThread(page, id);
+  if (c.state !== "open" || c.paused_until || c.assignee_user_id) {
+    const res = await page.request.post(scoped(`/api/v1/conversations/${id}/hand-back`, ws), fromTheApp);
+    expect(res.status(), "handing the thread back").toBe(200);
+  }
+}
+
+test.describe("The thread, in the nightly's own workspace", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.beforeEach(async ({ page }) => {
+    await signIn(page);
+  });
+
+  // A run that fails midway leaves nothing open for the deadman to find.
+  test.afterAll(async ({ browser }) => {
+    if (!HAVE_SESSION) return;
+    test.setTimeout(120_000);
+    const context = await browser.newContext({ baseURL: BASE });
+    try {
+      const page = await context.newPage();
+      await signIn(page);
+      const seeded = await theSeededThread(page);
+      if (seeded) await putItBack(page, seeded.ws, seeded.id);
+    } finally {
+      await context.close();
+    }
+  });
+
+  test("a reply the number cannot carry fails in the page's words, its escalation is resolved, and the thread is taken over and handed back", async ({ page }) => {
+    test.setTimeout(240_000);
+    const seeded = await theSeededThread(page);
+    expect(seeded, ONLY_HERE).not.toBeNull();
+    const { ws, id } = seeded!;
+    // A run cut off before its afterAll leaves nothing for this one.
+    await putItBack(page, ws, id);
+
+    const words = `Checking in from the nightly run, ${new Date().toISOString()}`;
+    let messageId = "";
+    let escalationId = "";
+
+    await test.step("the seeded thread is quiet: the receptionist answered and nobody asked for a person", async () => {
+      await freshLoad(page, "#/inbox");
+      const pane = await openRobin(page, "Handled");
+      await expect(pane.getByText(/Answered by the receptionist/)).toBeVisible();
+      await expect(receptionist(pane)).toContainText("Answering");
+    });
+
+    await test.step("a reply written in the composer is on its way, and the thread is now yours", async () => {
+      const pane = await openRobin(page, "Handled");
+      await pane.getByPlaceholder(`Reply to ${ROBIN.name}`).fill(words);
+      const replied = page.waitForResponse(
+        (r) => r.request().method() === "POST" && new URL(r.url()).pathname === `/api/v1/conversations/${id}/reply`,
+      );
+      await pane.getByRole("button", { name: /^Send/ }).click();
+      const receipt = (await (await replied).json()).data as { message_id: string; status: string };
+      expect(receipt.status, "queued through its grace window, never sent from the request").toBe("queued");
+      messageId = receipt.message_id;
+      await expect(page.getByText(/reply on its way/)).toBeVisible();
+      const bubble = pane.locator(".tl-msg").filter({ hasText: words });
+      await expect(bubble).toContainText("by you");
+      await expect(bubble).toContainText("Sending");
+      // A reply takes the thread: the receptionist steps back for the person who wrote.
+      await expect(pane.getByText(/You own this thread/)).toBeVisible();
+      await expect(receptionist(pane)).toContainText("you have it");
+    });
+
+    await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
+      await expect
+        .poll(async () => (await readThread(page, id)).messages.find((m) => m.id === messageId)?.status, { timeout: 90_000, intervals: [3_000] })
+        .toBe("failed");
+      await expect
+        .poll(async () => (await openEscalations(page)).filter((e) => e.conversation_id === id).map((e) => e.reason), { timeout: 30_000, intervals: [2_000] })
+        .toEqual(["send_failed"]);
+      const [opened] = (await openEscalations(page)).filter((e) => e.conversation_id === id);
+      expect(opened.details, "the cause in words, not an HTTP status").toContain("the WhatsApp number is not connected");
+      escalationId = opened.id;
+
+      await freshLoad(page, "#/inbox");
+      const pane = await openRobin(page, "Needs you");
+      await expect(pane.locator(".tl-msg").filter({ hasText: words })).toContainText("Didn't send");
+      const flag = pane.getByText(/Flagged for a human/);
+      await expect(flag).toContainText("Reply failed to deliver");
+      await expect(flag).toContainText("the WhatsApp number is not connected");
+      await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
+    });
+
+    await test.step("the escalation it opened is listed in Today's queue", async () => {
+      await freshLoad(page, "#/today");
+      const queue = page.getByTestId("today-queue");
+      await expect(queue).toBeVisible();
+      const row = queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name });
+      await expect(row).toHaveCount(1);
+      await expect(row).toContainText("a reply failed to send");
+    });
+
+    await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {
+      await freshLoad(page, "#/inbox");
+      let pane = await openRobin(page, "Needs you");
+      await pane.getByRole("button", { name: "Snooze", exact: true }).click();
+      await expect(page.getByText(/snoozed until/)).toBeVisible();
+      pane = await openRobin(page, "Snoozed");
+      await expect(pane.getByText(/still waiting for you/)).toBeVisible();
+      await pane.getByRole("button", { name: /Wake now/ }).click();
+      await expect(page.getByText(/back in the queue/)).toBeVisible();
+      pane = await openRobin(page, "Needs you");
+      await expect(pane.getByRole("button", { name: "I'll answer this" })).toBeVisible();
+    });
+
+    await test.step("taken over from the thread: the receptionist is paused and the thread is yours", async () => {
+      let pane = await openRobin(page, "Needs you");
+      await pane.getByRole("button", { name: "I'll answer this" }).click();
+      await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
+      pane = await openRobin(page, "Needs you");
+      await expect(pane.getByText(/You own this thread/)).toBeVisible();
+      await expect(receptionist(pane)).toContainText("you have it");
+      const { conversation: c } = await readThread(page, id);
+      expect(c.state).toBe("needs_human");
+      expect(Date.parse(c.paused_until ?? ""), "paused into the future").toBeGreaterThan(Date.now());
+      expect(c.assignee_is_me).toBe(true);
+      // Taking a thread over leaves what it was about open.
+      expect((await openEscalations(page)).map((e) => e.id)).toEqual([escalationId]);
+    });
+
+    await test.step("the escalation is resolved as the app resolves it, and none is left open", async () => {
+      // The page offers Done for a call-back only; for a reply that failed its
+      // one way is a hand-back, which is a verb of its own. So the route, as
+      // the app calls it.
+      const res = await page.request.post(scoped(`/api/v1/escalations/${escalationId}/resolve`, ws), fromTheApp);
+      expect(res.status()).toBe(200);
+      expect((await res.json()).data.state).toBe("resolved");
+      expect(await openEscalations(page), "no escalation open in the workspace").toEqual([]);
+
+      await freshLoad(page, "#/today");
+      const queue = page.getByTestId("today-queue");
+      await expect(queue).toBeVisible();
+      await expect(queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name })).toHaveCount(0);
+
+      await freshLoad(page, "#/inbox");
+      const pane = await openRobin(page, "Needs you");
+      await expect(pane.getByText(/Flagged for a human/)).toHaveCount(0);
+      // Resolving what the thread was about does not hand it back: it is still yours.
+      await expect(pane.getByText(/You own this thread/)).toBeVisible();
+    });
+
+    await test.step("handed back from the thread: the receptionist answers again, and the words that never left still say so", async () => {
+      let pane = await openRobin(page, "Needs you");
+      await pane.getByRole("button", { name: /^Hand back to/ }).click();
+      await expect(page.getByText(/handed back/)).toBeVisible();
+      pane = await openRobin(page, "Handled");
+      await expect(pane.getByText(/Answered by the receptionist/)).toBeVisible();
+      await expect(receptionist(pane)).toContainText("Answering");
+      await expect(pane.locator(".tl-msg").filter({ hasText: words })).toContainText("Didn't send");
+      const t = await readThread(page, id);
+      expect(t.conversation.state).toBe("open");
+      expect(t.conversation.paused_until).toBeNull();
+      expect(t.messages.find((m) => m.id === messageId)?.status).toBe("failed");
+    });
+  });
+});
