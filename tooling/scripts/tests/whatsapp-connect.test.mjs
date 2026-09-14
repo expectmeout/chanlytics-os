@@ -105,9 +105,8 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   assert.ok(rejected.subject.includes("appointment_reminder") && rejected.body.includes("invalid format"));
   assert.equal(mod.describeWabaChange({ field: "account_update", value: { event: "PARTNER_REMOVED" } }, null).alert, true);
   assert.equal(mod.describeWabaChange({ field: "phone_number_quality_update", value: { event: "SOMETHING_ELSE" } }, null), null);
-  const hook = readCode("apps/edge/api/whatsapp.ts");
-  assert.ok(hook.includes("if (db && field && WABA_FIELDS.has(field)) {"), "the webhook branches on the account's fields before routing by number");
-  assert.ok(hook.includes("entry?: Array<{ id?: string; changes?:"), "entry.id is the WABA");
+  // The webhook handling the account's fields by entry.id, before and instead
+  // of routing by number, is run in whatsapp-door.test.mjs.
 });
 
 test("the Integrations pane offers the connection to an owner or says exactly why it cannot start", () => {

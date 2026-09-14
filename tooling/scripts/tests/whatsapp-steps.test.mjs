@@ -89,8 +89,7 @@ test("a held thread says why, to the Inbox and to the alert, and a broken config
 });
 
 test("the shape: the webhook, the message path, the bookkeeping, the alerts, the steps — each in its file, the path using the steps", () => {
-  const api = readCode("apps/edge/api/whatsapp.ts");
-  assert.ok(api.includes("export async function GET(") && api.includes("export async function POST(") && !api.includes("async function handleInbound("), "the webhook file is the webhook");
+  // The webhook's GET and POST are imported and run in whatsapp-door.test.mjs.
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
   for (const s of ["export async function handleInbound(", "const { ageMs, verdict: age } = ageVerdict(m.timestamp);", "const gate = threadVerdict(thread, maxRepliesDay);", "const plan = holdPlan(replyMode, replyLimits, brainMeta);", "const two = layerTwo({", "const hold = holdCopy({"]) assert.ok(inbound.includes(s), s);
   assert.ok(!inbound.includes("violatesNoPrices(") && !inbound.includes("policyAskClass("), "the words are checked in one place");
