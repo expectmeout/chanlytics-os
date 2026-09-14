@@ -53,9 +53,41 @@ test("one starter per playbook trigger, one for any broadcast; titles for people
   assert.equal(templateTitle("booking_link_v1", "Thanks for reaching out"), "Thanks for reaching out", "the workspace's own words win");
   assert.equal(templateTitle("winback_offer", "   "), "Win-back", "an empty title is no title");
   assert.equal(templateTitle(""), "");
-  assert.equal(starterPreview(starterByKey("winback_offer"), "en_US", "Melany's Beauty Salon"), "Hi Dani, it's been a while since we last saw you at Melany's Beauty Salon. We'd love to have you back — pick a time that suits you here: https://booksy.com/luna-studio and we'll take care of the rest.");
-  assert.ok(starterPreview(starterByKey("quick_note"), "es").startsWith("Hola Dani, una nota rápida de Luna Studio:"));
+  assert.equal(
+    starterPreview(starterByKey("winback_offer"), "en_US", "Melany's Beauty Salon", "https://booksy.com/melany"),
+    "Hi Dani, it's been a while since we last saw you at Melany's Beauty Salon. We'd love to have you back — pick a time that suits you here: https://booksy.com/melany and we'll take care of the rest.",
+    "the business's own name and booking link",
+  );
+  // A fact the business has not given yet is a blank to fill, never the sample filed with Meta: "Luna Studio" and its
+  // booksy link read as a real business's real link. The customer's name stays a sample -- no one customer is shown.
+  assert.equal(
+    starterPreview(starterByKey("winback_offer"), "en_US", "Melany's Beauty Salon"),
+    "Hi Dani, it's been a while since we last saw you at Melany's Beauty Salon. We'd love to have you back — pick a time that suits you here: [Booking link] and we'll take care of the rest.",
+  );
+  assert.ok(starterPreview(starterByKey("quick_note"), "es").startsWith("Hola Dani, una nota rápida de [Nombre del negocio]:"), "in the language's own words");
   assert.ok(starterPreview(starterByKey("quick_note"), "pt_BR").startsWith("Hi Dani"), "a language not written falls back to English");
+});
+
+test("a saved template reads as this business's message: its own name and booking link in the slots that name it, whatever the row calls them", async () => {
+  const { templatePreview } = await import("@chanlytics/contracts");
+  // As the sync stores a row: a position, a label ("Value n" from Meta), the example filed -- no kind.
+  const filed = [
+    { label: "Value 1", example: "Dani", position: 1 },
+    { label: "Value 2", example: "Luna Studio", position: 2 },
+    { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
+  ];
+  const body = "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.";
+  const own = { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/melany" };
+  assert.equal(templatePreview({ name: "save_our_number", body_preview: body, variables: filed }, own), "Hi Dani, thanks for calling Melany's Beauty Salon. Book any time: https://booksy.com/melany or just write to us here.", "a starter's slots are known by its name");
+  assert.equal(templatePreview({ name: "save_our_number", language: "es", body_preview: body, variables: filed }, {}), "Hi Dani, thanks for calling [Nombre del negocio]. Book any time: [Enlace de reservas] or just write to us here.", "not given yet: a blank in the row's language");
+  // Written in WhatsApp Manager: a slot is guessed from its label and example; one nothing names keeps the example that business filed.
+  assert.equal(templatePreview({ name: "front_desk_note", body_preview: "A note from {{1}}.", variables: [{ label: "Value 1", example: "the front desk", position: 1 }] }, own), "A note from the front desk.");
+  assert.equal(templatePreview({ name: "book_again", body_preview: "Book again: {{1}}", variables: [{ label: "Value 1", example: "https://calendly.com/someone-else", position: 1 }] }, own), "Book again: https://booksy.com/melany", "a link slot is this business's link");
+  assert.equal(templatePreview({ name: "book_again", body_preview: "Book again: {{1}}", variables: [{ label: "Value 1", example: "https://calendly.com/someone-else", position: 1 }] }, {}), "Book again: [Booking link]");
+  // The slot follows its position, and a slot with nothing to show stays a slot.
+  assert.equal(templatePreview({ name: "odd_order", body_preview: "{{1}} and {{2}}", variables: [{ label: "Value 2", example: "second", position: 2 }, { label: "Value 1", example: "first", position: 1 }] }, own), "first and second");
+  assert.equal(templatePreview({ name: "bare", body_preview: "Hello {{1}}", variables: [] }, own), "Hello {{1}}");
+  assert.equal(templatePreview({ name: "empty", body_preview: null, variables: null }, own), "");
 });
 
 test("a slot's source: a starter's own, or a guess from the label and the example a template written elsewhere carries", () => {

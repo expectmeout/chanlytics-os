@@ -5178,9 +5178,32 @@ function starterDraft(s, language) {
 function fill(body, values) {
   return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
 }
-function starterPreview(s, language, businessName) {
+var OWN_SLOT_LABEL = /* @__PURE__ */ new Map([["business_name", "Business name"], ["booking_link", "Booking link"]]);
+function slotWords(kind, label, example, own) {
+  if (kind && OWN_SLOT_LABEL.has(kind)) {
+    const given = own[kind];
+    return typeof given === "string" && given.trim() ? given : `[${label}]`;
+  }
+  return example;
+}
+function starterPreview(s, language, businessName, bookingLink) {
   const t = starterText(s, language);
-  return fill(t.body, t.slots.map((x) => x.kind === "business_name" && businessName ? businessName : x.example));
+  const own = { business_name: businessName, booking_link: bookingLink };
+  return fill(t.body, t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example));
+}
+function templatePreview(t, own = {}) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const kinds = defaultSlotKinds(t);
+  const labels = slotLabels(t);
+  const values = [];
+  vars.forEach((v, i) => {
+    const at2 = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
+    const kind = kinds[i];
+    const label = labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : OWN_SLOT_LABEL.get(kind) ?? `Value ${at2 + 1}`;
+    const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
+    if (words !== null) values[at2] = words;
+  });
+  return fill(String(t.body_preview ?? ""), values);
 }
 var TEMPLATE_TITLE_MAX = 60;
 function templateTitle(name, title) {
@@ -8914,6 +8937,7 @@ export {
   telHref,
   templateComponents,
   templateNameOk,
+  templatePreview,
   templateTitle,
   tenantStatusFor,
   textingTermsVM,

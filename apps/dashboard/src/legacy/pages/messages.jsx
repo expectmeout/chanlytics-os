@@ -26,17 +26,13 @@ const tplAgo = (iso) => {
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 // Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
 const TPL_SAMPLES = new Set(["hello_world"]);
-// The words WhatsApp reviewed for each slot, so a synced template reads as a message and not as {{1}} --
-// except a slot that names this business: it shows this business's own name and booking link, never the
-// sample filed with Meta (the starters' "Luna Studio"). A customer's name stays a sample: no one customer is shown.
-const tplExamples = (t) => {
+// What this business says about itself, for the slots that name it. A preview puts its own name and
+// booking link there, and a blank for what it has not given -- never the sample filed with Meta (the
+// starters' "Luna Studio"). The rule and the slots are the contracts' (templatePreview, starterPreview).
+const tplOwn = () => {
   const brain = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || {};
-  const own = { business_name: brain.business_name || null, booking_link: brain.booking_link || null };
-  return (Array.isArray(t.variables) ? t.variables : []).map((x) => (x && typeof x === "object"
-    ? ((x.kind && own[x.kind]) || (typeof x.example === "string" ? x.example : null))
-    : null));
+  return { business_name: brain.business_name || null, booking_link: brain.booking_link || null };
 };
-const tplRender = (body, examples) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => examples[Number(n) - 1] || m);
 
 const useMessages = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -60,7 +56,8 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
   const cur = g.rows.find((r) => r.lang.id === langId) || g.rows[0];
   const row = cur ? cur.row : null;
   const starterText = g.starter && S ? S.text(g.starter, langId) : null;
-  const body = row ? tplRender(row.body_preview, tplExamples(row)) : g.starter && S ? S.preview(g.starter, langId, bizName) : "";
+  const own = tplOwn();
+  const body = !S ? "" : row ? S.rowPreview(row, own) : g.starter ? S.preview(g.starter, langId, own.business_name, own.booking_link) : "";
   const footer = starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
   return (

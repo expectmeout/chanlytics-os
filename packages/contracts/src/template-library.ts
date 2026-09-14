@@ -231,10 +231,57 @@ function fill(body: string, values: string[]): string {
   return body.replace(/\{\{(\d+)\}\}/g, (m, n) => values[Number(n) - 1] ?? m);
 }
 
-/** The message as a customer would read it, with the business's own name when known. */
-export function starterPreview(s: StarterTemplate, language: string, businessName?: string | null): string {
+/** What a business says about itself, for the slots that name it. */
+export interface OwnFacts {
+  business_name?: string | null;
+  booking_link?: string | null;
+}
+
+/** The slots that name the business, and what a blank one is called when there is no label of its own. */
+const OWN_SLOT_LABEL: ReadonlyMap<string, string> = new Map([["business_name", "Business name"], ["booking_link", "Booking link"]]);
+
+/**
+ * A slot's words for a customer's eyes. A slot that names the business takes
+ * its own name or booking link, and one the business has not given yet is a
+ * blank to fill, "[Booking link]" -- never the sample filed with Meta: a
+ * starter's "Luna Studio" and its booksy link read as a real business's real
+ * link. Any other slot shows its example; "Dani" is plainly a sample customer.
+ */
+function slotWords(kind: string | undefined, label: string, example: string | null, own: OwnFacts): string | null {
+  if (kind && OWN_SLOT_LABEL.has(kind)) {
+    const given = own[kind as keyof OwnFacts];
+    return typeof given === "string" && given.trim() ? given : `[${label}]`;
+  }
+  return example;
+}
+
+/** The message as a customer would read it: the business's own name and booking link, and a blank for what it has not given. */
+export function starterPreview(s: StarterTemplate, language: string, businessName?: string | null, bookingLink?: string | null): string {
   const t = starterText(s, language);
-  return fill(t.body, t.slots.map((x) => (x.kind === "business_name" && businessName ? businessName : x.example)));
+  const own: OwnFacts = { business_name: businessName, booking_link: bookingLink };
+  return fill(t.body, t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example));
+}
+
+/**
+ * A saved template as a customer would read it, from the row as the sync keeps
+ * it: a position, a label, the example filed with Meta -- and no kind. The kind
+ * is a starter's own, known by its name, else a guess from the label and the
+ * example (defaultSlotKinds), and the words follow slotWords. A slot with
+ * nothing to show stays a slot.
+ */
+export function templatePreview(t: { name: string; language?: string | null; body_preview: string | null; variables: unknown }, own: OwnFacts = {}): string {
+  const vars = Array.isArray(t.variables) ? (t.variables as VariableLike[]) : [];
+  const kinds = defaultSlotKinds(t);
+  const labels = slotLabels(t);
+  const values: string[] = [];
+  vars.forEach((v, i) => {
+    const at = typeof v?.position === "number" && v.position >= 1 ? v.position - 1 : i;
+    const kind = kinds[i];
+    const label = labels[i] && !/^Value [0-9]+$/.test(labels[i]) ? labels[i] : OWN_SLOT_LABEL.get(kind) ?? `Value ${at + 1}`;
+    const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
+    if (words !== null) values[at] = words;
+  });
+  return fill(String(t.body_preview ?? ""), values);
 }
 
 export const TEMPLATE_TITLE_MAX = 60;
