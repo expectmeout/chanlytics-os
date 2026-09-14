@@ -9270,6 +9270,12 @@ declare const SIGNUP_WORDS: {
  * because the code is the stable half and the wording is not. Anything
  * unrecognised is treated as THEIRS -- the safe direction, since a wrong guess
  * here leaks whether an account exists.
+ *
+ * "Error sending confirmation email", and its recovery and magic-link twins, is
+ * how Supabase says the mail provider refused a send. It says the send failed,
+ * not whether the address has an account, so it is OURS. Read as theirs it
+ * threw, and sign-up answered a 500 where the page has a sentence for exactly
+ * this (13 Sep 2026).
  */
 declare function sendFailureIsOurs(e: {
     code?: string;

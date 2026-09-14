@@ -6960,7 +6960,7 @@ function sendFailureIsOurs(e) {
   if (!e) return false;
   if (e.code === "over_email_send_rate_limit" || e.code === "email_provider_disabled") return true;
   if (e.status === 429) return true;
-  return /rate limit|too many requests|email provider|smtp/i.test(e.message ?? "");
+  return /rate limit|too many requests|email provider|smtp|error sending [a-z ]*email/i.test(e.message ?? "");
 }
 function addressAlreadyKnown(e) {
   if (!e) return false;
