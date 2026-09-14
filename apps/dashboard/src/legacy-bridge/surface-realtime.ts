@@ -46,3 +46,55 @@ export function wantsRefresh(o: RefreshPreference, table: string, change?: Realt
 export function subscribesToRealtime(o: RefreshPreference): boolean {
   return !!o.refreshOnMessageInserts || !!o.refreshOnTables?.length;
 }
+
+/** How long the live feed may be down before the shell says so: the client rejoins a blip within seconds. */
+export const REALTIME_GRACE_MS = 5000;
+
+export interface FeedWatch {
+  onStatus(status: string): void;
+  /** The runner is tearing down: its own close is not a drop, and nothing more is said. */
+  stop(): void;
+}
+
+/**
+ * What the live feed's own reports mean for the page. Every rejoin after the
+ * first join reads what was missed, because postgres changes carry no
+ * backfill. A drop is said only once it outlasts the grace, so a blip the
+ * client rejoins within seconds never flashes a line, and it is said once
+ * however many errors follow; the feed's return is said at once.
+ */
+export function feedWatch(opts: { graceMs: number; onDown: (down: boolean) => void; onReconnect: () => void }): FeedWatch {
+  let joined = false;
+  let down = false;
+  let stopped = false;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const clear = () => {
+    if (timer) clearTimeout(timer);
+    timer = null;
+  };
+  return {
+    onStatus(status) {
+      if (stopped) return;
+      if (status === "SUBSCRIBED") {
+        clear();
+        if (down) {
+          down = false;
+          opts.onDown(false);
+        }
+        if (joined) opts.onReconnect();
+        joined = true;
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        timer ??= setTimeout(() => {
+          timer = null;
+          if (stopped || down) return;
+          down = true;
+          opts.onDown(true);
+        }, opts.graceMs);
+      }
+    },
+    stop() {
+      stopped = true;
+      clear();
+    },
+  };
+}

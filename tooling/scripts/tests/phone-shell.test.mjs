@@ -55,10 +55,10 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   assert.ok(css.includes("padding: 6px 4px calc(6px + env(safe-area-inset-bottom));"), "above the home bar");
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
   assert.ok(css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"), "fixed to the viewport: flowed, it lived below the fold");
-  // The status the bridge's floating pill used to carry lives in the
-  // sidebar's foot now (SbStatus); nothing fixed sits over the tab bar.
+  // The status the bridge's floating pill used to carry is the shell's one
+  // line under the top bar now, mounted in shell-status.test.mjs; nothing
+  // fixed sits over the tab bar.
   assert.ok(!readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"), "the pill is gone");
-  assert.ok(readCode("apps/dashboard/src/legacy/components/sidebar.jsx").includes("const SbStatus = "));
 });
 
 test("the installable shell: a public manifest, real icons, full-screen on iOS, a worker that caches nothing", () => {

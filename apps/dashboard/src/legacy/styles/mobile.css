@@ -66,6 +66,7 @@
   .tb-ask { width: auto; max-width: none; padding: 0 9px; }
   .tb-ask .tb-ask-label, .tb-ask .kbd { display: none; }
   .crumbs { font-size: 12px; overflow: hidden; }
+  .shell-status { padding: 8px 14px; gap: 8px; }
 
   /* ---------- Shared page chrome ---------- */
   .cl-head { flex-direction: column; align-items: stretch; gap: 12px; padding: 16px 16px 14px; }
@@ -354,8 +355,7 @@
   .side-wrap .sidebar.collapsed .nav-hint,
   .side-wrap .sidebar.collapsed .sb-team-body,
   .side-wrap .sidebar.collapsed .sb-team > .icon,
-  .side-wrap .sidebar.collapsed .user-chip .who,
-  .side-wrap .sidebar.collapsed .sb-attn span { display: revert; }
+  .side-wrap .sidebar.collapsed .user-chip .who { display: revert; }
   .side-wrap .sidebar.collapsed .nav-item { justify-content: flex-start; padding: 11px 10px; }
   .side-wrap .sidebar.collapsed .sb-team { justify-content: flex-start; padding: 16px 14px 12px; }
   .side-wrap .sidebar.collapsed .user-chip { justify-content: flex-start; padding: 11px 10px; }

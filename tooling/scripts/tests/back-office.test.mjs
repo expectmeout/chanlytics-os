@@ -1005,9 +1005,8 @@ test("the tab exists for the people it is for, and for nobody else", () => {
   // through to the default, which is what makes the route a dead end.
   assert.match(settings, /\|\| \(isPlatformAdmin\(\) \? SET_TABS_PLATFORM\.find\(\(t\) => t\.id === id\) : null\)/);
   assert.match(settings, /\{active\.id === "platform" && window\.PanePlatform && <window\.PanePlatform \/>\}/);
-  // The crumb applies the same rule, so one route cannot be described two ways.
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
-  assert.match(shell, /window\.__ME && window\.__ME\.platform_admin\) \? \(window\.SET_TABS_PLATFORM \|\| \[\]\)/);
+  // The crumb asks SET_TAB itself, so one route cannot be described two ways:
+  // run in shell-status.test.mjs, for a customer and for an admin.
   // In both lists, in file order, like every other legacy page.
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/platform.jsx";'));
 });

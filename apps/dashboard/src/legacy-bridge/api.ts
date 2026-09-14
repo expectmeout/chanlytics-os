@@ -7,7 +7,7 @@
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
 import { clearSurfaceCache } from "./surface-cache";
-import { getActiveWorkspace, rememberWorkspace } from "./workspace";
+import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
 
 let instance: Api | null = null;
 
@@ -56,7 +56,7 @@ export function apiFor(win: Window): Api {
     workspace: getActiveWorkspace,
     onSignedOut: () => {
       clearSurfaceCache();
-      win.location.assign("/login");
+      win.location.assign(signInHref(win.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
     refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
@@ -70,9 +70,10 @@ export function api(): Api {
     onSignedOut: () => {
       // Clear BEFORE redirecting: the surface cache holds real customer
       // transcripts in sessionStorage, and a session expiring mid-click must
-      // not leave one workspace's messages for whoever signs in next.
+      // not leave one workspace's messages for whoever signs in next. The
+      // page's hash goes along, so signing in again lands where they were.
       clearSurfaceCache();
-      window.location.assign("/login");
+      window.location.assign(signInHref(window.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
     refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),

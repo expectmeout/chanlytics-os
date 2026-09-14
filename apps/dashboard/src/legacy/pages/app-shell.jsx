@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, CLIENTS, FailedRead */
+/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, ShellStatusBar, CLIENTS, FailedRead */
 // Chanlytics — App Shell
 // The live product frame: hash routing, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -377,11 +377,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const segId = kind === "seg" ? param.slice(4) : null;
     const savedId = kind === "list" ? param.slice(5) : null;
     const stateId = kind === "state" ? param.slice(6) : null;
-    const segMeta = segId && (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
+    // A real workspace's lists by their own names; the demo's segments only in the demo.
+    const segMeta = segId && !window.__PEOPLE && (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
     const surfaceList = segId && window.__PEOPLE && (window.__PEOPLE.lists || []).find(l => l.id === segId);
     const savedMeta = savedId && window.__PEOPLE && (window.__PEOPLE.saved || []).find(l => l.id === savedId);
     activeNav = "clients";
-    crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : "Segment"];
+    crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : window.__PEOPLE ? "List" : "Segment"];
     pane = true;
     content = <ClientsA initialSegment={segId} initialSaved={savedId} initialState={stateId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
@@ -439,11 +440,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     );
     content = <SegmentsPage initialId={param} />;
   } else if (page === "admin") {
-    // The back office's tab is not in SET_TABS, and is only found for the
-    // people it exists for -- the same rule SET_TAB applies inside the shell, so
-    // the crumb and the pane cannot say different things about one route.
-    const tabMeta = (window.SET_TABS || []).find(t => t.id === param)
-      || ((window.__ME && window.__ME.platform_admin) ? (window.SET_TABS_PLATFORM || []).find(t => t.id === param) : null);
+    // The crumb names the pane Settings opens, by the rule Settings itself
+    // uses (SET_TAB), so the two cannot say different things about one route:
+    // the bare route opens Business, a retired route answers under its own
+    // name, and the back office is found only for the people it exists for --
+    // anyone else lands on Profile, and so does the crumb.
+    const tabMeta = window.SET_TAB ? window.SET_TAB(param || "workspace") : null;
     activeNav = "admin";
     crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
     pane = true;
@@ -459,7 +461,8 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     pane = true;
     content = <ReportsPage />;
   } else if (page === "calendar") {
-    const apptWho = param && param.startsWith("a-") && (((window.CALENDAR_DATA || {}).CAL_WEEK || []).flatMap(d => d.appts).find(a => a.id === param) || {}).who;
+    // The demo names its seeded appointment; a real calendar is never named from the seeds.
+    const apptWho = !window.__CALENDAR && param && param.startsWith("a-") && (((window.CALENDAR_DATA || {}).CAL_WEEK || []).flatMap(d => d.appts).find(a => a.id === param) || {}).who;
     activeNav = "calendar";
     crumbs = apptWho ? [{ label: "Calendar", to: "calendar" }, apptWho] : ["Calendar"];
     pane = true;
@@ -540,7 +543,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = ["Campaigns", "Content"];
     content = <ContentPage />;
   } else if (page === "broadcasts") {
-    const bcSeg = param && (window.CLIENT_SEGMENTS || []).find(s => s.id === param);
+    // A real workspace names the audience the page opens on, by the page's own
+    // rule (a list or a kept list with this id) and its own label; the demo,
+    // its seeded segment.
+    const bcSeg = param && (window.__BROADCASTS
+      ? (window.__BROADCASTS.audiences || []).find(a => (a.kind === "saved" || a.kind === "list") && a.id === param)
+      : (window.CLIENT_SEGMENTS || []).find(s => s.id === param));
     activeNav = "broadcasts";
     crumbs = bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"];
     content = <BroadcastsPage initialSegment={param} />;
@@ -602,6 +610,14 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   useShellEffect(() => {
     if (retiredTo) window.location.hash = "/" + retiredTo;
   }, [retiredTo]);
+
+  // The tab says where this is, most particular first, and counts what needs
+  // you (contracts chrome.ts pageTitle): named from the crumbs the top bar
+  // draws, after the honesty gate has had its say, so the two cannot differ.
+  const tabTitle = window.__chrome && window.__chrome.title ? window.__chrome.title(crumbs, inboxNeeds) : null;
+  useShellEffect(() => {
+    if (tabTitle) document.title = tabTitle;
+  }, [tabTitle]);
 
   // The gate is asked per PANE, so this key must carry the param.
   const routeKey = `${page}/${param || ""}`;
@@ -693,6 +709,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
           onMenu={() => setNavOpen(true)}
           right={primaryAction}
         />
+        <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
         <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
           <ShellErrorBoundary>
