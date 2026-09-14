@@ -298,6 +298,15 @@ test("every tenant table: a member reads what the policy says, a stranger reads 
       }
     }
 
+    if (mode === "own") {
+      // A person's own rows stay in the workspace they were made in. The own
+      // policies check who wrote a row, not where it lives, so the column grant
+      // is what holds tenant_id (00121); before it, a person could re-file their
+      // own Ask threads and messages under any workspace id.
+      const moved = await viewer.client.from(table).update({ tenant_id: B }).eq("tenant_id", A).eq("user_id", ctx.viewerId).select("tenant_id");
+      if (!moved.error && moved.data.length > 0) note(table, `a person moved ${moved.data.length} of their own rows to a workspace they are not in`);
+    }
+
     // The stranger's writes, and then the viewer's: nothing changes.
     for (const [who, c, tag] of [["stranger", stranger.client, "a member of another workspace"], ["viewer", viewer.client, "a viewer"]]) {
       if (who === "viewer" && mode === "own") continue; // a person writes their own ask threads and marks; the own policies say so

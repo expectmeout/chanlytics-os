@@ -25,7 +25,6 @@ import { readRaw, readCode } from "./_source.mjs";
 const sql = readRaw("supabase/migrations/00022_team_reads.sql");
 const service = readCode("apps/dashboard/src/server/service.ts");
 const teamRoute = readCode("apps/dashboard/app/api/v1/team/route.ts");
-const inviteRoute = readCode("apps/dashboard/app/api/v1/team/invite/route.ts");
 
 /* ------------------------- the functions guard themselves ----------------- */
 
@@ -81,10 +80,8 @@ test("the roster runs on the CALLER's client", () => {
   assert.ok(teamRoute.includes("teamRoster(ctx.supabase,"));
 });
 
-test("the invite lookup is one indexed query on the caller's client", () => {
-  assert.ok(service.includes('caller.rpc("lookup_user_for_invite"'));
-  assert.ok(inviteRoute.includes("inviteMember(ctx.supabase,"));
-});
+// The invite's email lookup moved to the platform's client in 00121, and which
+// client asks is proved by running it: team-writes.test.mjs.
 
 test("the one remaining admin call is the one that must be", () => {
   // Sending a signup email is not something SQL can do.

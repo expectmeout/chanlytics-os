@@ -93,7 +93,7 @@
     "sweep-health.test.mjs": 2,
     "sweep-rotation.test.mjs": 2,
     "team-audit-and-invites.test.mjs": 9,
-    "team-reads.test.mjs": 4,
+    "team-reads.test.mjs": 3,
     "templates-made-here.test.mjs": 15,
     "templates-truth.test.mjs": 8,
     "threads-people.test.mjs": 6,

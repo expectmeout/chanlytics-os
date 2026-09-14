@@ -57,6 +57,15 @@ test("an invitation to a new address: the row, then the mail, then the ledger, m
   assert.equal(w.tables.decisions[0].actor_user_id, USER, "the actor is the session");
 });
 
+test("the email lookup runs on the platform's client: a session is never asked whether an address has an account", async () => {
+  // 00121 closed lookup_user_for_invite to sessions. This caller models one:
+  // its client has no lookup, and asking it would throw.
+  const w = world({}, { known: { "cy@example.com": "u3" } });
+  const caller = fakeDb(w.tables);
+  assert.deepEqual(await inviteMember(caller, A, USER, "cy@example.com", "viewer", undefined, w.svc), { added: true });
+  assert.deepEqual(w.tables.memberships.map((m) => m.user_id), [USER, "u2", "u3"], "the known account joined, found through the platform's client");
+});
+
 test("an invitation to a known account joins them now: a membership at the role, no mail, the ledger saying so; someone already on the team is left alone", async () => {
   const w = world({}, { known: { "cy@example.com": "u3", "di@example.com": "u2" } });
   assert.deepEqual(await inviteMember(w.svc, A, USER, "cy@example.com", "viewer", undefined, w.svc), { added: true });

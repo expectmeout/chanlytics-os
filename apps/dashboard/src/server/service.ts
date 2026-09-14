@@ -367,7 +367,7 @@ export async function teamRoster(
 }
 
 export async function inviteMember(
-  /** The caller's own client — used for the owner-checked email lookup. */
+  /** The caller's own client — the ledger records the change under this session. */
   caller: SupabaseClient<Database>,
   tenantId: string,
   invitedBy: string,
@@ -388,7 +388,12 @@ export async function inviteMember(
   // the invitation row was rolled back. The owner got an error they could not
   // act on, and the person was never added. supabase-js has no
   // getUserByEmail, so the lookup lives in the database.
-  const { data: existingId, error: lookupErr } = await caller.rpc("lookup_user_for_invite", {
+  //
+  // On the platform's client, never the caller's. Whether an address has an
+  // account is an oracle, and a session that could call this could ask it about
+  // every address at API speed, outside the owner check and rate bucket the
+  // invite route runs first (00121).
+  const { data: existingId, error: lookupErr } = await db.rpc("lookup_user_for_invite", {
     p_tenant_id: tenantId,
     p_email: email,
   });
