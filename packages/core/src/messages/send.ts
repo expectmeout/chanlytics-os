@@ -59,8 +59,14 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // owner told, in words that say whose reply it was and what stopped it --
   // a number with no credentials is not "HTTP 503". A refusal needs neither;
   // the row says why.
+  // Named for the wire it was going out on: a text with no line is not a
+  // WhatsApp number that failed.
+  const notConnected =
+    channel === "sms" ? "the texting line is not connected"
+    : channel === "whatsapp" ? "the WhatsApp number is not connected"
+    : `the ${channel} channel is not connected`;
   const cause =
-    out.reason === "no_credentials" ? "the WhatsApp number is not connected"
+    out.reason === "no_credentials" ? notConnected
     : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line`
     : out.reason === "wire_unreadable" ? "the thread could not be read at the wire"
     : `HTTP ${out.status}`;
