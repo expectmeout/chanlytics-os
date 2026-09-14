@@ -33,7 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # The whole history, so the diff below has its base to compare with.
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0
       # The answer goes to the step's outputs and the reason to the log. A git
