@@ -59,5 +59,28 @@ jobs:
       # because this runner's Node happens to strip types by default.
       - run: pnpm test
       # database.types.ts freshness is proved in database.yml, where a database exists to regenerate from.
+      # The production build, the way Vercel runs it for the dashboard (Root
+      # Directory apps/dashboard, `next build`; Vercel's Node is 24, this job's
+      # 22). Nothing above compiles a page: typecheck skips src/legacy, the
+      # 28,000 lines of ported JSX, and no step prerendered a page or applied
+      # Next's own rules, such as a "use client" page that may not export
+      # metadata. Until this step a build failure first appeared as a failed
+      # deployment. It lives in this job because branch protection requires
+      # "Typecheck" by name, so a build that fails now blocks the merge.
+      - uses: actions/cache@v4
+        with:
+          path: apps/dashboard/.next/cache
+          key: next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-${{ hashFiles('apps/dashboard/app/**', 'apps/dashboard/src/**', 'apps/dashboard/middleware.ts', 'apps/dashboard/next.config.ts', 'packages/*/dist/**') }}
+          restore-keys: |
+            next-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}-
+      - run: pnpm --filter @chanlytics/dashboard build
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+          # Placeholders the build never contacts. The static pages (/signup
+          # among them) create their Supabase client while they prerender, and
+          # @supabase/ssr refuses an empty URL or key, so without these the
+          # build stops at /signup. Vercel builds with the real public values.
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ci-build-placeholder
 
   # CI holds no live service secrets — tests run against fakes only (Blueprint §8).
