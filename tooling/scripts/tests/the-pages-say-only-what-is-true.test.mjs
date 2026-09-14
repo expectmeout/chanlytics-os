@@ -420,3 +420,95 @@ test("REGRESSION (D12): past fifty broadcasts the header says its numbers are th
     globalThis.StatCell = keep;
   }
 });
+
+/* -------------- Ask: an undo stays open only while it can still be true -------------- */
+
+test("REGRESSION: an Ask card's undo expires -- it was offered forever, and a settings undo wrote the whole earlier config over later saves", async () => {
+  const { askUndoOpen, ASK_UNDO_MS } = await import("@chanlytics/contracts");
+  assert.equal(typeof askUndoOpen, "function", "one rule for when an undo is still true");
+  const T = Date.parse("2026-09-14T12:00:00Z");
+  // A reply: until the send's own cancel window closes, and not a moment after.
+  assert.equal(askUndoOpen("reply", { message_id: "m", cancelable_until: new Date(T + 5_000).toISOString() }, T, T, null), true);
+  assert.equal(askUndoOpen("reply", { message_id: "m", cancelable_until: new Date(T - 1).toISOString() }, T - 20_000, T, null), false, "a message already sent cannot be canceled");
+  // Everything else: ten minutes after the act.
+  assert.equal(ASK_UNDO_MS, 10 * 60_000);
+  assert.equal(askUndoOpen("thread_verb", { verb: "wake", conversation_id: "c" }, T - ASK_UNDO_MS + 1_000, T, null), true);
+  assert.equal(askUndoOpen("thread_verb", { verb: "wake", conversation_id: "c" }, T - ASK_UNDO_MS - 1, T, null), false);
+  // Settings: and only while nobody has saved since.
+  assert.equal(askUndoOpen("settings", { config: {}, version_after: 4 }, T - 1_000, T, 4), true);
+  assert.equal(askUndoOpen("settings", { config: {}, version_after: 4 }, T - 1_000, T, 5), false, "REGRESSION: the whole earlier config restored over a later save");
+  assert.equal(askUndoOpen("settings", { config: {} }, T - 1_000, T, 4), false, "an undo that does not know what it wrote cannot prove nobody saved since");
+  assert.equal(askUndoOpen("reply", null, T, T, null), false);
+});
+
+await import("../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/ask-turn.jsx");
+
+test("REGRESSION: a reopened card whose undo has expired offers none, and undoing a new playbook asks first -- it deleted the playbook in one click", async () => {
+  const { askUndoOpen } = await import("@chanlytics/contracts");
+  const undone = [];
+  globalThis.window.__ask = { undoOpen: askUndoOpen, undo: async (p) => { undone.push(p.kind); return { ok: true, receipt: "Deleted — nothing will run" }; }, outcome: async () => true, commit: async () => ({ ok: true, receipt: "", undo: null }) };
+  globalThis.window.canDo = () => true;
+  const t = globalThis.window.askText("en");
+  const buttons = (tree) => { const out = []; walk(tree, (n) => { if (n.type === "button") out.push(n); }); return out; };
+
+  // A reply sent two days ago: its cancel window closed long since.
+  const sentAt = Date.now() - 2 * 86_400_000;
+  const old = {
+    id: "p1", kind: "reply", title: "Reply to Rosa", summary: "On our way.", payload: { conversation_id: "c1", text: "On our way.", who: "Rosa" }, undo: "Cancel within 15 seconds of sending",
+    outcome: { state: "done", receipt: "Sent to Rosa", atMs: sentAt, undo: { message_id: "m9", cancelable_until: new Date(sentAt + 15_000).toISOString() } },
+  };
+  cells = []; seq = 0;
+  assert.ok(!buttons(globalThis.window.AskCard({ p: old, messageId: "x", t, onNav() {} })).some((b) => textOf(b).includes("Cancel within")), "REGRESSION: the undo outlived the send");
+
+  // A playbook made a minute ago: undoing it deletes it, so the card asks first.
+  const made = {
+    id: "p2", kind: "playbook", title: "Win-back", summary: "Every 30 days", payload: {}, undo: "Delete it — nothing will run",
+    outcome: { state: "done", receipt: "Playbook “Win-back” is running", atMs: Date.now() - 60_000, undo: { playbook_id: "pb1" } },
+  };
+  cells = []; seq = 0;
+  let tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
+  const undoButton = buttons(tree).find((b) => textOf(b).includes("Delete it"));
+  assert.ok(undoButton, "a fresh undo is offered");
+  await undoButton.props.onClick();
+  assert.deepEqual(undone, [], "REGRESSION: one click deleted the playbook");
+  seq = 0;
+  tree = globalThis.window.AskCard({ p: made, messageId: "x", t, onNav() {} });
+  let yes = null;
+  walk(tree, (n) => { if (!yes && n.props?.["data-testid"] === "ask-card-undo-yes") yes = n; });
+  assert.ok(yes, "the card asks before it deletes");
+  await yes.props.onClick();
+  assert.deepEqual(undone, ["playbook"]);
+});
+
+/* -------------------- Ask: a failure says what failed -------------------- */
+
+test("REGRESSION: Ask's failures say what failed -- a failed read said 'Thread deleted', a failed delete and a failed copy said the calendar could not be read", () => {
+  for (const lang of ["en", "es"]) {
+    const t = globalThis.window.askText(lang);
+    for (const k of ["threadUnreadable", "deleteFailed", "copyFailed"]) {
+      assert.equal(typeof t[k], "string", `${lang}.${k}`);
+      assert.notEqual(t[k], t.unavailable, `${lang}.${k} is not the calendar's sentence`);
+      assert.notEqual(t[k], t.deleted, `${lang}.${k} is not "deleted"`);
+    }
+  }
+});
+
+/* ------------------ the Terms: the ways in, as they are ------------------ */
+
+test("REGRESSION: the Terms name the password among the ways to sign in -- they said Google or a code after the password became the everyday credential", async () => {
+  const { default: TermsPage } = await import("../../../apps/dashboard/app/terms/page.tsx");
+  const lines = [];
+  const collect = (n) => {
+    if (n == null || typeof n !== "object") return;
+    const kids = n.props?.children;
+    for (const k of Array.isArray(kids) ? kids : [kids]) {
+      if (typeof k === "string") lines.push(k);
+      else collect(k);
+    }
+  };
+  collect(TermsPage());
+  const signIn = lines.find((s) => s.startsWith("Sign-in is"));
+  assert.ok(signIn, `the sign-in sentence among ${lines.length} lines`);
+  assert.ok(signIn.includes("password"), signIn);
+});

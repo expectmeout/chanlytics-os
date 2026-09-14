@@ -160,17 +160,25 @@ test("a policy: the class with the mode or the dial, whichever the card carries;
   assert.deepEqual(await undoProposal(t.win, card("policy", { class: "reply" }), { state: "done", receipt: "", atMs: 1, undo: { class: "reply", mode: null, min_confidence: null } }, t.client), { ok: false, message: "The previous setting is unknown; change it in Settings." });
 });
 
-test("a settings change: applied to the loaded config and sent with its version; undo sends the config from before; nothing without a loaded config", async () => {
+test("a settings change: applied to the loaded config and sent with its version; the undo knows the version it wrote and restores only while nobody has saved since; nothing without a loaded config", async () => {
   const t = tab();
   const change = { op: "add_closure", date: "2026-12-25", note: "Christmas" };
+  const before = t.win.__SETTINGS.config;
   const r = await commitProposal(t.win, card("settings", { change }), t.client);
-  assert.deepEqual(r, { ok: true, receipt: "the summary", undo: { config: t.win.__SETTINGS.config } });
-  const expected = applySettingsChange(t.win.__SETTINGS.config, change);
+  assert.deepEqual(r, { ok: true, receipt: "the summary", undo: { config: before, version_after: 4 } }, "the version the save wrote travels with the undo");
+  const expected = applySettingsChange(before, change);
   assert.deepEqual(one(t).body, { config: expected, version: 3 });
   assert.deepEqual(expected.brain.profile.closures, [{ date: "2026-12-25", note: "Christmas" }]);
-  const back = await undoProposal(t.win, card("settings", { change }), { state: "done", receipt: "", atMs: 1, undo: { config: t.win.__SETTINGS.config } }, t.client);
+  // Someone saved again (the tab now reads version 5): the old config is not written over their save.
+  t.win.__SETTINGS.version = 5;
+  const stale = await undoProposal(t.win, card("settings", { change }), { state: "done", receipt: "", atMs: 1, undo: { config: before, version_after: 4 } }, t.client);
+  assert.deepEqual(stale, { ok: false, message: "Settings have changed since this card — change them in Settings." }, "REGRESSION: the undo wrote the whole earlier config over a later save");
+  assert.equal(t.sent.length, 1, "and nothing was sent");
+  // Nobody saved since (the tab reads the version the card wrote): the undo restores.
+  t.win.__SETTINGS.version = 4;
+  const back = await undoProposal(t.win, card("settings", { change }), { state: "done", receipt: "", atMs: 1, undo: { config: before, version_after: 4 } }, t.client);
   assert.deepEqual(back, { ok: true, receipt: "Previous settings are back", undo: null });
-  assert.deepEqual(t.sent.at(-1).body, { config: t.win.__SETTINGS.config, version: 3 });
+  assert.deepEqual(t.sent.at(-1).body, { config: before, version: 4 });
   const cold = tab();
   cold.win.__SETTINGS = null;
   assert.deepEqual(await commitProposal(cold.win, card("settings", { change }), cold.client), { ok: false, message: "Settings are not loaded yet — open Settings once and try again." });

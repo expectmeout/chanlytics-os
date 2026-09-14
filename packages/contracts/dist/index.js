@@ -4656,6 +4656,17 @@ var PROPOSAL_GATE = {
   broadcast: "approve",
   playbook: "approve"
 };
+var ASK_UNDO_MS = 10 * 6e4;
+function askUndoOpen(kind, undo, atMs, nowMs, settingsVersion) {
+  if (!undo) return false;
+  if (kind === "reply") {
+    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
+    return Number.isFinite(until) && nowMs < until;
+  }
+  if (nowMs - atMs > ASK_UNDO_MS) return false;
+  if (kind === "settings") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
+  return true;
+}
 var AskProposalOutcomeSchema = z3.object({
   state: z3.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z3.string().max(300).catch(""),
@@ -8397,6 +8408,7 @@ export {
   ASK_THREAD_VERBS,
   ASK_TOKENS_DAY,
   ASK_TURN_BUDGET_MS,
+  ASK_UNDO_MS,
   AUDIENCE_KINDS,
   AppError,
   AskFinishSchema,
@@ -8612,6 +8624,7 @@ export {
   applySettingsChange,
   asPersonMode,
   askJump,
+  askUndoOpen,
   attentionRow,
   autoReplyBell,
   autoReplyCandidates,

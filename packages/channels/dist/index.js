@@ -4697,6 +4697,7 @@ var AskFinishSchema = external_exports.object({
   navigate: external_exports.object({ to: external_exports.string().catch(""), label: external_exports.string().catch(""), now: external_exports.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
   language: external_exports.enum(ASK_LANGUAGES).catch("other")
 });
+var ASK_UNDO_MS = 10 * 6e4;
 var AskProposalOutcomeSchema = external_exports.object({
   state: external_exports.enum(["done", "dismissed", "failed", "undone"]),
   receipt: external_exports.string().max(300).catch(""),

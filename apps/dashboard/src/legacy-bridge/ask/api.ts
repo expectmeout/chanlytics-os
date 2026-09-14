@@ -62,9 +62,16 @@ export function askApi(client: Api = api()) {
         return [];
       }
     },
-    thread: async (id: string): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | null> => {
+    /**
+     * One thread, told apart from a thread that is gone: `{ missing: true }` for a
+     * 404, null for a read that failed. Both were null, and the palette said
+     * "Thread deleted" and dropped the thread from the list whenever a read failed.
+     */
+    thread: async (id: string): Promise<{ thread: AskThreadVM; messages: AskMessageVM[] } | { missing: true } | null> => {
       try {
-        return unwrap(await client("GET ask/threads/[id]", { params: { id } }));
+        const r = await client("GET ask/threads/[id]", { params: { id } });
+        if (r.ok) return r.data;
+        return r.status === 404 ? { missing: true } : null;
       } catch {
         return null;
       }

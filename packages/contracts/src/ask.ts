@@ -412,6 +412,29 @@ export interface AskProposalOutcome {
   undo?: Record<string, unknown> | null;
 }
 
+/** How long a committed card's undo stays open, for every verb whose route sets no window of its own. */
+export const ASK_UNDO_MS = 10 * 60_000;
+
+/**
+ * Whether a committed card's undo is still true to offer.
+ *
+ * A reply's undo cancels the send, so it lives exactly as long as the send's own
+ * cancel window. A settings undo writes the whole earlier config, so it is safe
+ * only while nobody has saved since -- the version the card wrote is still the
+ * version loaded. Everything else reverses cleanly for a while, then not.
+ * An undo used to be offered forever, and to survive reopening a thread days later.
+ */
+export function askUndoOpen(kind: string, undo: Record<string, unknown> | null | undefined, atMs: number, nowMs: number, settingsVersion: number | null): boolean {
+  if (!undo) return false;
+  if (kind === "reply") {
+    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
+    return Number.isFinite(until) && nowMs < until;
+  }
+  if (nowMs - atMs > ASK_UNDO_MS) return false;
+  if (kind === "settings") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
+  return true;
+}
+
 export const AskProposalOutcomeSchema = z.object({
   state: z.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z.string().max(300).catch(""),

@@ -153,7 +153,10 @@ const AskReal = ({ open, onClose }) => {
 
   const openThread = async (th) => {
     const full = await A.thread(th.id);
-    if (!full) { flash({ msg: <>{t.deleted}</> }); setThreads((prev) => prev.filter((x) => x.id !== th.id)); return null; }
+    // A read that failed keeps the thread on the list and says so; only a thread
+    // that is gone is dropped as deleted.
+    if (!full) { flash({ tone: "danger", msg: <>{t.threadUnreadable}</> }); return null; }
+    if (full.missing) { flash({ msg: <>{t.deleted}</> }); setThreads((prev) => prev.filter((x) => x.id !== th.id)); return null; }
     const opened = { id: full.thread.id, title: full.thread.title, messages: full.messages, scope: full.thread.scope };
     setActive(opened);
     if (full.thread.scope) setScope(full.thread.scope);
@@ -163,7 +166,7 @@ const AskReal = ({ open, onClose }) => {
 
   const removeThread = async (th) => {
     const ok = await A.deleteThread(th.id);
-    if (!ok) { flash({ msg: <>{t.unavailable}</> }); return; }
+    if (!ok) { flash({ tone: "danger", msg: <>{t.deleteFailed}</> }); return; }
     setThreads((prev) => prev.filter((x) => x.id !== th.id));
     if (active && active.id === th.id) setActive(null);
     flash({ msg: <>{t.deleted}</> });
