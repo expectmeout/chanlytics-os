@@ -10,6 +10,13 @@ import { activeWorkspace, scoped, apiGet } from "./workspace";
 const BASE = process.env.E2E_BASE_URL ?? "https://app.chanlytics.com";
 const fromTheApp = { headers: { origin: new URL(BASE).origin } };
 const INVENTED = ["Aisha", "Jordan", "Lena", "Drifting VIP", "revenue pacing", "Serenity", "Sarah Chen"];
+/**
+ * A real turn spends model tokens on whichever workspace the run signs in to.
+ * The nightly runs without them and each of the five says so in its skip;
+ * E2E_PAID_MODEL=1 puts them back for a run that should spend.
+ */
+const PAID = process.env.E2E_PAID_MODEL === "1";
+const WHY_UNPAID = "a real model turn costs money: set E2E_PAID_MODEL=1 to run it";
 
 test.describe("Ask, without a session", () => {
   test("the turn route refuses a cross-site POST and an unauthenticated one", async ({ request }) => {
@@ -59,6 +66,7 @@ test.describe("Ask on a real workspace", () => {
   });
 
   test("a real turn reads the workspace and answers with what it read", async ({ page }) => {
+    test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(120_000);
     const ws = await activeWorkspace(page);
     const res = await page.request.post(scoped("/api/v1/ask", ws), {
@@ -91,6 +99,7 @@ test.describe("Ask on a real workspace", () => {
   });
 
   test("a request to act becomes a card with Approve and Not now, and the test never approves it", async ({ page }) => {
+    test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(120_000);
     const ws = await activeWorkspace(page);
     const res = await page.request.post(scoped("/api/v1/ask", ws), {
@@ -123,6 +132,7 @@ test.describe("Ask on a real workspace", () => {
   });
 
   test("opening a call from the palette lands on the call with its transcript pane", async ({ page }) => {
+    test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(150_000);
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
@@ -141,6 +151,7 @@ test.describe("Ask on a real workspace", () => {
   });
 
   test("the same question twice is one thread, not twins", async ({ page }) => {
+    test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(150_000);
     // A question of its own, so older threads that also mention today's
     // writers (the eval set asks about them) are not counted as twins.
@@ -170,6 +181,7 @@ test.describe("Ask on a real workspace", () => {
   });
 
   test("the palette streams a turn and shows citations or a plain failure", async ({ page }) => {
+    test.skip(!PAID, WHY_UNPAID);
     test.setTimeout(120_000);
     await page.goto("/#/inbox");
     await page.waitForLoadState("networkidle");

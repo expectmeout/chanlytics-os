@@ -9,7 +9,7 @@ name: Nightly e2e
 #
 # Two halves. The credential-free specs (the auth gate, no fabricated data)
 # run on every schedule. The signed-in specs need a session minted with a
-# service-role key and skip, with a stated reason, when the four secrets
+# service-role key and skip, with a stated reason, when the three secrets
 # below are absent. ci.yml's rule — no live service secrets in CI — still
 # holds for pull requests; whether this ONE scheduled job may hold them is
 # the owner's decision, made by adding the secrets in the repository
@@ -36,6 +36,12 @@ jobs:
     name: Playwright against production
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    # Who the signed-in specs are, and who else is on their team: addresses at
+    # example.com, which receive no mail. e2e-workspace.mjs makes both users
+    # and their workspace; session.ts signs in as the first.
+    env:
+      E2E_USER_EMAIL: e2e-owner@example.com
+      E2E_MEMBER_EMAIL: e2e-member@example.com
     # issues: write is the whole point of the step at the end -- a red run at
     # 09:00 that nobody is told about is the failure this suite exists to
     # prevent, one level up.
@@ -62,6 +68,18 @@ jobs:
           REQUIRE_SERVICE_CREDENTIALS: "1"
           SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
+      # The run's own workspace, made or put back in its known state before any
+      # spec signs in. The signed-in specs used to run as the owner's account in
+      # a live customer's workspace, writing to it and spending Ask tokens there.
+      # Now a test owner with exactly one membership signs in to fake people,
+      # one conversation, one call and a WhatsApp channel with no credentials:
+      # nothing in it can reach a customer, a provider or an alert.
+      - name: The run's own workspace, in its known state
+        if: ${{ !cancelled() }}
+        run: node tooling/scripts/e2e-workspace.mjs --apply
+        env:
+          SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
       - run: pnpm e2e
         if: ${{ !cancelled() }}
         env:
@@ -75,16 +93,16 @@ jobs:
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.E2E_SUPABASE_URL }}
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.E2E_SUPABASE_ANON_KEY }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.E2E_SERVICE_ROLE_KEY }}
-          E2E_USER_EMAIL: ${{ secrets.E2E_USER_EMAIL }}
           # The one path that creates a user (signup.spec.ts sends a real code
           # and cleans up after itself) runs nightly, not on every pull request.
           E2E_SIGNUP_PROBE: "1"
-          # Where that code goes. A real inbox, with {stamp} where each run's
+          # Where that code goes: a real inbox, with {stamp} where each run's
           # fresh address differs (you+e2e-{stamp}@your-domain). Unset, the probe
-          # falls back to an example.com address, which is reserved and cannot
-          # receive mail: production's mailer refuses it, and the probe fails on
-          # `sent`. Adding the secret is the owner's call.
+          # skips and says why, since no example.com address can receive the code.
+          # Adding the secret is the owner's call.
           E2E_SIGNUP_EMAIL: ${{ secrets.E2E_SIGNUP_EMAIL }}
+          # E2E_PAID_MODEL is not set: the five Ask tests that run a real model
+          # turn skip and say so. Set it to "1" on a run that should spend.
       # The report can hold a real workspace's data, so it is kept only when
       # something failed and only for a week.
       - uses: actions/upload-artifact@v4
