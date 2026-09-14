@@ -49,9 +49,9 @@ jobs:
       contents: read
       issues: write
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -106,7 +106,7 @@ jobs:
           # turn skip and say so. Set it to "1" on a run that should spend.
       # The report can hold a real workspace's data, so it is kept only when
       # something failed and only for a week.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: failure()
         with:
           name: playwright-report
