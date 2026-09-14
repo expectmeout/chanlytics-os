@@ -13,6 +13,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateTone, stateLabel, stateOf, TONES, PERSON_STATE_LABELS, BROADCAST_STATE_LABELS, ROLE_WORDS, toInboxThreadVM, PLATFORM_VERDICTS } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 /* ------------------------------ the map -------------------------------- */
 
 test("one name, one tone: a person is needed is amber wherever it is said, and the accent means right now and nothing else", () => {
@@ -131,7 +134,7 @@ test("REGRESSION: a real thread that needs a person shows the one pill and how l
     contact: { id: "p1", display_name: "Rosa", wa_profile_name: null, phone_e164: "+16465550123", consent: "opted_in", dnc: false },
     messages: [{ id: "m1", direction: "inbound", sender: "customer", type: "text", body: "Can I speak to someone?", media: null, meta: null, status: "received", created_at: ago(40), channel_ts: ago(40) }],
   };
-  const vm = toInboxThreadVM(dto, { id: "e1", reason: "human_token", details: "asked for a person", state: "open", created_at: ago(40) }, NOW);
+  const vm = toInboxThreadVM(dto, { id: "e1", reason: "human_token", details: "asked for a person", state: "open", created_at: ago(40) }, ZONE, NOW);
   assert.equal(vm.state, "escalated", "the state a real thread has");
   assert.ok(vm.waitingMin >= 39, `waited ${vm.waitingMin} minutes`);
   fresh(); seq = 0;

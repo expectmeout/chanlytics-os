@@ -247,8 +247,6 @@ var RETENTION_DAYS = {
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk(raw) {
   if (!raw) return null;
@@ -586,9 +584,6 @@ var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
@@ -701,19 +696,19 @@ var PLAYBOOK_CLASS_LABEL = {
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short
 };
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS6 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS6;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
-var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -1040,8 +1035,6 @@ var RETENTION_DAYS2 = {
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
-var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk2(raw) {
   if (!raw) return null;
@@ -1367,9 +1360,6 @@ var WEEK_MS22 = 7 * DAY_MS32;
 var MONTH_MS2 = 30 * DAY_MS32;
 var NEW_WINDOW_MS2 = 7 * DAY_MS32;
 var QUIET_AFTER_MS3 = 30 * DAY_MS32;
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS42 = 24 * 3600 * 1e3;
 var ASK_CAPS2 = {
   threads: 20,
@@ -1482,19 +1472,19 @@ var PLAYBOOK_CLASS_LABEL2 = {
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short
 };
-var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS62 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS62;
-var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
-var DATE_FMT62 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT42 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -1876,8 +1866,6 @@ var RETENTION_DAYS22 = {
 };
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
 var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
-var TIME_FMT32 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT72 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST22 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk22(raw) {
   if (!raw) return null;
@@ -2203,9 +2191,6 @@ var WEEK_MS222 = 7 * DAY_MS322;
 var MONTH_MS22 = 30 * DAY_MS322;
 var NEW_WINDOW_MS22 = 7 * DAY_MS322;
 var QUIET_AFTER_MS32 = 30 * DAY_MS322;
-var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT222 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS422 = 24 * 3600 * 1e3;
 var ASK_CAPS22 = {
   threads: 20,
@@ -2367,19 +2352,19 @@ var PLAYBOOK_CLASS_LABEL22 = {
   campaign: POLICY_CLASS_WORDS22.campaign.short,
   booking: POLICY_CLASS_WORDS22.booking.short
 };
-var DATE_FMT322 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS622 = 864e5;
 var QUIET_AFTER_MS222 = 7 * DAY_MS622;
-var DATE_FMT422 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
 var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS22 = 14 * 864e5;
 var BOOTSTRAP_MS22 = 3600 * 1e3;
-var DATE_FMT522 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT322 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS322 = 7 * 864e5;
-var DATE_FMT622 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT422 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS22 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -2691,8 +2676,6 @@ var RETENTION_DAYS3 = {
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
-var TIME_FMT4 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT8 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk3(raw) {
   if (!raw) return null;
@@ -3018,9 +3001,6 @@ var WEEK_MS23 = 7 * DAY_MS33;
 var MONTH_MS3 = 30 * DAY_MS33;
 var NEW_WINDOW_MS3 = 7 * DAY_MS33;
 var QUIET_AFTER_MS4 = 30 * DAY_MS33;
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT23 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS43 = 24 * 3600 * 1e3;
 var ASK_CAPS3 = {
   threads: 20,
@@ -3133,19 +3113,19 @@ var PLAYBOOK_CLASS_LABEL3 = {
   campaign: POLICY_CLASS_WORDS3.campaign.short,
   booking: POLICY_CLASS_WORDS3.booking.short
 };
-var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS63 = 864e5;
 var QUIET_AFTER_MS23 = 7 * DAY_MS63;
-var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
-var DATE_FMT63 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT43 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -3846,8 +3826,6 @@ var RETENTION_DAYS4 = {
 };
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
 var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
-var TIME_FMT5 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT9 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST4 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk4(raw) {
   if (!raw) return null;
@@ -4173,9 +4151,6 @@ var WEEK_MS24 = 7 * DAY_MS34;
 var MONTH_MS4 = 30 * DAY_MS34;
 var NEW_WINDOW_MS4 = 7 * DAY_MS34;
 var QUIET_AFTER_MS5 = 30 * DAY_MS34;
-var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT24 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS44 = 24 * 3600 * 1e3;
 var ASK_CAPS4 = {
   threads: 20,
@@ -4288,19 +4263,19 @@ var PLAYBOOK_CLASS_LABEL4 = {
   campaign: POLICY_CLASS_WORDS4.campaign.short,
   booking: POLICY_CLASS_WORDS4.booking.short
 };
-var DATE_FMT34 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS64 = 864e5;
 var QUIET_AFTER_MS24 = 7 * DAY_MS64;
-var DATE_FMT44 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
 var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS4 = 14 * 864e5;
 var BOOTSTRAP_MS4 = 3600 * 1e3;
-var DATE_FMT54 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT34 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS34 = 7 * 864e5;
-var DATE_FMT64 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT44 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS4 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,

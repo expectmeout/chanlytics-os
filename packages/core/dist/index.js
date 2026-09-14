@@ -232,8 +232,6 @@ var RETENTION_DAYS = {
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk(raw) {
   if (!raw) return null;
@@ -559,9 +557,6 @@ var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
@@ -674,19 +669,19 @@ var PLAYBOOK_CLASS_LABEL = {
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short
 };
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS6 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS6;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
-var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -1078,6 +1073,76 @@ function purposeOfPlaybook(policyClass) {
 }
 var DAY_MS2 = 864e5;
 var WEEK_MS4 = 7 * DAY_MS2;
+function zoneParts(tz, at2) {
+  const parts2 = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz,
+    hourCycle: "h23",
+    weekday: "short",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).formatToParts(at2);
+  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
+  return {
+    y: Number(get("year")),
+    m: Number(get("month")),
+    d: Number(get("day")),
+    hh: Number(get("hour")) % 24,
+    mm: Number(get("minute")),
+    ss: Number(get("second")),
+    weekday: get("weekday").toLowerCase().slice(0, 3)
+  };
+}
+function zoneOffsetMs(tz, atMs) {
+  const p = zoneParts(tz, new Date(atMs));
+  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
+}
+function localToUtcMs(tz, y, m, d, hh, mm) {
+  const guess = Date.UTC(y, m - 1, d, hh, mm);
+  const first = guess - zoneOffsetMs(tz, guess);
+  const second = guess - zoneOffsetMs(tz, first);
+  return second;
+}
+var FORMATS = /* @__PURE__ */ new Map();
+function formatsFor(tz) {
+  const hit = FORMATS.get(tz);
+  if (hit) return hit;
+  let zone = tz || "UTC";
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: zone });
+  } catch {
+    zone = "UTC";
+  }
+  const made = {
+    zone,
+    time: new Intl.DateTimeFormat("en-US", { timeZone: zone, hour: "numeric", minute: "2-digit" }),
+    date: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric" }),
+    dateYear: new Intl.DateTimeFormat("en-US", { timeZone: zone, month: "short", day: "numeric", year: "numeric" }),
+    parts: new Intl.DateTimeFormat("en-US", { timeZone: zone, hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+  };
+  FORMATS.set(tz, made);
+  return made;
+}
+var WALLS = /* @__PURE__ */ new Map();
+var WALLS_MAX = 2048;
+function wall(atMs, tz) {
+  const id = `${tz}|${atMs}`;
+  const hit = WALLS.get(id);
+  if (hit) return hit;
+  const p = {};
+  for (const x of formatsFor(tz).parts.formatToParts(new Date(atMs))) p[x.type] = x.value;
+  const made = { key: `${p.year}-${p.month}-${p.day}`, year: Number(p.year), hh: Number(p.hour) % 24, mm: Number(p.minute) };
+  if (WALLS.size >= WALLS_MAX) WALLS.clear();
+  WALLS.set(id, made);
+  return made;
+}
+function clockDate(atMs, tz, nowMs) {
+  const f = formatsFor(tz);
+  return wall(atMs, tz).year === wall(nowMs, tz).year ? f.date.format(new Date(atMs)) : f.dateYear.format(new Date(atMs));
+}
 var BRAIN_INTENTS2 = ["booking", "pricing", "hours", "services", "location", "complaint", "smalltalk", "other"];
 var BRAIN_LANGUAGES2 = ["en", "es", "other"];
 var BRAIN_OUTPUT_JSON_SCHEMA2 = {
@@ -1151,8 +1216,6 @@ var RETENTION_DAYS2 = {
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
-var TIME_FMT3 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST2 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk2(raw) {
   if (!raw) return null;
@@ -1182,39 +1245,6 @@ function feedProblemWords2(reason, status) {
     default:
       return null;
   }
-}
-function zoneParts(tz, at2) {
-  const parts2 = new Intl.DateTimeFormat("en-US", {
-    timeZone: tz,
-    hourCycle: "h23",
-    weekday: "short",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit"
-  }).formatToParts(at2);
-  const get = (t) => parts2.find((p) => p.type === t)?.value ?? "";
-  return {
-    y: Number(get("year")),
-    m: Number(get("month")),
-    d: Number(get("day")),
-    hh: Number(get("hour")) % 24,
-    mm: Number(get("minute")),
-    ss: Number(get("second")),
-    weekday: get("weekday").toLowerCase().slice(0, 3)
-  };
-}
-function zoneOffsetMs(tz, atMs) {
-  const p = zoneParts(tz, new Date(atMs));
-  return Date.UTC(p.y, p.m - 1, p.d, p.hh, p.mm, p.ss) - Math.floor(atMs / 1e3) * 1e3;
-}
-function localToUtcMs(tz, y, m, d, hh, mm) {
-  const guess = Date.UTC(y, m - 1, d, hh, mm);
-  const first = guess - zoneOffsetMs(tz, guess);
-  const second = guess - zoneOffsetMs(tz, first);
-  return second;
 }
 var POLICY_CLASS_WORDS2 = {
   reply: { name: "Replies to customers", short: "Replies", note: "every text the receptionist sends" },
@@ -1529,9 +1559,6 @@ var WEEK_MS22 = 7 * DAY_MS32;
 var MONTH_MS2 = 30 * DAY_MS32;
 var NEW_WINDOW_MS2 = 7 * DAY_MS32;
 var QUIET_AFTER_MS3 = 30 * DAY_MS32;
-var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT22 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 function mayReceive(r, purpose) {
   if (!r.phone) return false;
   return mayMessageFor(
@@ -1857,8 +1884,8 @@ function cleanParam(raw) {
   if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
   return v;
 }
-function broadcastName(templateName, now = /* @__PURE__ */ new Date(), title) {
-  const day = now.toLocaleDateString("en-US", { month: "short", day: "numeric" });
+function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title) {
+  const day = clockDate(now.getTime(), tz, now.getTime());
   return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
@@ -2017,19 +2044,19 @@ function visitFactsFor(trigger, visit, tz) {
     visit_service: visit.title.trim() || "your appointment"
   };
 }
-var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS62 = 864e5;
 var QUIET_AFTER_MS22 = 7 * DAY_MS62;
-var DATE_FMT42 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS2 = 14 * 864e5;
 var BOOTSTRAP_MS2 = 3600 * 1e3;
-var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT32 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS32 = 7 * 864e5;
-var DATE_FMT62 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT42 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS2 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -2347,8 +2374,6 @@ var RETENTION_DAYS3 = {
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
-var TIME_FMT4 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT8 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST3 = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk3(raw) {
   if (!raw) return null;
@@ -2674,9 +2699,6 @@ var WEEK_MS23 = 7 * DAY_MS33;
 var MONTH_MS3 = 30 * DAY_MS33;
 var NEW_WINDOW_MS3 = 7 * DAY_MS33;
 var QUIET_AFTER_MS4 = 30 * DAY_MS33;
-var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT23 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS43 = 24 * 3600 * 1e3;
 var ASK_CAPS3 = {
   threads: 20,
@@ -2789,19 +2811,19 @@ var PLAYBOOK_CLASS_LABEL3 = {
   campaign: POLICY_CLASS_WORDS3.campaign.short,
   booking: POLICY_CLASS_WORDS3.booking.short
 };
-var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS63 = 864e5;
 var QUIET_AFTER_MS23 = 7 * DAY_MS63;
-var DATE_FMT43 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS3 = 14 * 864e5;
 var BOOTSTRAP_MS3 = 3600 * 1e3;
-var DATE_FMT53 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT33 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS33 = 7 * 864e5;
-var DATE_FMT63 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT43 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS3 = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,
@@ -3648,11 +3670,12 @@ async function createBroadcast(ports, cmd) {
   if (eligible.length > BROADCAST_MAX_RECIPIENTS) throw new AppError("validation", `At most ${BROADCAST_MAX_RECIPIENTS} people in one broadcast.`);
   const over = overLimitRefusal(health, eligible.length);
   if (over) throw new AppError("validation", over);
-  const open = nextOpenMoment(await ports.timezone(), when);
+  const tz = await ports.timezone();
+  const open = nextOpenMoment(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
   if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 864e5) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
-  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
+  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
   const audience = { kind, id: audienceId, label };
   const made = await assembleRun(ports, {
     broadcast: {

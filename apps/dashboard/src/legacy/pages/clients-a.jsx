@@ -962,7 +962,8 @@ const PL_MODES = [
 ];
 
 const plIsNumber = (name) => /^[+\d(]/.test(name || "");
-const plWhen = (iso) => { if (!iso) return undefined; const d = new Date(iso); return Number.isNaN(d.getTime()) ? undefined : d.toLocaleString([], { dateStyle: "medium", timeStyle: "short" }); };
+// The exact moment, by the business's clock (window.__clock): "Sep 6, 2026 · 3:10 PM".
+const plWhen = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.isNaN(ms) ? undefined : `${window.__clock.dateYear(ms)} · ${window.__clock.time(ms)}`; };
 
 // The row's own next steps, on hover: the thread, and the booking link when
 // there is one — a reply carried in inside the 24-hour window, the template

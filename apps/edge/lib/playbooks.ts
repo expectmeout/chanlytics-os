@@ -192,7 +192,7 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     tenantId,
     tz,
     now,
-    people: rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, now)),
+    people: rows.map((r) => toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now)),
     calendar,
     visits,
     modes: new Map(policies.map((r) => [r.class, r.mode])),

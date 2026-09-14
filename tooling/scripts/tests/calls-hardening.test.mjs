@@ -15,6 +15,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { wantsRefresh, subscribesToRealtime, DEFAULT_REFRESH_TABLES } = await import(
   pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-realtime.ts")).href
@@ -104,10 +107,10 @@ test("Live says only what is true about a silent 'ongoing' row", () => {
     summary: null, transcript_object: null, recording: null,
     conversation_id: null, contact_id: null, message_id: null, contact: null, status: "ongoing",
   };
-  const phantom = toLiveCallVM(base, NOW);
+  const phantom = toLiveCallVM(base, ZONE, NOW);
   assert.equal(phantom.live, false);
   assert.equal(phantom.stale, true, "neither live nor ended");
-  assert.equal(toLiveCallVM({ ...base, status: "ended", duration_ms: 1000 }, NOW).stale, false);
+  assert.equal(toLiveCallVM({ ...base, status: "ended", duration_ms: 1000 }, ZONE, NOW).stale, false);
   // "No word from the provider" is the one pill's word for a stale call now: run in state-pill.test.mjs.
   const page = readRaw("apps/dashboard/src/legacy/pages/live-monitor-real.jsx");
   assert.ok(page.includes("checked with the phone provider within five minutes"));

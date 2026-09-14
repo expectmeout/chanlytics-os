@@ -1,4 +1,5 @@
 import { waitedLabel } from "./time";
+import { clockShort, clockStamp } from "./clock";
 import { standingOf } from "./standing";
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -150,39 +151,23 @@ const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
 
 /**
- * Hoisted formatters. `toLocaleTimeString`/`toLocaleDateString` construct a
- * fresh Intl.DateTimeFormat on EVERY call — measured at ~355ms per 4000
- * messages, 16× slower than reusing one. These mappers run twice per refresh
- * over every message in every conversation, on the main thread, so that cost
- * showed up as a visible freeze whenever a message arrived.
+ * A time in a thread or a call, by the business's clock (clock.ts). The two
+ * formatters here were built without a zone, so a message read in the browser's
+ * zone and "the same day" meant the browser's day: one call read as two times
+ * (the 12 September audit's D5). The formatters are built once per zone there,
+ * which keeps what these hoisted ones were for: these mappers run twice per
+ * refresh over every message, and constructing a formatter per call froze the
+ * page when a message arrived.
  */
-const TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-
-/** `now.toDateString()` is itself not free, and it is constant for a whole
- *  mapping pass — memoise it per Date instance. */
-let sameDayKey: Date | null = null;
-let sameDayValue = "";
-function dayKey(now: Date): string {
-  if (sameDayKey !== now) {
-    sameDayKey = now;
-    sameDayValue = now.toDateString();
-  }
-  return sameDayValue;
-}
-
-export function shortTime(iso: string | null, now: Date): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toDateString() === dayKey(now) ? TIME_FMT.format(d) : DATE_FMT.format(d);
+export function shortTime(iso: string | null, tz: string, now: Date): string {
+  const ms = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(ms) ? clockShort(ms, tz, now.getTime()) : "";
 }
 
 /** Transcript bubbles keep day context across multi-day threads. */
-function bubbleTime(iso: string, now: Date): string {
-  const d = new Date(iso);
-  const time = TIME_FMT.format(d);
-  if (d.toDateString() === dayKey(now)) return time;
-  return `${DATE_FMT.format(d)} · ${time}`;
+function bubbleTime(iso: string, tz: string, now: Date): string {
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? clockStamp(ms, tz, now.getTime()) : "";
 }
 
 /** The display name for a contact, without building a whole thread viewmodel
@@ -509,6 +494,8 @@ export function threadStanding(
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
+  /** The workspace's zone: every time in the thread is said by its clock. */
+  tz: string,
   now = new Date(),
 ): InboxThreadVM {
   const who = contactName(dto);
@@ -553,7 +540,7 @@ export function toInboxThreadVM(
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
       channel: onPhone ? "phone" : "whatsapp",
-      at: bubbleTime(messageAt(m), now),
+      at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...(media ? { media } : {}),
       ...(why ? { why } : {}),
@@ -590,7 +577,7 @@ export function toInboxThreadVM(
     const entry = {
       type: "event" as const,
       kind: "flag",
-      at: shortTime(escalation.created_at, now),
+      at: shortTime(escalation.created_at, tz, now),
       body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${escalation.details.slice(0, 120)}”` : ""}`,
     };
     if (idx === -1) timeline.push(entry);
@@ -660,8 +647,8 @@ export function toInboxThreadVM(
         ? { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
         : { label: "WhatsApp", value: "No thread yet — they have only phoned" },
     ],
-    lastAt: shortTime(dto.last_message_at, now),
-    lastAtFull: shortTime(dto.last_message_at, now),
+    lastAt: shortTime(dto.last_message_at, tz, now),
+    lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
     unread: state === "escalated" && !takenOver,
@@ -669,12 +656,12 @@ export function toInboxThreadVM(
     tags: [],
     priority: "P2",
     ...(waitingMin !== undefined ? { waitingMin } : {}),
-    ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, now) } : {}),
+    ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {}),
     timeline,
   };
 }
 
-export function toConversationVM(dto: ConversationDto, now = new Date()): ConversationVM {
+export function toConversationVM(dto: ConversationDto, tz: string, now = new Date()): ConversationVM {
   const who = contactName(dto);
   // A phone-like name is not split: "+1" is nobody's first name. The
   // viewer read "Latest from +1" for a person known only by number.
@@ -688,7 +675,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
     channel: m.type === "call_summary" ? "phone" : "whatsapp",
-    at: bubbleTime(messageAt(m), now),
+    at: bubbleTime(messageAt(m), tz, now),
     text: messageText(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
     ...(m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) as ReplyWhyVM } : {}),
@@ -733,7 +720,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
-    at: shortTime(last ? messageAt(last) : dto.last_message_at, now),
+    at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
@@ -743,7 +730,7 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${
           callNotes ? ` · ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""
-        }${dto.messages[0] ? ` · started ${shortTime(messageAt(dto.messages[0]), now)}` : ""}`,
+        }${dto.messages[0] ? ` · started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
         needsHuman ? "Receptionist paused — a human has this thread" : "Answered by the receptionist",
       ],
     },
@@ -896,7 +883,7 @@ export function spokenDuration(ms: number | null): string {
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
 }
 
-export function toCallVM(dto: CallDto, now = new Date()): CallVM {
+export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
@@ -972,7 +959,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     clientId: dto.contact_id,
     channel: "phone",
     agent: { glyph: "P", name: "Phone Receptionist" },
-    at: shortTime(dto.started_at, now),
+    at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
     outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",

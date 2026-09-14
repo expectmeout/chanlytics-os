@@ -19,6 +19,9 @@ import {
 } from "@chanlytics/contracts";
 import { normalizeInbound } from "@chanlytics/channels";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 /* ------------------------------ classification ----------------------------- */
 
 const wa = (body) => normalizeInbound(
@@ -119,8 +122,8 @@ test("a payload with no consent fields is not treated as opted out", () => {
 test("the thread view model carries the block to the composer", () => {
   // Without this the composer offers a Send button whose only outcome is a
   // rejection from the API — the operator types a reply and loses it.
-  assert.equal(toInboxThreadVM(conv({ consent: "opted_out", dnc: true }), new Date()).optedOut, true);
-  assert.equal(toInboxThreadVM(conv({ consent: "opted_in", dnc: false }), new Date()).optedOut, false);
+  assert.equal(toInboxThreadVM(conv({ consent: "opted_out", dnc: true }), null, ZONE).optedOut, true);
+  assert.equal(toInboxThreadVM(conv({ consent: "opted_in", dnc: false }), null, ZONE).optedOut, false);
 });
 
 test("the opt-out escalation reason has a human label", () => {

@@ -92,7 +92,7 @@ test("the pools: counted over everyone by the runner's predicate; the week's tou
   all[1].dnc = true; // one who asked to stop
   const touched = { p3: iso(NOW.getTime() - 2 * DAY), p4: iso(NOW.getTime() - 3 * DAY) };
   const ctx = ctxFor(tables(null), { people_list: pagedList(all) });
-  const { pools, calendar } = await triggerPools(ctx, T, touched, NOW);
+  const { pools, calendar } = await triggerPools(ctx, T, touched, TZ, NOW);
   assert.equal(calendar, "none");
   assert.equal(pools.everyone_monthly.candidates, PEOPLE_PAGE + 3 - 2 - 2, "everyone who said yes and may be texted, past the first page, less the two reached this week");
   assert.equal(pools.everyone_monthly.held, 2, "the two wait for the week's breath: held, not hidden");
@@ -118,7 +118,7 @@ test("with a calendar, a visit tomorrow is counted from the feed, over everyone"
     "END:VCALENDAR"].join("\r\n") });
   const all = [person(1), person(2), person(3)];
   const ctx = ctxFor(tables(url), { people_list: pagedList(all) });
-  const { pools, calendar } = await triggerPools(ctx, T, {}, NOW);
+  const { pools, calendar } = await triggerPools(ctx, T, {}, TZ, NOW);
   assert.equal(calendar, "ok");
   assert.equal(pools.visit_tomorrow.candidates, 1, "Person 2 is on the calendar tomorrow; Person 1 on Friday is not");
 });

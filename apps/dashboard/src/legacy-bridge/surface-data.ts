@@ -16,6 +16,7 @@ import { clearSurfaceCache } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
 import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
+import { workspaceZone } from "./zone";
 export { getActiveWorkspace } from "./workspace";
 import { DEFAULT_REFRESH_TABLES, type RealtimeChange } from "./surface-realtime";
 import type { NotificationsDto, PendingWorkspace, ResolvedFacts, FactConflict } from "@chanlytics/contracts";
@@ -190,11 +191,12 @@ import {
   type CampaignReportVM,
   toCalendarVM,
   windowFor,
+  zoneDayKey,
   toBookingReportVM,
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -247,7 +249,7 @@ export const inboxOverride: SurfaceOverride = {
   events: ["surface:inbox"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [convData, escData, tplRes] = await Promise.all([
+    const [convData, escData, tplRes, tz] = await Promise.all([
       read("GET conversations"),
       read("GET escalations", { query: { state: "open" } }),
       // The one send that works outside the 24-hour window. The composer named
@@ -263,6 +265,8 @@ export const inboxOverride: SurfaceOverride = {
       read("GET templates").catch(
         (e: unknown) => e as Error,
       ),
+      // Every time on a thread is said by the business's clock (zone.ts).
+      workspaceZone(),
     ]);
     const w0 = window as unknown as { __TEMPLATES?: ApprovedTemplate[] };
     if (tplRes instanceof Error) {
@@ -293,7 +297,7 @@ export const inboxOverride: SurfaceOverride = {
     if (unreadEscalated) console.error("inbox_escalated_fetch_failed", unreadEscalated);
 
     const all = [...extra, ...convData.conversations];
-    const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null));
+    const threads = all.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, tz));
     const w = window as unknown as {
       INBOX_DATA?: Record<string, unknown> & { CHANNEL_LABELS?: Record<string, string>; INBOX_BASELINE?: Record<string, unknown> };
     };
@@ -384,9 +388,10 @@ export const conversationsOverride: SurfaceOverride = {
   events: ["surface:conversations"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [data, callsRes] = await Promise.all([
+    const [data, callsRes, tz] = await Promise.all([
       read("GET conversations"),
       read("GET calls").catch((e: unknown) => e as Error),
+      workspaceZone(),
     ]);
     const w = window as unknown as {
       CONVERSATIONS_DATA?: { CONVERSATIONS: unknown[]; CV_CHANNELS: unknown[]; CALLS_READ: boolean };
@@ -398,13 +403,13 @@ export const conversationsOverride: SurfaceOverride = {
     let callRows: unknown[] = [];
     try {
       if (callsRes instanceof Error) throw callsRes;
-      callRows = callsRes.calls.map((c) => toCallVM(c));
+      callRows = callsRes.calls.map((c) => toCallVM(c, tz));
     } catch (e) {
       console.error("calls_fetch_failed", e instanceof Error ? e.message : e);
     }
     // A customer who has only ever phoned is fully represented by their call
     // rows; a chat row for them would preview a call that is already on screen.
-    const threads = data.conversations.map((c) => toConversationVM(c)).filter((t) => t.hasChat);
+    const threads = data.conversations.map((c) => toConversationVM(c, tz)).filter((t) => t.hasChat);
     // Newest first by REAL timestamp. The previous sort localeCompare'd the
     // display strings ("Aug 26" vs "3:22 AM"), which is not an ordering at
     // all — a message sent this morning listed below yesterday's calls.
@@ -555,6 +560,8 @@ export interface PeopleSurface {
 
 /** What the People surface holds between reads: the rows loaded so far, and the rest it derives from. */
 let peopleLoaded: {
+  /** The workspace's zone: every day and time on a row is said in it. */
+  tz: string;
   people: PersonRowDto[];
   page: PeopleSurface["page"];
   saved: { id: string; name: string; ids: string[] }[];
@@ -566,8 +573,9 @@ let peopleLoaded: {
 /** The surface from what is loaded: every list, count and cell derived the same way, whether after the first read or a later page. */
 function publishPeople(): void {
   if (!peopleLoaded) return;
+  const { tz } = peopleLoaded;
   const now = new Date();
-  const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, now));
+  const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
   const rowIds = new Set(rows.map((r) => r.id));
   const calendar = peopleLoaded.calendar;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
@@ -589,7 +597,7 @@ function publishPeople(): void {
     recency: Object.fromEntries(
       PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
     ),
-    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),
+    attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
     page: peopleLoaded.page,
     views: peopleLoaded.views,
     fetchedAt: now.getTime(),
@@ -613,9 +621,9 @@ async function peopleMore(): Promise<void> {
 
 /** Everyone who matches, from the server, when the page does not hold everyone: `window.__peopleSearch(q)`. */
 async function peopleSearch(q: string): Promise<PersonRowVM[]> {
-  const r = await read("GET contacts", { query: { q } });
+  const [r, tz] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone()]);
   const now = new Date();
-  return r.people.map((p) => toPersonRowVM(p, now));
+  return r.people.map((p) => toPersonRowVM(p, tz, now));
 }
 
 /**
@@ -636,13 +644,15 @@ export const peopleOverride: SurfaceOverride = {
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [data, savedData, viewsData] = await Promise.all([
+    const [data, savedData, viewsData, tz] = await Promise.all([
       read("GET contacts"),
       read("GET segments"),
       // A member's own views; a route that is not there yet reads as none.
       read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
+      workspaceZone(),
     ]);
     peopleLoaded = {
+      tz,
       people: data.people,
       page: data.page ?? null,
       saved: savedData.lists,
@@ -712,6 +722,8 @@ export interface BroadcastsSurface {
   offersNote: string;
   /** Older broadcasts exist beyond the rows: the history's numbers are the latest fifty, and the page says so. */
   more: boolean;
+  /** How far ahead a send may be scheduled, in days: the schedule box stops where the route does. */
+  scheduleMaxDays: number;
   fetchedAt: number;
 }
 
@@ -727,7 +739,7 @@ export const broadcastsOverride: SurfaceOverride = {
   events: ["surface:broadcasts"],
   refreshOnMessageInserts: true,
   apply: async () => {
-    const [bc, people, saved, tpl, ch, cfg] = await Promise.all([
+    const [bc, people, saved, tpl, ch, cfg, tz] = await Promise.all([
       read("GET broadcasts"),
       read("GET contacts"),
       read("GET segments").catch((e: unknown) => e as Error),
@@ -735,6 +747,8 @@ export const broadcastsOverride: SurfaceOverride = {
       read("GET channels").catch((e: unknown) => e as Error),
       // The business's name and whether a booking link is on file, for the slots that name them.
       read("GET settings").catch((e: unknown) => e as Error),
+      // When a broadcast went or goes, by the business's clock (zone.ts).
+      workspaceZone(),
     ]);
     const wa = ch instanceof Error ? null : (ch.channels ?? []).find((c) => c.kind === "whatsapp" && c.status === "active") ?? null;
     const brain = cfg instanceof Error ? null : cfg.config?.brain ?? null;
@@ -752,7 +766,7 @@ export const broadcastsOverride: SurfaceOverride = {
       everyone.push(...next.people);
       page = next.page;
     }
-    const rows = everyone.map((r) => toPersonRowVM(r, now));
+    const rows = everyone.map((r) => toPersonRowVM(r, tz, now));
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
     const countsFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null): Record<SendPurpose, number> => ({
@@ -777,7 +791,8 @@ export const broadcastsOverride: SurfaceOverride = {
     // The workspace being VIEWED, for the public page's address.
     const slug = workspaceOverride.current()?.slug ?? null;
     (window as unknown as { __BROADCASTS?: BroadcastsSurface }).__BROADCASTS = {
-      rows: bc.broadcasts.map((b) => toBroadcastVM(b, now)),
+      rows: bc.broadcasts.map((b) => toBroadcastVM(b, tz, now)),
+      scheduleMaxDays: BROADCAST_SCHEDULE_MAX_DAYS,
       more: bc.more === true,
       listsRead: !(saved instanceof Error),
       templates: tpl instanceof Error
@@ -939,12 +954,6 @@ export const playbooksOverride: SurfaceOverride = {
 let calendarFrom: string | null = null;
 let calendarDays = 63;
 
-/** Today by the browser's clock — the business's zone may differ by a day at midnight, and the window has a week of margin. */
-function localDayKey(): string {
-  const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
 export function getCalendarSpan(): { from: string | null; days: number } {
   return { from: calendarFrom, days: calendarDays };
 }
@@ -972,7 +981,8 @@ export const calendarOverride: SurfaceOverride = {
   apply: async () => {
     const from = calendarFrom;
     const days = calendarDays;
-    const w = from ? { from, days } : windowFor(localDayKey());
+    // The window around the business's today, not the browser's (zone.ts).
+    const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));
     const data = await read("GET calendar", { query: { from: w.from, days: String(w.days) } });
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
@@ -1099,15 +1109,17 @@ export const liveOverride: SurfaceOverride = {
   refreshOnTables: ["calls"],
   debounceMs: 300,
   apply: async () => {
-    const [callsRes, chRes] = await Promise.all([
+    const [callsRes, chRes, tz] = await Promise.all([
       read("GET calls"),
       // The line's number and switch are context, not a precondition.
       read("GET channels").catch((e: unknown) => e as Error),
+      workspaceZone(),
     ]);
     if (chRes instanceof Error) console.error("live_channels_fetch_failed", chRes.message);
     (window as unknown as { __LIVE?: LiveVM }).__LIVE = toLiveVM(
       callsRes.calls,
       chRes instanceof Error ? null : chRes.channels,
+      tz,
     );
   },
 };

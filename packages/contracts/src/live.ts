@@ -127,7 +127,7 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
     });
 }
 
-export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
+export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
@@ -189,7 +189,7 @@ export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
     checkingWhy,
     startedAtMs,
     heartbeatAtMs,
-    startedLabel: shortTime(dto.started_at, now),
+    startedLabel: shortTime(dto.started_at, tz, now),
     duration: live || missed || !dto.duration_ms ? null : mmss(dto.duration_ms),
     summaryState,
     summary,
@@ -202,8 +202,8 @@ export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
   };
 }
 
-export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now = new Date()): LiveVM {
-  const vms = calls.map((c) => toLiveCallVM(c, now));
+export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: string, now = new Date()): LiveVM {
+  const vms = calls.map((c) => toLiveCallVM(c, tz, now));
   const nowList = vms
     .filter((c) => c.live)
     .sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
@@ -217,7 +217,7 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now = 
     ? {
         number: formatPhoneDisplay(voice.number_e164),
         on: voice.status === "active",
-        lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null,
+        lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null,
       }
     : null;
 

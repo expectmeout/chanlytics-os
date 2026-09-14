@@ -9,7 +9,8 @@
 // of a payload beyond the sentence; the evidence families are hidden unless
 // asked for by name.
 
-const ACT_WHEN = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
+// When, by the business's clock (window.__clock): the time today, the date and the time before it.
+const ACT_WHEN = (iso) => (iso ? window.__clock.stamp(Date.parse(iso)) : "—");
 
 const ActivityRow = ({ r, actors }) => {
   const who = r.actor_user_id ? (actors[r.actor_user_id] || "A member") : r.actor_type === "ai" ? "Receptionist" : r.source === "event" ? "" : "System";

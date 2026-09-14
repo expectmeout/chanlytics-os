@@ -13,6 +13,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { isLiveCall, CALL_HEARTBEAT_MS, toCallVM } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = new Date("2026-08-29T12:00:00.000Z");
 const agoMs = (ms) => new Date(NOW.getTime() - ms).toISOString();
 
@@ -70,10 +73,10 @@ test("the viewmodel the Live surface would read uses the rule, not the flag", ()
   };
   // `live` is a conditional spread — present as true, or absent. The mockup
   // reads it for truthiness, so assert that rather than a literal false.
-  assert.equal(toCallVM({ ...base, status: "ongoing", updated_at: agoMs(5_000) }, NOW).live, true);
+  assert.equal(toCallVM({ ...base, status: "ongoing", updated_at: agoMs(5_000) }, ZONE, NOW).live, true);
   assert.ok(
-    !toCallVM({ ...base, status: "ongoing", updated_at: agoMs(CALL_HEARTBEAT_MS + 5_000) }, NOW).live,
+    !toCallVM({ ...base, status: "ongoing", updated_at: agoMs(CALL_HEARTBEAT_MS + 5_000) }, ZONE, NOW).live,
     "a stale ongoing row must not reach the UI as live",
   );
-  assert.ok(!toCallVM({ ...base, status: "ended", updated_at: agoMs(1_000) }, NOW).live);
+  assert.ok(!toCallVM({ ...base, status: "ended", updated_at: agoMs(1_000) }, ZONE, NOW).live);
 });

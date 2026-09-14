@@ -5,6 +5,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toConversationVM } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = new Date("2026-08-27T15:00:00Z");
 
 const msg = (over = {}) => ({
@@ -27,7 +30,7 @@ test("a call note never becomes the chat row's preview", () => {
     msg({ id: "m2", direction: "outbound", sender: "ai", body: "Yes — Tuesdays work.", status: "sent", created_at: "2026-08-27T12:00:41Z" }),
     msg({ id: "m3", channel: "voice", sender: "system", type: "call_summary",
           body: "Inbound call · 1 min — asked about hours.", created_at: "2026-08-27T14:15:00Z" }),
-  ]), NOW);
+  ]), ZONE, NOW);
   assert.match(vm.snippet, /Yes — Tuesdays work\./);
   assert.doesNotMatch(vm.snippet, /Inbound call/);
 });
@@ -39,7 +42,7 @@ test("a call note does not flip the pill to 'open'", () => {
     msg({ id: "m1", body: "hi" }),
     msg({ id: "m2", direction: "outbound", sender: "ai", body: "Hello!", status: "sent", created_at: "2026-08-27T12:00:41Z" }),
     msg({ id: "m3", sender: "system", type: "call_summary", body: "Inbound call · 1 min", created_at: "2026-08-27T14:15:00Z" }),
-  ]), NOW);
+  ]), ZONE, NOW);
   assert.equal(vm.outcome, "handled");
 });
 
@@ -49,26 +52,26 @@ test("the row's time comes from the message it is previewing", () => {
   const vm = toConversationVM(conv([
     msg({ id: "m1", direction: "outbound", sender: "ai", body: "Booking link sent.", status: "sent", created_at: "2026-08-27T12:00:00Z" }),
     msg({ id: "m2", sender: "system", type: "call_summary", body: "Inbound call", created_at: "2026-08-27T14:15:00Z" }),
-  ]), NOW);
+  ]), ZONE, NOW);
   assert.match(vm.snippet, /Booking link sent\./);
   // Locale-independent: the row time must equal what the SAME thread renders
   // without the imported call note. A literal clock string would only pass in
   // the timezone the test was written in (CI runs UTC).
   const chatOnly = toConversationVM(conv([
     msg({ id: "m1", direction: "outbound", sender: "ai", body: "Booking link sent.", status: "sent", created_at: "2026-08-27T12:00:00Z" }),
-  ]), NOW);
+  ]), ZONE, NOW);
   assert.equal(vm.at, chatOnly.at);
 });
 
 test("a caller who never messaged is not given an empty chat row", () => {
   const vm = toConversationVM(conv([
     msg({ id: "m1", sender: "system", type: "call_summary", body: "Inbound call · 1 min", created_at: "2026-08-27T14:15:00Z" }),
-  ]), NOW);
+  ]), ZONE, NOW);
   assert.equal(vm.hasChat, false, "their call rows already represent them");
 });
 
 test("a normal messaging thread still counts as chat", () => {
-  const vm = toConversationVM(conv([msg({ id: "m1" })]), NOW);
+  const vm = toConversationVM(conv([msg({ id: "m1" })]), ZONE, NOW);
   assert.equal(vm.hasChat, true);
 });
 
@@ -76,7 +79,7 @@ test("the summary counts messages and calls separately", () => {
   const vm = toConversationVM(conv([
     msg({ id: "m1" }),
     msg({ id: "m2", sender: "system", type: "call_summary", body: "Inbound call", created_at: "2026-08-27T14:15:00Z" }),
-  ]), NOW);
+  ]), ZONE, NOW);
   assert.match(vm.summary.bullets[0], /^1 message · 1 call/);
 });
 

@@ -38,13 +38,10 @@ const BC_NONE = [];
 // or read), who was held back and why, who it could not reach. Fetched when
 // a row is opened; every line is a recipient row.
 const BC_STATUS_WORDS = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
-// A clock for a recipient's line: "10:32", or "Sep 12 10:32" when it was not today.
+// A clock for a recipient's line, the business's (window.__clock): "10:32 AM", or "Sep 12 · 10:32 AM" before today.
 const bcClock = (iso) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const ms = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(ms) ? null : window.__clock.stamp(ms);
 };
 // What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52".
 const bcReceipt = (r) => {
@@ -154,12 +151,51 @@ window.BroadcastOpenRow = BroadcastOpenRow;
 // "sending now" over a run that waits until morning.
 const bcWhenWords = (d) => {
   const at = d && d.scheduled_for ? Date.parse(d.scheduled_for) : NaN;
-  const when = Number.isNaN(at) ? null : new Date(at).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" });
+  const when = Number.isNaN(at) ? null : window.__clock.when(at);
   if (d && d.moved_from && when) return `scheduled for ${when} — messages go out between 9:00 and 20:59 by your clock`;
   if (when && at - Date.now() > 60_000) return `scheduled for ${when}`;
   return "sending now";
 };
 window.bcWhenWords = bcWhenWords;
+
+// The schedule box, by the business's clock (window.__clock): 22:30 in the box is half past ten where the
+// business is, whatever the device's zone. It holds the instant, so what is sent is what the note says, and
+// it stops at now and at the ceiling the route keeps.
+const BcWhenBox = ({ at, maxDays, onChange }) => {
+  const C = window.__clock;
+  const now = Date.now();
+  return (
+    <input
+      className="bc-subject"
+      type="datetime-local"
+      value={at === null ? "" : C.inputValue(at)}
+      min={C.inputValue(now)}
+      max={C.inputValue(now + maxDays * 86_400_000)}
+      onChange={(e) => onChange(C.fromInput(e.target.value))}
+      aria-label={`When, by ${C.city()} time`}
+      aria-describedby="bc-when-note"
+      data-testid="bc-when"
+    />
+  );
+};
+window.BcWhenBox = BcWhenBox;
+
+// What the box's time means before Schedule is pressed: when the send really goes, a time outside
+// 9:00-20:59 moved to the next nine o'clock as the route will move it, and a time that has passed or is
+// past the ceiling refused here rather than after the click.
+const bcWhenNote = (at, maxDays) => {
+  const C = window.__clock;
+  const city = C.city();
+  const now = Date.now();
+  if (at === null) return { ok: false, tone: "", words: `By ${city} time · within ${maxDays} days` };
+  if (at <= now) return { ok: false, tone: "warn", words: "That time has passed — pick a later one, or Send now" };
+  const open = C.nextOpen(at);
+  if (open.at > now + maxDays * 86_400_000) return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
+  return open.moved
+    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — sends wait for 9:00–20:59` }
+    : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };
+};
+window.bcWhenNote = bcWhenNote;
 
 // The history's numbers -- sent, delivered, replies -- over the rows the route
 // returned. Past fifty broadcasts the route says older ones exist (more), and
@@ -196,7 +232,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [sources, setSources] = React.useState({});
   const [composing, setComposing] = React.useState(false);
   const [name, setName] = React.useState("");
-  const [when, setWhen] = React.useState("");
+  const [whenAt, setWhenAt] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const [openId, setOpenId] = React.useState(null);
   // The row whose stop is armed, and the one whose stop is on its way.
@@ -243,6 +279,9 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
   const preview = tpl ? bcRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
+  // A surface cached before the ceiling was published carries none; the route's is thirty days.
+  const maxDays = data.scheduleMaxDays || 30;
+  const whenNote = bcWhenNote(whenAt, maxDays);
 
   const rows = data.rows || [];
   const open = rows.filter((r) => r.open);
@@ -255,13 +294,13 @@ const BroadcastsReal = ({ initialSegment = null }) => {
       template_id: tpl.id,
       params: specs,
       audience: { kind: active.kind, id: active.id },
-      scheduled_for: scheduled && when ? new Date(when).toISOString() : null,
+      scheduled_for: scheduled && whenAt !== null ? new Date(whenAt).toISOString() : null,
       name: name.trim() || null,
     });
     setBusy(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setName("");
-    setWhen("");
+    setWhenAt(null);
     const n = r.data.recipient_count;
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
@@ -397,10 +436,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         )}
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
-          <input className="bc-subject" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} data-testid="bc-when" />
-          <button className="btn btn-sm" disabled={!ready || !when || !canSend} onClick={() => submit(true)}>Schedule</button>
+          <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
+          <button className="btn btn-sm" disabled={!ready || !whenNote.ok || !canSend} onClick={() => submit(true)}>Schedule</button>
           <button className="btn btn-primary btn-sm" disabled={!ready || !canSend} onClick={() => submit(false)} data-testid="bc-send">Send now</button>
         </div>
+        <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
         {!canSend && <div className="bc-excl-hint">Only an owner or operator can send.</div>}
         {canSend && active && activeCount === 0 && (
           <div className="bc-excl-hint" data-testid="bc-nobody">

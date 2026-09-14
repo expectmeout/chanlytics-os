@@ -9,6 +9,9 @@ import assert from "node:assert/strict";
 import { BROADCAST_MAX_RECIPIENTS, EVERYONE_LABEL, broadcastName, emptyAudienceRefusal, numberHealth, paramLabel, starterForTrigger, templateTitle } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const { createBroadcast } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
 const { approveRun } = await importSrc("packages/core/src/campaigns/approve.ts");
 const { cancelBroadcast } = await importSrc("packages/core/src/campaigns/cancel.ts");
@@ -132,7 +135,7 @@ test("when, and what it is called: not a time, past the window, a past time is n
   const past = fakes();
   const r1 = await make(past, { template_id: T1, audience: everyone, scheduled_for: new Date(NOW.getTime() - D).toISOString() });
   assert.equal(r1.scheduled_for, NOW.toISOString(), "a past time is now");
-  assert.equal(r1.name, broadcastName("month_offer", NOW, null), "the template and the day");
+  assert.equal(r1.name, broadcastName("month_offer", ZONE, NOW, null), "the template and the day");
   const later = new Date(NOW.getTime() + 2 * D);
   const future = fakes();
   const r2 = await make(future, { template_id: T1, audience: everyone, scheduled_for: later.toISOString(), name: "  Spring offer  " });
@@ -146,7 +149,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
   const f = fakes({ template: template({ variables: ["1", "2"], title: "Monthly offer" }) });
   const r = await make(f, { template_id: T1, params: ["@first_name", "  20% off  "], audience: everyone });
   const specs = [{ kind: "first_name" }, { kind: "text", value: "20% off" }];
-  const name = broadcastName("month_offer", NOW, "Monthly offer");
+  const name = broadcastName("month_offer", ZONE, NOW, "Monthly offer");
   assert.deepEqual(f.ops(), ["create", "enrol", "schedule", "record"]);
   assert.deepEqual(f.of("create")[0][1], {
     name, template_id: T1, template_name: "month_offer", template_language: "en_US", params: specs, audience: { kind: "everyone", id: null, label: EVERYONE_LABEL },

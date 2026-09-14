@@ -17,6 +17,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { toLiveCallVM, toCallVM } from "@chanlytics/contracts";
 import { readCode, readRaw, stripComments } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { stripWordTimings } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/dto.ts")).href);
 const sql = readRaw("supabase/migrations/00037_hygiene.sql");
@@ -87,9 +90,9 @@ test("F15: the list route ships each turn's start, not every word's timing, and 
     contact: { display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175746416" },
   });
   const now = new Date("2026-09-05T03:05:00Z");
-  assert.equal(toLiveCallVM(dto(stripped), now).transcript[1].t, "0:27", "the Live page reads `start`");
-  assert.equal(toCallVM(dto(stripped), now).transcript[1].t, "0:27", "so does the Conversations viewer");
-  assert.equal(toCallVM(dto([{ role: "user", content: "x", words: [{ start: 61 }] }]), now).transcript[0].t, "1:01", "and the raw provider shape still works");
+  assert.equal(toLiveCallVM(dto(stripped), ZONE, now).transcript[1].t, "0:27", "the Live page reads `start`");
+  assert.equal(toCallVM(dto(stripped), ZONE, now).transcript[1].t, "0:27", "so does the Conversations viewer");
+  assert.equal(toCallVM(dto([{ role: "user", content: "x", words: [{ start: 61 }] }]), ZONE, now).transcript[0].t, "1:01", "and the raw provider shape still works");
   const route = readCode("apps/dashboard/src/server/dto.ts");
   assert.ok(route.includes("transcript_object: stripWordTimings(c.transcript_object),"));
 });

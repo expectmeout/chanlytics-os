@@ -247,8 +247,6 @@ var RETENTION_DAYS = {
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
-var TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var PRIVATE_HOST = /^(localhost|127\.|10\.|192\.168\.|169\.254\.|0\.|\[?::1\]?$|.*\.local$|.*\.internal$)/i;
 function feedUrlOk(raw) {
   if (!raw) return null;
@@ -574,9 +572,6 @@ var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-var TIME_FMT2 = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
 var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
@@ -689,19 +684,19 @@ var PLAYBOOK_CLASS_LABEL = {
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short
 };
-var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var DAY_MS6 = 864e5;
 var QUIET_AFTER_MS2 = 7 * DAY_MS6;
-var DATE_FMT4 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT3 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WEEK_MS3 = 7 * 864e5;
-var DATE_FMT6 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
+var DATE_FMT4 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" });
 var SOLE_PROP_LIMITS = {
   campaignsPerBrand: 1,
   numbersPerCampaign: 1,

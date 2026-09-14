@@ -9,6 +9,9 @@ import assert from "node:assert/strict";
 import { attentionRow, toPersonRowVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const S = 1000, M = 60 * S, H = 60 * M, D = 24 * H;
 const NOW = new Date("2026-09-06T16:00:00Z");
 const nowMs = NOW.getTime();
@@ -28,7 +31,7 @@ function dto(over = {}) {
     effective_reply_mode: "auto", visits: null, ...over,
   };
 }
-const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), NOW), nowMs);
+const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), ZONE, NOW), ZONE, nowMs);
 
 test("their words come first, in quotes, with the channel and the moment beside the name", () => {
   const a = rowOf({});
@@ -47,9 +50,9 @@ test("needs you: the escalation's reason and its moment, and the one primary but
 });
 
 test("waiting on you: the state's own words, and the same primary button", () => {
-  const vm = toPersonRowVM(dto({ latest_assignee_user_id: "u1", latest_paused_until: new Date(nowMs + 20 * H).toISOString() }), NOW);
+  const vm = toPersonRowVM(dto({ latest_assignee_user_id: "u1", latest_paused_until: new Date(nowMs + 20 * H).toISOString() }), ZONE, NOW);
   assert.equal(vm.state, "waiting_on_you");
-  const a = attentionRow(vm, nowMs);
+  const a = attentionRow(vm, ZONE, nowMs);
   assert.deepEqual(a.status, ["You own the thread", "they wrote last"]);
   assert.equal(a.cta.label, "Open in Inbox");
 });
@@ -91,7 +94,7 @@ test("the wiring: the door carries the summary, the surface carries the rows, th
   assert.ok(mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"), "the grants are re-stated after the drop");
   assert.ok(readCode("packages/contracts/src/people.ts").includes("callSummary: r.last_inbound_call_summary?.trim() || null,"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),"), "computed once with the surface, like the recency cells");
+  assert.ok(sd.includes("attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),"), "computed once with the surface, like the recency cells");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.ok(page.includes('<PeopleTriage rows={rows} recency={people.recency} attention={people.attention}'), "the real page hands the rows to the strip");
   assert.ok(!page.includes("remembered.showTriage") && !page.includes("Updated {fetched}"), "no header, no toggle, no clock on the real page: the strip is the hero, as drawn");

@@ -16,6 +16,9 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 test("the JSON schema uses only what the API constrains: no ranges, no lengths, closed objects", () => {
   const s = JSON.stringify(BRAIN_OUTPUT_JSON_SCHEMA);
   for (const banned of ["minimum", "maximum", "minLength", "maxLength", "maxItems", "oneOf", '"null"']) {
@@ -79,7 +82,7 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
       msg({ id: "held", status: "queued", body: "held words", meta: { source: "low_confidence", delay_ms: 60000, ...meta, confidence: 0.41, reason: "Not sure the Saturday hours are current." }, created_at: "2026-09-05T14:59:30Z" }),
     ],
   };
-  const thread = toInboxThreadVM(dto, null, now);
+  const thread = toInboxThreadVM(dto, null, ZONE, now);
   const out = thread.timeline.find((e) => e.type === "msg" && e.messageId === "out");
   assert.equal(out.why.summary, "Hours · 88% sure");
   assert.deepEqual(out.why.facts, ["Sat 9:30–18:00"]);
@@ -88,7 +91,7 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
   assert.equal(thread.veto.why.heldFor, "low_confidence");
   assert.equal(thread.veto.why.confidence, 41);
   assert.equal(thread.veto.why.reason, "Not sure the Saturday hours are current.");
-  const conv = toConversationVM(dto, now);
+  const conv = toConversationVM(dto, ZONE, now);
   assert.equal(conv.messages.find((m) => m.text === "hi" && m.from === "agent").why.summary, "Hours · 88% sure");
 });
 

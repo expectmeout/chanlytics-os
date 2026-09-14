@@ -15,6 +15,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { RETENTION_DAYS, RECORDING_RETENTION_DAYS, RECORDING_PURGED_WORDS, toCallVM, toLiveCallVM } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const lib = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/call-recording.ts")).href);
 
@@ -79,13 +82,13 @@ test("a purged call reads as removed on schedule -- on the call and on the live 
     sentiment: null, call_successful: true, in_voicemail: false, summary: "Booked.", wanted: null, outcome: null, follow_up: null, caller_name: null,
     transcript_object: [], recording, conversation_id: null, contact_id: null, message_id: null, contact: null,
   });
-  const vm = toCallVM(dto({ fetch_state: "purged", mime: "audio/wav" }), NOW);
+  const vm = toCallVM(dto({ fetch_state: "purged", mime: "audio/wav" }), ZONE, NOW);
   assert.equal(vm.recordingState, "purged");
   assert.ok(vm.summary.bullets.includes(RECORDING_PURGED_WORDS), JSON.stringify(vm.summary.bullets));
-  assert.equal(toLiveCallVM(dto({ fetch_state: "purged" }), NOW).recordingState, "purged");
-  assert.equal(toCallVM(dto({ fetch_state: "stored" }), NOW).recordingState, "ready");
-  assert.equal(toCallVM(dto({ fetch_state: "pending" }), NOW).recordingState, "pending");
-  assert.equal(toCallVM(dto(null), NOW).recordingState, "none");
+  assert.equal(toLiveCallVM(dto({ fetch_state: "purged" }), ZONE, NOW).recordingState, "purged");
+  assert.equal(toCallVM(dto({ fetch_state: "stored" }), ZONE, NOW).recordingState, "ready");
+  assert.equal(toCallVM(dto({ fetch_state: "pending" }), ZONE, NOW).recordingState, "pending");
+  assert.equal(toCallVM(dto(null), ZONE, NOW).recordingState, "none");
 });
 
 test("a purge that removed the audio but could not mark the rows says so, and does not count them", async () => {

@@ -16,6 +16,7 @@ import {
   navigateLabel,
   sameQuestion,
   scopeFromRoute,
+  zoneDayKey,
   type AskLanguage,
   type AskMessageVM,
   type AskScope,
@@ -110,13 +111,15 @@ export function askPalette(win: Window, storage: Storage | null) {
     rightNow,
     suggestions: (surface: AskSurface, scope: AskScope | null, lang?: AskLanguage): AskSuggestion[] => {
       const feed = rightNow();
-      const today = new Date().toDateString();
+      // The business's today (clock.ts): a call missed at 1 AM where the business is counts as that day's, whatever day the browser says.
+      const tz = activeWorkspace()?.timezone ?? null;
+      const today = tz ? zoneDayKey(Date.now(), tz) : null;
       return buildAskSuggestions({
         surface,
         language: lang ?? lastLanguage(),
         needsYou: feed.filter((i) => i.kind === "needs_you").length,
         heldDrafts: feed.filter((i) => i.kind === "held_draft").length,
-        missedToday: calls().filter((c) => c.missed && c.startedAtMs && new Date(c.startedAtMs).toDateString() === today).length,
+        missedToday: tz ? calls().filter((c) => c.missed && c.startedAtMs && zoneDayKey(c.startedAtMs, tz) === today).length : 0,
         liveNow: calls().filter((c) => c.live).length,
         hasCalendar: !!w.__SETTINGS?.config?.calendar?.ical_url,
         scope,

@@ -582,7 +582,7 @@ export function toTodayVM(
   const callRows: TodayCallRowVM[] = callsInWindow
     // A dial that never connected is not a call, so it is not a call worth an ear.
     .filter((c) => c.status !== "not_connected")
-    .map((c) => ({ c, vm: toCallVM(c, now) }))
+    .map((c) => ({ c, vm: toCallVM(c, tz, now) }))
     .filter(
       ({ c, vm }) =>
         vm.live ||
@@ -647,7 +647,7 @@ export function toTodayVM(
       // The phone receptionist could not finish it: the to-do it left is the
       // sentence, the call itself is where the verb goes, Done resolves it.
       const call = callByConv.get(e.conversation_id) ?? null;
-      const who = conv ? contactName(conv) : call ? toCallVM(call, now).who : "Unknown caller";
+      const who = conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : "Unknown caller";
       queueAll.push({
         id: `q-${e.id}`, kind: "callback", who, initials: initialsOf(who), channel: "Phone",
         when: `waited ${formatWaited(waitedMs)}`,

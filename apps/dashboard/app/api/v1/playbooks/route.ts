@@ -25,7 +25,7 @@ export const GET = read({
     const tenantId = member.tenantId;
     const now = new Date();
     const [playbooks, facts, touched] = await Promise.all([listPlaybooks(ctx, tenantId), tenantFacts(ctx.supabase, tenantId), recentTouches(ctx, tenantId, now)]);
-    const { pools, calendar } = await triggerPools(ctx, tenantId, touched, now);
+    const { pools, calendar } = await triggerPools(ctx, tenantId, touched, facts.timezone, now);
     return { playbooks, timezone: facts.timezone, touched, pools, calendar };
   },
 });

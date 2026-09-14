@@ -21,6 +21,9 @@ import { normalizeCall, liveTurns, fetchRecording } from "@chanlytics/channels";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
 import { readRaw, importSrc } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = new Date("2026-09-04T15:00:00.000Z");
 const agoIso = (ms) => new Date(NOW.getTime() - ms).toISOString();
 
@@ -90,7 +93,7 @@ const base = {
 };
 
 test("a dial that never connected is 'missed', says so, and claims no recording state", () => {
-  const vm = toCallVM({ ...base, status: "not_connected", disconnection_reason: "dial_failed" }, NOW);
+  const vm = toCallVM({ ...base, status: "not_connected", disconnection_reason: "dial_failed" }, ZONE, NOW);
   assert.equal(vm.outcome, "missed");
   assert.ok(!vm.live);
   assert.match(vm.snippet, /never connected/);
@@ -99,15 +102,15 @@ test("a dial that never connected is 'missed', says so, and claims no recording 
 });
 
 test("a recording the copy gave up on is 'failed', not 'still processing' forever", () => {
-  const vm = toCallVM({ ...base, status: "ended", duration_ms: 65_000, recording: { fetch_state: "failed" } }, NOW);
+  const vm = toCallVM({ ...base, status: "ended", duration_ms: 65_000, recording: { fetch_state: "failed" } }, ZONE, NOW);
   assert.equal(vm.recordingState, "failed");
   assert.ok(vm.summary.bullets.some((b) => /couldn't be saved/.test(b)));
   assert.equal(vm.recordingUrl, undefined);
-  assert.equal(toCallVM({ ...base, status: "ended", recording: { fetch_state: "pending" } }, NOW).recordingState, "pending");
+  assert.equal(toCallVM({ ...base, status: "ended", recording: { fetch_state: "pending" } }, ZONE, NOW).recordingState, "pending");
 });
 
 test("a live call carries its start as `ts`, which is what the viewer's clock runs from", () => {
-  const vm = toCallVM({ ...base, status: "ongoing", updated_at: agoIso(5_000) }, NOW);
+  const vm = toCallVM({ ...base, status: "ongoing", updated_at: agoIso(5_000) }, ZONE, NOW);
   assert.equal(vm.live, true);
   assert.equal(vm.ts, NOW.getTime() - 120_000);
   assert.equal(vm.duration, undefined, "no invented duration while the call is up");

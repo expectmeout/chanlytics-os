@@ -8,6 +8,7 @@ import {
   PERSON_MODES,
   broadcastName,
   cleanParam,
+  clockWhen,
   eligibleFor,
   emptyAudienceRefusal,
   purposeOfTemplate,
@@ -251,7 +252,7 @@ async function proposeThreadVerb(t: ToolContext, input: Record<string, unknown>)
     kind: "thread_verb",
     needs: "operator",
     title: TITLES[verb],
-    summary: verb === "snooze" && until ? `Until ${new Date(until).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}` : verb === "resolve" ? "Closes the open escalation; the thread stays" : verb === "take_over" ? "The receptionist goes quiet on it until you hand it back" : verb === "hand_back" ? "The receptionist answers again" : verb === "archive" ? "Out of the Inbox; it comes back if they write" : "Back in the Inbox now",
+    summary: verb === "snooze" && until ? `Until ${clockWhen(Date.parse(until), t.timezone, t.now.getTime())}` : verb === "resolve" ? "Closes the open escalation; the thread stays" : verb === "take_over" ? "The receptionist goes quiet on it until you hand it back" : verb === "hand_back" ? "The receptionist answers again" : verb === "archive" ? "Out of the Inbox; it comes back if they write" : "Back in the Inbox now",
     payload: { conversation_id: id, verb, until, escalation_id: escalationId, who },
     undo: UNDO[verb],
   });
@@ -391,7 +392,7 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   if (params.length !== expected) return refuse(`this template takes ${expected} value${expected === 1 ? "" : "s"}, in order`);
 
   // The audience, counted the way the route will count it.
-  const rows = (await listPeople(t.ctx, t.tenantId)).map((r) => toPersonRowVM(r, t.now));
+  const rows = (await listPeople(t.ctx, t.tenantId)).map((r) => toPersonRowVM(r, t.timezone, t.now));
   let savedIds: Set<string> | null = null;
   let label = EVERYONE_LABEL;
   if (kind === "saved") {
@@ -415,8 +416,9 @@ async function proposeBroadcast(t: ToolContext, input: Record<string, unknown>):
   if (when && (Number.isNaN(Date.parse(when)) || !/(?:Z|[+-]\d{2}:?\d{2})$/i.test(when))) return refuse("scheduled_for must be an ISO time with its offset, like 2026-09-20T15:00:00-04:00");
   const values = params;
   const words = renderTemplate(tpl.body_preview, exampleParams(values, "the business"));
-  const name = str(input.name, 80) || broadcastName(tpl.name, t.now);
-  const whenWords = when ? new Date(when).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "now";
+  // Named for the business's day and said by its clock, as the route names it and the pages say it.
+  const name = str(input.name, 80) || broadcastName(tpl.name, t.timezone, t.now);
+  const whenWords = when ? clockWhen(Date.parse(when), t.timezone, t.now.getTime()) : "now";
   return propose({
     kind: "broadcast",
     needs: "operator",
@@ -504,7 +506,7 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
   }
 
   const [rows, policies] = await Promise.all([
-    listPeople(t.ctx, t.tenantId).then((people) => people.map((r) => toPersonRowVM(r, t.now))),
+    listPeople(t.ctx, t.tenantId).then((people) => people.map((r) => toPersonRowVM(r, t.timezone, t.now))),
     listPolicies(t.ctx.supabase, t.tenantId).catch(() => []),
   ]);
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };

@@ -12,6 +12,9 @@ import assert from "node:assert/strict";
 import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal, verbalOptInScript } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 test("the door: owner or operator, the three columns together, the ingest's own event, nothing for anon", () => {
   const m = readRaw("supabase/migrations/00043_consent_door.sql");
   assert.ok(m.includes("create or replace function public.set_contact_consent("));
@@ -302,7 +305,7 @@ async function renderLoadedProfile(extra = {}) {
     last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null, last_call_at: null, last_inbound_call_at: null, call_count: 0, call_seconds: 0,
     first_contact_at: null, earliest_row_at: null, has_backfill: false, has_chat: false, queued_reply_at: null,
   };
-  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...extra }, new Date("2026-09-10T12:00:00.000Z"));
+  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...extra }, ZONE, new Date("2026-09-10T12:00:00.000Z"));
   // What the shell provides around a page: the real-workspace flag, who is signed in,
   // the sources, the loader, the toast, and the few components other files define.
   Object.assign(globalThis.window, {

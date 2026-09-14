@@ -1798,6 +1798,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
    date input's intrinsic width squeezed the name to a square. */
 .bc-actions .bc-subject { margin: 0; flex: 1 1 160px; min-width: 160px; }
 .bc-actions .bc-subject[type="datetime-local"] { flex: 0 0 auto; width: auto; min-width: 0; }
+/* The schedule box's note, in amber when the time cannot be scheduled: passed, or past the ceiling. */
+.bc-when-note-warn { color: var(--warn); }
 
 /* Broadcasts: the number's health, and one broadcast's people. */
 .bc-number { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--ink-faint); margin: 0 0 8px; }

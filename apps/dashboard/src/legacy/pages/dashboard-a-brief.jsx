@@ -21,10 +21,10 @@ const RunsDone = ({ nav }) => {
   // What went out today — a playbook's run or a broadcast — with what it has
   // earned so far. The runs that wait for a word, and the ones under a Stop,
   // are rows of the queue (dashboard-a-command.jsx).
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && Date.parse(r.started_at) >= dayStart.getTime()).slice(0, 2);
-  const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  // Today, and the time it went, are the business's (window.__clock), not the browser's.
+  const C = window.__clock;
+  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && C.dayKey(Date.parse(r.started_at)) === C.dayKey(Date.now())).slice(0, 2);
+  const timeOf = (iso) => C.time(Date.parse(iso));
   return done.map((r) => (
     <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
       <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />

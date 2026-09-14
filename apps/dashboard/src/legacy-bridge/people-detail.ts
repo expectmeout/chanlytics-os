@@ -1,6 +1,7 @@
 import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
+import { workspaceZone } from "./zone";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -16,8 +17,9 @@ import { ApiError, type ApiResult } from "../client/api";
  * a session expiry has already signed the tab out by the time this throws.
  */
 export async function personDetail(id: string): Promise<PersonVM | null> {
-  const r = await api()("GET contacts/[id]", { params: { id } });
-  if (r.ok) return toPersonVM(r.data.person);
+  // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
+  const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
+  if (r.ok) return toPersonVM(r.data.person, tz);
   if (r.status === 404) return null;
   throw new ApiError(r.code, r.status, r.message);
 }

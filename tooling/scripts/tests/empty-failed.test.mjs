@@ -16,6 +16,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, toTodayVM, toLiveVM, toReportVM } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 /* ------------------------------ the harness ------------------------------ */
 
 let cells = [];
@@ -151,8 +154,8 @@ test("the view models say when a part could not be read: Today's calls and Live'
   const busy = metrics({ period: { messages_in: 3, answered_by_ai: 3, conversations_active: 2 } });
   assert.equal(toTodayVM(busy, [], [], null, NOW).callsRead, false, "and so does a day with traffic");
   assert.equal(toTodayVM(busy, [], [], [], NOW).callsRead, true);
-  const unread = toLiveVM([], null, NOW);
-  const noLine = toLiveVM([], [], NOW);
+  const unread = toLiveVM([], null, ZONE, NOW);
+  const noLine = toLiveVM([], [], ZONE, NOW);
   assert.equal(unread.line, null);
   assert.equal(noLine.line, null, "both have no line to show...");
   assert.equal(unread.lineRead, false, "...but only one of them knows it");
