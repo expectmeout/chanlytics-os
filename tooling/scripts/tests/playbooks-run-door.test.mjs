@@ -55,6 +55,13 @@ const TZ = "America/New_York";
 const KEY = "diag-key-for-this-file";
 const D = 86_400_000;
 const iso = (msAgo) => new Date(Date.now() - msAgo).toISOString();
+/**
+ * Eleven in the morning on New York's clock. A person's Run now sends at once
+ * only inside PLAYBOOK_HOURS, nine to eight by the business's clock; past them
+ * it waits for nine (#459). A test that asserts the send is due now freezes
+ * Date here, or it fails every night CI runs after eight in New York.
+ */
+const IN_HOURS = Date.parse("2026-09-11T15:00:00Z");
 
 /* ------------------------------- the knock -------------------------------- */
 
@@ -165,7 +172,8 @@ test("the named playbook of the named workspace only: another workspace's playbo
 
 /* --------------------------------- the run -------------------------------- */
 
-test("a person's run sends now under `ask` -- the sweep would have held it -- and leaves every row: the scheduled broadcast for the people who said yes, its send job due now, the person's own decision, the event, the day remembered; a second press the same day says so and makes nothing twice", async () => {
+test("a person's run sends now under `ask` -- the sweep would have held it -- and leaves every row: the scheduled broadcast for the people who said yes, its send job due now, the person's own decision, the event, the day remembered; a second press the same day says so and makes nothing twice", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: IN_HOURS });
   const w = world({ people: { [A]: [person("c1"), person("c2"), person("c3", { marketing_consent: "opted_out" })] } });
   workspace(w.tables, A, "ask");
   w.tables.playbooks.push(playbook(A, P));
