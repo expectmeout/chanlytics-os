@@ -578,3 +578,28 @@ test("a working sole-proprietor line says what it can do, on both surfaces", () 
   // is stated after cannot drift.
   assert.ok(SOLE_PROP_CEILING_SENTENCE.includes(String(SOLE_PROP_LIMITS.messagesPerSecond)));
 });
+
+test("REGRESSION: a business record that could not be read says so, and Retry reads again -- it drew an empty form and the one-time question, as if nothing were on file", async () => {
+  globalThis.Icon ??= "Icon";
+  let reads = 0;
+  globalThis.window.__businessRecord = {
+    ...api({ ok: true, record: null, path: null, problems: {} }),
+    read: async () => {
+      reads += 1;
+      return reads === 1
+        ? { ok: false, record: null, path: null, problems: {}, message: "The record could not be read." }
+        : { ok: true, record: null, path: null, problems: {} };
+    },
+  };
+  const page = mount({ line: null, flash: () => {} });
+  await page.flush();
+  assert.equal(reads, 1);
+  assert.ok(byId(page.tree, "business-record-failed"), "the failed read has its own card");
+  assert.equal(byId(page.tree, "biz-fork"), null, "REGRESSION: the one-time question was asked over a read that failed");
+  const retry = byId(page.tree, "business-record-failed-retry");
+  assert.ok(retry, "the card offers Retry");
+  await page.act(retry);
+  assert.equal(reads, 2, "Retry itself reads again");
+  assert.equal(byId(page.tree, "business-record-failed"), null, "and the card gives way once the read lands");
+  assert.ok(byId(page.tree, "biz-fork"), "then the question is asked, over what is really on record");
+});

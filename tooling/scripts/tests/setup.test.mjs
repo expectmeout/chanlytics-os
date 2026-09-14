@@ -474,12 +474,12 @@ test("texting on Setup: the sole proprietor waiting on the carriers' text reads 
   assert.equal(textingWords(l("otp_waiting")).done, false);
 });
 
-test("an activated capability can be switched off from its row, and only then", () => {
+test("an activated capability offers to withdraw its activation from its row, and only then", () => {
   const on = setupSteps(live(), NOW);
-  assert.deepEqual(row(on, "receptionist").undo, { label: "Switch off", to: "verb:deactivate:voice" });
-  assert.deepEqual(row(on, "whatsapp").undo, { label: "Switch off", to: "verb:deactivate:whatsapp" });
+  assert.deepEqual(row(on, "receptionist").undo, { label: "Withdraw activation", to: "verb:deactivate:voice" });
+  assert.deepEqual(row(on, "whatsapp").undo, { label: "Withdraw activation", to: "verb:deactivate:whatsapp" });
   const off = setupSteps({ ...live(), activations: [] }, NOW);
-  assert.equal(row(off, "receptionist").undo, null, "nothing to switch off before it is on");
+  assert.equal(row(off, "receptionist").undo, null, "nothing to withdraw before it is active");
   assert.equal(row(off, "whatsapp").undo, null);
   assert.equal(row(setupSteps(empty(), NOW), "receptionist").undo, undefined, "a row that is not ready has no second act");
 });
