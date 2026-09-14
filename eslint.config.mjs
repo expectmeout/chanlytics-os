@@ -78,6 +78,20 @@ export default [
     },
   },
 
+  // The browser specs and their helpers: Playwright in Node, with callbacks
+  // that run inside the page.
+  {
+    files: ["e2e/**/*.ts"],
+    languageOptions: {
+      parser: tseslint.parser,
+      ecmaVersion: 2023,
+      sourceType: "module",
+      globals: { ...globals.node, ...globals.browser },
+    },
+    plugins: TS_PLUGINS,
+    rules: OUR_TS_RULES,
+  },
+
   // The shared packages.
   {
     files: ["packages/*/src/**/*.ts"],
