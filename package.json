@@ -25,5 +25,11 @@
     "globals": "^15.14.0",
     "tsx": "^4.23.13",
     "typescript-eslint": "^8.70.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "postcss@<8.5.23": "^8.5.28",
+      "esbuild@<0.28.1": "^0.28.2"
+    }
   }
 }
