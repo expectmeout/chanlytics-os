@@ -14995,9 +14995,10 @@ async function recordOutbound(db, p) {
     if (error.code === "23505") return null;
     throw new Error(`record_outbound: ${error.message}`);
   }
+  const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations").update({ last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", p.conversationId),
-    emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender })
+    status === "sent" ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }) : Promise.resolve()
   ]);
   return data.id;
 }

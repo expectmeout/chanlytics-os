@@ -177,6 +177,7 @@ test("no wire, no credentials, a provider that says no: each is OURS, a failed r
   assert.equal(bare.messages.length, 1, "recorded as a failed row rather than dropped");
   assert.equal(bare.messages[0].status, "failed");
   assert.deepEqual(bare.messages[0].meta, { http_status: 503, body: "no_credentials" });
+  assert.deepEqual(kinds(bare), ["message.send_failed"], "words that never left are said to have failed, never to have gone out");
 
   // The provider refused.
   const said = tables();
@@ -185,6 +186,26 @@ test("no wire, no credentials, a provider that says no: each is OURS, a failed r
   assert.equal(said.messages[0].status, "failed");
   assert.deepEqual(said.messages[0].meta, { source: "voice", http_status: 400, body: "(#131030) Recipient phone number not in allowed list" });
   assert.equal(c.messageId, said.messages[0].id);
+  assert.deepEqual(kinds(said), ["message.send_failed"], "a refusal the provider gave is a failure, not a send");
+});
+
+test("a draft is not a send: recorded as queued it writes no message.sent, and the one it gets is from the moment it leaves", async () => {
+  // The receptionist's reply waits out its veto window as a queued row. The
+  // event that says a message went out is the send moment first_replies reads
+  // (00035), so a draft that wrote one would be timed from its draft, and a
+  // cancelled draft would say it went out.
+  const { recordOutbound } = await import(pathToFileURL(path.join(ROOT, "packages/db/dist/index.js")).href);
+  const t = tables();
+  const id = await recordOutbound(fakeDb(t), {
+    tenantId: T, conversationId: "c1", contactId: "k1", sender: "ai", type: "text",
+    body: "We open at 9", externalId: null, status: "queued",
+  });
+  assert.equal(t.messages.find((m) => m.id === id)?.status, "queued");
+  assert.deepEqual(kinds(t), [], "a draft awaiting its veto window has not gone out");
+
+  const out = await deliver(ports(t, wireOf()), words({ sender: "ai", body: "We open at 9", messageId: id }));
+  assert.equal(out.outcome, "sent");
+  assert.deepEqual(kinds(t), ["message.sent"], "one event, at the moment it left");
 });
 
 test("a wire that cannot be read is not a yes: the door throws, and nothing is sent", async () => {
