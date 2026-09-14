@@ -55,7 +55,7 @@ test.describe("sign-up", () => {
     expect(error.code).toBe("validation");
   });
 
-  test("a sign-up makes the user with what the form said, sends the code, and makes no workspace (opt-in probe)", async ({ page, request, baseURL }) => {
+  test("a sign-up makes the user with what the form said, sends the code, and makes no workspace (opt-in probe)", async ({ request, baseURL }) => {
     test.skip(process.env.E2E_SIGNUP_PROBE !== "1" || !URL_ || !KEY, "set E2E_SIGNUP_PROBE=1 with the service role to run the probe");
     const admin = { apikey: KEY!, Authorization: `Bearer ${KEY}` };
     const rest = (path: string, init: RequestInit = {}) =>
@@ -72,7 +72,10 @@ test.describe("sign-up", () => {
       expect(res.status()).toBe(200);
       const { data } = await res.json();
       expect(data.sent).toBe(true);
-      // Nowhere to send them: the code step is on the sign-up page itself now.
+      // Nowhere to send them: the code step is on the sign-up page itself now,
+      // in the page's own state after its own post. This probe posts without
+      // the page, so it ends at the user it made: the sign-in screen it used
+      // to open went with #441, and page.goto(null) throws.
       expect(data.next).toBeNull();
       // THE WORKSPACE WAITS FOR ITS OWNER: nothing in tenants for an address
       // nobody has proved. The user exists, carrying what the form said, for
@@ -84,10 +87,6 @@ test.describe("sign-up", () => {
       expect(user).toBeTruthy();
       userId = user!.id;
       expect(user!.user_metadata?.pending_workspace).toEqual({ name, timezone: "America/New_York" });
-      // The next screen is sign-in at the code step, for this address.
-      await page.goto(data.next);
-      await expect(page.getByLabel(/Enter the 6-digit code sent to/)).toBeVisible();
-      await expect(page.getByText(email)).toBeVisible();
     } finally {
       if (userId) {
         await fetch(`${URL_}/auth/v1/admin/users/${userId}`, { method: "DELETE", headers: admin });
