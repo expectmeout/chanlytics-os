@@ -139,6 +139,11 @@ test("a send WE could not make is admitted; one about an ADDRESS is not", () => 
   assert.equal(sendFailureIsOurs({ status: 429, message: "Request rate limit reached" }), true);
   assert.equal(sendFailureIsOurs({ message: "SMTP server not configured" }), true);
   assert.equal(sendFailureIsOurs({ message: "Email provider is disabled" }), true);
+  // How Supabase says the mail provider refused the send. Production answered
+  // sign-up with a 500 for this until 13 Sep 2026, because nothing above matched it.
+  assert.equal(sendFailureIsOurs({ status: 500, code: "unexpected_failure", message: "Error sending confirmation email" }), true);
+  assert.equal(sendFailureIsOurs({ message: "Error sending recovery email" }), true);
+  assert.equal(sendFailureIsOurs({ message: "Error sending magic link email" }), true);
 
   // THEIRS — stay opaque. These are the answers that would turn the form into an
   // oracle, and the fallback for anything unrecognised leans this way on purpose.
@@ -215,6 +220,10 @@ test("an address we already have is recognised, and is a different judgement fro
   // Disjoint, in both directions: neither judgement may claim the other's cases.
   assert.equal(sendFailureIsOurs({ code: "email_exists" }), false);
   assert.equal(addressAlreadyKnown({ code: "over_email_send_rate_limit" }), false);
+  // A refused send is neither an address we already have nor an unconfirmed one:
+  // swallowed as either, the person would wait for a code that never went out.
+  assert.equal(addressAlreadyKnown({ message: "Error sending confirmation email" }), false);
+  assert.equal(emailNotConfirmed({ message: "Error sending confirmation email" }), false);
 });
 
 test("what sign-up kept is a prefill, and a clock Postgres would refuse is dropped rather than failing the first Create", () => {
