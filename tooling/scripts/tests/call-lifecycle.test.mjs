@@ -19,7 +19,7 @@ import assert from "node:assert/strict";
 import http from "node:http";
 import { normalizeCall, liveTurns, fetchRecording } from "@chanlytics/channels";
 import { toCallVM, toTodayVM, CALL_HEARTBEAT_MS } from "@chanlytics/contracts";
-import { readCode, readRaw, importSrc } from "./_source.mjs";
+import { readRaw, importSrc } from "./_source.mjs";
 
 const NOW = new Date("2026-09-04T15:00:00.000Z");
 const agoIso = (ms) => new Date(NOW.getTime() - ms).toISOString();

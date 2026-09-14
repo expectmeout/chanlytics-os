@@ -333,7 +333,8 @@ test("ten failures in one heartbeat page the platform once with the counts, fail
     const [page] = pages();
     assert.equal(page.subject, "[Chanlytics] 10 jobs failed in one heartbeat");
     assert.deepEqual([page.from, page.to], [MAIL.LEAD_FROM, [MAIL.LEAD_TO]], "the platform's own mailbox");
-    assert.deepEqual(JSON.parse(page.text), { claimed: 10, done: 0, failed: 5, gaveUp: 5 }, "with the counts");
+    assert.ok(page.text.startsWith("10 of the 10 jobs this heartbeat claimed failed: 5 while running, and 5 given up because their last run never reported back. 0 finished."), "the counts, in words");
+    assert.ok(page.text.includes("from jobs where state = 'failed' order by updated_at desc limit 20;"), "and where to look first");
     assert.deepEqual(L.tables.operator_pages.map((p) => [p.key, p.count, typeof p.alerted_at]), [["jobs_mass_failure", 1, "string"]], "remembered, and stamped as told");
 
     assert.deepEqual(await answer(await beat(10, 0)), [200, { ok: true, claimed: 10, done: 0, failed: 10, gaveUp: 0 }]);

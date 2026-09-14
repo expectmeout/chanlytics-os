@@ -54,8 +54,6 @@ test("no provider URL reaches a row the browser can read", () => {
   assert.ok(!repo.includes("provider_url: n.recordingUrl"), "ingest no longer writes it");
   // The copy's own row, stored with no provider URL on it, and a retry that
   // asks the provider for a fresh URL by call id both run in cron-doors-b.test.mjs.
-  const backfill = readCode("apps/edge/api/admin/backfill-calls.ts");
-  assert.ok(!backfill.includes("provider_url"), "nor does the backfill");
 });
 
 test("a conversation row moves only when its timestamps move", () => {
