@@ -6,13 +6,21 @@
  * nothing duplicates; after the specs have left things behind, to see them put
  * back; and against the accounts and workspaces it must refuse, to see that it
  * writes nothing there. The rows it writes are checked against the states the
- * production sweeps leave alone.
+ * production sweeps leave alone, and its one alert address against the edge's
+ * own rule for who is told.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
+import path from "node:path";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import { TenantConfigWriteSchema } from "@chanlytics/contracts";
-import { converge, SLUG, CALL_ID, PEOPLE, channelExternalId } from "../e2e-workspace.mjs";
+import { converge, verify, SLUG, CALL_ID, PEOPLE, ALERT_INBOX, channelExternalId } from "../e2e-workspace.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const { chooseAddressing, reachesTenant } = await import(
+  pathToFileURL(path.join(here, "../../../apps/edge/lib/notify.ts")).href
+);
 
 const OWNER = "e2e-owner@example.com";
 const MATE = "e2e-member@example.com";
@@ -66,6 +74,7 @@ test("converging twice leaves one workspace in one state: nothing is duplicated"
   assert.deepEqual(of(w.t, "messages", T).map((m) => `${m.sender}:${m.status}`).sort(), ["ai:delivered", "customer:received"]);
   assert.equal(of(w.t, "calls", T).length, 1);
   assert.equal(of(w.t, "tenant_channels", T).length, 1);
+  assert.deepEqual(of(w.t, "tenant_config", T).map((r) => r.config.notifications), [{ escalation_emails: [ALERT_INBOX] }], "one config, with one address");
   const owner = w.users.find((u) => u.email === OWNER);
   assert.equal(w.t.memberships.filter((m) => m.user_id === owner.id).length, 1, "the owner belongs to exactly one workspace");
 });
@@ -90,10 +99,47 @@ test("every row it writes is one the production sweeps leave alone", async () =>
   const [cfg] = of(w.t, "tenant_config", T);
   assert.ok(TenantConfigWriteSchema.safeParse(cfg.config).success, "a config the settings save accepts");
   assert.equal(cfg.config.calendar, undefined, "no calendar for the hourly sweep to fetch");
-  assert.equal(cfg.config.notifications, undefined, "no address an alert could go to");
+  assert.deepEqual(cfg.config.notifications, { escalation_emails: [ALERT_INBOX] }, "one address an alert can go to, and it is Resend's test inbox");
   for (const table of ["jobs", "escalations", "lines", "playbooks", "broadcasts", "google_connections", "google_listings"]) {
     assert.equal(of(w.t, table, T).length, 0, `no ${table}`);
   }
+});
+
+test("the one alert address is Resend's test inbox: a failed reply's alert goes there by the edge's own rule, and the deadman has someone to tell", async () => {
+  assert.equal(ALERT_INBOX, "delivered@resend.dev", "the address Resend documents as a simulated delivery, which reaches nobody");
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const [cfg] = of(w.t, "tenant_config", T);
+  const target = { tenantId: T, notifications: cfg.config.notifications, isEnvDefault: false };
+  const platform = { to: ["platform@example.com"], from: "Chanlytics <alerts@example.com>" };
+
+  // thread.spec.ts's reply fails at this channel and the job alerts the owner
+  // (job-alert.ts): addressed to the workspace, in full, at the test inbox.
+  const addressed = chooseAddressing(target, platform);
+  assert.equal(addressed.kind, "tenant");
+  assert.deepEqual(addressed.to, [ALERT_INBOX]);
+  assert.equal(addressed.from, platform.from, "no sender of its own: the platform's verified one, which Resend accepts");
+  // Without it the same alert is a notice in the platform's own mailbox, every night.
+  assert.equal(chooseAddressing({ ...target, notifications: null }, platform).kind, "redacted");
+
+  // The deadman pages the platform only for a workspace with nobody to tell (cron/deadman.ts).
+  const saved = { LEAD_TO: process.env.LEAD_TO, LEAD_FROM: process.env.LEAD_FROM };
+  process.env.LEAD_TO = platform.to[0];
+  process.env.LEAD_FROM = platform.from;
+  try {
+    assert.equal(reachesTenant(target), true, "an escalation left open is warned about in the test inbox, and the platform is not paged");
+    assert.equal(reachesTenant({ ...target, notifications: null }), false);
+  } finally {
+    for (const [k, v] of Object.entries(saved)) {
+      if (v === undefined) delete process.env[k];
+      else process.env[k] = v;
+    }
+  }
+
+  // An address anywhere else is named, never taken for the known state.
+  cfg.config = { ...cfg.config, notifications: { escalation_emails: ["owner@a-real-business.com"] } };
+  const owner = w.users.find((u) => u.email === OWNER);
+  assert.ok((await verify(w.db, T, owner.id)).some((p) => p.includes(ALERT_INBOX)), "verify names alerts that would reach a person");
 });
 
 test("what the specs leave behind is put back", async () => {
@@ -101,7 +147,8 @@ test("what the specs leave behind is put back", async () => {
   const { tenantId: T } = await run(w);
   const owner = w.users.find((u) => u.email === OWNER);
   // A night's leftovers: a person a spec added, a thread and an Ask chat, a
-  // renamed profile, a saved view, a changed mode, an invitation, a probe.
+  // renamed profile, a saved view, a changed mode, an invitation, a probe, and
+  // an alert address somebody set.
   w.t.contacts.push({ id: "stray", tenant_id: T, phone_e164: "+12125550199", display_name: "Stray" });
   w.t.conversations.push({ id: "stray-cv", tenant_id: T, contact_id: "stray", state: "needs_human" });
   w.t.messages.push({ id: "stray-m", tenant_id: T, conversation_id: "stray-cv", sender: "customer", status: "received" });
@@ -113,6 +160,8 @@ test("what the specs leave behind is put back", async () => {
   (w.t.invitations ??= []).push({ id: "inv", tenant_id: "elsewhere", email: OWNER, accepted_at: null, revoked_at: null });
   w.t.tenants.push({ id: "probe", slug: "e2e-probe-1", name: "E2E probe 1757840000000" });
   w.t.memberships.push({ id: "pm", tenant_id: "probe", user_id: owner.id, role: "owner" });
+  const cfg = w.t.tenant_config.find((r) => r.tenant_id === T);
+  cfg.config = { ...cfg.config, notifications: { escalation_emails: ["owner@a-real-business.com"] } };
 
   await run(w, { now: NOW + 3_600_000 });
 
@@ -126,6 +175,7 @@ test("what the specs leave behind is put back", async () => {
   assert.equal(w.t.policies.filter((p) => p.tenant_id === T && p.subject_type === "contact").length, 0);
   assert.ok(w.t.invitations[0].revoked_at, "an invitation that sign-in would accept is taken back");
   assert.equal(w.t.tenants.some((x) => x.id === "probe"), false, "the probe workspace-create left is gone");
+  assert.deepEqual(of(w.t, "tenant_config", T)[0].config.notifications, { escalation_emails: [ALERT_INBOX] }, "the alerts go back to the test inbox");
   const [cv] = of(w.t, "conversations", T);
   assert.equal(cv.last_message_at, new Date(NOW + 3_600_000 - 2 * 3600_000 + 20_000).toISOString(), "re-dated, so Reports counts it");
 });
@@ -173,4 +223,5 @@ test("a run backs the workspace up before it writes", async () => {
   });
   assert.ok(backedUp.some((r) => r.table === "messages") && backedUp.some((r) => r.table === "tenants"));
   assert.ok(snapshotAtBackup[0].includes("e2e-seed-a-in"), "taken while the old rows were still there");
+  assert.ok(backedUp.some((r) => r.table === "tenant_config"), "the config, alert address and all, is in the backup");
 });

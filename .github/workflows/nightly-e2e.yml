@@ -73,7 +73,8 @@ jobs:
       # a live customer's workspace, writing to it and spending Ask tokens there.
       # Now a test owner with exactly one membership signs in to fake people,
       # one conversation, one call and a WhatsApp channel with no credentials:
-      # nothing in it can reach a customer, a provider or an alert.
+      # nothing in it can reach a customer or a provider, and the one address
+      # its alerts go to is Resend's test inbox, which delivers nowhere.
       - name: The run's own workspace, in its known state
         if: ${{ !cancelled() }}
         run: node tooling/scripts/e2e-workspace.mjs --apply
