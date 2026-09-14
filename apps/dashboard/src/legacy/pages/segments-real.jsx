@@ -59,16 +59,19 @@ const NewListBox = ({ onCreate, openSignal }) => {
           placeholder="Name the list"
           maxLength={60}
           disabled={busy}
+          aria-invalid={error ? true : undefined}
+          aria-describedby={error ? "lists-new-error" : undefined}
           data-testid="lists-new-name"
           onChange={(e) => setName(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") close(); }}
         />
-        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit}>Add</button>
+        <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={submit} data-testid="lists-new-add">Add</button>
       </div>
-      {error && <div className="cl-rail-hint" style={{ color: "var(--danger)" }}>{error}</div>}
+      <window.FieldError id="lists-new-error" message={error} testid="lists-new-error" />
     </div>
   );
 };
+window.NewListBox = NewListBox;
 
 const ListsReal = ({ initialId = null }) => {
   const people = useListsSurface();

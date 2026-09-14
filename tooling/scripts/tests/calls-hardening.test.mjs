@@ -52,12 +52,8 @@ test("no provider URL reaches a row the browser can read", () => {
   assert.ok(sql.includes("recording = recording - 'provider_url'"), "existing rows are scrubbed");
   const repo = readCode("packages/db/src/repositories/calls.ts");
   assert.ok(!repo.includes("provider_url: n.recordingUrl"), "ingest no longer writes it");
-  const lib = readCode("apps/edge/lib/call-recording.ts");
-  assert.ok(!lib.includes("provider_url"), "the copy no longer writes it");
-  // And a retry asks the provider for a fresh one by call id: run in
-  // cron-doors-b.test.mjs, where the captured wire shows get-call before the CDN.
-  const backfill = readCode("apps/edge/api/admin/backfill-calls.ts");
-  assert.ok(!backfill.includes("provider_url"), "nor does the backfill");
+  // The copy's own row, stored with no provider URL on it, and a retry that
+  // asks the provider for a fresh URL by call id both run in cron-doors-b.test.mjs.
 });
 
 test("a conversation row moves only when its timestamps move", () => {
@@ -90,9 +86,10 @@ test("the trigger wakes the edge for calls that have simply run too long", () =>
   assert.ok(sql.includes("or started_at < now() - interval '30 minutes'"), "the trigger wakes the edge for them");
 });
 
-test("a 404 from the CDN is not the end; a 403 is", () => {
+test("the storage upload is bounded too", () => {
+  // A CDN's 401, 403 or 410 as final, and its 404 as a try to repeat, run in
+  // cron-doors-b.test.mjs, where the wire answers each.
   const lib = readCode("apps/edge/lib/call-recording.ts");
-  assert.ok(lib.includes("PERMANENT_REFUSALS = new Set([401, 403, 410])"));
   assert.ok(lib.includes('"storage upload"'), "the upload is bounded too");
 });
 

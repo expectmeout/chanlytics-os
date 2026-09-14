@@ -9,6 +9,7 @@
  * this owns them once. Pure: no `window`, so it runs under node with a fake
  * fetch, and the bridge instantiates it with the real one.
  */
+import { refusalOf, type Refusal } from "@chanlytics/contracts";
 import type { InputOf, OutputOf } from "../server/route";
 import { ROUTES, type Routes } from "./routes.generated";
 
@@ -41,8 +42,14 @@ export interface ApiOptions<K extends RouteKey> {
   onAccepted?: () => void;
 }
 
-export type ApiResult<O> = { ok: true; data: O } | { ok: false; code: string; status: number; message: string };
-type Envelope = { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string } };
+/**
+ * A refusal as a page reads it: the code and status, a title that says what
+ * kind of no it is, the sentence in the owner's words, the wait the server
+ * counted and a form's fields (contracts refusalOf).
+ */
+export type ApiRefusal = { ok: false } & Refusal;
+export type ApiResult<O> = { ok: true; data: O } | ApiRefusal;
+type Envelope = { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string; details?: unknown } };
 
 export class ApiError extends Error {
   constructor(readonly code: string, readonly status: number, message: string) {
@@ -120,18 +127,28 @@ export function createApi(deps: ApiDeps) {
       let res: Response;
       try {
         res = await deps.fetch(url, initFor(key, opts));
-      } catch {
-        return { ok: false, code: "network", status: 0, message: isRead ? "Chanlytics could not be reached." : "Network error — nothing was changed." };
+      } catch (e) {
+        // A request that never left changed nothing; one that timed out may
+        // still be doing its work on the server, and a write must not be told
+        // otherwise.
+        const name = (e as { name?: unknown } | null)?.name;
+        const timedOut = name === "TimeoutError" || name === "AbortError";
+        return { ok: false, ...refusalOf({ code: timedOut ? "timeout" : "network", status: 0, write: !isRead }) };
       }
       if (res.status === 401) {
         deps.onSignedOut();
-        return { ok: false, code: "unauthorized", status: 401, message: "Signed out." };
+        return { ok: false, ...refusalOf({ code: "unauthorized", status: 401, write: !isRead }) };
       }
       const j = (await res.json().catch(() => null)) as Envelope | null;
       if (!j || !j.ok) {
         const e = j && !j.ok ? j.error : undefined;
         if (e?.code === "choose_workspace") deps.onChooseWorkspace?.();
-        return { ok: false, code: e?.code ?? "internal", status: res.status, message: e?.message ?? `Request failed (${res.status}).` };
+        // The server's code, sentence and details, and the header a limit sets:
+        // what a page shows and when it may try again, in the owner's words.
+        return {
+          ok: false,
+          ...refusalOf({ code: e?.code, status: res.status, message: e?.message, details: e?.details, retryAfter: res.headers.get("retry-after"), write: !isRead, nowMs: now() }),
+        };
       }
       if (!isRead) {
         opts.onAccepted?.();

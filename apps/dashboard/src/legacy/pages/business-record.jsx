@@ -73,18 +73,23 @@ const BusinessRecordForm = ({ line, flash }) => {
   const save = async () => {
     const found = API.problems(record, path);
     setProblems(found);
-    if (Object.keys(found).length) { flash({ msg: <>{Object.values(found)[0]}</> }); return; }
+    // Each box says what it needs; the toast only counts them.
+    const count = Object.keys(found).length;
+    if (count) { flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> }); return; }
     setBusy(true);
     const r = await API.save(record, path);
     setBusy(false);
-    flash({ tone: "danger", msg: <>{r.message}</> });
+    // A saved record is good news, in the ok tone: it used to arrive as a red
+    // toast. A refusal marks every field the route named, under its box.
+    if (!r.ok) { setProblems(r.problems || {}); flash(window.refusalToast(r, "Not saved")); return; }
+    flash({ msg: <>{r.message}</> });
   };
   const file = async () => {
     setBusy(true);
     const r = await API.register(line.id);
     setBusy(false);
     setArm(false);
-    flash({ tone: "danger", msg: <>{r.message}</> });
+    flash(r.ok ? { msg: <>{r.message}</> } : window.refusalToast(r, "Not filed"));
   };
 
   const head = (
@@ -160,25 +165,31 @@ const BusinessRecordForm = ({ line, flash }) => {
               <span className="biz-group-sub">{words[g].sub}</span>
             </div>
             <div className="biz-fields">
-              {mine.map((f) => (
-                <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
-                  <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
-                  {f.options ? (
-                    <select className="biz-input" value={record[f.name] ?? ""} disabled={!owner || busy} onChange={(e) => set(f.name, e.target.value)}>
-                      {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      className={`biz-input${problems[f.name] ? " biz-bad" : ""}`}
-                      value={record[f.name] ?? ""}
-                      placeholder={f.placeholder || ""}
-                      disabled={!owner || busy}
-                      onChange={(e) => set(f.name, e.target.value)}
-                    />
-                  )}
-                  {problems[f.name] ? <span className="biz-problem">{problems[f.name]}</span> : f.hint ? <span className="biz-hint">{f.hint}</span> : null}
-                </label>
-              ))}
+              {mine.map((f) => {
+                const problem = problems[f.name] || null;
+                const problemId = `biz-${f.name}-problem`;
+                return (
+                  <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
+                    <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
+                    {f.options ? (
+                      <select className={`biz-input${problem ? " biz-bad" : ""}`} value={record[f.name] ?? ""} disabled={!owner || busy} aria-invalid={problem ? true : undefined} aria-describedby={problem ? problemId : undefined} onChange={(e) => set(f.name, e.target.value)}>
+                        {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        className={`biz-input${problem ? " biz-bad" : ""}`}
+                        value={record[f.name] ?? ""}
+                        placeholder={f.placeholder || ""}
+                        disabled={!owner || busy}
+                        aria-invalid={problem ? true : undefined}
+                        aria-describedby={problem ? problemId : undefined}
+                        onChange={(e) => set(f.name, e.target.value)}
+                      />
+                    )}
+                    {problem ? <window.FieldError id={problemId} message={problem} testid={problemId} /> : f.hint ? <span className="biz-hint">{f.hint}</span> : null}
+                  </label>
+                );
+              })}
             </div>
           </div>
         );

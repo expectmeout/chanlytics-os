@@ -85,19 +85,19 @@ door in practice. The endpoint warns about exactly this on every request.
 
 ## Layer 2 — The edge runtime
 
-41 endpoints in `apps/edge/api`, deployed as vanilla Vercel functions:
+40 endpoints in `apps/edge/api`, deployed as vanilla Vercel functions:
 
 - **9 public/provider doors** — `whatsapp`, `inbound-sms`, `stripe-webhook`,
   four Retell endpoints, `health`, `diag`
-- **22 key-guarded back-office doors** under `admin/`
+- **21 key-guarded back-office doors** under `admin/`
 - **8 cron sweeps** — `calendar`, `calls`, `deadman`, `google`, `health`,
   `lines`, `playbooks`, `registrations`
 - **2 job endpoints** — `jobs/tick`, `jobs/fire`
 
-Four of those are retired but still reachable: `jobs/fire.ts`,
-`admin/backfill.ts`, `admin/backfill-calls.ts`, `admin/pause.ts`. Nothing calls
-them; they are deployed surface area with no owner. Deleting them is a
-half-hour's work and shrinks the attack surface by four doors.
+Three of those are retired but still reachable: `jobs/fire.ts`,
+`admin/backfill.ts` and `admin/pause.ts`, which the dashboard still calls. They
+go after 10 October with the rest of the Blob and QStash code;
+`admin/backfill-calls.ts` and its driver were deleted on 14 September.
 
 The admin doors share one lock. `EDGE_CALL_SECRET` — the per-workspace,
 per-person, one-minute token — is *optional*: `apps/dashboard/src/server/edge.ts:24`

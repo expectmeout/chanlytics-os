@@ -124,7 +124,7 @@ export function withRoute<T>(
     } catch (e) {
       if (e instanceof AppError) {
         console.log(JSON.stringify({ level: "warn", route, code: e.code, ms: Date.now() - started }));
-        return NextResponse.json(err(e.code, e.message, e.details), { status: e.status, headers: PRIVATE });
+        return NextResponse.json(err(e.code, e.message, e.details), { status: e.status, headers: { ...PRIVATE, ...refusalHeaders(e) } });
       }
       console.error(JSON.stringify({ level: "error", route, error: e instanceof Error ? e.message : String(e) }));
       return NextResponse.json(err("internal", "Something went wrong."), { status: 500, headers: PRIVATE });
@@ -202,8 +202,22 @@ export function requireRole(member: MemberContext, atLeast: MemberContext["role"
         ? "Only an owner can do this."
         : "Viewers can see everything and change nothing.",
       403,
+      // The role the door wanted, so a page can title the refusal "Owner only"
+      // rather than guess it from the sentence.
+      { needs: atLeast },
     );
   }
+}
+
+/**
+ * What a refusal says in its headers. A limit says when it lifts in
+ * Retry-After, the header an HTTP client already reads, beside the
+ * retry_after_s its envelope carries; the typed client read neither.
+ */
+export function refusalHeaders(e: AppError): Record<string, string> {
+  if (e.code !== "rate_limited") return {};
+  const s = e.details && typeof e.details === "object" ? (e.details as { retry_after_s?: unknown }).retry_after_s : undefined;
+  return typeof s === "number" && Number.isFinite(s) && s >= 0 ? { "retry-after": String(Math.max(1, Math.ceil(s))) } : {};
 }
 
 /**

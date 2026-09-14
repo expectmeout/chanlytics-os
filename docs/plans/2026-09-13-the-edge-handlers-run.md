@@ -16,7 +16,7 @@
 - **Every case owns its identifiers.** Two caches live in module state and neither can be reset from a test: the channel resolver keeps a routing answer for five minutes (a miss for sixty seconds; errors are never cached) keyed by kind and external id (`packages/db/src/repositories/routing.ts:16-20`), and `alertUnroutable` suppresses a repeat alert for fifteen minutes per `${kind}:${key}` (`apps/edge/lib/whatsapp/alerts.ts`). `sms-ingress.test.mjs` states the rule and the reason: a second case sharing a number reads the first's answer and passes while proving nothing. Use a fresh `phone_number_id` / agent id / number per case.
 - **Set env before the import, in the test file's module scope.** Each test file is its own process. `store.ts` reads `BLOB_READ_WRITE_TOKEN` and `BLOB_SHADOW` at import (`apps/edge/lib/store.ts:56,58`): set `BLOB_SHADOW=off` so `storeBackend()` is `"off"` and nothing reaches Vercel Blob. `diag.ts:16` reads `META_APP_ID` at import.
 - **Mail is `fetch`.** `notify()` → `post()` (`apps/edge/lib/notify.ts:82`) POSTs to Resend only when `RESEND_API_KEY` is set; unset, it logs `notify_skipped_no_api_key` and returns `false`. To assert "a human was told", set `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM` and capture `fetch`; to keep a case quiet, leave the key unset.
-- **The retired doors are not tested.** `jobs/fire.ts`, `admin/backfill.ts`, `admin/backfill-calls.ts`, `admin/pause.ts` have no caller and are slated for deletion under the system map's item 8. Do not write tests for them; do not delete them here either.
+- **The retired doors are not tested.** `jobs/fire.ts`, `admin/backfill.ts` and `admin/pause.ts` are retired and go after 10 October, `admin/pause.ts` together with the dashboard's call to it; `admin/backfill-calls.ts` was deleted on 14 September. Do not write tests for them; do not delete them here either.
 - **Commit messages** are one sentence in the house voice, no prefix. Every PR is green on `corepack pnpm -r typecheck && corepack pnpm lint && corepack pnpm test`.
 
 ---
@@ -93,10 +93,10 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 
 **The world:** env — `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `BLOB_SHADOW=off`; tables `tenant_channels` (kind `voice`, external id = agent id), `calls`, `conversations`, `messages`, `escalations`, `events`, `notifications`, `lines` (forwarding); rpcs `ingest_call`, `get_channel_credentials`, `runtime_stamp`; `fetch` captured for the recording copy and mail. Sign with `v=${Date.now()},d=${hmac}`. The post-auth path (`retell-webhook.ts:215-330`): `transcript_updated` marks an ongoing call; a call routes by agent id or, failing that, by a known call id; unrouted → `ingest.unroutable` event; routed → `ingestCall`, `markForwardingVerified` on an inbound call, `recordDelivery`, a call note on `call_analyzed` (and `linkCallMessage`), a `callback_needed` analysis pausing the conversation for the tenant's hours and opening a `callback` escalation.
 
-- [ ] **Step 1: the door.** A valid signature over the raw body opens it; one that verifies only over the re-stringified body opens it and is recorded as such; `?key=` opens it when set and never when `RETELL_FN_SECRET` is empty; both failing → 401, with **one** `webhook.auth` row for two refusals inside a minute (module throttle — order these cases deliberately).
-- [ ] **Step 2: routing and the record.** Unknown agent and unknown call → unroutable event, 200; known agent → `ingest_call` called with the normalised call; inbound → forwarding marked verified; every delivery → its `webhook.delivery` evidence row.
-- [ ] **Step 3: the analysis.** `call_analyzed` writes the call note and links it; `callback_needed` pauses for `pause_hours` and opens one `callback` escalation; the owner is told (a `notifications` row of kind `call`; mail when addressed).
-- [ ] **Step 4: delete the thirteen pins, bank, full suite.**
+- [x] **Step 1: the door.** A valid signature over the raw body opens it; one that verifies only over the re-stringified body opens it and is recorded as such; `?key=` opens it when set and never when `RETELL_FN_SECRET` is empty; both failing → 401, with **one** `webhook.auth` row for two refusals inside a minute (module throttle — order these cases deliberately).
+- [x] **Step 2: routing and the record.** Unknown agent and unknown call → unroutable event, 200; known agent → `ingest_call` called with the normalised call; inbound → forwarding marked verified; every delivery → its `webhook.delivery` evidence row.
+- [x] **Step 3: the analysis.** `call_analyzed` writes the call note and links it; `callback_needed` pauses for `pause_hours` and opens one `callback` escalation; the owner is told (a `notifications` row of kind `call`; mail when addressed).
+- [x] **Step 4: delete the thirteen pins, bank, full suite.**
 
 ## Task D — The call-start door and the function bridge
 
@@ -123,9 +123,9 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 
 **The world:** rpcs `get_cron_sweep_key`; health → `sweep_health`, `jobs_backlog`, `sweep_mark_alerted`; deadman → `deadman_candidates`, `deadman_mark_alerted`; playbooks → `note_sweep_backlog`, `people_list`; calendar → `note_sweep_backlog`, `get_channel_credentials`/`runtime_stamp` as needed; `fetch` captured for the ICS feed (`availability.ts`) and for mail. Assert the sweep's *consequence*: health → which clocks were named unhealthy, who was paged, and `sweep_mark_alerted` called once per alerted clock; deadman → an unaddressable workspace is skipped and the platform paged once per tenant key (`deadman_unaddressable:<tenant>`), an addressable one gets its notification of kind `deadman` and `deadman_mark_alerted`; playbooks → a paused workspace is counted off and said once, a due playbook runs; calendar → the rotation (never-checked first, then oldest), `recordNotification(kind: "calendar_people")` as a row not a mail, `markCalendarChecked`, the backlog noted when more is due than a tick takes.
 
-- [ ] **Step 1: one door test shared by the four** (401/503/no_database).
-- [ ] **Step 2–5: each sweep's consequence, one case per pin above and one for the happy path.**
-- [ ] **Step 6: delete the eight pins, bank, full suite.**
+- [x] **Step 1: one door test shared by the four** (401/503/no_database).
+- [x] **Step 2–5: each sweep's consequence, one case per pin above and one for the happy path.**
+- [x] **Step 6: delete the eight pins, bank, full suite.**
 
 ## Task F — Four sweeps that reach a provider: calls, google, lines, registrations
 
@@ -137,9 +137,9 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 
 **The world:** calls → `getCall` (Retell, captured `fetch`), `ingest_call`, `copyRecording`/`purgeExpiredRecordings` (`call-recording.ts`; the copy has a timeout `SWEEP_COPY_TIMEOUT_MS` and `RECORDING_MAX_ATTEMPTS` — assert the attempt count advances on failure); google → `get_google_credentials`, `checkListing`/`syncProfile` over captured `fetch`, `connectionsDue`/`listingsDue` rotation; lines → `LINES_DRY_RUN=1` gives the dry provider (`apps/edge/lib/lines.ts` `lineProviderFromEnv`; no network), `sweepStuckLines` resumes a stuck saga by scheduling a `line_provision` job and `reportLineFailed` tells the bell and the platform; registrations → `registerLine`/`syncRegistration` (`a2p.ts`, five `fetch` sites to Twilio — capture and answer), `get_line_credentials`, the rotation by `updated_at`, and the no-credentials path writing `last_error` so the row's `updated_at` advances (the starvation fix of 12 Sep).
 
-- [ ] **Step 1: the shared door test.**
-- [ ] **Step 2–5: each sweep's consequence**, one case per pin above and one happy path; for calls, a recording copy that times out is retried up to the maximum and then left.
-- [ ] **Step 6: delete the eight pins, bank, full suite.**
+- [x] **Step 1: the shared door test.**
+- [x] **Step 2–5: each sweep's consequence**, one case per pin above and one happy path; for calls, a recording copy that times out is retried up to the maximum and then left.
+- [x] **Step 6: delete the eight pins, bank, full suite.**
 
 ## Task G — The lines door
 
@@ -151,9 +151,9 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 
 **The world:** `EDGE_CALL_SECRET` + `signEdgeToken` (or `DIAG_KEY`); `LINES_DRY_RUN=1`; tables `lines`, `tenants`, `billing_accounts`, `business_records`, `jobs`, `events`; rpcs `get_line_credentials`, `put_line_credentials`; `fetch` captured for Twilio only where the dry provider does not cover it (registration). Ops: `status`, `search`, `buy`, `retry`, `release`, `record`, `register`, `registration-status`. Assert per op: the door and `workspaceFor` (a token naming one workspace refuses a body naming another → 403 `workspace_mismatch`); `buy` refused for a workspace that may not spend and allowed for one that may, the saga scheduled as a `line_provision` job; `retry`/`release` on the right row only; `record` writes the business record and reports its problems; `register` refused when it cannot spend **unless** correcting a rejected filing in place; `registration-status` reads without spending.
 
-- [ ] **Step 1: the door and the workspace rule.**
-- [ ] **Step 2: each op, one case per pin plus the happy path.**
-- [ ] **Step 3: delete the twelve pins, bank, full suite.**
+- [x] **Step 1: the door and the workspace rule.**
+- [x] **Step 2: each op, one case per pin plus the happy path.**
+- [x] **Step 3: delete the twelve pins, bank, full suite.**
 
 ## Task H — The diag door and the remaining back-office doors
 
@@ -165,9 +165,9 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 
 **The world:** the admin knock; `steer` reaches the model (`brain.ts` → the Anthropic SDK). *Corrected 14 Sep 2026:* this line first said the door has no ports and offered "the same optional `ports` seam". `admin/steer.ts` and `admin/eval.ts` already take a second `POST` parameter, `brain?: BrainPort | null`, and in production that position holds Vercel's FetchEvent (see Architecture); they survive only because they read `brain?.generateReply` and fall back to the real brain when the object carries none. Any seam there keeps that check: never a parameter defaulted to the real modules, and never one that assumes the second argument is a test's; `llm` has a module-level budget map; `whatsapp/*` doors reach Meta Graph over `fetch`; `voice-provision`/`voice-converge` reach Retell over `fetch`; `diag` reads env at import (`META_APP_ID`), probes the store only when it is not `"off"`, and calls `sweep_health`, `jobs_backlog`, `number_drift`.
 
-- [ ] **Step 1: `diag` — the door, the env report, the skipped probe with the store off, the clocks and pages it names.**
-- [ ] **Step 2: `steer` — the held-draft rewrite (the door, the 409s, new-before-old, the race guard: a retire matching zero rows takes the rewrite back with 409 `already_sent`, the channel of the draft).**
-- [ ] **Step 3 onwards: each door in the order above, deleting its pins as its test lands; bank at each PR boundary.**
+- [x] **Step 1: `diag` — the door, the env report, the skipped probe with the store off, the clocks and pages it names.**
+- [x] **Step 2: `steer` — the held-draft rewrite (the door, the 409s, new-before-old, the race guard: a retire matching zero rows takes the rewrite back with 409 `already_sent`, the channel of the draft).**
+- [x] **Step 3 onwards: each door in the order above, deleting its pins as its test lands; bank at each PR boundary.**
 
 ---
 
@@ -177,3 +177,4 @@ Module state to respect: `retell-webhook.ts:64` `corrected` (a Set), `:71-72` `l
 - Every handler in the table above has a test that calls its exported `POST`/`GET` and asserts a status, a body, and at least one consequence outside the handler.
 - The baseline total has fallen by roughly the 100 reads this plan names; nothing else in it rose.
 - `docs/system-map.md` item 3 is struck through with the PRs that did it, and the "Quality & CI" row's `apps/edge/api` line is rewritten from the new counts.
+- *Checked against the tree on 14 Sep 2026:* tasks A to H are done, and every live admin door and cron sweep has a test that runs it. Outside the lint files, four edge routes are still read as source: `retell-availability.ts` (availability-tool), `stripe-webhook.ts` (billing), and `admin/pause.ts` and `whatsapp.ts` (store-retired, until the retired doors go).

@@ -50,7 +50,8 @@ test("a save that lost the race: the server's sentence comes back, and the setti
   const t = tab(() => refusal(409, "conflict", "Someone else saved settings after you loaded them — reload and reapply."));
   const order = [];
   const r = await saveSettings({}, 3, () => order.push("accepted"), { client: t.client, refresh: async () => order.push("settings re-read") });
-  assert.deepEqual(r, { ok: false, code: "conflict", status: 409, message: "Someone else saved settings after you loaded them — reload and reapply." });
+  // A5: the refusal carries the kind of no (refusals-in-our-words) beside the server's own sentence.
+  assert.deepEqual(r, { ok: false, code: "conflict", status: 409, title: "Not possible right now", message: "Someone else saved settings after you loaded them — reload and reapply.", retryAfterS: null, fields: null });
   assert.deepEqual(order, ["settings re-read"], "re-read on the conflict, never accepted");
   const other = tab(() => refusal(403, "forbidden", "Only an owner can change settings."));
   const seen = [];
