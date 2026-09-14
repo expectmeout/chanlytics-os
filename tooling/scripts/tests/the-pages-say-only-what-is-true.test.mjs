@@ -256,6 +256,47 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
   assert.deepEqual(opened.filter(Boolean), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
 });
 
+test("REGRESSION: the missing notice holds when the Inbox is read again -- on the live salon a refresh moments later opened Emily Chen in its place", () => {
+  // The page's own listener, run: the harness's addEventListener keeps nothing, which is how the
+  // first test passed while the live page, re-read seconds after the link, still opened the first thread.
+  const listeners = {};
+  const keep = { add: globalThis.window.addEventListener, remove: globalThis.window.removeEventListener };
+  globalThis.window.addEventListener = (type, fn) => { (listeners[type] ||= []).push(fn); };
+  globalThis.window.removeEventListener = () => {};
+  try {
+    const opened = [];
+    globalThis.InboxList = () => null;
+    globalThis.InboxThread = (p) => { opened.push(p.thread ? p.thread.id : null); return null; };
+    globalThis.InboxAgentRail = () => null;
+    globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+    const emily = { id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" };
+    globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [emily] };
+    const render = () => { seq = 0; return globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false }); };
+    const missingIn = (tree) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === "inbox-missing-thread") hit = n; }); return hit; };
+    const reread = (threads) => {
+      globalThis.window.INBOX_DATA = { ...globalThis.window.INBOX_DATA, THREADS: threads };
+      for (const fn of listeners["surface:inbox"] ?? []) fn();
+    };
+    cells = [];
+    assert.ok(missingIn(render()), "the notice, as the link lands");
+    assert.ok((listeners["surface:inbox"] ?? []).length > 0, "the Inbox listens for its surface being read again");
+
+    // Read again -- a realtime event, a verb elsewhere, the periodic refresh -- and still no such thread.
+    reread([{ ...emily }]);
+    assert.ok(missingIn(render()), "REGRESSION: after the re-read the notice was gone");
+    assert.deepEqual(opened.filter(Boolean), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
+
+    // The link was right, only early: when a later read brings the thread, it opens.
+    reread([{ ...emily }, { ...emily, id: "th-missing", who: "Nina Park" }]);
+    const arrived = render();
+    assert.equal(missingIn(arrived), null, "no notice once the thread is loaded");
+    assert.equal(opened.at(-1), "th-missing", "the thread the link named opens");
+  } finally {
+    globalThis.window.addEventListener = keep.add;
+    globalThis.window.removeEventListener = keep.remove;
+  }
+});
+
 /* ---------- the composer: no Save draft that keeps nothing ---------- */
 
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");

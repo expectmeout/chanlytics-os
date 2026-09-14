@@ -81,6 +81,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const [toastNode, ppFlash] = window.usePPToast();
   const [planParams, setPlanParams] = React.useState({}); // per-thread plan-param pick — lifted so hotkey A and the button write the same record
 
+  // The thread the route names, as of this render, for the re-read below: its listener is bound once.
+  const routeThreadRef = React.useRef(initialThreadId);
+  routeThreadRef.current = initialThreadId;
+
   // Deep-link follows later navigations too
   React.useEffect(() => {
     if (!initialThreadId) return;
@@ -110,7 +114,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       reseed();
       if (!list.length) return;
       setActiveBucket((b) => (list.some((x) => x.state === b) ? b : firstBucketWithThreads(list)));
-      setActiveThreadId((id) => (list.some((x) => x.id === id) ? id : null));
+      // A thread the route still names stays selected though the list does not hold it: the pane keeps
+      // saying it is missing, where clearing it let the refresh open the first thread in its place.
+      setActiveThreadId((id) => (list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null));
     };
     window.addEventListener("surface:inbox", onSwap);
     return () => window.removeEventListener("surface:inbox", onSwap);
