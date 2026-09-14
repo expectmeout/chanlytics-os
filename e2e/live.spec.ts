@@ -42,7 +42,9 @@ test.describe("Live on a real workspace", () => {
       await page.waitForTimeout(2200);
       expect(await clock.innerText(), "the elapsed clock runs").not.toBe(before);
     } else {
-      await expect(live.getByText(/No call in progress|no phone line yet/)).toBeVisible();
+      // A workspace without a phone line says so twice, in the line stat and in
+      // the note under the list, and either one is the honest answer.
+      await expect(live.getByText(/No call in progress|no phone line yet/).first()).toBeVisible();
     }
 
     // A finished call, when there is one, shows a summary state — never a blank.
