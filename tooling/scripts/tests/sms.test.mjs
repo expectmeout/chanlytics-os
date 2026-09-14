@@ -166,20 +166,20 @@ test("the pilot allowlist gates the deployment's own number, never a tenant that
   const raw = readRaw("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(raw.includes("THE PILOT ALLOWLIST, scoped to the number it was made for."), "and the reason it is scoped stays written down");
   // A text never arrives on the deployment's own WhatsApp number, so the
-  // allowlist can never gate one; the endpoint says so by passing false.
-  assert.ok(readCode("apps/edge/api/inbound-sms.ts").includes("handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier)"));
+  // allowlist can never gate one. That the SMS door says so is RUN in
+  // sms-door.test.mjs: an allowlist that leaves the customer out, and the text
+  // answered with no allowlist skip recorded.
 });
 
 test("the wiring: proven before trusted, held before spoken, the channel on every row, a second wire", () => {
   assert.ok(ESCALATION_REASONS.includes(SMS_HELD_REASON));
-  const hook = readCode("apps/edge/api/inbound-sms.ts");
   // The signature before the routing, only the dry provider exempt, the hold
   // and its words, the unroutable statuses: all four moved into
   // planSmsIngress and are now EXECUTED (sms-ingress.test.mjs) rather than
-  // read as text here. Scans deleted rather than re-pointed: a behaviour a
+  // read as text here. The door around it -- the text handed to the handler
+  // with its line as the carrier, an empty TwiML for every answer -- is run in
+  // sms-door.test.mjs. Scans deleted rather than re-pointed: a behaviour a
   // test runs does not also need a test that reads it.
-  assert.ok(hook.includes("handleInbound(smsAsWaMessage(inbound), {}, routed.tenantId, routed, false, false, carrier)"));
-  assert.ok(hook.includes('text(status, EMPTY_TWIML, { "content-type": "text/xml" })'), "Twilio hears an empty TwiML, never words from here");
   const road = readRaw("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(road.indexOf("if (carrier?.held) {") > road.indexOf("if (optedOut) {") && road.indexOf("if (carrier?.held) {") < road.indexOf("// Routing is on the NORMALIZED type"), "after consent, before any branch that speaks");
   const code = readCode("apps/edge/lib/whatsapp/inbound.ts");
@@ -203,10 +203,11 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   assert.ok(persist.includes('purpose: SendPurpose = "conversational"'), "and names the purpose the caller gave it, a reply by default");
   assert.ok(readCode("packages/db/src/repositories/ingest.ts").includes('channel: p.channel ?? "whatsapp",'), "an outbound row says its wire");
   // The job's wires are bound by the edge where the credentials are, and a
-  // missing one is a refusal at the door (deliver.test.mjs runs that door).
+  // missing one is a refusal at the door (deliver.test.mjs runs that door;
+  // jobs-tick-door.test.mjs runs the heartbeat sending a job on its
+  // workspace's own texting line).
   const door = readCode("packages/core/src/deliver.ts");
   assert.ok(door.includes('send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }'), "no line = a loud failure at the door, never the other wire");
-  assert.ok(readCode("apps/edge/api/jobs/tick.ts").includes("sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith(\"+\") ? to : `+${to}`, p.body) : null,"), "the texting line is the job's sms wire");
   const reply = readCode("packages/core/src/conversations/reply.ts");
   // The channel and the window are rules that return values now (replyChannelOf
   // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.
