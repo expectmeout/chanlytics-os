@@ -256,6 +256,47 @@ test("REGRESSION: a link to a thread the Inbox has not loaded draws the missing 
   assert.deepEqual(opened.filter(Boolean), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
 });
 
+test("REGRESSION: the missing notice holds when the Inbox is read again -- on the live salon a refresh moments later opened Emily Chen in its place", () => {
+  // The page's own listener, run: the harness's addEventListener keeps nothing, which is how the
+  // first test passed while the live page, re-read seconds after the link, still opened the first thread.
+  const listeners = {};
+  const keep = { add: globalThis.window.addEventListener, remove: globalThis.window.removeEventListener };
+  globalThis.window.addEventListener = (type, fn) => { (listeners[type] ||= []).push(fn); };
+  globalThis.window.removeEventListener = () => {};
+  try {
+    const opened = [];
+    globalThis.InboxList = () => null;
+    globalThis.InboxThread = (p) => { opened.push(p.thread ? p.thread.id : null); return null; };
+    globalThis.InboxAgentRail = () => null;
+    globalThis.window.VW_UTIL = { seed() {}, remaining: () => null };
+    const emily = { id: "th-a", real: true, who: "Emily Chen", state: "escalated", needsYou: true, tags: [], whoMeta: "" };
+    globalThis.window.INBOX_DATA = { INBOX_BUCKETS: [], INBOX_VIEWS: [], CHANNEL_LABELS: {}, INBOX_BASELINE: {}, THREADS: [emily] };
+    const render = () => { seq = 0; return globalThis.window.Inbox({ initialThreadId: "th-missing", showAgentRail: false }); };
+    const missingIn = (tree) => { let hit = null; walk(tree, (n) => { if (!hit && n.props?.["data-testid"] === "inbox-missing-thread") hit = n; }); return hit; };
+    const reread = (threads) => {
+      globalThis.window.INBOX_DATA = { ...globalThis.window.INBOX_DATA, THREADS: threads };
+      for (const fn of listeners["surface:inbox"] ?? []) fn();
+    };
+    cells = [];
+    assert.ok(missingIn(render()), "the notice, as the link lands");
+    assert.ok((listeners["surface:inbox"] ?? []).length > 0, "the Inbox listens for its surface being read again");
+
+    // Read again -- a realtime event, a verb elsewhere, the periodic refresh -- and still no such thread.
+    reread([{ ...emily }]);
+    assert.ok(missingIn(render()), "REGRESSION: after the re-read the notice was gone");
+    assert.deepEqual(opened.filter(Boolean), [], "REGRESSION: Emily Chen's thread opened in place of the one the link named");
+
+    // The link was right, only early: when a later read brings the thread, it opens.
+    reread([{ ...emily }, { ...emily, id: "th-missing", who: "Nina Park" }]);
+    const arrived = render();
+    assert.equal(missingIn(arrived), null, "no notice once the thread is loaded");
+    assert.equal(opened.at(-1), "th-missing", "the thread the link named opens");
+  } finally {
+    globalThis.window.addEventListener = keep.add;
+    globalThis.window.removeEventListener = keep.remove;
+  }
+});
+
 /* ---------- the composer: no Save draft that keeps nothing ---------- */
 
 await import("../../../apps/dashboard/src/legacy/pages/inbox-thread.jsx");
@@ -387,17 +428,37 @@ test("REGRESSION: when the number could not be read, Messages says that -- it sa
   assert.ok(byId(none, "messages-no-number"), "a workspace with no number is still told to connect one");
 });
 
-test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", () => {
-  const tpl = {
-    id: "t1", name: "winback_offer", language: "en_US", meta_status: "approved", category: "MARKETING", source: "chanlytics", hidden_at: null,
-    body_preview: "Hi {{1}}, it's been a while since we saw you at {{2}}. Book here: {{3}}",
-    variables: [{ kind: "first_name", example: "Dani" }, { kind: "business_name", example: "Luna Studio" }, { kind: "booking_link", example: "https://booksy.com/luna-studio" }],
-  };
-  const said = textOf(mountMessages({ __CHANNELS: [{ kind: "whatsapp" }], __TEMPLATES_ALL: [tpl] }));
-  assert.ok(said.includes("Melany's Beauty Salon"), said);
-  assert.ok(said.includes("https://booksy.com/melany"), said);
-  assert.ok(!said.includes("Luna Studio"), "REGRESSION: another business's name in this business's message");
-  assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
+test("REGRESSION: a message's preview names this business and its booking link -- it showed the sample filed with Meta, 'Luna Studio'", async () => {
+  // The page reads the starter library the bridge installs, not a stand-in.
+  const { installTemplates } = await import("../../../apps/dashboard/src/legacy-bridge/templates.ts");
+  installTemplates();
+  const starters = globalThis.window.__starters;
+  // A row as the sync stores it (apps/edge/api/admin/whatsapp/templates-create.ts): a position, a label,
+  // the example filed with Meta -- and no kind. The first fix read a `kind` no real row carries, so the
+  // salon's five approved starters still said "Luna Studio" on 14 September.
+  const filed = [
+    { label: "Value 1", example: "Dani", position: 1 },
+    { label: "Value 2", example: "Luna Studio", position: 2 },
+    { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 },
+  ];
+  const row = (over) => ({
+    id: "t1", channel: "whatsapp", name: "save_our_number", language: "en_US", meta_status: "approved", category: "marketing",
+    source: "chanlytics", hidden_at: null, title: null, quality: null, rejected_reason: null, synced_at: null,
+    body_preview: "Hi {{1}}, thanks for calling {{2}}. Book any time: {{3}} or just write to us here.", variables: filed, ...over,
+  });
+  for (const language of ["en_US", "es"]) {
+    const said = textOf(mountMessages({ __CHANNELS: [{ kind: "whatsapp" }], __starters: starters, __TEMPLATES_ALL: [row({ language })] }));
+    assert.ok(said.includes("Melany's Beauty Salon"), `${language}: ${said}`);
+    assert.ok(said.includes("https://booksy.com/melany"), `${language}: ${said}`);
+    assert.ok(!said.includes("Luna Studio") && !said.includes("booksy.com/luna-studio"), `REGRESSION (${language}): another business's name and link in this business's message`);
+    assert.ok(said.includes("Hi Dani"), "the customer's name stays a sample: no one customer is being shown");
+  }
+  // A template written in WhatsApp Manager is that business's own words: a slot nothing names keeps the example it filed.
+  const theirs = textOf(mountMessages({
+    __CHANNELS: [{ kind: "whatsapp" }], __starters: starters,
+    __TEMPLATES_ALL: [row({ id: "t2", name: "front_desk_note", source: "meta", body_preview: "A note from {{1}}.", variables: [{ label: "Value 1", example: "the front desk", position: 1 }] })],
+  }));
+  assert.ok(theirs.includes("A note from the front desk."), theirs);
 });
 
 /* ------ Broadcasts: numbers over the latest fifty say they are the latest fifty ------ */
