@@ -350,18 +350,15 @@ test("UNDER-BLOCKING, pinned: the voice path asks the one predicate, with the me
   assert.match(gate, /const may = mayMessageFor\(f\.contact, f\.purpose, \{ proactive: f\.proactive \}\);/);
   assert.ok(!/optedOut: boolean/.test(gate), "REGRESSION: a pre-decided boolean cannot answer a per-purpose question");
 
-  const fn = readCode("apps/edge/api/retell-fn.ts");
-  // The purpose is STATED as a fact about the message, not read from a column that
-  // is NULL for this very row -- `purposeOfTemplate(null)` is "marketing", which
-  // would refuse a booking link to every caller who has not asked for offers.
-  assert.match(fn, /purpose: "conversational" as const/);
-  assert.match(fn, /purpose: BOOKING_TEMPLATE\.purpose,/);
-  // And WHOSE number decides whether it is proactive: answering the caller on the
-  // line is not a proactive send; texting a number they merely spoke aloud is.
-  assert.match(fn, /proactive: !isCaller,/);
-  // The row is handed over WHOLE now: `OutboundTarget extends PurposeBearing`, so the
-  // compiler, not a pattern here, holds its consent fields to the names the gate reads.
-  assert.ok(!/optedOut: isOptedOutContact\(contact\)/.test(fn), "REGRESSION: half the consent question");
+  // The voice path itself is run in retell-fn-door.test.mjs. Its purpose is STATED
+  // as a fact about the message, not read from a column that is NULL for this very
+  // row -- `purposeOfTemplate(null)` is "marketing", which would refuse a booking
+  // link to every caller who has not asked for offers -- so a caller with no yes to
+  // offers is sent it there. And WHOSE number decides whether it is proactive:
+  // answering the caller on the line is not a proactive send, while texting a
+  // number they merely spoke aloud is, and there it waits for that person's own
+  // yes. The row is handed over WHOLE: `OutboundTarget extends PurposeBearing`, so
+  // the compiler holds its consent fields to the names the gate reads.
 
   // The resolver has to project the column, or the gate above reads undefined and
   // fails closed on every promotional send it is ever asked about.

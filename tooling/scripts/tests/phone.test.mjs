@@ -73,9 +73,8 @@ test("the shared normalizer is NOT tightened, because two of its callers fail op
   assert.ok(fwd.includes("if (dest && call.toE164 && normalizePhone(call.toE164) !== dest) return false;"), "still guarded only when dest parses");
 
   // retell-fn: `asked ?? caller` turns a refusal into a text to the caller
-  // instead of to the number they gave.
-  const fn = readCode("apps/edge/api/retell-fn.ts");
-  assert.ok(fn.includes("const target = asked ?? caller;"), "still falls back to the caller");
+  // instead of to the number they gave -- run in retell-fn-door.test.mjs, where
+  // a short code the agent collected sends the link to the caller's own number.
 
   // So the rule stays as it is, and any future change to it has to answer for
   // these two first.
