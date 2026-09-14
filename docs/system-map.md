@@ -275,9 +275,10 @@ are written and their briefs are ready.
 - **The 112 database tests do not run on a PR.** They are in `ci.yml`'s `pnpm test`
   and they all skip without credentials, so a green PR proves nothing about RLS,
   CHECK constraints, triggers, `SKIP LOCKED`, tenancy or retention.
-- **`database.yml` is not a required check.** Its own header says branch
-  protection requires Secret scan and Typecheck only — so a red migrations replay
-  does not block a merge.
+- **`database.yml` is not a required check yet.** Since 14 September it reports
+  on every pull request and replays only when the database could have changed,
+  so it can be required; the setting that requires it is Ruben's. Until it is
+  flipped, a red migrations replay does not block a merge.
 - ~~**`packages/db/src/database.types.ts` is the one unguarded generated
   artifact.**~~ **Closed 13 September** (`97f803f`). `ci.yml:61-63` was a
   *comment describing a freshness check that was never implemented*; the check
@@ -387,7 +388,7 @@ estimates.
 | 3 | **Execute the edge handlers** | 33 of 41 handlers on the live customer path are pinned by text and never run. `apps/dashboard/app/api/v1` already proves the pattern works — 82 route modules invoked against a fake database. The same treatment applied to `whatsapp.ts`, `inbound-sms.ts`, `retell-webhook.ts`, `jobs/tick.ts` and the 8 crons would move the weakest layer to the strongest. **Approved 13 Sep; six of eight sessions done that day** — the Retell webhook, the lines door, all eight crons and seventeen back-office doors now execute (41 pins deleted). **Left:** the WhatsApp door, the SMS door + job tick, and the two other Retell doors — plan: `docs/plans/2026-09-13-the-edge-handlers-run.md`, tasks A, B and D. | ~3 days left |
 | 4 | **Guard `database.types.ts`** | The one generated artifact with no check, where `ci.yml` carries a comment describing the check and no step implementing it. A dropped column typechecks clean and fails in production. **Done 13 Sep** (`97f803f`); first CI run green on #460. | done |
 | 5 | **An e2e spec for the conversation thread** | The product's central surface has no browser test. Reply, take-over, escalation resolution, the message lifecycle. | 2–3 days |
-| 6 | **Make `database.yml` a required check** | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Approved 13 Sep, not yet done** — plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md`; the final setting flip is yours. | ~1 hour |
+| 6 | **Make `database.yml` a required check** | A red migrations replay currently does not block a merge, on a product whose entire safety model is in the schema. **Built 14 Sep:** the check reports on every pull request and replays only when the database could have changed (plan: `docs/plans/2026-09-13-the-replay-is-a-required-check.md`, tasks 1 to 3). **Left:** the setting that makes it required, which is Ruben's. | the setting |
 | 7 | **Automate the `events` partition** | It can wedge permanently and self-perpetuatingly, with up to 35 days of detection lag, and the remediation is manual. Alert on `events_default` row count; add a partition-level purge. | 1–2 days |
 | 8 | **Set `EDGE_CALL_SECRET`** and delete the 4 retired endpoints | One shared key currently opens 22 admin doors; four deployed doors have no caller. | ~half day |
 | 9 | **Drain the waitlist** | People are joining a list nothing reads. | 1–2 days |

@@ -5,43 +5,21 @@ name: Database
 # cannot see a CHECK, a trigger or a SKIP LOCKED; this can. It is also the only
 # place the migrations are applied to anything but production before they are.
 #
-# It runs when the database could have changed. The replay depends on the
-# migrations, the seed and the config under supabase/, on the SQL suites, and
-# on the generated sets the --check compares with the database. The *.db
-# suites reach Postgres through supabase-js alone; the *.integration suites
-# (eleven of them, written against a live database and skipped everywhere
-# else for a year) also call the db package's repositories -- ingestCall,
-# resolveOutboundTarget, readThreadState -- through its committed dist, which
-# is why packages/db/src is a trigger too. Branch protection requires Secret
-# scan and Typecheck only, so a pull request that leaves the database alone
-# is not held for a check that did not run. Two workflows on every push spent
-# the included minutes by 11 September.
+# It reports on every pull request, so branch protection can require it, and it
+# replays only when the database could have changed. The first step pipes the
+# changed files through tooling/scripts/db-paths-changed.mjs, which holds the
+# one list of what the replay depends on: the migrations, seed and config under
+# supabase/, the SQL suites, the db package's src (the *.integration suites call
+# its repositories through the committed dist), what the two --check steps
+# compare, and what this workflow installs. A pull request that touches none of
+# them gets that sentence and a pass without a Supabase stack being started, and
+# a push to main asks the same question of what it merged. Two workflows on
+# every push spent the included minutes by 11 September; the question costs a
+# checkout and a git diff.
 on:
   pull_request:
-    paths:
-      - "supabase/**"
-      - "tooling/scripts/tests/*.db.test.mjs"
-      - "tooling/scripts/tests/*.integration.test.mjs"
-      - "packages/db/src/**"
-      - "tooling/scripts/gen-schema-sets.mjs"
-      - "tooling/scripts/check-db-types.mjs"
-      - "packages/contracts/src/schema-sets.generated.ts"
-      - ".github/workflows/database.yml"
-      - "package.json"
-      - "pnpm-lock.yaml"
   push:
     branches: [main]
-    paths:
-      - "supabase/**"
-      - "tooling/scripts/tests/*.db.test.mjs"
-      - "tooling/scripts/tests/*.integration.test.mjs"
-      - "packages/db/src/**"
-      - "tooling/scripts/gen-schema-sets.mjs"
-      - "tooling/scripts/check-db-types.mjs"
-      - "packages/contracts/src/schema-sets.generated.ts"
-      - ".github/workflows/database.yml"
-      - "package.json"
-      - "pnpm-lock.yaml"
 
 concurrency:
   group: database-${{ github.event.pull_request.number || github.ref }}
@@ -49,35 +27,70 @@ concurrency:
 
 jobs:
   replay:
+    # A required check is matched by this name. Renamed, it would leave every
+    # pull request waiting for a check that never reports.
     name: Migrations replay, SQL rules hold
     runs-on: ubuntu-latest
     steps:
+      # The whole history, so the diff below has its base to compare with.
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+        with:
+          fetch-depth: 0
+      # The answer goes to the step's outputs and the reason to the log. A git
+      # diff that fails, or a script that crashes, fails this step instead of
+      # reading as "not needed" and skipping the replay.
+      - id: changed
+        name: Could the database have changed?
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            files="$(git diff --name-only "origin/$BASE_REF...HEAD")"
+          elif [ -z "${BEFORE//0/}" ]; then
+            echo "A push with nothing before it to compare with, so the migrations replay from zero." >&2
+            echo "db=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          else
+            files="$(git diff --name-only "$BEFORE" "$AFTER")"
+          fi
+          printf '%s\n' "$files" | node tooling/scripts/db-paths-changed.mjs >> "$GITHUB_OUTPUT"
+      - if: steps.changed.outputs.db == 'true'
+        uses: pnpm/action-setup@v4
+      - if: steps.changed.outputs.db == 'true'
+        uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: pnpm
-      - uses: supabase/setup-cli@v1
+      - if: steps.changed.outputs.db == 'true'
+        uses: supabase/setup-cli@v1
         with:
           version: 2.116.0
-      - run: pnpm install --frozen-lockfile
-      - run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
+      - if: steps.changed.outputs.db == 'true'
+        run: pnpm install --frozen-lockfile
+      - if: steps.changed.outputs.db == 'true'
+        run: supabase start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector
       # Every closed set the migrations declare, regenerated from the database.
       # A migration that changed one without regenerating fails here, and the
       # compiler then names every copy the change left behind.
-      - run: node tooling/scripts/gen-schema-sets.mjs --check
+      - if: steps.changed.outputs.db == 'true'
+        run: node tooling/scripts/gen-schema-sets.mjs --check
       # database.types.ts regenerated from the same database and compared, with
       # PostgREST's version and the month's events partitions ignored.
       # Red: supabase start && corepack pnpm gen:db-types
-      - run: node tooling/scripts/check-db-types.mjs --check
+      - if: steps.changed.outputs.db == 'true'
+        run: node tooling/scripts/check-db-types.mjs --check
       # The local stack's service and anon keys are the published demo keys, not
       # secrets. The anon key is what the RLS suites sign real sessions in with.
       - name: Point the suite at the local database
+        if: steps.changed.outputs.db == 'true'
         run: |
           echo "SUPABASE_URL=http://127.0.0.1:54321" >> "$GITHUB_ENV"
           echo "SUPABASE_SERVICE_ROLE_KEY=$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
           echo "SUPABASE_ANON_KEY=$(supabase status -o env | sed -n 's/^ANON_KEY="\(.*\)"$/\1/p')" >> "$GITHUB_ENV"
-      - run: pnpm test:db
-      - if: always()
+      - if: steps.changed.outputs.db == 'true'
+        run: pnpm test:db
+      - if: always() && steps.changed.outputs.db == 'true'
         run: supabase stop --no-backup

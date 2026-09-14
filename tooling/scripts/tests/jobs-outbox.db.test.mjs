@@ -10,7 +10,7 @@
  *   SUPABASE_SERVICE_ROLE_KEY="$(supabase status -o env | sed -n 's/^SERVICE_ROLE_KEY="\(.*\)"$/\1/p')" \
  *   pnpm test:db
  *
- * .github/workflows/database.yml runs exactly that on every pull request.
+ * .github/workflows/database.yml runs exactly that on every pull request that could change the database.
  */
 import { test, before, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
