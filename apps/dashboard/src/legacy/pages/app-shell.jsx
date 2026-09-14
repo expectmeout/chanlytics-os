@@ -271,7 +271,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       T = T.filter((t) => t.real);
     }
     const D = (window.IX_STORE || {}).decisions || {};
-    return T.filter((t) => (t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length;
+    // A real thread carries the answer (the view model's needsYou), the rule the
+    // Inbox counts by: a thread a teammate or you have is not waiting on you.
+    return T.filter((t) => (t.real ? t.needsYou : t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length;
   });
 
   // Live Inbox badge — decisions made in the Inbox update the sidebar count

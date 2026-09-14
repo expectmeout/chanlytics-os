@@ -386,3 +386,17 @@ test("on a real workspace a crumb, and so the tab, never names the demo's people
   delete win.__ME;
   for (const k of ["CALENDAR_DATA", "__CALENDAR", "CLIENT_SEGMENTS", "__BROADCASTS", "__PEOPLE"]) delete win[k];
 });
+
+test("the tab counts a real thread only when it needs you: one a teammate is answering, or one you have, is not waiting on you", () => {
+  shell.installShell(win);
+  win.ixRouteThread = (id) => ({ id, who: null });
+  win.INBOX_DATA = {
+    THREADS: [
+      { id: "th-1", real: true, state: "escalated", needsYou: true, takenOver: false, claimedByOther: false },
+      { id: "th-2", real: true, state: "escalated", needsYou: false, takenOver: false, claimedByOther: true },
+      { id: "th-3", real: true, state: "escalated", needsYou: false, takenOver: true, claimedByOther: false },
+    ],
+  };
+  assert.equal(mount("#/inbox").title, "(1) Inbox · Chanlytics", "REGRESSION: a teammate's thread was counted as needing you until the Inbox itself mounted");
+  win.INBOX_DATA = { THREADS: [] };
+});

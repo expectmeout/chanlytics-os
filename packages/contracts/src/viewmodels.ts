@@ -370,6 +370,15 @@ export interface InboxThreadVM {
   avatar: string;
   state: "escalated" | "snoozed" | "done";
   takenOver: boolean;
+  /** A teammate has this thread: the page names them and offers no take-over. */
+  claimedByOther: boolean;
+  /** Who has it, when someone does -- the page names them from the team. */
+  assigneeUserId: string | null;
+  /**
+   * The customer's own words beside the decision: what they last wrote, quoted,
+   * or what the call left behind for a call back. Null when nothing is being decided.
+   */
+  ask: { label: string; text: string; quoted: boolean } | null;
   /**
    * This thread is waiting on a human, and no human has it yet.
    *
@@ -588,6 +597,18 @@ export function toInboxThreadVM(
     ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 60000))
     : undefined;
 
+  // The customer's own words where the decision is made. The reason's sentence
+  // says why a person is needed; this says what they asked: the last thing they
+  // wrote, which is what they are waiting on, or for a call back what the call
+  // left behind -- the details the call back's sentence promises.
+  const ask: InboxThreadVM["ask"] = !escalation
+    ? null
+    : escalation.reason === "callback"
+      ? (escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null)
+      : lastInbound
+        ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" }
+        : null;
+
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -602,6 +623,9 @@ export function toInboxThreadVM(
     state,
     takenOver,
     needsYou,
+    claimedByOther,
+    assigneeUserId: dto.assignee_user_id ?? null,
+    ask,
     heldDraft,
     ...(heldDraft
       ? {
@@ -634,15 +658,19 @@ export function toInboxThreadVM(
             ? messageText(last).slice(0, 80)
             : "No messages yet"),
     preview: last ? messageText(last).slice(0, 110) : "",
-    summary: escalation
+    // A thread a teammate has is theirs to answer: the reason's sentence ("they're
+    // waiting on you") would tell everyone else the opposite of what is true.
+    summary: claimedByOther
+      ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
+      : escalation
       ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
       : takenOver
         ? "You're answering this one. The receptionist stays quiet until you hand it back."
         : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
-      ...(reasonLabel ? [{ label: "Why you", value: reasonLabel }] : []),
+      ...(reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : []),
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
-      { label: "Receptionist", value: needsHuman ? (escalation?.reason === "callback" ? "Paused — call them back" : "Paused — you have it") : "Answering" },
+      { label: "Receptionist", value: needsHuman ? (claimedByOther ? "Paused — a teammate has it" : escalation?.reason === "callback" ? "Paused — call them back" : "Paused — you have it") : "Answering" },
       hasChat
         ? { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
         : { label: "WhatsApp", value: "No thread yet — they have only phoned" },
@@ -651,7 +679,9 @@ export function toInboxThreadVM(
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
-    unread: state === "escalated" && !takenOver,
+    // The dot means a person is needed and nobody has it: needsYou, the one rule.
+    // "Escalated and not mine" lit it on a thread a teammate is answering too.
+    unread: needsYou,
     pinned: false,
     tags: [],
     priority: "P2",

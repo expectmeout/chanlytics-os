@@ -8,6 +8,15 @@
 //   - Saved views are collapsed by default behind a single chip-row toggle
 //   - Bulk actions stay; checkbox visible on hover only
 
+// Who has a thread a teammate is answering: named from the team the Settings
+// surface reads (memberWords), or "A teammate" when the roster is unread or they
+// are no longer on it -- a name is never invented.
+const ixAnswerer = (t) => {
+  const m = t && t.assigneeUserId && Array.isArray(window.__TEAM) ? window.__TEAM.find((x) => x.userId === t.assigneeUserId) : null;
+  if (!m) return "A teammate";
+  return window.__identity ? window.__identity.member({ email: m.email, display_name: m.displayName || null }).name : (m.displayName || m.email || "A teammate");
+};
+
 const InboxList = ({
   threads,
   allThreads = [],
@@ -222,7 +231,7 @@ const InboxList = ({
           // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
           // pill and the wait chip used to look for "needs", a state no real thread
           // has, so no real thread ever showed how long it had waited.
-          const showStatePill = (searching || !inNeedsBucket) && t.state === "escalated";
+          const showStatePill = (searching || !inNeedsBucket) && t.state === "escalated" && !t.claimedByOther;
           return (
             <div
               key={t.id}
@@ -247,8 +256,11 @@ const InboxList = ({
                   {t.pinned && <Icon name="pin" size={10} />}
                   <div className="ix-thread-meta">
                     {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
+                    {/* A teammate has it: say whose, never Needs you. */}
+                    {t.real && t.claimedByOther && <StatePill kind="thread" value="theirs" label={`${ixAnswerer(t)} has it`} className="ix-state-pill" testid="thread-theirs" />}
+                    {/* The wait in the one family (8d, 3h, 40m), amber only when it is waiting on you. */}
                     {t.state === "escalated" && t.waitingMin > 0 && (
-                      <span className={`ix-wait tabular ${t.waitingMin > 30 ? "warn" : ""}`}>waiting {t.waitingMin}m</span>
+                      <span className={`ix-wait tabular ${t.waitingMin > 30 && !t.claimedByOther ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
                     )}
                     {t.state === "snoozed" && t.wake && (
                       <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
@@ -308,4 +320,5 @@ const ConfidenceDots = ({ level }) => {
 };
 
 window.InboxList = InboxList;
+window.ixAnswerer = ixAnswerer;
 window.ConfidenceDots = ConfidenceDots;

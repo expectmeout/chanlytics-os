@@ -1393,6 +1393,19 @@
 .ix-take-body { flex: 1; min-width: 0; }
 .ix-take-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .ix-take-sub { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
+/* The customer's own words, beside the decision: their last message, or what the call left behind. */
+.ix-take-ask {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-top: 8px; padding: 7px 10px;
+  border-left: 2px solid var(--line-strong); border-radius: var(--radius-sm);
+  background: var(--bg-sunken);
+}
+.ix-take-ask-label { font-size: 10.5px; font-weight: 500; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+.ix-take-ask-text {
+  font-size: 12.5px; line-height: 1.45; color: var(--ink);
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden;
+}
 
 /* Decide row in approval footer */
 .ix-approval-foot { flex-wrap: wrap; gap: 10px; }
