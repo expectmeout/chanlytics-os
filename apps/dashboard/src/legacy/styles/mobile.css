@@ -93,6 +93,11 @@
   .ac-buckets { border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; }
   .dec-outcomes { grid-template-columns: 1fr; }
   .fleet-grid { grid-template-columns: 1fr 1fr; }
+  /* The real queue's head and its call in progress wrap on a phone; they held one line and cut the words off. */
+  .tq-head { flex-wrap: wrap; }
+  .tq-sub { flex-basis: 100%; white-space: normal; }
+  .tq-live { flex-wrap: wrap; }
+  .tq-live-text { white-space: normal; }
 
   /* ---------- Inbox ---------- */
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }

@@ -1288,6 +1288,8 @@ interface TodaySentenceVM {
     /** True for the one line that must never read as calm: a reply that
      *  failed to deliver. */
     warn?: boolean;
+    /** The record the sentence is about, when the read holds it: the thread of the newest reply that failed. */
+    to?: string;
 }
 /**
  * One row of the queue on Today, in the strip's grammar (people.ts
