@@ -7757,6 +7757,12 @@ declare const SIGNUP_WORDS: {
     readonly waitlistLead: "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.";
     readonly waitlistSent: (email: string) => string;
     readonly waitlistCta: "Join the list";
+    /** Under the business's name on the first-workspace screen: the list writes to the address the person signed in with. */
+    readonly waitlistWriteTo: (email: string) => string;
+    /** The list answered, but not with a place on it. */
+    readonly waitlistNotJoined: "You are not on the list yet. Refresh this page and try again.";
+    /** No answer came back at all: said the same on the sign-up page and the first-workspace screen. */
+    readonly unreachable: "Could not reach Chanlytics just now. Try again.";
     readonly codeWrong: "That invite code is not right.";
     readonly crossSite: "That request did not come from this site.";
     readonly haveOne: "Already have a workspace?";

@@ -117,8 +117,11 @@ test("every route pg_cron calls stands behind the one door", () => {
 test("every bridge request goes through the typed client", () => {
   // Eleven couriers each owned a fetch, the envelope, the 401 and the workspace;
   // src/client/api.ts owns them once. A new fetch in the bridge is a courier
-  // re-implementing them, and this says so. The one allowance is the version
-  // check on boot, which is not a /api/v1 route.
+  // re-implementing them, and this says so. Two requests are allowed, because
+  // api() owns none of what they need: the version check on boot, which is not
+  // a /api/v1 route, and the public sign-up door, which has no session, no
+  // workspace and no 401, and which the first-workspace screen posts the
+  // waitlist to (waitlist.ts), as the sign-up page does.
   const dir = path.join(here, "../../../apps/dashboard/src/legacy-bridge");
   const offenders = [];
   (function walk(d) {
@@ -126,7 +129,7 @@ test("every bridge request goes through the typed client", () => {
       const p = path.join(d, e.name);
       if (e.isDirectory()) walk(p);
       else if (/\.tsx?$/.test(e.name) && !(d === dir && e.name === "api.ts")) {
-        const src = stripComments(fs.readFileSync(p, "utf8")).replace('fetch("/api/version"', "");
+        const src = stripComments(fs.readFileSync(p, "utf8")).replace('fetch("/api/version"', "").replace('fetch("/api/v1/signup"', "");
         if (/\bfetch\(/.test(src)) offenders.push(path.relative(dir, p).split(path.sep).join("/"));
       }
     }

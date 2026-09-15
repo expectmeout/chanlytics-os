@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SIGNUP_WORDS, type PendingWorkspace, type SignupPosture } from "@chanlytics/contracts";
 import { api } from "./api";
+import { joinWaitlistFrom } from "./waitlist";
 
 /**
  * The first screen of an account that belongs to nowhere — and, from the
@@ -91,6 +92,8 @@ export default function CreateWorkspace({
   // already inside has no door.
   const door: SignupPosture = another ? "open" : posture;
   const [code, setCode] = useState("");
+  // Behind a waitlist: the list's own sentence, once it has taken them.
+  const [joined, setJoined] = useState<string | null>(null);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -116,19 +119,70 @@ export default function CreateWorkspace({
     onCreated(r.data.workspace);
   };
 
-  // The list, not the form: a waitlist takes details and makes nothing, and a
-  // first workspace behind one is refused by the route anyway. The public
-  // sign-up page already holds the list's form, so this sends them there.
+  // Joining the list, from here. The button sent a signed-in person to /signup,
+  // and the middleware sends a signed-in person away from /signup, back to this
+  // screen: a loop (the wiring audit's N1). The list takes the business's name
+  // and the address they signed in with, and makes nothing.
+  const join = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (busy) return;
+    setBusy(true);
+    setError(null);
+    const r = await joinWaitlistFrom(window, { name, email: email ?? "" });
+    setBusy(false);
+    if (r.ok) setJoined(r.sentence);
+    else setError(r.message);
+  };
+
+  // A first workspace's way out, and the pages signing up agreed to. The screen
+  // had neither, so somebody signed in with the wrong account could only close
+  // the tab (N2). Another workspace, opened from inside the app, has Back and
+  // the app's own menu.
+  const leave = another ? null : (
+    <p className="cw-legal">
+      <button className="cw-link" type="button" onClick={() => window.__shell?.signOut()} data-testid="create-workspace-signout">
+        Sign out
+      </button>
+      <span aria-hidden="true">·</span>
+      <a href="/terms">Terms of service</a>
+      <span aria-hidden="true">·</span>
+      <a href="/privacy">Privacy policy</a>
+    </p>
+  );
+
+  // The list, not the workspace form: a waitlist takes details and makes
+  // nothing, and a first workspace behind one is refused by the route anyway.
   if (door === "waitlist") {
     return (
       <div className="cw-screen" data-testid="create-workspace-waitlist">
-        <div className="cw-card">
+        <form className="cw-card" onSubmit={join}>
           <h1 className="cw-title">{SIGNUP_WORDS.waitlistTitle}</h1>
-          <p className="cw-lede">{SIGNUP_WORDS.waitlistLead}</p>
-          <button className="cw-submit" type="button" onClick={() => window.location.assign("/signup")} data-testid="create-workspace-join">
-            {SIGNUP_WORDS.waitlistCta}
-          </button>
-        </div>
+          {joined ? (
+            <p className="cw-lede" role="status" data-testid="create-workspace-joined">{joined}</p>
+          ) : (
+            <>
+              <p className="cw-lede">{SIGNUP_WORDS.waitlistLead}</p>
+              <label className="cw-field">
+                <span className="cw-label">Business name</span>
+                <input
+                  className="cw-input"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  placeholder="The name customers know you by"
+                  autoFocus
+                  maxLength={120}
+                  aria-label="Business name"
+                />
+                {email && <span className="cw-hint">{SIGNUP_WORDS.waitlistWriteTo(email)}</span>}
+              </label>
+              {error && <div className="cw-error" role="alert">{error}</div>}
+              <button className="cw-submit" type="submit" disabled={busy} data-testid="create-workspace-join">
+                {busy ? "Joining…" : SIGNUP_WORDS.waitlistCta}
+              </button>
+            </>
+          )}
+          {leave}
+        </form>
       </div>
     );
   }
@@ -206,6 +260,7 @@ export default function CreateWorkspace({
             invitation is accepted the first time you sign in.
           </p>
         )}
+        {leave}
       </form>
     </div>
   );
