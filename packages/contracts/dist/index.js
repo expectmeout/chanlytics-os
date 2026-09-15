@@ -2684,6 +2684,7 @@ function ruleParts(rules) {
   const parts2 = [`at least ${r.lead_hours}h ahead`];
   if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
   parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  if (rules?.party_max) parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
   return parts2;
 }
 function rulesLine(rules) {
@@ -2727,6 +2728,16 @@ function spanLabel2(t1, t2) {
   const b = clockLabel(t2);
   const sameHalf = a.slice(-2) === b.slice(-2);
   return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function nextOpenWords(startIso, tz, todayKey) {
+  const ms2 = startIso ? Date.parse(startIso) : Number.NaN;
+  if (!Number.isFinite(ms2)) return "\u2014";
+  const day = dayInZone(tz, ms2);
+  const clock2 = clockLabel(hoursOf(tz, ms2));
+  if (day.key === todayKey) return `today ${clock2}`;
+  if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock2}`;
+  if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock2}`;
+  return `${shortDate(day.key)}, ${clock2}`;
 }
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
@@ -2785,6 +2796,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const tz = dto.timezone;
   const todayKey = dayInZone(tz, now.getTime()).key;
   const nowMs = now.getTime();
+  const offerDays = { ...BOOKING_DEFAULTS, ...dto.rules ?? {} }.max_days_ahead;
+  const offerUntil = dayInZone(tz, nowMs + (offerDays - 1) * 864e5).key;
   let start = 24;
   let end = 0;
   for (const h of Object.values(dto.hours ?? {})) {
@@ -2863,28 +2876,21 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       bands,
       blocks: timed,
       allDay,
-      windows
+      windows,
+      beyondOffer: d.key > offerUntil
     };
   });
   const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
   const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
-  let next = "\u2014";
-  outer: for (const d of days) {
-    for (const w of d.windows) {
-      const at2 = zoneMidnight(tz, d.key) + w.t * 36e5;
-      if (at2 >= nowMs) {
-        next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`;
-        break outer;
-      }
-    }
-  }
+  const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "\u2014";
   const ago3 = readAgoLabel(dto.feed.read_at, now);
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
-  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? " \xB7 could not be refreshed" : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}${dto.feed.dropped ? ` \xB7 ${dto.feed.dropped} more not shown` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? " \xB7 could not be refreshed" : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const closuresAhead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6).map((c) => ({
+  const ahead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+  const closuresAhead = ahead.slice(0, 6).map((c) => ({
     key: c.date,
     label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
     note: c.note ?? null
@@ -2907,10 +2913,14 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     now: nowIn,
     feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
+    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),
     ruleParts: ruleParts(dto.rules),
     hoursLines: hoursLines2(dto.hours),
     closuresAhead,
+    // Past the six the bar names, counted: a seventh closure used to vanish without a word (C1).
+    closuresMore: Math.max(0, ahead.length - closuresAhead.length),
+    consultFirst: (dto.rules?.consult_first ?? []).map((s) => s.trim()).filter(Boolean),
     services,
     bookingLink: dto.booking_link
   };

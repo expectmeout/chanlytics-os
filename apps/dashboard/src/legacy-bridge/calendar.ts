@@ -40,6 +40,18 @@ export async function ensure(view: CalendarView, anchor: string): Promise<boolea
   return goTo(w.from, w.days);
 }
 
+/**
+ * Leaving the Calendar: the loaded window goes back to the weeks around today.
+ * Today's day, its next opening and its facts read this same surface, so a
+ * board left on another month took them with it until a reload (C1). Reads
+ * only when the window had moved, and says whether it had.
+ */
+export async function home(): Promise<boolean> {
+  if (getCalendarSpan().from === null) return false;
+  await goTo(null);
+  return true;
+}
+
 /** What a feed holds, or the refusal's words. A read: nothing refreshes. Never throws. */
 export async function previewFeed(url: string) {
   return api()("POST calendar/preview", { body: { url } });
@@ -51,7 +63,7 @@ export async function refresh(): Promise<void> {
   await refreshSurfaces([calendarOverride]);
 }
 
-export const calendar = { goTo, ensure, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };
+export const calendar = { goTo, ensure, home, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };
 
 declare global {
   interface Window {

@@ -9,6 +9,10 @@
  *   "3 more not shown" were never explained.
  * - A phone opened on a week grid four times its width; nothing could link to a day; and every sentence
  *   about the calendar's address sent the owner to "Settings › Workspace", a tab named Business.
+ * - C1, what the page says is true wherever it looks: Next opening came from the loaded weeks and named only a
+ *   weekday; a board left on another month took Today's day with it; a day past what the receptionist offers read
+ *   as a day with nothing to offer; the party size and the consultation-first services were never said; closures
+ *   past the sixth vanished; the strip counted an unreadable calendar, and days still loading, as zero.
  * Run against the contracts, the bridge's arithmetic and the page on a stub React.
  */
 import { test } from "node:test";
@@ -44,6 +48,8 @@ function dto(over = {}) {
 
 let cells = [];
 let seq = 0;
+// What each effect hands back to be run when the page goes away, as React runs them on unmount.
+let cleanups = [];
 const went = [];
 const listeners = {};
 globalThis.Icon = "Icon";
@@ -59,7 +65,7 @@ globalThis.React = {
   useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
   useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
   useMemo: (fn) => fn(),
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
+  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; const done = fn(); if (typeof done === "function") cleanups.push(done); } },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
@@ -91,18 +97,24 @@ const tick = () => new Promise((r) => setTimeout(r, 0));
 const settle = async (n = 6) => { for (let i = 0; i < n; i += 1) await tick(); };
 
 let reads = [];
+let homes = 0;
 /** A fresh page over `week`: each read the page asks for answers the next of `answers` (true once they run out). */
 const fresh = (week = dto(), answers = []) => {
   cells = [];
+  cleanups = [];
   reads = [];
+  homes = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   globalThis.window.__CALENDAR = { vm: toCalendarVM(week, NOW) };
   globalThis.window.__calendar = {
     ...calendar,
     ensure: (view, anchor) => { reads.push([view, anchor]); return Promise.resolve(answers.length ? answers.shift() : true); },
     refresh: async () => {},
+    home: async () => { homes += 1; return true; },
   };
 };
+/** The page goes away: what its effects handed back runs, last first. */
+const leave = () => { for (const done of cleanups.splice(0).reverse()) done(); };
 /** Draw the page again over the same cells; the board's five-minute timer is not started for real. */
 const page = (props = {}) => {
   seq = 0;
@@ -294,4 +306,118 @@ test("REGRESSION (B19): a sentence that sends the owner to the calendar's addres
   fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
   const unread = textOf(byTestId(page(), "cal-feed-card"));
   assert.ok(unread.includes("Settings › Business") && !unread.includes("Settings › Workspace"), unread);
+});
+
+/* ------------------- C1: what the page says is true wherever it looks ------------------- */
+
+// `n` empty days from `from`, in the route's shape, keeping the week's hours, closures and rules unless told otherwise.
+const span = (from, n, over = {}) => ({
+  ...dto(),
+  from,
+  to: shiftKey(from, n - 1),
+  days: Array.from({ length: n }, (_, i) => ({ key: shiftKey(from, i), items: [], windows: [] })),
+  ...over,
+});
+/** The receptionist's next open time as the route sends it: when it starts, or none. */
+const opening = (start) => ({ next_opening: start ? { start, end: start } : null });
+
+test("REGRESSION (C1): Next opening is the receptionist's first open time from now, wherever the board is looking, and names its day past this week -- it came from the loaded weeks and said only a weekday", () => {
+  const next = (start, over = {}) => toCalendarVM(dto({ ...opening(start), ...over }), NOW).stats.next;
+  assert.equal(next("2026-09-08T19:30:00.000Z"), "today 3:30 PM");
+  assert.equal(next("2026-09-09T14:00:00.000Z"), "tomorrow 10 AM");
+  assert.equal(next("2026-09-11T14:00:00.000Z"), "Fri 10 AM", "this week, the weekday is enough");
+  assert.equal(next("2026-09-14T14:00:00.000Z"), "Mon 10 AM");
+  assert.equal(next("2026-09-17T14:00:00.000Z"), "Sep 17, 10 AM", "REGRESSION: past this week a weekday alone named a day a week too soon");
+  assert.equal(next(null), "—", "nothing it would offer is a dash, whatever the loaded days hold");
+  assert.equal(next("2026-09-09T14:00:00.000Z", { feed: { ...dto().feed, state: "unavailable" } }), "—", "a calendar that can't be read offers nothing");
+  const december = span("2026-11-23", 63, opening("2026-09-09T14:00:00.000Z"));
+  assert.equal(toCalendarVM(december, NOW).stats.next, "tomorrow 10 AM", "REGRESSION: a board looking at December worked the next opening out from December");
+});
+
+test("(C1) the last day the receptionist offers is named, and every day past it knows it is", () => {
+  const vm = toCalendarVM(span("2026-09-07", 28), NOW);
+  assert.deepEqual(vm.offer, { days: 14, until: "2026-09-21", label: "Sep 21" }, "up to 14 days out, from today");
+  const beyond = (key) => vm.days.find((d) => d.key === key).beyondOffer;
+  assert.deepEqual(["2026-09-07", "2026-09-08", "2026-09-21", "2026-09-22", "2026-10-04"].map(beyond), [false, false, false, true, true]);
+  assert.deepEqual(toCalendarVM(span("2026-09-07", 7, { rules: null }), NOW).offer, { days: 14, until: "2026-09-21", label: "Sep 21" }, "no rules on file: the default");
+  assert.equal(toCalendarVM(span("2026-09-07", 7, { rules: { max_days_ahead: 3 } }), NOW).offer.until, "2026-09-10");
+});
+
+test("REGRESSION (C1): the booking rules the receptionist follows are all on the page -- the party size and the services that need a consultation first were never said, and closures past the sixth vanished", () => {
+  const rules = { lead_hours: 2, buffer_min: 15, max_days_ahead: 14, party_max: 6, consult_first: ["Balayage", "Color correction"] };
+  const closures = Array.from({ length: 8 }, (_, i) => ({ date: shiftKey("2026-09-19", i * 7), note: i === 0 ? "Wedding" : null }));
+  const vm = toCalendarVM(dto({ rules, closures }), NOW);
+  assert.deepEqual(vm.ruleParts, ["at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots", "up to 6 people per booking"]);
+  assert.deepEqual(vm.consultFirst, ["Balayage", "Color correction"]);
+  assert.deepEqual(toCalendarVM(dto(), NOW).consultFirst, [], "none on file, none said");
+  assert.deepEqual([vm.closuresAhead.length, vm.closuresMore], [6, 2]);
+  assert.equal(toCalendarVM(dto(), NOW).closuresMore, 0);
+  fresh(dto({ rules, closures }));
+  const tree = page();
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf), vm.ruleParts, "REGRESSION: the party size was never said");
+  const consult = textOf(byTestId(tree, "cal-rules-consult"));
+  assert.ok(consult.includes("Consultation first") && consult.includes("Balayage · Color correction"), `REGRESSION: which services need a consultation was said only inside the service picker: ${consult}`);
+  assert.match(textOf(byTestId(tree, "cal-rules")), /\+2 more/, "REGRESSION: the closures past the sixth vanished without a word");
+});
+
+test("REGRESSION (C1): the feed line says what was read and leaves what was left out to the notes -- it also said '2 repeating rules read once · 3 more not shown', unexplained, beside the notes that explain them", () => {
+  const vm = toCalendarVM(dto({ feed: { ...dto().feed, skipped_recurring: 2, dropped: 3 } }), NOW);
+  assert.equal(vm.feed.line, "From your calendar · read 2m ago · 4 events");
+  assert.deepEqual(vm.feed.notes.map((n) => n.id), ["repeats", "undrawn"], "said once, in words the owner can act on");
+});
+
+test("REGRESSION (C1): the strip counts only what it read -- an unreadable calendar showed '0 · on your calendar', and days still on their way counted as empty", () => {
+  const empty = dto().days.map((d) => ({ ...d, items: [], windows: [] }));
+  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 }, days: empty }));
+  let strip = stats(page());
+  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "couldn't be read"], "REGRESSION: '0 · on your calendar' beside 'Your calendar could not be read'");
+  fresh(dto({ feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 }, days: empty }));
+  strip = stats(page());
+  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "no calendar connected"]);
+  fresh();
+  let tree = page();
+  byTestId(tree, "cal-next").props.onClick();
+  tree = page();
+  strip = stats(tree);
+  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "reading those days"], "REGRESSION: next week, still on its way, said nothing was on the calendar");
+  assert.deepEqual([strip[1].props.value, strip[1].props.meta], ["—", "reading those days"]);
+});
+
+test("REGRESSION (C1): a day past what the receptionist offers says so, and the legend names the last day it offers -- the agenda said 'nothing the receptionist would offer', as if the day were booked solid", () => {
+  fresh(span("2026-09-07", 42, { rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 7 } }));
+  let tree = page();
+  byTestId(tree, "cal-view-agenda").props.onClick();
+  tree = page();
+  const day = (key) => textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
+  assert.match(day("2026-09-15"), /not offered yet — it offers times up to 7 days out/, "REGRESSION: a day past the offer read as a day with nothing to offer");
+  assert.ok(!day("2026-09-15").includes("nothing the receptionist would offer"));
+  assert.match(day("2026-09-10"), /nothing the receptionist would offer/, "a day inside the offer with no times still says that");
+  assert.match(textOf(byTestId(tree, "cal-legend")), /through Sep 14/, "the legend names the last day it offers");
+  byTestId(tree, "cal-next").props.onClick();
+  tree = page();
+  const ahead = stats(tree)[1];
+  assert.deepEqual([ahead.props.value, ahead.props.meta], ["—", "it offers times up to 7 days out"], "REGRESSION: '0 · it would offer these' for two weeks it offers nothing in");
+  byTestId(tree, "cal-view-day").props.onClick();
+  tree = page();
+  byTestId(tree, "cal-today").props.onClick();
+  tree = page();
+  byTestId(tree, "cal-prev").props.onClick();
+  tree = page();
+  const gone = stats(tree)[1];
+  assert.deepEqual([gone.props.value, gone.props.meta], ["—", "these days have passed"]);
+});
+
+test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today's -- a board left on another month took Today's day and its next opening with it", async () => {
+  fresh();
+  page();
+  assert.equal(homes, 0, "nothing goes home while the page is open");
+  leave();
+  assert.equal(homes, 1, "REGRESSION: the page left the window wherever it had moved it");
+  // The bridge's half: a moved window goes home; one already home is not read again.
+  const { getCalendarSpan, setCalendarSpan } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  globalThis.window.__CALENDAR = { vm: toCalendarVM(span("2026-08-31", 63), NOW) };
+  setCalendarSpan("2026-11-23", 63);
+  assert.equal(await calendar.home(), true, "a window moved to November goes home");
+  assert.equal(getCalendarSpan().from, null, "to the weeks around today");
+  assert.equal(await calendar.home(), false, "and a window already home stays as it is");
 });
