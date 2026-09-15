@@ -317,6 +317,9 @@ interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
+    /** The names on file, for a template that opens with their first name. */
+    display_name?: string | null;
+    wa_profile_name?: string | null;
 }
 interface QueuedReply {
     tenant_id: string;

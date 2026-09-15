@@ -433,13 +433,17 @@
   .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
 
-  /* The thread header on a phone: Back, avatar and name on one line, the
-     actions on their own row; a phone number as a name does not wrap thrice */
-  .ix-th-head { grid-template-columns: minmax(0, 1fr); row-gap: 8px; }
+  /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
+     menu -- since Snooze and the profile are in the menu and a call back is in the composer: it took two rows and
+     121px. The strip under it only said again what the banner and the composer say, in 126px more. A phone number
+     as a name does not wrap thrice. */
+  .ix-th-head { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
   .ix-th-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .ix-th-id { min-width: 0; }
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .ix-th-actions { flex-wrap: wrap; justify-content: flex-start; }
+  .inbox .ix-th-actions { grid-column: auto; flex-wrap: nowrap; justify-content: flex-end; }
+  .inbox .ix-th-actions > .btn:not(.btn-icon), .inbox .ix-th-actions > a.btn { display: none; }
+  .inbox .ix-context-strip { display: none; }
 }
 
 /* The drawer is never a rail: on a phone the sidebar shows everything. */
