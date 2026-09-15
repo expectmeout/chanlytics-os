@@ -427,20 +427,15 @@ export type BrainConfig = z.infer<typeof BrainConfigSchema>;
  * composed from the profile; a baseline that repeated them would be a second
  * copy of every one, free to go stale the moment the owner edits a field.
  */
-export function newReceptionistDefaults(
-  businessName: string,
-  phoneDisplay: string,
-  bookingLink: string,
-): Pick<BrainConfig, "system_prompt" | "fallbacks"> {
+export function newReceptionistDefaults(businessName: string): Pick<BrainConfig, "system_prompt" | "fallbacks"> {
   return {
     system_prompt: baselinePrompt(businessName),
-    // What a customer reads when the model cannot be reached. Built from what
-    // the owner just typed, so they are the business's own details.
-    fallbacks: {
-      greeting: `Hi! Thanks for reaching out to ${businessName}.\n\nBook anytime: ${bookingLink}\n\nOr reply here with any question.`,
-      error: `Thanks for reaching out to ${businessName}! Book anytime: ${bookingLink} — or a member of our team will reply here soon.`,
-      non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`,
-    },
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS },
   };
 }
 
@@ -1332,4 +1327,13 @@ export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null):
   };
   const say = (kind: keyof BrainConfig["fallbacks"]) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
   return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
+}
+
+/**
+ * The names in a message that nothing fills in -- "{bookinglink}", "{phone
+ * number}" -- which a customer would read exactly as written. The Business
+ * form says so under the message before it is saved (S5).
+ */
+export function unknownDetails(text: string): string[] {
+  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
 }

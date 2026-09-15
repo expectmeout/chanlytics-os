@@ -215,6 +215,9 @@ Object.assign(globalThis.window, {
   __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
   __instructionsDraft: contracts.instructionsDraft,
   __instructionsMax: contracts.INSTRUCTIONS_MAX,
+  __fallbackMessages: contracts.fallbackMessages,
+  __fallbackDefaults: contracts.FALLBACK_DEFAULTS,
+  __unknownDetails: contracts.unknownDetails,
 });
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 

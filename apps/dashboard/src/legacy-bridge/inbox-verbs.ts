@@ -17,7 +17,7 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn } from "@chanlytics/contracts";
+import { FALLBACK_DEFAULTS, INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, fallbackMessages, hoursRuns, instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn, unknownDetails } from "@chanlytics/contracts";
 import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -364,6 +364,10 @@ declare global {
     /** What the Business editor's instructions box opens with, and the most it holds (S4). */
     __instructionsDraft: typeof instructionsDraft;
     __instructionsMax: number;
+    /** The messages sent in the business's name as a customer reads them, the product's wording, and the names nothing fills in (S5). */
+    __fallbackMessages: typeof fallbackMessages;
+    __fallbackDefaults: typeof FALLBACK_DEFAULTS;
+    __unknownDetails: typeof unknownDetails;
     __hoursRuns: typeof hoursRuns;
     __configLimits: { maxIntervalsPerDay: number; maxClosures: number };
     /** "Last changed by Ada, two days ago", from the settings row's own author and stamp; "" when there is no stamp. */
@@ -446,6 +450,10 @@ export function installInboxVerbs(): void {
   // The instructions box opens with what contracts says it should, and holds what the schema holds (S4).
   window.__instructionsDraft = instructionsDraft;
   window.__instructionsMax = INSTRUCTIONS_MAX;
+  // The messages sent in the business's name, as the form previews and checks them (S5).
+  window.__fallbackMessages = fallbackMessages;
+  window.__fallbackDefaults = FALLBACK_DEFAULTS;
+  window.__unknownDetails = unknownDetails;
   // The Settings card summarises the week with the SAME collapse the prompt
   // uses; only the day-name wording differs between them.
   window.__hoursRuns = hoursRuns;
