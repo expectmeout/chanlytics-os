@@ -655,6 +655,9 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -1869,6 +1872,9 @@ var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
 var BROADCAST_NAME_MAX = 80;
+var REPLY_WINDOW_HOURS2 = 72;
+var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
+var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -2816,6 +2822,9 @@ var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS3 = 72;
+var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
+var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,

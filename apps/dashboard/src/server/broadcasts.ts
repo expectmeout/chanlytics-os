@@ -1,5 +1,5 @@
 import "server-only";
-import { AppError, parseParamSpecs, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
+import { AppError, REPLY_WINDOW_MS, parseParamSpecs, personName, type Audience, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type RecipientState } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 
 /**
@@ -79,8 +79,7 @@ function countRecipients(recipients: RecipientRow[], ids: string[]): { counts: M
   return { counts, threadsOf };
 }
 
-/** A reply is an inbound within this long of the send; a question two weeks later is its own thread, not a reply. The SQL series (campaign_series) keeps the same window. */
-const REPLY_WINDOW_MS = 72 * 3_600_000;
+// A reply is an inbound within the contracts' reply window of the send (REPLY_WINDOW_MS); the SQL series keeps the same one.
 
 /** Which threads heard from the customer within the reply window after the broadcast reached them, and when the first reply came. */
 async function repliedThreads(ctx: RouteContext, tenantId: string, threads: Map<string, string>): Promise<Map<string, string>> {

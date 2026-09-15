@@ -54,6 +54,8 @@ const pbMessage = (p, templates, businessName) => {
   return { template: t, words: pbRender(t.body_preview, values) };
 };
 // When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
+// What a reply is, in the one window's words (contracts REPLY_WINDOW_WORDS, on the surface).
+const pbReplyTip = () => { const w = window.__PLAYBOOKS && window.__PLAYBOOKS.replyWindow; return w ? `Threads that heard from the customer ${w} of a run` : "Threads that heard from the customer after a run"; };
 const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : window.__clock && window.__clock.hours ? `on its way — sends go out ${window.__clock.hours.between} by your clock` : "on its way");
 
 // The composer: a new playbook, or one being changed. Checked here the way
@@ -256,7 +258,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
 // One playbook: what starts it, what it sends, its clock, its mode, what its
 // runs earned, and the verbs. A run that waits for a person is approved or
 // skipped right here — the same doors as on Today and Broadcasts.
-const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
+const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
   const [busy, setBusy] = React.useState(false);
   const [sure, setSure] = React.useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
@@ -300,7 +302,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
   };
 
   return (
-    <section className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}`} data-testid="pb-card" data-state={status}>
+    <section id={`pb-${p.id}`} className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
       <div className="ob-head">
         <div className="ob-titles">
           <span className="ob-name">{p.name}</span>
@@ -347,7 +349,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           <span className="fl-head-dot" />
           <span className="ob-stat" data-tip="WhatsApp's own receipts"><strong className="tabular">{p.totals.delivered}</strong> delivered</span>
           <span className="fl-head-dot" />
-          <span className="ob-stat" data-tip="Threads that heard from the customer after a run"><strong className="tabular">{p.totals.replied}</strong> replied</span>
+          <span className="ob-stat" data-tip={pbReplyTip()}><strong className="tabular">{p.totals.replied}</strong> replied</span>
           {p.totals.held > 0 && <><span className="fl-head-dot" /><span className="ob-stat"><strong className="tabular">{p.totals.held}</strong> held back</span></>}
         </div>
       )}
@@ -404,7 +406,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
   );
 };
 
-const PlaybooksReal = () => {
+const PlaybooksReal = ({ initialPlaybook = null }) => {
   const data = usePlaybooks();
   const [toastNode, flash] = window.usePPToast();
   // Who may start, change or run a playbook: the role store's answer, View-as included.
@@ -417,6 +419,13 @@ const PlaybooksReal = () => {
     window.addEventListener("playbooks:new", open);
     return () => window.removeEventListener("playbooks:new", open);
   }, []);
+  // A link to one playbook lands on its card: marked, and brought into view when it is out of it.
+  React.useEffect(() => {
+    const el = initialPlaybook && typeof document !== "undefined" && document.getElementById ? document.getElementById(`pb-${initialPlaybook}`) : null;
+    if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
+    const at = el.getBoundingClientRect();
+    if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
+  }, [initialPlaybook]);
 
   const rows = data.rows || PB_NONE;
   const visible = filter === "all" ? rows : rows.filter((p) => pbStatus(p) === filter);
@@ -438,7 +447,7 @@ const PlaybooksReal = () => {
         <StatStrip className="cl-head-stats">
           <StatCell label="Running" value={running} meta={waiting ? `${waiting} waiting on you` : "on your clock"} />
           <StatCell label="Sent" value={sent} meta="by every run so far" />
-          <StatCell label="Replies" tip="Threads that heard from the customer after a run" value={replied} meta="answered in the Inbox" />
+          <StatCell label="Replies" tip={pbReplyTip()} value={replied} meta="answered in the Inbox" />
         </StatStrip>
       </div>
 
@@ -456,6 +465,9 @@ const PlaybooksReal = () => {
       </div>
 
       <div className="rp-body">
+        {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
+          <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
+        )}
         {rows.length > 0 && data.templates === null && !(composing || editing) && (
           <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
         )}
@@ -472,7 +484,7 @@ const PlaybooksReal = () => {
           />
         )}
         {visible.map((p) => (
-          <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} onEdit={(x) => { setComposing(false); setEditing(x); }} />
+          <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} focus={p.id === initialPlaybook} onEdit={(x) => { setComposing(false); setEditing(x); }} />
         ))}
         {rows.length === 0 && !composing && (
           <EmptyState

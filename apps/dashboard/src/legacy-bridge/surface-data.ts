@@ -196,7 +196,7 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -749,6 +749,8 @@ export interface BroadcastsSurface {
   heldReasons: Record<string, string>;
   /** How many go out at a time (contracts BROADCAST_CHUNK), for the words that say so. */
   chunk: number;
+  /** The reply window in words, for the tips that say what a reply is (contracts REPLY_WINDOW_WORDS). */
+  replyWindow: string;
   /** How a customer says yes in their own words: the phrase, the link that
    *  opens WhatsApp with it ready, and the QR of that link. Null link without
    *  a number. */
@@ -837,6 +839,7 @@ export const broadcastsOverride: SurfaceOverride = {
       },
       heldReasons: HELD_REASONS,
       chunk: BROADCAST_CHUNK,
+      replyWindow: REPLY_WINDOW_WORDS,
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
       offersNote: OFFERS_BY_WHATSAPP_NOTE,
@@ -911,6 +914,8 @@ export interface PlaybooksSurface {
   number: { present: boolean; health: NumberHealth };
   businessName: string;
   bookingLink: boolean;
+  /** The reply window in words, for the tips that say what a reply is (contracts REPLY_WINDOW_WORDS). */
+  replyWindow: string;
   fetchedAt: number;
 }
 
@@ -973,6 +978,7 @@ export const playbooksOverride: SurfaceOverride = {
       },
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
+      replyWindow: REPLY_WINDOW_WORDS,
       fetchedAt: now.getTime(),
     };
   },

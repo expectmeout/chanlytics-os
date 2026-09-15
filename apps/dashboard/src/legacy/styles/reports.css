@@ -245,6 +245,14 @@
 .rp2-tip-row { display: flex; align-items: center; gap: 6px; }
 .rp2-tip-row b { color: var(--ink); font-weight: 600; min-width: 18px; text-align: right; }
 .rp2-key-line { width: 10px; height: 2px; display: inline-block; border-radius: 1px; }
+/* The period before, a faint dashed line over this one; a chart the keyboard reads, and the words it reads aloud. */
+.rp2-prior { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.rp2-swatch.prior, .rp2-key-line.prior { background: none; border-top: 1.5px dashed var(--ink-faint); height: 0; border-radius: 0; }
+.rp2-plot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+.rp2-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A source row's name opens the playbook or the broadcast it names. */
+.rp2-src-open { text-align: left; cursor: pointer; }
+.rp2-src-open:hover, .rp2-src-open:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
 
 /* Horizontal bars (nominal: one hue) */
 .rp2-bars { display: flex; flex-direction: column; gap: 8px; }

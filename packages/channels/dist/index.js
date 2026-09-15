@@ -674,6 +674,9 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,

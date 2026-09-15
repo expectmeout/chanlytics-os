@@ -16,13 +16,13 @@ const reports = (over = {}) => ({
   ...over,
 });
 
-test("the period keeps Reports' own tiles and range, and says what the offers earned and who booked", () => {
+test("the period keeps Reports' own tiles and range, and says what the campaigns sent and who booked -- a visit reminder is no offer", () => {
   const vm = todayWeek(reports());
   assert.equal(vm.label, "Last 7 days");
   assert.equal(vm.sub, "Aug 31 – Sep 6 · against the 7 days before");
   assert.deepEqual(vm.tiles.map((t) => t.id), ["in", "ai"], "the tiles are Reports' tiles, untouched");
   assert.deepEqual(vm.lines, [
-    { id: "campaigns", text: "8 offer messages sent · 2 said yes", to: "reports" },
+    { id: "campaigns", text: "8 campaign messages sent · 2 said yes", to: "reports" },
     { id: "booking", text: "Asked → booked: 3 of 12 booked · 25%", to: "reports" },
   ]);
   assert.equal(todayWeek(null), null);
@@ -31,11 +31,11 @@ test("the period keeps Reports' own tiles and range, and says what the offers ea
 test("nothing sent, nobody asked, no calendar: each line says so and leads where the fix is", () => {
   const quiet = todayWeek(reports({ campaigns: { tiles: [tile("sent", "Messages sent", "0")], empty: true }, booking: { present: true, headline: "Nobody asked", sub: "nobody wrote or called in the last 7 days", pct: null } }));
   assert.deepEqual(quiet.lines, [
-    { id: "campaigns", text: "No offers went out.", to: "reports" },
+    { id: "campaigns", text: "No campaign message went out.", to: "reports" },
     { id: "booking", text: "Nobody wrote or called, so there was nothing to book.", to: "reports" },
   ]);
   const one = todayWeek(reports({ campaigns: { tiles: [tile("sent", "Messages sent", "1")], empty: false } }));
-  assert.equal(one.lines[0].text, "1 offer message sent · 0 said yes");
+  assert.equal(one.lines[0].text, "1 campaign message sent · 0 said yes");
   const noCal = todayWeek(reports({ booking: { present: false, headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", pct: null } }));
   assert.deepEqual(noCal.lines[1], { id: "booking", text: "Connect your calendar under Settings › Business to see who booked.", to: "calendar" });
 });

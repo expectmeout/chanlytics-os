@@ -974,8 +974,8 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
   const sent = find("sent");
   const yes = find("optins");
   const offers = r.campaigns.empty || !sent || sent.value === "0"
-    ? "No offers went out."
-    : `${sent.value} offer message${sent.value === "1" ? "" : "s"} sent · ${yes ? yes.value : "0"} said yes`;
+    ? "No campaign message went out."
+    : `${sent.value} campaign message${sent.value === "1" ? "" : "s"} sent · ${yes ? yes.value : "0"} said yes`;
   const b = r.booking;
   const booking = !b.present
     ? { text: b.sub, to: "calendar" }
