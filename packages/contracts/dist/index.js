@@ -1504,8 +1504,6 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
 }
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   let draftMsg = null;
   for (let i = dto.messages.length - 1; i >= 0; i--) {
@@ -1610,17 +1608,16 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
     agent: AGENT,
-    subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : last ? messageText(last).slice(0, 80) : "No messages yet"),
+    // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
+    // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
+    // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
+    // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
+    subject: reasonLabel ?? "",
+    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
     preview: last ? messageText(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
     summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
-    contextStrip: [
-      ...reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : [],
-      { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
-      { label: "Receptionist", value: needsHuman ? claimedByOther ? "Paused \u2014 a teammate has it" : escalation?.reason === "callback" ? "Paused \u2014 call them back" : "Paused \u2014 you have it" : "Answering" },
-      hasChat ? chatChannel === "sms" ? { label: "Texts", value: "No 24-hour window \u2014 write any time" } : { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" } : { label: "WhatsApp", value: "No thread yet \u2014 they have only phoned" }
-    ],
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,

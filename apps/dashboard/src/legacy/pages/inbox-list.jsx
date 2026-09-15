@@ -58,6 +58,8 @@ const InboxList = ({
       t.who.toLowerCase().includes(q) ||
       t.subject.toLowerCase().includes(q) ||
       t.preview.toLowerCase().includes(q) ||
+      // What they asked, which a row where a person is needed shows in place of the last message.
+      (t.ask && t.ask.text ? t.ask.text.toLowerCase().includes(q) : false) ||
       t.tags.some((tag) => tag.toLowerCase().includes(q))
     );
   }
@@ -81,13 +83,11 @@ const InboxList = ({
     ? `Archive ${pickedOne.who ? `${pickedOne.who}'s` : "this"} conversation?`
     : `Archive ${selected.length} conversations?`;
   const pressArchive = () => (pickedReal ? setAskArchive(true) : onBulkArchive());
-  // Needs you on a real workspace: how many need you -- the chip's number -- and how many you or a teammate are
-  // answering. It said "3 threads" under a chip that counts what needs you (I2).
-  const realNeeds = !query.trim() && !activeView && activeBucket === "escalated" && visible.some((t) => t.real);
-  const needing = realNeeds ? visible.filter((t) => t.needsYou).length : 0;
-  const needsWords = realNeeds
-    ? `${needing} need${needing === 1 ? "s" : ""} you${visible.length > needing ? ` · ${visible.length - needing} being answered` : ""}`
-    : null;
+  // The list's head is a line of its own only when it says what the chips and the rows don't: what a search found,
+  // what a saved view holds, or what is picked. It said the chip's number again, "3 need you · 1 being answered"
+  // under Needs you 3 and over rows whose pills say whose, and once "3 threads" under a chip counting 1 (I2).
+  const searching = !!query.trim();
+  const headed = anySelected || searching || !!activeView;
 
   // The rows are a listbox with one tab stop: the open thread's row, or the first when none of these is
   // open. Arrows, J/K, Home and End open and focus the row on screen -- the page's own J/K walks its
@@ -132,8 +132,22 @@ const InboxList = ({
         ))}
       </div>
 
-      {/* Search + saved-views toggle row */}
+      {/* Search + saved-views toggle row. The select-all box leads it, over the rows' own boxes: it sat on the list's
+          head, a 38px line of its own beside a count the chip already said. */}
       <div className="ix-search-row">
+        {visible.length > 0 && (
+          <label className="ix-checkall" title={allSelected ? "Clear the selection" : `Select all ${visible.length}`}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              aria-label={allSelected ? "Clear the selection" : `Select all ${visible.length} conversation${visible.length === 1 ? "" : "s"}`}
+              onChange={() => {
+                if (allSelected) onClearSelection();
+                else visible.forEach((t) => !selected.includes(t.id) && onToggleSelect(t.id));
+              }}
+            />
+          </label>
+        )}
         <div className="ix-search-wrap">
           <Icon name="search" size={12} />
           <input
@@ -186,7 +200,8 @@ const InboxList = ({
         </div>
       )}
 
-      {/* List header */}
+      {/* The list's head: what is picked, what a search found, or what a saved view holds -- never the chip's count again. */}
+      {headed && (
       <div className="ix-list-head">
         {anySelected ? (
           <div className="ix-bulk">
@@ -201,28 +216,15 @@ const InboxList = ({
             </div>
           </div>
         ) : (
-          <>
-            <label className="ix-checkall">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                aria-label={allSelected ? "Clear the selection" : `Select all ${visible.length} conversations`}
-                onChange={() => {
-                  if (allSelected) onClearSelection();
-                  else visible.forEach((t) => !selected.includes(t.id) && onToggleSelect(t.id));
-                }}
-              />
-              <span className="ix-list-count tabular">
-                {needsWords || <>{visible.length} {query.trim() ? (visible.length === 1 ? "match" : "matches") : activeView ? (visible.length === 1 ? "thread in view" : "threads in view") : inNeedsBucket ? "decisions" : "threads"}</>}
-              </span>
-              {query && (
-                <span className="ix-search-hint">in "{query}"</span>
-              )}
-            </label>
-
-          </>
+          <span className="ix-list-said">
+            <span className="ix-list-count tabular">
+              {visible.length} {searching ? (visible.length === 1 ? "match" : "matches") : (visible.length === 1 ? "thread in view" : "threads in view")}
+            </span>
+            {searching && <span className="ix-search-hint">in "{query}"</span>}
+          </span>
         )}
       </div>
+      )}
 
       {anySelected && askArchive && (
         <Confirm
@@ -294,7 +296,6 @@ const InboxList = ({
               const isSelected = selected.includes(t.id);
               // Pills hide in the needs bucket (redundant there) but ALWAYS show on
               // cross-bucket search results so actionable rows stay distinguishable
-              const searching = !!query.trim();
               // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
               // pill and the wait chip used to look for "needs", a state no real thread
               // has, so no real thread ever showed how long it had waited.
@@ -302,6 +303,10 @@ const InboxList = ({
               // that already says it: the check looked for the mockup's "needs", which no real thread is in (I2).
               const inItsBucket = inNeedsBucket || (t.real && activeBucket === "escalated");
               const showStatePill = (searching || !inItsBucket) && t.state === "escalated" && (t.real ? t.needsYou : !t.claimedByOther);
+              // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
+              // the last message there, often the receptionist's holding reply. Anywhere else, the last thing that happened.
+              const words = t.real && t.ask && t.ask.text ? t.ask.text : t.preview;
+              const footed = multipleAgents || t.confidence > 0 || (t.tags || []).length > 0 || t.value > 0;
               return (
                 <div
                   key={t.id}
@@ -341,31 +346,36 @@ const InboxList = ({
                         {t.real && t.takenOver && <StatePill kind="thread" value="yours" label="You have it" className="ix-state-pill" testid="thread-yours" />}
                         {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}
                         {t.real && t.state === "done" && t.lastWord && t.lastWord.short && <StatePill kind="tone" value={t.lastWord.tone} label={t.lastWord.short} className="ix-state-pill" testid="thread-last-word" />}
-                        {/* The wait in the one family (8d, 3h, 40m), amber only when it is waiting on you. */}
-                        {t.state === "escalated" && t.waitingMin > 0 && (
+                        {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
+                            when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
+                            row said "waiting 12m" beside "5:51 PM". */}
+                        {t.state === "escalated" && t.waitingMin > 0 ? (
                           <span className={`ix-wait tabular ${t.waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
-                        )}
-                        {t.state === "snoozed" && t.wake && (
+                        ) : t.state === "snoozed" && t.wake ? (
                           <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
+                        ) : (
+                          <span className="ix-thread-time tabular">{t.lastAt}</span>
                         )}
-                        <span className="ix-thread-time tabular">{t.lastAt}</span>
                       </div>
                     </div>
-                    <div className="ix-thread-subject">{t.subject}</div>
+                    {t.subject && <div className="ix-thread-subject">{t.subject}</div>}
                     {t.resolution && (
                       <div className={`ix-thread-resolution ${t.resolution.declined ? "declined" : ""}`}>
                         <Icon name={t.resolution.declined ? "x" : "check"} size={10} />
                         You: {t.resolution.action} · {t.resolution.at}
                       </div>
                     )}
+                    {words && (
                     <div className="ix-thread-line3">
                       <div className="ix-thread-channels">
                         {t.channels.map((c) => (
                           <Icon key={c} name={channelIcon(c)} size={11} />
                         ))}
                       </div>
-                      <span className="ix-thread-preview">{t.preview}</span>
+                      <span className="ix-thread-preview">{words}</span>
                     </div>
+                    )}
+                    {footed && (
                     <div className="ix-thread-foot">
                       {multipleAgents && (
                       <span className="ix-thread-agent">
@@ -383,6 +393,7 @@ const InboxList = ({
                       ))}
                       {t.value > 0 && <span className="ix-thread-value tabular">${t.value.toLocaleString()} LTV</span>}
                     </div>
+                    )}
                   </div>
                 </div>
               );

@@ -773,14 +773,11 @@ interface InboxThreadVM {
         name: string;
         glyph: string;
     };
+    /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
     subject: string;
+    /** The last thing that happened: the newest message that came in or reached them, never a draft. */
     preview: string;
     summary: string;
-    contextStrip: Array<{
-        label: string;
-        value: string;
-        warn?: boolean;
-    }>;
     lastAt: string;
     lastAtFull: string;
     /** Absolute times, epoch ms, for anything that must not drift with the
