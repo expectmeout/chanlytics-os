@@ -1,5 +1,5 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
-   ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill */
+   ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -819,7 +819,7 @@ const DeleteListButton = ({ list, onDeleted }) => {
 
 const PL_DEFAULT_GROUPS = [{ id: "attention", label: "Attention" }, { id: "journey", label: "Journey" }, { id: "reach", label: "Reach" }];
 
-const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null }) => (
+const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null }) => (
   <aside className="cl-rail">
     <div className="cl-rail-section">
       <div className="cl-rail-label">
@@ -844,13 +844,15 @@ const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved =
     </div>
     <div className="cl-rail-section" data-testid="saved-lists">
       <div className="cl-rail-label">Saved</div>
+      {/* Lists that could not be read are not "no lists": the read failed, and the people above stand. */}
+      {!savedRead && <FailedRead kind="line" what="your saved lists" surface="people" testid="people-lists-failed" />}
       {saved.map((s) => (
         <button key={s.id} className={`cl-rail-row ${activeSaved === s.id ? "active" : ""}`} onClick={() => onPickSaved(s.id)} data-tip="A list kept by hand — add people from their profile">
           <span className="label">{s.name}</span>
           <span className="count">{s.count}</span>
         </button>
       ))}
-      {saved.length === 0 && (
+      {savedRead && saved.length === 0 && (
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>
       )}
     </div>
@@ -987,7 +989,7 @@ const PeopleRowActions = ({ p, bookingLink }) => {
   );
 };
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null }) => (
+const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null }) => (
   <div className={`cl-table-wrap ${sel.size ? "selecting" : ""}`}>
     <table className="cl-table">
       <thead>
@@ -1061,7 +1063,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
         {rows.length === 0 && (
           <tr>
             <td colSpan={selectable ? 7 : 6}>
-              <EmptyState kind="line" className="empty-center" glyph="search" title={total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} action={total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
+              <EmptyState kind="line" className="empty-center" glyph="search" title={empty ? empty.title : total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} body={empty ? empty.body : undefined} action={empty ? empty.action : total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
             </td>
           </tr>
         )}
@@ -1075,35 +1077,76 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
 );
 
 const PL_NO_SEL = new Set();
+// The batch doors take fifty people at a time (contacts/consent, /receptionist, /notes).
+const PL_BATCH = 50;
+// The loaded rows and what a search found past them, each person once.
+const plWithFound = (loaded, found) => { const seen = new Set(loaded.map((p) => p.id)); return [...loaded, ...found.filter((p) => !seen.has(p.id))]; };
+// A list just made, by its own answer's id; by name only when the answer carries none. The server
+// tidies the spaces in a name, so a lookup by name alone could miss the list it had just made.
+const plMadeId = (c, name) => (c.data && c.data.id) || (((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === name) || {}).id || null;
+// Undoing a list made with its people deletes the list; the people stay.
+const plUndoList = async (id, name, flash) => {
+  const u = await window.__lists.remove(id);
+  if (!u.ok) flash(window.refusalToast(u, `${name} is still there`));
+};
 
 // What a selection can become: people on a list, a yes on record, a file.
 // Adding to a list and recording a yes are owner-or-operator on the server;
 // the bar shows what the role allows and says why when it does not.
-const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash }) => {
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash }) => {
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
   const ids = [...sel];
   const picked = rows.filter((p) => sel.has(p.id));
-  const run = async (fn, done) => {
+  // Fifty at a press: the batch doors take fifty, and a bigger selection keeps
+  // the rest selected, said so. The people past fifty used to be dropped
+  // without a word.
+  const batch = ids.slice(0, PL_BATCH);
+  const rest = ids.slice(PL_BATCH);
+  const restWords = rest.length ? ` · ${rest.length} more still selected — fifty at a time` : "";
+  const keepRest = () => { if (rest.length) onKeep(rest); };
+  const run = async (fn, done, after = null) => {
     if (busy) return;
     setBusy(true);
     const r = await fn();
     setBusy(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "That did not go through."}</> }); return; }
     flash({ msg: done(r) });
+    if (after) after(r);
   };
-  const addTo = (list) => run(() => window.__lists.add(list.id, ids), () => <>{ids.length} added to <b>{list.name}</b></>);
+  // Who an add really adds: the people already on the list stay out of the
+  // count and out of the Undo, which takes off only the people this put on.
+  const addTo = async (list) => {
+    if (busy || !window.__lists) return;
+    const before = new Set(list.members || list.ids);
+    const added = ids.filter((id) => !before.has(id));
+    if (!added.length) { flash({ tone: "info", msg: <>Everyone selected is already on <b>{list.name}</b></> }); return; }
+    setBusy(true);
+    const r = await window.__lists.add(list.id, added);
+    setBusy(false);
+    if (!r.ok) { flash(window.refusalToast(r, `Not added to ${list.name}`)); return; }
+    const already = ids.length - added.length;
+    flash({
+      msg: <>{added.length} added to <b>{list.name}</b>{already ? ` · ${already} already on it` : ""}</>,
+      undo: async () => {
+        const u = await window.__lists.drop(list.id, added);
+        if (!u.ok) flash(window.refusalToast(u, `Still on ${list.name}`));
+      },
+    });
+  };
   const createAndAdd = async () => {
     const n = name.trim();
     if (!n || busy || !window.__lists) return;
     setBusy(true);
     const c = await window.__lists.create(n);
     if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
-    const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
-    const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
+    const madeId = plMadeId(c, n);
+    const a = madeId ? await window.__lists.add(madeId, ids) : { ok: false, message: "The list was made but not found again." };
+    // An add the server refused (more people than it takes at once, say) leaves no empty list behind.
+    if (!a.ok && madeId) await window.__lists.remove(madeId);
     setBusy(false); setNaming(false); setName("");
-    flash(a.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></> } : window.refusalToast(a, "Not added to the new list"));
+    flash(a.ok ? { msg: <>{ids.length} on the new list <b>{n}</b></>, undo: () => plUndoList(madeId, n, flash) } : window.refusalToast(a, madeId ? `${n} was not made` : "Not added to the new list"));
   };
   // A yes recorded for a whole class at once — and WHICH yes, because they are two
   // separate answers and only one of them puts a person on a broadcast. This
@@ -1118,15 +1161,16 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
     if (!send) { flash({ msg: <>That answer cannot be recorded here.</> }); return; }
     return run(
     () => send(
-      ids,
+      batch,
       { consent: "opted_in", source: source.id },
     ),
     (r) => (
       <>
         {purpose === "marketing" ? "A yes to offers" : "A yes to messages"} on record for <b>{r.done}</b>
-        {r.failed ? ` · ${r.failed} not recorded` : ""} · {source.label.toLowerCase()}
+        {r.failed ? ` · ${r.failed} not recorded` : ""} · {source.label.toLowerCase()}{restWords}
       </>
     ),
+    keepRest,
     );
   };
   const exportCsv = () => { plDownload(`people-${new Date().toISOString().slice(0, 10)}.csv`, plCsv(picked)); flash({ msg: <>{picked.length} exported as a CSV</> }); };
@@ -1135,19 +1179,19 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
   const [note, setNote] = React.useState("");
   const receptionist = async (m) => {
     setBusy(true);
-    const r = await window.__setPersonReceptionistMany([...sel], m.id);
+    const r = await window.__setPersonReceptionistMany(batch, m.id);
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Receptionist: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}</> : <>{r.message}</> });
-    if (r.ok) onClear();
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Receptionist: <b>{m.label}</b> for {r.done} {r.done === 1 ? "person" : "people"}{restWords}</> : <>{r.message}</> });
+    if (r.ok) { if (rest.length) onKeep(rest); else onClear(); }
   };
   const addNote = async () => {
     const line = note.trim();
     if (!line || busy) return;
     setBusy(true);
-    const r = await window.__appendPersonNotesMany([...sel], line);
+    const r = await window.__appendPersonNotesMany(batch, line);
     setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b></> : <>{r.message}</> });
-    if (r.ok) { setNoting(false); setNote(""); onClear(); }
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Noted on {r.done} {r.done === 1 ? "person" : "people"}: <b>{line}</b>{restWords}</> : <>{r.message}</> });
+    if (r.ok) { setNoting(false); setNote(""); if (rest.length) onKeep(rest); else onClear(); }
   };
   const sources = (window.__consentSources || []).filter((s) => s.id !== "customer_message");
   // A yes to offers is written (00100), so the only way a desk records one for a
@@ -1162,9 +1206,13 @@ const PeopleBulkBar = ({ sel, rows, saved, canEdit, canExport, onClear, flash })
           label="Add to list"
           title="Add to a list"
           gated={busy ? "One moment — the last change is still saving" : null}
-          items={[
+          items={savedRead ? [
             { header: "Add to" },
             ...saved.map((s) => ({ label: s.name, icon: "filter", onClick: () => addTo(s) })),
+            { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
+          ] : [
+            // Lists that could not be read are not offered; a new one can still be made.
+            { header: "Your saved lists couldn't be read" },
             { label: "New list…", icon: "plus", onClick: () => setNaming(true) },
           ]}
         />
@@ -1229,10 +1277,12 @@ const SaveShownAsList = ({ ids, suggested, flash }) => {
     setBusy(true);
     const c = await window.__lists.create(n);
     if (!c.ok) { setBusy(false); flash({ tone: "danger", msg: <>{c.message || "Could not make the list."}</> }); return; }
-    const made = ((window.__PEOPLE && window.__PEOPLE.saved) || []).find((s) => s.name === n);
-    const a = made ? await window.__lists.add(made.id, ids) : { ok: false, message: "The list was made but not found again." };
+    const madeId = plMadeId(c, n);
+    const a = madeId ? await window.__lists.add(madeId, ids) : { ok: false, message: "The list was made but not found again." };
+    // An add the server refused (more people than it takes at once, say) leaves no empty list behind.
+    if (!a.ok && madeId) await window.__lists.remove(madeId);
     setBusy(false); setOpen(false); setName("");
-    flash(a.ok ? { msg: <>{ids.length} kept as <b>{n}</b></> } : window.refusalToast(a, "Not kept as a list"));
+    flash(a.ok ? { msg: <>{ids.length} kept as <b>{n}</b></>, undo: () => plUndoList(madeId, n, flash) } : window.refusalToast(a, "Not kept as a list"));
   };
   if (!open) return <button className="cl-bucket-link" onClick={() => { setName(suggested || ""); setOpen(true); }} data-testid="save-shown">Save these {ids.length} as a list <Icon name="arrow-right" size={10} /></button>;
   return (
@@ -1295,6 +1345,17 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const canExport = !!(window.__href && (!window.canDo || window.canDo("export")));
   const [toastNode, plFlash] = window.usePPToast();
+  // A list made on the rail says so and is the one shown: the rail used to close
+  // with no word, the new list somewhere down it. The answer goes back to the
+  // rail, which shows a refusal where the name was typed.
+  const createList = async (name) => {
+    const r = await window.__lists.create(name);
+    if (r.ok) {
+      plFlash({ msg: <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
+      if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
+    }
+    return r;
+  };
   // The selection, by id. Cleared when the view changes: a bar counting people
   // that are no longer on screen is the kind of bug bulk actions are made of.
   const [sel, setSel] = useState(() => new Set());
@@ -1329,15 +1390,24 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     if (window.location.hash !== next) window.history.replaceState(null, "", next);
   }, [listId, savedId, tab]);
   const [q, setQ] = useState("");
-  // When the page does not hold everyone (a workspace past a thousand people),
-  // the box asks the server, which matches the same three things; what it
-  // answers stands in for the loaded rows while the box is not empty.
+  // When the page does not hold everyone (past the fifty pages the surface
+  // reads), the box also asks the server, which matches names and numbers. What
+  // it finds sits beside the loaded rows, which the box still searches by their
+  // words: its matches used to stand in for the loaded rows, so a loaded person
+  // found by their last words vanished, and a search that could not ask the
+  // server said nothing and searched only what was loaded.
   const hasMore = !!(people.page && people.page.has_more);
   const [found, setFound] = useState(null);
+  const [searchMore, setSearchMore] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
   React.useEffect(() => {
-    if (!hasMore || !q.trim() || !window.__peopleSearch) { setFound(null); return undefined; }
+    if (!hasMore || !q.trim() || !window.__peopleSearch) { setFound(null); setSearchFailed(false); return undefined; }
     let on = true;
-    const t = setTimeout(() => { window.__peopleSearch(q).then((r) => { if (on) setFound(r); }).catch(() => { if (on) setFound(null); }); }, 250);
+    const t = setTimeout(() => {
+      window.__peopleSearch(q)
+        .then((r) => { if (on) { setFound(r.rows); setSearchMore(!!r.more); setSearchFailed(false); } })
+        .catch(() => { if (on) { setFound(null); setSearchFailed(true); } });
+    }, 250);
     return () => { on = false; clearTimeout(t); };
   }, [q, hasMore]);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -1368,7 +1438,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
 
   const shown = useMemo(() => {
-    let list = found ?? rows;
+    let list = found ? plWithFound(rows, found) : rows;
     if (tab !== "all") list = list.filter((p) => p.state === tab);
     if (listId) {
       const l = lists.find((x) => x.id === listId);
@@ -1434,6 +1504,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       const el = document.activeElement;
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
       if (typing || e.metaKey || e.ctrlKey || e.altKey || !shownIds.length) return;
+      // Enter and Space on a focused button, link, tab or menu item are that control's: they opened
+      // the profile under the cursor, or selected its row, instead of pressing what had focus.
+      if ((e.key === "Enter" || e.key === " ") && el && el.closest && el.closest('button, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="option"]')) return;
       if (e.key === "ArrowDown" || e.key === "ArrowUp") {
         e.preventDefault();
         setCursor((c) => {
@@ -1464,7 +1537,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         activeSaved={savedId}
         onPickSaved={(id) => setSavedId((cur) => (cur === id ? null : id))}
         canEdit={canEditLists}
-        onCreateList={window.__lists ? (name) => window.__lists.create(name) : null}
+        onCreateList={window.__lists ? createList : null}
+        savedRead={people.savedRead !== false}
       />
 
       <div className="cl-main">
@@ -1568,23 +1642,24 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             cursor={cursor}
             bookingLink={people.bookingLink || null}
             rows={shown}
-            total={rows.length}
+            total={people.page && people.page.has_more ? people.page.total : rows.length}
             sortBy={sortBy}
             sortDir={sortDir}
             onSort={onSort}
             onOpen={onOpenProfile}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
+            empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
           />
           {hasMore && (
             <div className="cl-section-sub" style={{ padding: "8px 0 16px" }} data-testid="people-more">
-              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? " · the search asks the server for the rest" : ""}
+              {rows.length.toLocaleString()} of {people.page.total.toLocaleString()} loaded{q.trim() ? (searchFailed ? " · couldn't search past them, so these are matches among the loaded" : ` · names and numbers searched across everyone, words among the ${rows.length.toLocaleString()} loaded${searchMore ? " · the first 1,000 matches" : ""}`) : ""}
               {" "}
               <button className="btn btn-ghost btn-sm" disabled={loadingMore} onClick={loadMore} data-testid="people-more-btn">{loadingMore ? "Loading…" : "Show more"}</button>
             </div>
           )}
         </div>
-        {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} flash={plFlash} />}
+        {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} />}
         {toastNode}
       </div>
     </div>

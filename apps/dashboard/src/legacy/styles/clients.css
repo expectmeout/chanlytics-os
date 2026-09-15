@@ -1689,3 +1689,8 @@
 /* The row's verbs: the one button, and where a state asks a second thing of
    you, a quiet second (attention-bits.jsx draws them for People and Today). */
 .cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }
+
+/* The People header keeps its numbers whole. As a flex item with overflow hidden the strip shrank
+   below its cells, and the last tile was cut off at the right edge. Scoped: fifteen page headers
+   share the strip class. */
+.clients .cl-head-stats { flex-shrink: 0; }

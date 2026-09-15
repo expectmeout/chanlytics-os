@@ -540,8 +540,11 @@ export interface PeopleSurface {
   lists: { id: string; label: string; group: string; count: number; ids: string[]; action: { text: string; cta: string; to: string; enabled: boolean } | null }[];
   groups: { id: string; label: string }[];
   /** The lists kept by hand (segments), counted over the rows on the page so
-   *  an erased person never counts. */
-  saved: { id: string; name: string; count: number; ids: string[] }[];
+   *  an erased person never counts; `members` is every id the server keeps on
+   *  the list, so an Undo can tell who an add really added. */
+  saved: { id: string; name: string; count: number; ids: string[]; members: string[] }[];
+  /** Whether the saved lists were read: false leaves People standing without them, and the rail, the profile and Lists say so. */
+  savedRead: boolean;
   aggregates: PeopleAggregates;
   /** Days-since-last-contact histogram per state, for the console strip. */
   recency: Record<string, { label: string; count: number }[]>;
@@ -564,7 +567,8 @@ let peopleLoaded: {
   tz: string;
   people: PersonRowDto[];
   page: PeopleSurface["page"];
-  saved: { id: string; name: string; ids: string[] }[];
+  /** Null when the read of them failed. */
+  saved: { id: string; name: string; ids: string[] }[] | null;
   calendar: PeopleSurface["calendar"];
   bookingLink: string | null;
   views: Record<string, unknown>;
@@ -588,10 +592,11 @@ function publishPeople(): void {
     groups: PEOPLE_LIST_GROUPS.map((g) => ({ id: g.id, label: g.label })),
     calendar,
     bookingLink: peopleLoaded.bookingLink,
-    saved: peopleLoaded.saved.map((l) => {
+    saved: (peopleLoaded.saved ?? []).map((l) => {
       const ids = l.ids.filter((id) => rowIds.has(id));
-      return { id: l.id, name: l.name, count: ids.length, ids };
+      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids };
     }),
+    savedRead: peopleLoaded.saved !== null,
     // The total is the server's: past the first page the rows here are not everyone.
     aggregates: { ...peopleAggregates(rows, now.getTime()), total: peopleLoaded.page?.total ?? rows.length },
     recency: Object.fromEntries(
@@ -619,11 +624,37 @@ async function peopleMore(): Promise<void> {
   window.dispatchEvent(new CustomEvent("surface:clients"));
 }
 
-/** Everyone who matches, from the server, when the page does not hold everyone: `window.__peopleSearch(q)`. */
-async function peopleSearch(q: string): Promise<PersonRowVM[]> {
+/**
+ * Who matches, from the server, when the page does not hold everyone:
+ * `window.__peopleSearch(q)`. The server matches names and numbers, a page at a
+ * time, so the answer says whether more matches follow the ones it sent.
+ */
+async function peopleSearch(q: string): Promise<{ rows: PersonRowVM[]; more: boolean }> {
   const [r, tz] = await Promise.all([read("GET contacts", { query: { q } }), workspaceZone()]);
   const now = new Date();
-  return r.people.map((p) => toPersonRowVM(p, tz, now));
+  return { rows: r.people.map((p) => toPersonRowVM(p, tz, now)), more: !!r.page?.has_more };
+}
+
+/**
+ * Every page of people, not the first: whatever counts people counts everyone.
+ * Broadcasts learned it first -- an audience counted over one page promised
+ * fewer people than the send enrols. People counted its lists, its header and
+ * its search over the first page too, and every refresh put the rows back to
+ * that page, dropping the ones Show more had added. Bounded, so a chain of
+ * pages that never ends cannot hang a surface; past the bound the page still
+ * says more follow.
+ */
+const PEOPLE_PAGES_BOUND = 50;
+async function everyPerson(first: { people: PersonRowDto[]; page?: PeopleSurface["page"] }): Promise<{ people: PersonRowDto[]; page: PeopleSurface["page"] }> {
+  const people = [...first.people];
+  let page = first.page ?? null;
+  for (let pages = 1; page?.has_more && pages < PEOPLE_PAGES_BOUND; pages++) {
+    const next = await read("GET contacts", { query: { offset: people.length } });
+    if (!next.people.length) break;
+    people.push(...next.people);
+    page = next.page ?? page;
+  }
+  return { people, page };
 }
 
 /**
@@ -646,21 +677,26 @@ export const peopleOverride: SurfaceOverride = {
   apply: async () => {
     const [data, savedData, viewsData, tz] = await Promise.all([
       read("GET contacts"),
-      read("GET segments"),
+      // The saved lists failing is their own state (savedRead): one failed read of
+      // them took the whole surface down, and with it People, every profile and Lists.
+      read("GET segments").catch((e: unknown) => e as Error),
       // A member's own views; a route that is not there yet reads as none.
       read("GET views").catch(() => ({ views: {} as Record<string, unknown> })),
       workspaceZone(),
     ]);
+    if (savedData instanceof Error) console.error("people_lists_fetch_failed", savedData.message);
+    // Every page, so a list, a count and a search cover everyone, and a refresh keeps them.
+    const everyone = await everyPerson(data);
     peopleLoaded = {
       tz,
-      people: data.people,
-      page: data.page ?? null,
-      saved: savedData.lists,
+      people: everyone.people,
+      page: everyone.page,
+      saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
       views: viewsData.views ?? {},
     };
-    const w = window as unknown as { __peopleMore?: () => Promise<void>; __peopleSearch?: (q: string) => Promise<PersonRowVM[]> };
+    const w = window as unknown as { __peopleMore?: () => Promise<void>; __peopleSearch?: (q: string) => Promise<{ rows: PersonRowVM[]; more: boolean }> };
     w.__peopleMore = peopleMore;
     w.__peopleSearch = peopleSearch;
     publishPeople();
@@ -755,17 +791,8 @@ export const broadcastsOverride: SurfaceOverride = {
     if (ch instanceof Error) console.error("broadcasts_channels_fetch_failed", ch.message);
     const now = new Date();
     // Every page of people, not the first: the send enrols everyone, so an
-    // audience counted over one page promised fewer people than the send
-    // reaches. Bounded, so a page chain that never ends cannot hang the surface.
-    const PEOPLE_PAGES_FOR_COUNTS = 50;
-    const everyone = [...people.people];
-    let page = people.page;
-    for (let pages = 1; page?.has_more && pages < PEOPLE_PAGES_FOR_COUNTS; pages++) {
-      const next = await read("GET contacts", { query: { offset: everyone.length } });
-      if (!next.people.length) break;
-      everyone.push(...next.people);
-      page = next.page;
-    }
+    // audience counted over one page promised fewer people than the send reaches.
+    const { people: everyone } = await everyPerson(people);
     const rows = everyone.map((r) => toPersonRowVM(r, tz, now));
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.

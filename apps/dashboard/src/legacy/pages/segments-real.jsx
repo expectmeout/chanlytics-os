@@ -1,4 +1,4 @@
-/* global React, Icon, Confirm, EmptyState */
+/* global React, Icon, Confirm, EmptyState, FailedRead */
 // People › Lists, real: the lists kept by hand and the six that keep
 // themselves current, with the people on each. Same facts as the People
 // page (window.__PEOPLE, fed by the People surface); nothing here scores,
@@ -151,7 +151,8 @@ const ListsReal = ({ initialId = null }) => {
               <span className="count">{s.count}</span>
             </button>
           ))}
-          {saved.length === 0 && <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>}
+          {people.savedRead === false && <FailedRead kind="line" what="your saved lists" surface="people" testid="lists-saved-failed" />}
+          {people.savedRead !== false && saved.length === 0 && <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>}
         </div>
         {canEdit && <NewListBox onCreate={create} />}
         <div className="cl-rail-section" data-testid="lists-rail-smart">
