@@ -314,6 +314,28 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
   }
 }
 
+/**
+ * What a billing state means for the receptionist, for the pill beside the headline. The pill printed Stripe's own
+ * word for the state ("trialing", "past due") next to a headline that already said it in ours (the wiring audit's
+ * S20). What the headline does not say is whether the receptionist is answering, and that is receptionistOn's.
+ */
+export function billingPill(vm: Pick<BillingVM, "status">): { words: string; tone: "ok" | "danger" } {
+  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
+}
+
+/** An invoice's status in an owner's words. A word Stripe adds later is shown as Stripe says it; none, as a dash. */
+export const INVOICE_STATUS_WORDS: Record<string, string> = {
+  draft: "Draft",
+  open: "Not paid yet",
+  paid: "Paid",
+  uncollectible: "Could not be collected",
+  void: "Cancelled",
+};
+export function invoiceStatusWords(status: string | null | undefined): string {
+  if (!status) return "—";
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] as string : status;
+}
+
 /** The Setup row's facts: enough to say the state and the one next step. */
 export interface SetupBillingFacts {
   ready: boolean;
