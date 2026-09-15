@@ -352,7 +352,15 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   }, [navOpen]);
 
   // Route → view config
-  const { page, param } = route;
+  // soon/<surface> was the landing for a page not built yet, and an old link, a bookmark or a bell row can still name
+  // one that has since shipped. The registry decides what it opens, like every other route: a page it lists as real
+  // opens, a demo page keeps its landing, and a name it does not know is not found (the wiring audit's N16:
+  // #/soon/calendar said the Calendar was not in this release). The standalone mockup has no registry and keeps every
+  // landing.
+  const soonState = route.page === "soon" && route.param && window.__surfaceState
+    ? (window.__surfaceState(route.param) || "unknown")
+    : null;
+  const { page, param } = soonState === "real" ? { page: route.param, param: null } : route;
   let content, crumbs, activeNav, pane = false, primaryAction = null;
 
   if (page === "inbox") {
@@ -469,16 +477,18 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = apptWho ? [{ label: "Calendar", to: "calendar" }, apptWho] : ["Calendar"];
     pane = true;
     // A real workspace books through its own link, whichever tool is behind
-    // it; the seeded page keeps the demo's Ask detour.
+    // it, and offers nothing until the Calendar has loaded: the demo's Ask
+    // detour opened Ask over the skeleton or the failure pane (N10). The
+    // seeded page keeps it.
     primaryAction = window.__CALENDAR ? (window.__CALENDAR.vm.bookingLink ? (
       <a className="btn btn-primary btn-sm" href={window.__CALENDAR.vm.bookingLink} target="_blank" rel="noreferrer" data-testid="cal-booking-link">
         <Icon name="calendar" size={12} /> Booking link
       </a>
-    ) : null) : (
+    ) : null) : window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> Book
       </button>
-    );
+    ) : null;
     // calendar/<YYYY-MM-DD> is a door to a day: the page opens it in Day view. The crumbs stay "Calendar",
     // because the page moves on from the day it opened on.
     content = <CalendarPage initialApptId={param && param.startsWith("a-") ? param : null} initialDay={param && /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : null} />;
@@ -536,17 +546,19 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "outbound";
     crumbs = param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"];
     pane = true;
-    // A real workspace's button opens the composer on the page; the seeded
-    // page keeps the demo's Ask detour.
+    // A real workspace's button opens the composer on the page, once the
+    // playbooks have loaded; until then there is nothing to press, where the
+    // demo's Ask detour opened Ask over the skeleton or the failure pane
+    // (N10). The seeded page keeps it.
     primaryAction = window.__PLAYBOOKS ? (
       <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve", "start a playbook")}>
         <Icon name="plus" size={12} /> New playbook
       </button>
-    ) : (
+    ) : window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> New campaign
       </button>
-    );
+    ) : null;
     content = <OutboundPage initialPlaybook={param} />;
   } else if (page === "messages") {
     activeNav = "messages";
@@ -582,6 +594,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "store";
     crumbs = ["Agents", "Store"];
     content = <AgentStore />;
+  } else if (page === "soon" && param && soonState === "unknown") {
+    activeNav = "home";
+    crumbs = ["Not found"];
+    content = <NotFound raw={`soon/${param}`} onNavigate={navigate} />;
   } else if (page === "soon" && param) {
     activeNav = param;
     crumbs = [SOON_META[param]?.title || param];
@@ -631,6 +647,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   useShellEffect(() => {
     if (retiredTo) window.location.hash = "/" + retiredTo;
   }, [retiredTo]);
+  // A soon/ link to a page that has shipped: the address becomes the page's own, in place, so Back does not land on
+  // the old link again.
+  useShellEffect(() => {
+    if (soonState === "real") window.location.replace("#/" + route.param);
+  }, [soonState, route.param]);
 
   // The tab says where this is, most particular first, and counts what needs
   // you (contracts chrome.ts pageTitle): named from the crumbs the top bar
@@ -730,6 +751,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <Topbar
           crumbs={crumbs}
           theme={theme}
+          themePref={themePref}
           onTheme={onTheme}
           onAsk={openAsk}
           onMenu={() => setNavOpen(true)}

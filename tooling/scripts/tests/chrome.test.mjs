@@ -56,9 +56,11 @@ test("the shell's one line: a newer build outranks stale surfaces, and nothing i
 
 test("the shortcuts sheet lists what the app answers to, grouped in order, and nothing the app does not do", () => {
   const groups = shortcutGroups(SHORTCUTS);
-  assert.deepEqual(groups.map((g) => g.group), ["Everywhere", "Lists", "Inbox"]);
+  assert.deepEqual(groups.map((g) => g.group), ["Everywhere", "People", "Inbox"]);
   const does = SHORTCUTS.map((s) => s.does);
-  for (const d of ["Ask Chanlytics", "Collapse or expand the sidebar", "This sheet", "Search the page", "Next and previous item", "Approve the draft", "Send"]) assert.ok(does.includes(d), d);
+  for (const d of ["Ask Chanlytics", "Collapse or expand the sidebar", "This sheet", "Search People", "Next and previous conversation", "Approve the draft", "Send"]) assert.ok(does.includes(d), d);
+  const where = (keys) => (SHORTCUTS.find((s) => s.keys.join(" ") === keys) || {}).group;
+  assert.deepEqual([where("/"), where("J K")], ["People", "Inbox"], "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People and J/K walk the Inbox");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('e.key === "k"') && shell.includes('e.key === "b"'), "⌘K and ⌘B are real");
   assert.ok(shell.includes("if (n >= 1 && n <= 9)"), "⌘1–9 are real");

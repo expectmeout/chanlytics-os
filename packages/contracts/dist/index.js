@@ -7493,6 +7493,15 @@ var THEME_OPTIONS = [
   { id: "system", label: "System", icon: "monitor" }
 ];
 var isThemePref = (v) => v === "light" || v === "dark" || v === "system";
+function nextThemePref(pref) {
+  const at2 = THEME_OPTIONS.findIndex((o) => o.id === pref);
+  return THEME_OPTIONS[(at2 + 1) % THEME_OPTIONS.length].id;
+}
+function themeButtonWords(pref) {
+  const now = THEME_OPTIONS.find((o) => o.id === pref) ?? THEME_OPTIONS[2];
+  const next = THEME_OPTIONS.find((o) => o.id === nextThemePref(now.id));
+  return { icon: now.icon, label: `Theme: ${now.label}. Switch to ${next.label}` };
+}
 function resolveTheme(pref, systemDark) {
   if (pref === "light" || pref === "dark") return pref;
   return systemDark ? "dark" : "light";
@@ -7529,8 +7538,8 @@ var SHORTCUTS = [
   { group: "Everywhere", keys: ["\u23181", "\u23189"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
-  { group: "Lists", keys: ["/"], does: "Search the page" },
-  { group: "Lists", keys: ["J", "K"], does: "Next and previous item" },
+  { group: "People", keys: ["/"], does: "Search People" },
+  { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
@@ -9216,6 +9225,7 @@ export {
   newReceptionistDefaults,
   nextOpenMoment,
   nextRunLabel,
+  nextThemePref,
   normalizeNavigate,
   normalizePhone,
   numberHealth,
@@ -9354,6 +9364,7 @@ export {
   tenantStatusFor,
   textingTermsVM,
   textingWords,
+  themeButtonWords,
   threadStanding,
   tidyCallSummary,
   timezoneCity,

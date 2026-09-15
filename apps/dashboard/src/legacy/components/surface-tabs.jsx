@@ -74,8 +74,9 @@ const SurfaceTabs = ({ page, param, onNavigate }) => {
   if (!group) return null;
   const tabs = group.tabs.filter(t => !t.demoOnly || window.__DEMO_MODE);
   if (tabs.length < 2) return null;
-  // Detail views keep their focus: hide on a client profile
-  if (page === "clients" && param && !param.startsWith("seg:")) return null;
+  // Detail views keep their focus: hide on a person's profile. A list (seg:, list:) and a state (state:) are views of
+  // People, and the tabs vanished on the last two (the wiring audit's N24).
+  if (page === "clients" && param && !/^(seg|list|state):/.test(param)) return null;
   return (
     <nav className="stabs" aria-label="Section views">
       {tabs.map(t => {

@@ -6,7 +6,7 @@
  * sidebar's menus, the shortcuts sheet, the line under the top bar and the
  * tab's name.
  */
-import { THEME_OPTIONS, SHORTCUTS, pageTitle, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, type ShellStatus } from "@chanlytics/contracts";
+import { THEME_OPTIONS, SHORTCUTS, pageTitle, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, nextThemePref, themeButtonWords, type ShellStatus } from "@chanlytics/contracts";
 import { clearSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
 import { refreshAllSurfaces } from "./surface-runner";
@@ -26,6 +26,10 @@ export interface ShellApi {
 
 export interface ChromeWords {
   themes: typeof THEME_OPTIONS;
+  /** The theme preference a press of the top bar's button makes, through all three. */
+  nextTheme: typeof nextThemePref;
+  /** What that button shows and says. */
+  themeButton: typeof themeButtonWords;
   shortcuts: typeof SHORTCUTS;
   shortcutGroups: typeof shortcutGroups;
   statusLine: typeof shellStatusLine;
@@ -102,6 +106,8 @@ export function installShell(win: Window = window): void {
   };
   win.__chrome = {
     themes: THEME_OPTIONS,
+    nextTheme: nextThemePref,
+    themeButton: themeButtonWords,
     shortcuts: SHORTCUTS,
     shortcutGroups,
     statusLine: shellStatusLine,
