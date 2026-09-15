@@ -4703,16 +4703,25 @@ var ASK_PAGE_ROUTES = [
   "today",
   "inbox",
   "clients",
+  "segments",
   "conversations",
   "live",
+  "calendar",
+  "outbound",
+  "broadcasts",
+  "messages",
   "reports",
+  "admin/setup",
   "admin/workspace",
   "admin/team",
   "admin/autonomy",
   "admin/notifications",
-  "admin/integrations"
+  "admin/integrations",
+  "admin/billing",
+  "admin/activity",
+  "admin/profile"
 ];
-var PAGE_PREFIX = /^(today|inbox|clients|conversations|live|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
+var PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
 function groundCitations(citations, read) {
   const kept = [];
   let dropped = 0;
@@ -4865,10 +4874,19 @@ var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
+  { label: "Lists", to: "segments", kind: "page", sub: "the people you keep together" },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
+  { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
+  { label: "Playbooks", to: "outbound", kind: "page", sub: "campaigns that run on their own" },
+  { label: "Broadcasts", to: "broadcasts", kind: "page", sub: "one message to the people who said yes" },
+  { label: "Messages", to: "messages", kind: "page", sub: "what the receptionist and the campaigns send" },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
+  { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
+  { label: "Billing", to: "admin/billing", kind: "page" },
+  { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
+  { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
   { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },

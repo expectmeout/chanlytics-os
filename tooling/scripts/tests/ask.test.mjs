@@ -116,8 +116,8 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("dani", index).map((j) => j.kind), ["thread"]);
   assert.deepEqual(askJump("what needs me?", index), [], "a question mark is a question");
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
-  assert.deepEqual(askJump("set", index).map((j) => j.label), ["Settings"]);
-  assert.ok(ASK_PAGES.every((p) => !/lead|segment|fleet|store|studio|broadcast|calendar\b/.test(p.to)), "only real pages");
+  assert.deepEqual(askJump("set", index).map((j) => j.label), ["Settings", "Setup"]);
+  assert.ok(ASK_PAGES.every((p) => !/lead|fleet|store|studio|pipeline|content|tasks\b/.test(p.to)), "only real pages");
 });
 
 test("suggestions come from the data, in the person's language, and never offer what the workspace cannot answer", () => {
@@ -465,7 +465,7 @@ test("the composer is the way on: focus comes back, the mic is always visible, '
   const stay = parseAskFinish({ answer: "Two people wrote.", citations: [], followups: [], navigate: { to: "inbox", label: "Inbox" }, language: "en" });
   assert.ok(stay.ok && stay.value.navigate.now === false, "now defaults to false");
   const ui = readCode("apps/dashboard/src/legacy/pages/ask-real.jsx");
-  assert.ok(ui.includes("H.useAskFocus(inputRef, open && !live, [open, live, active]);") && readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes("ref.current.focus(); }, 30);"), "focus returns after every turn and chip");
+  assert.ok(ui.includes("H.useAskFocus(inputRef, open && !live && !doomed, [open, live, active, doomed]);") && readCode("apps/dashboard/src/legacy/pages/ask-hooks.jsx").includes("ref.current.focus(); }, 30);"), "focus returns after every turn and chip");
   assert.ok(!ui.includes('data-testid="ask-input"\n            maxLength={1000}\n          />\n          {talk.canTalk && ('), "the input is never disabled while a turn runs");
   assert.ok(!/disabled=\{!!live\}\s*\n\s*aria-label="Ask Chanlytics"/.test(ui), "the input stays enabled during a turn");
   assert.ok(ui.includes('data-testid="ask-talk-off"'), "where the browser cannot listen, the mic says so instead of vanishing");
