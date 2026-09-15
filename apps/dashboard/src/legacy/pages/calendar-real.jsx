@@ -61,13 +61,13 @@ window.crTrapTab = crTrapTab;
 
 // One taken block from the feed. Neutral, never an agent's colour: the
 // calendar did not say who booked it, only that the time is taken.
-const CrBlock = ({ b, hours, onOpen, wide }) => {
+const CrBlock = ({ b, hours, onOpen, wide, dayLong }) => {
   const y = (Math.max(hours.start, b.t) - hours.start) * CR_HOUR_PX;
   const h = Math.max(22, (Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t)) * CR_HOUR_PX - 2);
   // Overlapping blocks take lanes side by side; a block alone keeps the column.
   const laned = b.lanes > 1 ? { left: `calc(4px + ${b.lane} * (100% - 8px) / ${b.lanes})`, width: `calc((100% - 8px) / ${b.lanes} - 2px)`, right: "auto" } : {};
   return (
-    <button className="cal-appt feed" style={{ top: y, height: h, ...laned }} onClick={() => onOpen(b)} title={`${b.title} · ${b.time}`} data-testid="cal-block" data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}>
+    <button className="cal-appt feed" style={{ top: y, height: h, ...laned }} onClick={() => onOpen(b)} title={`${b.title} · ${b.time}`} aria-label={`${b.title}, ${b.time}, ${dayLong}`} data-testid="cal-block" data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}>
       <span className="cal-appt-line1"><span className="cal-appt-who">{b.title}</span></span>
       <span className="cal-appt-service">{b.time}{wide && b.person ? ` · ${b.person.name}` : ""}</span>
     </button>
@@ -172,13 +172,21 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
       <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`}>
         <div className="cal-corner" />
         {frames.map((d) => (
-          <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""} ${!wide ? "clickable" : ""}`} title={!wide ? `Open ${d.dow} in Day view` : undefined} onClick={() => { if (!wide) onDay(d.key); }} data-testid="cal-dayhead">
-            <span className="cal-dow">{d.dow}</span>
-            <span className="cal-date tabular">{d.date}</span>
+          <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""}`} data-testid="cal-dayhead">
+            {/* The day's name opens it in Day view from a keyboard too (C4): the head was a clickable div no Tab reached,
+                named only in a title. */}
+            {wide ? (
+              <><span className="cal-dow">{d.dow}</span><span className="cal-date tabular">{d.date}</span></>
+            ) : (
+              <button type="button" className="cal-dayhead-open" onClick={() => onDay(d.key)} aria-label={`Open ${d.long} in Day view`} aria-current={d.today ? "date" : undefined} data-testid="cal-dayhead-open">
+                <span className="cal-dow">{d.dow}</span>
+                <span className="cal-date tabular">{d.date}</span>
+              </button>
+            )}
             {d.today && <span className="cal-today-chip">Today</span>}
             {d.closed.yes && <span className="cal-closed-chip" title={d.closed.note || ""}>Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
             {d.allDay.map((b) => (
-              <button key={b.id} className="cal-allday" onClick={() => onOpen(b)} title={b.title}>{b.title}</button>
+              <button key={b.id} className="cal-allday" onClick={() => onOpen(b)} title={b.title} aria-label={`${b.title}, all day, ${d.long}`}>{b.title}</button>
             ))}
           </div>
         ))}
@@ -195,7 +203,7 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
               </div>
             ))}
             {d.windows.filter(fit).map((w, i) => <CrWindow key={i} w={w} hours={hours} />)}
-            {d.blocks.map((b) => <CrBlock key={b.id} b={b} hours={hours} onOpen={onOpen} wide={wide} />)}
+            {d.blocks.map((b) => <CrBlock key={b.id} b={b} hours={hours} onOpen={onOpen} wide={wide} dayLong={d.long} />)}
             {d.today && now !== null && now >= hours.start && now <= hours.end && (
               <div className="cal-nowline" style={{ top: (now - hours.start) * CR_HOUR_PX }}><span className="cal-nowdot" /></div>
             )}
@@ -204,6 +212,17 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
       </div>
     </div>
   );
+};
+
+// What a month day holds, said with its date (C4): a screen reader heard "8", "1 taken", "1 open" and no day. The words
+// the cell draws, in its order.
+const crCellLabel = (d, taken, open, feedOk) => {
+  const held = d.closed.yes ? `closed${d.closed.note ? ` · ${d.closed.note}` : ""}`
+    : d.unread ? "couldn't read"
+    : d.loading ? "reading"
+    : !feedOk ? ""
+    : [taken > 0 ? `${taken} taken` : "", open > 0 && !d.past ? `${open} open` : ""].filter(Boolean).join(", ") || "nothing on the calendar";
+  return held ? `${d.long}: ${held}` : d.long;
 };
 
 // The month: six weeks of counts. A day says how much is taken and how
@@ -221,7 +240,7 @@ const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
             const open = d.windows.filter(fit).length;
             const inMonth = d.key.slice(0, 7) === monthKey;
             return (
-              <button key={d.key} className={`cal-month-cell ${inMonth ? "" : "muted"} ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.closed.yes ? "closed" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} onClick={() => onDay(d.key)} title={d.long} data-testid="cal-month-cell">
+              <button key={d.key} className={`cal-month-cell ${inMonth ? "" : "muted"} ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.closed.yes ? "closed" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} onClick={() => onDay(d.key)} title={d.long} aria-label={crCellLabel(d, taken, open, feedOk)} aria-current={d.today ? "date" : undefined} data-testid="cal-month-cell">
                 <span className="cal-month-num tabular">{d.dayNum}</span>
                 {d.closed.yes && <span className="cal-month-closed">{d.closed.note ? `Closed · ${d.closed.note}` : "Closed"}</span>}
                 {d.unread && <span className="cal-month-none">couldn't read</span>}
@@ -445,7 +464,7 @@ const CalendarReal = ({ initialDay = null }) => {
       <div className="cl-controls">
         <div className="cal-weeklabel">
           <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous (←)" aria-label="Previous" onClick={() => move(-1)} data-testid="cal-prev">‹</button>
-          <span className="cal-week-range" data-testid="cal-range">{label}</span>
+          <span className="cal-week-range" aria-live="polite" data-testid="cal-range">{label}</span>
           <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next (→)" aria-label="Next" onClick={() => move(1)} data-testid="cal-next">›</button>
           <button className="btn btn-ghost btn-sm cal-today-btn" title="Today (T)" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
           <input className="cal-jump" type="date" aria-label="Go to a date" value={anchor} onChange={(e) => { if (e.target.value) setAnchorKey(e.target.value); }} data-testid="cal-jump" />
@@ -554,7 +573,7 @@ const CalendarReal = ({ initialDay = null }) => {
         <span><i className="cal-legend-swatch taken" /> Taken, from your calendar</span>
         <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? ` for ${service.name}` : ""}, through {vm.offer.label}</span>
         <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
-        <span className="cal-legend-rules">← → move · T today · times are {vm.zoneCity} time</span>
+        <span className="cal-legend-rules"><span className="cal-keys">← → move · T today · </span>times are {vm.zoneCity} time</span>
       </div>
 
       {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} bookingLink={vm.bookingLink} onCopyLink={copyLink} onClose={() => setOpenId(null)} />}
