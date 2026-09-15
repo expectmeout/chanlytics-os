@@ -204,7 +204,7 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
     });
 
-    await test.step("the decision fits the screen: the banner's words keep their width, every control stays on the pane, and the Inbox ends where the screen does, at 1280, on a short window, at 1024 and on a phone", async () => {
+    await test.step("the decision fits the screen: the banner's words keep their width, every control stays on the pane, the Inbox ends where the screen does, and the thread opens at its newest entry, at 1280, on a short window, at 1024 and on a phone", async () => {
       for (const size of [{ width: 1280, height: 800 }, { width: 1280, height: 480 }, { width: 1024, height: 768 }, { width: 375, height: 812 }]) {
         await page.setViewportSize(size);
         await freshLoad(page, `#/inbox/th-${id}`);
@@ -232,6 +232,14 @@ test.describe("The thread, in the nightly's own workspace", () => {
           };
         });
         expect(fit, `at ${size.width}x${size.height}`).toEqual({ words: true, inside: true, strip: true, name: true, height: true });
+        // The thread opens at its newest entry: it opened at the oldest, and on a phone the words to answer were two
+        // scrolls down.
+        await expect.poll(() => pane.evaluate((el) => {
+          const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
+          const all = el.querySelectorAll(".ix-timeline > *");
+          const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
+          return !scroller || !last || (last.bottom <= scroller.bottom + 1 && last.bottom > scroller.top);
+        }), { message: `the newest entry on screen at ${size.width}x${size.height}` }).toBe(true);
       }
       await page.setViewportSize({ width: 1280, height: 720 });
     });

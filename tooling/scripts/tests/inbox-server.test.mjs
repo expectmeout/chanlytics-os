@@ -203,10 +203,10 @@ test("the composer of a text thread says Text, not WhatsApp", async () => {
   await import(at("apps/dashboard/src/legacy/pages/inbox-thread.jsx"));
   const walk = (n, fn) => { if (n == null || typeof n !== "object") return; if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; } fn(n); walk(n.props?.children, fn); walk(n.rendered, fn); };
   const find = (tree, pred) => { let hit; walk(tree, (n) => { if (hit === undefined && pred(n)) hit = n; }); return hit; };
-  const textOf = (n) => (n == null || typeof n === "boolean" ? "" : typeof n === "string" || typeof n === "number" ? String(n) : Array.isArray(n) ? n.map(textOf).join("") : n.rendered !== undefined ? textOf(n.rendered) : textOf(n.props?.children));
   const rows = [message("m1", uuid(1), A, { channel: "sms", created_at: ago(50 * HOUR), channel_ts: ago(50 * HOUR) })];
   const vm = toInboxThreadVM({ id: uuid(1), state: "open", paused_until: null, snooze_until: null, assignee_user_id: null, last_wa_inbound_at: null, last_message_at: ago(HOUR), contact: contact(), messages: groupMessages(rows).get(uuid(1)) }, null, ZONE, new Date());
   cells = []; seq = 0;
   const tree = globalThis.window.InboxComposer({ thread: vm, reply: "", onSend() {} });
-  assert.equal(textOf(find(tree, (n) => typeof n.props?.className === "string" && n.props.className === "ix-composer-channel")), "Text · to Ada", "REGRESSION: a text was said to go out on WhatsApp");
+  // The reply box names the channel in its field; the line under it that said "Text · to Ada" is gone.
+  assert.equal(find(tree, (n) => n.type === "textarea").props.placeholder, "Text to Ada…", "REGRESSION: a text was said to go out on WhatsApp");
 });
