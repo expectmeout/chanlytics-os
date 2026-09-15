@@ -1046,6 +1046,30 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     no_health_advice: (p0.guardrails || {}).no_health_advice === true,
   }));
   const [saving, setSaving] = useSetState(false);
+  // What each field needs, under the field it belongs to (S22). Every check in `save` fills it at once, and a field
+  // clears its own sentence when it changes; the toast only counts them.
+  const [problems, setProblems] = useSetState({});
+  const clearProblem = (k) => setProblems((p) => (p[k] ? { ...p, [k]: undefined } : p));
+  const problemProps = (k) => (problems[k] ? { "aria-invalid": true, "aria-describedby": `biz-${k}-problem` } : {});
+  const problemLine = (k) => (problems[k] ? <window.FieldError id={`biz-${k}-problem`} message={problems[k]} testid={`biz-${k}-problem`} /> : null);
+  // Unsaved changes, against what the form opened with. Cancel, another Settings tab and closing the page each ask
+  // before they throw them away (S22); all three did it silently.
+  const [armCancel, setArmCancel] = useSetState(false);
+  const draft = JSON.stringify([bizName, phoneDisplay, bookingLink, address, tone, langs, escalate, website, notes, leadHours, bufferMin, daysAhead, partyMax, slotMin, consultFirst, bookingNotes, icalUrl, vision, extra, hours, services, closures, guards]);
+  const opened = React.useRef(draft);
+  const dirty = draft !== opened.current;
+  const dirtyNow = React.useRef(dirty);
+  dirtyNow.current = dirty;
+  useSetEffect(() => {
+    window.__settingsUnsaved = () => dirtyNow.current;
+    return () => { delete window.__settingsUnsaved; };
+  }, []);
+  useSetEffect(() => {
+    if (!dirty) return undefined;
+    const hold = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", hold);
+    return () => window.removeEventListener("beforeunload", hold);
+  }, [dirty]);
 
   const setDay = (d, patch) => setHours((h) => ({ ...h, [d]: { ...h[d], ...patch } }));
   const setShift = (d, n, k, v) =>
@@ -1187,6 +1211,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // Any field added to the profile later — by a newer editor, by a script,
     // by the API — now survives an owner opening this form and pressing Save.
     const profile = { ...p0 };
+    // Every problem at once, each said under its own field (S22).
+    const found = {};
     // Only send what was filled in. An empty string is not a fact, and storing
     // it would have the composed prompt state an address of nothing — so an
     // emptied field DELETES its key rather than storing "".
@@ -1204,23 +1230,30 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // contracts/phone.ts, beside the row that now enforces them.
     const site = website.trim();
     if (site && !/^https?:\/\/.+\..+/.test(site)) {
-      flash({ tone: "warn", msg: <>The website needs to be a full web address, starting with https://</> });
-      return;
+      found.website = <>The website needs to be a full web address, starting with https://</>;
     }
     put("website", site || undefined);
     const noteRows = notes
       .map((n) => ({ title: (n.title || "").trim(), text: (n.text || "").trim() }))
       .filter((n) => n.title || n.text);
-    if (noteRows.some((n) => !n.title || !n.text)) {
-      flash({ tone: "warn", msg: <>Each note needs both a title and the text to say.</> });
-      return;
-    }
+    notes.forEach((n, i) => {
+      const title = (n.title || "").trim();
+      const text = (n.text || "").trim();
+      if ((title || text) && (!title || !text)) found[`note-${i}`] = <>Each note needs both a title and the text to say.</>;
+    });
     put("notes", noteRows.length ? noteRows : undefined);
     // Booking rules: a blank field is "no rule", never zero.
     const num = (v, lo, hi) => { const n = parseInt(String(v).trim(), 10); return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined; };
     // Start from the stored rules the form does not edit (settingsRulesKept):
     // a rebuild from {} deleted the slot length on every save.
     const rules = settingsRulesKept(p0.booking_rules);
+    // A number outside what a rule allows is said under its box; it used to be dropped without a word (S22).
+    const outside = (v, lo, hi) => String(v).trim() !== "" && num(v, lo, hi) === undefined;
+    if (outside(leadHours, 0, 168)) found.lead = <>Least notice is 0 to 168 hours; leave it empty for no rule.</>;
+    if (outside(slotMin, 15, 240)) found.slot = <>A slot is 15 to 240 minutes; leave it empty for the calendar&rsquo;s 30.</>;
+    if (outside(bufferMin, 0, 120)) found.buffer = <>The gap is 0 to 120 minutes; leave it empty for none.</>;
+    if (outside(daysAhead, 1, 90)) found.ahead = <>Times are offered 1 to 90 days ahead; leave it empty for no rule.</>;
+    if (outside(partyMax, 1, 20)) found.party = <>A booking is for 1 to 20 people; leave it empty for no rule.</>;
     const lead = num(leadHours, 0, 168); if (lead !== undefined) rules.lead_hours = lead;
     const buf = num(bufferMin, 0, 120); if (buf !== undefined) rules.buffer_min = buf;
     const ahead = num(daysAhead, 1, 90); if (ahead !== undefined) rules.max_days_ahead = ahead;
@@ -1232,8 +1265,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     put("booking_rules", Object.keys(rules).length ? rules : undefined);
     const feed = icalUrl.trim();
     if (feed && !/^(https?|webcal):\/\/\S+$/i.test(feed)) {
-      flash({ tone: "warn", msg: <>The calendar feed needs to be a full address, starting with https:// or webcal://</> });
-      return;
+      found.feed = <>The calendar feed needs to be a full address, starting with https:// or webcal://</>;
     }
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
@@ -1292,18 +1324,20 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // An empty published number is now the RIGHT answer, not a missing one: it
     // resolves to the line the receptionist answers. Only a workspace with no
     // line at all and nothing typed has nothing to give a customer.
-    const missing = !name ? "a business name" : (!phone && !voiceLine) ? "a phone number" : !link ? "a booking link" : "";
-    if (missing) {
-      flash({ tone: "warn", msg: <>The receptionist needs {missing} before it can answer anyone.</> });
-      return;
-    }
+    // Each empty one is said under its own box: the name, the number, the link.
+    const needs = (missing) => <>The receptionist needs {missing} before it can answer anyone.</>;
+    if (!name) found.name = needs("a business name");
+    if (!phone && !voiceLine) found.phone = needs("a phone number");
+    if (!link) found.link = needs("a booking link");
     const badPhone = phone && window.__whyNotAPhone ? window.__whyNotAPhone(phone) : null;
-    if (badPhone) {
-      flash({ tone: "warn", msg: <>{badPhone}</> });
-      return;
-    }
+    if (badPhone) found.phone = <>{badPhone}</>;
     if (!/^https?:\/\/.+\..+/.test(link)) {
-      flash({ tone: "warn", msg: <>That booking link needs to be a full web address, starting with https://</> });
+      if (link) found.link = <>That booking link needs to be a full web address, starting with https://</>;
+    }
+    const count = Object.keys(found).length;
+    setProblems(found);
+    if (count) {
+      flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> });
       return;
     }
     const defaults = window.__receptionistDefaults(name, phone || voiceLine || "", link);
@@ -1374,11 +1408,13 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             <input
               className="set-input"
               value={bizName}
-              onChange={(e) => setBizName(e.target.value)}
+              onChange={(e) => { setBizName(e.target.value); clearProblem("name"); }}
               placeholder="The name customers know you by"
               aria-label="Business name"
+              {...problemProps("name")}
             />
           </label>
+          {problemLine("name")}
         {/* Only while CREATING. Afterwards this number is edited in the
             row that states it, on the Business card -- the same fact in one
             place instead of a form field and a read-only row five rows
@@ -1403,13 +1439,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                       <input
                         className="set-input"
                         value={phoneDisplay}
-                        onChange={(e) => setPhoneDisplay(e.target.value)}
+                        onChange={(e) => { setPhoneDisplay(e.target.value); clearProblem("phone"); }}
                         placeholder={lineShown}
                         inputMode="tel"
                         autoComplete="tel"
                         aria-label="The number to publish instead"
                         data-testid="set-pub-input"
+                        {...problemProps("phone")}
                       />
+                      {problemLine("phone")}
                       <div className="set-ident-note">
                         {window.__samePhone && window.__samePhone(phoneDisplay, voiceLine)
                           ? <>That is your line. Leave it on <b>Your line</b> and it stays right when the number changes.</>
@@ -1429,13 +1467,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                   <input
                     className="set-input"
                     value={phoneDisplay}
-                    onChange={(e) => setPhoneDisplay(e.target.value)}
+                    onChange={(e) => { setPhoneDisplay(e.target.value); clearProblem("phone"); }}
                     placeholder="(555) 010-1234"
                     inputMode="tel"
                     autoComplete="tel"
                     aria-label="The number to tell customers to call"
                     data-testid="set-pub-input"
+                    {...problemProps("phone")}
                   />
+                  {problemLine("phone")}
                   <div className="set-ident-note">No phone line yet, so this is the only number the receptionist can give. It answers on WhatsApp; the number you type here is somewhere a person picks up.</div>
                 </>
               )}
@@ -1447,13 +1487,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             <input
               className="set-input"
               value={bookingLink}
-              onChange={(e) => setBookingLink(e.target.value)}
+              onChange={(e) => { setBookingLink(e.target.value); clearProblem("link"); }}
               placeholder="https://your-booking-page.com"
               inputMode="url"
               autoComplete="url"
               aria-label="Booking link"
+              {...problemProps("link")}
             />
           </label>
+          {problemLine("link")}
         </div>
         {/* Said once, plainly, rather than discovered by a customer. */}
         <div className="set-sec-note">
@@ -1477,12 +1519,14 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <input
           className="set-input"
           value={website}
-          onChange={(e) => setWebsite(e.target.value)}
+          onChange={(e) => { setWebsite(e.target.value); clearProblem("website"); }}
           placeholder="https://example.com"
           inputMode="url"
           autoComplete="url"
           aria-label="Website"
+          {...problemProps("website")}
         />
+        {problemLine("website")}
       </div>
       </div>
       <div className="set-group">
@@ -1603,12 +1647,14 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <input
           className="set-input"
           value={icalUrl}
-          onChange={(e) => setIcalUrl(e.target.value)}
+          onChange={(e) => { setIcalUrl(e.target.value); clearProblem("feed"); }}
           placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
           inputMode="url"
           autoComplete="off"
           aria-label="Calendar feed address"
+          {...problemProps("feed")}
         />
+        {problemLine("feed")}
         <div className="set-sec-note">
           The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
           It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
@@ -1658,11 +1704,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-sec">
         <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
         <div className="set-br-grid">
-          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => setLeadHours(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Slot length (minutes)</span><input className="set-input" inputMode="numeric" value={slotMin} placeholder="30" aria-label="Slot length in minutes" onChange={(e) => setSlotMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => setBufferMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => setDaysAhead(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => setPartyMax(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => { setLeadHours(e.target.value.replace(/[^0-9]/g, "")); clearProblem("lead"); }} {...problemProps("lead")} />{problemLine("lead")}</label>
+          <label className="set-br-field"><span className="set-br-label">Slot length (minutes)</span><input className="set-input" inputMode="numeric" value={slotMin} placeholder="30" aria-label="Slot length in minutes" onChange={(e) => { setSlotMin(e.target.value.replace(/[^0-9]/g, "")); clearProblem("slot"); }} {...problemProps("slot")} />{problemLine("slot")}</label>
+          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => { setBufferMin(e.target.value.replace(/[^0-9]/g, "")); clearProblem("buffer"); }} {...problemProps("buffer")} />{problemLine("buffer")}</label>
+          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => { setDaysAhead(e.target.value.replace(/[^0-9]/g, "")); clearProblem("ahead"); }} {...problemProps("ahead")} />{problemLine("ahead")}</label>
+          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => { setPartyMax(e.target.value.replace(/[^0-9]/g, "")); clearProblem("party"); }} {...problemProps("party")} />{problemLine("party")}</label>
         </div>
         <textarea className="set-input set-textarea" rows={2} value={consultFirst} onChange={(e) => setConsultFirst(e.target.value)} placeholder={"Color correction\nExtensions"} aria-label="Services that need a consultation first" />
         <div className="set-sec-note">Services that need a consultation before they can be booked, one per line.</div>
@@ -1761,9 +1807,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
         {notes.map((n, i) => (
           <div key={i} className="set-note-row">
-            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
-            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
+            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => { setNote(i, "title", e.target.value); clearProblem(`note-${i}`); }} {...problemProps(`note-${i}`)} />
+            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => { setNote(i, "text", e.target.value); clearProblem(`note-${i}`); }} {...problemProps(`note-${i}`)} />
             <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => removeNote(i)}><Icon name="x" size={12} /></button>
+            {problemLine(`note-${i}`)}
           </div>
         ))}
         {notes.length < 10 && (
@@ -1775,9 +1822,12 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Parking is behind the building. We do not take walk-ins after 5pm." aria-label="Extra instructions" />
       </div>
       </div>
+      {armCancel && (
+        <Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={onDone} onNo={() => setArmCancel(false)} testid="biz-cancel" />
+      )}
       <div className="set-editor-foot">
         <span className="set-editor-note">Saved changes reach the receptionist within a minute. A call already in progress finishes on the old details.</span>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => (dirty ? setArmCancel(true) : onDone())} disabled={saving}>Cancel</button>
         <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("settings")}>
           {saving ? "Saving" : "Save"}
         </button>
@@ -2773,6 +2823,13 @@ const PaneSoon = ({ which, onTab }) => {
 const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const active = SET_TAB(tab);
   const [toastNode, flash] = window.usePPToast();
+  // The tab asked for while a pane holds unsaved changes (the business editor registers __settingsUnsaved): the rail
+  // asks before the pane, and the changes with it, are replaced (S22).
+  const [leaving, setLeaving] = React.useState(null);
+  const go = (id) => {
+    if (id !== active.id && window.__settingsUnsaved && window.__settingsUnsaved()) { setLeaving(id); return; }
+    onTab(id);
+  };
   // Grouped, and derived rather than written twice: the rail can only ever
   // offer what SET_TABS holds, in the order it holds it.
   const groups = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])].reduce((acc, t) => {
@@ -2788,7 +2845,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           <React.Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map(t => (
-              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => onTab(t.id)}>
+              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => go(t.id)}>
                 <Icon name={t.icon} size={14} />
                 <span className="set-nav-label">{t.label}</span>
               </button>
@@ -2797,6 +2854,9 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         ))}
       </aside>
       <div className="set-pane" key={active.id}>
+        {leaving && (
+          <Confirm question="Leave without saving?" detail="The changes in the business editor have not been saved." yes="Yes, leave" no="Stay" danger onYes={() => { const to = leaving; setLeaving(null); onTab(to); }} onNo={() => setLeaving(null)} testid="set-leave" />
+        )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
         {active.id === "team" && <TeamSection flash={flash} />}
         {active.id === "setup" && window.PaneSetup && <window.PaneSetup />}
