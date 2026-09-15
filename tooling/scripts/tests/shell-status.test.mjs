@@ -103,6 +103,7 @@ const win = {
 const fire = (type) => win.dispatchEvent({ type });
 globalThis.window = win;
 globalThis.document = { title: "Chanlytics OS", visibilityState: "hidden", body: { style: {} }, addEventListener() {}, removeEventListener() {} };
+win.document = globalThis.document;
 
 const status = await importSrc("apps/dashboard/src/legacy-bridge/surface-status.ts");
 const realtime = await importSrc("apps/dashboard/src/legacy-bridge/surface-realtime.ts");
@@ -399,4 +400,27 @@ test("the tab counts a real thread only when it needs you: one a teammate is ans
   };
   assert.equal(mount("#/inbox").title, "(1) Inbox · Chanlytics", "REGRESSION: a teammate's thread was counted as needing you until the Inbox itself mounted");
   win.INBOX_DATA = { THREADS: [] };
+});
+
+test("REGRESSION: the tab keeps its name when the layout's own title lands after the shell's -- a page loaded cold said 'Chanlytics OS' until something it counted changed", () => {
+  shell.installShell(win);
+  const watches = [];
+  win.MutationObserver = class {
+    constructor(fn) { this.fn = fn; this.on = false; watches.push(this); }
+    observe(target, opts) { this.on = target === globalThis.document.head && !!opts.childList && !!opts.subtree && !!opts.characterData; }
+    disconnect() { this.on = false; }
+  };
+  globalThis.document.head = {};
+  try {
+    const { title } = mount("#/admin/autonomy");
+    assert.equal(title, "Autonomy · Settings · Chanlytics");
+    // What the layout's metadata does when it lands after the shell's first paint: its own title, over the shell's.
+    globalThis.document.title = "Chanlytics OS";
+    for (const w of watches) if (w.on) w.fn([]);
+    assert.equal(globalThis.document.title, "Autonomy · Settings · Chanlytics", "REGRESSION: the layout's title stayed, and nothing on the page wrote the name again");
+    assert.equal(watches.filter((w) => w.on).length, 1, "one watch on the head, for the one name");
+  } finally {
+    delete win.MutationObserver;
+    delete globalThis.document.head;
+  }
 });

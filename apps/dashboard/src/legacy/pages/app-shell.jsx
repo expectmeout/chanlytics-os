@@ -617,8 +617,13 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   // you (contracts chrome.ts pageTitle): named from the crumbs the top bar
   // draws, after the honesty gate has had its say, so the two cannot differ.
   const tabTitle = window.__chrome && window.__chrome.title ? window.__chrome.title(crumbs, inboxNeeds) : null;
+  // Kept, not only written: the layout's own title can land after this, and a page loaded cold went
+  // back to "Chanlytics OS" until something it counted changed (shell.ts keepTitle).
   useShellEffect(() => {
-    if (tabTitle) document.title = tabTitle;
+    if (!tabTitle) return undefined;
+    if (window.__shell && window.__shell.keepTitle) return window.__shell.keepTitle(tabTitle);
+    document.title = tabTitle;
+    return undefined;
   }, [tabTitle]);
 
   // The gate is asked per PANE, so this key must carry the param.
