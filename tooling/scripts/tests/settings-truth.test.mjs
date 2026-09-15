@@ -39,7 +39,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   assert.ok(pane.includes("const broken = !!(settings && settings.broken);"));
   assert.ok(pane.includes("This workspace's settings can't be read"));
   assert.ok(pane.indexOf("if (broken) {") < pane.indexOf("if (connected && editing) {"), "the broken branch wins over the editor");
-  assert.equal((pane.match(/disabled=\{broken \|\| !isOwner \|\| busy/g) ?? []).length, 3, "every notifications write is closed on a broken config");
+  assert.equal((pane.match(/disabled=\{broken \|\| busy/g) ?? []).length, 3, "every notifications write is closed on a broken config");
   // The parser really does tell the two apart.
   assert.equal(parseTenantConfigResult({}).ok, true, "an empty config is not broken");
   const bad = parseTenantConfigResult({ brain: { business_name: 42 } });
