@@ -215,14 +215,16 @@ test.describe("The thread, in the nightly's own workspace", () => {
             const r = b.getBoundingClientRect();
             return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
           });
-          const name = el.querySelector(".ix-th-id")?.getBoundingClientRect();
+          // The person gets the header, not a sliver of it: the name column was 35px at 1024 (I3). Measured on the
+          // column, since the name and number inside it are only as wide as their own letters -- 156px for this one.
+          const name = el.querySelector(".ix-th-head-main")?.getBoundingClientRect();
           // The list and the thread end at the screen's edge and scroll inside it. The grid had columns and no row,
           // so its one row grew to the taller of the two: the list never scrolled and Send sat below the fold.
           const list = document.querySelector(".ix-list")?.getBoundingClientRect();
           return {
             words: !!words && words.width >= Math.min(240, edge.width * 0.6),
             inside,
-            name: !!name && name.width >= Math.min(160, edge.width * 0.4),
+            name: !!name && name.width >= Math.min(240, edge.width * 0.6),
             height: edge.bottom <= window.innerHeight + 1 && (!list || list.bottom <= window.innerHeight + 1),
           };
         });
