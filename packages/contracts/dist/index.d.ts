@@ -745,11 +745,10 @@ interface InboxThreadVM {
     phone: string | null;
     /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
     waited?: string;
+    /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
     agent: {
         name: string;
         glyph: string;
-        autonomy: string;
-        tone: string;
     };
     subject: string;
     preview: string;
