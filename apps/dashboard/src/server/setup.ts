@@ -207,7 +207,7 @@ export async function setupDtoFor(
       connected: !!connection?.location_name,
     },
     billing: billingRow
-      ? { ready: billingReady.ready, mode: billingRow.mode, status: billingRow.status, trial_end: billingRow.trial_end, current_period_end: billingRow.current_period_end, trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at, cancel_at_period_end: billingRow.cancel_at_period_end }
+      ? { ready: billingReady.ready, livemode: billingReady.livemode, mode: billingRow.mode, status: billingRow.status, trial_end: billingRow.trial_end, current_period_end: billingRow.current_period_end, trial_days: billingReady.trial_days, cancel_at: billingRow.cancel_at, cancel_at_period_end: billingRow.cancel_at_period_end }
       : undefined,
     activations: (activations.data ?? []).map((a) => ({ capability: a.capability as CapabilityKind, activated_at: a.activated_at, activated_by: a.activated_by, deactivated_at: a.deactivated_at })),
   };
