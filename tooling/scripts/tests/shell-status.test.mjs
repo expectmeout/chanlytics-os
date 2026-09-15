@@ -424,3 +424,21 @@ test("REGRESSION: the tab keeps its name when the layout's own title lands after
     delete globalThis.document.head;
   }
 });
+
+test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the page only call ids, so a person's profile opened the first conversation in the list", () => {
+  shell.installShell(win);
+  globalThis.ConversationsPage = "ConversationsPage";
+  win.CONVERSATIONS_DATA = { CONVERSATIONS: [{ id: "c-9", who: "Rosa Díaz" }, { id: "cv-4", who: "Emily Chen" }] };
+  const pageAt = (hash) => { const { tree, title } = mount(hash); return { props: find(tree, (n) => n.type === "ConversationsPage").props, title }; };
+  try {
+    const chat = pageAt("#/conversations/c-9");
+    assert.equal(chat.props.initialId, "c-9", "REGRESSION: a chat's id was dropped, and the page opened someone else's");
+    assert.equal(chat.title, "Rosa Díaz · Conversations · Chanlytics");
+    assert.equal(pageAt("#/conversations/cv-4").props.initialId, "cv-4", "a call's id still opens it");
+    const phone = pageAt("#/conversations/phone").props;
+    assert.deepEqual([phone.channel, phone.initialId], ["phone", null], "a channel is a filter, not an id");
+  } finally {
+    delete win.CONVERSATIONS_DATA;
+    delete globalThis.ConversationsPage;
+  }
+});

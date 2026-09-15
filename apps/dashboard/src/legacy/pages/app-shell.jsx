@@ -486,9 +486,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     pane = true;
     content = <LiveMonitorPage />;
   } else if (page === "conversations") {
-    const isCvId = param && param.startsWith("cv-");
+    // Only the three channels are filters; anything else is a row's id, a chat's (its conversation's)
+    // or a call's (cv-). The shell passed cv- ids alone, so a profile linking a chat opened the first
+    // conversation in the list.
     const chLabel = { phone: "Calls", chats: "Chats", mail: "Email" }[param];
-    const cvWho = param && param.startsWith("cv-") && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS || []).find(c => c.id === param) || {}).who;
+    const isCvId = !!param && !chLabel;
+    const cvWho = isCvId && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS || []).find(c => c.id === param) || {}).who;
     activeNav = { phone: "calls", chats: "chats", mail: "email" }[param] || "conversations";
     crumbs = cvWho ? [{ label: "Conversations", to: "conversations" }, cvWho] : chLabel ? [{ label: "Conversations", to: "conversations" }, chLabel] : ["Conversations"];
     pane = true;

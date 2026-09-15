@@ -11,7 +11,9 @@ const CV_LABEL = { phone: "Phone", sms: "SMS", whatsapp: "WhatsApp", instagram: 
 // The row's outcome as the one pill draws it. The words a page knows better
 // stay here (which channel answered, what you chose); the tones are the map's,
 // so "Needs you" is amber here as it is in the Inbox and on a playbook.
-const OutcomePill = ({ outcome, decidedAction, channel }) => {
+// Who answered a handled chat, in the pill's words; a call keeps its own.
+const CV_ANSWERED = { team: "Your team replied", broadcast: "Broadcast sent", playbook: "Playbook sent" };
+const OutcomePill = ({ outcome, decidedAction, channel, answeredBy = null }) => {
   if (decidedAction) return <StatePill kind="thread" value="decided" label={<><Icon name="check" size={9} />Handled · you chose {decidedAction}</>} />;
   if (outcome === "live") return <StatePill kind="call" value="live" />;
   if (outcome === "missed") return <StatePill kind="call" value="missed" />;
@@ -20,7 +22,7 @@ const OutcomePill = ({ outcome, decidedAction, channel }) => {
   if (outcome === "callback" || outcome === "abandoned") return <StatePill kind="call" value={outcome} />;
   if (outcome === "booked") return <StatePill kind="thread" value="booked" />;
   if (outcome === "escalated") return <StatePill kind="thread" value="escalated" />;
-  if (outcome === "handled") return <StatePill kind="thread" value="handled" label={channel === "phone" ? "Receptionist handled it" : "Receptionist replied"} />;
+  if (outcome === "handled") return <StatePill kind="thread" value="handled" label={channel === "phone" ? "Receptionist handled it" : CV_ANSWERED[answeredBy] || "Receptionist replied"} />;
   // The customer had the last word — it is your turn, not theirs; this read "Customer's turn" for a year.
   return <StatePill kind="thread" value="open" />;
 };
@@ -69,7 +71,7 @@ const CvRow = ({ c, active, onSelect }) => {
           {c.agent.name}
         </span>
         {c.duration && <span className="cv-row-dur mono tabular">{c.duration}</span>}
-        <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} />
+        <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} answeredBy={c.answeredBy} />
       </span>
     </span>
   </button>
@@ -80,33 +82,41 @@ const CvRow = ({ c, active, onSelect }) => {
 // Real calls stream the stored recording through a short-lived signed URL
 // (the provider's permanent CDN link never reaches the browser). Seeded demo
 // calls keep the original simulated scrubber.
+//
+// The link is read through the client (window.__recording), so the request
+// names the workspace as every read does; it was a bare fetch. The route signs
+// it for five minutes, so an old link is read again before playing. A failure
+// says why and leaves Play to try again: one failure used to disable it for
+// good, until another row was opened.
+const CV_LINK_FRESH_MS = 4 * 60 * 1000;
 const CvRealPlayback = ({ c }) => {
   const audioRef = React.useRef(null);
+  const linkAt = React.useRef(0);
   const [playing, setPlaying] = useCvState(false);
   const [pos, setPos] = useCvState(0);
   const [dur, setDur] = useCvState(0);
   const [loading, setLoading] = useCvState(false);
-  const [failed, setFailed] = useCvState(false);
+  const [failed, setFailed] = useCvState(null); // the sentence, while the recording can't be played
 
   const fmt = (sec) => `${Math.floor(sec / 60)}:${String(Math.floor(sec % 60)).padStart(2, "0")}`;
 
   const toggle = async () => {
     const el = audioRef.current;
-    if (!el) return;
+    if (!el || loading) return;
     if (playing) { el.pause(); return; }
-    if (!el.src) {
+    if (!el.src || Date.now() - linkAt.current > CV_LINK_FRESH_MS) {
       setLoading(true);
-      try {
-        const r = await fetch(c.recordingUrl);
-        const j = await r.json();
-        if (!j.ok || !j.data?.url) throw new Error("no url");
-        el.src = j.data.url;
-      } catch {
-        setFailed(true); setLoading(false); return;
-      }
+      const r = window.__recording ? await window.__recording(c.callId) : null;
       setLoading(false);
+      if (!r || !r.ok || !r.data || !r.data.url) {
+        setFailed((r && r.message) || "Couldn't load the recording.");
+        return;
+      }
+      el.src = r.data.url;
+      linkAt.current = Date.now();
     }
-    el.play().catch(() => setFailed(true));
+    setFailed(null);
+    el.play().catch(() => { linkAt.current = 0; setFailed("Couldn't play the recording."); });
   };
 
   const pct = dur ? (pos / dur) * 100 : 0;
@@ -120,19 +130,20 @@ const CvRealPlayback = ({ c }) => {
         onEnded={() => setPlaying(false)}
         onTimeUpdate={(e) => setPos(e.target.currentTime)}
         onLoadedMetadata={(e) => setDur(e.target.duration || 0)}
-        onError={() => { setFailed(true); setPlaying(false); }}
+        onError={() => { linkAt.current = 0; setPlaying(false); setFailed("Couldn't play the recording."); }}
       />
       <button
         className="cv-play"
-        title={playing ? "Pause" : "Play recording"}
+        title={failed ? "Try the recording again" : playing ? "Pause" : "Play recording"}
+        aria-label={failed ? "Try the recording again" : playing ? "Pause" : "Play recording"}
         onClick={toggle}
-        disabled={loading || failed}
+        disabled={loading}
       >
         <Icon name={playing ? "pause" : "play"} size={13} />
       </button>
       <div className="cv-play-track"><div className="cv-play-fill" style={{ width: `${pct}%` }} /></div>
       <span className="mono tabular cv-play-time">
-        {failed ? "Recording unavailable" : loading ? "Loading…" : `${fmt(pos)} / ${c.duration || fmt(dur)}`}
+        {failed ? `${failed} Press play to try again.` : loading ? "Loading…" : `${fmt(pos)} / ${c.duration || fmt(dur)}`}
       </span>
     </div>
   );
@@ -202,7 +213,7 @@ const CvPlayback = ({ c }) => {
 };
 
 // ---------- Viewer ----------
-const CvViewer = ({ c, onBack = null }) => {
+const CvViewer = ({ c, onBack = null, notice = null }) => {
   const dec = cvDecision(c);
   const endedLive = cvEnded(c);
   const isLive = !!c && c.live && !endedLive;
@@ -250,7 +261,7 @@ const CvViewer = ({ c, onBack = null }) => {
         <div className="cv-head-titles">
           <div className="cv-head-name">
             {c.who}
-            <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} />
+            <OutcomePill outcome={endedLive ? "handled" : c.outcome} decidedAction={dec ? dec.action : null} channel={c.channel} answeredBy={c.answeredBy} />
           </div>
           <div className="cv-head-meta">
             <Icon name={CV_ICON[c.channel]} size={11} />
@@ -312,6 +323,7 @@ const CvViewer = ({ c, onBack = null }) => {
           )}
         </div>
       </header>
+      {notice && <div className="cv-missing" role="status">{notice}</div>}
 
       <div className="cv-scroll">
         {/* Summary */}
@@ -403,6 +415,8 @@ const CvViewer = ({ c, onBack = null }) => {
                     <Icon name={m.channel === "phone" ? "phone" : CV_ICON[c.channel]} size={10} />
                     <span>{m.channel === "phone" ? "Phone · call note" : CV_LABEL[c.channel]}</span>
                     <span className="tl-msg-time tabular">{m.at}</span>
+                    {/* Who sent it, in the words the Inbox says (contracts messageAuthor). */}
+                    {m.by && <span className="cv-msg-status">· by {m.by}</span>}
                     {m.statusLabel && <span className="cv-msg-status">· {m.statusLabel}</span>}
                     {m.why && <span className="cv-msg-status" title={m.why.reason || ""}>· {m.why.summary}</span>}
                   </div>
@@ -500,19 +514,27 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
           {visible.map(c => (
             <CvRow key={c.id} c={c} active={selected?.id === c.id} onSelect={(id) => { setSelectedId(id); setPhoneOpen(true); }} />
           ))}
-          {visible.length === 0 && (
-            <EmptyState kind="line" className="empty-center" title={`No conversations match${query.trim() ? ` “${query.trim()}”` : " this channel"}.`} body="Search spans names, transcripts and messages." action={query.trim() ? { label: "Clear search", onClick: () => setQuery("") } : null} />
+          {visible.length === 0 && (CONVERSATIONS.length === 0
+            // A workspace with none yet is not a filter with no match.
+            ? <EmptyState kind="line" className="empty-center" title="No conversations yet." body="They show up here as customers write and call." testid="cv-none" />
+            : <EmptyState kind="line" className="empty-center" title={`No conversations match${query.trim() ? ` “${query.trim()}”` : " this channel"}.`} body="Search spans names, transcripts and messages." action={query.trim() ? { label: "Clear search", onClick: () => setQuery("") } : null} />
           )}
         </div>
       </aside>
 
-      {requestedMissing && (
-        <div className="cv-missing" role="status">
-          That conversation isn't among the newest {CONVERSATIONS.length} shown here — open the person in People to find it.
-        </div>
-      )}
-      {selected ? <CvViewer c={selected} onBack={() => setPhoneOpen(false)} /> : (
-        <EmptyState kind="page" glyph="chat" title="No conversation selected" body="Pick one on the left to read it here." />
+      {/* A link's notice sits in the reading pane: as a child of this
+          two-column grid it took the second cell and pushed the pane under
+          the list. */}
+      {selected ? (
+        <CvViewer
+          c={selected}
+          onBack={() => setPhoneOpen(false)}
+          notice={requestedMissing ? `That conversation isn't among the newest ${CONVERSATIONS.length} shown here — open the person in People to find it.` : null}
+        />
+      ) : CONVERSATIONS.length === 0 ? (
+        <EmptyState kind="page" glyph="chat" title="Nothing to read yet" body="Every WhatsApp chat and phone call with a customer lands here, with what was said." action={{ label: "Open Setup", to: "admin/setup" }} testid="cv-none-pane" />
+      ) : (
+        <EmptyState kind="page" glyph="search" title={query.trim() ? "Nothing matches your search" : "Nothing on this channel yet"} body={query.trim() ? "Clear the search to see every conversation." : "Choose All to see every conversation."} />
       )}
     </div>
   );
