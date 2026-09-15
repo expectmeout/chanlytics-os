@@ -8,7 +8,7 @@
  * reads the same facts.
  */
 import {
-  toBillingVM, dayWords, moneyWords, trialWords, priceWords, CHECKOUT_OUTCOME_WORDS,
+  toBillingVM, billingPill, dayWords, moneyWords, trialWords, priceWords, invoiceStatusWords, CHECKOUT_OUTCOME_WORDS,
   type BillingDto, type BillingVM, type BillingInvoiceDto,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
@@ -35,7 +35,9 @@ export interface BillingApi {
   /** Read the row again: the failed card's retry, and nothing else's. */
   refresh(): Promise<void>;
   outcomeWords: Record<string, string>;
-  words: { day: typeof dayWords; money: typeof moneyWords; trial: typeof trialWords; price: typeof priceWords };
+  words: { day: typeof dayWords; money: typeof moneyWords; trial: typeof trialWords; price: typeof priceWords; invoice: typeof invoiceStatusWords };
+  /** What a state means for the receptionist, for the pill beside the headline. */
+  pill: typeof billingPill;
 }
 
 declare global {
@@ -107,7 +109,8 @@ export function installBilling(win: Window = window): void {
       }
     },
     outcomeWords: CHECKOUT_OUTCOME_WORDS,
-    words: { day: dayWords, money: moneyWords, trial: trialWords, price: priceWords },
+    words: { day: dayWords, money: moneyWords, trial: trialWords, price: priceWords, invoice: invoiceStatusWords },
+    pill: billingPill,
     async refresh() {
       api().forget();
       await refreshSurfaces([billingOverride]);

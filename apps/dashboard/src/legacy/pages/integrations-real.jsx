@@ -17,7 +17,7 @@ const VERB_DOING = { "verb:google-check": "read Google again", "verb:google-conn
 
 // The connected account's locations, for the owner to choose among when
 // Google returned more than one on Maps.
-const GoogleChoose = ({ busy, setBusy, flash }) => {
+const GoogleChoose = ({ busy, setBusy, flash, onDisconnect }) => {
   const [places, setPlaces] = React.useState(null);
   React.useEffect(() => {
     if (!window.__google) return undefined;
@@ -33,13 +33,7 @@ const GoogleChoose = ({ busy, setBusy, flash }) => {
     setBusy(false);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{p.title}</b> is your listing on Google{r.read ? " — every review is on Reports now" : " — the reviews follow within the hour"}.</> : <>{r.message}</> });
   };
-  const disconnect = async () => {
-    if (!window.__google || busy) return;
-    setBusy(true);
-    const r = await window.__google.disconnect();
-    setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Google is disconnected. The public listing stays; replies and the full history do not.</> : <>{r.message}</> });
-  };
+
   return (
     <div className="set-row set-row-stack" data-testid="google-choose">
       <div className="set-row-info">
@@ -59,7 +53,8 @@ const GoogleChoose = ({ busy, setBusy, flash }) => {
           ))}
         </div>
       )}
-      {owner && <button className="cl-bucket-link" onClick={disconnect} disabled={busy} data-testid="google-choose-disconnect">Disconnect instead</button>}
+      {/* It asks first, through the row's own Confirm, as the row's Disconnect does. It disconnected at once (S17). */}
+      {owner && <button className="cl-bucket-link" onClick={onDisconnect} disabled={busy} data-testid="google-choose-disconnect">Disconnect instead</button>}
     </div>
   );
 };
@@ -209,7 +204,7 @@ const PaneIntegrationsReal = () => {
           {list.map((r) => (
             <React.Fragment key={r.kind}>
               <ConnectionRow r={r} run={run} busy={busy} arm={arm} setArm={setArm} confirm={confirm} />
-              {r.body === "google_choose" && <GoogleChoose busy={busy} setBusy={setBusy} flash={flash} />}
+              {r.body === "google_choose" && <GoogleChoose busy={busy} setBusy={setBusy} flash={flash} onDisconnect={() => setArm({ kind: r.kind, what: "disconnect" })} />}
               {r.body === "business_record" && <window.BusinessRecordForm line={ownLine} flash={flash} />}
             </React.Fragment>
           ))}

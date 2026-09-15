@@ -71,6 +71,7 @@ const BusinessRecordForm = ({ line, flash }) => {
   // check on a box this path does not render.
   const choose = (p) => { setRecord((r) => API.forPath(r, p)); setProblems({}); setPath(p); setAsking(false); };
   const save = async () => {
+    if (!owner) return;
     const found = API.problems(record, path);
     setProblems(found);
     // Each box says what it needs; the toast only counts them.
@@ -85,6 +86,7 @@ const BusinessRecordForm = ({ line, flash }) => {
     flash({ msg: <>{r.message}</> });
   };
   const file = async () => {
+    if (!owner) return;
     setBusy(true);
     const r = await API.register(line.id);
     setBusy(false);
@@ -195,9 +197,10 @@ const BusinessRecordForm = ({ line, flash }) => {
         );
       })}
 
-      {owner ? (
+      {/* Save and File are the form's acts: a role that may not press them sees them gated, saying why, and the form
+          says why once below. They were hidden under a sentence of the form's own (the one gate). */}
         <div className="bc-chips">
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="biz-save">{busy ? "Saving…" : "Save"}</button>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="biz-save" {...window.gate("team", "fill in the business record")}>{busy ? "Saving…" : "Save"}</button>
           {/*
             Not on a line the carriers SENT BACK. Resubmitting one is support's action
             (gate 6), so this button could only be refused there -- a dead button on the
@@ -205,7 +208,7 @@ const BusinessRecordForm = ({ line, flash }) => {
             Saving their corrections is still theirs, and is what unblocks it.
           */}
           {ready && line && !arm && line.sms_state !== "rejected" && (
-            <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="biz-file">File with the carriers</button>
+            <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="biz-file" {...window.gate("team", "file with the carriers")}>File with the carriers</button>
           )}
           {line && line.sms_state === "rejected" && (
             <span className="set-row-hint" data-testid="biz-rejected">Save your corrections here — Chanlytics sends the registration back to the carriers for you, at no cost.</span>
@@ -214,9 +217,7 @@ const BusinessRecordForm = ({ line, flash }) => {
             <Confirm question="File with the carriers?" detail={API.costWords[path]} yes="Yes, file it" no="Not yet" busy={busy} onYes={file} onNo={() => setArm(false)} testid="biz-file" />
           )}
         </div>
-      ) : (
-        <span className="set-row-hint">An owner fills this in.</span>
-      )}
+      {!owner && <span className="set-row-hint">{window.gateTitle("team", "fill in the business record")}</span>}
     </div>
   );
 };

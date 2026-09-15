@@ -6756,6 +6756,20 @@ function toBillingVM(dto, nowMs = Date.now()) {
       return { ...base, headline: "Subscription ended", detail: dto.ready ? trialOffer(dto.trial_days, true) : "Billing is not available on this deployment yet.", tone: "danger", actions: { checkout: dto.ready, portal: !!a.card_brand, resume: false }, paused: true };
   }
 }
+function billingPill(vm) {
+  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
+}
+var INVOICE_STATUS_WORDS = {
+  draft: "Draft",
+  open: "Not paid yet",
+  paid: "Paid",
+  uncollectible: "Could not be collected",
+  void: "Cancelled"
+};
+function invoiceStatusWords(status) {
+  if (!status) return "\u2014";
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] : status;
+}
 var CHECKOUT_OUTCOME_WORDS = {
   success: "Your card is on file and the trial has started. This page updates as Stripe confirms it.",
   cancel: "Checkout was closed before finishing; nothing was charged.",
@@ -8827,6 +8841,7 @@ export {
   HELD_REASONS,
   HoursSchema,
   INTENT_LABELS,
+  INVOICE_STATUS_WORDS,
   IntervalSchema,
   JOB_KINDS,
   JOB_STATES,
@@ -8980,6 +8995,7 @@ export {
   autoReplyCandidates,
   billingAccountDto,
   billingDoorOpen,
+  billingPill,
   bookedAfterAsk,
   brainMetaOf,
   broadcastFailureWords,
@@ -9104,6 +9120,7 @@ export {
   initialsOf,
   injectedTurn,
   inviteState,
+  invoiceStatusWords,
   isActivityNoise,
   isCarrier,
   isDayKey,

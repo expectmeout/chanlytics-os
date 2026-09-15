@@ -61,10 +61,10 @@ const AttnRow = ({
     {(cta || also) && (
       <span className="cl-attn-acts" onClick={(e) => e.stopPropagation()}>
         {also && (
-          <button className="cl-attn-cta ghost" onClick={also.onClick} {...(also.gate || {})} data-testid={also.testid || "attention-also"}>{also.label}</button>
+          <button className="cl-attn-cta ghost" onClick={also.onClick} disabled={!!also.busy} aria-busy={also.busy ? true : undefined} {...(also.gate || {})} data-testid={also.testid || "attention-also"}>{also.label}</button>
         )}
         {cta && (
-          <button className={`cl-attn-cta ${cta.kind || "primary"}`} onClick={cta.onClick} {...(cta.gate || {})} data-testid={ctaTestid}>{cta.label}</button>
+          <button className={`cl-attn-cta ${cta.kind || "primary"}`} onClick={cta.onClick} disabled={!!cta.busy} aria-busy={cta.busy ? true : undefined} {...(cta.gate || {})} data-testid={ctaTestid}>{cta.label}</button>
         )}
       </span>
     )}

@@ -38,27 +38,34 @@ const PaneBillingReal = ({ flash }) => {
     );
   }
   const vm = api.vm(B.dto);
-  const owner = window.canDo ? window.canDo("team") : false;
-  const operator = window.canDo ? window.canDo("approve") : false;
+  const pill = api.pill(vm);
+  // The doors to Stripe are billing's, the gate Setup's rows use for the same doors; reading Stripe again is an
+  // operator's. Each handler asks again, so nothing reaches Stripe past a gated button.
+  const owner = window.canDo("billing");
+  const operator = window.canDo("approve");
   const leave = async (which) => {
+    if (!owner) return;
     setBusy(which);
     const r = which === "checkout" ? await api.checkout() : await api.portal();
     // On success the browser is already on its way to Stripe.
     if (!r.ok) { setBusy(null); flash({ tone: "danger", msg: <>{r.message}</> }); }
   };
   const resume = async () => {
+    if (!owner) return;
     setBusy("resume");
     const r = await api.resume();
     setBusy(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Resumed — the receptionist is back.</> : <>{r.message}</> });
   };
   const sync = async () => {
+    if (!operator) return;
     setBusy("sync");
     const r = await api.sync();
     setBusy(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Read from Stripe just now.</> : <>{r.message}</> });
   };
   const showInvoices = async () => {
+    if (!owner) return;
     setBusy("invoices");
     const r = await api.invoices();
     setBusy(null);
@@ -84,20 +91,20 @@ const PaneBillingReal = ({ flash }) => {
           <div className="set-row-info">
             <span className="set-row-label" data-testid="billing-headline">
               {vm.headline}
-              {vm.mode === "stripe" && vm.status !== "none" && <span className={`pill ${BILLING_PILL[vm.tone] || "pill-accent"}`} style={{ marginLeft: 8 }}>{vm.status.replace(/_/g, " ")}</span>}
+              {vm.mode === "stripe" && vm.status !== "none" && <span className={`pill ${BILLING_PILL[pill.tone]}`} style={{ marginLeft: 8 }} data-testid="billing-pill">{pill.words}</span>}
             </span>
             <span className="set-row-hint">{vm.detail}</span>
             {vm.card && <span className="set-row-hint">Card on file: {vm.card}</span>}
           </div>
           <div className="bc-chips">
-            {vm.actions.checkout && <button className="btn btn-primary btn-sm" disabled={!owner || !!busy} onClick={() => leave("checkout")} data-testid="billing-checkout">{busy === "checkout" ? "Opening Stripe…" : "Start the trial"}</button>}
-            {vm.actions.resume && <button className="btn btn-primary btn-sm" disabled={!owner || !!busy} onClick={resume} data-testid="billing-resume">{busy === "resume" ? "Resuming…" : "Resume"}</button>}
-            {vm.actions.portal && <button className="btn btn-sm" disabled={!owner || !!busy} onClick={() => leave("portal")} data-testid="billing-portal">{busy === "portal" ? "Opening Stripe…" : "Manage billing"}</button>}
-            {subscribed && <button className="cl-bucket-link" disabled={!operator || !!busy} onClick={sync} data-testid="billing-sync">{busy === "sync" ? "Refreshing…" : "Refresh"}</button>}
+            {vm.actions.checkout && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => leave("checkout")} data-testid="billing-checkout" {...window.gate("billing", "start the subscription")}>{busy === "checkout" ? "Opening Stripe…" : "Start the trial"}</button>}
+            {vm.actions.resume && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={resume} data-testid="billing-resume" {...window.gate("billing", "resume the subscription")}>{busy === "resume" ? "Resuming…" : "Resume"}</button>}
+            {vm.actions.portal && <button className="btn btn-sm" disabled={!!busy} onClick={() => leave("portal")} data-testid="billing-portal" {...window.gate("billing", "manage the subscription")}>{busy === "portal" ? "Opening Stripe…" : "Manage billing"}</button>}
+            {subscribed && <button className="cl-bucket-link" disabled={!!busy} onClick={sync} data-testid="billing-sync" {...window.gate("approve", "read Stripe again")}>{busy === "sync" ? "Refreshing…" : "Refresh"}</button>}
           </div>
         </div>
         {vm.mode === "stripe" && !owner && (
-          <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Only an owner can start or manage the subscription.</span></div></div>
+          <div className="set-row"><div className="set-row-info"><span className="set-row-hint">{window.gateTitle("billing", "start or manage the subscription")}</span></div></div>
         )}
       </section>
 
@@ -107,7 +114,7 @@ const PaneBillingReal = ({ flash }) => {
           {invoices === null ? (
             <div className="set-row">
               <div className="set-row-info"><span className="set-row-hint">The last twelve, when you ask.</span></div>
-              <button className="btn btn-sm" disabled={!owner || !!busy} onClick={showInvoices}>{busy === "invoices" ? "Reading…" : "Show invoices"}</button>
+              <button className="btn btn-sm" disabled={!!busy} onClick={showInvoices} {...window.gate("billing", "read the invoices")}>{busy === "invoices" ? "Reading…" : "Show invoices"}</button>
             </div>
           ) : invoices.length === 0 ? (
             <div className="set-row"><div className="set-row-info"><span className="set-row-hint">No invoices yet.</span></div></div>
@@ -115,7 +122,7 @@ const PaneBillingReal = ({ flash }) => {
             <div key={inv.id} className="set-row">
               <div className="set-row-info">
                 <span className="set-row-label">{inv.number || inv.id} · {api.words.money(inv.amount_due, inv.currency)}</span>
-                <span className="set-row-hint">{api.words.day(inv.created_at)} · {inv.status || "—"}</span>
+                <span className="set-row-hint">{api.words.day(inv.created_at)} · {api.words.invoice(inv.status)}</span>
               </div>
               {inv.hosted_url && <a className="cl-bucket-link" href={inv.hosted_url} target="_blank" rel="noreferrer">Open</a>}
             </div>
