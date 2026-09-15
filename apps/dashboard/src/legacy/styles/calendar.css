@@ -558,11 +558,16 @@
 .cal-head { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; padding: var(--space-4) var(--cal-gutter) var(--space-3); }
 .cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
 .cal-when { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-right: auto; }
-.cal-steps { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); overflow: hidden; }
+/* The steps are one group whose outer corners are the buttons' own: a group that clipped its buttons cut a focused
+   step's ring off at its edges. */
+.cal-steps { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
 .cal-steps .btn { height: 28px; border-radius: 0; color: var(--ink-muted); }
+.cal-steps .btn:first-child { border-radius: calc(var(--radius-md) - 1px) 0 0 calc(var(--radius-md) - 1px); }
+.cal-steps .btn:last-child { border-radius: 0 calc(var(--radius-md) - 1px) calc(var(--radius-md) - 1px) 0; }
 .cal-steps .btn-icon { width: 30px; }
 .cal-steps .btn + .btn { border-left: 1px solid var(--line); }
 .cal-steps .btn:hover:not([disabled]) { color: var(--ink); }
+.cal-steps .btn:focus-visible { position: relative; z-index: 1; }
 .cal-flip { transform: scaleX(-1); }
 .cal-title { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px; margin-left: -8px; border-radius: var(--radius-sm); color: var(--ink-faint); cursor: pointer; }
 .cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); }

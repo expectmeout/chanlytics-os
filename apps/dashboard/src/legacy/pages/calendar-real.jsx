@@ -457,8 +457,7 @@ const CalendarReal = ({ initialDay = null }) => {
   const scopeUnread = scope.some((d) => d.unread);
   const scopeLoading = scope.some((d) => d.loading);
   // Open times exist only from now through the last day the receptionist offers; a scope wholly outside that says why.
-  const openMeta = !feedOk ? "needs the calendar"
-    : scopeUnread ? "couldn't read those days"
+  const openMeta = scopeUnread ? "couldn't read those days"
     : scopeLoading ? "reading those days"
     : scope.every((d) => d.past) ? "these days have passed"
     : scope.every((d) => d.past || d.beyondOffer) ? `it offers times up to ${vm.offer.days} days ahead`
@@ -502,8 +501,10 @@ const CalendarReal = ({ initialDay = null }) => {
         </div>
         <p className="cal-counts" data-testid="cal-counts">
           <CrCount label={statLabel} value={!feedOk || scopeUnread || scopeLoading ? "—" : statEvents} meta={!vm.feed.present ? "no calendar connected" : !feedOk ? "could not be read" : scopeUnread ? "couldn't read those days" : scopeLoading ? "reading those days" : "on your calendar"} data-testid="cal-count-taken" />
-          <CrCount label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta || (service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : null)} data-testid="cal-count-open" />
-          <CrCount label="Next open time" value={feedOk ? vm.stats.next : "—"} meta={feedOk ? vm.ruleParts[0] : "needs the calendar"} data-testid="cal-count-next" />
+          {/* A calendar that can't be read leaves one count and why. Its card over the board says the rest: two more
+              dashes said "needs the calendar" under it. */}
+          {feedOk && <CrCount label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta || (service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : null)} data-testid="cal-count-open" />}
+          {feedOk && <CrCount label="Next open time" value={vm.stats.next} meta={vm.ruleParts[0]} data-testid="cal-count-next" />}
         </p>
       </div>
       {service && service.consultFirst && (
