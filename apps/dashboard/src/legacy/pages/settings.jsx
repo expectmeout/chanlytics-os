@@ -1003,6 +1003,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [bufferMin, setBufferMin] = useSetState(br0.buffer_min !== undefined ? String(br0.buffer_min) : "");
   const [daysAhead, setDaysAhead] = useSetState(br0.max_days_ahead !== undefined ? String(br0.max_days_ahead) : "");
   const [partyMax, setPartyMax] = useSetState(br0.party_max !== undefined ? String(br0.party_max) : "");
+  const [slotMin, setSlotMin] = useSetState(br0.slot_min !== undefined ? String(br0.slot_min) : "");
   const [consultFirst, setConsultFirst] = useSetState((br0.consult_first || []).join("\n"));
   const [bookingNotes, setBookingNotes] = useSetState((br0.notes || []).join("\n"));
   const cal0 = (settings.config && settings.config.calendar) || {};
@@ -1224,6 +1225,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const buf = num(bufferMin, 0, 120); if (buf !== undefined) rules.buffer_min = buf;
     const ahead = num(daysAhead, 1, 90); if (ahead !== undefined) rules.max_days_ahead = ahead;
     const party = num(partyMax, 1, 20); if (party !== undefined) rules.party_max = party;
+    // The slot length has a field of its own now (S2): 15 to 240 minutes, as the schema allows; blank is the calendar's default.
+    const slotLen = num(slotMin, 15, 240); if (slotLen !== undefined) rules.slot_min = slotLen;
     const cf = consultFirst.split("\n").map((x) => x.trim()).filter(Boolean); if (cf.length) rules.consult_first = cf;
     const bn = bookingNotes.split("\n").map((x) => x.trim()).filter(Boolean); if (bn.length) rules.notes = bn;
     put("booking_rules", Object.keys(rules).length ? rules : undefined);
@@ -1656,6 +1659,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
         <div className="set-br-grid">
           <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => setLeadHours(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Slot length (minutes)</span><input className="set-input" inputMode="numeric" value={slotMin} placeholder="30" aria-label="Slot length in minutes" onChange={(e) => setSlotMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
           <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => setBufferMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
           <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => setDaysAhead(e.target.value.replace(/[^0-9]/g, ""))} /></label>
           <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => setPartyMax(e.target.value.replace(/[^0-9]/g, ""))} /></label>
@@ -1866,7 +1870,7 @@ const PaneWorkspace = ({ flash }) => {
       <>
         <section className="fl-card set-card">
           <div className="fl-card-head"><span className="fl-card-title">Business</span></div>
-          <FailedRead kind="card" title="This workspace's settings can't be read" body="Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it." testid="settings-broken">
+          <FailedRead kind="card" title={window.__brokenConfigWords.title} body={window.__brokenConfigWords.body} testid="settings-broken">
             <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
           </FailedRead>
         </section>
@@ -2190,8 +2194,8 @@ const PaneAutonomyReal = ({ flash }) => {
   const limits = (reply && reply.limits) || {};
   const delayMs = Number(limits.reply_delay_ms) || 30000;
   const delayLabel = (AUT_DELAYS.find((d) => d[1] === delayMs) || [`${Math.round(delayMs / 1000)}s`])[0];
-  const maxDay = Number(limits.max_replies_day) || 20;
-  const pauseH = Number(limits.pause_hours) || 24;
+  // The hard limits in contracts' words, which say a default is a default (hardLimitsWords, through the bridge).
+  const hard = window.__hardLimits(limits);
   const minConf = Number(limits.min_confidence) || 0;
   const confLabel = (AUT_CONF.find((c) => c[1] === minConf) || [`${Math.round(minConf * 100)}%`])[0];
   const budget = Number(limits.max_llm_tokens_day) || 0;
@@ -2286,12 +2290,12 @@ const PaneAutonomyReal = ({ flash }) => {
       </section>
 
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">The first two never change. The last two are this workspace's own values</span></div>
+        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">{hard.sub}</span></div>
         <ul className="st-bullets">
           <li><Icon name="check" size={11} /><span>Never messages a customer who asked to stop</span></li>
           <li><Icon name="check" size={11} /><span>Refunds, rates and negotiation always go to you — locked in the database</span></li>
-          <li><Icon name="check" size={11} /><span>Stops after {maxDay} automatic replies to one person in a day and asks for you</span></li>
-          <li><Icon name="check" size={11} /><span>Stays paused for {pauseH} hours after you take over a thread</span></li>
+          <li><Icon name="check" size={11} /><span>{hard.replies}</span></li>
+          <li><Icon name="check" size={11} /><span>{hard.pause}</span></li>
         </ul>
       </section>
     </>
@@ -2746,8 +2750,8 @@ const SET_SOON = {
   memory: {
     title: "AI memory",
     chip: "Not built yet",
-    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Workspace: the business details, hours, services, notes and the extra instructions saved there.",
-    action: { label: "Open Workspace", tab: "workspace", icon: "home" },
+    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Business: the business details, hours, services, notes and the extra instructions saved there.",
+    action: { label: "Open Business", tab: "workspace", icon: "home" },
   },
 };
 
@@ -2819,11 +2823,12 @@ window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
 
-// The booking-rule keys the Business editor edits. Everything else stored under
-// booking_rules -- the slot length today, a rule added later -- is kept by a
-// save rather than rebuilt away: the editor used to start the rules from {} and
-// deleted slot_min every time an owner pressed Save.
-const SET_EDITED_RULES = ["lead_hours", "buffer_min", "max_days_ahead", "party_max", "consult_first", "notes"];
+// The booking-rule keys the Business editor edits, the slot length among them
+// since it has a field of its own (S2). Everything else stored under
+// booking_rules -- a rule added later -- is kept by a save rather than rebuilt
+// away: the editor used to start the rules from {} and deleted slot_min every
+// time an owner pressed Save.
+const SET_EDITED_RULES = ["lead_hours", "buffer_min", "max_days_ahead", "party_max", "slot_min", "consult_first", "notes"];
 function settingsRulesKept(saved) {
   return Object.fromEntries(Object.entries(saved || {}).filter(([k]) => !SET_EDITED_RULES.includes(k)));
 }

@@ -254,7 +254,7 @@ test("Setup's Google row: absent until the platform can look listings up; then F
   assert.deepEqual(row(profileOnly, "google").verb, { label: "Connect", to: "admin/integrations" });
   const connected = setup({ ready: true, places: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-07T12:00:00Z", check_error: null }, connected: true });
   assert.deepEqual(row(connected, "google").details, ["Checked 3h ago", "Business Profile connected — every review, replies from Reports"]);
-  assert.deepEqual(row(noAddress, "google").details, ["Add your address in Workspace for a surer match"]);
+  assert.deepEqual(row(noAddress, "google").details, ["Add your address in Settings › Business for a surer match"]);
   const linked = setup({ ready: true, listing: { name: "Northside Movers", rating: 4.8, review_count: 213, checked_at: "2026-09-07T12:00:00Z", check_error: null } });
   assert.equal(row(linked, "google").state, "ready");
   assert.equal(row(linked, "google").sentence, "Northside Movers · 4.8 ★ · 213 reviews on Google.");
