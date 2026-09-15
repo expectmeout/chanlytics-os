@@ -7526,6 +7526,9 @@ function pageTitle(crumbs, needs) {
   const n = Math.floor(Number(needs));
   return n > 0 ? `(${n}) ${where}` : where;
 }
+function notFoundPageMetadata() {
+  return { title: pageTitle(["Not found"]), robots: { index: false, follow: false } };
+}
 function namesAnd(names) {
   return names.length <= 1 ? names[0] ?? "" : `${names.slice(0, -1).join(", ")} and ${names[names.length - 1]}`;
 }
@@ -8030,6 +8033,12 @@ function consentFormVM(f) {
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as \u201CSign-up form\u201D, and keep this sheet. Recorded on __________ by __________`
   };
 }
+function consentPageMetadata(f) {
+  return f ? { title: consentPageVM(f).title, robots: { index: false, follow: false } } : notFoundPageMetadata();
+}
+function consentFormMetadata(f) {
+  return f ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
+}
 
 // src/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
@@ -8293,6 +8302,16 @@ function textingTermsVM(f) {
     privacyUrl: f.privacyUrl,
     empty
   };
+}
+function businessPageMetadata(f) {
+  const vm = f ? businessPageVM(f) : null;
+  if (!vm || vm.empty) return notFoundPageMetadata();
+  return { title: vm.title, description: `${vm.title} \u2014 who we are, what we do, and our text-message terms.`, robots: { index: true, follow: true } };
+}
+function textingTermsMetadata(f) {
+  if (!f || textingTermsVM(f).empty) return notFoundPageMetadata();
+  const name = businessPageVM(f).title;
+  return { title: `Text messaging terms: ${name}`, description: `The terms of the text messages ${name} sends.`, robots: { index: true, follow: true } };
 }
 var loose = (s) => s.toLowerCase().replace(/\b(llc|inc|ltd|corp|co|the)\b/g, "").replace(/[^a-z0-9]/g, "");
 function registrationPreflight(f) {
@@ -9068,6 +9087,7 @@ export {
   buildNotificationFeed,
   businessFieldsFor,
   businessGroupWordsFor,
+  businessPageMetadata,
   businessPageVM,
   businessRecordForPath,
   businessRecordLine,
@@ -9103,7 +9123,9 @@ export {
   connectionWords,
   consentChangeOf,
   consentChangeWords,
+  consentFormMetadata,
   consentFormVM,
+  consentPageMetadata,
   consentPageVM,
   consentSourceLabel,
   contactMeta,
@@ -9234,6 +9256,7 @@ export {
   nextThemePref,
   normalizeNavigate,
   normalizePhone,
+  notFoundPageMetadata,
   numberHealth,
   offeringHorizon,
   offersYesRefusal,
@@ -9368,6 +9391,7 @@ export {
   templatePreview,
   templateTitle,
   tenantStatusFor,
+  textingTermsMetadata,
   textingTermsVM,
   textingWords,
   themeButtonWords,

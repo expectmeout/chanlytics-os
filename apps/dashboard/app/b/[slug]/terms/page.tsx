@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { textingTermsVM } from "@chanlytics/contracts";
+import { textingTermsMetadata, textingTermsVM } from "@chanlytics/contracts";
 import { businessPageFor } from "@/server/business-page";
 
 /**
@@ -19,16 +19,11 @@ import { businessPageFor } from "@/server/business-page";
  * Public by the `/b/` prefix like its neighbour, indexed like it; it reads by
  * slug and writes nothing.
  */
+// Named for the business customers know, or Not found and unindexed when the page has nothing to show, by the rule the
+// page renders by (contracts' textingTermsMetadata; the wiring audit's N21).
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const facts = await businessPageFor(slug);
-  const name = facts ? (facts.tradeName?.trim() || facts.legalName.trim()) : null;
-  if (!name) return { robots: { index: false, follow: false } };
-  return {
-    title: `Text messaging terms: ${name}`,
-    description: `The terms of the text messages ${name} sends.`,
-    robots: { index: true, follow: true },
-  };
+  return textingTermsMetadata(await businessPageFor(slug));
 }
 
 export const dynamic = "force-dynamic";

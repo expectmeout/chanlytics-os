@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { businessPageVM } from "@chanlytics/contracts";
+import { businessPageMetadata, businessPageVM } from "@chanlytics/contracts";
 import { businessPageFor } from "@/server/business-page";
 
 /**
@@ -33,17 +33,13 @@ import { businessPageFor } from "@/server/business-page";
  * website. A reviewer's tab, a search result and a link preview all read the
  * title first, and "Chanlytics OS" on a page that exists to identify Melany's
  * Beauty Salon is the same failure as the page saying nothing at all.
+ *
+ * A page with nothing to show is named Not found and is not indexed, by the rule
+ * the page renders by (contracts' businessPageMetadata; the wiring audit's N21).
  */
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const facts = await businessPageFor(slug);
-  const name = facts ? (facts.tradeName?.trim() || facts.legalName.trim()) : null;
-  if (!name) return { robots: { index: false, follow: false } };
-  return {
-    title: name,
-    description: `${name} — who we are, what we do, and our text-message terms.`,
-    robots: { index: true, follow: true },
-  };
+  return businessPageMetadata(await businessPageFor(slug));
 }
 
 export const dynamic = "force-dynamic";

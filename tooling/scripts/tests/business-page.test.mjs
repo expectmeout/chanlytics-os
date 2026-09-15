@@ -156,8 +156,8 @@ test("the wiring: public, indexed, reads by slug, writes nothing", () => {
   assert.ok(!/<form|<input|useState|"POST"/.test(page), "nothing to fill in and nothing to write");
   // INDEXED, unlike the opt-in page: a business a reviewer cannot look up is
   // exactly what 30919 was complaining about.
-  assert.ok(page.includes("robots: { index: true, follow: true }"));
-  assert.ok(readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes("robots: { index: false, follow: false }"), "and the opt-in page still is not");
+  assert.ok(page.includes("return businessPageMetadata(await businessPageFor(slug));"), "indexed by contracts' rule, which public-page-titles.test.mjs runs");
+  assert.ok(readCode("apps/dashboard/app/yes/[slug]/page.tsx").includes("return consentPageMetadata(await consentPageFor(slug));"), "and the opt-in page still is not");
 
   const server = readCode("apps/dashboard/src/server/business-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
