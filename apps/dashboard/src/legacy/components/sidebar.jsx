@@ -64,7 +64,8 @@ const sbNeedsCount = () => {
   const threads = ((window.INBOX_DATA || {}).THREADS) || [];
   return threads.filter(t => {
     // A real thread counts when it needs you, the badge's rule (needsYou): this counted a teammate's thread (I2).
-    if (t.real) return !!t.needsYou;
+    // The Inbox owns that rule (ixWaitsOnYou), so a reply about to send counts in both places, or in neither.
+    if (t.real) return window.ixWaitsOnYou ? window.ixWaitsOnYou(t) : !!t.needsYou;
     if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false;
     const rec = window.IX_STORE && window.IX_STORE.get(t.id);
     return !(rec && (rec.kind === "decided" || rec.kind === "snoozed"));

@@ -310,6 +310,9 @@
   flex-shrink: 0;
 }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
+/* A reply of its own on the way out: the one thing on a row that runs out, so it carries the accent and the dot. */
+.ix-sending { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }
+.ix-sending .ix-veto-dot { width: 6px; height: 6px; }
 /* The thread's state is the shared pill (StatePill); the list keeps it small. */
 .ix-state-pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
 /* A name keeps its own letters: an email in capitals is shouting (I4). */
