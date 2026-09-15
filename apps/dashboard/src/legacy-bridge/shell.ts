@@ -20,6 +20,8 @@ export interface ShellApi {
   createWorkspace(): void;
   /** The line's Retry: every surface read again, through the running runner. */
   retry(): Promise<void>;
+  /** Name the tab and keep the name; returns the stop, for when the name changes. */
+  keepTitle(title: string): () => void;
 }
 
 export interface ChromeWords {
@@ -80,6 +82,22 @@ export function installShell(win: Window = window): void {
     },
     retry() {
       return refreshAllSurfaces();
+    },
+    keepTitle(title) {
+      // The layout's own <title> can land after the shell has named the tab: on a page loaded cold it
+      // put "Chanlytics OS" back, and only a count that changed later (the Inbox's) wrote the name
+      // again. So the name is written, and written back whenever the head changes it.
+      const doc = win.document;
+      doc.title = title;
+      // A stand-in window (a test's) may have no observer or head; a browser has both.
+      const Watch = (win as { MutationObserver?: typeof MutationObserver }).MutationObserver;
+      const head = (doc as { head?: HTMLHeadElement | null }).head;
+      if (!Watch || !head) return () => {};
+      const watch = new Watch(() => {
+        if (doc.title !== title) doc.title = title;
+      });
+      watch.observe(head, { childList: true, subtree: true, characterData: true });
+      return () => watch.disconnect();
     },
   };
   win.__chrome = {
