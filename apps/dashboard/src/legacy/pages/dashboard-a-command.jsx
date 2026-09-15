@@ -65,7 +65,8 @@ const LiveRail = ({ nav }) => {
           <b>{c.who}</b> is on the line · {tqClock(elapsed)}
           {last ? <span className="tq-live-last"> · {last.speaker === "client" ? c.whoShort : "Receptionist"}: &ldquo;{last.text.slice(0, 90)}&rdquo;</span> : null}
         </span>
-        <button className="cl-attn-cta primary" onClick={() => nav("live")}>Open Live</button>
+        {/* The call's own door (live/<callId>): Live's list opens on the oldest call, which may not be this one. */}
+        <button className="cl-attn-cta primary" onClick={() => nav(`live/${c.callId}`)}>Open Live</button>
       </div>
     );
   });
@@ -91,7 +92,9 @@ const runRows = (nav, flash) => {
     const res = await window.__broadcasts.approve(r.id);
     if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
     const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> } : window.refusalToast(res, "Not approved"));
+    // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
+    const when = res.ok && window.bcWhenWords ? window.bcWhenWords(res.data) : "sending now";
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, {when}</> } : window.refusalToast(res, "Not approved"));
   };
   return [
     ...waiting.map((r) => (
@@ -152,7 +155,7 @@ const TodayQueue = ({ vm }) => {
         <span className="tq-title">Your queue</span>
         <span className={`tq-count tabular ${total ? "" : "calm"}`}>{total}</span>
         <span className="tq-sub">
-          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || (vm.standing.alert ? "nothing in the queue" : "nothing needs you")}
+          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || (vm.standing.alert || vm.standing.chips.length === 0 ? "nothing in the queue" : "nothing needs you")}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>
@@ -179,7 +182,10 @@ const TodayQueue = ({ vm }) => {
         {total === 0 && (vm.standing.alert
           // A dark line: an empty queue is not "the receptionist is answering".
           ? <EmptyState kind="line" glyph="alert" tone="warn" title="Nothing in the queue — new messages go unanswered until the line is back." testid="today-queue-empty-down" />
-          : <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
+          : vm.standing.chips.length === 0
+            // No line at all: nothing can come in, so nobody is answering. The door to Setup is the brief's one line.
+            ? <EmptyState kind="line" glyph="phone" title="Nothing in the queue — nothing can come in until a line is connected." testid="today-queue-empty-unconnected" />
+            : <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
         )}
       </div>
       {vm.queue.more > 0 && (

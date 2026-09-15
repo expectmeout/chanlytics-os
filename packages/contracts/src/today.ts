@@ -99,6 +99,8 @@ export interface TodaySentenceVM {
   /** True for the one line that must never read as calm: a reply that
    *  failed to deliver. */
   warn?: boolean;
+  /** The record the sentence is about, when the read holds it: the thread of the newest reply that failed. */
+  to?: string;
 }
 
 /**
@@ -542,9 +544,19 @@ export function toTodayVM(
   // "handled everything" while a message died in transit would be a lie of
   // omission.
   if (p.send_failures) {
+    // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
+    // opened the Inbox list, where the owner had to go looking.
+    const lastFailed = conversations
+      .flatMap((c) =>
+        c.messages
+          .filter((x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs)
+          .map((x) => ({ conv: c, at: x.created_at })),
+      )
+      .sort((a, b) => b.at.localeCompare(a.at))[0];
     sentences.push({
       text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
       warn: true,
+      ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
     });
   }
 

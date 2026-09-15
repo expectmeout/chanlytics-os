@@ -150,6 +150,18 @@ const HeroBriefReal = ({ vm }) => {
               <div className="brief-beat">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
                 <span className="brief-beat-text">{quiet.sub}</span>
+                {quiet.launchpad && (
+                  <button className="brief-chip" onClick={() => nav(quiet.launchpad.to)}>{quiet.launchpad.label}</button>
+                )}
+              </div>
+            )}
+            {/* The quiet day's proof: which lines are on, from the read. It was built and never drawn. */}
+            {quiet && total > 0 && (
+              <div className="brief-beat" data-testid="brief-quiet-proof">
+                <span className="brief-beat-dot" />
+                <span className="brief-beat-text">
+                  {quiet.proof.filter((pr) => pr.label !== "Checked").map((pr) => `${pr.label}: ${pr.value}`).join(" · ")}
+                </span>
               </div>
             )}
             {/* Narrative the headline doesn't carry — crucially the one line
@@ -162,14 +174,15 @@ const HeroBriefReal = ({ vm }) => {
                 <span className="brief-beat-dot" style={sn.warn ? { background: "var(--danger)" } : undefined} />
                 <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger)" } : undefined}>{sn.text}</span>
                 {sn.warn && (
-                  <button className="brief-chip" onClick={() => nav("inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
+                  <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
                 )}
               </div>
             ))}
             <RunsDone nav={nav} />
             {vm.callsRead === false && <FailedRead kind="line" what="the phone line's calls" body="The day's other numbers are current." surface="today" testid="brief-calls-failed" />}
-            {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
-              <div key={i} className="brief-beat">
+            {/* Every receipt the view model keeps: it kept three, and this drew one. */}
+            {(recap ? recap.receipts : []).map((r, i) => (
+              <div key={i} className="brief-beat" data-testid="brief-receipt">
                 <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
                 <span className="brief-beat-text">{r.at} — {r.text}</span>
                 <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
@@ -177,8 +190,9 @@ const HeroBriefReal = ({ vm }) => {
             ))}
             <button className="brief-forecast brief-inbox-link" onClick={() => nav("inbox")}>
               <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : standing.alert ? "var(--danger)" : "var(--ok)" }} />
-              {/* While a line is down nothing reassures: the alert above is the truth, and an empty queue is not "nothing needs you". */}
-              <span>{waiting > 0 ? `${waiting} need you` : standing.alert ? "Nothing waiting in the Inbox — new messages go unanswered until the line is back" : "Queue clear — nothing needs you"}</span>
+              {/* While a line is down nothing reassures: the alert above is the truth, and an empty queue is not "nothing needs you".
+                  With no line at all nothing can come in, so nothing is "clear" either. */}
+              <span>{waiting > 0 ? `${waiting} need you` : standing.alert ? "Nothing waiting in the Inbox — new messages go unanswered until the line is back" : total === 0 ? "Nothing waiting — no line is connected yet" : "Queue clear — nothing needs you"}</span>
               <Icon name="arrow-right" size={11} style={{ color: "var(--ink-faint)" }} />
             </button>
           </div>

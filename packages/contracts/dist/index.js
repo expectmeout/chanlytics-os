@@ -4085,9 +4085,13 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
   }
   if (p.send_failures) {
+    const lastFailed = conversations.flatMap(
+      (c) => c.messages.filter((x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs).map((x) => ({ conv: c, at: x.created_at }))
+    ).sort((a, b) => b.at.localeCompare(a.at))[0];
     sentences.push({
       text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver \u2014 the customer got no answer.`,
-      warn: true
+      warn: true,
+      ...lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}
     });
   }
   const receipts = conversations.flatMap(
