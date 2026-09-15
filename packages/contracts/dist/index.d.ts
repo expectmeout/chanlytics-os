@@ -5382,7 +5382,7 @@ declare function parseAskFinish(raw: unknown): {
 type AskReadSet = Record<Exclude<AskCitationKind, "page">, Set<string>>;
 declare function emptyReadSet(): AskReadSet;
 /** The pages a citation or a navigate target may point at without a read. */
-declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "conversations", "live", "reports", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations"];
+declare const ASK_PAGE_ROUTES: readonly ["today", "inbox", "clients", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports", "admin/setup", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile"];
 /**
  * Drop every citation that names a row the tools did not return this turn.
  * A model that read nothing cannot cite anything; a model that read the
@@ -5529,7 +5529,11 @@ interface JumpEntry {
     kind: "page" | "person" | "thread" | "call";
     sub?: string;
 }
-/** The pages a real workspace has. Nothing here is seeded or demo-only. */
+/**
+ * The pages a real workspace has. Nothing here is seeded or demo-only. The list stopped at the pages that were real
+ * before the Calendar, Lists, Campaigns, Setup, Billing and Activity shipped, so ⌘K "calendar" offered only to ask
+ * about it (the wiring audit's N18).
+ */
 declare const ASK_PAGES: JumpEntry[];
 /**
  * Two words jump to a page, a person, a thread or a call from what the

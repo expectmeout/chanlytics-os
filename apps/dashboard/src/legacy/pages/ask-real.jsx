@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, Confirm */
 // AskReal — the palette on a real workspace (⌘K, the topbar button, New
 // chat, the phone's ✦). This file is the shell: the state of one open
 // palette (what is typed, which thread is open, the turn in flight, the
@@ -77,6 +77,8 @@ const AskReal = ({ open, onClose }) => {
   const [lang, setLang] = useArState(() => (A ? A.language() : "en"));
   const [tick, setTick] = useArState(0);
   const [railMore, setRailMore] = useArState(false);
+  // The conversation a × or the Delete key asked to delete, waiting for a yes (N5).
+  const [doomed, setDoomed] = useArState(null);
   const wide = H.useAskWide();
   const speech = H.useAskSpeech(A);
   const [toastNode, flash] = window.usePPToast();
@@ -115,24 +117,38 @@ const AskReal = ({ open, onClose }) => {
 
   // Closed: nothing typed survives, nothing keeps reading; an open
   // conversation resumes next time.
-  useArEffect(() => { if (!open) { setQuery(""); setFast(null); speech.stop(); } }, [open]);
+  useArEffect(() => { if (!open) { setQuery(""); setFast(null); setDoomed(null); speech.stop(); } }, [open]);
 
-  H.useAskFocus(inputRef, open && !live, [open, live, active]);
+  H.useAskFocus(inputRef, open && !live && !doomed, [open, live, active, doomed]);
+
+  // What the shell sends: New chat, or a question to ask or to finish. The shell opens the palette and sends in the
+  // same moment, so the palette listens while closed too and keeps the last request until it is open (the wiring
+  // audit's N3: a listener added on open missed both, and New chat reopened the last conversation).
+  const asked = useArRef(null);
+  useArEffect(() => {
+    const onNew = () => { asked.current = { fresh: true }; setTick((n) => n + 1); };
+    const onSeed = (e) => { asked.current = (e && e.detail) || {}; setTick((n) => n + 1); };
+    window.addEventListener("ask:new", onNew);
+    window.addEventListener("ask:seed", onSeed);
+    return () => { window.removeEventListener("ask:new", onNew); window.removeEventListener("ask:seed", onSeed); };
+  }, []);
 
   useArEffect(() => {
     if (!open) return;
     const onKey = (e) => { if (e.key === "Escape") onClose(); };
-    const onNew = () => newChat();
-    const onSeed = (e) => {
-      const d = (e && e.detail) || {};
-      if (d.about) setScope(typeof d.about === "object" ? d.about : null);
-      if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); return; }
-      submit(d.prompt);
-    };
     window.addEventListener("keydown", onKey);
-    window.addEventListener("ask:new", onNew);
-    window.addEventListener("ask:seed", onSeed);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("ask:new", onNew); window.removeEventListener("ask:seed", onSeed); };
+    // Taken once open, after the route's own scope, so a request's scope wins.
+    const d = asked.current;
+    if (d) {
+      asked.current = null;
+      if (d.fresh) newChat();
+      else {
+        if (d.about) setScope(typeof d.about === "object" ? d.about : null);
+        if (d.mode === "compose" || !d.prompt) { setActive(null); setQuery(d.prompt || ""); }
+        else submit(d.prompt);
+      }
+    }
+    return () => window.removeEventListener("keydown", onKey);
   });
 
   useArEffect(() => { setSel(0); }, [query, active, open]);
@@ -164,7 +180,10 @@ const AskReal = ({ open, onClose }) => {
     return opened;
   };
 
+  // Deleting asks first, wherever it is pressed: a row's ×, the rail's × or the Delete key (N5).
+  const askDelete = (th) => setDoomed(th);
   const removeThread = async (th) => {
+    setDoomed(null);
     const ok = await A.deleteThread(th.id);
     if (!ok) { flash({ tone: "danger", msg: <>{t.deleteFailed}</> }); return; }
     setThreads((prev) => prev.filter((x) => x.id !== th.id));
@@ -249,6 +268,7 @@ const AskReal = ({ open, onClose }) => {
     const q = query.trim();
     if (e.key === "ArrowDown") { e.preventDefault(); setSel((s) => Math.min(flat.length - 1, s + 1)); }
     else if (e.key === "ArrowUp") { e.preventDefault(); setSel((s) => Math.max(0, s - 1)); }
+    else if (e.key === "Delete" && flat[sel] && flat[sel].type === "thread") { e.preventDefault(); askDelete(flat[sel].th); }
     else if (e.key === "Enter") { e.preventDefault(); if (flat[sel] && (q === "" || flat[sel].type !== "ask" || flat[sel].q !== q)) activate(flat[sel]); else if (q) submit(); }
   };
 
@@ -258,7 +278,7 @@ const AskReal = ({ open, onClose }) => {
   return (
     <div className="ask-overlay" onClick={onClose} data-tick={tick}>
       <div className={`ask-modal ask-real ${railOn ? "ask-modal-threads" : "cmd-modal"}`} onClick={(e) => e.stopPropagation()} role="dialog" aria-label="Ask Chanlytics" data-testid="ask-real">
-        {railOn && <AskRail threads={threads} active={active} more={railMore} t={t} onNew={newChat} onOpen={openThread} onDelete={removeThread} onMore={() => setRailMore(true)} />}
+        {railOn && <AskRail threads={threads} active={active} more={railMore} t={t} onNew={newChat} onOpen={openThread} onDelete={askDelete} onMore={() => setRailMore(true)} />}
         <div className={railOn ? "ask-main" : "ask-single"}>
           <div className={`cmd-input-bar ${talk.listening ? "listening" : ""}`}>
             {active
@@ -306,6 +326,9 @@ const AskReal = ({ open, onClose }) => {
             <span className="kbd">↵</span>
           </div>
 
+          {doomed && (
+            <Confirm question={t.deleteAsk} detail={doomed.title} yes={t.deleteYes} no={t.deleteKeep} danger block className="ask-confirm" onYes={() => removeThread(doomed)} onNo={() => setDoomed(null)} testid="ask-delete" />
+          )}
           <div className="cmd-body" ref={bodyRef}>
             {active ? (
               <div className="ask-msgs" ref={scrollRef}>
@@ -321,7 +344,7 @@ const AskReal = ({ open, onClose }) => {
             ) : (
               <>
                 <AskFast fast={fast} t={t} onNav={nav} speech={speech} lang={lang} />
-                <AskRows sections={sections} sel={sel} setSel={setSel} onActivate={activate} onDelete={removeThread} t={t} />
+                <AskRows sections={sections} sel={sel} setSel={setSel} onActivate={activate} onDelete={askDelete} t={t} />
               </>
             )}
           </div>
@@ -329,7 +352,7 @@ const AskReal = ({ open, onClose }) => {
           <footer className="cmd-foot">
             {active
               ? <><span><span className="kbd">↵</span> send</span><span><span className="kbd">↑</span> recall</span><span><span className="kbd">esc</span> back</span><span className="cmd-foot-note">{t.footNote}</span></>
-              : <><span><span className="kbd">↑↓</span> move</span><span><span className="kbd">↵</span> select</span><span><span className="kbd">esc</span> close</span><span className="cmd-foot-note">{t.footNote}</span></>}
+              : <><span><span className="kbd">↑↓</span> move</span><span><span className="kbd">↵</span> select</span>{flat[sel] && flat[sel].type === "thread" && <span><span className="kbd">del</span> delete</span>}<span><span className="kbd">esc</span> close</span><span className="cmd-foot-note">{t.footNote}</span></>}
           </footer>
         </div>
       </div>

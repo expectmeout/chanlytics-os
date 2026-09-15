@@ -70,6 +70,9 @@
 .cmd-row.now .cmd-row-ic { background: var(--warn-soft); color: var(--warn); }
 .cmd-row.act .cmd-row-kind { color: var(--accent); }
 
+/* ---- Deleting a conversation asks first, between the input and the rows ---- */
+.ask-real .ask-confirm { flex-shrink: 0; margin: 8px 16px 0; max-width: none; }
+
 /* ---- The rail beside a desktop conversation ---- */
 .ask-real .ask-single { display: contents; }
 .ask-real.ask-modal-threads .ask-main { height: 100%; }
