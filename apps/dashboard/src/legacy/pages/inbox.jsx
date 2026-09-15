@@ -25,6 +25,23 @@ const IX_VIEW_FILTERS = {
 const ixDraftKey = (t) => (t.real && t.veto && t.veto.messageId ? `draft:${t.veto.messageId}` : t.id);
 const ixHeld = (state, t) => !!(state[ixDraftKey(t)] || {}).held;
 
+// A reply counting down to auto-send waits on you for those seconds: you can still stop it, and after them it is in
+// your name. ONE rule for the Needs you chip, the bucket a row sits in, the order it sits in, this page's count and
+// the sidebar badge, so no two of them can say different numbers. Such a thread sat in Handled with nothing on its
+// row, and the countdown showed only in the pane you had to open first.
+const ixSending = (t, nowMs = Date.now()) => !!(t && t.real && t.veto && t.veto.endsAtMs > nowMs
+  && !ixHeld(((window.VW_STORE || {}).state) || {}, t));
+// The bucket a thread belongs to: its own state, unless a reply of its own is on its way out.
+const ixBucketOf = (t, nowMs = Date.now()) => (ixSending(t, nowMs) ? "escalated" : t && t.state);
+// What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
+// mockup's rule, since "needs" is a state no real thread holds.
+const ixWaitsOnYou = (t, nowMs = Date.now()) => (t && t.real
+  ? !!t.needsYou || ixSending(t, nowMs)
+  : !!t && (t.state === "needs" || (t.state === "escalated" && !t.takenOver)));
+// The order a bucket stands in: a reply about to send first, then what needs you, then the threads you have, then a
+// teammate's, each group in the server's order. A teammate's thread sat above the one waiting on you (I2).
+const ixRank = (t) => (ixSending(t) ? -1 : t && t.real && t.state === "escalated" ? (t.needsYou ? 0 : t.takenOver ? 1 : 2) : 0);
+
 // Past a real draft's deadline the only honest move is to go and look -- and to look again while the draft is still
 // there: the job fires on a ten-second tick, and one read at zero left "Auto-sends in 0s" until something else moved (I3).
 const IX_READ_AGAIN_MS = 5000;
@@ -94,7 +111,7 @@ const ixRefusedWords = (refused) => {
   return [...by].map(([message, whos]) => `${ixNames(whos)}: ${message}`).join(" ");
 };
 
-Object.assign(window, { ixHoldAll, ixHeld, ixReadAgain, ixRouteThread, ixRepaintNotice, ixRefusedWords });
+Object.assign(window, { ixHoldAll, ixHeld, ixSending, ixBucketOf, ixWaitsOnYou, ixRank, ixReadAgain, ixRouteThread, ixRepaintNotice, ixRefusedWords });
 
 const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
@@ -106,19 +123,23 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
     return { ...t, state: "done", unread: false, resolution: d };
   }));
+  // The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you.
   const firstBucketWithThreads = (list) => {
     for (const s of ["escalated", "needs", "snoozed", "done"]) {
-      if (list.some((x) => x.state === s)) return s;
+      if (list.some((x) => ixBucketOf(x) === s)) return s;
     }
     return "escalated";
   };
   const [activeBucket, setActiveBucket] = React.useState(() => {
     const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
-    return t ? t.state : firstBucketWithThreads(THREADS);
+    return t ? ixBucketOf(t) : firstBucketWithThreads(THREADS);
   });
   const [activeThreadId, setActiveThreadId] = React.useState(
-    // A real thread that needs you opens first, as Needs you lists it first: a teammate's thread opened in its place (I2).
-    initialThreadId || (THREADS.find((x) => x.state === "needs" || (x.real && x.needsYou)) || THREADS[0] || {}).id || null,
+    // The bucket's first row opens first, in the list's own order (ixRank): a reply about to send, then a thread that
+    // needs you. A teammate's thread opened in its place (I2).
+    initialThreadId
+      || (THREADS.find((x) => ixSending(x)) || THREADS.find((x) => x.state === "needs" || (x.real && x.needsYou)) || THREADS[0] || {}).id
+      || null,
   );
   const [selected, setSelected] = React.useState([]);
   // A bulk act on real threads while it runs: the bar says so, and a second press asks nothing.
@@ -155,10 +176,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // Real threads carry the answer (viewmodel `needsYou`) rather than having it
   // re-derived here — this count drives the sidebar badge, and Today used to
   // dispatch a DIFFERENT number over the top of it. Seeded mockup threads keep
-  // the demo rule, since "needs" is a state real threads can never hold.
-  const needsCount = threads.filter(
-    (t) => (t.real ? t.needsYou : t.state === "needs" || (t.state === "escalated" && !t.takenOver)),
-  ).length;
+  // the demo rule, since "needs" is a state real threads can never hold. A reply
+  // about to send waits on you too, by the one rule above (ixWaitsOnYou).
+  const needsCount = threads.filter((t) => ixWaitsOnYou(t)).length;
 
   // SurfaceData seam: a real-data swap replaces window.INBOX_DATA.THREADS —
   // reseed local state (real threads never live in IX_STORE).
@@ -661,13 +681,12 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
 
   const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
-  // Needs you, on a real workspace: what needs you first, then the threads you have, then a teammate's, each group
-  // in the server's order. A teammate's thread sat above the one waiting on you (I2).
-  const standingRank = (t) => (t.real && t.state === "escalated" ? (t.needsYou ? 0 : t.takenOver ? 1 : 2) : 0);
+  // The bucket's rows, in the one order (ixRank): a reply about to send, then what needs you, then the threads you
+  // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down.
   const visible = (viewFilter
     ? threads.filter(viewFilter)
-    : threads.filter((t) => activeBucket === "all" || t.state === activeBucket)
-  ).sort((a, b) => standingRank(a) - standingRank(b));
+    : threads.filter((t) => activeBucket === "all" || ixBucketOf(t) === activeBucket)
+  ).sort((a, b) => ixRank(a) - ixRank(b));
   // Scoped to the VISIBLE list: an id left over from another bucket used to
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
@@ -730,10 +749,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
 
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
   // The Needs you chip counts what needs you, the badge's number (needsCount): it counted every flagged thread, yours
-  // and a teammate's too, and a thread you have just answered stays flagged for the whole pause (I2).
+  // and a teammate's too, and a thread you have just answered stays flagged for the whole pause (I2). A reply about
+  // to send counts here and sits in this bucket, by that same rule, and leaves Handled while it counts down.
   const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
     ...b,
-    count: threads.filter((t) => (t.real && b.id === "escalated" ? t.needsYou : t.state === b.id)).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
+    count: threads.filter((t) => (t.real && b.id === "escalated" ? ixWaitsOnYou(t) : ixBucketOf(t) === b.id)).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
   }));
   const viewsWithCounts = INBOX_VIEWS.map((v) => ({
     ...v,
@@ -776,6 +796,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
         bulkBusy={bulkBusy}
         stake={stake}
         density={density}
+        sendingIn={vetoRemaining}
       />
       {requestedMissing ? (
         // A link to a thread outside the loaded list: say so in the pane, and

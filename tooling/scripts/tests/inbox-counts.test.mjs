@@ -232,3 +232,57 @@ test("the sidebar's first count is the badge's: what needs you, not every flagge
   inboxWith([rosa, mine, anas, unsent]);
   assert.equal(globalThis.window.sbNeedsCount(), 1, "REGRESSION: it counted Ana's thread as waiting on you until the Inbox mounted");
 });
+
+/* --------------------------- a reply about to send --------------------------- */
+
+// A quiet thread whose receptionist reply is queued behind its hold window. Its times are the real clock's, because
+// the page counts down to the SERVER's deadline with Date.now(), not to the fixture's hour.
+const sendingThread = () => {
+  const at = new Date(Date.now() - 30_000).toISOString();
+  return toInboxThreadVM(conv("c5", "Jess Park", {
+    state: "open",
+    last_message_at: at,
+    messages: [
+      wrote("m-c5", "Is Thursday free?", 5),
+      { id: "m-c5d", direction: "outbound", sender: "ai", type: "text", body: "Thursday at 2 works — shall I book it?", media: null, meta: { delay_ms: 90_000 }, status: "queued", created_at: at, channel_ts: null },
+    ],
+  }), null, ZONE, NOW);
+};
+
+test("REGRESSION: a reply about to send is at the top of Needs you, counted by the chip and the badge -- it sat in Handled, on a row that said nothing about it", () => {
+  const W = globalThis.window;
+  W.VW_STORE = { state: {} };
+  const jess = sendingThread();
+  assert.equal(jess.state, "done", "the thread itself is quiet: nobody asked for a person");
+  assert.ok(jess.veto && jess.veto.endsAtMs > Date.now(), "and its reply is still counting down");
+  assert.deepEqual([W.ixSending(jess), W.ixBucketOf(jess), W.ixWaitsOnYou(jess)], [true, "escalated", true]);
+  assert.equal(W.ixWaitsOnYou(unsent), false, "a thread with nothing on its way does not");
+
+  const { seen } = page([rosa, mine, anas, unsent, jess]);
+  assert.equal(seen.list.activeBucket, "escalated");
+  assert.deepEqual(seen.list.threads.map((t) => t.who), ["Jess Park", "Rosa Díaz", "Nina Park", "Ada Lovelace"], "first, above what needs a person");
+  assert.equal(seen.pane.thread.who, "Jess Park", "and it is the thread the page opens on");
+  const chip = (id) => seen.list.buckets.find((b) => b.id === id).count;
+  assert.deepEqual([chip("escalated"), chip("done")], [2, 1], "the chip counts it, and Handled does not while it counts down");
+  assert.equal(counted.at(-1), 2, "the sidebar badge is sent that same number");
+  inboxWith([rosa, mine, anas, unsent, jess]);
+  assert.equal(W.sbNeedsCount(), 2, "and reads the same rule when the Inbox is not mounted");
+
+  // Held: the countdown stops, and the thread is quiet again.
+  W.VW_STORE = { state: { [`draft:${jess.veto.messageId}`]: { held: true } } };
+  assert.deepEqual([W.ixSending(jess), W.ixBucketOf(jess), W.ixWaitsOnYou(jess)], [false, "done", false], "a held draft claims nothing");
+  W.VW_STORE = { state: {} };
+  // Past its last second it is Handled again, until the re-read says what actually happened.
+  assert.equal(W.ixBucketOf(jess, jess.veto.endsAtMs + 1), "done");
+});
+
+test("the row says the seconds, where the time it last moved would be", () => {
+  const jess = sendingThread();
+  cells = [];
+  seq = 0;
+  const tree = RealInboxList(listProps({ threads: [jess, rosa], allThreads: [jess, rosa], activeThreadId: jess.id, sendingIn: (id) => (id === jess.id ? 72 : null) }));
+  const row = (who) => find(tree, (n) => n.props?.role === "option" && textOf(n).includes(who));
+  assert.equal(textOf(find(row("Jess Park"), hasClass("ix-sending"))).trim(), "sending in 72s");
+  assert.equal(find(row("Jess Park"), hasClass("ix-thread-time")), undefined, "REGRESSION: its row said when it last moved, and nothing about the reply going out");
+  assert.equal(find(row("Rosa Díaz"), hasClass("ix-sending")), undefined, "only the thread whose reply is on its way");
+});

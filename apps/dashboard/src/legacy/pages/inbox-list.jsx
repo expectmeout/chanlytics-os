@@ -40,6 +40,8 @@ const InboxList = ({
   bulkBusy = null,
   stake = null,
   density = "medium",
+  /** Seconds until a thread's own reply goes out, or null: the row says them where its time would be. */
+  sendingIn = () => null,
 }) => {
   const [query, setQuery] = React.useState("");
   const [showViews, setShowViews] = React.useState(false);
@@ -306,6 +308,8 @@ const InboxList = ({
               // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
               // the last message there, often the receptionist's holding reply. Anywhere else, the last thing that happened.
               const words = t.real && t.ask && t.ask.text ? t.ask.text : t.preview;
+              // The seconds before a reply of its own goes out: the row's one time while they run.
+              const sending = t.real ? sendingIn(t.id) : null;
               const footed = multipleAgents || t.confidence > 0 || (t.tags || []).length > 0 || t.value > 0;
               return (
                 <div
@@ -349,7 +353,9 @@ const InboxList = ({
                         {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
                             when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
                             row said "waiting 12m" beside "5:51 PM". */}
-                        {t.state === "escalated" && t.waitingMin > 0 ? (
+                        {sending != null ? (
+                          <span className="ix-wait ix-sending tabular"><span className="ix-veto-dot" aria-hidden="true" /> sending in {sending}s</span>
+                        ) : t.state === "escalated" && t.waitingMin > 0 ? (
                           <span className={`ix-wait tabular ${t.waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
                         ) : t.state === "snoozed" && t.wake ? (
                           <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
