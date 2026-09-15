@@ -119,6 +119,38 @@ test.describe("Calendar on a real workspace", () => {
     }
   });
 
+  test("every view scrolls to its last day and to the legend, on a desktop screen and on a phone -- the views grew under a Calendar that clips, and nothing below the fold could be reached", async ({ page }) => {
+    for (const size of [{ width: 1280, height: 720 }, { width: 375, height: 812 }]) {
+      await page.setViewportSize(size);
+      await page.goto("/#/calendar");
+      await page.waitForLoadState("networkidle");
+      const board = page.getByTestId("calendar-real");
+      await expect(board).toBeVisible();
+      for (const view of ["week", "month", "agenda"]) {
+        await board.getByTestId(`cal-view-${view}`).click();
+        await expect(board.getByTestId(`cal-view-${view}`)).toHaveAttribute("aria-pressed", "true");
+        // Scroll whatever scrolls to its end, then ask whether the last day and the legend are on screen. toBeVisible
+        // cannot say it: a box cut off by an overflow is still "visible".
+        const reached = await board.evaluate((cal) => {
+          const grid = cal.querySelector(".cal-scroll");
+          const body = cal.querySelector(".cal-body");
+          for (const el of [grid, body, cal]) if (el) el.scrollTop = el.scrollHeight;
+          const scroller = grid ?? body ?? cal;
+          const bottom = (el: Element) => el.getBoundingClientRect().bottom;
+          const days = scroller.querySelectorAll('[data-testid="cal-col"], [data-testid="cal-month-cell"], [data-testid="cal-agenda-day"]');
+          const last = days[days.length - 1];
+          const legend = cal.querySelector('[data-testid="cal-legend"]');
+          const clip = Math.min(window.innerHeight, bottom(cal));
+          return {
+            lastDay: !!last && bottom(last) <= Math.min(clip, bottom(scroller)) + 1,
+            legend: !!legend && bottom(legend) <= clip + 1,
+          };
+        });
+        expect(reached, `${view} at ${size.width}x${size.height}`).toEqual({ lastDay: true, legend: true });
+      }
+    }
+  });
+
   test("the calendar sweep on the edge refuses a call without the sweep key", async ({ request }) => {
     const res = await request.post("https://chanlytics-messaging.vercel.app/api/cron/calendar", { data: {} });
     expect([401, 503]).toContain(res.status());
