@@ -492,6 +492,17 @@ export function closedOn(closures: Closure[] | undefined, key: string): boolean 
 }
 
 /**
+ * An instant rounded up to the slot grid on the business's clock: :00 and :30 for half-hour slots, the quarter hour when
+ * a slot does not divide the hour. The first open time was now plus the least notice to the minute, "1:29 PM" (C5).
+ */
+function onTheGrid(tz: string, atMs: number, slotMin: number): number {
+  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
+  const c = clockInZone(tz, atMs);
+  const into = ((c.mm % grid) * 60 + c.ss) * 1000 + (((atMs % 1000) + 1000) % 1000);
+  return into === 0 ? atMs : atMs - into + grid * 60_000;
+}
+
+/**
  * The open windows, day by day: opening hours minus what is taken (each
  * taken block widened by the buffer), never earlier than now plus the lead
  * time, never shorter than one slot, never on a closed date.
@@ -501,7 +512,8 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
   const leadMs = rules.lead_hours * 3600_000;
   const bufferMs = rules.buffer_min * 60_000;
   const slotMs = rules.slot_min * 60_000;
-  const earliest = input.now.getTime() + leadMs;
+  // The first moment worth offering: now plus the least notice, up to the slot grid on the business's clock (C5).
+  const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out: Opening[] = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {

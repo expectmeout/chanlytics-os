@@ -90,6 +90,20 @@ test("open windows: the hours minus what is taken, widened by the buffer, never 
   }
 });
 
+test("REGRESSION (C5): the first open time is on the slot grid -- now plus the lead, to the minute, offered '1:29 PM'", () => {
+  const at = (hh, mm, ss = 0) => new Date(localToUtcMs(TZ, 2026, 9, 9, hh, mm) + ss * 1000);
+  const first = (now, rules) => {
+    const out = freeWindows({ hours: { wed: { open: "09:00", close: "18:00" } }, tz: TZ, busy: [], rules: { lead_hours: 2, max_days_ahead: 1, ...rules }, now });
+    return new Intl.DateTimeFormat("en-US", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(new Date(out[0].windows[0].start));
+  };
+  assert.equal(first(at(11, 29, 37), { slot_min: 30 }), "1:30 PM", "REGRESSION: 1:29 PM, to the minute it was asked");
+  assert.equal(first(at(11, 30), { slot_min: 30 }), "1:30 PM", "a time already on the grid stays");
+  assert.equal(first(at(11, 30, 1), { slot_min: 30 }), "2:00 PM", "a second past the notice is past it");
+  assert.equal(first(at(11, 29), { slot_min: 20 }), "1:40 PM", "twenty-minute slots: :00, :20, :40");
+  assert.equal(first(at(11, 29), { slot_min: 45 }), "1:30 PM", "a slot that does not divide the hour rounds to the quarter");
+  assert.equal(first(at(8, 0), { slot_min: 30 }), "10:00 AM", "the day's own opening is untouched");
+});
+
 test("a closure removes the day; a window shorter than a slot is not offered; no zone guess", () => {
   const now = new Date(localToUtcMs(TZ, 2026, 9, 9, 8, 0));
   const closed = freeWindows({ hours, closures: [{ date: "2026-09-09" }], tz: TZ, busy: [], rules: { max_days_ahead: 1 }, now });
