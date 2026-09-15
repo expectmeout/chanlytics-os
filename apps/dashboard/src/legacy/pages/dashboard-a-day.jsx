@@ -35,7 +35,7 @@ const TodayDay = () => {
     <section className="td-day" data-testid="today-day">
       <div className="td-day-head">
         <span className="td-day-title">The day</span>
-        <span className="td-day-sub">{vm.nextOpening ? `next opening ${vm.nextOpening}` : ""}</span>
+        <span className="td-day-sub">{vm.nextOpening ? `next open time ${vm.nextOpening}` : ""}</span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("calendar")}>Open Calendar <Icon name="arrow-right" size={11} /></button>
       </div>
       {vm.frames.map((d) => (

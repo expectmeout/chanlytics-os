@@ -41,7 +41,7 @@ test("a workspace with nothing: every door honest, nothing pretends", () => {
   assert.equal(r.sms.group, "later");
   assert.equal(r.google_profile.group, "later");
   assert.equal(r.google_listing.group, "later");
-  assert.deepEqual(r.calendar.verb, { label: "Paste the feed", to: "admin/workspace", who: "owner" });
+  assert.deepEqual(r.calendar.verb, { label: "Paste the address", to: "admin/workspace", who: "owner" });
   for (const k of ["instagram", "email", "deposits"]) assert.equal(r[k].group, "later", k);
   assert.equal(by(connectionRows({ ...base(), whatsapp: undefined }, NOW)).whatsapp.sentence, "Checking whether Chanlytics can connect a number…");
   assert.equal(by(connectionRows({ ...base(), whatsapp: { ready: true, reason: null } }, NOW)).whatsapp.verb.to, "verb:whatsapp-connect");
@@ -88,6 +88,7 @@ test("attention is joined but not working: a number off, a listing unreadable, a
   assert.equal(r.google_listing.stateWords, "Could not be read");
   assert.equal(r.google_profile.stateWords, "Could not sync");
   assert.equal(r.calendar.stateWords, "Could not be read");
+  assert.deepEqual(r.calendar.verb, { label: "Check the address", to: "admin/workspace", who: "owner" });
   const list = connectionRows({ ...base(), channels: [channel("whatsapp", { status: "disabled" })] }, NOW).filter((x) => x.group === "connected");
   assert.equal(CONNECTION_GROUP_WORDS.connected.sub(list), "1 connected · 1 needs attention");
 });

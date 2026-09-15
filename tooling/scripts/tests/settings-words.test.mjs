@@ -9,6 +9,8 @@
  * - Autonomy's hard limits (S6): "this workspace's own values" over a reply cap and a pause nobody can change here,
  *   with the page's own copy of their defaults.
  * - The slot length (S2's remainder): a save kept it, and no field could set it.
+ * - The Calendar's words (C3): the Business card said the hours as 09:00–18:00 beside a Calendar in 9 AM, and the
+ *   editor checked the calendar's address as "the link", the booking link's word.
  * Contracts run as they are; settings.jsx runs on a stub React, with the words the bridge publishes (seed-globals).
  */
 import { test } from "node:test";
@@ -218,6 +220,7 @@ Object.assign(globalThis.window, {
   __fallbackMessages: contracts.fallbackMessages,
   __fallbackDefaults: contracts.FALLBACK_DEFAULTS,
   __unknownDetails: contracts.unknownDetails,
+  __hoursLines: contracts.hoursLines,
 });
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 
@@ -339,4 +342,31 @@ test("REGRESSION (S2): the slot length can be set from the Business editor -- a 
   press(buttonSaying(classed(tree, "set-editor-foot"), "Save"));
   const cleared = saved.at(-1)?.config?.brain?.profile?.booking_rules || {};
   assert.equal("slot_min" in cleared, false, "an emptied field is no rule, so the calendar's default applies");
+});
+
+test("REGRESSION (C3): the Business card says the hours in the Calendar's clock, and the editor checks the calendar's address as an address -- the card said 'Mon–Fri 09:00–18:00' beside a Calendar in 9 AM, and the editor 'Check the link', the booking link's word", () => {
+  const hours = { mon: { open: "09:00", close: "18:00" }, tue: { open: "09:00", close: "18:00" }, wed: { open: "09:00", close: "18:00" }, thu: { open: "09:00", close: "18:00" }, fri: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" }, sun: {} };
+  workspace({
+    __SETTINGS: {
+      role: "owner", version: 4,
+      config: {
+        brain: { business_name: "Northside Studio", booking_link: "https://book.example/northside", system_prompt: "You answer for Northside Studio.", profile: { hours, booking_rules: {} } },
+        calendar: { ical_url: "https://calendar.example/northside.ics" },
+      },
+    },
+  });
+  let tree = settings("workspace");
+  const isHours = (n) => {
+    if (String(n.props?.className || "") !== "cl-prof-attr") return false;
+    const key = classed(n, "cl-prof-attr-key");
+    return !!key && textOf(key) === "Hours";
+  };
+  const row = find(tree, isHours);
+  assert.ok(row, "the card names the hours");
+  const said = textOf(classed(row, "cl-prof-attr-val"));
+  assert.ok(said.includes("Mon–Fri 9 AM – 6 PM · Sat 10 AM – 4 PM · Sun closed"), `REGRESSION: the card said 09:00–18:00: ${said}`);
+  press(buttonSaying(tree, "Edit"));
+  tree = again("workspace");
+  assert.equal(textOf(byTestId(tree, "cal-check")).trim(), "Check the address", "REGRESSION: 'Check the link', the booking link's word");
+  assert.ok(buttonSaying(tree, "Open Calendar"), "the page by its name, as Connections and Today say it");
 });

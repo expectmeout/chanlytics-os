@@ -42,7 +42,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   assert.deepEqual(vm.reminders, { text: "Visit reminder: 2 people · next run today 10:00", to: "outbound" }, "only the visit playbooks speak here");
 });
 
-test("without a feed the day says nothing; with one and no visit playbook it offers to start one; a dash is no next opening", () => {
+test("without a feed the day says nothing; with one and no visit playbook it offers to start one; a dash is no next open time", () => {
   assert.deepEqual(todayDay(null, null), { feed: "none", frames: [], nextOpening: null, reminders: null });
   const off = todayDay(cal([day("2026-09-06", { today: true })], { feed: { present: true, state: "unavailable", line: "", events: 0, source: "x" } }), []);
   assert.equal(off.feed, "unavailable");
@@ -55,10 +55,10 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   assert.match(paused.reminders.text, /^No visit reminders yet/, "a paused playbook is not a reminder going out");
 });
 
-test("the facts beside the recap's: appointments today with the next opening or the closure, and what is booked ahead", () => {
+test("the facts beside the recap's: appointments today with the next open time or the closure, and what is booked ahead", () => {
   const c = cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Gloss")], allDay: [block("a1", 0, "", "Stock")] })]);
   assert.deepEqual(todayDayFacts(c, { booked: 3, reachedWeek: 4 }), [
-    { label: "Appointments today", value: "2", hint: "next opening Mon 9:30 AM" },
+    { label: "Appointments today", value: "2", hint: "next open time Mon 9:30 AM" },
     { label: "Booked ahead", value: "3", hint: "4 reached this week" },
   ]);
   const closed = cal([day("2026-09-06", { today: true, closed: { yes: true, note: "holiday" } })]);

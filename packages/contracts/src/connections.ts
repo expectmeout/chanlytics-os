@@ -19,6 +19,7 @@ import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEED
 import { agoWords } from "./time";
 import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
+import { CALENDAR_FEED_WORDS } from "./calendar";
 
 export type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
 export const CONNECTION_KINDS: readonly ConnectionKind[] = ["whatsapp", "phone", "sms", "google_profile", "google_listing", "calendar", "instagram", "email", "deposits"];
@@ -255,11 +256,11 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
   // The calendar: the feed the receptionist reads today.
   const cal = i.calendar?.state ?? "none";
   if (cal === "ok") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: "Readable", sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: CALENDAR_FEED_WORDS.ok, sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
   } else if (cal === "unavailable") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: "Could not be read", sentence: "Your calendar could not be read. Check the address in Settings › Business.", verb: { label: "Check the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: CALENDAR_FEED_WORDS.unavailable, sentence: "Your calendar could not be read. Check the address in Settings › Business.", verb: { label: "Check the address", to: "admin/workspace", who: "owner" } }));
   } else {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: "Not connected", sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: CALENDAR_FEED_WORDS.none, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the address", to: "admin/workspace", who: "owner" } }));
   }
 
   out.push(row({ kind: "instagram", icon: "instagram", title: "Instagram", detail: null, state: "later", stateWords: "Later", sentence: "Direct messages, answered by the receptionist like WhatsApp.", verb: null }));

@@ -268,7 +268,7 @@ function feedProblemWords(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -1073,7 +1073,7 @@ function feedProblemWords2(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -1921,7 +1921,7 @@ function feedProblemWords22(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -2748,7 +2748,7 @@ function feedProblemWords3(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -3915,7 +3915,7 @@ function feedProblemWords4(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":

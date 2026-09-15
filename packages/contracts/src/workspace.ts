@@ -1,4 +1,5 @@
 import { deviceTimezone as signupDeviceTimezone } from "./signup";
+import { timezoneCity } from "./time";
 
 /**
  * The workspace itself, in words.
@@ -44,12 +45,6 @@ export function cleanTimezone(raw: unknown): { ok: true; tz: string } | { ok: fa
   // is a change they did not ask for and cannot see.
   if (!isTimezone(tz)) return { ok: false, reason: `${tz} is not a timezone this system knows.` };
   return { ok: true, tz };
-}
-
-/** "New York" from "America/New_York" — the part a person recognises. */
-export function timezoneCity(tz: string): string {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
 }
 
 /**

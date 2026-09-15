@@ -465,6 +465,10 @@ function agoWords(atMs, nowMs, opts = {}) {
   const u = spanUnits(gap);
   return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
 }
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
 
 // src/availability.ts
 function zoneParts(tz, at2) {
@@ -1793,7 +1797,7 @@ function feedProblemWords(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -2681,14 +2685,14 @@ function readAgoLabel(iso, now) {
 }
 function ruleParts(rules) {
   const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r.lead_hours}h ahead`];
+  const parts2 = [`at least ${r.lead_hours}h notice`];
   if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
-  parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  parts2.push(`up to ${r.max_days_ahead} days ahead`, `${r.slot_min}-min slots`);
   if (rules?.party_max) parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
   return parts2;
 }
 function rulesLine(rules) {
-  return `Offers times ${ruleParts(rules).join(" \xB7 ")}`;
+  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
 }
 function feedNotes(feed) {
   if (feed.state !== "ok") return [];
@@ -2717,8 +2721,15 @@ function hoursLines2(hours) {
   if (!hours) return [];
   const clean = {};
   for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
-  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
+  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${dayHoursWords(clean[r.from])}`);
 }
+function dayHoursWords(h) {
+  const at2 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at2(o), at2(c)));
+  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+var CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 function hoursOf(tz, ms2) {
   const c = clockInZone(tz, ms2);
   return c.hh + c.mm / 60;
@@ -2726,7 +2737,7 @@ function hoursOf(tz, ms2) {
 function spanLabel2(t1, t2) {
   const a = clockLabel(t1);
   const b = clockLabel(t2);
-  const sameHalf = a.slice(-2) === b.slice(-2);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
   return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
 }
 function nextOpenWords(startIso, tz, todayKey) {
@@ -2886,7 +2897,9 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const ago3 = readAgoLabel(dto.feed.read_at, now);
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
-  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${tried ? ` \xB7 tried ${tried}` : ""}${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
+  const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
+  const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
@@ -2900,10 +2913,11 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     name: s.name,
     duration: s.duration_min,
     consultFirst: s.consult_first,
-    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consult first" : ""}`
+    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consultation first" : ""}`
   }));
   return {
     timezone: tz,
+    zoneCity: timezoneCity(tz),
     from: dto.from,
     to: last,
     rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
@@ -2912,7 +2926,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
+    feed: { present: dto.feed.present, state: dto.feed.state, health: feedHealth, line: feedLine, detail: feedDetail, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),
@@ -4451,7 +4465,7 @@ function todayDayFacts(cal, agg) {
   const today = cal.days.find((d) => d.today);
   if (today) {
     const n = today.blocks.length + today.allDay.length;
-    const hint = today.closed.yes ? `closed today${today.closed.note ? ` \xB7 ${today.closed.note}` : ""}` : cal.stats.next !== "\u2014" ? `next opening ${cal.stats.next}` : void 0;
+    const hint = today.closed.yes ? `closed today${today.closed.note ? ` \xB7 ${today.closed.note}` : ""}` : cal.stats.next !== "\u2014" ? `next open time ${cal.stats.next}` : void 0;
     out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
   }
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
@@ -7211,7 +7225,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
   }
-  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: `${CALENDAR_FEED_WORDS.ok} \u2014 the receptionist offers times from it.`, details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`, details: [], verb: { label: "Check the address", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the address", to: "admin/workspace" } });
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
@@ -7511,10 +7525,6 @@ function cleanTimezone(raw) {
   if (!isTimezone(tz)) return { ok: false, reason: `${tz} is not a timezone this system knows.` };
   return { ok: true, tz };
 }
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
 function timezoneWords(tz, nowMs = Date.now()) {
   const zone = tz && isTimezone(tz) ? tz : DEFAULT_TIMEZONE;
   const city = timezoneCity(zone);
@@ -7760,11 +7770,11 @@ function connectionRows(i, nowMs = Date.now()) {
   }
   const cal = i.calendar?.state ?? "none";
   if (cal === "ok") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: "Readable", sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: CALENDAR_FEED_WORDS.ok, sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
   } else if (cal === "unavailable") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: "Could not be read", sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.", verb: { label: "Check the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: CALENDAR_FEED_WORDS.unavailable, sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.", verb: { label: "Check the address", to: "admin/workspace", who: "owner" } }));
   } else {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: "Not connected", sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: CALENDAR_FEED_WORDS.none, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the address", to: "admin/workspace", who: "owner" } }));
   }
   out.push(row({ kind: "instagram", icon: "instagram", title: "Instagram", detail: null, state: "later", stateWords: "Later", sentence: "Direct messages, answered by the receptionist like WhatsApp.", verb: null }));
   out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "later", stateWords: "Later", sentence: "An address the receptionist answers.", verb: null }));
@@ -8846,6 +8856,7 @@ var TONE_OF = {
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   escalation: { open: "warn", resolved: "ok" }
 };
 var LABEL_OF = {
@@ -8861,6 +8872,7 @@ var LABEL_OF = {
   template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
   escalation: { open: "Open", resolved: "Resolved" }
 };
 function stateTone(kind, value) {
@@ -8923,6 +8935,7 @@ export {
   BrainConfigSchema,
   BrainOutputSchema,
   BusinessProfileSchema,
+  CALENDAR_FEED_WORDS,
   CALL_HEARTBEAT_MS,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,

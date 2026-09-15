@@ -211,7 +211,9 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   assert.equal(row(invited, "team").sentence, "1 person · 1 invite open · alerts go to 2 addresses.");
   const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
   assert.equal(row(feed, "calendar").state, "waiting_you");
-  assert.deepEqual(row(feed, "calendar").verb, { label: "Check the feed", to: "admin/workspace" });
+  assert.deepEqual(row(feed, "calendar").verb, { label: "Check the address", to: "admin/workspace" });
+  assert.deepEqual(row(setupSteps(empty(), NOW), "calendar").verb, { label: "Paste the address", to: "admin/workspace" });
+  assert.equal(row(setupSteps(empty({ calendar: { state: "ok" } }), NOW), "calendar").sentence, "Readable — the receptionist offers times from it.");
   assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read. Check the address in Settings › Business.");
   const why = setupSteps(empty({ calendar: { state: "unavailable", problem: "The calendar answered 404. It is usually the private iCal link, not the calendar's web page." } }), NOW);
   assert.equal(row(why, "calendar").sentence, "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page. Check the address in Settings › Business.", "the row says why, in the words the board and the preview use");

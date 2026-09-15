@@ -25,6 +25,7 @@ import { BROADCAST_STATE_LABELS } from "./broadcasts";
 import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "./people";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "./setup";
+import { CALENDAR_FEED_WORDS } from "./calendar";
 
 export type Tone = "accent" | "warn" | "info" | "ok" | "danger" | "plain";
 export const TONES: readonly Tone[] = ["accent", "warn", "info", "ok", "danger", "plain"];
@@ -44,6 +45,7 @@ export type StateKind =
   | "setup"       // a Setup row
   | "role"        // a teammate's role
   | "tone"        // a tone the caller already holds (a Connections row, the back office), said as itself
+  | "calendar"    // the calendar feed the receptionist reads: the Calendar's pill, Connections and Setup (C3)
   | "escalation";
 
 const TONE_OF: Record<StateKind, Record<string, Tone>> = {
@@ -60,6 +62,7 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   escalation: { open: "warn", resolved: "ok" },
 };
 
@@ -77,6 +80,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
   escalation: { open: "Open", resolved: "Resolved" },
 };
 

@@ -434,9 +434,6 @@
 .cal-open { position: absolute; left: 4px; right: 4px; border: 1px dashed var(--ok); border-radius: var(--radius-sm); background: oklch(from var(--ok) l c h / 0.06); padding: 3px 6px; overflow: hidden; pointer-events: auto; }
 .cal-open-label { font-size: 10px; color: var(--ok); white-space: nowrap; }
 .cal-feed-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
-.cal-feed-chip .cal-sync-dot { background: var(--ok); }
-.cal-feed-chip.unavailable .cal-sync-dot { background: var(--warn); }
-.cal-feed-chip.none .cal-sync-dot { background: var(--ink-faint); }
 .cal-feed-card { display: flex; align-items: center; gap: 10px; margin: 0 28px 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 12.5px; color: var(--ink-muted); }
 .cal-feed-card > .icon { color: var(--ink-faint); flex-shrink: 0; }
 .cal-feed-card > span { flex: 1; min-width: 0; }
