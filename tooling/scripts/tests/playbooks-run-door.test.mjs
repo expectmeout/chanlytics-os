@@ -184,7 +184,7 @@ test("a person's run sends now under `ask` -- the sweep would have held it -- an
   assert.equal(status, 200, JSON.stringify(body));
   assert.equal(w.tables.broadcasts.length, 1, "one run");
   const run = w.tables.broadcasts[0];
-  assert.deepEqual(body, { ok: true, outcome: "sent", broadcast_id: run.id, eligible: 2, mode: "ask", state: "scheduled" }, "sent, not held: the person decided");
+  assert.deepEqual(body, { ok: true, outcome: "sent", broadcast_id: run.id, eligible: 2, mode: "ask", state: "scheduled", scheduled_for: run.scheduled_for, moved_from: null }, "sent, not held: the person decided, and is told when it goes");
   assert.equal(run.tenant_id, A);
   assert.equal(run.playbook_id, P);
   assert.equal(run.run_for, today, "the run is for the business's own day");

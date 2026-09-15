@@ -84,7 +84,9 @@ export interface RunContext {
 export type RunBy = { kind: "system" } | { kind: "user"; userId: string };
 
 export type RunOutcome =
-  | { outcome: "sent" | "held"; broadcast_id: string; eligible: number; mode: string; state: string }
+  /** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */
+  | { outcome: "sent"; broadcast_id: string; eligible: number; mode: string; state: string; scheduled_for: string; moved_from: string | null }
+  | { outcome: "held"; broadcast_id: string; eligible: number; mode: string; state: string }
   | { outcome: "empty"; eligible: 0; mode: string }
   | { outcome: "off"; mode: string; skipped: "never" | "template_not_approved" | "number_flagged" | "already_ran_today" | "no_calendar" }
   | { outcome: "failed"; error: string };

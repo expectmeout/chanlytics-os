@@ -715,8 +715,18 @@ type RunBy = {
     kind: "user";
     userId: string;
 };
-type RunOutcome = {
-    outcome: "sent" | "held";
+type RunOutcome = 
+/** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */
+{
+    outcome: "sent";
+    broadcast_id: string;
+    eligible: number;
+    mode: string;
+    state: string;
+    scheduled_for: string;
+    moved_from: string | null;
+} | {
+    outcome: "held";
     broadcast_id: string;
     eligible: number;
     mode: string;

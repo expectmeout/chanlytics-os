@@ -463,3 +463,28 @@ test("a link to a day opens that day on the Calendar -- the route read only a de
   assert.equal(at("#/calendar/2026-9-10").initialDay, null, "only a whole date names a day");
   assert.equal(at("#/calendar").initialDay, null);
 });
+
+test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs, on the page already open -- Broadcasts read every param as a list's id", () => {
+  shell.installShell(win);
+  win.__BROADCASTS = { audiences: [{ kind: "saved", id: "s1", label: "Regulars" }], rows: [{ id: "b-1", name: "Win-back · 2026-09-10" }] };
+  try {
+    const at = (hash) => {
+      const { tree } = mount(hash);
+      return {
+        props: find(tree, (n) => n.type === "BroadcastsPage").props,
+        crumbs: find(tree, (n) => n.type === "Topbar").props.crumbs,
+        key: find(tree, (n) => String(n.props?.className || "").includes("main-scroll")).props.key,
+      };
+    };
+    const run = at("#/broadcasts/run:b-1");
+    assert.deepEqual([run.props.initialRun, run.props.initialSegment], ["b-1", null], "REGRESSION: a run's id was read as a list's");
+    assert.equal(run.crumbs.at(-1), "Win-back · 2026-09-10");
+    const list = at("#/broadcasts/s1");
+    assert.deepEqual([list.props.initialSegment, list.props.initialRun], ["s1", null]);
+    assert.equal(list.crumbs.at(-1), "Regulars");
+    assert.equal(at("#/broadcasts/run:b-older").crumbs.at(-1), "Broadcast", "a run past the newest fifty is still named for what it is");
+    assert.equal(run.key, list.key, "one mount for the page, so a run opened from it keeps a half-typed broadcast");
+  } finally {
+    delete win.__BROADCASTS;
+  }
+});

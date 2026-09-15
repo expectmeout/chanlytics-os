@@ -123,7 +123,8 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // Opt-IN, and only for a surface that follows its param. Getting this list
   // wrong in the other direction shows the wrong entity, so the default has to
   // be the safe one.
-  assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox"\]\);/);
+  assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox", "broadcasts"\]\);/);
+  // Broadcasts follows its run and its list as props: drawn in runs-honest.test.mjs, its mount key in shell-status.test.mjs.
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");

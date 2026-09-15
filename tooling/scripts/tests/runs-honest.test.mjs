@@ -1,0 +1,433 @@
+/**
+ * A run you can open: every door to one broadcast lands on it, and a playbook's card shows what it sends.
+ *
+ * - A playbook's runs were dead text, and "Its runs in Broadcasts" opened the page of every broadcast, which could
+ *   name none of them (the wiring audit's C9); Today's run rows opened Playbooks or that same page (A21).
+ * - The broadcast detail said "Couldn't be read right now." with nothing to press, never re-read while a send went
+ *   out, and would have offered a Retry for a broadcast that is not in the workspace at all (C23).
+ * - A card named its template and never showed the words its runs send (C10); Skip this run fired on one click,
+ *   when Broadcasts asks first (C16); a visit reminder's card had no policy chip, its class (booking) being looked
+ *   up as a row id (book) (C18); the composer's no-template hint named Messages as plain words (C19).
+ * - Run now said "sending now" over a run the server had moved to nine o'clock (C7).
+ * Run against the pages on a stub React, over the view models the bridge publishes.
+ */
+import { test } from "node:test";
+import assert from "node:assert/strict";
+import { toBroadcastVM, toTodayVM, stateOf, POLICY_CLASS_WORDS } from "@chanlytics/contracts";
+
+const TID = "t-studio";
+const ZONE = "America/New_York";
+const H = 3_600_000;
+const D = 24 * H;
+const NOW = Date.now();
+/** An instant relative to now: negative is past. */
+const iso = (ms) => new Date(NOW + ms).toISOString();
+
+/** A broadcast as GET broadcasts returns it (contracts BroadcastDto), for the view model the surface publishes. */
+const dto = (over = {}) => ({
+  id: "b-sent", name: "Win-back · 2026-09-10", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US",
+  params: [{ kind: "first_name" }], audience: { kind: "playbook", id: "pb-1", label: "Win-back" },
+  state: "sent", scheduled_for: iso(-5 * D), started_at: iso(-5 * D), finished_at: iso(-5 * D + 60_000), recipient_count: 3, failure: null,
+  created_at: iso(-5 * D), playbook_id: "pb-1", run_for: "2026-09-10",
+  counts: { queued: 0, sent: 3, skipped: 0, failed: 0, delivered: 2, read: 1, replied: 1 },
+  ...over,
+});
+/** One person on a broadcast, as GET broadcasts/[id] returns them (contracts BroadcastRecipientDto). */
+const person = (over = {}) => ({
+  contact_id: "k1", name: "Rosa Díaz", phone: "+16465550123", state: "sent", reason: null, sent_at: iso(-5 * D), message_status: "delivered",
+  conversation_id: "cv1", replied: false, delivered_at: iso(-5 * D + 60_000), read_at: null, replied_at: null, ...over,
+});
+const detailOf = (broadcast, recipients = [person()]) => ({ broadcast, recipients });
+
+/** One run on a card's history (server/playbooks.ts RunSummary). */
+const runOf = (i, over = {}) => ({ id: `b-run-${i}`, run_for: `2026-09-${String(14 - i).padStart(2, "0")}`, state: "sent", scheduled_for: iso(-(i + 1) * D), recipient_count: 3, sent: 3, held: 0, delivered: 2, replied: i === 0 ? 1 : 0, ...over });
+/** A playbook as the Playbooks surface publishes it: the route's row, its words, its totals (surface-data.ts). */
+const playbook = (over = {}) => ({
+  id: "pb-1", name: "Win-back", trigger: "quiet_30", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US",
+  params: [{ kind: "first_name" }, { kind: "business_name" }, { kind: "text", value: "10% off this week" }],
+  policy_class: "reengage", state: "running", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30,
+  last_run_for: "2026-09-14", last_run_at: iso(-D), created_at: iso(-30 * D),
+  triggerLabel: "Quiet 30 days", triggerHint: "anyone quiet for a month", schedule: "daily at 10:00", next: "tomorrow 10:00", candidates: 4, held: 0,
+  totals: { runs: 2, sent: 6, delivered: 4, replied: 1, held: 0, lastRun: { id: "b-run-0", state: "sent", run_for: "2026-09-14", recipient_count: 3 }, waiting: null, history: [runOf(0), runOf(1)] },
+  ...over,
+});
+const TEMPLATE = {
+  id: "tpl-1", name: "winback_offer", language: "en_US", channel: "whatsapp", meta_status: "approved", category: "MARKETING", purpose: "marketing",
+  body_preview: "Hi {{1}}, it's been a while at {{2}}. Come back for {{3}}.",
+  variables: [{ position: 1, label: "First name" }, { position: 2, label: "Business" }, { position: 3, label: "Offer" }],
+};
+const playbooksSurface = (over = {}) => ({
+  rows: [playbook()], templates: [TEMPLATE],
+  triggers: [{ id: "quiet_30", label: "Quiet 30 days", hint: "anyone quiet for a month", cls: "reengage", list: "quiet_30", kind: "list", candidates: 4, held: 0 }],
+  classWords: POLICY_CLASS_WORDS, timezone: ZONE, calendar: "none", number: { present: true, health: { canSend: true } },
+  businessName: "Northside Studio", bookingLink: false, fetchedAt: NOW, ...over,
+});
+/** Two broadcasts the Broadcasts surface lists: one sending now, one sent. */
+const SENDING = dto({ id: "b-sending", name: "Offers · 2026-09-15", state: "sending", started_at: iso(-60_000), finished_at: null, counts: { queued: 2, sent: 1, skipped: 0, failed: 0, delivered: 1, read: 0, replied: 0 } });
+const broadcastsSurface = (over = {}) => ({
+  audiences: [
+    { kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: 2, utility: 3 } },
+    { kind: "saved", id: "s1", label: "Regulars", counts: { marketing: 1, utility: 1 } },
+    { kind: "saved", id: "s2", label: "Walk-ins", counts: { marketing: 1, utility: 1 } },
+  ],
+  templates: [], rows: [toBroadcastVM(SENDING, ZONE), toBroadcastVM(dto(), ZONE)], more: false, heldReasons: {}, number: null, optIn: null,
+  listsRead: true, scheduleMaxDays: 30, businessName: "Northside Studio", bookingLink: false, ...over,
+});
+// The metrics read as today-doors.test.mjs copies it.
+const metrics = {
+  workspace: { name: "Northside Studio", timezone: ZONE, status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
+  window: { days: 1, since: "2026-09-06T04:00:00Z", since_local: "2026-09-06T00:00:00", now_local: "2026-09-06T10:00:00" },
+  now: { escalations_open: 0, oldest_open_escalation_at: null, threads_needing_human: 0, threads_snoozed: 0, threads_awaiting_reply: 0, last_inbound_at: "2026-09-06T13:00:00Z", last_outbound_at: "2026-09-06T13:01:00Z" },
+  period: { messages_in: 5, messages_out_ai: 5, messages_out_you: 0, conversations_active: 3, answered_by_ai: 5, answered_by_you: 0, unanswered_in_window: 0, median_reply_seconds_ai: 40, send_failures: 0, escalations_new: 0, escalation_reasons: {}, calls: 0, call_seconds: 0, call_sentiments: {}, calls_voicemail: 0, new_contacts: 0 },
+};
+
+/* ---------------------------------- the window ---------------------------------- */
+
+const listeners = {};
+const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
+globalThis.localStorage = storage();
+globalThis.sessionStorage = storage();
+globalThis.document = {
+  body: {}, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+  createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
+};
+globalThis.window = {
+  location: { pathname: "/w/studio", hash: "#/broadcasts", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+  history: { replaceState() {} },
+  localStorage: globalThis.localStorage,
+  sessionStorage: globalThis.sessionStorage,
+  addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
+  removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
+  dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+  setTimeout: (fn, ms) => setTimeout(fn, ms),
+  clearTimeout: (h) => clearTimeout(h),
+  setInterval: () => 1,
+  clearInterval() {},
+  __WORKSPACES: [{ id: TID, slug: "studio", name: "Northside Studio", status: "active", timezone: ZONE }],
+  __ACTIVE_WORKSPACE: TID,
+};
+const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
+installClock();
+
+let cells = [];
+let seq = 0;
+const went = [];
+const toasts = [];
+globalThis.Icon = "Icon";
+globalThis.React = {
+  Fragment: "Fragment",
+  createElement: (type, p, ...kids) => {
+    const props = { ...(p || {}), children: kids.flat(Infinity) };
+    const node = { type, props };
+    if (typeof type === "function") node.rendered = type(props);
+    return node;
+  },
+  useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
+  useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
+  useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
+  useMemo: (fn) => fn(),
+  useCallback: (fn) => fn,
+  // An effect runs when its inputs change, after its last cleanup, the way React runs it; with no inputs, on every draw.
+  useEffect: (fn, deps) => {
+    const k = seq++;
+    const prev = cells[k];
+    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (prev && typeof prev.cleanup === "function") prev.cleanup();
+    cells[k] = { deps, cleanup: undefined };
+    cells[k].cleanup = fn();
+  },
+};
+globalThis.ReactDOM = { createPortal: (node) => node };
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
+const { installPolicyStore } = await import("../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
+installPolicyStore(globalThis.window);
+globalThis.useHotkey = () => {};
+Object.assign(globalThis.window, {
+  usePPToast: () => [null, () => {}],
+  CHANLY: { nav: (to) => went.push(to), R: { admin: (pane) => `admin/${pane}` } },
+  appNavigate: (to) => went.push(to),
+  __chrome: { state: stateOf },
+  __ME: { role: "owner" },
+  canDo: () => true,
+  gate: () => ({}),
+  gateTitle: (perm, doing) => `Only an owner or operator can ${doing}.`,
+  __surfaceState: () => "live",
+  __DEMO_MODE: false,
+});
+await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
+
+const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  fn(n);
+  walk(n.props?.children, fn);
+  walk(n.rendered, fn);
+};
+const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
+const find = (tree, pred) => all(tree, pred)[0] ?? null;
+const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
+/** A node's words in reading order: what a drawn component rendered, else its children in turn. */
+const textOf = (n) => {
+  if (n == null || typeof n === "boolean") return "";
+  if (typeof n === "string" || typeof n === "number") return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join("");
+  if (n.rendered !== undefined) return textOf(n.rendered);
+  return textOf(n.props?.children);
+};
+const buttonsSaying = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).trim() === words);
+const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+const settle = () => new Promise((r) => setImmediate(r));
+/** A fresh mount: nothing kept from the last page, no listener left behind by it. */
+const fresh = () => { cells = []; seq = 0; went.length = 0; for (const k of Object.keys(listeners)) delete listeners[k]; };
+
+/** The detail's reads, answered in order per broadcast; the last answer repeats. */
+const answers = new Map();
+const asked = [];
+globalThis.window.__broadcasts = {
+  detail: async (id) => {
+    asked.push(id);
+    const queue = answers.get(id) || [];
+    return (queue.length > 1 ? queue.shift() : queue[0]) || { ok: false, code: "not_found", status: 404, message: "Broadcast not found." };
+  },
+};
+const page = (props) => { fresh(); return globalThis.window.BroadcastsPage(props); };
+const again = (props) => { seq = 0; return globalThis.window.BroadcastsPage(props); };
+const card = (p) => { fresh(); return globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) }); };
+const redraw = (p) => { seq = 0; return globalThis.window.PlaybookCard({ p, canAct: true, onEdit() {}, flash: (t) => toasts.push(t) }); };
+
+/* ------------------------------- a run's own door ------------------------------- */
+
+test("REGRESSION (C9): each of a playbook's runs opens that run -- the runs were dead text, and the one door opened every broadcast", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  const tree = card(playbook());
+  const doors = all(tree, (n) => n.props?.["data-testid"] === "pb-run-open");
+  assert.equal(doors.length, 2, "REGRESSION: a run was a line of text");
+  assert.ok(doors.every((d) => d.type === "button"), "a door a keyboard reaches");
+  press(doors[1]);
+  assert.deepEqual(went, ["broadcasts/run:b-run-1"]);
+  assert.equal(all(tree, (n) => n.type === "button" && textOf(n).includes("Its runs in Broadcasts")).length, 0, "REGRESSION: the door to every broadcast, which could name none of them");
+  assert.equal(byTestId(tree, "pb-history-more"), null, "every run is on the card");
+  const busy = card(playbook({ totals: { ...playbook().totals, runs: 14, history: Array.from({ length: 10 }, (_, i) => runOf(i)) } }));
+  assert.equal(textOf(byTestId(busy, "pb-history-more")), "The newest 10 of 14 runs", "a card that lists some of its runs says so");
+});
+
+test("REGRESSION (C9): a link to a run opens it on Broadcasts -- under its own row when it is listed, first on the page when it is older than the list", async () => {
+  globalThis.window.__BROADCASTS = broadcastsSurface();
+  answers.set("b-sent", [{ ok: true, data: detailOf(dto()) }]);
+  const listed = { initialSegment: null, initialRun: "b-sent" };
+  page(listed);
+  await settle();
+  let tree = again(listed);
+  const details = all(tree, (n) => n.props?.["data-testid"] === "bc-detail");
+  assert.equal(details.length, 1, "REGRESSION: nothing named one broadcast, so nothing opened one");
+  const row = find(tree, (n) => n.props?.["data-testid"] === "bc-history" && String(n.props.className).includes("is-open"));
+  assert.ok(row && textOf(row).includes("Win-back · 2026-09-10"), "its own row, open");
+  assert.equal(byTestId(tree, "bc-run-solo"), null, "a listed run opens where it is listed");
+  assert.ok(textOf(details[0]).includes("Rosa Díaz"), "who got it");
+
+  press(byTestId(details[0], "bc-detail-close"));
+  assert.deepEqual(went, ["broadcasts"], "closing is a link too, so the address never names a run that is not open");
+  press(row);
+  assert.deepEqual(went, ["broadcasts", "broadcasts"], "and so is pressing the open row");
+  press(byTestId(tree, "bc-open-who"));
+  assert.deepEqual(went.at(-1), "broadcasts/run:b-sending", "a scheduled or sending broadcast opens by its link");
+
+  answers.set("b-old", [{ ok: true, data: detailOf(dto({ id: "b-old", name: "Win-back · 2026-06-01" })) }]);
+  const older = { initialSegment: null, initialRun: "b-old" };
+  page(older);
+  await settle();
+  tree = again(older);
+  const solo = byTestId(tree, "bc-run-solo");
+  assert.ok(solo && textOf(solo).includes("Win-back · 2026-06-01"), "a run past the newest fifty is read by its id and shown");
+  assert.ok(find(solo, (n) => n.props?.["data-state"] === "sent"), "with its state, since no row above it says so");
+  const order = all(tree, (n) => ["bc-run-solo", "bc-composer"].includes(n.props?.["data-testid"])).map((n) => n.props["data-testid"]);
+  assert.deepEqual(order, ["bc-run-solo", "bc-composer"], "first, where a link lands, not under the composer");
+});
+
+test("the page follows its link rather than starting again: opening a run keeps the audience chosen, and a link to a list picks it", () => {
+  globalThis.window.__BROADCASTS = broadcastsSurface();
+  const chosen = (tree) => textOf(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && String(n.props.className).includes("active")));
+  let tree = page({ initialSegment: "s1", initialRun: null });
+  assert.ok(chosen(tree).startsWith("Regulars"));
+  again({ initialSegment: null, initialRun: "b-sent" });
+  tree = again({ initialSegment: null, initialRun: "b-sent" });
+  assert.ok(chosen(tree).startsWith("Regulars"), "opening a run leaves the audience where it was");
+  again({ initialSegment: "s2", initialRun: null });
+  tree = again({ initialSegment: "s2", initialRun: null });
+  assert.ok(chosen(tree).startsWith("Walk-ins"), "and a later link to another list picks that list");
+  press(find(tree, (n) => n.props?.["data-testid"] === "bc-audience" && textOf(n).startsWith("Regulars")));
+  globalThis.window.__BROADCASTS = broadcastsSurface();
+  again({ initialSegment: "s2", initialRun: null });
+  tree = again({ initialSegment: "s2", initialRun: null });
+  assert.ok(chosen(tree).startsWith("Regulars"), "while the surface re-reading its lists does not undo a choice made on the page");
+});
+
+test("REGRESSION (C23): a detail that could not be read says so with a Retry, and a link to a broadcast that is not here says that instead", async () => {
+  globalThis.window.__BROADCASTS = broadcastsSurface();
+  asked.length = 0;
+  answers.set("b-sent", [{ ok: false, code: "network", status: 0, message: "offline" }, { ok: true, data: detailOf(dto()) }]);
+  const props = { initialSegment: null, initialRun: "b-sent" };
+  page(props);
+  await settle();
+  let tree = again(props);
+  assert.ok(byTestId(tree, "bc-detail-failed"), "REGRESSION: 'Couldn't be read right now.' and nothing to press");
+  press(byTestId(tree, "bc-detail-failed-retry"));
+  again(props);
+  await settle();
+  tree = again(props);
+  assert.equal(asked.filter((id) => id === "b-sent").length, 2, "Retry reads it again");
+  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Rosa Díaz"), "and draws what it read");
+
+  answers.set("b-elsewhere", [{ ok: false, code: "not_found", status: 404, message: "Broadcast not found." }]);
+  const gone = { initialSegment: null, initialRun: "b-elsewhere" };
+  page(gone);
+  await settle();
+  tree = again(gone);
+  assert.ok(byTestId(tree, "bc-detail-gone"), "a broadcast that is not in this workspace is said to be not here");
+  assert.equal(byTestId(tree, "bc-detail-failed"), null, "not offered a Retry that can only fail again");
+});
+
+test("REGRESSION (C23): an open detail keeps up while its broadcast is sending, and stops asking once it has sent", async () => {
+  globalThis.window.__BROADCASTS = broadcastsSurface();
+  asked.length = 0;
+  answers.set("b-sending", [
+    { ok: true, data: detailOf(SENDING, [person({ state: "queued", message_status: null, sent_at: null, delivered_at: null })]) },
+    { ok: true, data: detailOf(SENDING, [person()]) },
+    { ok: false, code: "network", status: 0, message: "offline" },
+    { ok: true, data: detailOf(dto({ id: "b-sending", name: "Offers · 2026-09-15", state: "sent" }), [person({ message_status: "read", read_at: iso(-1000) })]) },
+  ]);
+  const props = { initialSegment: null, initialRun: "b-sending" };
+  const onSurfaceRead = async () => { globalThis.window.dispatchEvent({ type: "surface:broadcasts" }); again(props); await settle(); return again(props); };
+  page(props);
+  await settle();
+  let tree = again(props);
+  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Not there yet · 1"), "one on its way");
+  tree = await onSurfaceRead();
+  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Got it · 1"), "REGRESSION: the detail never re-read while the send went out");
+  tree = await onSurfaceRead();
+  assert.ok(textOf(byTestId(tree, "bc-detail")).includes("Got it · 1"), "a re-read that fails mid-send keeps what was read");
+  assert.equal(byTestId(tree, "bc-detail-failed"), null, "rather than a failure over it");
+  await onSurfaceRead();
+  const reads = asked.filter((id) => id === "b-sending").length;
+  await onSurfaceRead();
+  assert.equal(asked.filter((id) => id === "b-sending").length, reads, "sent, it has nothing left to change, and is not read again");
+});
+
+test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you opened Playbooks, and one about to send or sent today opened every broadcast", () => {
+  const quiet = { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 };
+  const waiting = dto({ id: "b-wait", name: "Win-back · 2026-09-15", state: "pending_approval", started_at: null, finished_at: null, scheduled_for: iso(-H), counts: quiet });
+  const soon = dto({ id: "b-soon", name: "Offers · 2026-09-15", state: "scheduled", started_at: null, finished_at: null, scheduled_for: iso(20 * 60_000), audience: { kind: "playbook", id: "pb-2", label: "Offers" }, playbook_id: "pb-2", counts: quiet });
+  const done = dto({ id: "b-done", name: "Save our number · 2026-09-15", state: "sent", started_at: iso(0) });
+  globalThis.window.__BROADCASTS = { rows: [waiting, soon, done].map((b) => toBroadcastVM(b, ZONE)) };
+  globalThis.window.TODAY_DATA = toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z"));
+  try {
+    fresh();
+    const queue = globalThis.window.AgentCommand();
+    const run = byTestId(queue, "brief-run-row");
+    const who = buttonsSaying(run, "See who's on it")[0];
+    assert.ok(who, "REGRESSION: the run's second door was Open Playbooks");
+    press(who);
+    run.props.onClick();
+    const next = byTestId(queue, "brief-run-soon");
+    press(buttonsSaying(next, "Open")[0]);
+    next.props.onClick();
+    assert.deepEqual(went, ["broadcasts/run:b-wait", "broadcasts/run:b-wait", "broadcasts/run:b-soon", "broadcasts/run:b-soon"], "REGRESSION: Playbooks, and the page of every broadcast");
+    fresh();
+    const hero = globalThis.window.HeroBrief();
+    press(buttonsSaying(byTestId(hero, "brief-run-done"), "Open")[0]);
+    assert.deepEqual(went, ["broadcasts/run:b-done"]);
+  } finally {
+    delete globalThis.window.TODAY_DATA;
+  }
+});
+
+/* ------------------------------ what a card shows ------------------------------ */
+
+test("REGRESSION (C10): a card shows the words its runs send -- it named the template and never showed the message", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  let tree = card(playbook());
+  const words = byTestId(tree, "pb-words");
+  assert.ok(words, "REGRESSION: the template's name, and no words");
+  assert.ok(textOf(words).includes("Hi Dani, it's been a while at Northside Studio. Come back for 10% off this week."), textOf(words));
+  press(byTestId(tree, "pb-words-toggle"));
+  tree = redraw(playbook());
+  assert.ok(byTestId(byTestId(tree, "pb-words"), "wa-bubble"), "the whole message, as the customer sees it");
+
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: [] });
+  tree = card(playbook());
+  assert.equal(byTestId(tree, "pb-words"), null);
+  assert.match(textOf(byTestId(tree, "pb-template-gone")), /no longer approved/, "a template WhatsApp no longer approves is said, since the runs skip it");
+
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: null });
+  fresh();
+  const failed = globalThis.window.OutboundPage({});
+  assert.ok(byTestId(failed, "pb-cards-templates-failed"), "a templates read that failed is said once, over the cards");
+  assert.equal(byTestId(failed, "pb-template-gone"), null, "and no card calls its template withdrawn");
+});
+
+test("REGRESSION (C16): Skip this run asks first, as Broadcasts does -- it skipped on one click", async () => {
+  const skipped = [];
+  globalThis.window.__playbooks = { skipRun: async (id) => { skipped.push(id); return { ok: true, data: {} }; } };
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  const p = playbook({ totals: { ...playbook().totals, waiting: { id: "b-wait", recipient_count: 3, name: "Win-back · 2026-09-15" } } });
+  let tree = card(p);
+  press(byTestId(tree, "pb-skip"));
+  assert.deepEqual(skipped, [], "REGRESSION: one click skipped the run");
+  tree = redraw(p);
+  assert.ok(textOf(byTestId(tree, "pb-skip-confirm")).includes("Skip this run of Win-back?"));
+  assert.equal(byTestId(tree, "pb-approve"), null, "while it asks, Approve steps aside");
+  assert.equal(byTestId(tree, "pb-delete-confirm"), null, "and the delete's question stays its own");
+  await press(byTestId(tree, "pb-skip-yes"));
+  assert.deepEqual(skipped, ["b-wait"]);
+});
+
+test("REGRESSION (C18): a visit reminder's card shows its policy chip -- its class, booking, was looked up as a row id", () => {
+  globalThis.window.__POLICIES = { role: "owner", rows: [{ class: "booking", mode: "auto", limits: {} }] };
+  try {
+    globalThis.window.__PLAYBOOKS = playbooksSurface();
+    const tree = card(playbook({ id: "pb-v", name: "Visit reminder", trigger: "visit_tomorrow", policy_class: "booking", triggerLabel: "Visit tomorrow" }));
+    const chip = find(tree, (n) => n.type === globalThis.PolicyChip);
+    assert.ok(chip && chip.rendered, "REGRESSION: no chip at all");
+    assert.equal(textOf(chip.rendered), `${POLICY_CLASS_WORDS.booking.short} · Auto`);
+  } finally {
+    delete globalThis.window.__POLICIES;
+  }
+});
+
+test("REGRESSION (C19): with no approved template, the composer's hint opens Messages -- it named the page in plain words", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ rows: [], templates: [] });
+  fresh();
+  globalThis.window.OutboundPage({});
+  globalThis.window.dispatchEvent({ type: "playbooks:new" });
+  seq = 0;
+  const tree = globalThis.window.OutboundPage({});
+  const hint = byTestId(tree, "pb-no-template");
+  assert.ok(hint, "the composer is open on a workspace with no template");
+  const door = find(hint, (n) => n.type === "button");
+  assert.ok(door, "REGRESSION: 'Campaigns › Messages' as words");
+  press(door);
+  assert.deepEqual(went, ["messages"]);
+});
+
+test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending now' over a run the server moved to nine", async () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  globalThis.window.__playbooks = { runNow: async () => ({ ok: true, data: { id: "pb-1", outcome: "sent", eligible: 3, broadcast_id: "b-new", name: "Win-back", scheduled_for: iso(10 * H), moved_from: iso(0) } }) };
+  toasts.length = 0;
+  await press(byTestId(card(playbook()), "pb-run-now"));
+  let said = textOf(toasts.at(-1).msg);
+  assert.ok(said.includes("scheduled for"), `REGRESSION: ${said}`);
+  assert.ok(!said.includes("sending now"), said);
+
+  // A dashboard deployed ahead of its edge gets no time back, and does not claim one.
+  globalThis.window.__playbooks = { runNow: async () => ({ ok: true, data: { id: "pb-1", outcome: "sent", eligible: 3, broadcast_id: "b-new", name: "Win-back" } }) };
+  await press(byTestId(card(playbook()), "pb-run-now"));
+  said = textOf(toasts.at(-1).msg);
+  assert.ok(!/\bnow\b/.test(said), said);
+});

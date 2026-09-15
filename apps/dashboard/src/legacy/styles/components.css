@@ -1396,6 +1396,15 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ob-progress { flex: 1; min-width: 80px; height: 4px; border-radius: 2px; background: var(--bg-sunken); border: 1px solid var(--line); overflow: hidden; }
 .ob-progress-fill { display: block; height: 100%; background: var(--accent); opacity: 0.6; transition: width 0.5s var(--ease-out); }
 .ob-actions { display: flex; gap: 6px; flex-wrap: wrap; }
+/* A card's message: two lines at rest, the whole bubble on a press. Its runs: each one a door to itself. */
+.ob-words { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+.ob-words-line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 68ch; font-size: 12px; line-height: 1.45; color: var(--ink-muted); }
+.ob-history { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.ob-history .ob-history-row { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; padding: 2px 0; text-align: left; border-radius: var(--radius-sm); }
+.ob-history-row .icon { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+.ob-history-row:hover, .ob-history-row:focus-visible { color: var(--ink); }
+.ob-history-row:hover .icon, .ob-history-row:focus-visible .icon { opacity: 1; }
+.ob-history-more { font-size: 11px; color: var(--ink-faint); padding-top: 2px; }
 
 
 /* ---------- Shareable views ---------- */
