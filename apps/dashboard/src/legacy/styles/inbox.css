@@ -68,6 +68,13 @@
 .ix-bucket.active.accent { background: var(--accent-soft); }
 
 .ix-bucket-label { flex: 1; }
+/* Three buckets, one row of words: the icon says again what the label says, and at 12.5px "Needs you" did not fit the
+   106px a third of the rail gives it. Six seeded buckets keep their grid. */
+.ix-buckets.one-row { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; }
+.ix-buckets.one-row .ix-bucket { gap: 6px; padding: 7px 8px; font-size: 11.5px; }
+.ix-buckets.one-row .ix-bucket > .icon { display: none; }
+.ix-buckets.one-row .ix-bucket-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ix-buckets.one-row .ix-bucket-count { min-width: 14px; }
 .ix-bucket-count {
   font-size: 11px;
   color: var(--ink-dim);
