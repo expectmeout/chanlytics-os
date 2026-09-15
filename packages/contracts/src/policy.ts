@@ -215,6 +215,36 @@ export const REPLY_DELAY_MIN_MS = 5_000;
 export const REPLY_DELAY_MAX_MS = 600_000;
 
 /**
+ * The two limits a workspace is seeded with and Autonomy states: automatic
+ * replies to one person in a day, and the hours a person's reply keeps the
+ * receptionist off a thread. The runtime keeps its own copies (the edge's
+ * MAX_REPLIES_PER_DAY and PAUSE_MS, the dashboard server's PAUSE_MS), and a test
+ * holds the edge's equal to these.
+ */
+export const REPLY_CAP_DEFAULT = 20;
+export const PAUSE_HOURS_DEFAULT = 24;
+
+/**
+ * The hard limits in an owner's words (the wiring audit's S6). The card called
+ * the last two "this workspace's own values", beside the page's own 20 and 24,
+ * over limits nothing on the page can change. A stored value is said as stored;
+ * one that is not stored is said to be the default.
+ */
+export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): { sub: string; replies: string; pause: string } {
+  const stored = (v: unknown): number | null => {
+    const n = Number(v);
+    return v !== undefined && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const cap = stored(limits?.max_replies_day);
+  const hours = stored(limits?.pause_hours);
+  return {
+    sub: "The first two never change. The last two are this workspace's limits, set by Chanlytics, and can't be changed here",
+    replies: `Stops after ${cap ?? REPLY_CAP_DEFAULT} automatic replies to one person in a day${cap === null ? " (the default)" : ""} and asks for you`,
+    pause: `Stays paused for ${hours ?? PAUSE_HOURS_DEFAULT} hours after you take over a thread${hours === null ? " (the default)" : ""}`,
+  };
+}
+
+/**
  * The wait for THIS reply, in ms. Zero means send now.
  *
  * Clamped rather than trusted: `limits` is tenant-editable JSON, and a typo of

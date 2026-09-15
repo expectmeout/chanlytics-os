@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164, formatPhoneDisplay } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -23,6 +23,8 @@ declare global {
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
+    __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
+    __hardLimits: typeof hardLimitsWords;
   }
 }
 
@@ -60,6 +62,10 @@ if (typeof window !== "undefined") {
   // A stored number written the way people write one, "+1 (305) 555-0100", as
   // Setup and Connections already show them: Business showed the E.164.
   window.__phoneDisplay = formatPhoneDisplay;
+  // A broken configuration in the words Setup's row says (S8), and Autonomy's
+  // hard limits in words that say a default is a default (S6).
+  window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
+  window.__hardLimits = hardLimitsWords;
 }
 
 export {};

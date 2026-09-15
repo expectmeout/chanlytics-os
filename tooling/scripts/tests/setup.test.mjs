@@ -82,8 +82,8 @@ test("an empty workspace: nothing answers, every row reads its true state, the f
   assert.deepEqual(row(vm, "whatsapp").verb, { label: "Connect", to: "admin/integrations" });
   assert.equal(vm.done, 0);
   assert.equal(vm.total, 9);
-  assert.deepEqual(vm.next, { label: "Start in Workspace", to: "admin/workspace", row: "facts", title: "Business facts" });
-  assert.equal(vm.line, "Setup · 0 of 9 · Business facts: start in workspace");
+  assert.deepEqual(vm.next, { label: "Start in Business", to: "admin/workspace", row: "facts", title: "Business facts" });
+  assert.equal(vm.line, "Setup · 0 of 9 · Business facts: start in business");
   assert.equal(vm.tryIt, null);
   for (const r of vm.rows) assert.equal(r.stateWords, SETUP_STATE_WORDS[r.state]);
 });
@@ -191,7 +191,7 @@ test("business facts: partly there says what is missing; a broken config is its 
   const part = setupSteps(empty({ business: { ...facts, hours: false, services: 0 } }), NOW);
   assert.equal(row(part, "facts").state, "waiting_you");
   assert.equal(row(part, "facts").sentence, "Still missing: hours and services.");
-  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Workspace", to: "admin/workspace" });
+  assert.deepEqual(row(part, "facts").verb, { label: "Finish in Business", to: "admin/workspace" });
   const broken = setupSteps(empty({ business: { ...empty().business, broken: true } }), NOW);
   assert.equal(row(broken, "facts").state, "waiting_you");
   assert.match(row(broken, "facts").sentence, /could not be read/);
@@ -212,9 +212,9 @@ test("team and alerts: the verb goes to whichever half is missing; calendar: unr
   const feed = setupSteps(empty({ calendar: { state: "unavailable" } }), NOW);
   assert.equal(row(feed, "calendar").state, "waiting_you");
   assert.deepEqual(row(feed, "calendar").verb, { label: "Check the feed", to: "admin/workspace" });
-  assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read. Check the address in Workspace.");
+  assert.equal(row(feed, "calendar").sentence, "Your calendar could not be read. Check the address in Settings › Business.");
   const why = setupSteps(empty({ calendar: { state: "unavailable", problem: "The calendar answered 404. It is usually the private iCal link, not the calendar's web page." } }), NOW);
-  assert.equal(row(why, "calendar").sentence, "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page. Check the address in Workspace.", "the row says why, in the words the board and the preview use");
+  assert.equal(row(why, "calendar").sentence, "Your calendar could not be read. The calendar answered 404. It is usually the private iCal link, not the calendar's web page. Check the address in Settings › Business.", "the row says why, in the words the board and the preview use");
 });
 
 test("a channel row without a number never reads a null aloud", () => {
@@ -310,8 +310,8 @@ test("Setup says what texting actually is, and names a mock filing as a mock fil
   assert.ok(row(filed, "line").sentence.endsWith("Texting is with the carriers."));
   const refused = withState({ sms_state: "rejected" });
   assert.match(row(refused, "line").sentence, /refused the texting registration/);
-  // Unfiled stays what it always said: a line that can call and not text.
-  assert.ok(row(withState({}), "line").sentence.endsWith("Texting is not available yet."));
+  // Unfiled, on a line that answers calls: texting waits on the business record, as Connections' row says (S7).
+  assert.ok(row(withState({}), "line").sentence.endsWith("Texting needs your business on record for the carriers — two minutes, once, on Connections."));
 });
 
 test("the wiring for lines: routes owner-only and rate-limited, the setup route carries them, the bridge repaints on a step, the page has the chooser", () => {

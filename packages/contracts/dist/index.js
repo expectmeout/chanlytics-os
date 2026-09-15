@@ -1222,6 +1222,21 @@ function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
 var REPLY_DELAY_DEFAULT_MS = 3e4;
 var REPLY_DELAY_MIN_MS = 5e3;
 var REPLY_DELAY_MAX_MS = 6e5;
+var REPLY_CAP_DEFAULT = 20;
+var PAUSE_HOURS_DEFAULT = 24;
+function hardLimitsWords(limits) {
+  const stored = (v) => {
+    const n = Number(v);
+    return v !== void 0 && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  const cap = stored(limits?.max_replies_day);
+  const hours = stored(limits?.pause_hours);
+  return {
+    sub: "The first two never change. The last two are this workspace's limits, set by Chanlytics, and can't be changed here",
+    replies: `Stops after ${cap ?? REPLY_CAP_DEFAULT} automatic replies to one person in a day${cap === null ? " (the default)" : ""} and asks for you`,
+    pause: `Stays paused for ${hours ?? PAUSE_HOURS_DEFAULT} hours after you take over a thread${hours === null ? " (the default)" : ""}`
+  };
+}
 function replyDelayMs(mode, limits) {
   if (mode !== "veto") return 0;
   const raw = limits?.reply_delay_ms;
@@ -4512,7 +4527,7 @@ var SERVER_LOOK = {
 var ROUTE_VERBS = [
   [/^admin\/setup/, "Open Setup"],
   [/^admin\/integrations/, "Open Connections"],
-  [/^admin\/workspace/, "Open Workspace"],
+  [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],
@@ -6944,9 +6959,17 @@ var SETUP_STATE_WORDS = {
 var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one number, and about ${SOLE_PROP_LIMITS.messagesPerSecond} message a second, so a large send goes out over minutes rather than all at once.`;
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var MOCK_TEXTING_SENTENCE = "Texting is filed against a test registry, so nothing is delivered \u2014 a person at Chanlytics is filing it with the carriers for real.";
+var TEXTING_NEEDS_RECORD_SENTENCE = "Texting needs your business on record for the carriers \u2014 two minutes, once.";
+var TEXTING_NEEDS_RECORD_CLAUSE = "Texting needs your business on record for the carriers \u2014 two minutes, once, on Connections.";
+var BROKEN_CONFIG_WORDS = {
+  title: "This workspace's settings can't be read",
+  body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed \u2014 saving from here would replace what is still there. Chanlytics has to repair it.",
+  clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong."
+};
 function textingWords(l) {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
+  if (l.voice_state === "answering" && (!l.sms_state || l.sms_state === "none")) return { sentence: TEXTING_NEEDS_RECORD_CLAUSE, done: false };
   switch (l.sms_state) {
     // Working, and on the narrow registration: the ceiling belongs in the same
     // sentence as the good news, because the moment it bites is a broadcast
@@ -7027,14 +7050,14 @@ function setupSteps(i, nowMs = Date.now()) {
     const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
     const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
     if (b.broken) {
-      row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: "Your settings could not be read. Open Workspace to repair them before anything else.", details: [], verb: { label: "Open Workspace", to: "admin/workspace" } });
+      row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: "Open Business", to: "admin/workspace" } });
     } else if (serious) {
       row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: serious.sentence, details: [`${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`], verb: { label: "Fix it in Business", to: serious.to } });
     } else if (missing.length === 0) {
-      row2({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Workspace", to: "admin/workspace" } });
+      row2({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Business", to: "admin/workspace" } });
     } else {
       const none = missing.length === 3;
-      row2({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Workspace" : "Finish in Workspace", to: "admin/workspace" } });
+      row2({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" } });
     }
   }
   row2(handoffNum ? { id: "handoff", icon: "phone", title: "A person to hand off to", state: "ready", required: false, sentence: `Callers who insist on a person are transferred to ${handoffNum}.`, details: [], verb: { label: "Change it", to: "admin/workspace" } } : { id: "handoff", icon: "phone", title: "A person to hand off to", state: "waiting_you", required: false, sentence: "Give the receptionist a number to hand callers to when they insist on a person.", details: [], verb: { label: "Add a number", to: "admin/workspace" } });
@@ -7044,7 +7067,7 @@ function setupSteps(i, nowMs = Date.now()) {
   const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
   if (voiceReady) {
-    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Connections", to: "admin/integrations" } });
+    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", ownLine || texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (voice.present) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off \u2014 the receptionist is not answering it.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
@@ -7115,7 +7138,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
   }
-  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Workspace.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
@@ -7148,7 +7171,7 @@ function setupSteps(i, nowMs = Date.now()) {
     } else if (g) {
       row2({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach], verb: { label: "Open Reports", to: "reports" } });
     } else if (i.google.places !== false) {
-      row2({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Workspace for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
+      row2({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Settings \u203A Business for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
     } else {
       row2({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Connect your Google Business Profile so every review reaches you here.", details: ["Sign in to Google once, on Connections"], verb: { label: "Connect", to: "admin/integrations" } });
     }
@@ -7554,7 +7577,7 @@ function smsStateRow(line, nowMs) {
   const base = { kind: "sms", icon: "chat", title: "Texting", detail: num2, verb: null };
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
-    return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+    return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: TEXTING_NEEDS_RECORD_SENTENCE, verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
   }
   if (line?.reg_mock) {
     return { ...base, state: "attention", stateWords: "Waiting on us", sentence: textingWords(line).sentence };
@@ -7570,7 +7593,7 @@ function smsStateRow(line, nowMs) {
     case "approved":
       return { ...base, state: "waiting_them", stateWords: "Waiting on carriers", sentence: `Your business is approved. One last check on the line is with the carriers \u2014 usually days, and texting switches itself on${since ? `; approved ${since}` : ""}.` };
     case "needs_record":
-      return line?.last_error ? { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: line.last_error, verb: { label: "Open the record", to: "verb:business-record", who: "owner" }, body: "business_record" } : { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers \u2014 two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+      return line?.last_error ? { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: line.last_error, verb: { label: "Open the record", to: "verb:business-record", who: "owner" }, body: "business_record" } : { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: TEXTING_NEEDS_RECORD_SENTENCE, verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
       return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "The carriers texted your mobile \u2014 reply to that message from the handset itself and texting switches on. There is nothing to type here. The code lasts a day; if it runs out, Chanlytics asks the carriers for another." };
     case "registering":
@@ -7648,7 +7671,7 @@ function connectionRows(i, nowMs = Date.now()) {
   if (cal === "ok") {
     out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: "Readable", sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
   } else if (cal === "unavailable") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: "Could not be read", sentence: "Your calendar could not be read. Check the address in Workspace.", verb: { label: "Check the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: "Could not be read", sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.", verb: { label: "Check the feed", to: "admin/workspace", who: "owner" } }));
   } else {
     out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: "Not connected", sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the feed", to: "admin/workspace", who: "owner" } }));
   }
@@ -8785,6 +8808,7 @@ export {
   BROADCAST_SCHEDULE_MAX_DAYS,
   BROADCAST_STATES,
   BROADCAST_STATE_LABELS,
+  BROKEN_CONFIG_WORDS,
   BUSINESS_INDUSTRIES,
   BUSINESS_TYPES,
   BookingRulesSchema,
@@ -8877,6 +8901,7 @@ export {
   PASSWORD_MAX_BYTES,
   PASSWORD_MIN,
   PASSWORD_WORDS,
+  PAUSE_HOURS_DEFAULT,
   PENDING_WORKSPACE_KEY,
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
@@ -8916,6 +8941,7 @@ export {
   REGISTRATION_PATHS,
   REGISTRATION_PATH_WORDS,
   REGISTRATION_QUESTION,
+  REPLY_CAP_DEFAULT,
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
@@ -8963,6 +8989,8 @@ export {
   TEMPLATE_STATUSES,
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
+  TEXTING_NEEDS_RECORD_CLAUSE,
+  TEXTING_NEEDS_RECORD_SENTENCE,
   THEME_OPTIONS,
   TIMELINE_FILTERS,
   TOAST_ICONS,
@@ -9110,6 +9138,7 @@ export {
   guessName,
   guessSlotKind,
   handoffE164,
+  hardLimitsWords,
   hasProfile,
   hoursLines2 as hoursLines,
   hoursRuns,

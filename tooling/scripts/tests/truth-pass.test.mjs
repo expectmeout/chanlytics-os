@@ -23,7 +23,7 @@ test("AI memory is an honest pane that keeps the settings nav; Billing is real",
   assert.ok(settings.includes('data-testid={`soon-${which}`}'), "the pane is addressable by the e2e");
   assert.ok(settings.includes("does not learn rules on its own yet"), "AI memory says what is true");
   assert.ok(!settings.includes("There is no billing in the product yet"), "nothing says billing is not built any more");
-  assert.ok(settings.includes('action: { label: "Open Workspace", tab: "workspace"'), "and points at where the knowledge lives");
+  assert.ok(settings.includes('action: { label: "Open Business", tab: "workspace"'), "and points at where the knowledge lives");
   // The registry classifies both panes so the gate no longer swallows the page.
   const registry = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   for (const pane of ["billing", "memory"]) {

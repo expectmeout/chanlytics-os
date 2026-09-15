@@ -228,7 +228,7 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
 const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/setup/, "Open Setup"],
   [/^admin\/integrations/, "Open Connections"],
-  [/^admin\/workspace/, "Open Workspace"],
+  [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],

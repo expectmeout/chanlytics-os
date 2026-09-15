@@ -64,11 +64,11 @@ test("REGRESSION: a Business save keeps a booking rule the editor does not show 
   const kept = globalThis.window.settingsRulesKept;
   assert.equal(typeof kept, "function", "what a save keeps is one rule that can be run");
   assert.deepEqual(
-    kept({ slot_min: 45, lead_hours: 2, buffer_min: 10, max_days_ahead: 14, party_max: 4, consult_first: ["balayage"], notes: ["no walk-ins"] }),
-    { slot_min: 45 },
-    "the six keys the form edits are the form's to write; the rest stays as stored",
+    kept({ slot_min: 45, lead_hours: 2, buffer_min: 10, max_days_ahead: 14, party_max: 4, consult_first: ["balayage"], notes: ["no walk-ins"], a_rule_added_later: true }),
+    { a_rule_added_later: true },
+    "the seven keys the form edits, the slot length among them since it has a field, are the form's to write; the rest stays as stored",
   );
-  assert.deepEqual(kept({ slot_min: 45, a_rule_added_later: true }), { slot_min: 45, a_rule_added_later: true });
+  assert.deepEqual(kept({ a_rule_added_later: true }), { a_rule_added_later: true });
   assert.deepEqual(kept(undefined), {});
   assert.deepEqual(kept(null), {});
 });
