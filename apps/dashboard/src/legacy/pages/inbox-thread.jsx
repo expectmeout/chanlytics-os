@@ -725,7 +725,7 @@ const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOv
 // whole Inbox pane rather than offering the one send that would work.
 // Named after what it SENDS, not after the mechanism: the operator should know
 // what lands on their customer's phone before they click.
-const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
+const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread = null }) => {
   const [sending, setSending] = useCvtState(false);
   // The workspace's OWN approved templates, published by the seam. The button
   // used to name one by a hardcoded literal — booking_link_v1/en_US — which is
@@ -738,8 +738,16 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
 
   // On a seeded thread there is nothing to look up and nothing to send; keep
   // the mockup's own affordance.
-  const list = real ? templates : null;
-  const chosen = list ? list[Math.min(picked, list.length - 1)] : null;
+  // The templates this person can be sent, in the owner's words, and why the rest are not offered: the composer
+  // offered every approved one, and the reply route refuses a promotion to someone who has not said yes to offers
+  // and a template with values the Inbox does not fill (I4).
+  const choice = real && templates && thread && window.__inboxTemplates
+    ? window.__inboxTemplates(templates, { who: thread.who, offersOk: !!thread.offersOk })
+    : null;
+  const list = real ? (choice ? choice.sendable.map((s) => s.template) : templates) : null;
+  const chosenAt = list && list.length ? Math.min(picked, list.length - 1) : -1;
+  const chosen = chosenAt >= 0 ? list[chosenAt] : null;
+  const chosenTitle = choice && chosenAt >= 0 ? choice.sendable[chosenAt].title : null;
 
   const fire = () => {
     if (sending || !window.canDo("approve")) return;
@@ -754,7 +762,7 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
   // Nothing approved yet. Say so, rather than offering a send that cannot
   // happen: outside the window this is the only thing WhatsApp will deliver,
   // so an operator needs to know the gap is at Meta and not on this screen.
-  if (real && list && list.length === 0) {
+  if (real && templates && templates.length === 0) {
     return (
       <span className="ix-tpl-none">
         No approved template yet — outside the 24-hour window WhatsApp delivers nothing else.
@@ -763,6 +771,13 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
   }
   if (real && readTemplates === null) {
     return <FailedRead kind="line" title="Couldn't read your approved templates" body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read." surface="inbox" testid="ix-tpl-failed" />;
+  }
+  if (real && choice && choice.sendable.length === 0) {
+    return (
+      <span className="ix-tpl-none" data-testid="ix-tpl-hidden">
+        None of your approved templates can go to {thread.who}. {choice.hidden}
+      </span>
+    );
   }
   if (real && !list) {
     return <span className="ix-tpl-none">Checking which templates are approved…</span>;
@@ -777,8 +792,8 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
           onChange={(e) => setPicked(Number(e.target.value))}
           aria-label="Which approved template to send"
         >
-          {list.map((t, i) => (
-            <option key={t.id} value={i}>{t.name} · {t.language}</option>
+          {(choice ? choice.sendable : list.map((t) => ({ template: t, label: `${t.name} · ${t.language}` }))).map((s, i) => (
+            <option key={s.template.id} value={i}>{s.label}</option>
           ))}
         </select>
       )}
@@ -788,14 +803,15 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
         disabled={sending}
         title={
           chosen
-            ? `Sends your approved template "${chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
+            ? `Sends your approved template "${chosenTitle || chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
             : "Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
         }
         {...window.gate("approve")}
       >
         <Icon name="send" size={12} />{" "}
-        {sending ? "Sending…" : chosen && list.length > 1 ? "Send template" : "Send booking link"}
+        {sending ? "Sending…" : chosen && list.length > 1 ? "Send template" : chosenTitle ? `Send “${chosenTitle}”` : "Send booking link"}
       </button>
+      {choice && choice.hidden ? <span className="ix-tpl-hidden" data-testid="ix-tpl-hidden">{choice.hidden}</span> : null}
     </>
   );
 };
@@ -897,11 +913,11 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
         <div className="ix-composer-foot">
           <div className="ix-composer-channel">
             <Icon name="phone" size={12} />
-            <span>PHONE · {thread.phone || thread.who}</span>
+            <span>Phone · {thread.phoneDisplay || thread.phone || thread.who}</span>
           </div>
           <div className="ix-composer-actions">
             {thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`}><Icon name="phone" size={12} /> Call back</a>}
-            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} />
+            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>
       </div>
@@ -918,10 +934,10 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
         <div className="ix-composer-foot">
           <div className="ix-composer-channel">
             <Icon name="chat" size={12} />
-            <span>WHATSAPP · to {thread.who}</span>
+            <span>WhatsApp · to {thread.who}</span>
           </div>
           <div className="ix-composer-actions">
-            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} />
+            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>
       </div>

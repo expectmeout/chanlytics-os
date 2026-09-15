@@ -306,6 +306,8 @@
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
 /* The thread's state is the shared pill (StatePill); the list keeps it small. */
 .ix-state-pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+/* A name keeps its own letters: an email in capitals is shouting (I4). */
+.ix-state-pill.ix-name-pill { text-transform: none; letter-spacing: 0; }
 
 .ix-thread-subject {
   font-size: 12px;
@@ -1581,6 +1583,8 @@ button.ix-policy.pill-warn{border:1px solid transparent}
   max-width: 210px;
   font-size: 12px;
 }
+/* Why an approved template is not offered to this person (I4). */
+.ix-tpl-hidden { flex-basis: 100%; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }

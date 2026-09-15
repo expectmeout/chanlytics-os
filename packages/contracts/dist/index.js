@@ -1580,6 +1580,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
     who,
     whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
     avatar: initialsOf(who),
@@ -1605,6 +1606,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     primaryChannel,
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
+    phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
     agent: AGENT,
     subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : last ? messageText(last).slice(0, 80) : "No messages yet"),
@@ -5539,6 +5541,39 @@ function templateTitle(name, title) {
   const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
 }
+function languageWords(code2) {
+  const base = String(code2 ?? "").split(/[-_]/)[0];
+  const Names = Intl.DisplayNames;
+  try {
+    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : void 0;
+    return name && name !== base ? name : String(code2 ?? "");
+  } catch {
+    return String(code2 ?? "");
+  }
+}
+function inboxTemplates(templates, to) {
+  const sendable = [];
+  let promotions = 0;
+  let unfillable = 0;
+  for (const t of templates) {
+    const slots = Array.isArray(t.variables) ? t.variables.length : null;
+    if (slots !== null && slots !== 2) {
+      unfillable += 1;
+      continue;
+    }
+    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) {
+      promotions += 1;
+      continue;
+    }
+    const title = templateTitle(t.name, t.title);
+    sendable.push({ template: t, title, label: `${title} \xB7 ${languageWords(t.language)}` });
+  }
+  const held = [
+    promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
+    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} values the Inbox doesn't fill` : ""
+  ].filter(Boolean);
+  return { sendable, hidden: held.length ? `Not offered: ${held.join(" and ")}.` : null };
+}
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
@@ -9339,6 +9374,7 @@ export {
   hoursLines2 as hoursLines,
   hoursRuns,
   identityWords,
+  inboxTemplates,
   indexFeed,
   industryOf,
   industryWords,
@@ -9364,6 +9400,7 @@ export {
   isUngrounded,
   isUsablePassword,
   knownTimezones,
+  languageWords,
   lastChangedWords,
   lineCredentialFailure,
   lineRetryRefusal,
