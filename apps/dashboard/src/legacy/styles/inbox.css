@@ -3,6 +3,11 @@
    ==================================================================== */
 
 .inbox {
+  /* The Inbox fills the shell's row. Inside that flex row the grid was only as wide as its columns' content, and
+     once the thread pane sized itself by its own width (container: ixpane, #542) it had none: the pane collapsed
+     to 1px at every screen size. */
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-columns: var(--rail-list) minmax(0, 1fr);
   height: 100%;
