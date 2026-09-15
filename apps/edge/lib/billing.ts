@@ -76,6 +76,18 @@ export function billingReadiness(): { ready: boolean; key: boolean; price: boole
   return { ready: key && price && webhook, key, price, webhook };
 }
 
+/**
+ * Which of Stripe's two worlds the key opens, by its own prefix: sk_live_ and rk_live_ are live; sk_test_ and rk_test_
+ * are test, where only Stripe's test cards work and no money moves. Null with no key, or one that says neither: not
+ * guessed. Billing and Setup say test mode from it (the wiring audit's S9).
+ */
+export function stripeLivemode(): boolean | null {
+  const key = process.env.STRIPE_SECRET_KEY ?? "";
+  if (key.startsWith("sk_live_") || key.startsWith("rk_live_")) return true;
+  if (key.startsWith("sk_test_") || key.startsWith("rk_test_")) return false;
+  return null;
+}
+
 export function accountForClient(r: BillingRow): BillingAccountDto {
   return billingAccountDto(r);
 }

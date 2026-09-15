@@ -2,7 +2,7 @@
  * POST /api/admin/billing — a workspace's way to pay. Diagnostic-key only;
  * the dashboard's /api/v1/billing verbs call it for an owner.
  *
- *   { op: "status" }                                  → what this deployment can do, the plan as Stripe states it, the trial length
+ *   { op: "status" }                                  → what this deployment can do, whether its key is live or test, the plan as Stripe states it, the trial length
  *   { op: "checkout", tenant_id, email }              → the way to Checkout (a card, the trial), back to Billing after
  *   { op: "portal", tenant_id }                       → the way to Stripe's portal (card, invoices, cancel)
  *   { op: "invoices", tenant_id }                     → the last twelve invoices
@@ -16,7 +16,7 @@
 import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
-import { billingReadiness, checkoutFor, invoicesFor, portalFor, priceForClient, resumeFor, syncFor, trialDays } from "../../lib/billing.js";
+import { billingReadiness, checkoutFor, invoicesFor, portalFor, priceForClient, resumeFor, stripeLivemode, syncFor, trialDays } from "../../lib/billing.js";
 
 interface Body {
   op?: string;
@@ -45,7 +45,7 @@ export async function POST(request: Request): Promise<Response> {
 
   if (op === "status") {
     const ready = billingReadiness();
-    return json(200, { ok: true, ready: ready.ready, doors: ready, price: ready.ready ? await priceForClient() : null, trial_days: trialDays() });
+    return json(200, { ok: true, ready: ready.ready, livemode: stripeLivemode(), doors: ready, price: ready.ready ? await priceForClient() : null, trial_days: trialDays() });
   }
 
   const db = pg();

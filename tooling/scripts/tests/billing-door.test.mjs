@@ -140,7 +140,7 @@ test("status: what this deployment can do, the plan as Stripe states it -- read 
   const db = use(tables());
   const s = stripe({ "prices.retrieve": async () => ({ id: "price_1", object: "price", currency: "usd", unit_amount: 9900, recurring: { interval: "month", interval_count: 1 }, product: { id: "prod_1", object: "product", name: "Chanlytics" } }) });
   assert.deepEqual(await answer(await knock({ op: "status" })), [200, {
-    ok: true, ready: true, doors: { ready: true, key: true, price: true, webhook: true },
+    ok: true, ready: true, livemode: false, doors: { ready: true, key: true, price: true, webhook: true },
     price: { id: "price_1", currency: "usd", unit_amount: 9900, interval: "month", product_name: "Chanlytics" }, trial_days: 14,
   }]);
   assert.deepEqual(s.asked("prices.retrieve"), [["price_1", { expand: ["product"] }]], "the amount comes from Stripe, with the product expanded for its name");
@@ -153,13 +153,25 @@ test("status: what this deployment can do, the plan as Stripe states it -- read 
   await withEnv({ BILLING_TRIAL_DAYS: "120" }, async () => assert.equal(await trial(), 14, "out of range: the default"));
   await withEnv({ BILLING_TRIAL_DAYS: "soon" }, async () => assert.equal(await trial(), 14));
   await withEnv({ STRIPE_WEBHOOK_SECRET: undefined }, async () => {
-    assert.deepEqual(await answer(await knock({ op: "status" })), [200, { ok: true, ready: false, doors: { ready: false, key: true, price: true, webhook: false }, price: null, trial_days: 14 }], "without the webhook secret the door is shut, and no amount is shown for a button that cannot charge");
+    assert.deepEqual(await answer(await knock({ op: "status" })), [200, { ok: true, ready: false, livemode: false, doors: { ready: false, key: true, price: true, webhook: false }, price: null, trial_days: 14 }], "without the webhook secret the door is shut, and no amount is shown for a button that cannot charge");
   });
   await withEnv({ STRIPE_PRICE_ID: undefined }, async () => {
     const [, body] = await answer(await knock({ op: "status" }));
     assert.deepEqual([body.ready, body.doors.price, body.price], [false, false, null]);
   });
   assert.equal(db.seen.length, 0, "status reads no database");
+});
+
+test("REGRESSION (S9): status says which of Stripe's two worlds the key opens, by the key's own prefix, and guesses nothing -- Billing and Setup could not tell a test card from a real one", async () => {
+  use(tables());
+  stripe({ "prices.retrieve": async () => ({ id: "price_1", object: "price", currency: "usd", unit_amount: 9900, recurring: { interval: "month", interval_count: 1 }, product: { id: "prod_1", object: "product", name: "Chanlytics" } }) });
+  const said = async () => (await (await knock({ op: "status" })).json()).livemode;
+  assert.equal(await said(), false, "REGRESSION: sk_test_ is test mode, and status never said so");
+  await withEnv({ STRIPE_SECRET_KEY: "rk_test_restricted" }, async () => assert.equal(await said(), false, "a restricted test key is test mode too"));
+  await withEnv({ STRIPE_SECRET_KEY: "sk_live_real" }, async () => assert.equal(await said(), true, "sk_live_ is live"));
+  await withEnv({ STRIPE_SECRET_KEY: "rk_live_restricted" }, async () => assert.equal(await said(), true, "and so is a restricted live key"));
+  await withEnv({ STRIPE_SECRET_KEY: "pk_live_publishable" }, async () => assert.equal(await said(), null, "a key that is not a secret key is not guessed at"));
+  await withEnv({ STRIPE_SECRET_KEY: undefined }, async () => assert.equal(await said(), null, "no key: neither"));
 });
 
 /* ---------------------------------- the door ------------------------------ */
