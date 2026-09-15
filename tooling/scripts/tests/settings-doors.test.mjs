@@ -138,10 +138,10 @@ const settle = (C, props = {}) => (dirty ? draw(C, props) : lastTree);
 
 const Billing = (props) => globalThis.window.PaneBillingReal(props);
 const PRICE = { id: "price_1", currency: "usd", unit_amount: 4900, interval: "month", product_name: "Chanlytics OS" };
-/** The row as the edge reads it (contracts billingAccountDto), in one Stripe state. */
-const billing = (over = {}) => {
+/** The row as the edge reads it (contracts billingAccountDto), in one Stripe state, on live keys unless a case says otherwise. */
+const billing = (over = {}, livemode = true) => {
   const account = billingAccountDto({ mode: "stripe", status: "none", price_id: "price_1", current_period_end: null, trial_end: null, cancel_at: null, cancel_at_period_end: false, card_brand: null, card_last4: null, last_payment_failed_at: null, last_paid_at: null, updated_at: "2026-09-15T12:00:00Z", ...over });
-  globalThis.window.__BILLING_ACCOUNT = { dto: { ready: true, account, price: PRICE, trial_days: 14, role: "owner" }, fetchedAt: Date.now() };
+  globalThis.window.__BILLING_ACCOUNT = { dto: { ready: true, livemode, account, price: PRICE, trial_days: 14, role: "owner" }, fetchedAt: Date.now() };
 };
 const INVOICES = [
   { id: "in_2", number: "NS-0002", status: "open", amount_due: 4900, amount_paid: 0, currency: "usd", created_at: "2026-09-15T15:00:00Z", hosted_url: "https://invoice.stripe.com/i/2", pdf_url: null },
@@ -207,6 +207,30 @@ test("REGRESSION (S20): Billing says what a state means for the receptionist, an
   assert.ok(hints.some((h) => h.endsWith("· Paid")), `REGRESSION: ${hints.join(" | ")}`);
   assert.ok(hints.some((h) => h.endsWith("· Not paid yet")), hints.join(" | "));
   assert.ok(!hints.some((h) => / · (paid|open)$/.test(h)), "no status in Stripe's words");
+});
+
+test("REGRESSION (S9): on Stripe's test keys the pane says test mode, beside its title and under the card -- it said 'Card on file' and nothing about test cards", () => {
+  asRole("owner");
+  stripe();
+  const trialing = { status: "trialing", trial_end: "2026-09-25T15:00:00Z", card_brand: "visa", card_last4: "4242" };
+  billing(trialing, false);
+  let tree = render(Billing, { flash() {} });
+  assert.equal(textOf(byTestId(tree, "billing-test-mode")), "Test mode", "REGRESSION: nothing on the pane said test mode");
+  assert.equal(textOf(byTestId(tree, "billing-test-mode-note")), "Billing is in test mode, so only Stripe's test cards work and no real money moves.");
+  assert.ok(textOf(tree).includes("Card on file: Visa ending 4242"), "the card is still said");
+
+  billing(trialing, true);
+  tree = render(Billing, { flash() {} });
+  assert.equal(byTestId(tree, "billing-test-mode"), null, "live keys: no badge");
+  assert.equal(byTestId(tree, "billing-test-mode-note"), null, "and no sentence");
+
+  billing(trialing, null);
+  tree = render(Billing, { flash() {} });
+  assert.equal(byTestId(tree, "billing-test-mode"), null, "keys not said: nothing claimed either way");
+
+  billing({ mode: "direct", status: "active" }, false);
+  tree = render(Billing, { flash() {} });
+  assert.equal(byTestId(tree, "billing-test-mode"), null, "a direct arrangement charges nothing here, whatever the keys");
 });
 
 /* ------------------------------ the business record ------------------------------ */

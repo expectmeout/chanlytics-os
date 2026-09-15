@@ -78,7 +78,10 @@ const PaneBillingReal = ({ flash }) => {
     <>
       <section className="fl-card set-card" data-testid="billing-real">
         <div className="fl-card-head">
-          <span className="fl-card-title">Billing</span>
+          <span className="fl-card-title">
+            Billing
+            {vm.testMode && <span className="pill pill-warn" style={{ marginLeft: 8 }} data-testid="billing-test-mode">Test mode</span>}
+          </span>
           <span className="fl-card-sub">{vm.plan || (vm.mode === "direct" ? "An arrangement made with Chanlytics" : "How this workspace pays")}</span>
         </div>
         {note && (
@@ -95,6 +98,7 @@ const PaneBillingReal = ({ flash }) => {
             </span>
             <span className="set-row-hint">{vm.detail}</span>
             {vm.card && <span className="set-row-hint">Card on file: {vm.card}</span>}
+            {vm.testMode && <span className="set-row-hint" data-testid="billing-test-mode-note">{vm.testMode}</span>}
           </div>
           <div className="bc-chips">
             {vm.actions.checkout && <button className="btn btn-primary btn-sm" disabled={!!busy} onClick={() => leave("checkout")} data-testid="billing-checkout" {...window.gate("billing", "start the subscription")}>{busy === "checkout" ? "Opening Stripe…" : "Start the trial"}</button>}
