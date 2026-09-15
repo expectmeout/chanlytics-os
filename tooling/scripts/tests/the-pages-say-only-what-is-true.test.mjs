@@ -227,8 +227,9 @@ test("REGRESSION: Hold all withdraws every real draft through the door the singl
   const result = await globalThis.window.ixHoldAll(drafts, { state, cancelSend });
   assert.deepEqual(calls, ["m1", "m2"], "REGRESSION: the old Hold all never called the server, so every draft still sent");
   assert.ok(heldWhenAsked.length === 2 && heldWhenAsked.every(Boolean), "every countdown stopped before the first answer came back");
-  assert.equal(state["th-1"].held, true);
-  assert.equal(state["th-2"].held, false, "a draft the server could not hold is not shown as held");
+  // A hold is the draft's own record (I3): kept against the thread, the next draft there read "Held" and sent.
+  assert.equal(state["draft:m1"].held, true);
+  assert.equal(state["draft:m2"].held, false, "a draft the server could not hold is not shown as held");
   assert.equal(result.held, 1);
   assert.deepEqual(result.refused.map((r) => r.who), ["Ana"]);
 });

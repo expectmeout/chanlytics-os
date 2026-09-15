@@ -122,6 +122,7 @@ const InboxList = ({
             key={b.id}
             className={`ix-bucket ${activeBucket === b.id ? "active" : ""} ${b.accent ? "accent" : ""}`}
             onClick={() => onBucketChange(b.id)}
+            aria-pressed={activeBucket === b.id}
             title={b.hint}
           >
             <Icon name={b.icon} size={13} />
@@ -205,6 +206,7 @@ const InboxList = ({
               <input
                 type="checkbox"
                 checked={allSelected}
+                aria-label={allSelected ? "Clear the selection" : `Select all ${visible.length} conversations`}
                 onChange={() => {
                   if (allSelected) onClearSelection();
                   else visible.forEach((t) => !selected.includes(t.id) && onToggleSelect(t.id));

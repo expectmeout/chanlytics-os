@@ -391,6 +391,9 @@
   background: var(--bg);
   border-right: 1px solid var(--line);
   overflow: hidden;
+  /* The pane's own width decides its header, strip, banners and composer: a collapsed sidebar, a closed rail or a
+     phone narrows it without the window changing (I3). */
+  container: ixpane / inline-size;
 }
 .ix-th-scroll {
   flex: 1 1 auto;
@@ -1393,17 +1396,27 @@
 .ix-resolved.danger > .icon { color: var(--danger); }
 
 /* Escalation take-over banner */
+/* The words take the width and the buttons wrap beneath them: they shared one row, and the words were 182px wide
+   at 1280, 0px at 1024 and on a phone, where the hand-back button ran 95px past the screen (I3). */
 .ix-take {
-  display: flex;
-  align-items: center;
-  gap: 11px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 11px;
+  row-gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--danger);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
 }
-.ix-take > .icon { color: var(--danger); flex-shrink: 0; }
+.ix-take > .icon { color: var(--danger); flex-shrink: 0; margin-top: 2px; }
 .ix-take-body { flex: 1; min-width: 0; }
+.ix-take-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+.ix-take-actions .btn { height: auto; padding-block: 4px; white-space: normal; text-align: left; }
+/* A thread you have: its words first, the hand-back beside them, or beneath them when the pane is narrow. */
+.ix-resolved.ix-owned { flex-wrap: wrap; align-items: flex-start; }
+.ix-resolved.ix-owned > .icon { margin-top: 2px; }
+.ix-resolved.ix-owned > .ix-take-body { flex: 1 1 260px; }
 .ix-take-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .ix-take-sub { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
 /* The customer's own words, beside the decision: their last message, or what the call left behind. */
@@ -1569,3 +1582,28 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 /* Archive's question, under the thread's header, on the header's own gutter. */
 .ix-thread-pane > .confirm-block { flex-shrink: 0; margin: 10px 24px 4px; }
 .ix-list > .confirm-block { flex-shrink: 0; margin: 8px 12px 0; max-width: none; }
+
+/* The pane's own width, not the window's (I3). At 1024 the header's name column was 35px, the strip hid 399px of
+   its facts behind a scroll with no scrollbar, and the template picker was 31px wide on a phone. */
+@container ixpane (max-width: 640px) {
+  .ix-th-head { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+  .ix-th-channels-meta { display: none; }
+  .ix-th-actions { grid-column: 1 / -1; flex-wrap: wrap; }
+  .ix-th-id { min-width: 0; }
+}
+@container ixpane (max-width: 900px) {
+  .ix-context-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; overflow: visible; }
+  .ix-ctx { border-right: none; margin-right: 0; padding-right: 0; min-width: 0; }
+  .ix-ctx-value { overflow-wrap: anywhere; }
+}
+.ix-composer-foot { flex-wrap: wrap; row-gap: 8px; column-gap: 12px; }
+.ix-composer-actions { flex-wrap: wrap; justify-content: flex-end; }
+@container ixpane (max-width: 520px) {
+  .ix-composer-actions { width: 100%; justify-content: flex-start; }
+  .ix-tpl-pick { flex: 1 1 100%; max-width: none; }
+}
+/* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
+.ix-composer-text:focus-visible { box-shadow: var(--focus-ring); }
+.ix-search-wrap:focus-within { box-shadow: var(--focus-ring); }
+/* Heard, not seen: the countdown's hold and send, for a screen reader (I3). */
+.ix-veto-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
