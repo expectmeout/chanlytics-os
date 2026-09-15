@@ -28,7 +28,7 @@
   flex: 1 1 auto;
   min-height: 0;
   overflow: auto;
-  padding: 0 28px 32px;
+  padding: 0 var(--cal-gutter, 28px) 32px;
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
 }
@@ -437,13 +437,13 @@
 .cal-open { position: absolute; left: 4px; right: 4px; border: 1px dashed var(--ok); border-radius: var(--radius-sm); background: oklch(from var(--ok) l c h / 0.06); padding: 3px 6px; overflow: hidden; pointer-events: auto; }
 .cal-open-label { font-size: 10px; color: var(--ok-ink); white-space: nowrap; }
 .cal-feed-chip { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); white-space: nowrap; }
-.cal-feed-card { display: flex; align-items: center; gap: 10px; margin: 0 28px 10px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 12.5px; color: var(--ink-muted); }
+.cal-feed-card { display: flex; align-items: center; gap: 10px; margin: 0 var(--cal-gutter, 28px) 12px; padding: 10px 14px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 12.5px; color: var(--ink-muted); }
 .cal-feed-card > .icon { color: var(--ink-faint); flex-shrink: 0; }
 .cal-feed-card > span { flex: 1; min-width: 0; }
 .cal-feed-card b { color: var(--ink); font-weight: 500; }
 .cal-closed-chip { font-size: 10px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
 .cal-allday { display: block; max-width: 100%; margin-top: 2px; padding: 1px 6px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised); font: inherit; font-size: 10px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer; }
-.cal-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; padding: 8px 28px 14px; font-size: 11px; color: var(--ink-dim); }
+.cal-legend { display: flex; flex: 1 1 0; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-4); min-width: 0; font-size: var(--text-xs); color: var(--ink-dim); }
 .cal-legend-swatch { display: inline-block; width: 10px; height: 10px; border-radius: 3px; vertical-align: -1px; margin-right: 5px; border: 1px solid var(--line-strong); background: var(--bg-raised); }
 .cal-legend-swatch.open { border: 1px dashed var(--ok); background: oklch(from var(--ok) l c h / 0.06); }
 .cal-legend-swatch.closed { background: var(--bg-sunken); border-color: var(--line); }
@@ -458,7 +458,7 @@
 }
 .set-cal-check { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 8px; }
 .set-cal-check .set-row-hint.warn { color: var(--warn); }
-.cal-nav { font-size: 16px; line-height: 1; padding-bottom: 2px; }
+.cal-nav .icon { display: block; }
 /* A day head holds the day, the date, and at most a Today chip on one line;
    a closure or an all-day event takes its own line under them. */
 .cal-dayhead { flex-wrap: wrap; row-gap: 3px; align-items: center; }
@@ -466,16 +466,21 @@
 .cal-dayhead .cal-closed-chip, .cal-dayhead .cal-allday { flex-basis: 100%; }
 
 /* ---- Month, agenda, the rules bar, the controls ---- */
-.cal-jump { font: inherit; font-size: 11.5px; padding: 3px 6px; border: 1px solid var(--line-strong); border-radius: var(--radius-sm); background: var(--bg); color: var(--ink-dim); max-width: 132px; }
-.cal-jump:focus { border-color: var(--ink-faint); color: var(--ink); }
+/* The date field lies over the range, which opens it; a keyboard that reaches it sees it. */
+.cal-jump { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0 var(--space-2); border: 0; border-radius: inherit; background: var(--bg-raised); color: var(--ink); font: inherit; font-size: var(--text-sm); opacity: 0; cursor: pointer; }
 /* The date and the service pickers take the ring every control takes (C4): the date's was switched off. */
 .cal-jump:focus-visible, .cal-service:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cal-jump:focus-visible { opacity: 1; }
 .cal-service { max-width: 220px; }
-.cal-rules { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; margin: 0 28px 10px; padding: 8px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 11.5px; color: var(--ink-muted); }
-.cal-rules-group { display: inline-flex; align-items: baseline; gap: 6px; min-width: 0; }
-.cal-rules-label { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); }
-.cal-rules .cl-bucket-link { margin-left: auto; white-space: nowrap; }
-.cal-month { display: flex; flex-direction: column; margin: 0 28px 12px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-raised); }
+/* The hours, the rules and the calendar's source, under the foot's toggle: a label and what it says, row by row. */
+.cal-rules { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: baseline; gap: var(--space-2) var(--space-5); font-size: var(--text-sm); color: var(--ink-muted); }
+.cal-rules-group { display: contents; }
+.cal-rules-label { font-size: var(--text-xs); color: var(--ink-faint); white-space: nowrap; }
+.cal-rules-value { min-width: 0; }
+.cal-rules-feed { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.cal-rules-feed .cal-feed-chip { flex-wrap: wrap; white-space: normal; font-size: inherit; }
+.cal-rules-links { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--space-1) var(--space-4); padding-top: var(--space-1); color: var(--ink-dim); }
+.cal-month { display: flex; flex-direction: column; margin: 0 var(--cal-gutter, 28px) 12px; border: 1px solid var(--line); border-radius: var(--radius-md); overflow: hidden; background: var(--bg-raised); }
 .cal-month-head { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); background: var(--bg-sunken); border-bottom: 1px solid var(--line); }
 .cal-month-head span { padding: 6px 10px; font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
 .cal-month-row { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); border-bottom: 1px solid var(--line); }
@@ -493,7 +498,7 @@
 .cal-month-taken { font-size: 10.5px; color: var(--ink-muted); }
 .cal-month-open { font-size: 10.5px; color: var(--ok-ink); }
 .cal-month-allday { font-size: 10px; color: var(--ink); background: var(--bg-sunken); border: 1px solid var(--line-strong); border-radius: 999px; padding: 0 6px; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.cal-agenda { display: flex; flex-direction: column; gap: 8px; margin: 0 28px 12px; }
+.cal-agenda { display: flex; flex-direction: column; gap: 8px; margin: 0 var(--cal-gutter, 28px) 12px; }
 .cal-agenda-day { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: 10px 14px; display: flex; flex-direction: column; gap: 6px; }
 .cal-agenda-day.past { opacity: 0.7; }
 .cal-agenda-day.today { border-color: var(--accent); }
@@ -537,10 +542,53 @@
 .cal-rule { white-space: nowrap; }
 .cal-rule + .cal-rule::before { content: "·"; margin: 0 6px; color: var(--ink-faint); }
 .cal-feed-note.repeats > .icon { color: var(--warn); }
-.cal-failed { margin: 0 28px 10px; }
+.cal-failed { margin: 0 var(--cal-gutter, 28px) 12px; }
 .cal-col.unread { background: var(--bg-sunken); }
 .cal-month-cell.unread { background: var(--bg-sunken); }
 
 /* ---- The owner's Refresh, and a read on its way said in words (C2) ---- */
 .cal-refresh { white-space: nowrap; }
-.cal-reading { margin: 0 28px 10px; font-size: 11.5px; color: var(--ink-dim); }
+.cal-reading { margin: 0 var(--cal-gutter, 28px) 12px; font-size: 11.5px; color: var(--ink-dim); }
+
+/* ---- The calendar first ----
+   One bar of controls and one line of counts over the board, and the hours, the rules and the calendar's source one tap
+   away under it. A title the top bar already says, a paragraph, three stat cards and five rows of controls came first,
+   and on a phone the first day sat below the fold. One gutter for the whole page, narrowed on a small screen. */
+.calendar { --cal-gutter: 28px; }
+.cal-head { display: flex; flex-direction: column; gap: var(--space-2); flex-shrink: 0; padding: var(--space-4) var(--cal-gutter) var(--space-3); }
+.cal-bar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); min-width: 0; }
+.cal-when { display: flex; align-items: center; gap: var(--space-3); min-width: 0; margin-right: auto; }
+.cal-steps { display: inline-flex; flex: none; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); overflow: hidden; }
+.cal-steps .btn { height: 28px; border-radius: 0; color: var(--ink-muted); }
+.cal-steps .btn-icon { width: 30px; }
+.cal-steps .btn + .btn { border-left: 1px solid var(--line); }
+.cal-steps .btn:hover:not([disabled]) { color: var(--ink); }
+.cal-flip { transform: scaleX(-1); }
+.cal-title { position: relative; display: inline-flex; align-items: center; gap: 6px; min-width: 0; padding: 2px 8px; margin-left: -8px; border-radius: var(--radius-sm); color: var(--ink-faint); cursor: pointer; }
+.cal-title:hover { background: var(--bg-hover); color: var(--ink-muted); }
+.cal-title-range { overflow: hidden; font-size: var(--text-lg); font-weight: 500; letter-spacing: -0.01em; color: var(--ink); white-space: nowrap; text-overflow: ellipsis; }
+.cal-title > .icon { flex: none; }
+.cal-tools { display: flex; align-items: center; gap: var(--space-2); min-width: 0; }
+.cal-tools .cal-service { height: 30px; padding-top: 0; padding-bottom: 0; border-color: var(--line); border-radius: var(--radius-md); background-color: var(--bg-raised); }
+.cal-views { flex: none; }
+.cal-views .cl-tab { justify-content: center; padding: 4px 12px; font-size: 12px; }
+/* Each count: what it counts, the number, and what the number means or why there is none. */
+.cal-counts { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px var(--space-5); margin: 0; font-size: var(--text-sm); line-height: 1.5; color: var(--ink-dim); }
+.cal-count { display: inline-flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; min-width: 0; }
+.cal-count-label[data-tip] { text-decoration: underline dotted var(--line-strong); text-underline-offset: 3px; cursor: help; }
+.cal-count-value { color: var(--ink); font-weight: 500; }
+/* The foot: the legend and the toggle on one line, and what the toggle shows under them. */
+.cal-foot { display: flex; flex-direction: column; gap: var(--space-3); flex-shrink: 0; padding: var(--space-2) var(--cal-gutter) var(--space-3); border-top: 1px solid var(--line); }
+.cal-foot-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2) var(--space-4); }
+.cal-about-toggle { flex: none; gap: var(--space-1); margin-left: auto; color: var(--ink-muted); }
+.cal-about-toggle .icon { transition: transform 160ms var(--ease-out); }
+.cal-about-toggle[aria-expanded="true"] .icon { transform: rotate(180deg); }
+.cal-about { padding-top: var(--space-3); border-top: 1px solid var(--line); }
+.cal-about[hidden] { display: none; }
+@media (prefers-reduced-motion: reduce) { .cal-about-toggle .icon { transition: none; } }
+@media (pointer: coarse) {
+  .cal-steps .btn-icon { width: 44px; }
+  .cal-title { min-height: 44px; }
+  html.legacy-on .cal-views .cl-tab { min-height: 38px; }
+  .cal-tools .cal-service { height: 44px; }
+}
