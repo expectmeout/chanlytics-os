@@ -73,8 +73,9 @@ globalThis.React = {
 globalThis.window = {
   __LIVE: toLiveVM([call()], channels, ZONE, new Date(NOW)),
   __FACTS: { facts: { handoff_number: { value: LINE } } },
-  __endCall: async (id) => { calls.end.push(id); return { ok: true, decision_id: "d1" }; },
-  __handOverCall: async (id) => { calls.hand.push(id); return { ok: true, decision_id: "d2", line: LINE }; },
+  // The client's answers: the route's body under data (client/api.ts). A flat fake hid that the toast read r.line.
+  __endCall: async (id) => { calls.end.push(id); return { ok: true, data: { ok: true, decision_id: "d1" } }; },
+  __handOverCall: async (id) => { calls.hand.push(id); return { ok: true, data: { ok: true, decision_id: "d2", line: LINE } }; },
   __whisperCall: async (id, text) => { calls.whisper.push([id, text]); return { ok: true }; },
   __refreshLive: () => { calls.refresh += 1; },
   usePPToast: () => [null, (m) => calls.flash.push(m)],

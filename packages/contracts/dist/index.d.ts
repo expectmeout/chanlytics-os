@@ -6358,6 +6358,16 @@ interface LiveCallVM {
     /** Why the call ended, in the owner's words. */
     endedHow: string | null;
     recordingState: "ready" | "pending" | "failed" | "purged" | "none";
+    /** What the caller wanted, in the post-call analysis's plain words; null while live or without an analysis. */
+    wanted: string | null;
+    /** How it ended, in the owner's words (callOutcomeWords); null without an analysis outcome. */
+    outcomeWords: string | null;
+    /** What to do next, from the analysis. */
+    followUp: string | null;
+    /** The name the caller gave. */
+    callerName: string | null;
+    /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
+    lengthWords: string | null;
     transcript: LiveTurnVM[];
 }
 interface LiveLineVM {
