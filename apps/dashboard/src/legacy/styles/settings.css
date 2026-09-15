@@ -538,6 +538,27 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
   color: var(--ink-faint);
   line-height: var(--leading-normal);
 }
+/* A first workspace's way out and the pages sign-up agreed to (N2): quiet, below everything the screen asks. */
+.cw-legal {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-faint);
+}
+.cw-legal a,
+.cw-link {
+  color: var(--ink-muted);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.cw-link { font: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.cw-legal a:hover,
+.cw-link:hover { color: var(--ink); }
+.cw-legal a:focus-visible,
+.cw-link:focus-visible { outline: var(--focus-ring); outline-offset: 2px; border-radius: 2px; }
 
 /* Settings truth: a broken configuration lists what the parser refused, and
    the notification rows that go to the platform say so beside their title. */

@@ -96,7 +96,7 @@ export default function SignupPage() {
       if (j.data?.sent === false) { setUnsent(j.data.message ?? SIGNUP_WORDS.notSent); return; }
       setStage("confirm");
     } catch {
-      setError("Could not reach Chanlytics just now. Try again.");
+      setError(SIGNUP_WORDS.unreachable);
     } finally {
       setBusy(false);
     }
