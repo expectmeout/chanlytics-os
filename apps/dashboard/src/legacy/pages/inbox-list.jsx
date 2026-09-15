@@ -117,8 +117,9 @@ const InboxList = ({
 
   return (
     <div className={`ix-list ${density}`}>
-      {/* Buckets */}
-      <div className="ix-buckets">
+      {/* Buckets. A real workspace has three, and they sit in one row of words: as a grid of two they took two rows
+          with the third alone on the second, and on a phone "Needs you" wrapped to two lines. */}
+      <div className={`ix-buckets ${buckets.length <= 3 ? "one-row" : ""}`}>
         {buckets.map((b) => (
           <button
             key={b.id}

@@ -842,7 +842,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       {(() => {
         const vetoLive = threads.filter((t) => t.veto && vetoRemaining(t.id) != null);
         if (vetoLive.length < 2) return null;
-        const soonest = [...vetoLive].sort((a, b) => vetoRemaining(a.id) - vetoRemaining(b.id))[0];
+
         // The same withdraw the single Hold makes, per draft (ixHoldAll): the
         // countdowns stop at once, and a draft the server refused is named.
         const holdAll = async () => {
@@ -858,8 +858,10 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
         return (
           <div className="ix-sending-strip">
             <span className="ix-veto-dot"></span>
-            {window.PR_STORE && window.PR_STORE.away ? <span><b>{vetoLive.length} drafts</b> paused — you're away</span> : <span><b>{vetoLive.length} drafts</b> sending — soonest {vetoRemaining(soonest.id)}s</span>}
-            <button className="btn btn-ghost btn-sm" onClick={() => selectThread(soonest.id)}>Review</button>
+            {/* Which threads they are, and how long each has, is on their own rows now, at the top of Needs you: this
+                strip is here for the one act that spans them. It said the soonest seconds and offered a Review that
+                opened the row above it. */}
+            {window.PR_STORE && window.PR_STORE.away ? <span><b>{vetoLive.length} drafts</b> paused — you're away</span> : <span><b>{vetoLive.length} drafts</b> about to send</span>}
             <button className="btn btn-sm" onClick={holdAll} {...window.gate("approve")}>Hold all</button>
           </div>
         );
