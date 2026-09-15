@@ -75,7 +75,7 @@ test("the mode decides: never runs nothing and says so; no row for the class mea
   assert.equal(noRow.of("create")[0][1].state, "pending_approval");
   const asked = fakes();
   const r = await runPlaybook(asked.ports, cmd({ ctx: context({ modes: new Map([["reengage", "ask"]]) }), by: { kind: "user", userId: "u1" } }));
-  assert.deepEqual(r, { outcome: "sent", broadcast_id: "b1", eligible: 2, mode: "ask", state: "scheduled" }, "a person's run now sends now under ask");
+  assert.deepEqual(r, { outcome: "sent", broadcast_id: "b1", eligible: 2, mode: "ask", state: "scheduled", scheduled_for: NOW.toISOString(), moved_from: null }, "a person's run now sends now under ask, and says when");
   assert.deepEqual(asked.of("schedule")[0], ["schedule", "b1", NOW]);
   assert.deepEqual(asked.of("create")[0][1].created_by, "u1", "their run");
   assert.deepEqual(asked.of("decide")[0][1], { broadcastId: "b1", by: { kind: "user", userId: "u1" }, payload: { playbook_id: "p1", playbook: "Win-back", mode: "ask", recipients: 2, scheduled_for: NOW.toISOString(), run_now: true } }, "and their decision");
@@ -125,7 +125,7 @@ test("who the run reaches: the trigger's list crossed with who said yes, longest
 test("auto: the row, the people, the send now, the system's decision, the run recorded; veto: the send half an hour ahead with the same row", async () => {
   const { ports, log, of, ops } = fakes();
   const r = await runPlaybook(ports, cmd());
-  assert.deepEqual(r, { outcome: "sent", broadcast_id: "b1", eligible: 2, mode: "auto", state: "scheduled" });
+  assert.deepEqual(r, { outcome: "sent", broadcast_id: "b1", eligible: 2, mode: "auto", state: "scheduled", scheduled_for: NOW.toISOString(), moved_from: null });
   assert.deepEqual(ops(), ["create", "enrol", "schedule", "decide", "record"]);
   assert.deepEqual(of("create")[0][1], {
     name: "Win-back · 2026-09-06", template_id: "tpl-1", template_name: "winback_offer", template_language: "en_US", params: [{ kind: "first_name" }],
@@ -152,6 +152,7 @@ test("never at 3 AM, whoever asks: a person's run now at eleven at night goes at
   assert.equal(f.of("decide")[0][1].payload.scheduled_for, nine.toISOString());
   assert.equal(f.of("decide")[0][1].payload.moved_from, night.toISOString(), "and the ledger keeps what was asked for");
   assert.equal(f.log.at(-1)[4].moved_from, night.toISOString());
+  assert.deepEqual([r.scheduled_for, r.moved_from], [nine.toISOString(), night.toISOString()], "and the person who asked is told when it really goes, and what they asked for");
   const day = fakes();
   await runPlaybook(day.ports, cmd({ by: { kind: "user", userId: "u1" } }));
   assert.ok(!("moved_from" in day.of("decide")[0][1].payload), "inside the hours nothing moves, and nothing says so");

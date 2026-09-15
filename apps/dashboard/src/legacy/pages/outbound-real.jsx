@@ -42,6 +42,18 @@ const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : S
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
 const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
+// What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
+const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
+const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
+// A card's message: its template among the approved, with the playbook's own values in the slots; null when it is not among them.
+const pbMessage = (p, templates, businessName) => {
+  const t = templates.find((x) => x.id === p.template_id) || null;
+  if (!t) return null;
+  const values = (p.params || PB_NONE).map((s) => (s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? "")));
+  return { template: t, words: pbRender(t.body_preview, values) };
+};
+// When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
+const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : "on its way — sends go out between 9:00 and 20:59 by your clock");
 
 // The composer: a new playbook, or one being changed. Checked here the way
 // the route checks it — a template chosen, every slot filled — so an
@@ -104,8 +116,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : PB_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const textOf = (i) => ((typed[tplId] || [])[i] || "");
-  const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
-  const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
+  const exampleOf = (kind) => pbExample(kind, data.businessName);
   const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (textOf(i).trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
@@ -151,7 +162,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
           {!templatesRead && <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />}
           {templatesRead && templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it under Campaigns › Messages.</span>
+            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one, or sync yours from WhatsApp Manager, in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Messages</button>.</span>
           )}
           {templates.map((t) => (
             <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
@@ -246,11 +257,18 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
 const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
   const [busy, setBusy] = React.useState(false);
   const [sure, setSure] = React.useState(false);
+  // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
+  const [skipSure, setSkipSure] = React.useState(false);
+  const [wordsOpen, setWordsOpen] = React.useState(false);
   const V = window.__playbooks;
   const waiting = p.totals.waiting;
   const status = pbStatus(p);
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
   const listRoute = trig && trig.list ? `segments/${trig.list}` : "segments/opted_in";
+  // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
+  const surface = window.__PLAYBOOKS || {};
+  const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;
+  const templateGone = Array.isArray(surface.templates) && !message;
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
@@ -264,13 +282,16 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
   );
   const runNow = () => act(
     () => V.runNow(p.id),
-    (d) => (d.outcome === "sent" ? <><b>{p.name}</b> — {pbPeople(d.eligible)}, sending now</>
+    (d) => (d.outcome === "sent" ? <><b>{p.name}</b> — {pbPeople(d.eligible)}, {pbSentWhen(d)}</>
       : d.outcome === "held" ? <><b>{p.name}</b> — {pbPeople(d.eligible)} waiting for your approval</>
       : <><b>{p.name}</b> — nobody new to send to right now</>),
   );
   // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts-real.jsx bcWhenWords).
   const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
-  const skip = () => act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
+  const skip = () => {
+    setSkipSure(false);
+    return act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
+  };
   const remove = () => {
     setSure(false);
     act(() => V.remove(p.id), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
@@ -304,6 +325,18 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
         <span className="ob-note">next run {p.next}{p.last_run_for ? ` · last ran ${p.last_run_for}` : " · has not run yet"}</span>
       </div>
 
+      {message && (
+        <div className="ob-words" data-testid="pb-words">
+          {wordsOpen && window.WaBubble
+            ? <window.WaBubble from={surface.businessName} body={message.words} footer={pbFooter(message.template)} />
+            : <span className="ob-words-line">“{message.words}”</span>}
+          <button className="cl-bucket-link" aria-expanded={wordsOpen} onClick={() => setWordsOpen((o) => !o)} data-testid="pb-words-toggle">{wordsOpen ? "Show less" : "Show the whole message"}</button>
+        </div>
+      )}
+      {templateGone && (
+        <div className="bc-excl-hint" data-testid="pb-template-gone">Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the playbook sends another.</div>
+      )}
+
       {p.totals.runs > 0 && (
         <div className="ob-results" data-testid="pb-results">
           <span className="ob-stat"><strong className="tabular">{p.totals.runs}</strong> {p.totals.runs === 1 ? "run" : "runs"}</span>
@@ -320,27 +353,33 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           summed over -- every run, not the recent fifty broadcasts of any kind. */}
       {p.totals.history && p.totals.history.length > 0 && (
         <div className="ob-history" data-testid="pb-history">
+          {/* Each run opens as itself on Broadcasts (broadcasts/run:<id>), read by its id however old it is. */}
           {p.totals.history.map((h) => (
-            <div key={h.id} className="cl-prof-aut-hint ob-history-row">
+            <button key={h.id} type="button" className="cl-prof-aut-hint ob-history-row" onClick={() => window.CHANLY.nav(`broadcasts/run:${h.id}`)} data-testid="pb-run-open">
               <span className="tabular">{h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : "")}</span>
               {" · "}{h.state === "sent" ? <>{h.sent} sent{h.held > 0 ? `, ${h.held} held` : ""}{h.replied > 0 ? `, ${h.replied} replied` : ""}</>
                 : h.state === "pending_approval" ? `waiting for you · ${h.recipient_count} people`
                 : h.state === "sending" ? `sending · ${h.sent} so far`
                 : h.state === "scheduled" ? `scheduled · ${h.recipient_count} people`
                 : h.state}
-            </div>
+              <Icon name="arrow-right" size={10} />
+            </button>
           ))}
+          {p.totals.runs > p.totals.history.length && <span className="ob-history-more" data-testid="pb-history-more">The newest {p.totals.history.length} of {p.totals.runs} runs</span>}
         </div>
       )}
 
       <div className="ob-actions">
         {/* The run's Approve is where it always is for every role, and says who may; Skip stays with those who may. */}
-        {waiting && (
+        {waiting && !skipSure && (
           <button className="btn btn-primary btn-sm" disabled={busy} onClick={approve} data-testid="pb-approve" {...(canAct || !window.gate ? {} : window.gate("approve", "approve a run"))}>
             <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
           </button>
         )}
-        {waiting && canAct && <button className="btn btn-sm" disabled={busy} onClick={skip} data-testid="pb-skip">Skip this run</button>}
+        {waiting && canAct && !skipSure && <button className="btn btn-sm" disabled={busy} onClick={() => setSkipSure(true)} data-testid="pb-skip">Skip this run</button>}
+        {waiting && canAct && skipSure && (
+          <Confirm question={`Skip this run of ${p.name}?`} detail="Nothing sends, and the run closes." yes="Yes, skip it" danger busy={busy} onYes={skip} onNo={() => setSkipSure(false)} testid="pb-skip" />
+        )}
         {canAct && (
           <button className="btn btn-sm" disabled={busy} onClick={toggle} data-testid="pb-pause">
             <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
@@ -358,7 +397,6 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
         {canAct && sure && (
           <Confirm question={`Delete ${p.name}?`} detail="Its runs stay in Broadcasts with their numbers." yes="Yes, delete" danger busy={busy} onYes={remove} onNo={() => setSure(false)} testid="pb-delete" />
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav("broadcasts")}>Its runs in Broadcasts <Icon name="arrow-right" size={10} /></button>
       </div>
     </section>
   );
@@ -416,6 +454,9 @@ const PlaybooksReal = () => {
       </div>
 
       <div className="rp-body">
+        {rows.length > 0 && data.templates === null && !(composing || editing) && (
+          <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
+        )}
         {(composing || editing) && (
           <PlaybookComposer
             key={editing ? editing.id : "new"}

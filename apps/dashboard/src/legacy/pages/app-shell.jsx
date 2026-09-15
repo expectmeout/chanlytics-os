@@ -17,7 +17,7 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
 
 /** Surfaces whose own route param is a prop they follow, not a new identity. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox"]);
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
@@ -555,15 +555,21 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = ["Campaigns", "Content"];
     content = <ContentPage />;
   } else if (page === "broadcasts") {
-    // A real workspace names the audience the page opens on, by the page's own
-    // rule (a list or a kept list with this id) and its own label; the demo,
-    // its seeded segment.
-    const bcSeg = param && (window.__BROADCASTS
-      ? (window.__BROADCASTS.audiences || []).find(a => (a.kind === "saved" || a.kind === "list") && a.id === param)
-      : (window.CLIENT_SEGMENTS || []).find(s => s.id === param));
+    // broadcasts/run:<id> opens one broadcast -- a playbook's run, from its
+    // card or Today -- named for it once the list holds it. Any other param is
+    // the audience the composer opens on: a real workspace names it by the
+    // page's own rule (a list or a kept list with this id) and its own label;
+    // the demo, its seeded segment.
+    const bcRunId = param && param.startsWith("run:") ? param.slice(4) : null;
+    const bcAudience = bcRunId ? null : param;
+    const bcRun = bcRunId && window.__BROADCASTS ? (window.__BROADCASTS.rows || []).find(r => r.id === bcRunId) : null;
+    const bcSeg = bcAudience && (window.__BROADCASTS
+      ? (window.__BROADCASTS.audiences || []).find(a => (a.kind === "saved" || a.kind === "list") && a.id === bcAudience)
+      : (window.CLIENT_SEGMENTS || []).find(s => s.id === bcAudience));
     activeNav = "broadcasts";
-    crumbs = bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"];
-    content = <BroadcastsPage initialSegment={param} />;
+    crumbs = bcRunId ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcRun ? bcRun.name : "Broadcast"]
+      : bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"];
+    content = <BroadcastsPage initialSegment={bcAudience} initialRun={bcRunId} />;
   } else if (page === "studio") {
     activeNav = "studio";
     crumbs = ["Agents", "Studio"];

@@ -58,17 +58,53 @@ const bcReceipt = (r) => {
   if (r.replied) parts.push(bcClock(r.replied_at) ? `replied ${bcClock(r.replied_at)}` : "replied");
   return parts.join(" · ");
 };
-const BroadcastDetail = ({ id, heldReasons, onClose }) => {
-  const [d, setD] = React.useState(undefined);
+// A broadcast that can still change: waiting for a person, scheduled, or sending.
+const BC_LIVE = new Set(["pending_approval", "scheduled", "sending"]);
+const BroadcastDetail = ({ id, heldReasons, onClose, solo = false }) => {
+  // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
+  const [answer, setAnswer] = React.useState(null);
+  const [asks, ask] = React.useReducer((n) => n + 1, 0);
+  const [retrying, setRetrying] = React.useState(false);
+  const mine = answer && answer.id === id ? answer : null;
+  const d = mine && mine.ok ? mine.data : null;
+  // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
+  // the people fill in as a send goes out -- and not once it has finished.
+  const live = !!(d && BC_LIVE.has(d.broadcast.state));
+  React.useEffect(() => {
+    if (!live) return undefined;
+    window.addEventListener("surface:broadcasts", ask);
+    return () => window.removeEventListener("surface:broadcasts", ask);
+  }, [live]);
   React.useEffect(() => {
     let on = true;
-    setD(undefined);
     if (!window.__broadcasts) return undefined;
-    window.__broadcasts.detail(id).then((r) => { if (on) setD(r.ok ? r.data : null); });
+    window.__broadcasts.detail(id).then((r) => {
+      if (!on) return;
+      setRetrying(false);
+      // A re-read that fails keeps what the last one read. A link to a broadcast this workspace does not have (a 404,
+      // or an id that is not one) is gone, and a Retry could only fail again.
+      setAnswer((prev) => (!r.ok && prev && prev.id === id && prev.ok ? prev : { id, ok: r.ok, data: r.ok ? r.data : null, gone: !r.ok && (r.status === 404 || r.status === 400) }));
+    });
     return () => { on = false; };
-  }, [id]);
-  if (d === undefined) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Reading who got it…</span></div>;
-  if (!d) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Couldn't be read right now.</span></div>;
+  }, [id, asks]);
+  const close = <button className="cl-bucket-link" onClick={onClose} data-testid="bc-detail-close">Close</button>;
+  if (!mine) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Reading who got it…</span></div>;
+  if (mine.gone) {
+    return (
+      <div className="bc-detail" data-testid="bc-detail">
+        <EmptyState kind="line" title="This broadcast isn't in this workspace." body="The link may be old, or from another workspace." testid="bc-detail-gone" />
+        {close}
+      </div>
+    );
+  }
+  if (!d) {
+    return (
+      <div className="bc-detail" data-testid="bc-detail">
+        <FailedRead kind="line" what="who got this broadcast" onRetry={() => { setRetrying(true); ask(); }} busy={retrying} testid="bc-detail-failed" />
+        {close}
+      </div>
+    );
+  }
   const got = d.recipients.filter((r) => r.state === "sent");
   const heldBack = d.recipients.filter((r) => r.state === "skipped");
   const rest = d.recipients.filter((r) => r.state === "failed" || r.state === "queued");
@@ -83,8 +119,10 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
     <div className="bc-detail" data-testid="bc-detail">
       <div className="ct-sec-head">
         <span className="ct-sec-title">{d.broadcast.name}</span>
-        <span className="ct-sec-meta">{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
-        <button className="cl-bucket-link" onClick={onClose}>Close</button>
+        {/* Opened on its own, no row above it says its state or when it went. */}
+        {solo && <StatePill kind="broadcast" value={d.broadcast.state} />}
+        <span className="ct-sec-meta">{solo && bcClock(d.broadcast.started_at || d.broadcast.scheduled_for) ? `${bcClock(d.broadcast.started_at || d.broadcast.scheduled_for)} · ` : ""}{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
+        {close}
       </div>
       {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.TC_SOURCES || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
       <div className="bc-detail-groups">
@@ -126,7 +164,7 @@ const bcStopWords = (state) => BC_STOP_WORDS[state] || BC_STOP_WORDS.scheduled;
 const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approve, cancel }) => {
   const stop = bcStopWords(row.state);
   return (
-    <div className="bc-sched" data-testid="bc-open">
+    <div className="bc-sched" id={`bc-run-${row.id}`} data-testid="bc-open">
       <div className="bc-sched-main">
         <span className="bc-sched-name"><button className="cl-bucket-link" onClick={onOpen} data-testid="bc-open-who">{row.name}</button></span>
         <span className="bc-sched-meta">
@@ -215,7 +253,7 @@ const BcHistoryStats = ({ rows, more }) => {
 };
 window.BcHistoryStats = BcHistoryStats;
 
-const BroadcastsReal = ({ initialSegment = null }) => {
+const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
   // Who may send, approve or stop: the role store's answer, View-as included.
@@ -228,6 +266,16 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
   });
+  // The shell keeps this page mounted across its own links, so it follows them: a later link to a list picks that
+  // list, and a link to a run, which names no list, leaves the audience where it was. Only a new link moves it: the
+  // surface re-reading its audiences does not undo a choice made on the page.
+  const followed = React.useRef(initialSegment);
+  React.useEffect(() => {
+    if (followed.current === initialSegment) return;
+    followed.current = initialSegment;
+    const next = initialSegment && audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment);
+    if (next) setAud(bcKey(next));
+  }, [initialSegment, audiences]);
   const [tplId, setTplId] = React.useState(() => { const d = bcDefault(templates); return d ? d.id : ""; });
   const [params, setParams] = React.useState({});
   const [sources, setSources] = React.useState({});
@@ -235,7 +283,18 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const [name, setName] = React.useState("");
   const [whenAt, setWhenAt] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const [openId, setOpenId] = React.useState(null);
+  // The broadcast open on the page is the one its link names (broadcasts/run:<id>); pressing a row follows that link.
+  const openId = initialRun;
+  const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
+  // A link lands on its run: the page is long, and a listed run sits under the composer. Once, as the page opens --
+  // a row pressed here is already in view.
+  const landed = React.useRef(false);
+  React.useEffect(() => {
+    if (landed.current) return;
+    landed.current = true;
+    const el = openId && typeof document !== "undefined" && document.getElementById ? document.getElementById(`bc-run-${openId}`) : null;
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
+  }, [openId]);
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = React.useState(null);
   const [stopping, setStopping] = React.useState(null);
@@ -338,6 +397,13 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         </div>
       </header>
 
+      {/* A run the list does not hold -- older than its newest fifty -- opens here, first, where its link lands. */}
+      {openId && !rows.some((r) => r.id === openId) && (
+        <section className="ct-section bc-run-solo" data-testid="bc-run-solo">
+          <BroadcastDetail id={openId} heldReasons={data.heldReasons} onClose={() => openRun(null)} solo />
+        </section>
+      )}
+
       <BcHistoryStats rows={rows} more={data.more} />
 
       <section className="bc-composer" data-testid="bc-composer">
@@ -363,7 +429,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="bc-excl-hint" data-testid="bc-no-template">
                 {starterPending > 0
                   ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
-                  : "No approved template yet — add the starter set, write one here, or write one in WhatsApp Manager and sync it under Campaigns › Messages."}
+                  : <>No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="bc-no-template-open">Messages</button>.</>}
               </span>
             )}
             {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (
@@ -491,8 +557,8 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         )}
         {open.map((row) => (
           <React.Fragment key={row.id}>
-          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => setOpenId(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approve={approve} cancel={cancel} />
-          {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
+          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => openRun(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approve={approve} cancel={cancel} />
+          {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => openRun(null)} />}
           </React.Fragment>
         ))}
       </section>
@@ -509,9 +575,9 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           {history.length === 0 && <EmptyState kind="line" title="No broadcast sent yet." />}
           {history.map((h) => (
             <React.Fragment key={h.id}>
-            <div className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0}
-              onClick={() => setOpenId(openId === h.id ? null : h.id)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(openId === h.id ? null : h.id); } }}>
+            <div id={`bc-run-${h.id}`} className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0} aria-expanded={openId === h.id}
+              onClick={() => openRun(openId === h.id ? null : h.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRun(openId === h.id ? null : h.id); } }}>
               <span className="bc-hist-name">
                 {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}` : ""}</span>
               </span>
@@ -521,7 +587,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="num tabular">{h.readPct === null ? "—" : `${h.readPct}%`}</span>
               <span className="num tabular">{h.counts.replied}</span>
             </div>
-            {openId === h.id && <BroadcastDetail id={h.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
+            {openId === h.id && <BroadcastDetail id={h.id} heldReasons={data.heldReasons} onClose={() => openRun(null)} />}
             </React.Fragment>
           ))}
         </div>

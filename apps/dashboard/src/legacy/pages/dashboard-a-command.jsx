@@ -96,6 +96,7 @@ const runRows = (nav, flash) => {
     const when = res.ok && window.bcWhenWords ? window.bcWhenWords(res.data) : "sending now";
     flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, {when}</> } : window.refusalToast(res, "Not approved"));
   };
+  // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
   return [
     ...waiting.map((r) => (
       <window.AttnRow
@@ -108,8 +109,8 @@ const runRows = (nav, flash) => {
         status={["Waiting for your approval"]}
         tone="escalated"
         cta={{ label: "Approve", kind: "primary", onClick: () => approve(r), gate: window.gate("approve", "approve a run") }}
-        also={{ label: "Open Playbooks", onClick: () => nav("outbound") }}
-        onOpen={() => nav("outbound")}
+        also={{ label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }}
+        onOpen={() => nav(`broadcasts/run:${r.id}`)}
         testid="brief-run-row"
       />
     )),
@@ -123,9 +124,9 @@ const runRows = (nav, flash) => {
         sentence={`${people(r)} · stop it if you'd rather not`}
         status={["Scheduled", `sends ${r.when}`]}
         tone="warn"
-        cta={{ label: "Open", kind: "primary", onClick: () => nav("broadcasts") }}
+        cta={{ label: "Open", kind: "primary", onClick: () => nav(`broadcasts/run:${r.id}`) }}
         also={{ label: "Stop", onClick: () => stop(r), gate: window.gate("approve", "stop a run") }}
-        onOpen={() => nav("broadcasts")}
+        onOpen={() => nav(`broadcasts/run:${r.id}`)}
         testid="brief-run-soon"
       />
     )),

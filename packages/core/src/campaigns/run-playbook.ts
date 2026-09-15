@@ -112,5 +112,8 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     );
   }
   await record({ mode, eligible: n, broadcast_id: made.id, state: plan.state, ...(movedFrom ? { moved_from: movedFrom } : {}) });
-  return { outcome: open ? "sent" : "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
+  // A sent run says when it really goes, so the person who asked is not told "now" over a run moved to nine.
+  return open
+    ? { outcome: "sent", broadcast_id: made.id, eligible: n, mode, state: plan.state, scheduled_for: open.at.toISOString(), moved_from: movedFrom }
+    : { outcome: "held", broadcast_id: made.id, eligible: n, mode, state: plan.state };
 }
