@@ -104,7 +104,7 @@ test("REGRESSION (S19): nothing names the Business tab 'Workspace' -- Setup's ro
   assert.equal(verbForRoute("admin/workspace"), "Open Business", "and the bell's verb for that page");
 });
 
-test("REGRESSION (S6): the hard limits say whose values they are and that they cannot be changed here, from one home for their defaults -- 'this workspace's own values', beside a page's own 20 and 24", async () => {
+test("REGRESSION (S6): the hard limits say which two never change and which two are the owner's to set, from one home for their defaults -- the card called the last two Chanlytics' and nothing could change them", async () => {
   assert.equal(contracts.REPLY_CAP_DEFAULT, 20, "REGRESSION: the defaults lived in the page and the runtime, apart");
   assert.equal(contracts.PAUSE_HOURS_DEFAULT, 24);
   const steps = await import("../../../apps/edge/lib/whatsapp/steps.ts");
@@ -113,14 +113,14 @@ test("REGRESSION (S6): the hard limits say whose values they are and that they c
   const H = contracts.hardLimitsWords;
   assert.equal(typeof H, "function");
   const stored = H({ max_replies_day: 12, pause_hours: 48 });
-  assert.ok(!stored.sub.includes("own values"), `REGRESSION: ${stored.sub}`);
-  assert.match(stored.sub, /can't be changed here/);
-  assert.equal(stored.replies, "Stops after 12 automatic replies to one person in a day and asks for you");
-  assert.equal(stored.pause, "Stays paused for 48 hours after you take over a thread");
+  assert.ok(!/own values|can't be changed here|set by Chanlytics/.test(stored.sub), `REGRESSION: ${stored.sub}`);
+  assert.match(stored.sub, /yours to set/);
+  assert.deepEqual([stored.cap, stored.hours], [12, 48], "a stored value is the value the dial shows");
   const unset = H({});
-  assert.equal(unset.replies, "Stops after 20 automatic replies to one person in a day (the default) and asks for you");
-  assert.equal(unset.pause, "Stays paused for 24 hours after you take over a thread (the default)");
-  assert.equal(H(null).replies, unset.replies);
+  assert.deepEqual([unset.cap, unset.hours], [20, 24], "an unset one is the default");
+  assert.match(unset.replies, /20 is the default/);
+  assert.match(unset.pause, /24 hours is the default/);
+  assert.deepEqual(H(null), unset);
 });
 
 /* ------------------------------ the page, on a stub React ------------------------------ */
@@ -289,19 +289,30 @@ test("REGRESSION (S19): the AI memory pane points at Business by name -- it said
   assert.ok(!textOf(tree).includes("Workspace:"), "nor does the sentence");
 });
 
-test("REGRESSION (S6): Autonomy's hard limits come from the bridge's words -- the card said 'this workspace's own values'", () => {
+test("REGRESSION (S6): the reply cap and the pause are dials on the Hard limits card, in the bridge's words -- the card listed values nothing on the page could change", () => {
   workspace();
   assert.equal(typeof globalThis.window.__hardLimits, "function", "REGRESSION: the page kept its own words and its own defaults");
+  const calls = [];
   Object.assign(globalThis.window, {
     __POLICIES: [],
+    __setPolicy: async (...args) => { calls.push(args); return { ok: true }; },
     POLICY: { ...globalThis.window.POLICY, MODES: ["Auto", "Veto", "Ask", "Never"], ROWS: [{ id: "reply", cls: "reply", label: "Replies to customers", note: "", locked: false, modes: ["Auto", "Veto", "Ask"], mode: "Auto", hints: {}, limits: { reply_delay_ms: 30000, pause_hours: 48 } }] },
   });
-  const text = textOf(settings("autonomy"));
+  const tree = settings("autonomy");
+  const text = textOf(tree);
   const H = contracts.hardLimitsWords({ reply_delay_ms: 30000, pause_hours: 48 });
-  assert.ok(!text.includes("own values"), "REGRESSION: 'this workspace's own values'");
-  assert.ok(text.includes(H.sub), text.slice(-400));
-  assert.ok(text.includes(H.replies), "an unset cap is said to be the default");
-  assert.ok(text.includes(H.pause), "a stored pause is said as stored");
+  assert.ok(!/own values|can't be changed here/.test(text), "REGRESSION: the card said nothing here could change them");
+  assert.ok(text.includes(H.sub) && text.includes(H.replies) && text.includes(H.pause), text.slice(-600));
+  const cap = byTestId(tree, "aut-reply-cap");
+  const pause = byTestId(tree, "aut-pause");
+  assert.ok(cap && pause, "REGRESSION: no dial for either limit");
+  const active = (group) => all(group, (n) => n.type === "button" && String(n.props.className).split(" ").includes("active")).map((n) => textOf(n));
+  assert.deepEqual(active(cap), ["20"], "an unset cap shows the default");
+  assert.deepEqual(active(pause), ["48h"], "a stored pause shows as stored, even off the usual steps");
+  press(find(cap, (n) => n.type === "button" && textOf(n) === "40"));
+  assert.deepEqual(calls.at(-1), ["reply", undefined, { maxRepliesDay: 40 }], "only the cap travels, and no mode");
+  press(find(pause, (n) => n.type === "button" && textOf(n) === "4h"));
+  assert.deepEqual(calls.at(-1), ["reply", undefined, { pauseHours: 4 }], "only the pause travels, and no mode");
 });
 
 test("REGRESSION (S2): the slot length can be set from the Business editor -- a save kept it, and no field could change it", () => {

@@ -1229,12 +1229,12 @@ function hardLimitsWords(limits) {
     const n = Number(v);
     return v !== void 0 && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
   };
-  const cap = stored(limits?.max_replies_day);
-  const hours = stored(limits?.pause_hours);
   return {
-    sub: "The first two never change. The last two are this workspace's limits, set by Chanlytics, and can't be changed here",
-    replies: `Stops after ${cap ?? REPLY_CAP_DEFAULT} automatic replies to one person in a day${cap === null ? " (the default)" : ""} and asks for you`,
-    pause: `Stays paused for ${hours ?? PAUSE_HOURS_DEFAULT} hours after you take over a thread${hours === null ? " (the default)" : ""}`
+    sub: "The first two never change; the last two are yours to set",
+    replies: `Automatic replies to one person in 24 hours before the receptionist stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
+    pause: `How long the receptionist stays out of a conversation once a person steps in \u2014 Take over, a reply from the Inbox or from the WhatsApp Business app \u2014 or once it hands one to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
+    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT
   };
 }
 function replyDelayMs(mode, limits) {

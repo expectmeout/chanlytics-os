@@ -226,21 +226,22 @@ export const PAUSE_HOURS_DEFAULT = 24;
 
 /**
  * The hard limits in an owner's words (the wiring audit's S6). The card called
- * the last two "this workspace's own values", beside the page's own 20 and 24,
- * over limits nothing on the page can change. A stored value is said as stored;
- * one that is not stored is said to be the default.
+ * the last two "this workspace's own values", then limits Chanlytics set that
+ * nothing on the page could change; they are the owner's two dials now. Each
+ * says what it does and what its default is, and the value a dial shows is the
+ * stored one, or the default when nothing is stored.
  */
-export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): { sub: string; replies: string; pause: string } {
+export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): { sub: string; replies: string; pause: string; cap: number; hours: number } {
   const stored = (v: unknown): number | null => {
     const n = Number(v);
     return v !== undefined && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
   };
-  const cap = stored(limits?.max_replies_day);
-  const hours = stored(limits?.pause_hours);
   return {
-    sub: "The first two never change. The last two are this workspace's limits, set by Chanlytics, and can't be changed here",
-    replies: `Stops after ${cap ?? REPLY_CAP_DEFAULT} automatic replies to one person in a day${cap === null ? " (the default)" : ""} and asks for you`,
-    pause: `Stays paused for ${hours ?? PAUSE_HOURS_DEFAULT} hours after you take over a thread${hours === null ? " (the default)" : ""}`,
+    sub: "The first two never change; the last two are yours to set",
+    replies: `Automatic replies to one person in 24 hours before the receptionist stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
+    pause: `How long the receptionist stays out of a conversation once a person steps in — Take over, a reply from the Inbox or from the WhatsApp Business app — or once it hands one to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
+    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT,
   };
 }
 
