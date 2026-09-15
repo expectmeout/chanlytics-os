@@ -1,4 +1,4 @@
-import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, TIMELINE_FILTERS, filterTimeline, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
@@ -177,6 +177,7 @@ declare global {
     __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonMarketingConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __consentSources?: readonly { id: string; label: string }[];
+    __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
     /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
@@ -216,6 +217,8 @@ export function installPeopleCourier(): void {
   window.__setPersonMarketingConsent = setPersonMarketingConsent;
   window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;
   window.__consentSources = CONSENT_SOURCES;
+  // The timeline's filters and the rule that applies them: a profile narrows by the kinds contracts names.
+  window.__timeline = { filters: TIMELINE_FILTERS, filter: filterTimeline };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.
   window.__mayReceive = mayReceive;

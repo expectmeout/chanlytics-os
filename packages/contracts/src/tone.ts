@@ -22,7 +22,7 @@
  * The toast's tones (chrome.ts) are the four of these that a flash can be.
  */
 import { BROADCAST_STATE_LABELS } from "./broadcasts";
-import { PERSON_MODE_LABELS, PERSON_STATE_LABELS } from "./people";
+import { PERSON_MODE_WORDS, PERSON_STATE_LABELS } from "./people";
 import { ROLE_WORDS } from "./identity";
 import { SETUP_STATE_WORDS } from "./setup";
 
@@ -68,7 +68,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
-  mode: PERSON_MODE_LABELS,
+  mode: PERSON_MODE_WORDS,
   broadcast: BROADCAST_STATE_LABELS,
   playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
   template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },

@@ -624,7 +624,7 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
       <div className="cl-tag-stack" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
         {on.map((s) => (
           <span key={s.id} className="seg-chip" data-testid="person-list-chip">
-            {s.name}
+            <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(s.id))} title={`Open ${s.name} in Lists`} data-testid="person-list-open">{s.name}</button>
             {canEdit && (
               <button
                 className="cl-seg-filter-x"
@@ -666,11 +666,27 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
 // receptionist is doing right now, and the timeline is the record itself.
 
 
-const PersonTimeline = ({ items, initials }) => {
+// A message opens its thread from its time, quietly: an "Open" on every line of a conversation would drown it.
+const TL_QUIET = { customer: true, receptionist: true, you: true, system: true };
+
+// The timeline narrows by kind (contracts TIMELINE_FILTERS, through the bridge's window.__timeline): All, then
+// only the kinds this person's record holds. The choice is the page's, so this stays a plain function of its
+// props. Every item with a thread or a day opens it; only calls did.
+const PersonTimeline = ({ items, initials, filter = "all", onFilter = null }) => {
   let lastDay = null;
+  const kit = window.__timeline;
+  const shown = kit ? kit.filter(items, filter) : items;
+  const offered = kit && onFilter ? kit.filters.filter((f) => f.id === "all" || items.some((i) => (f.kinds || []).includes(i.kind))) : [];
   return (
     <div className="cl-prof-timeline">
-      {items.map((e) => {
+      {offered.length > 2 && (
+        <div className="cl-tl-filters" role="group" aria-label="Show on the timeline">
+          {offered.map((f) => (
+            <button key={f.id} type="button" className={`cl-tab ${filter === f.id ? "active" : ""}`} aria-pressed={filter === f.id} onClick={() => onFilter(f.id)} data-testid={`timeline-filter-${f.id}`}>{f.label}</button>
+          ))}
+        </div>
+      )}
+      {shown.map((e) => {
         const dayHead = e.day !== lastDay ? <div className="cl-rail-label" style={{ margin: "10px 0 4px" }}>{e.day}</div> : null;
         lastDay = e.day;
         const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" || e.kind === "visit" ? "session" : "event";
@@ -693,14 +709,16 @@ const PersonTimeline = ({ items, initials }) => {
                   <span className="cl-tl-who">{e.who}</span>
                   {e.kind === "receptionist" && <span style={{ color: "var(--ink-faint)" }}>· receptionist</span>}
                   {e.sub && <span style={{ color: "var(--ink-faint)" }}>· {e.sub}</span>}
-                  <span style={{ marginLeft: "auto", color: "var(--ink-faint)" }}>{e.time}</span>
+                  {e.link && TL_QUIET[e.kind]
+                    ? <button type="button" className="cl-tl-time-link" style={{ marginLeft: "auto" }} onClick={() => window.CHANLY.nav(e.link.to)} title={e.link.label} data-testid="timeline-open">{e.time}</button>
+                    : <span style={{ marginLeft: "auto", color: "var(--ink-faint)" }}>{e.time}</span>}
                 </div>
                 <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>
                   {e.text}
-                  {e.link && (
+                  {e.link && !TL_QUIET[e.kind] && (
                     <>
                       {" "}
-                      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(e.link.to)}>
+                      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(e.link.to)} data-testid="timeline-open">
                         {e.link.label} <Icon name="arrow-right" size={10} />
                       </button>
                     </>
@@ -792,7 +810,7 @@ const PersonProfileFrame = ({ onBack, children }) => (
       <div className="cl-prof-hero">
         <button className="cl-prof-back" onClick={onBack}>
           <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
-          All clients
+          People
         </button>
         {children}
       </div>
@@ -808,6 +826,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // draws it; the typed text and the match stay here, with the record.
   const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
   const [rm, setRm] = useStateP({ busy: false, error: null });
+  // What the timeline shows; the timeline itself stays a plain function of its props.
+  const [tlFilter, setTlFilter] = useStateP("all");
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     setSt((s) => ({ ...s, loading: !s.vm, error: null }));
@@ -845,7 +865,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const closeDelete = () => setDel({ open: false, typed: "", busy: false, error: null });
   // Receptionist for this person: the person's own setting wins; "inherit"
   // removes it. Re-fetched from the server afterwards, never assumed.
-  const RM_LABEL = { auto: "Answer", ask: "Ask me first", never: "Never" };
+  // Contracts' words (PERSON_MODE_WORDS, through the chrome bridge): the ones the bulk menu and a pill say.
+  const rmWord = (m) => (window.__chrome && window.__chrome.state ? window.__chrome.state("mode", m).label : m);
   const rmPerson = p.receptionistMode.person;
   const rmEffective = rmPerson || p.receptionistMode.workspace;
   const setMode = async (mode) => {
@@ -856,8 +877,8 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     setRm({ busy: false, error: null });
     ppFlash({
       msg: mode === "inherit"
-        ? <><b>{first === "them" ? "This person" : first}</b> follows the workspace setting again</>
-        : <>Receptionist for <b>{first === "them" ? "this person" : first}</b>: {RM_LABEL[mode]}</>,
+        ? <><b>{first === "them" ? "This person" : first}</b> follows the workspace again</>
+        : <>Receptionist for <b>{first === "them" ? "this person" : first}</b>: {rmWord(mode)}</>,
     });
     load();
   };
@@ -924,7 +945,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         <div className="cl-prof-hero">
           <button className="cl-prof-back" onClick={onBack}>
             <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
-            All clients
+            People
           </button>
           <div className="cl-prof-id">
             <div className="cl-prof-avatar">{p.initials}</div>
@@ -987,7 +1008,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           </div>
           <StatStrip className="cl-prof-money">
             {p.facts.map((f) => (
-              <StatCell key={f.label} label={f.label} value={f.value} valueSize={typeof f.value === "string" ? 14 : undefined} meta={f.meta} metaTone={f.tone || ""} />
+              <StatCell key={f.label} label={f.label} value={f.value} valueSize={typeof f.value === "string" ? 14 : undefined} meta={f.meta} metaTone={f.tone || ""}>
+                {/* The next visit opens its day on the Calendar; the tile opened nothing. */}
+                {f.label === "Next visit" && p.nextVisitDate && (
+                  <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
+                )}
+              </StatCell>
             ))}
           </StatStrip>
         </div>
@@ -1021,9 +1047,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         <div className="cl-prof-section">
           <div className="cl-prof-section-head">
             <span className="cl-prof-section-title">Timeline</span>
-            <span className="cl-prof-section-sub">Messages, calls and your decisions · in true order</span>
+            <span className="cl-prof-section-sub">Messages, calls, visits and your decisions · in true order</span>
           </div>
-          <PersonTimeline items={p.timeline} initials={p.initials} />
+          <PersonTimeline items={p.timeline} initials={p.initials} filter={tlFilter} onFilter={setTlFilter} />
         </div>
       </div>
 
@@ -1051,7 +1077,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 disabled={!isOwner || rm.busy}
                 onClick={() => setMode(m)}
               >
-                {RM_LABEL[m]}
+                {rmWord(m)}
               </button>
             ))}
           </div>
@@ -1060,12 +1086,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
               ? (rmPerson === "auto" ? "Answers this person automatically — set for them alone."
                 : rmPerson === "ask" ? "Every message from this person waits for you before anything is sent."
                 : "The receptionist stays out of their WhatsApp thread — their messages come straight to you, and it won't text them after a call. It still answers the phone.")
-              : `Following the workspace setting${p.receptionistMode.workspace ? ` (${RM_LABEL[p.receptionistMode.workspace]})` : ""}.`}
+              : `Following the workspace${p.receptionistMode.workspace ? ` (${rmWord(p.receptionistMode.workspace)})` : ""}.`}
             {!isOwner && " Only an owner can change this."}
           </div>
           {rmPerson && isOwner && (
             <button className="cl-bucket-link" disabled={rm.busy} onClick={() => setMode("inherit")}>
-              Use the workspace setting <Icon name="arrow-right" size={10} />
+              {rmWord("inherit")} <Icon name="arrow-right" size={10} />
             </button>
           )}
           <window.FieldError message={rm.error} testid="receptionist-mode-error" />

@@ -138,7 +138,7 @@ test("thread verbs: each to its Inbox route; the snooze carries its until; the r
 test("a person's mode: the owner's route, the people surface told, the previous mode kept for undo with the ledger row", async () => {
   const t = tab();
   const r = await commitProposal(t.win, card("person_mode", { contact_id: P1, mode: "never", who: "Rosa", previous: "auto" }), t.client);
-  assert.deepEqual(r, { ok: true, receipt: "Receptionist for Rosa: never", undo: { contact_id: P1, mode: "auto", decision_id: D(8) } });
+  assert.deepEqual(r, { ok: true, receipt: "Receptionist for Rosa: Never", undo: { contact_id: P1, mode: "auto", decision_id: D(8) } });
   assert.deepEqual(one(t), { key: `PUT /api/v1/contacts/${P1}/receptionist`, body: { mode: "never" }, via: "ask", undoOf: undefined });
   assert.ok(t.events.includes("event:surface:clients"));
   const bare = tab();
