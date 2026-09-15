@@ -101,7 +101,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     return t ? t.state : firstBucketWithThreads(THREADS);
   });
   const [activeThreadId, setActiveThreadId] = React.useState(
-    initialThreadId || (THREADS.find((x) => x.state === "needs") || THREADS[0] || {}).id || null,
+    // A real thread that needs you opens first, as Needs you lists it first: a teammate's thread opened in its place (I2).
+    initialThreadId || (THREADS.find((x) => x.state === "needs" || (x.real && x.needsYou)) || THREADS[0] || {}).id || null,
   );
   const [selected, setSelected] = React.useState([]);
   // A bulk act on real threads while it runs: the bar says so, and a second press asks nothing.
@@ -244,7 +245,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
-  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); setRepaint(null); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
+  // On a real thread the dot means it needs you (the view model's needsYou), so opening it changes nothing: it
+  // cleared, and the next read lit it again (I2). A seeded thread's dot is its unread one.
+  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); setRepaint(null); mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x)); };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
 
   // ---- Verdict gate: the ONE post-meeting human decision (closed set) ----
@@ -592,7 +595,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (!r) return;
     ppFlash(r.refused.length
       ? { tone: "danger", msg: <><b>{r.done.length} of {snoozed.length}</b> woken — {ixRefusedWords(r.refused)}</> }
-      : { msg: <>Snooze undone — <b>{r.done.length}</b> back where {r.done.length === 1 ? "it was" : "they were"}</> });
+      // A snooze lets go of whoever had the thread (core snooze clears the claim and the pause), so waking it
+      // brings it back to the Inbox, not back where it was (I2).
+      : { msg: <>Snooze undone — <b>{r.done.length}</b> back in the Inbox</> });
   };
   const bulkReal = async (verb) => {
     if (!window.canDo("approve")) return;
@@ -640,9 +645,13 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
 
   const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
-  const visible = viewFilter
+  // Needs you, on a real workspace: what needs you first, then the threads you have, then a teammate's, each group
+  // in the server's order. A teammate's thread sat above the one waiting on you (I2).
+  const standingRank = (t) => (t.real && t.state === "escalated" ? (t.needsYou ? 0 : t.takenOver ? 1 : 2) : 0);
+  const visible = (viewFilter
     ? threads.filter(viewFilter)
-    : threads.filter((t) => activeBucket === "all" || t.state === activeBucket);
+    : threads.filter((t) => activeBucket === "all" || t.state === activeBucket)
+  ).sort((a, b) => standingRank(a) - standingRank(b));
   // Scoped to the VISIBLE list: an id left over from another bucket used to
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
@@ -704,9 +713,11 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
 
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
+  // The Needs you chip counts what needs you, the badge's number (needsCount): it counted every flagged thread, yours
+  // and a teammate's too, and a thread you have just answered stays flagged for the whole pause (I2).
   const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
     ...b,
-    count: threads.filter((t) => t.state === b.id).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
+    count: threads.filter((t) => (t.real && b.id === "escalated" ? t.needsYou : t.state === b.id)).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
   }));
   const viewsWithCounts = INBOX_VIEWS.map((v) => ({
     ...v,
