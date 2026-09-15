@@ -109,7 +109,7 @@ interface SeedStore {
 interface PolicyWindow {
   POLICY?: SeedStore;
   __POLICIES?: PoliciesSurface | null;
-  __setPolicy?: (cls: string, mode: string, replyDelayMs?: number, minConfidence?: number, maxTokensDay?: number) => Promise<unknown>;
+  __setPolicy?: (cls: string, mode: string) => Promise<unknown>;
 }
 
 /**

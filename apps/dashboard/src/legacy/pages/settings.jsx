@@ -2298,6 +2298,12 @@ const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];
 // the day and each new message lands in Needs you, as at the reply cap.
 // The route and the edge already honoured it; this is its handle.
 const AUT_BUDGET = [["Off", 0], ["100k", 100000], ["250k", 250000], ["500k", 500000], ["1M", 1000000]];
+// The two hard limits that are the owner's to set (S6): automatic replies to one person in 24 hours before the
+// receptionist stops and asks, and the hours it stays out of a conversation once a person steps in. Steps inside what
+// the route accepts (1 to 200, 1 to 168); a value stored off these steps shows as a step of its own, never as a wrong one.
+const AUT_CAP = [["10", 10], ["20", 20], ["40", 40], ["100", 100]];
+const AUT_PAUSE = [["1h", 1], ["4h", 4], ["12h", 12], ["24h", 24], ["3d", 72]];
+const withStep = (steps, value, label) => (steps.some((s) => s[1] === value) ? steps : [...steps, [label, value]].sort((a, b) => a[1] - b[1]));
 const AUT_MODE_HINT = {
   Auto: "sends right away",
   Veto: "writes the reply, waits, then sends unless you stop it",
@@ -2327,19 +2333,26 @@ const PaneAutonomyReal = ({ flash }) => {
   const limits = (reply && reply.limits) || {};
   const delayMs = Number(limits.reply_delay_ms) || 30000;
   const delayLabel = (AUT_DELAYS.find((d) => d[1] === delayMs) || [`${Math.round(delayMs / 1000)}s`])[0];
-  // The hard limits in contracts' words, which say a default is a default (hardLimitsWords, through the bridge).
+  // The hard limits in contracts' words, which say each default (hardLimitsWords, through the bridge), and the value
+  // each of the owner's two dials shows: the stored one, or the default.
   const hard = window.__hardLimits(limits);
+  const capSteps = withStep(AUT_CAP, hard.cap, String(hard.cap));
+  const pauseSteps = withStep(AUT_PAUSE, hard.hours, `${hard.hours}h`);
+  const capLabel = capSteps.find((s) => s[1] === hard.cap)[0];
+  const pauseLabel = pauseSteps.find((s) => s[1] === hard.hours)[0];
   const minConf = Number(limits.min_confidence) || 0;
   const confLabel = (AUT_CONF.find((c) => c[1] === minConf) || [`${Math.round(minConf * 100)}%`])[0];
   const budget = Number(limits.max_llm_tokens_day) || 0;
   const budgetLabel = (AUT_BUDGET.find((b) => b[1] === budget) || [`${Math.round(budget / 1000)}k`])[0];
 
-  const put = async (r, mode, replyDelayMs, minConfidence, maxTokensDay) => {
+  // One dial at a time, and never the mode with it (the bridge's PolicyDials).
+  const put = async (r, mode, dials = {}) => {
     if (!window.__setPolicy) return;
     setBusy(r.cls);
-    const res = await window.__setPolicy(r.cls, mode, replyDelayMs, minConfidence, maxTokensDay);
+    const res = await window.__setPolicy(r.cls, mode, dials);
     setBusy(null);
     if (!res.ok) { flash({ tone: "danger", msg: <><b>Not changed</b> — {res.message}</> }); return; }
+    const { replyDelayMs, minConfidence, maxTokensDay, maxRepliesDay, pauseHours } = dials;
     flash({
       msg: replyDelayMs !== undefined
         ? <><b>Hold window</b> → {(AUT_DELAYS.find((d) => d[1] === replyDelayMs) || [`${replyDelayMs / 1000}s`])[0]} — from the next reply</>
@@ -2347,7 +2360,11 @@ const PaneAutonomyReal = ({ flash }) => {
           ? <><b>Confidence dial</b> → {(AUT_CONF.find((c) => c[1] === minConfidence) || [`${Math.round(minConfidence * 100)}%`])[0]} — from the next reply</>
           : maxTokensDay !== undefined
             ? <><b>Day's model budget</b> → {(AUT_BUDGET.find((b) => b[1] === maxTokensDay) || [`${Math.round(maxTokensDay / 1000)}k`])[0]} — from the next reply</>
-            : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
+            : maxRepliesDay !== undefined
+              ? <><b>Reply cap</b> → {maxRepliesDay} automatic replies to one person in 24 hours — from the next reply</>
+              : pauseHours !== undefined
+                ? <><b>Stays out after a person steps in</b> → {(AUT_PAUSE.find((p) => p[1] === pauseHours) || [`${pauseHours}h`])[0]} — from the next time someone steps in</>
+                : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
     });
   };
 
@@ -2401,7 +2418,7 @@ const PaneAutonomyReal = ({ flash }) => {
             gate={window.gate("autonomy")}
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}
-            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, d[1]); }}
+            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, { replyDelayMs: d[1] }); }}
           />
         </SetRow>
         <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything, and so does a reply with no confidence on record.">
@@ -2409,7 +2426,7 @@ const PaneAutonomyReal = ({ flash }) => {
             gate={window.gate("autonomy")}
             value={confLabel}
             options={AUT_CONF.map((c) => c[0])}
-            onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, undefined, c[1]); }}
+            onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, { minConfidence: c[1] }); }}
           />
         </SetRow>
         <SetRow label="Day's model budget" hint="Model tokens the receptionist may use in a rolling 24 hours, in and out. Over it, it stops answering for the day and each new message lands in Needs you. Off is no budget.">
@@ -2417,7 +2434,7 @@ const PaneAutonomyReal = ({ flash }) => {
             gate={window.gate("autonomy")}
             value={budgetLabel}
             options={AUT_BUDGET.map((b) => b[0])}
-            onChange={(v) => { const b = AUT_BUDGET.find((x) => x[0] === v); if (b && reply) put(reply, undefined, undefined, undefined, b[1]); }}
+            onChange={(v) => { const b = AUT_BUDGET.find((x) => x[0] === v); if (b && reply) put(reply, undefined, { maxTokensDay: b[1] }); }}
           />
         </SetRow>
       </section>
@@ -2427,9 +2444,26 @@ const PaneAutonomyReal = ({ flash }) => {
         <ul className="st-bullets">
           <li><Icon name="check" size={11} /><span>Never messages a customer who asked to stop</span></li>
           <li><Icon name="check" size={11} /><span>Refunds, rates and negotiation always go to you — locked in the database</span></li>
-          <li><Icon name="check" size={11} /><span>{hard.replies}</span></li>
-          <li><Icon name="check" size={11} /><span>{hard.pause}</span></li>
         </ul>
+        {/* The last two were Chanlytics' and could not be changed here (S6): the owner's dials now, through the same door as the three above. */}
+        <SetRow label="Replies to one person in 24 hours" hint={hard.replies}>
+          <SetSeg
+            gate={window.gate("autonomy")}
+            value={capLabel}
+            options={capSteps.map((s) => s[0])}
+            onChange={(v) => { const s = capSteps.find((x) => x[0] === v); if (s && reply) put(reply, undefined, { maxRepliesDay: s[1] }); }}
+            data-testid="aut-reply-cap"
+          />
+        </SetRow>
+        <SetRow label="Stays out after a person steps in" hint={hard.pause}>
+          <SetSeg
+            gate={window.gate("autonomy")}
+            value={pauseLabel}
+            options={pauseSteps.map((s) => s[0])}
+            onChange={(v) => { const s = pauseSteps.find((x) => x[0] === v); if (s && reply) put(reply, undefined, { pauseHours: s[1] }); }}
+            data-testid="aut-pause"
+          />
+        </SetRow>
       </section>
     </>
   );

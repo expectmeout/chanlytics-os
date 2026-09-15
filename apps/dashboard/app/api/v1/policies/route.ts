@@ -31,15 +31,17 @@ export const PUT = write({
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
     const body = (await req.json().catch(() => null)) as
-      | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number; maxTokensDay?: number }
+      | { class?: string; mode?: string; replyDelayMs?: number; minConfidence?: number; maxTokensDay?: number; maxRepliesDay?: number; pauseHours?: number }
       | null;
     const cls = body?.class ?? "";
     if (!(POLICY_CLASSES as readonly string[]).includes(cls)) throw new AppError("validation", "Unknown policy class.");
     // A delay edit carries no mode: the row keeps the one it has. Requiring the
     // client to resend it meant a stale page changing the hold window could
-    // silently flip Replies to whatever mode that page had loaded.
+    // silently flip Replies to whatever mode that page had loaded. Every dial
+    // travels the same way.
     let mode = body?.mode ?? "";
-    if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined || body?.maxTokensDay !== undefined)) {
+    const dials = [body?.replyDelayMs, body?.minConfidence, body?.maxTokensDay, body?.maxRepliesDay, body?.pauseHours];
+    if (mode === "" && dials.some((d) => d !== undefined)) {
       const current = (await listPolicies(ctx.supabase, member.tenantId)).find((p) => p.class === cls);
       if (!current) throw new AppError("not_found", "Policy row not found.", 404);
       mode = current.mode;
@@ -97,6 +99,23 @@ export const PUT = write({
       }
       if (cls !== "reply") throw new AppError("validation", "The token budget only applies to the reply policy.");
       limits.max_llm_tokens_day = Math.round(t);
+    }
+    // The two hard limits Chanlytics used to set for a workspace, now the
+    // owner's (S6): automatic replies to one person in 24 hours before the
+    // receptionist stops and asks, and the hours it stays out of a conversation
+    // once a person steps in. Whole numbers inside what PolicyLimitsSchema
+    // allows; same boundary rule as the others.
+    if (body?.maxRepliesDay !== undefined) {
+      const n = Number(body.maxRepliesDay);
+      if (!Number.isInteger(n) || n < 1 || n > 200) throw new AppError("validation", "The reply cap is a whole number from 1 to 200.");
+      if (cls !== "reply") throw new AppError("validation", "The reply cap only applies to the reply policy.");
+      limits.max_replies_day = n;
+    }
+    if (body?.pauseHours !== undefined) {
+      const h = Number(body.pauseHours);
+      if (!Number.isInteger(h) || h < 1 || h > 168) throw new AppError("validation", "The pause is a whole number of hours from 1 to 168.");
+      if (cls !== "reply") throw new AppError("validation", "The pause only applies to the reply policy.");
+      limits.pause_hours = h;
     }
     try {
       const row = await setPolicyMode(ctx.supabase, member.tenantId, cls, mode, limits);

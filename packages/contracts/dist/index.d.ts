@@ -1118,9 +1118,10 @@ declare const REPLY_CAP_DEFAULT = 20;
 declare const PAUSE_HOURS_DEFAULT = 24;
 /**
  * The hard limits in an owner's words (the wiring audit's S6). The card called
- * the last two "this workspace's own values", beside the page's own 20 and 24,
- * over limits nothing on the page can change. A stored value is said as stored;
- * one that is not stored is said to be the default.
+ * the last two "this workspace's own values", then limits Chanlytics set that
+ * nothing on the page could change; they are the owner's two dials now. Each
+ * says what it does and what its default is, and the value a dial shows is the
+ * stored one, or the default when nothing is stored.
  */
 declare function hardLimitsWords(limits: {
     max_replies_day?: unknown;
@@ -1129,6 +1130,8 @@ declare function hardLimitsWords(limits: {
     sub: string;
     replies: string;
     pause: string;
+    cap: number;
+    hours: number;
 };
 /**
  * The wait for THIS reply, in ms. Zero means send now.
