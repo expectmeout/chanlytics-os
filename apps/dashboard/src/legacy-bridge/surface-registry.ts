@@ -61,9 +61,10 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   "admin/autonomy": "real",   // the policies table, live for the reply row
   "admin/notifications": "real",  // who is alerted, from tenant_config
   "admin/integrations": "real",   // the channels in tenant_channels, read-only
-  // Not built, and said so IN the pane. Falling through to the page's "demo"
-  // replaced all of Settings with a bare card titled "billing"; the pane now
-  // keeps the nav and states what exists instead (settings.jsx PaneSoon).
+  // Billing is real on every workspace (billing-real.jsx). Memory is not built,
+  // and says so IN the pane: falling through to the page's "demo" replaced all
+  // of Settings with a bare card; the pane keeps the nav and states what exists
+  // instead (settings.jsx PaneSoon).
   "admin/billing": "real",
   "admin/memory": "real",
   "admin/activity": "real",   // both ledgers, from GET /activity, owners only
@@ -104,6 +105,10 @@ export const ROUTE_SURFACE: Record<string, string> = {
   "admin/autonomy": "settings",
   "admin/notifications": "settings",
   "admin/integrations": "settings",
+  // Billing's rows come from its own surface, and its pane draws their reading
+  // and failed states itself. The gate still waits for settings: the page picks
+  // the real pane over the mockup's by __SETTINGS, so waiting on billing alone
+  // could paint the mockup's billing for a frame.
   "admin/billing": "settings",
   "admin/memory": "settings",
   "admin/activity": "settings",

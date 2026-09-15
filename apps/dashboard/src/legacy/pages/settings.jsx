@@ -291,6 +291,14 @@ const YourName = ({ flash, ...rest }) => {
  * whether it is theirs.
  */
 /**
+ * A number as people write it, "+1 (305) 555-0100", the way Setup and Connections show one (contracts
+ * formatPhoneDisplay, published by the bridge). Business showed the line it answers and the transfer number in the
+ * E.164 they are stored as (the wiring audit's L7). Only E.164 is rewritten: anything else is shown as it was written,
+ * which for the number it gives out is what the receptionist says.
+ */
+const phoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$/.test(v) ? window.__phoneDisplay(v) : v);
+
+/**
  * A fact, with where it came from.
  *
  * The Business card was eight rows of identical text, and three of them were
@@ -301,16 +309,16 @@ const YourName = ({ flash, ...rest }) => {
  * nothing. A source beside the value is the smallest honest fix, and the link
  * says who to go to when it is wrong.
  */
-const FactRow = ({ label, fact, to, toLabel, empty = "—" }) => {
+const FactRow = ({ label, fact, to, toLabel, empty = "—", show = (v) => v }) => {
   if (!fact) return null;
   const words = (window.__FACT_WORDS || {})[fact.source] || "";
   return (
     <div className="cl-prof-attr" data-testid={`fact-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
       <span className="cl-prof-attr-key">{label}</span>
       <span className="cl-prof-attr-val set-fact">
-        <span className={fact.value ? "" : "set-fact-empty"}>{fact.value || empty}</span>
+        <span className={fact.value ? "" : "set-fact-empty"}>{fact.value ? show(fact.value) : empty}</span>
         {fact.value && fact.source !== "typed" && <span className="set-fact-src">{words}</span>}
-        {fact.disputed && <span className="set-fact-src disputed" title={`The system has ${fact.disputed.value}`}>doesn&rsquo;t match</span>}
+        {fact.disputed && <span className="set-fact-src disputed" title={`The system has ${show(fact.disputed.value)}`}>doesn&rsquo;t match</span>}
         {to && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(to)}>{toLabel} <Icon name="arrow-right" size={10} /></button>}
       </span>
     </div>
@@ -392,6 +400,7 @@ function useFieldSave(flash) {
 const PublishedNumberRow = ({ fact, flash }) => {
   const line = ((window.__FACTS || {}).facts || {}).voice_line || null;
   const voiceLine = (line && line.value) || "";
+  const lineShown = phoneShown(voiceLine);
   const handoff = (((window.__FACTS || {}).facts || {}).handoff_number || {}).value || null;
   const stored = ((window.__SETTINGS || {}).config || {}).brain || {};
   const [editing, setEditing] = React.useState(false);
@@ -402,8 +411,8 @@ const PublishedNumberRow = ({ fact, flash }) => {
   const commit = () => {
     const value = own ? "" : typed.trim();
     const bad = value && window.__whyNotAPhone ? window.__whyNotAPhone(value) : null;
-    if (bad) { flash({ msg: <>{bad}</> }); return; }
-    if (!value && !voiceLine) { flash({ msg: <>There is no line yet, so the receptionist needs a number to give out.</> }); return; }
+    if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
+    if (!value && !voiceLine) { flash({ tone: "warn", msg: <>There is no line yet, so the receptionist needs a number to give out.</> }); return; }
     save(
       (brain) => { if (value) brain.phone_display = value; else delete brain.phone_display; return brain; },
       value ? <>Customers are told to call <b className="tabular">{value}</b> now.</> : <>Customers are told to call your line.</>,
@@ -430,21 +439,21 @@ const PublishedNumberRow = ({ fact, flash }) => {
         {voiceLine && (
           <div className="cl-tabs" role="radiogroup" aria-label="The number to tell customers to call">
             <button type="button" role="radio" aria-checked={own} className={`cl-tab ${own ? "active" : ""}`} onClick={() => setOwn(true)} data-testid="set-pub-line">Your line</button>
-            <button type="button" role="radio" aria-checked={!own} className={`cl-tab ${!own ? "active" : ""}`} onClick={() => { setOwn(false); setTyped(typed || voiceLine); }} data-testid="set-pub-other">A different number</button>
+            <button type="button" role="radio" aria-checked={!own} className={`cl-tab ${!own ? "active" : ""}`} onClick={() => { setOwn(false); setTyped(typed || lineShown); }} data-testid="set-pub-other">A different number</button>
           </div>
         )}
         {!own || !voiceLine ? (
-          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={voiceLine || "+1 646 932 5775"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
+          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={lineShown || "+1 646 932 5775"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
         ) : null}
         <div className="set-ident-note">
           {own && voiceLine
-            ? <><b className="tabular">{voiceLine}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
+            ? <><b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
             : window.__samePhone && window.__samePhone(typed, voiceLine)
               ? <>That is your line. Choose <b>Your line</b> and it stays right when the number changes.</>
               : handoff && window.__samePhone && window.__samePhone(typed, handoff)
-                ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{voiceLine}</b>.</>
+                ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
                 : voiceLine
-                  ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{voiceLine}</b>.</>
+                  ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>
                   : <>The receptionist has no line of its own yet, so this is the number it gives out.</>}
         </div>
         <div className="set-row-actions">
@@ -461,11 +470,12 @@ const HandoffRow = ({ fact, flash }) => {
   const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";
   const stored = (((window.__SETTINGS || {}).config || {}).brain || {}).profile || {};
   const [editing, setEditing] = React.useState(false);
-  const [typed, setTyped] = React.useState(stored.handoff_number || "");
+  // Shown, and changed from, the way the row writes it: the check and the stored form both read "+1 (786) 555-0182".
+  const [typed, setTyped] = React.useState(phoneShown(stored.handoff_number) || "");
   const [busy, save] = useFieldSave(flash);
   const commit = () => {
     const bad = window.__whyNotAHandoff ? window.__whyNotAHandoff(typed, voiceLine) : null;
-    if (bad) { flash({ msg: <>{bad}</> }); return; }
+    if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
     const value = window.__handoffE164 ? window.__handoffE164(typed) : (typed.trim() || null);
     save(
       (brain, profile) => {
@@ -473,7 +483,7 @@ const HandoffRow = ({ fact, flash }) => {
         brain.profile = profile;
         return brain;
       },
-      value ? <>Callers who insist on a person reach <b className="tabular">{value}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
+      value ? <>Callers who insist on a person reach <b className="tabular">{phoneShown(value)}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
       () => setEditing(false),
     );
   };
@@ -482,8 +492,8 @@ const HandoffRow = ({ fact, flash }) => {
       <div className="cl-prof-attr" data-testid="fact-transfers-a-caller-to">
         <span className="cl-prof-attr-key">Transfers a caller to</span>
         <span className="cl-prof-attr-val set-fact">
-          <span className={fact && fact.value ? "" : "set-fact-empty"}>{(fact && fact.value) || "Takes a message instead"}</span>
-          <button className="cl-bucket-link" onClick={() => { setTyped(stored.handoff_number || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
+          <span className={fact && fact.value ? "" : "set-fact-empty"}>{fact && fact.value ? phoneShown(fact.value) : "Takes a message instead"}</span>
+          <button className="cl-bucket-link" onClick={() => { setTyped(phoneShown(stored.handoff_number) || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
         </span>
       </div>
     );
@@ -581,11 +591,13 @@ const PaneProfile = ({ flash }) => {
           </SetRow>
         )}
       </section>
+      {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
+          /auth/signout revokes them all (S20). */}
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">This device</span></div>
-        <SetRow label="Sign out" hint="Ends your session everywhere, on every device — what someone who has lost a laptop expects">
+        <div className="fl-card-head"><span className="fl-card-title">Signing out</span></div>
+        <SetRow label="Sign out everywhere" hint="Ends your session on every device at once, this one included — what someone who has lost a laptop expects">
           <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
-            <Icon name="logout" size={12} /> Sign out
+            <Icon name="logout" size={12} /> Sign out everywhere
           </button>
         </SetRow>
       </section>
@@ -603,8 +615,12 @@ const TeamSection = ({ flash }) => {
   const [, setTick] = useSetState(0);
   useSetEffect(() => {
     const bump = () => setTick(n => n + 1);
+    // team:changed is the mockup's roster. The real one arrives with the settings surface, read again after every
+    // invite, role change and removal and by a failed read's Retry -- which this card never heard, so the roster on
+    // screen stayed as it was under a toast saying it had changed (D7, S11).
     window.addEventListener("team:changed", bump);
-    return () => window.removeEventListener("team:changed", bump);
+    window.addEventListener("surface:settings", bump);
+    return () => { window.removeEventListener("team:changed", bump); window.removeEventListener("surface:settings", bump); };
   }, []);
   const [inviting, setInviting] = useSetState(false);
   const [email, setEmail] = useSetState("");
@@ -675,10 +691,11 @@ const TeamSection = ({ flash }) => {
     ? serverRole === "owner"
     : (S.me() && S.me().role === "owner");
   const previewing = !!S.viewAsRole;
-  // Seats are a billing concept and billing is not wired. On real data the
-  // count is the members we actually have; the plan limit is not invented.
+  // Billing has no seats. On real data the count is the members we actually
+  // have, and a limit is only the mockup's: a real roster carried
+  // `seatsLeft = 1`, a number made up to keep Invite on the card (S20).
   const seatsUsed = Array.isArray(realTeam) ? realTeam.length : S.seatsUsed();
-  const seatsLeft = Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed;
+  const seatsFull = !Array.isArray(realTeam) && seatsUsed >= S.seatsIncluded;
 
   // On a REAL roster every write goes to the server, and the card shows what
   // the server says afterwards.
@@ -703,10 +720,10 @@ const TeamSection = ({ flash }) => {
 
   const invite = async () => {
     const mail = email.trim().toLowerCase();
-    if (!ST_EMAIL_RE.test(mail)) { flash({ msg: <>That doesn't look like an email — check the address</> }); return; }
-    if (team.some(m => m.email.toLowerCase() === mail)) { flash({ msg: <><b>{mail}</b> is already on the team</> }); return; }
+    if (!ST_EMAIL_RE.test(mail)) { flash({ tone: "warn", msg: <>That doesn't look like an email — check the address</> }); return; }
+    if (team.some(m => m.email.toLowerCase() === mail)) { flash({ tone: "warn", msg: <><b>{mail}</b> is already on the team</> }); return; }
     if (!realRoster) {
-      if (seatsLeft <= 0) { flash({ msg: <>No seats left — remove someone or upgrade the plan</> }); return; }
+      if (seatsFull) { flash({ tone: "warn", msg: <>No seats left — remove someone or upgrade the plan</> }); return; }
       const id = "u-" + mail.split("@")[0].replace(/[^a-z0-9]/g, "");
       const name = mail.split("@")[0].replace(/[._]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       S.addMember({ id, name, email: mail, role: inviteRole, status: "invited" });
@@ -736,7 +753,7 @@ const TeamSection = ({ flash }) => {
   const changeRole = async (m, role) => {
     if (m.role === role) return;
     if (!realRoster) {
-      if (m.role === "owner" && role !== "owner" && S.ownerCount() <= 1) { flash({ msg: <>Promote another owner first — a workspace needs one</> }); return; }
+      if (m.role === "owner" && role !== "owner" && S.ownerCount() <= 1) { flash({ tone: "warn", msg: <>Promote another owner first — a workspace needs one</> }); return; }
       const prev = m.role;
       S.setRole(m.id, role);
       flash({ msg: <><b>{m.name.split(" ")[0]}</b> is now {ST_ROLE_META[role].label}</>, undo: () => S.setRole(m.id, prev) });
@@ -753,7 +770,7 @@ const TeamSection = ({ flash }) => {
 
   const remove = async (m) => {
     if (!realRoster) {
-      if (m.role === "owner" && S.ownerCount() <= 1) { flash({ msg: <>Can't remove the only owner</> }); return; }
+      if (m.role === "owner" && S.ownerCount() <= 1) { flash({ tone: "warn", msg: <>Can't remove the only owner</> }); return; }
       const snap = { ...m };
       S.removeMember(m.id);
       setArmRemove(null);
@@ -783,7 +800,7 @@ const TeamSection = ({ flash }) => {
               ? `${seatsUsed} ${seatsUsed === 1 ? "person" : "people"}`
               : `${seatsUsed} of ${S.seatsIncluded} seats`}
         </span>
-        {!teamUnavailable && canManage && (seatsLeft > 0
+        {!teamUnavailable && canManage && (!seatsFull
           ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)}><Icon name="plus" size={12} /> Invite</button>
           : <button className="btn btn-sm" disabled title="No seats left — remove someone or upgrade">Seats full</button>
         )}
@@ -968,6 +985,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // field rather than trusting whatever was typed to be the same number.
   const RF = ((window.__FACTS || {}).facts) || {};
   const voiceLine = (RF.voice_line && RF.voice_line.value) || null;
+  const lineShown = phoneShown(voiceLine);
   const handoffLine = (RF.handoff_number && RF.handoff_number.value) || null;
   const [bookingLink, setBookingLink] = useSetState(brain.booking_link || "");
   const [address, setAddress] = useSetState(p0.address || "");
@@ -1073,6 +1091,23 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       undo: () => setClosures((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
     });
   };
+  // A service and a note are words somebody typed, the same as a closure, and each went with one press and no Undo (S18).
+  const removeService = (i) => {
+    const gone = services[i];
+    setServices((l) => l.filter((_, j) => j !== i));
+    flash({
+      msg: <>Removed {gone.name ? <b>{gone.name}</b> : "a service"}</>,
+      undo: () => setServices((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
+    });
+  };
+  const removeNote = (i) => {
+    const gone = notes[i];
+    setNotes((l) => l.filter((_, j) => j !== i));
+    flash({
+      msg: <>Removed {gone.title ? <b>{gone.title}</b> : "a note"}</>,
+      undo: () => setNotes((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
+    });
+  };
   // Today in the BUSINESS's zone, not the browser's. An owner working from
   // another country must not be told a date has passed when it has not.
   const wsTz = ((window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || {}).timezone;
@@ -1166,7 +1201,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // contracts/phone.ts, beside the row that now enforces them.
     const site = website.trim();
     if (site && !/^https?:\/\/.+\..+/.test(site)) {
-      flash({ msg: <>The website needs to be a full web address, starting with https://</> });
+      flash({ tone: "warn", msg: <>The website needs to be a full web address, starting with https://</> });
       return;
     }
     put("website", site || undefined);
@@ -1174,7 +1209,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       .map((n) => ({ title: (n.title || "").trim(), text: (n.text || "").trim() }))
       .filter((n) => n.title || n.text);
     if (noteRows.some((n) => !n.title || !n.text)) {
-      flash({ msg: <>Each note needs both a title and the text to say.</> });
+      flash({ tone: "warn", msg: <>Each note needs both a title and the text to say.</> });
       return;
     }
     put("notes", noteRows.length ? noteRows : undefined);
@@ -1192,7 +1227,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     put("booking_rules", Object.keys(rules).length ? rules : undefined);
     const feed = icalUrl.trim();
     if (feed && !/^(https?|webcal):\/\/\S+$/i.test(feed)) {
-      flash({ msg: <>The calendar feed needs to be a full address, starting with https:// or webcal://</> });
+      flash({ tone: "warn", msg: <>The calendar feed needs to be a full address, starting with https:// or webcal://</> });
       return;
     }
     const hrs = {};
@@ -1254,16 +1289,16 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // line at all and nothing typed has nothing to give a customer.
     const missing = !name ? "a business name" : (!phone && !voiceLine) ? "a phone number" : !link ? "a booking link" : "";
     if (missing) {
-      flash({ msg: <>The receptionist needs {missing} before it can answer anyone.</> });
+      flash({ tone: "warn", msg: <>The receptionist needs {missing} before it can answer anyone.</> });
       return;
     }
     const badPhone = phone && window.__whyNotAPhone ? window.__whyNotAPhone(phone) : null;
     if (badPhone) {
-      flash({ msg: <>{badPhone}</> });
+      flash({ tone: "warn", msg: <>{badPhone}</> });
       return;
     }
     if (!/^https?:\/\/.+\..+/.test(link)) {
-      flash({ msg: <>That booking link needs to be a full web address, starting with https://</> });
+      flash({ tone: "warn", msg: <>That booking link needs to be a full web address, starting with https://</> });
       return;
     }
     const defaults = window.__receptionistDefaults(name, phone || voiceLine || "", link);
@@ -1354,7 +1389,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                     <button type="button" role="radio" aria-checked={!phoneDisplay} className={`cl-tab ${!phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay("")} data-testid="set-pub-line">
                       Your line
                     </button>
-                    <button type="button" role="radio" aria-checked={!!phoneDisplay} className={`cl-tab ${phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay(phoneDisplay || voiceLine)} data-testid="set-pub-other">
+                    <button type="button" role="radio" aria-checked={!!phoneDisplay} className={`cl-tab ${phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay(phoneDisplay || lineShown)} data-testid="set-pub-other">
                       A different number
                     </button>
                   </div>
@@ -1364,7 +1399,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                         className="set-input"
                         value={phoneDisplay}
                         onChange={(e) => setPhoneDisplay(e.target.value)}
-                        placeholder={voiceLine}
+                        placeholder={lineShown}
                         inputMode="tel"
                         autoComplete="tel"
                         aria-label="The number to publish instead"
@@ -1374,13 +1409,13 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                         {window.__samePhone && window.__samePhone(phoneDisplay, voiceLine)
                           ? <>That is your line. Leave it on <b>Your line</b> and it stays right when the number changes.</>
                           : handoffLine && window.__samePhone && window.__samePhone(phoneDisplay, handoffLine)
-                            ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{voiceLine}</b>.</>
-                            : <>Customers who ring this will not reach your receptionist on <b className="tabular">{voiceLine}</b>.</>}
+                            ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
+                            : <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>}
                       </div>
                     </>
                   ) : (
                     <div className="set-ident-note" data-testid="set-pub-note">
-                      <b className="tabular">{voiceLine}</b> — the line your receptionist answers. It follows the line, so changing your number here changes nothing to keep in step.
+                      <b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number here changes nothing to keep in step.
                     </div>
                   )}
                 </>
@@ -1610,7 +1645,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               <span className="set-svc-unit">min</span>
             </span>
             <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" aria-label="Price note" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => removeService(i)}><Icon name="x" size={12} /></button>
           </div>
         ))}
         <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
@@ -1722,7 +1757,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           <div key={i} className="set-note-row">
             <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
             <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => setNotes((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => removeNote(i)}><Icon name="x" size={12} /></button>
           </div>
         ))}
         {notes.length < 10 && (
@@ -1781,6 +1816,15 @@ const WorkspaceData = () => {
 
 const PaneWorkspace = ({ flash }) => {
   const [editing, setEditing] = useSetState(false);
+  // Drawn again whenever the settings surface is read again: after a save, a conflict's re-read, a Retry. Only
+  // Autonomy and Notifications listened, so this card kept the values from before a save until something else
+  // happened to repaint it (D7).
+  const [, setTick] = useSetState(0);
+  useSetEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    window.addEventListener("surface:settings", bump);
+    return () => window.removeEventListener("surface:settings", bump);
+  }, []);
   const settings = window.__SETTINGS || null;
   const S = (settings && settings.config && settings.config.brain) || null;
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
@@ -1854,7 +1898,12 @@ const PaneWorkspace = ({ flash }) => {
             : <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>}
       </div>
       {unconfigured ? (
-        <EmptyState kind="card" glyph="agents" title="This workspace has no receptionist yet" body="Nothing has been set up for it — no business name, no phone line, no booking link. Until it has those, there is nothing here to show you and nothing answering your customers." action={{ label: "Set up the receptionist", onClick: () => setEditing(true), gate: window.gate("settings") }} />
+        <>
+          <EmptyState kind="card" glyph="agents" title="This workspace has no receptionist yet" body="Nothing has been set up for it — no business name, no phone line, no booking link — so nothing is answering your customers yet." action={{ label: "Set up the receptionist", onClick: () => setEditing(true), gate: window.gate("settings") }} />
+          {/* The timezone is the workspace's, not the receptionist's: it decides what "today" means on every page from
+              the first day, and it could not be reached until a receptionist existed (S13). */}
+          <div className="cl-prof-attr-list"><TimezoneRow flash={flash} /></div>
+        </>
       ) : (
       <div className="cl-prof-attr-list">
         {real
@@ -1884,7 +1933,7 @@ const PaneWorkspace = ({ flash }) => {
             and from the card that reads them. */}
         {real ? (
           <>
-            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" />
+            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" show={phoneShown} />
             <PublishedNumberRow fact={F.phone_display} flash={flash} />
             <HandoffRow fact={F.handoff_number} flash={flash} />
           </>
@@ -2456,9 +2505,9 @@ const PaneNotificationsReal = ({ flash }) => {
   };
   const add = () => {
     const v = email.trim().toLowerCase();
-    if (!ST_EMAIL_RE.test(v)) { flash({ msg: <>That doesn't look like an email address.</> }); return; }
+    if (!ST_EMAIL_RE.test(v)) { flash({ tone: "warn", msg: <>That doesn't look like an email address.</> }); return; }
     if (emails.includes(v)) { setEmail(""); return; }
-    if (emails.length >= 10) { flash({ msg: <>Up to ten addresses can be alerted.</> }); return; }
+    if (emails.length >= 10) { flash({ tone: "warn", msg: <>Up to ten addresses can be alerted.</> }); return; }
     setEmail("");
     save([...emails, v], <><b>{v}</b> will be alerted from the next escalation</>);
   };
@@ -2531,7 +2580,9 @@ const PaneNotificationsReal = ({ flash }) => {
       <section className="fl-card set-card">
         <div className="fl-card-head"><span className="fl-card-title">How</span></div>
         <ul className="st-bullets">
-          <li><Icon name="check" size={11} /><span>By email, the moment it happens. SMS and push notifications are not built.</span></li>
+          {/* The bell's device alerts are real (notifications.ts: a browser notification while the app is open in the
+              background), so "push notifications are not built" denied a switch one click away (S20). */}
+          <li><Icon name="check" size={11} /><span>By email, the moment it happens. While Chanlytics is open in your browser, that browser can alert you too when something needs you — switch alerts on from the bell. There are no text-message alerts.</span></li>
           <li><Icon name="check" size={11} /><span>Sent from {notif.from ? <b>{notif.from}</b> : "the Chanlytics alert address"}{notif.from ? "" : " until your own sending domain is verified"}.</span></li>
           <li><Icon name="check" size={11} /><span>No daily brief or weekly report goes out yet; Today is the brief.</span></li>
         </ul>
@@ -2717,7 +2768,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           <React.Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map(t => (
-              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} onClick={() => onTab(t.id)}>
+              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => onTab(t.id)}>
                 <Icon name={t.icon} size={14} />
                 <span className="set-nav-label">{t.label}</span>
               </button>

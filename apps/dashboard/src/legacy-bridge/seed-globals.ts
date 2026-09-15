@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164 } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164, formatPhoneDisplay } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -22,6 +22,7 @@ declare global {
     __whyNotAPhone: typeof whyNotAPhone;
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
+    __phoneDisplay: typeof formatPhoneDisplay;
   }
 }
 
@@ -56,6 +57,9 @@ if (typeof window !== "undefined") {
   window.__whyNotAPhone = whyNotAPhone;
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
+  // A stored number written the way people write one, "+1 (305) 555-0100", as
+  // Setup and Connections already show them: Business showed the E.164.
+  window.__phoneDisplay = formatPhoneDisplay;
 }
 
 export {};
