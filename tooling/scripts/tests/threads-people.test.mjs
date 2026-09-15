@@ -86,7 +86,7 @@ const row = (over = {}) => ({
 test("People says 'Held for you' for a person the receptionist was told to stay away from", () => {
   assert.equal(toPersonRowVM(row(), ZONE, NOW).receptionist.label, "Answering");
   assert.equal(toPersonRowVM(row({ effective_reply_mode: "never" }), ZONE, NOW).receptionist.label, "Held for you, set to Never", "REGRESSION: 'Answering' beside 'Receptionist for Dani: Never'");
-  assert.equal(toPersonRowVM(row({ effective_reply_mode: "ask" }), ZONE, NOW).receptionist.label, "Held for you, set to Ask");
+  assert.equal(toPersonRowVM(row({ effective_reply_mode: "ask" }), ZONE, NOW).receptionist.label, "Held for you, set to Ask me first");
   assert.equal(toPersonRowVM(row({ effective_reply_mode: "veto" }), ZONE, NOW).receptionist.label, "Answering", "veto is the receptionist answering, on a delay");
 });
 
@@ -124,7 +124,7 @@ test("the profile's Right now agrees with the mode two inches away", () => {
   assert.equal(vm.rightNow.title, "Held for you, set to Never");
   assert.match(vm.rightNow.detail, /come straight to you/);
   const ws = toPersonVM({ ...detail, receptionist_mode: null, workspace_reply_mode: "ask" }, ZONE, NOW);
-  assert.equal(ws.rightNow.title, "Held for you, set to Ask");
+  assert.equal(ws.rightNow.title, "Held for you, set to Ask me first");
   assert.match(ws.rightNow.detail, /workspace reply setting/);
 });
 

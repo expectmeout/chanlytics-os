@@ -75,6 +75,12 @@
   .stat-strip .stat-cell { border-right: none; border-top: 1px solid var(--line); }
   .stat-strip .stat-cell:nth-child(odd) { border-right: 1px solid var(--line); }
   .stat-strip .stat-cell:nth-child(-n+2) { border-top: none; }
+  /* A page head's strip is a stat strip too, but .cl-head-stats sets display: flex after the stat grid,
+     so the two columns above never applied to it and a phone cut the last tiles off (People read to
+     457px on a 375px screen). An odd last tile takes the whole row. */
+  .cl-head-stats.stat-strip { display: grid; }
+  .cl-head-stats.stat-strip .stat-cell { min-width: 0; }
+  .stat-strip .stat-cell:last-child:nth-child(odd) { grid-column: 1 / -1; border-right: none; }
   .cl-controls { flex-wrap: wrap; gap: 8px; padding: 10px 16px; }
   .cl-controls-right { margin-left: 0; flex-wrap: wrap; row-gap: 8px; }
   .fleet-filter { overflow-x: auto; max-width: 100%; scrollbar-width: none; }

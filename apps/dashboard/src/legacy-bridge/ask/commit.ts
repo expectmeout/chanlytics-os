@@ -19,7 +19,7 @@
  * The client is a parameter with the tab's own as the default, so a test
  * hands in one bound to a fake fetch and runs every branch for real.
  */
-import { ASK_THREAD_VERBS, applySettingsChange, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import { ASK_THREAD_VERBS, PERSON_MODE_WORDS, applySettingsChange, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
 import { viaAsk } from "./api";
@@ -86,7 +86,7 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
       const r = await viaAsk(client, "PUT contacts/[id]/receptionist", { params: { id: s(pl.contact_id) }, body: { mode: pl.mode as "auto" | "ask" | "never" | "inherit" } });
       if (!r.ok) return r;
       win.dispatchEvent(new CustomEvent("surface:clients"));
-      return { ok: true, receipt: `Receptionist for ${s(pl.who)}: ${s(pl.mode)}`, undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit", decision_id: decisionOf(r.data) } };
+      return { ok: true, receipt: `Receptionist for ${s(pl.who)}: ${PERSON_MODE_WORDS[s(pl.mode) as keyof typeof PERSON_MODE_WORDS] ?? s(pl.mode)}`, undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit", decision_id: decisionOf(r.data) } };
     }
     case "policy": {
       const body: Record<string, unknown> = { class: pl.class };

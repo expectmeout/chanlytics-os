@@ -3230,6 +3230,7 @@ function toBookingReportVM(dto) {
 // src/people.ts
 var PERSON_MODES = ["auto", "ask", "never"];
 var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
 function asPersonMode(s) {
   return s && PERSON_MODES.includes(s) ? s : null;
 }
@@ -3406,8 +3407,8 @@ function receptionistOf(r, tz, nowMs) {
     return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, tz, new Date(nowMs))}` };
   }
   if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
-  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
-  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
+  if (r.effective_reply_mode === "never") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
+  if (r.effective_reply_mode === "ask") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
   return { tone: "answering", label: "Answering" };
 }
 function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
@@ -3609,6 +3610,17 @@ function attentionRow(p, tz, nowMs) {
   const cta = !p.threadId ? null : p.state === "needs_you" || p.state === "waiting_on_you" ? { label: "Open in Inbox", kind: "primary", to: `inbox/${p.threadId}` } : { label: "Open thread", kind: "ghost", to: `inbox/${p.threadId}` };
   return { channel, when, sentence, quoted, status, tone: r.tone, cta };
 }
+var TIMELINE_FILTERS = [
+  { id: "all", label: "All", kinds: null },
+  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
+  { id: "calls", label: "Calls", kinds: ["call"] },
+  { id: "visits", label: "Visits", kinds: ["visit"] },
+  { id: "consent", label: "Consent", kinds: ["consent"] }
+];
+function filterTimeline(items, id) {
+  const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
+  return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
+}
 function consentChangeWords(c) {
   const offers = c.purpose === "marketing";
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
@@ -3666,7 +3678,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       const kind = m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
       const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : void 0;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...sub ? { sub } : {} });
+      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...sub ? { sub } : {}, link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
     }
   }
   for (const k of d.calls) {
@@ -3698,7 +3710,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       kind: "escalation",
       who: "Escalated",
       text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
-      sub: e.state === "resolved" ? "Resolved" : "Open"
+      sub: e.state === "resolved" ? "Resolved" : "Open",
+      link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` }
     });
   }
   for (const dec of d.decisions) {
@@ -3729,7 +3742,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
         kind: "visit",
         who: "Calendar",
         text: `${ahead ? "Booked" : "Visited"} \xB7 ${v.title}`,
-        sub: `${visitTime(v, tz2)} \xB7 from ${d.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`
+        sub: `${visitTime(v, tz2)} \xB7 from ${d.visits.source}${v.via === "name" ? " \xB7 matched by name" : ""}`,
+        link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz2)}` }
       });
     }
   }
@@ -3782,7 +3796,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
     rightNow = {
       tone: "paused",
-      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
+      title: `Held for you, set to ${PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"]}`,
       detail: theirs ? "You set the receptionist to stay out of this person's thread \u2014 their messages come straight to you" : "Your workspace reply setting holds every message for a person",
       cta: openInbox
     };
@@ -3793,14 +3807,16 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
   const lc = base.lastContact;
   const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
-  const toneWord = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent" };
+  const toneWord = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Held for you", silent: "Silent" };
+  const receptionistMeta = (label) => label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase();
   const facts = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
     { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, tz, nowMs) : "\u2014", meta: lastMeta },
     { label: "Conversations", value: base.threads, meta: base.escalations ? `${base.escalations} needed you` : "none needed you" },
     { label: "Calls", value: base.calls, meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls" },
-    { label: "Consent", value: base.consent.label, meta: base.consent.sub, tone: base.consent.state === "opted_out" ? "neg" : "" },
-    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : base.receptionist.label.toLowerCase() }
+    // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
+    // again, five times on one profile.
+    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label) }
   ];
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
@@ -3810,7 +3826,6 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     v: base.firstContact.ts !== null ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} \xB7 ${firstChannel}` : "\u2014"
   });
   about.push({ k: "Channels", v: base.channels.map((c) => c === "whatsapp" ? "WhatsApp" : "Phone").join(" \xB7 ") || "\u2014" });
-  about.push({ k: "Consent", v: `${base.consent.label} \xB7 ${base.consent.sub}` });
   if (base.hasChat) {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
@@ -8658,7 +8673,7 @@ var LABEL_OF = {
   call: { live: "Live", missed: "Never connected", handled: "Handled", stale: "No word from the provider", ended: "Ended", abandoned: "Hung up early", callback: "Asked for a call back" },
   person: PERSON_STATE_LABELS,
   consent: { opted_in: "Opted in", opted_out: "Opted out", unknown: "Consent unknown" },
-  mode: PERSON_MODE_LABELS,
+  mode: PERSON_MODE_WORDS,
   broadcast: BROADCAST_STATE_LABELS,
   playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
   template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
@@ -8815,6 +8830,7 @@ export {
   PERM_DOING,
   PERSON_MODES,
   PERSON_MODE_LABELS,
+  PERSON_MODE_WORDS,
   PERSON_STATE_LABELS,
   PLATFORM_NEW_DAYS,
   PLATFORM_QUIET_DAYS,
@@ -8890,6 +8906,7 @@ export {
   TEMPLATE_TITLE_MAX,
   TENANT_STATUSES,
   THEME_OPTIONS,
+  TIMELINE_FILTERS,
   TOAST_ICONS,
   TOAST_MIN_MS,
   TOAST_MS,
@@ -9006,6 +9023,7 @@ export {
   feedSourceLabel,
   feedUrlOk,
   filterOpenings,
+  filterTimeline,
   firstNameOf,
   firstWorkspaceDoor,
   fmtClock,

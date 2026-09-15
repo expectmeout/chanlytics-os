@@ -143,6 +143,12 @@ export interface PersonDetailDto {
 export type PersonMode = "auto" | "ask" | "never";
 export const PERSON_MODES: readonly PersonMode[] = ["auto", "ask", "never"];
 export const PERSON_MODE_LABELS: Record<PersonMode, string> = { auto: "Answer", ask: "Ask me first", never: "Never" };
+/**
+ * Every word for the receptionist's mode for one person, following the workspace included. The profile,
+ * the bulk menu, a pill and an Ask receipt all say these: the mode was worded four ways on one journey
+ * (Answer and Answer them, Never and Stay out, "Use the workspace setting" and "Follow the workspace").
+ */
+export const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string> = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
 
 export function asPersonMode(s: string | null | undefined): PersonMode | null {
   return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
@@ -517,8 +523,8 @@ function receptionistOf(r: PersonRowDto, tz: string, nowMs: number): PersonRecep
   }
   if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
   // "Answering" was shown for a person the owner had set to Never.
-  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
-  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
+  if (r.effective_reply_mode === "never") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
+  if (r.effective_reply_mode === "ask") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
   return { tone: "answering", label: "Answering" };
 }
 
@@ -886,6 +892,25 @@ export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): Attenti
 export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
 
 /**
+ * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
+ * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
+ */
+export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent";
+export const TIMELINE_FILTERS: readonly { id: TimelineFilterId; label: string; kinds: readonly TimelineKind[] | null }[] = [
+  { id: "all", label: "All", kinds: null },
+  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
+  { id: "calls", label: "Calls", kinds: ["call"] },
+  { id: "visits", label: "Visits", kinds: ["visit"] },
+  { id: "consent", label: "Consent", kinds: ["consent"] },
+];
+
+/** The items a filter shows, in the order they came; an unknown filter shows everything. */
+export function filterTimeline<T extends { kind: TimelineKind }>(items: readonly T[], id: string): T[] {
+  const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
+  return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
+}
+
+/**
  * A consent change, in the words the timeline uses: what was answered, and
  * how we know. An answer the customer texted quotes them; one taken at the
  * desk names the way and the recorder's note. The words here are the only
@@ -1015,7 +1040,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
         m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
       const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...(sub ? { sub } : {}) });
+      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...(sub ? { sub } : {}), link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
     }
   }
 
@@ -1050,6 +1075,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       who: "Escalated",
       text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
       sub: e.state === "resolved" ? "Resolved" : "Open",
+      link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` },
     });
   }
 
@@ -1085,6 +1111,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
         id: `v-${v.id}`, ts: t, ...stamp(t), kind: "visit", who: "Calendar",
         text: `${ahead ? "Booked" : "Visited"} · ${v.title}`,
         sub: `${visitTime(v, tz)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
+        link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz)}` },
       });
     }
   }
@@ -1143,7 +1170,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
     rightNow = {
       tone: "paused",
-      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
+      title: `Held for you, set to ${PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"]}`,
       detail: theirs
         ? "You set the receptionist to stay out of this person's thread — their messages come straight to you"
         : "Your workspace reply setting holds every message for a person",
@@ -1158,14 +1185,18 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
   const lc = base.lastContact;
   const lastMeta = lc.who === "they" ? (lc.kind === "call" ? "they phoned" : "they wrote") : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
-  const toneWord: Record<ReceptionistTone, string> = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent" };
+  // "Held for you" is the word the People row puts beside the state, for a thread a person owns or a mode that holds.
+  const toneWord: Record<ReceptionistTone, string> = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Held for you", silent: "Silent" };
+  // Under the word, what the label says after it ("set to Never", "a person owns the thread"), not the label again.
+  const receptionistMeta = (label: string) => (label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase());
   const facts: PersonFact[] = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
     { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, tz, nowMs) : "—", meta: lastMeta },
     { label: "Conversations", value: base.threads, meta: base.escalations ? `${base.escalations} needed you` : "none needed you" },
     { label: "Calls", value: base.calls, meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls" },
-    { label: "Consent", value: base.consent.label, meta: base.consent.sub, tone: base.consent.state === "opted_out" ? "neg" : "" },
-    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : base.receptionist.label.toLowerCase() },
+    // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
+    // again, five times on one profile.
+    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label) },
   ];
 
   // About rail.
@@ -1179,7 +1210,6 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       : "—",
   });
   about.push({ k: "Channels", v: base.channels.map((c) => (c === "whatsapp" ? "WhatsApp" : "Phone")).join(" · ") || "—" });
-  about.push({ k: "Consent", v: `${base.consent.label} · ${base.consent.sub}` });
   if (base.hasChat) {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;

@@ -947,7 +947,7 @@ const PeopleTriage = ({ rows, recency, attention, attentionTab, setAttentionTab,
 // First contact lives in the identity cell now; the last column is the
 // row's own actions, shown on hover.
 const plCols = (withCalendar) => [
-  { key: "name", label: "Customer", sortable: true },
+  { key: "name", label: "Person", sortable: true },
   { key: "state", label: "State", sortable: true },
   { key: "last", label: "Last contact", sortable: true },
   withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false },
@@ -955,13 +955,16 @@ const plCols = (withCalendar) => [
   { key: "actions", label: "", sortable: false },
 ];
 const PL_SORT_KEYS = ["last", "name", "state", "visits", "offers"];
-// The receptionist's four modes for a selection, in the words the profile uses for one person.
+// The receptionist's four modes for a selection. The words are contracts' (PERSON_MODE_WORDS, through the
+// chrome bridge), the same ones the profile and a pill say: this list said "Answer them" and "Stay out" for
+// the profile's Answer and Never.
 const PL_MODES = [
-  { id: "auto", label: "Answer them", icon: "sparkle" },
-  { id: "ask", label: "Ask me first", icon: "eye" },
-  { id: "never", label: "Stay out", icon: "pause" },
-  { id: "inherit", label: "Follow the workspace", icon: "refresh" },
+  { id: "auto", icon: "sparkle" },
+  { id: "ask", icon: "eye" },
+  { id: "never", icon: "pause" },
+  { id: "inherit", icon: "refresh" },
 ];
+const plModeWord = (id) => (window.__chrome && window.__chrome.state ? window.__chrome.state("mode", id).label : id);
 
 const plIsNumber = (name) => /^[+\d(]/.test(name || "");
 // The exact moment, by the business's clock (window.__clock): "Sep 6, 2026 · 3:10 PM".
@@ -989,7 +992,7 @@ const PeopleRowActions = ({ p, bookingLink }) => {
   );
 };
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null }) => (
+const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null, attention = null }) => (
   <div className={`cl-table-wrap ${sel.size ? "selecting" : ""}`}>
     <table className="cl-table">
       <thead>
@@ -1011,6 +1014,10 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
         {rows.map((p) => {
           const numbered = plIsNumber(p.name);
           const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;
+          // Their words, or what they said on the phone, as the attention strip says them: a row in Needs you
+          // said neither, and gave no reason for the state either.
+          const said = attention && attention[p.id];
+          const words = said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
           return (
             <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} onClick={() => onOpen(p.id)}>
               {selectable && (
@@ -1036,22 +1043,29 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
                       <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
                       {p.firstContact.label !== "—" && <><span className="dot" /><span title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : "First contact"}>since {p.firstContact.label.replace(/^Before /, "before ")}</span></>}
                     </div>
+                    {words && <div className="cl-row-words" title={words} data-testid="row-words">{words}</div>}
                   </div>
                 </div>
               </td>
               <td className="shrink cl-state-cell">
                 <PeopleStatePill state={p.state} label={p.stateLabel} />
                 {withCalendar && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
+                {p.stateDetail && <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">{p.stateDetail}</span>}
               </td>
               <td className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>{p.lastContact.label}</td>
               {withCalendar
                 ? (
                   <td className="shrink cl-visits-cell" title={p.nextVisit || p.lastVisit || "Never on the calendar"} data-testid="row-next-visit">
-                    {p.nextVisitDay
-                      ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></>
-                      : p.lastVisitDay
-                        ? <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>
-                        : <span className="dim">—</span>}
+                    {p.nextVisitDate || p.lastVisitDate
+                      ? (
+                        // The visit opens its day on the Calendar; the row around it opens the person.
+                        <button type="button" className="cl-row-visit" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`calendar/${p.nextVisitDate || p.lastVisitDate}`); }} title={`Open ${p.nextVisitDay || p.lastVisitDay} on the Calendar`} data-testid="row-visit-open">
+                          {p.nextVisitDay
+                            ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></>
+                            : <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>}
+                        </button>
+                      )
+                      : <span className="dim">—</span>}
                   </td>
                 )
                 : <td className="cl-recept-cell"><PeopleReceptionist r={p.receptionist} /></td>}
@@ -1246,7 +1260,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           gated={busy ? "One moment — the last change is still saving" : null}
           items={[
             { header: "For these people…" },
-            ...PL_MODES.map((m) => ({ label: m.label, icon: m.icon, onClick: () => receptionist(m) })),
+            ...PL_MODES.map((m) => ({ label: plModeWord(m.id), icon: m.icon, onClick: () => receptionist({ ...m, label: plModeWord(m.id) }) })),
           ]}
         />
       )}
@@ -1586,7 +1600,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
           <div className="cl-section" ref={tableRef}>
             <div className="cl-section-head">
               <div>
-                <span className="cl-section-title">All customers</span>
+                <span className="cl-section-title">Everyone</span>
                 <span className="cl-section-sub" style={{ marginLeft: 10 }}>{shown.length} shown</span>
                 {activeList && (
                   <span className="cl-seg-filter">
@@ -1641,6 +1655,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             onToggleAll={toggleAll}
             cursor={cursor}
             bookingLink={people.bookingLink || null}
+            attention={people.attention}
             rows={shown}
             total={people.page && people.page.has_more ? people.page.total : rows.length}
             sortBy={sortBy}

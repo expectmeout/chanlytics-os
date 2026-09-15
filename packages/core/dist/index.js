@@ -552,6 +552,8 @@ var SHORT = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" })
 var LIVE_STALE_MS = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS = 10 * 60 * 1e3;
+var PERSON_MODE_LABELS = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
 var DAY_MS3 = 864e5;
 var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
@@ -1554,6 +1556,8 @@ function visitStartTime(v, tz) {
   if (v.allDay || v.all_day) return "all day";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(new Date(ms(v.start)));
 }
+var PERSON_MODE_LABELS2 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS2 = { ...PERSON_MODE_LABELS2, inherit: "Follow the workspace" };
 var DAY_MS32 = 864e5;
 var WEEK_MS22 = 7 * DAY_MS32;
 var MONTH_MS2 = 30 * DAY_MS32;
@@ -2694,6 +2698,8 @@ var SHORT3 = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }
 var LIVE_STALE_MS3 = 5 * 60 * 1e3;
 var LIVE_OVERLONG_MS3 = 30 * 60 * 1e3;
 var ANALYSIS_GRACE_MS3 = 10 * 60 * 1e3;
+var PERSON_MODE_LABELS3 = { auto: "Answer", ask: "Ask me first", never: "Never" };
+var PERSON_MODE_WORDS3 = { ...PERSON_MODE_LABELS3, inherit: "Follow the workspace" };
 var DAY_MS33 = 864e5;
 var WEEK_MS23 = 7 * DAY_MS33;
 var MONTH_MS3 = 30 * DAY_MS33;

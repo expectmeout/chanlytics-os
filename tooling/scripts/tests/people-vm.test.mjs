@@ -280,7 +280,7 @@ test("right now: escalation → paused-for-you with a deep link; queued, owned, 
 
 test("the profile's facts, about rail and thread link are measured, and a phone-only person has no thread to open", () => {
   const vm = toPersonVM(detail(), ZONE, NOW);
-  assert.deepEqual(vm.facts.map((f) => f.label), ["First contact", "Last contact", "Conversations", "Calls", "Consent", "Receptionist"]);
+  assert.deepEqual(vm.facts.map((f) => f.label), ["First contact", "Last contact", "Conversations", "Calls", "Receptionist"]);
   assert.equal(vm.facts[3].value, 1);
   assert.equal(vm.openThread, "inbox/th-cv1");
   assert.ok(vm.about.some((a) => a.k === "Phone"));

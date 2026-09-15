@@ -1694,3 +1694,15 @@
    below its cells, and the last tile was cut off at the right edge. Scoped: fifteen page headers
    share the strip class. */
 .clients .cl-head-stats { flex-shrink: 0; }
+
+/* A People row's reason and words (B9), its visit door (B26), and a list chip that opens its list (B18). */
+.cl-row-words { max-width: 52ch; margin-top: 2px; font-size: 11.5px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-state-detail { display: block; margin-top: 3px; max-width: 24ch; font-size: 11px; color: var(--ink-dim); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cl-row-visit { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
+.seg-chip-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
+.seg-chip-open:hover { text-decoration: underline; }
+/* A profile's timeline filter, and a message's time that opens its thread. */
+.cl-tl-filters { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
+.cl-tl-time-link { font: inherit; color: var(--ink-faint); background: none; border: 0; padding: 0; cursor: pointer; }
+.cl-tl-time-link:hover { color: var(--ink); text-decoration: underline; }
