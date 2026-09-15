@@ -19,6 +19,7 @@ import {
   clockWhen,
   fromZonedInput,
   nextOpenMoment,
+  SENDING_HOURS_WORDS,
   timezoneCity,
   zoneDayKey,
   zonedInputValue,
@@ -71,6 +72,8 @@ export interface PageClock {
   fromInput: (value: string) => number | null;
   /** When a send asked for at that moment goes: outside the sending hours, the next nine o'clock (playbooks.ts). */
   nextOpen: (atMs: number) => { at: number; moved: boolean };
+  /** The hours a send may go out in, as the pages say them (contracts SENDING_HOURS_WORDS). */
+  hours: typeof SENDING_HOURS_WORDS;
 }
 
 function browserZone(): string {
@@ -97,6 +100,7 @@ export function pageClock(win: Window = window): PageClock {
       const open = nextOpenMoment(zone(), new Date(atMs));
       return { at: open.at.getTime(), moved: open.moved };
     },
+    hours: SENDING_HOURS_WORDS,
   };
 }
 

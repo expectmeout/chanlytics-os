@@ -24,7 +24,8 @@ const usePlaybooks = () => {
 // Stable empties, so a workspace without templates or triggers does not
 // re-run the effects on every render.
 const PB_NONE = [];
-const PB_HOURS = Array.from({ length: 12 }, (_, i) => 9 + i);
+// The hours a run may start at: the sending hours the clock publishes (contracts SENDING_HOURS_WORDS).
+const pbHours = () => { const h = window.__clock && window.__clock.hours; return h ? Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i) : []; };
 const PB_FILTERS = [
   { id: "all", label: "All" },
   { id: "running", label: "Running" },
@@ -53,7 +54,7 @@ const pbMessage = (p, templates, businessName) => {
   return { template: t, words: pbRender(t.body_preview, values) };
 };
 // When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
-const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : "on its way — sends go out between 9:00 and 20:59 by your clock");
+const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : window.__clock && window.__clock.hours ? `on its way — sends go out ${window.__clock.hours.between} by your clock` : "on its way");
 
 // The composer: a new playbook, or one being changed. Checked here the way
 // the route checks it — a template chosen, every slot filled — so an
@@ -64,7 +65,8 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const templatesRead = data.templates !== null;
   const templates = React.useMemo(() => (data.templates || PB_NONE).slice().sort(pbOrder), [data.templates]);
   const triggers = data.triggers || PB_NONE;
-  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link", visit_when: "Their visit's time", visit_service: "Their visit's service" };
+  // What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS); a visit's are offered for a visit trigger only (below).
+  const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
   const [trigger, setTrigger] = React.useState(editing ? editing.trigger : (triggers[0] ? triggers[0].id : "quiet_30"));
   const [tplId, setTplId] = React.useState(() => {
     if (editing) return editing.template_id;
@@ -216,7 +218,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
           <label className="bc-var-label">
             At <select className="tpl-select" value={hour} onChange={(e) => setHour(Number(e.target.value))} data-testid="pb-hour">
-              {PB_HOURS.map((h) => <option key={h} value={h}>{pbHour(h)}</option>)}
+              {pbHours().map((h) => <option key={h} value={h}>{pbHour(h)}</option>)}
             </select> {data.timezone}
           </label>
           <label className="bc-var-label">
@@ -386,7 +388,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           </button>
         )}
         {canAct && p.state === "running" && !waiting && (
-          <button className="btn btn-sm" disabled={busy} onClick={runNow} data-tip="Runs it now, at your request — sends unless its class is set to Never; outside nine to twenty it goes at nine" data-testid="pb-run-now">
+          <button className="btn btn-sm" disabled={busy} onClick={runNow} data-tip={window.__clock && window.__clock.hours ? `Runs it now, at your request — sends unless its class is set to Never; outside ${window.__clock.hours.range} it goes at ${window.__clock.hours.first}` : "Runs it now, at your request — sends unless its class is set to Never"} data-testid="pb-run-now">
             <Icon name="bolt" size={12} /> Run now
           </button>
         )}

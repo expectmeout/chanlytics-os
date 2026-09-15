@@ -11,7 +11,7 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, slotLabels, starterByName, starterForTrigger, starterPreview, starterText, templatePreview, templateTitle } from "@chanlytics/contracts";
+import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterText, templatePreview, templateTitle } from "@chanlytics/contracts";
 
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
 export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
@@ -63,6 +63,10 @@ export interface StarterLibrary {
   slotLabels: typeof slotLabels;
   compare: typeof compareTemplates;
   defaultFor: typeof defaultTemplate;
+  /** What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS): all six, a visit's included. */
+  sources: typeof PARAM_SOURCE_LABELS;
+  /** Which running playbooks still send a message, in the words the delete route refuses with. */
+  stillSends: typeof playbooksStillSending;
 }
 
 declare global {
@@ -89,5 +93,7 @@ export function installTemplates(): void {
     slotLabels,
     compare: compareTemplates,
     defaultFor: defaultTemplate,
+    sources: PARAM_SOURCE_LABELS,
+    stillSends: playbooksStillSending,
   };
 }

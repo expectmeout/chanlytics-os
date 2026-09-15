@@ -43,6 +43,14 @@ export type PlaybookState = (typeof PLAYBOOK_STATES)[number];
 
 export const PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 } as const;
 export const PLAYBOOK_HOURS = { min: 9, max: 20 } as const;
+/** The hours a send may go out in, as the pages say them: "9:00–20:59", "between 9:00 and 20:59", and the hour a moved send waits for. */
+export const SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00–${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`,
+} as const;
 /** One playbook message per person per week, across playbooks. */
 export const PLAYBOOK_BREATH_MS = 7 * DAY_MS;
 /** Under veto, a run is scheduled this far ahead with a Stop. */

@@ -40,6 +40,7 @@ export type StateKind =
   | "broadcast"
   | "playbook"
   | "template"    // a WhatsApp template at Meta
+  | "template_quality" // the rating WhatsApp gives a template (its quality_score)
   | "setup"       // a Setup row
   | "role"        // a teammate's role
   | "tone"        // a tone the caller already holds (a Connections row, the back office), said as itself
@@ -55,6 +56,7 @@ const TONE_OF: Record<StateKind, Record<string, Tone>> = {
   broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
   playbook: { running: "accent", paused: "warn", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
@@ -72,6 +74,7 @@ const LABEL_OF: Partial<Record<StateKind, Record<string, string>>> = {
   broadcast: BROADCAST_STATE_LABELS,
   playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
   template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   escalation: { open: "Open", resolved: "Resolved" },

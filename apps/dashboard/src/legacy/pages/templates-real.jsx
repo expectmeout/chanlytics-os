@@ -9,7 +9,6 @@ const TC_LANGS = [
   { id: "en_US", label: "English (US)" }, { id: "en", label: "English" }, { id: "es", label: "Spanish" },
   { id: "es_MX", label: "Spanish (Mexico)" }, { id: "es_ES", label: "Spanish (Spain)" }, { id: "pt_BR", label: "Portuguese (Brazil)" },
 ];
-const TC_SOURCES = { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
 const tcSlots = (body) => { const s = new Set(); for (const m of String(body || "").matchAll(/\{\{(\d+)\}\}/g)) s.add(Number(m[1])); return [...s].sort((a, b) => a - b); };
 const tcRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
 
@@ -153,6 +152,5 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
 };
 
 window.TemplateComposer = TemplateComposer;
-window.TC_SOURCES = TC_SOURCES;
 window.WaBubble = WaBubble;
 window.starterWords = starterWords;

@@ -1405,6 +1405,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ob-history-row:hover, .ob-history-row:focus-visible { color: var(--ink); }
 .ob-history-row:hover .icon, .ob-history-row:focus-visible .icon { opacity: 1; }
 .ob-history-more { font-size: 11px; color: var(--ink-faint); padding-top: 2px; }
+/* A send in flight, drawn as far as it has gone; a delete a running playbook holds back, with its way out. */
+.bc-progress { display: block; margin-top: 6px; max-width: 260px; }
+.msg-delete-held { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); }
 
 
 /* ---------- Shareable views ---------- */

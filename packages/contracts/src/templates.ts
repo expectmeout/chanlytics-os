@@ -168,6 +168,16 @@ export function paramLabel(spec: ParamSpec): string {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
 
+/**
+ * The running playbooks that still send a template, as a refusal says it: "“Win-back” still sends this message.
+ * Pause it, or give it another message, first." Deleting it would leave every later run skipped.
+ */
+export function playbooksStillSending(names: readonly string[]): string {
+  const quoted = names.map((n) => `“${n}”`);
+  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still sends this message. Pause it, or give it another message, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still send this message. Pause them, or give them another message, first.`;
+}
+
 export interface ParamFacts {
   firstName: string | null;
   businessName: string;

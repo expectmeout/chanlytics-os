@@ -691,6 +691,14 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS5 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
@@ -1469,6 +1477,14 @@ var LIMIT_TIERS2 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS52 = 864e5;
+var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS2 = {
+  min: PLAYBOOK_HOURS2.min,
+  max: PLAYBOOK_HOURS2.max,
+  first: `${PLAYBOOK_HOURS2.min}:00`,
+  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
+  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
+};
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL2 = {
@@ -2351,6 +2367,14 @@ function resolveParams(specs, f) {
   });
 }
 var DAY_MS522 = 864e5;
+var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS22 = {
+  min: PLAYBOOK_HOURS22.min,
+  max: PLAYBOOK_HOURS22.max,
+  first: `${PLAYBOOK_HOURS22.min}:00`,
+  range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
+  between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
+};
 var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL22 = {
@@ -3114,6 +3138,14 @@ var LIMIT_TIERS3 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS53 = 864e5;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
@@ -4266,6 +4298,14 @@ var LIMIT_TIERS4 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS54 = 864e5;
+var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS4 = {
+  min: PLAYBOOK_HOURS4.min,
+  max: PLAYBOOK_HOURS4.max,
+  first: `${PLAYBOOK_HOURS4.min}:00`,
+  range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
+  between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
+};
 var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL4 = {
