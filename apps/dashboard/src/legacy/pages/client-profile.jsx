@@ -612,6 +612,10 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message || "Could not change the list."}</> }); return; }
     flash({ msg });
   };
+  // Lists that could not be read are not "no lists": the read failed, and the rest of the profile stands.
+  if (window.__PEOPLE && window.__PEOPLE.savedRead === false) {
+    return <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />;
+  }
   if (saved.length === 0) {
     return <div className="cl-prof-aut-hint">No lists yet — make one on the People rail, then add people here.</div>;
   }
@@ -1155,3 +1159,5 @@ window.ClientProfile = ClientProfile;
 // column it is labelled for" is exactly the property that was broken here, and a
 // source scan answers it badly. consent-door.test.mjs renders it.
 window.ConsentAsk = ConsentAsk;
+// Drawn on its own by people-honest.test.mjs.
+window.PersonLists = PersonLists;
