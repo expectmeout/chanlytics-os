@@ -389,7 +389,7 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   // With their appointments, so "who asked but never booked?" and "who is
   // booked this week?" are answered from the calendar, not guessed.
   const { people: rows, calendar } = await withVisits(t.ctx, t.tenantId, await listPeople(t.ctx, t.tenantId), t.now);
-  if (list?.needsCalendar && calendar.state !== "ok") return { error: "that list needs the calendar connected under Settings › Workspace", people: [] };
+  if (list?.needsCalendar && calendar.state !== "ok") return { error: "that list needs the calendar connected under Settings › Business", people: [] };
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
     if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;

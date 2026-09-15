@@ -479,7 +479,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <Icon name="plus" size={12} /> Book
       </button>
     );
-    content = <CalendarPage initialApptId={param && param.startsWith("a-") ? param : null} />;
+    // calendar/<YYYY-MM-DD> is a door to a day: the page opens it in Day view. The crumbs stay "Calendar",
+    // because the page moves on from the day it opened on.
+    content = <CalendarPage initialApptId={param && param.startsWith("a-") ? param : null} initialDay={param && /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : null} />;
   } else if (page === "live") {
     activeNav = "live";
     // live/<callId>: the call a door names, opened on Live and named in the crumbs. The route had no place

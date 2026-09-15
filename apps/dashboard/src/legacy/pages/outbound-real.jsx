@@ -143,7 +143,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       </div>
       {trig && (
         <div className="cl-prof-aut-hint" data-testid="pb-trigger-hint">
-          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"}{trig.kind !== "visit" && trig.held > 0 ? ` · ${trig.held} more heard from you this week and wait` : ""} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
+          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"}{trig.kind !== "visit" && trig.held > 0 ? ` · ${trig.held} more heard from you this week and wait` : ""} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Business" : ""}
         </div>
       )}
       <div className="bc-row">

@@ -134,7 +134,7 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     // link that lands on a phone. A workspace with no facts on file cannot
     // send a template from here, and is told so before anything is queued.
     const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Workspace first.");
+    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Business first.");
     const params: string[] = [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")];
     templateName = tpl.name;
     templateVars = { language: tpl.language, params } as Json;

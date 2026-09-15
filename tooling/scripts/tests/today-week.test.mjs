@@ -36,8 +36,8 @@ test("nothing sent, nobody asked, no calendar: each line says so and leads where
   ]);
   const one = todayWeek(reports({ campaigns: { tiles: [tile("sent", "Messages sent", "1")], empty: false } }));
   assert.equal(one.lines[0].text, "1 offer message sent · 0 said yes");
-  const noCal = todayWeek(reports({ booking: { present: false, headline: "—", sub: "Connect your calendar under Settings › Workspace to see who booked.", pct: null } }));
-  assert.deepEqual(noCal.lines[1], { id: "booking", text: "Connect your calendar under Settings › Workspace to see who booked.", to: "calendar" });
+  const noCal = todayWeek(reports({ booking: { present: false, headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", pct: null } }));
+  assert.deepEqual(noCal.lines[1], { id: "booking", text: "Connect your calendar under Settings › Business to see who booked.", to: "calendar" });
 });
 
 test("the journey: People's journey lists with their counts, a row to the list, the step where it has one; the calendar's absence said once", () => {

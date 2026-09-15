@@ -454,3 +454,12 @@ test("a link to a call opens that call on Live -- the route had no place for its
     delete globalThis.LiveMonitorPage;
   }
 });
+
+test("a link to a day opens that day on the Calendar -- the route read only a demo appointment's id, so nothing could link to a day", () => {
+  shell.installShell(win);
+  const at = (hash) => find(mount(hash).tree, (n) => n.type === "CalendarPage").props;
+  assert.equal(at("#/calendar/2026-09-10").initialDay, "2026-09-10");
+  assert.equal(at("#/calendar/a-1").initialDay, null, "an appointment's id is not a day");
+  assert.equal(at("#/calendar/2026-9-10").initialDay, null, "only a whole date names a day");
+  assert.equal(at("#/calendar").initialDay, null);
+});

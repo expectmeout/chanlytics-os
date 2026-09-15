@@ -132,7 +132,7 @@ export const SIGNUP_WORDS = {
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",
   newHere: "New to Chanlytics?",
-  clock: (tz: string) => `Your clock: ${tz}, read from this device. Change it later in Settings › Workspace.`,
+  clock: (tz: string) => `Your clock: ${tz}, read from this device. Change it later in Settings › Business.`,
   /* ------------------------------------------------------------ google
    * The provider's own words for its button, and ours for what follows it. */
   google: "Continue with Google",

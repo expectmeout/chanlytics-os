@@ -397,7 +397,8 @@
 .cal-pick-note { padding: 10px 14px; font-size: 11px; color: var(--ink-dim); line-height: 1.5; }
 
 /* Day view: single wide column */
-.cal-grid.cal-grid-day { grid-template-columns: 56px minmax(0, 1fr); }
+/* One column needs no width floor: Day view kept the week's 980px, so on a phone one day was 980px wide. */
+.cal-grid.cal-grid-day { grid-template-columns: 56px minmax(0, 1fr); min-width: 0; }
 .cal-dayhead.clickable { cursor: pointer; }
 .cal-dayhead.clickable:hover .cal-dow { color: var(--ink); }
 .cal-appt-agentname { font-size: 10px; color: var(--ink-dim); white-space: nowrap; }
@@ -514,3 +515,14 @@
 .cal-ev-detail { display: flex; gap: 8px; margin-top: 8px; font-size: 12.5px; color: var(--ink); }
 .cal-ev-detail-key { color: var(--ink-faint); font-size: 10px; letter-spacing: .05em; text-transform: uppercase; padding-top: 2px; }
 .cal-ev-desc { margin-top: 8px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font-size: 12px; line-height: 1.45; color: var(--ink-dim); white-space: pre-wrap; max-height: 160px; overflow: auto; }
+/* The dialog takes focus as it opens so it is announced; the ring belongs on its controls, not round the whole panel. */
+.cal-ev:focus, .cal-ev:focus-visible { outline: none; }
+
+/* ---- The rules as parts, what a read left out, and days a read could not reach ---- */
+.cal-rule-parts { display: inline-flex; flex-wrap: wrap; align-items: baseline; min-width: 0; }
+.cal-rule { white-space: nowrap; }
+.cal-rule + .cal-rule::before { content: "·"; margin: 0 6px; color: var(--ink-faint); }
+.cal-feed-note.repeats > .icon { color: var(--warn); }
+.cal-failed { margin: 0 28px 10px; }
+.cal-col.unread { background: var(--bg-sunken); }
+.cal-month-cell.unread { background: var(--bg-sunken); }

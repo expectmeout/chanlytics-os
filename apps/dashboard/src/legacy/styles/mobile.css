@@ -82,6 +82,13 @@
   .rp-body, .st-body { padding-left: 16px; padding-right: 16px; }
   .cal-scroll { padding: 0 16px 24px; }
   .cal-sync { padding: 8px 16px; flex-wrap: wrap; row-gap: 6px; }
+  /* The Calendar under a narrow head: its 16px gutter for every card below it, and the controls, the
+     feed line and the legend wrap instead of running off the right edge. */
+  .cal-rules, .cal-month, .cal-agenda, .cal-feed-card, .cal-failed { margin-left: 16px; margin-right: 16px; }
+  .cal-legend { padding-left: 16px; padding-right: 16px; }
+  .cal-weeklabel { flex-wrap: wrap; row-gap: 8px; }
+  .cal-feed-chip { white-space: normal; }
+  .cal-legend-rules { margin-left: 0; white-space: normal; }
 
   /* ---------- Today ---------- */
   .dash-a-v2 { padding: 16px 16px 96px; }
@@ -241,6 +248,20 @@
   .pp-board { grid-template-columns: repeat(5, 82vw); min-width: 0; }
   .rp-dec-stats { grid-template-columns: repeat(3, 1fr); }
   .cal-av-row { grid-template-columns: 38px 34px 1fr; gap: 8px; }
+
+  /* Calendar on a phone: a month's seven columns fit the screen, an agenda row puts the title beside its
+     time and the person under it, and a week grid scrolls sideways under an hour gutter that stays put. */
+  .cal-month-head span { padding: 6px 2px; text-align: center; }
+  .cal-month-cell { min-height: 58px; padding: 6px 4px; }
+  .cal-month-counts { flex-direction: column; gap: 0; }
+  .cal-month-taken, .cal-month-open, .cal-month-closed, .cal-month-none { font-size: 9.5px; }
+  .cal-month-allday { display: none; }
+  .cal-agenda-day { padding: 10px 12px; }
+  .cal-agenda-item { grid-template-columns: auto minmax(0, 1fr); column-gap: 10px; }
+  .cal-agenda-person { grid-column: 2; }
+  .cal-grid { grid-template-columns: 44px repeat(7, minmax(96px, 1fr)); min-width: 716px; }
+  .cal-grid.cal-grid-day { grid-template-columns: 44px minmax(0, 1fr); min-width: 0; }
+  .cal-corner, .cal-gutter { position: sticky; left: 0; z-index: 4; background: var(--bg); }
 
   /* Profile queue rows: actions wrap to their own right-aligned row */
   .cl-prof-queue-item { flex-wrap: wrap; }
