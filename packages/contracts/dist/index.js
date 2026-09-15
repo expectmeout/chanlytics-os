@@ -1059,10 +1059,10 @@ function fromZonedInput(value, tz) {
 function standingOf(i, nowMs) {
   const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
   const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByOther = !!i.assignee_user_id && i.assignee_is_me === false;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
   const mine = !!i.assignee_user_id || paused && !i.open_escalation;
-  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByOther ? "theirs" : mine ? "yours" : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther };
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
 }
 
 // src/whisper.ts
@@ -1500,13 +1500,13 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
     open_escalation: !!escalation
   }, now.getTime());
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
-  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you" };
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
-  const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   let draftMsg = null;
   for (let i = dto.messages.length - 1; i >= 0; i--) {
     if (isHeldDraft(dto.messages[i])) {
@@ -1515,7 +1515,6 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     }
   }
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
-  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
@@ -1551,7 +1550,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
         // The words themselves live in messageStatusLabel, so this pane and
         // the Conversations pane cannot describe the same message
         // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}
+        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
+        reachedCustomer: reachedCustomer(m.status)
       } : {},
       // A held draft is not a sent message and must not read as one.
       ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
@@ -1563,13 +1564,14 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${escalation.details.slice(0, 120)}\u201D` : ""}`
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
   const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" } : null;
+  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -1588,6 +1590,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
     archived: dto.state === "archived",
+    lastWord,
     heldDraft,
     ...heldDraft ? {
       veto: {
@@ -1608,7 +1611,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     preview: last ? messageText(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
+    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
       ...reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : [],
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
@@ -1645,6 +1648,34 @@ function lastWordLine(needsHuman, last, author) {
   if (author.kind === "receptionist") return "Answered by the receptionist";
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
+}
+function lastWordOf(dto) {
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  let at2 = chat.length - 1;
+  let failed = null;
+  for (; at2 >= 0; at2--) {
+    const m = chat[at2];
+    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
+    if (!failed && m.status === "failed") failed = m;
+  }
+  const last = at2 >= 0 ? chat[at2] : null;
+  const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
+  if (!last) {
+    if (failedBy) return { text: `Nothing has reached them \u2014 the message from ${failedBy} didn't send.`, tone: "danger", short: "Didn't send" };
+    return dto.messages.some((m) => m.type === "call_summary") ? { text: "The phone receptionist handled their call \u2014 no one asked for you.", tone: "ok", short: null } : { text: "No messages yet.", tone: "plain", short: null };
+  }
+  if (last.direction === "inbound") {
+    return failedBy ? { text: `They wrote last, and the reply from ${failedBy} didn't send \u2014 as far as they know, nobody answered.`, tone: "danger", short: "Didn't send" } : { text: "They wrote last \u2014 no reply yet.", tone: "plain", short: null };
+  }
+  const said = lastWordLine(false, last, messageAuthor(last));
+  return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
+}
+function clipAtWord(text, max) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);

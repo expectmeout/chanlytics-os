@@ -1383,6 +1383,14 @@
 .ix-resolved .cl-bucket-link { margin-left: auto; white-space: nowrap; }
 .ix-resolved.declined { background: var(--bg-sunken); }
 .ix-resolved.declined > .icon { color: var(--ink-muted); }
+/* A quiet thread's last word, in its tone (I1): plain when they wrote last, amber when a later message didn't
+   send, red when nothing of ours reached them. An answered thread keeps the green line. */
+.ix-resolved.plain { background: var(--bg-sunken); }
+.ix-resolved.plain > .icon { color: var(--ink-muted); }
+.ix-resolved.warn { background: var(--warn-soft); }
+.ix-resolved.warn > .icon { color: var(--warn); }
+.ix-resolved.danger { background: var(--danger-soft); border-color: color-mix(in oklab, var(--danger) 35%, var(--line)); }
+.ix-resolved.danger > .icon { color: var(--danger); }
 
 /* Escalation take-over banner */
 .ix-take {
