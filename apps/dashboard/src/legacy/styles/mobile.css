@@ -293,6 +293,10 @@
   /* A week scrolled sideways settles on a day's edge rather than across two (C4). */
   .cal-scroll { scroll-snap-type: x proximity; scroll-padding-left: 44px; }
   .cal-dayhead, .cal-col { scroll-snap-align: start; }
+  /* On a phone the header is taller than the screen, so the whole Calendar scrolls: the agenda and the month at their
+     own height, a week in a box three quarters of the screen tall with its day heads at the top. */
+  .cal-body { flex: none; min-height: 0; overflow: visible; }
+  .cal-scroll { max-height: 75vh; max-height: 75dvh; }
 
   /* Profile queue rows: actions wrap to their own right-aligned row */
   .cl-prof-queue-item { flex-wrap: wrap; }
