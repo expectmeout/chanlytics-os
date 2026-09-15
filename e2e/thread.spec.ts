@@ -167,7 +167,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
 
     await test.step("a reply written in the composer is on its way, and the thread is now yours", async () => {
       const pane = await openRobin(page, "Handled");
-      await pane.getByPlaceholder(`Reply to ${ROBIN.name}`).fill(words);
+      // The field by its name: its placeholder names the channel a reply goes out on ("WhatsApp to …").
+      await pane.getByLabel(`Reply to ${ROBIN.name}`).fill(words);
       const replied = page.waitForResponse(
         (r) => r.request().method() === "POST" && new URL(r.url()).pathname === `/api/v1/conversations/${id}/reply`,
       );
