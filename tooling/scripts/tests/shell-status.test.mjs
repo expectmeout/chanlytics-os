@@ -442,3 +442,15 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
     delete globalThis.ConversationsPage;
   }
 });
+
+test("a link to a call opens that call on Live -- the route had no place for its id, so Today's door could only open the list", () => {
+  shell.installShell(win);
+  globalThis.LiveMonitorPage = "LiveMonitorPage";
+  try {
+    const at = (hash) => find(mount(hash).tree, (n) => n.type === "LiveMonitorPage").props;
+    assert.equal(at("#/live/c-9").initialCallId, "c-9", "REGRESSION: the route dropped the call's id");
+    assert.equal(at("#/live").initialCallId, null);
+  } finally {
+    delete globalThis.LiveMonitorPage;
+  }
+});

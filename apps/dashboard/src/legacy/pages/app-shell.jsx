@@ -482,9 +482,14 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     content = <CalendarPage initialApptId={param && param.startsWith("a-") ? param : null} />;
   } else if (page === "live") {
     activeNav = "live";
-    crumbs = [{ label: "Conversations", to: "conversations" }, "Live"];
+    // live/<callId>: the call a door names, opened on Live and named in the crumbs. The route had no place
+    // for an id, so a door could only open the list.
+    const liveCall = param ? [...(((window.__LIVE || {}).now) || []), ...(((window.__LIVE || {}).recent) || [])].find((c) => c.callId === param) : null;
+    crumbs = liveCall
+      ? [{ label: "Conversations", to: "conversations" }, { label: "Live", to: "live" }, liveCall.who]
+      : [{ label: "Conversations", to: "conversations" }, "Live"];
     pane = true;
-    content = <LiveMonitorPage />;
+    content = <LiveMonitorPage initialCallId={param || null} />;
   } else if (page === "conversations") {
     // Only the three channels are filters; anything else is a row's id, a chat's (its conversation's)
     // or a call's (cv-). The shell passed cv- ids alone, so a profile linking a chat opened the first

@@ -2939,6 +2939,12 @@ function toLiveCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     sentiment: dto.sentiment,
     endedHow: dto.disconnection_reason ? DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " ") : null,
     recordingState,
+    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
+    wanted: live ? null : dto.wanted?.trim() || null,
+    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
+    followUp: live ? null : dto.follow_up?.trim() || null,
+    callerName: dto.caller_name?.trim() || null,
+    lengthWords: live || missed || !dto.duration_ms ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto)
   };
 }
