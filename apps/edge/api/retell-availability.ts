@@ -16,18 +16,35 @@ import { pg } from "../lib/pg.js";
 import { resolveChannel } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/availability.js";
-import { describeOpenings, filterOpenings, matchService, type ServiceLike } from "../lib/workspace/contracts.js";
+import { describeOpenings, filterOpenings, offerFor, offerLead, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/workspace/contracts.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to text the booking link — it shows the open times — or to have someone call back.";
 const NO_CALENDAR =
   "There is no calendar to check. Offer to text the booking link — it shows the open times.";
 
-/** The prompt block, folded into one spoken paragraph. */
-export function spoken(text: string, service: ServiceLike | null): string {
+/** The prompt block, folded into one spoken paragraph, after what the service is offered as (offerLead). */
+export function spoken(text: string, offer: ServiceOffer | null): string {
   const flat = text.replace(/\n- /g, " ").replace(/\n/g, " ").replace(/\s+/g, " ").trim();
-  const lead = service?.duration_min ? `For ${service.name} (about ${service.duration_min} minutes): ` : "";
-  return `${lead}${flat}`;
+  return `${offerLead(offer)}${flat}`;
+}
+
+type Openings = NonNullable<Awaited<ReturnType<typeof openingsData>>>;
+
+/**
+ * What the tool says for a day and a service, from the openings it read: the caller's service offered as itself, or as
+ * a consultation first -- sized by the consultation, never by the service's own length (C5b).
+ */
+export function availabilityAnswer(
+  data: Openings,
+  profile: { services?: readonly ServiceLike[]; booking_rules?: ConsultRules | null } | undefined,
+  args: { day?: unknown; service?: unknown },
+): { result: string; offer: ServiceOffer | null; day: string | null; days: number } {
+  const offer = offerFor(profile?.services, profile?.booking_rules, args.service);
+  const day = typeof args.day === "string" ? args.day : null;
+  const picked = filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null });
+  const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead });
+  return { result: spoken(text, offer), offer, day, days: picked.length };
 }
 
 export async function POST(request: Request): Promise<Response> {
@@ -58,10 +75,7 @@ export async function POST(request: Request): Promise<Response> {
     log("retell_availability_unavailable", { tenant: routed.tenantId });
     return json(200, { result: CANNOT_SEE });
   }
-  const service = matchService(rt.brain?.profile?.services, args.service);
-  const day = typeof args.day === "string" ? args.day : null;
-  const picked = filterOpenings(data.openings, { day, minMinutes: service?.duration_min ?? null });
-  const text = describeOpenings(picked, data.tz, { maxDays: 3, daysAhead: data.daysAhead });
-  log("retell_availability", { tenant: routed.tenantId, day, service: service?.name ?? null, days: picked.length });
-  return json(200, { result: spoken(text, service) });
+  const answer = availabilityAnswer(data, rt.brain?.profile, args);
+  log("retell_availability", { tenant: routed.tenantId, day: answer.day, service: answer.offer?.service.name ?? null, consultation: answer.offer?.consultation ?? false, days: answer.days });
+  return json(200, { result: answer.result });
 }

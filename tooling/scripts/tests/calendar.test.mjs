@@ -164,13 +164,13 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
   for (const id of ["cal-month", "cal-month-cell", "cal-agenda", "cal-agenda-day", "cal-jump", "cal-service", "cal-rules", "cal-consult-note"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('data-testid={`cal-view-${id}`}') && page.includes('["month", "Month"], ["agenda", "Agenda"]'), "four views, one tab each");
-  assert.ok(page.includes("const fit = (w) => !service || !service.duration || w.dur >= service.duration;"), "the same rule the assistant applies for a service");
+  assert.ok(page.includes("const fit = (w) => !service || !service.offerMinutes || w.dur >= service.offerMinutes;"), "the same rule the assistant applies for a service");
   assert.ok(page.includes('view === "month" ? cal.shiftMonth(anchor, n)') && page.includes('view === "agenda" ? cal.shiftKey(anchor, 14 * n)'), "a month moves by a month, the agenda by two weeks, by contracts' arithmetic through the bridge (crStep, run by the-pages-say-only-what-is-true.test.mjs)");
   assert.ok(!/const cr(Shift|MonthLabel|ShiftMonth|Hour) = /.test(page), "the page keeps no copy of the date arithmetic");
   for (const id of ["cal-panel-copy-link", "cal-panel-text-link", "cal-copy-link"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('value={anchor}') && page.includes("CR_REFRESH_MS"), "the date picker follows the anchor; the board reads itself again while open");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
+  assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("days: String(w.days)") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
   assert.deepEqual((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar", "setup"], "hours, closures, rules and services saved in Settings reach the board, and Setup");

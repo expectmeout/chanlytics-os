@@ -5,7 +5,8 @@ import {
   feedUrlOk,
   filterOpenings,
   freeWindows,
-  matchService,
+  offerFor,
+  offerLead,
   offeringHorizon,
   parseIcs,
   parseTenantConfig,
@@ -135,7 +136,9 @@ export async function openingsFor(
   const cfg = parseTenantConfig(row?.config ?? null);
   const url = cfg?.calendar?.ical_url;
   const profile = cfg?.brain?.profile;
-  const service = matchService(profile?.services, by.service);
+  // What the asked-for service is offered as, by the phone tool's rule: itself, or a consultation first (C5b).
+  const offer = offerFor(profile?.services, profile?.booking_rules, by.service);
+  const service = offer?.service ?? null;
   if (!url || !profile) return { state: "no_calendar", text: "No calendar feed is connected, so openings cannot be read.", tz: timezone, days: [], service };
   const text = await fetchFeed(tenantId, url);
   if (text === null) return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
@@ -150,11 +153,11 @@ export async function openingsFor(
     console.error("ask_openings_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
     return { state: "unavailable", text: "The calendar could not be read right now.", tz: timezone, days: [], service };
   }
-  const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: service?.duration_min ?? null });
+  const picked = filterOpenings(openings, { day: by.day ?? null, minMinutes: offer?.minMinutes ?? null });
   const described = describeOpenings(picked, timezone, { maxDays: 3, daysAhead });
   return {
     state: "ok",
-    text: service?.duration_min ? `For ${service.name} (about ${service.duration_min} minutes): ${described}` : described,
+    text: `${offerLead(offer)}${described}`,
     tz: timezone,
     days: picked.slice(0, 5).map((o) => ({ key: o.key, label: o.label, windows: o.windows.slice(0, 6).map((w) => fmtWindow(w.start, w.end, timezone)) })),
     service,

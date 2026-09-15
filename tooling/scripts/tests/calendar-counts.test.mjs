@@ -186,6 +186,18 @@ test("the openings the palette answers with, and its route: no calendar, a calen
   assert.ok(Array.isArray(viaRoute.openings.days));
 });
 
+test("REGRESSION (C5b): the assistant answers a consultation-first service with a consultation's open times, as the phone does -- it answered with the service's own length", async () => {
+  const url = "https://cal.example/consult.ics";
+  answers.set(url, { body: ["BEGIN:VCALENDAR", "BEGIN:VEVENT", "UID:k1", "SUMMARY:Taken", "DTSTART;TZID=America/New_York:20260909T090000", "DTEND;TZID=America/New_York:20260909T120000", "END:VEVENT", "END:VCALENDAR"].join(String.fromCharCode(13, 10)) });
+  const base = config(url);
+  const cfg = { ...base, brain: { ...base.brain, profile: { ...base.brain.profile, services: [{ name: "Color correction", duration_min: 400 }, { name: "Consultation", duration_min: 30 }], booking_rules: { consult_first: ["Color correction"] } } } };
+  const wed = await openingsFor(ctxFor(tables(url, "owner", { tenant_config: [{ tenant_id: T, config: cfg }] })), T, { day: "2026-09-09", service: "color correction" }, NOW);
+  assert.equal(wed.state, "ok");
+  assert.match(wed.text, /^Color correction needs a consultation before it can be booked, so offer a consultation instead\. For a consultation \(about 30 minutes\): /, "REGRESSION: For Color correction (about 400 minutes)");
+  assert.deepEqual(wed.days.map((d) => d.windows), [["12:00 PM–6:00 PM"]], "a consultation fits the afternoon a 400-minute service would not");
+  assert.equal(wed.service?.name, "Color correction");
+});
+
 test("the booking report: asked, then booked, over the rows given and the feed's visits", async () => {
   const url = "https://cal.example/report.ics";
   answers.set(url, { body: ["BEGIN:VCALENDAR", "BEGIN:VEVENT", "UID:r1", "SUMMARY:Person 1 · Cut", "DESCRIPTION:+1 917 555 0001", "DTSTART;TZID=America/New_York:20260910T100000", "DTEND;TZID=America/New_York:20260910T110000", "END:VEVENT", "END:VCALENDAR"].join("\r\n") });

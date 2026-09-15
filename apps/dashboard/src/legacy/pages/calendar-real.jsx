@@ -293,7 +293,7 @@ const CrAgenda = ({ frames, feedOk, fit, service, offer, onOpen }) => (
           {!d.loading && !d.unread && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
           {!d.loading && !d.unread && !d.closed.yes && feedOk && !d.past && (
             <div className="cal-agenda-open">
-              <span className="cal-agenda-open-label">Open{service ? ` for ${service.name}` : ""}:</span>
+              <span className="cal-agenda-open-label">Open{service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}:</span>
               {/* Past the last day it offers, a free day read as a day with nothing to offer (C1). */}
               {d.beyondOffer
                 ? <span className="cal-agenda-none">not offered yet — it offers times up to {offer.days} days ahead</span>
@@ -400,7 +400,8 @@ const CalendarReal = ({ initialDay = null }) => {
   const shown = view === "day" ? frames.filter((f) => f.key === anchor) : frames;
   const feedOk = vm.feed.state === "ok";
   const service = vm.services.find((s) => s.name === serviceName) || null;
-  const fit = (w) => !service || !service.duration || w.dur >= service.duration;
+  // The phone tool's and the assistant's rule (offerFor): a service's own length, or a consultation's when it needs one first (C5b).
+  const fit = (w) => !service || !service.offerMinutes || w.dur >= service.offerMinutes;
   const monthKey = view === "month" ? anchor.slice(0, 7) : null;
 
   const move = (n) => setAnchorKey(crStep(view, anchor, n, cal));
@@ -456,7 +457,7 @@ const CalendarReal = ({ initialDay = null }) => {
         </div>
         <StatStrip className="cl-head-stats">
           <StatCell label={statLabel} value={!feedOk || scopeUnread || scopeLoading ? "—" : statEvents} meta={!vm.feed.present ? "no calendar connected" : !feedOk ? "could not be read" : scopeUnread ? "couldn't read those days" : scopeLoading ? "reading those days" : "on your calendar"} />
-          <StatCell label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta || (service ? `that fit ${service.name}` : "it would offer these")} />
+          <StatCell label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta || (service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : "it would offer these")} />
           <StatCell label="Next open time" value={feedOk ? vm.stats.next : "—"} meta={feedOk ? vm.ruleParts[0] : "needs the calendar"} />
         </StatStrip>
       </div>
@@ -520,7 +521,7 @@ const CalendarReal = ({ initialDay = null }) => {
       {service && service.consultFirst && (
         <div className="cal-feed-card" data-testid="cal-consult-note">
           <Icon name="shield" size={14} />
-          <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and sends the booking link.</span>
+          <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and sends the booking link. The open times here are for a consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.</span>
         </div>
       )}
       {vm.feed.state !== "ok" && (
@@ -571,7 +572,7 @@ const CalendarReal = ({ initialDay = null }) => {
 
       <div className="cal-legend" data-testid="cal-legend">
         <span><i className="cal-legend-swatch taken" /> Taken, from your calendar</span>
-        <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? ` for ${service.name}` : ""}, through {vm.offer.label}</span>
+        <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}, through {vm.offer.label}</span>
         <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
         <span className="cal-legend-rules"><span className="cal-keys">← → move · T today · </span>times are {vm.zoneCity} time</span>
       </div>

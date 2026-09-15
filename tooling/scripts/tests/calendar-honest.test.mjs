@@ -785,3 +785,28 @@ test("REGRESSION (C4): a move of the board is announced, and the key hints are t
   assert.ok(keys && textOf(keys).includes("← → move · T today"), "the keys, apart, where a touch screen can drop them");
   assert.ok(!textOf(keys).includes("New York"), "and the zone outside them");
 });
+
+/* ---------------- C5b: a service that needs a consultation first ---------------- */
+
+test("REGRESSION (C5b): the board sizes a consultation-first service's open times as a consultation, the rule the phone and the assistant follow -- it filtered them by the service's own three hours", () => {
+  const services = [{ name: "Color correction", duration_min: 180, consult_first: true }, { name: "Consultation", duration_min: 30, consult_first: false }];
+  const week = dto({ services, rules: { ...dto().rules, consult_first: ["Color correction"] } });
+  assert.deepEqual(toCalendarVM(week, NOW).services.map((s) => [s.name, s.offerMinutes]), [["Color correction", 30], ["Consultation", 30]]);
+  fresh(week);
+  let tree = page();
+  byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
+  tree = page();
+  assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.meta], [2, "for a consultation"], "REGRESSION: '0 · that fit Color correction'");
+  assert.match(textOf(byTestId(tree, "cal-legend")), /would offer it for a consultation, through Sep 21/);
+  assert.match(textOf(byTestId(tree, "cal-consult-note")), /The open times here are for a consultation, about 30 minutes\./);
+  byTestId(tree, "cal-view-agenda").props.onClick();
+  tree = page();
+  const day = (key) => textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
+  assert.match(day("2026-09-08"), /Open for a consultation:3:30 – 6 PM/, "REGRESSION: the three-hour filter hid a two-and-a-half-hour open time");
+  // A service booked as itself is still sized by its own length.
+  fresh(dto({ services: [{ name: "Balayage", duration_min: 140, consult_first: false }] }));
+  tree = page();
+  byTestId(tree, "cal-service").props.onChange({ target: { value: "Balayage" } });
+  tree = page();
+  assert.deepEqual([stats(tree)[1].props.value, stats(tree)[1].props.meta], [1, "that fit Balayage"]);
+});

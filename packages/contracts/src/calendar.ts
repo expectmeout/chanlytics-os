@@ -18,7 +18,7 @@ import { agoWords, timezoneCity } from "./time";
  */
 import { DAYS, hoursRuns, type BookingRules, type Closure, type Hours } from "./config";
 import { waWindow } from "./policy";
-import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, localToUtcMs, type BookingRulesLike } from "./availability";
+import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, localToUtcMs, offerFor, type BookingRulesLike } from "./availability";
 import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
 
@@ -303,6 +303,8 @@ export interface CalendarServiceVM {
   name: string;
   duration: number | null;
   consultFirst: boolean;
+  /** How long an open time must be for it: its own length, or a consultation's when it needs one first (offerFor, C5b). */
+  offerMinutes: number | null;
   /** "Balayage · 90 min" */
   label: string;
 }
@@ -592,10 +594,13 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       label: c.until && c.until > c.date ? `${shortDate(c.date)} – ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
       note: c.note ?? null,
     }));
+  // Sized by the phone tool's and the assistant's rule: a service that needs a consultation first, as a consultation (C5b).
+  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? undefined }));
   const services: CalendarServiceVM[] = (dto.services ?? []).map((s) => ({
     name: s.name,
     duration: s.duration_min,
     consultFirst: s.consult_first,
+    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
     label: `${s.name}${s.duration_min ? ` · ${s.duration_min} min` : ""}${s.consult_first ? " · consultation first" : ""}`,
   }));
   return {
