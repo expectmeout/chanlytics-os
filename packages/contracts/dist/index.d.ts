@@ -6222,6 +6222,8 @@ interface CalendarFeedDto {
     stale?: boolean;
     /** Items left out of the span because a day held more than the board draws. */
     dropped?: number;
+    /** When the calendar was last tried, good or not: the news when a read failed or a refresh couldn't reach it (C2). */
+    checked_at?: string | null;
 }
 interface CalendarServiceDto {
     name: string;

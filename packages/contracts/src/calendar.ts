@@ -67,6 +67,8 @@ export interface CalendarFeedDto {
   stale?: boolean;
   /** Items left out of the span because a day held more than the board draws. */
   dropped?: number;
+  /** When the calendar was last tried, good or not: the news when a read failed or a refresh couldn't reach it (C2). */
+  checked_at?: string | null;
 }
 
 export interface CalendarServiceDto {
@@ -533,12 +535,14 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "—";
   const ago = readAgoLabel(dto.feed.read_at, now);
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
+  // When the calendar was last tried is the news only when that try failed (C2).
+  const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
   const feedLine = dto.feed.state === "ok"
     // What a read left out is said once, by feedNotes, in words the owner can act on; the line said it again as
     // "2 repeating rules read once · 3 more not shown", unexplained (C1).
-    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? " · could not be refreshed" : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
+    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · could not be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
     : dto.feed.state === "unavailable"
-      ? `Your calendar could not be read${ago ? ` · last read ${ago}` : ""}`
+      ? `Your calendar could not be read${tried ? ` · tried ${tried}` : ""}${ago ? ` · last read ${ago}` : ""}`
       : "No calendar connected";
 
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;

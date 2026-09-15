@@ -122,13 +122,13 @@ test("day keys, the words, and the zone", () => {
 
 test("the doors and the page: read-only, the feed's address never in the browser, a feed checked before it is saved, the registry flipped", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("const feed = await loadFeed(tenantId, url);"), "the same cache the assistant's openings use");
+  assert.ok(svc.includes("const feed = await loadFeed(tenantId, url, { fresh });"), "the same cache the assistant's openings use");
   assert.ok(svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })"), "the windows are the receptionist's own");
   assert.ok(svc.includes("person: matchPerson(it, people),") && svc.includes("contacts: { phones: c.phones, emails: c.emails },"), "who it is for — by a phone in the event first, then a whole name");
   assert.ok(!/ical_url[^\n]*\n[^\n]*return \{/.test(svc), "the address is read, never returned");
   assert.ok(svc.includes('throw new AppError("validation", feedProblemWords("not_ical")'), "a preview reaches only the public internet and only iCal, by the rule and the words every fetch and the save share");
   const r = readCode("apps/dashboard/app/api/v1/calendar/route.ts");
-  assert.ok(r.includes('rate: "aggregate",') && r.includes("calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct })"), "one read; an owner's adds the people it sees");
+  assert.ok(r.includes('rate: "aggregate",') && r.includes("calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct, fresh })"), "one read; an owner's adds the people it sees");
   const pv = readCode("apps/dashboard/app/api/v1/calendar/preview/route.ts");
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -215,7 +215,7 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   const bridge = readCode("apps/dashboard/src/legacy-bridge/calendar.ts");
   assert.ok(bridge.includes("export async function ensure(view: CalendarView, anchor: string)") && bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"));
   assert.ok(bridge.includes("spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel"), "the arithmetic reaches the page, all of it");
-  assert.ok(bridge.includes("export async function refresh(): Promise<void>"), "and a refresh the board can call");
+  assert.ok(bridge.includes("export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"), "and a refresh the board can call, fresh on request, saying whether a read landed");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"), "the first read is the window around the business's today");
   assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const MAX_DAYS = 63;"));

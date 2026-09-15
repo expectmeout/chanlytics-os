@@ -14,7 +14,7 @@
  */
 import { clockLabel, coversSpan, frameOf, monthLabelOf, shiftKey, shiftMonth, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
 import { api } from "./api";
-import { calendarOverride, getCalendarSpan, setCalendarSpan } from "./surface-data";
+import { calendarOverride, getCalendarSpan, setCalendarFresh, setCalendarSpan } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
 /** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
@@ -57,10 +57,23 @@ export async function previewFeed(url: string) {
   return api()("POST calendar/preview", { body: { url } });
 }
 
-/** Read the loaded window again: the board keeps itself current while it is open, so the now line, the next opening and the windows follow the clock. */
-export async function refresh(): Promise<void> {
+/**
+ * Read the loaded window again: the board keeps itself current while it is open, so the now line, the next opening
+ * and the windows follow the clock. `fresh` is the owner's Refresh (C2): the route reads the calendar itself rather
+ * than its few minutes' cache. Says whether a read landed, so the board can say so when none did.
+ */
+export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean> {
+  const stamp = () => (window as unknown as { __CALENDAR?: { fetchedAt?: number } }).__CALENDAR?.fetchedAt;
+  const before = stamp();
+  setCalendarFresh(!!opts.fresh);
   api().forget();
-  await refreshSurfaces([calendarOverride]);
+  try {
+    await refreshSurfaces([calendarOverride]);
+  } finally {
+    // A read that never ran must not leave the next ordinary one asking for fresh.
+    setCalendarFresh(false);
+  }
+  return stamp() !== before;
 }
 
 export const calendar = { goTo, ensure, home, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };

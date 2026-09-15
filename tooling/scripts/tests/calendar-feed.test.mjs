@@ -255,6 +255,38 @@ test("REGRESSION (C1): the board's read carries the receptionist's next open tim
   assert.equal(failed.next_opening, null, "a calendar that can't be read: none either");
 });
 
+test("REGRESSION (C2): a fresh read skips the loader's cache once the last try is fifteen seconds old, and says when it tried -- the only way to see a change on the board was to wait out five minutes", async () => {
+  const url = "https://cal.example/fresh.ics";
+  answers.set(url, { body: ONE });
+  const first = await loadFeed(T, url);
+  assert.equal(fetched.length, 1);
+  assert.equal(typeof first.checkedAt, "number", "when the calendar was last tried, good or not");
+  await later(10_000, () => loadFeed(T, url, { fresh: true }));
+  assert.equal(fetched.length, 1, "pressed twice in quick succession, the calendar is asked once");
+  const again = await later(20_000, () => loadFeed(T, url, { fresh: true }));
+  assert.equal(fetched.length, 2, "REGRESSION: past the floor, a fresh read still waited out the cache");
+  assert.ok(again.checkedAt > first.checkedAt);
+  await later(40_000, () => loadFeed(T, url));
+  assert.equal(fetched.length, 2, "an ordinary read keeps the five-minute cache");
+});
+
+test("(C2) the board's read and the route can ask for a fresh read, and the answer says when the calendar was last tried", async () => {
+  const url = "https://cal.example/route-fresh.ics";
+  answers.set(url, { body: ONE });
+  const t = tables(url);
+  const one = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.equal(fetched.length, 1);
+  assert.equal(typeof one.feed.checked_at, "string", "when the calendar was last tried");
+  await later(20_000, () => calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW));
+  assert.equal(fetched.length, 1, "an ordinary read: the cache");
+  await later(20_000, () => calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW, { fresh: true }));
+  assert.equal(fetched.length, 2, "a fresh one asks the calendar again");
+  await later(40_000, () => route.GET.run(new Request(`http://localhost/api/v1/calendar?workspace=${T}&from=2026-09-07&days=7&fresh=1`), ctxFor(t)));
+  assert.equal(fetched.length, 3, "and so does the route's fresh=1");
+  const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.equal(none.feed.checked_at, null, "no calendar: never tried");
+});
+
 test("the last good read is served when the calendar goes away, and the chip and the card say so", async () => {
   const url = "https://cal.example/ok.ics";
   answers.set(url, { body: ONE });
@@ -266,7 +298,7 @@ test("the last good read is served when the calendar goes away, and the chip and
   assert.deepEqual([stale.feed.stale, stale.feed.reason, stale.feed.status], [true, "http", 503]);
   assert.equal(stale.days.find((d) => d.key === "2026-09-08").items.length, 1);
   const vm = toCalendarVM(stale, new Date(NOW.getTime() + 6 * 60 * 1000));
-  assert.ok(vm.feed.line.includes("· could not be refreshed ·"), vm.feed.line);
+  assert.match(vm.feed.line, /· could not be refreshed (just now|\d+[smh] ago) ·/, vm.feed.line);
   assert.equal(vm.feed.problem, feedProblemWords("http", 503));
   assert.equal(vm.feed.stale, true);
 });

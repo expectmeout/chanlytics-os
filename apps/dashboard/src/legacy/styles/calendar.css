@@ -526,3 +526,7 @@
 .cal-failed { margin: 0 28px 10px; }
 .cal-col.unread { background: var(--bg-sunken); }
 .cal-month-cell.unread { background: var(--bg-sunken); }
+
+/* ---- The owner's Refresh, and a read on its way said in words (C2) ---- */
+.cal-refresh { white-space: nowrap; }
+.cal-reading { margin: 0 28px 10px; font-size: 11.5px; color: var(--ink-dim); }
