@@ -1,4 +1,4 @@
-import { agoWords } from "./time";
+import { agoWords, timezoneCity } from "./time";
 /**
  * Calendar — the owner's calendar as the receptionist reads it.
  *
@@ -174,20 +174,20 @@ export function readAgoLabel(iso: string | null, now: Date): string | null {
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
 }
 
-/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots", "up to 6 people per booking". */
+/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h notice", "15 min between appointments", "up to 14 days ahead", "30-min slots", "up to 6 people per booking" -- Business's own words, least notice and days ahead (C3). */
 export function ruleParts(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string[] {
   const r = { ...BOOKING_DEFAULTS, ...(rules ?? {}) };
-  const parts = [`at least ${r.lead_hours}h ahead`];
+  const parts = [`at least ${r.lead_hours}h notice`];
   if (r.buffer_min > 0) parts.push(`${r.buffer_min} min between appointments`);
-  parts.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  parts.push(`up to ${r.max_days_ahead} days ahead`, `${r.slot_min}-min slots`);
   // The party size a booking is held to, when Settings gives one: the receptionist follows it, and the page never said it (C1).
   if (rules?.party_max) parts.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
   return parts;
 }
 
-/** "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots". */
+/** "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots". */
 export function rulesLine(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string {
-  return `Offers times ${ruleParts(rules).join(" · ")}`;
+  return `Offers times with ${ruleParts(rules).join(" · ")}`;
 }
 
 /**
@@ -222,12 +222,24 @@ export function feedNotes(feed: Pick<CalendarFeedDto, "state" | "skipped_recurri
   return notes;
 }
 
-/** "Mon–Fri 10:00–19:00", "Sat 10:00–16:00", "Sun closed" — one line per run of days with the same hours. */
+/**
+ * "Mon–Fri 10 AM – 7 PM", "Wed 9 AM – 1 PM and 3 – 7 PM", "Sun closed" — one line per run of days with the same hours:
+ * the prompt's own runs, said in the board's clock. The bar said "10:00–19:00" over a board drawn in 10 AM, and a day
+ * with half its hours said the prompt's "ask them to call" to the owner (C3).
+ */
 export function hoursLines(hours: Record<string, Hours | undefined> | null | undefined): string[] {
   if (!hours) return [];
   const clean: Record<string, Hours> = {};
   for (const d of DAYS) if (hours[d]) clean[d] = hours[d] as Hours;
-  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `–${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
+  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `–${DAY_SHORT[r.to] ?? r.to}` : ""} ${dayHoursWords(clean[r.from])}`);
+}
+
+/** One day's hours in the board's clock: its spans; "closed" when it states none; "hours incomplete" when what it states can't be used. */
+function dayHoursWords(h: Hours | undefined): string {
+  const at = (s: string) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts = dayIntervals(h).map(([o, c]) => spanLabel(at(o), at(c)));
+  if (!parts.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts.length < 3 ? parts.join(" and ") : `${parts.slice(0, -1).join(", ")} and ${parts[parts.length - 1]}`;
 }
 
 /* ------------------------------------------------------------ the view */
@@ -310,8 +322,17 @@ export interface CalendarFeedNoteVM {
   body: string;
 }
 
+/**
+ * The calendar feed's state, in the words the Calendar's pill, Connections and Setup all use (C3): the page drew a
+ * coloured dot where Connections said "Readable". `stale` is a read that landed before a refresh that didn't.
+ */
+export const CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" } as const;
+export type CalendarFeedHealth = keyof typeof CALENDAR_FEED_WORDS;
+
 export interface CalendarVM {
   timezone: string;
+  /** "New York": the zone by the name Settings gives it (C3). */
+  zoneCity: string;
   from: string;
   to: string;
   /** "Sep 7 – 13" */
@@ -326,6 +347,10 @@ export interface CalendarVM {
   now: number | null;
   feed: {
     present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string; problem: string | null; stale: boolean;
+    /** The state the pill says, in CALENDAR_FEED_WORDS. */
+    health: CalendarFeedHealth;
+    /** The line without the state the pill says: where and when it was read, when it was tried; "" when that is all. */
+    detail: string;
     /** Repeating events whose pattern the receptionist cannot follow: only their first date is taken. */
     skippedRecurring: number;
     /** Events past what a crowded day draws; their times are still taken. */
@@ -357,7 +382,9 @@ function hoursOf(tz: string, ms: number): number {
 function spanLabel(t1: number, t2: number): string {
   const a = clockLabel(t1);
   const b = clockLabel(t2);
-  const sameHalf = a.slice(-2) === b.slice(-2);
+  // One AM or PM for a span inside one half of one day. A span to midnight ends in the next day's AM: its halves were
+  // matched by their letters, and "10 AM – 12 AM" read "10 – 12 AM" (C3).
+  const sameHalf = t2 < 24 && (t1 < 12) === (t2 < 12);
   return `${sameHalf ? a.slice(0, -3) : a} – ${b}`;
 }
 
@@ -433,7 +460,7 @@ function assignLanes(timed: CalendarBlockVM[]): void {
 
 /**
  * The span as the page draws it. `now` decides today, the now line, which
- * days are past, the next opening and the closures ahead.
+ * days are past, the next open time and the closures ahead.
  */
 export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM {
   const tz = dto.timezone;
@@ -537,13 +564,20 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
   // When the calendar was last tried is the news only when that try failed (C2).
   const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
-  const feedLine = dto.feed.state === "ok"
-    // What a read left out is said once, by feedNotes, in words the owner can act on; the line said it again as
-    // "2 repeating rules read once · 3 more not shown", unexplained (C1).
+  // What the pill beside it does not say (C3). What a read left out is said once, by feedNotes, in words the owner can
+  // act on; the line said it again as "2 repeating rules read once · 3 more not shown", unexplained (C1).
+  const feedDetail = dto.feed.state === "ok"
     ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? ` · could not be refreshed${tried ? ` ${tried}` : ""}` : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
     : dto.feed.state === "unavailable"
-      ? `Your calendar could not be read${tried ? ` · tried ${tried}` : ""}${ago ? ` · last read ${ago}` : ""}`
+      ? [tried ? `tried ${tried}` : "", ago ? `last read ${ago}` : ""].filter(Boolean).join(" · ")
+      : "";
+  // The whole sentence, for whoever reads the line without the pill: Ask's get_calendar.
+  const feedLine = dto.feed.state === "ok"
+    ? feedDetail
+    : dto.feed.state === "unavailable"
+      ? `Your calendar could not be read${feedDetail ? ` · ${feedDetail}` : ""}`
       : "No calendar connected";
+  const feedHealth: CalendarFeedHealth = dto.feed.state === "ok" ? (stale ? "stale" : "ok") : dto.feed.state;
 
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
@@ -562,10 +596,11 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     name: s.name,
     duration: s.duration_min,
     consultFirst: s.consult_first,
-    label: `${s.name}${s.duration_min ? ` · ${s.duration_min} min` : ""}${s.consult_first ? " · consult first" : ""}`,
+    label: `${s.name}${s.duration_min ? ` · ${s.duration_min} min` : ""}${s.consult_first ? " · consultation first" : ""}`,
   }));
   return {
     timezone: tz,
+    zoneCity: timezoneCity(tz),
     from: dto.from,
     to: last,
     rangeLabel: `${shortDate(dto.from)} – ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
@@ -574,7 +609,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
+    feed: { present: dto.feed.present, state: dto.feed.state, health: feedHealth, line: feedLine, detail: feedDetail, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
     offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),

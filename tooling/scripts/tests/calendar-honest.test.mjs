@@ -16,11 +16,15 @@
  * - C2, the page's states: the board read itself every five minutes and offered no way to ask sooner; a calendar that
  *   could not be read sent the owner to Settings with no Try again; days on their way only dimmed; and nothing said
  *   when the calendar was last tried.
+ * - C3, one word per thing: the times it would offer were "open windows" on the strip and "next opening" on Today,
+ *   beside Business's open times; the rules bar said "Rules" and "Edit in Settings"; hours read 09:00–18:00 over a
+ *   board in 9 AM; the zone was America/New_York; the feed's state was a coloured dot here and "Readable" on
+ *   Connections; one failed read had three wordings; and the agenda said the receptionist books a consultation.
  * Run against the contracts, the bridge's arithmetic and the page on a stub React.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { shiftKey, toBookingReportVM, toCalendarVM } from "@chanlytics/contracts";
+import { hoursLines, shiftKey, stateOf, toBookingReportVM, toCalendarVM, todayDay, todayDayFacts } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -55,6 +59,8 @@ let seq = 0;
 let cleanups = [];
 // What the page said in a toast, newest last.
 let toasts = [];
+// Effects run once, as most of these tests want; a test that needs one to follow its dependencies, as React's do, sets this.
+let honourDeps = false;
 const went = [];
 const listeners = {};
 globalThis.Icon = "Icon";
@@ -70,7 +76,18 @@ globalThis.React = {
   useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
   useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
   useMemo: (fn) => fn(),
-  useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; const done = fn(); if (typeof done === "function") cleanups.push(done); } },
+  // Once per effect; with honourDeps, an effect whose dependencies changed runs again, its last cleanup first.
+  useEffect: (fn, deps) => {
+    const k = seq++;
+    const prev = cells[k];
+    const moved = honourDeps && !!prev && Array.isArray(deps) && Array.isArray(prev.deps) && deps.some((d, i) => !Object.is(d, prev.deps[i]));
+    if (k in cells && !moved) return;
+    if (moved && typeof prev.cleanup === "function") prev.cleanup();
+    const cell = { deps };
+    cells[k] = cell;
+    const done = fn();
+    if (typeof done === "function") { cell.cleanup = done; cleanups.push(done); }
+  },
   useCallback: (fn) => fn,
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
@@ -87,11 +104,15 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
-for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead"]) globalThis[k] = globalThis.window[k];
+for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill"]) globalThis[k] = globalThis.window[k];
 globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
+// A pill's tone and words are contracts', as the shell's chrome bridge publishes them.
+globalThis.window.__chrome = { state: stateOf };
 // The bridge's own object, with its reads answered here.
 const { calendar } = await import("../../../apps/dashboard/src/legacy-bridge/calendar.ts");
 await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
+// Today's day, which names the next open time the way the Calendar does.
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
 const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
@@ -256,8 +277,8 @@ test("REGRESSION (B12): the strip names the days on screen -- it said 'This week
 test("the booking rules come as parts, and a read's unfollowable repeats and undrawn events are explained, with their numbers (B24, B25)", () => {
   const counted = (skipped, dropped) => dto({ feed: { ...dto().feed, skipped_recurring: skipped, dropped } });
   const vm = toCalendarVM(counted(2, 3), NOW);
-  assert.deepEqual(vm.ruleParts, ["at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots"]);
-  assert.equal(vm.rules, "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots", "the sentence stays for whoever reads it whole");
+  assert.deepEqual(vm.ruleParts, ["at least 2h notice", "15 min between appointments", "up to 14 days ahead", "30-min slots"]);
+  assert.equal(vm.rules, "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots", "the sentence stays for whoever reads it whole");
   assert.deepEqual([vm.feed.skippedRecurring, vm.feed.dropped], [2, 3]);
   assert.deepEqual(vm.feed.notes.map((n) => [n.id, n.title]), [["repeats", "2 repeating events count only once."], ["undrawn", "3 more events aren't drawn."]]);
   assert.match(vm.feed.notes[0].body, /only the first date is treated as taken/);
@@ -273,8 +294,8 @@ test("the booking rules come as parts, and a read's unfollowable repeats and und
   assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "cal-rule").map(textOf), vm.ruleParts, "each rule its own part, so a narrow screen wraps between rules, never inside one");
   assert.ok(byTestId(tree, "cal-feed-note-repeats"), "the repeats explained on the page");
   assert.ok(byTestId(tree, "cal-feed-note-undrawn"), "the undrawn events explained on the page");
-  const next = stats(tree).find((c) => c.props.label === "Next opening");
-  assert.equal(next.props.meta, "at least 2h ahead", "the rule that decides how soon, not the whole sentence under a number");
+  const next = stats(tree).find((c) => c.props.label === "Next open time");
+  assert.equal(next.props.meta, "at least 2h notice", "the rule that decides how soon, not the whole sentence under a number");
 });
 
 test("REGRESSION (B28): a phone opens on the agenda -- it opened on a week grid four times the screen's width", () => {
@@ -353,7 +374,7 @@ test("REGRESSION (C1): the booking rules the receptionist follows are all on the
   const rules = { lead_hours: 2, buffer_min: 15, max_days_ahead: 14, party_max: 6, consult_first: ["Balayage", "Color correction"] };
   const closures = Array.from({ length: 8 }, (_, i) => ({ date: shiftKey("2026-09-19", i * 7), note: i === 0 ? "Wedding" : null }));
   const vm = toCalendarVM(dto({ rules, closures }), NOW);
-  assert.deepEqual(vm.ruleParts, ["at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots", "up to 6 people per booking"]);
+  assert.deepEqual(vm.ruleParts, ["at least 2h notice", "15 min between appointments", "up to 14 days ahead", "30-min slots", "up to 6 people per booking"]);
   assert.deepEqual(vm.consultFirst, ["Balayage", "Color correction"]);
   assert.deepEqual(toCalendarVM(dto(), NOW).consultFirst, [], "none on file, none said");
   assert.deepEqual([vm.closuresAhead.length, vm.closuresMore], [6, 2]);
@@ -376,7 +397,7 @@ test("REGRESSION (C1): the strip counts only what it read -- an unreadable calen
   const empty = dto().days.map((d) => ({ ...d, items: [], windows: [] }));
   fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 }, days: empty }));
   let strip = stats(page());
-  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "couldn't be read"], "REGRESSION: '0 · on your calendar' beside 'Your calendar could not be read'");
+  assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "could not be read"], "REGRESSION: '0 · on your calendar' beside 'Your calendar could not be read'");
   fresh(dto({ feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 }, days: empty }));
   strip = stats(page());
   assert.deepEqual([strip[0].props.value, strip[0].props.meta], ["—", "no calendar connected"]);
@@ -395,14 +416,14 @@ test("REGRESSION (C1): a day past what the receptionist offers says so, and the 
   byTestId(tree, "cal-view-agenda").props.onClick();
   tree = page();
   const day = (key) => textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === key));
-  assert.match(day("2026-09-15"), /not offered yet — it offers times up to 7 days out/, "REGRESSION: a day past the offer read as a day with nothing to offer");
+  assert.match(day("2026-09-15"), /not offered yet — it offers times up to 7 days ahead/, "REGRESSION: a day past the offer read as a day with nothing to offer");
   assert.ok(!day("2026-09-15").includes("nothing the receptionist would offer"));
   assert.match(day("2026-09-10"), /nothing the receptionist would offer/, "a day inside the offer with no times still says that");
   assert.match(textOf(byTestId(tree, "cal-legend")), /through Sep 14/, "the legend names the last day it offers");
   byTestId(tree, "cal-next").props.onClick();
   tree = page();
   const ahead = stats(tree)[1];
-  assert.deepEqual([ahead.props.value, ahead.props.meta], ["—", "it offers times up to 7 days out"], "REGRESSION: '0 · it would offer these' for two weeks it offers nothing in");
+  assert.deepEqual([ahead.props.value, ahead.props.meta], ["—", "it offers times up to 7 days ahead"], "REGRESSION: '0 · it would offer these' for two weeks it offers nothing in");
   byTestId(tree, "cal-view-day").props.onClick();
   tree = page();
   byTestId(tree, "cal-today").props.onClick();
@@ -474,7 +495,7 @@ test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afres
   assert.match(textOf(toasts.at(-1).msg), /Couldn't reach Chanlytics/);
 });
 
-test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, offers Try again beside the address -- its only way back was Settings", async () => {
+test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, offers Retry beside the address -- its only way back was Settings", async () => {
   fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, problem: "The calendar answered 404." } }));
   const asked = [];
   globalThis.window.__calendar.refresh = async (opts) => { asked.push(opts); return true; };
@@ -564,5 +585,144 @@ test("(C2) the bridge's refresh reads through the runner, fresh when asked, says
     assert.ok(!/fresh=/.test(seen[0]), "and the next read does not ask for a fresh one it was never given");
   } finally {
     Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active, __CALENDAR: was.cal });
+  }
+});
+
+/* ------------------------------- C3: one word per thing ------------------------------- */
+
+// The week with the receptionist's next open time as the route sends it: today at 3:30 PM.
+const withNext = (over = {}) => dto({ next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" }, ...over });
+
+test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
+  fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
+  const tree = page();
+  // The strip's three cells: the harness walks each once as a child and once as what StatStrip drew.
+  assert.deepEqual(stats(tree).slice(0, 3).map((c) => c.props.label), ["This week", "Open times", "Next open time"], "REGRESSION: 'Open windows' and 'Next opening'");
+  assert.equal(stats(tree)[2].props.value, "today 3:30 PM");
+  assert.equal(byTestId(tree, "cal-service").props["aria-label"], "Open times that fit a service", "REGRESSION: 'Windows that fit a service'");
+  const vm = toCalendarVM(withNext(), NOW);
+  assert.equal(todayDayFacts(vm, null)[0].hint, "next open time today 3:30 PM", "REGRESSION: Today's fact said 'next opening'");
+  const was = { cal: globalThis.window.__CALENDAR, today: globalThis.window.__today };
+  Object.assign(globalThis.window, { __CALENDAR: { vm }, __today: { day: todayDay } });
+  try {
+    cells = [];
+    seq = 0;
+    const day = globalThis.window.TodayDay({});
+    assert.equal(textOf(find(day, (n) => n.props?.className === "td-day-sub")), "next open time today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
+  } finally {
+    Object.assign(globalThis.window, { __CALENDAR: was.cal, __today: was.today });
+  }
+});
+
+test("REGRESSION (C3): what could not be read is said one way -- a month's days said 'not read' and the strip 'couldn't be read', beside the Retry line's 'Couldn't read those days'", async () => {
+  fresh(dto(), [false]);
+  honourDeps = true;
+  try {
+    let tree = page();
+    byTestId(tree, "cal-view-month").props.onClick();
+    page();
+    await settle();
+    tree = page();
+    const unread = all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell" && String(n.props.className).includes("unread"));
+    assert.ok(unread.length > 0, "the month's days outside the loaded week could not be read");
+    assert.ok(unread.every((n) => textOf(n).includes("couldn't read")), `REGRESSION: 'not read': ${textOf(unread[0])}`);
+    assert.deepEqual(stats(tree).slice(0, 2).map((c) => c.props.meta), ["couldn't read those days", "couldn't read those days"], "REGRESSION: 'couldn't be read', the words of a calendar that can't be read");
+    assert.ok(byTestId(tree, "cal-failed"), "beside the Retry line, which says it the same way");
+  } finally {
+    honourDeps = false;
+  }
+});
+
+test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rules' for the booking rules, 'Edit in Settings' for a tab named Business, and a closure run into its note", () => {
+  fresh();
+  const bar = byTestId(page(), "cal-rules");
+  assert.deepEqual(all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf), ["Hours", "Closed", "Booking"], "REGRESSION: 'Rules'");
+  assert.ok(textOf(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textOf(bar)}`);
+  const edit = find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in"));
+  assert.equal(textOf(edit).trim(), "Edit in Settings › Business", "REGRESSION: 'Edit in Settings', for a tab named Business");
+});
+
+test("REGRESSION (C3): hours are said in the board's clock -- the bar said 'Mon–Tue 09:00–18:00' over a board drawn in 9 AM, a morning-to-midnight day could read '10 – 12 AM', and a day with half its hours said the prompt's 'ask them to call' to the owner", () => {
+  fresh();
+  const bar = textOf(byTestId(page(), "cal-rules"));
+  assert.ok(bar.includes("Mon–Tue 9 AM – 6 PM · Wed 9 AM – 1 PM and 3 – 7 PM · Thu–Fri 9 AM – 6 PM · Sat 10 AM – 4 PM · Sun closed"), `REGRESSION: 09:00–18:00: ${bar}`);
+  assert.deepEqual(
+    hoursLines({ mon: { open: "10:00", close: "24:00" }, tue: { open: "09:00" }, fri: { open: "20:00", close: "24:00" } }),
+    ["Mon 10 AM – 12 AM", "Tue hours incomplete", "Wed–Thu closed", "Fri 8 PM – 12 AM", "Sat–Sun closed"],
+    "a span to midnight ends in the next day's AM, whichever half it starts in",
+  );
+});
+
+test("REGRESSION (C3): the feed's state is the pill Connections and Setup use, in their words, with only the details beside it -- it was a coloured dot here and 'Readable' there", () => {
+  assert.deepEqual(["ok", "stale", "unavailable", "none"].map((s) => stateOf("calendar", s)), [
+    { tone: "ok", label: "Readable" },
+    { tone: "warn", label: "Last good read" },
+    { tone: "warn", label: "Could not be read" },
+    { tone: "plain", label: "Not connected" },
+  ]);
+  const tried = "2026-09-08T15:57:00.000Z"; // three minutes before NOW
+  const feed = (over) => toCalendarVM(dto({ feed: { ...dto().feed, ...over } }), NOW).feed;
+  assert.deepEqual([feed({}).health, feed({}).detail], ["ok", "From your calendar · read 2m ago · 4 events"]);
+  assert.equal(feed({ stale: true, reason: "http", checked_at: tried }).health, "stale");
+  const down = feed({ state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0 });
+  assert.deepEqual([down.health, down.detail], ["unavailable", "tried 3m ago · last read 4h ago"]);
+  assert.equal(down.line, "Your calendar could not be read · tried 3m ago · last read 4h ago", "the whole sentence stays, for Ask");
+  const none = feed({ present: false, state: "none", read_at: null, events: 0 });
+  assert.deepEqual([none.health, none.detail], ["none", ""]);
+  fresh(dto({ feed: { present: true, state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  const chip = byTestId(page(), "cal-feed");
+  const pill = find(chip, (n) => n.type === globalThis.StatePill);
+  assert.ok(pill, "REGRESSION: a coloured dot, in no word Connections uses");
+  assert.deepEqual([pill.props.kind, pill.props.value], ["calendar", "unavailable"]);
+  const said = textOf(chip);
+  assert.ok(said.includes("Could not be read") && said.includes("tried 3m ago · last read 4h ago"), said);
+  assert.ok(!said.includes("Your calendar could not be read"), `the state is said once, by the pill: ${said}`);
+});
+
+test("REGRESSION (C3): the page's other words match the product's -- Try again beside FailedRead's Retry, Connect where Setup says paste the address, America/New_York for a zone Settings calls New York, and 'your link' for the booking link", () => {
+  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  globalThis.window.__calendar.refresh = () => new Promise(() => {});
+  let tree = page();
+  assert.equal(textOf(byTestId(tree, "cal-feed-retry")), "Retry", "REGRESSION: 'Try again', beside FailedRead's Retry");
+  byTestId(tree, "cal-feed-retry").props.onClick();
+  assert.equal(textOf(byTestId(page(), "cal-feed-retry")), "Retrying…");
+  fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http" } }));
+  assert.equal(textOf(byTestId(page(), "cal-feed-stale-retry")), "Retry");
+  fresh(dto({ feed: { present: false, state: "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  const card = byTestId(page(), "cal-feed-card");
+  assert.ok(all(card, (n) => n.type === "button").map(textOf).includes("Paste the address"), "REGRESSION: 'Connect', where Setup and Connections say paste the address");
+  fresh();
+  tree = page();
+  assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");
+  assert.match(textOf(byTestId(tree, "cal-legend")), /times are New York time/, "REGRESSION: 'times in America/New_York'");
+  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-page-sub")), /through your booking link/, "REGRESSION: 'your link'");
+});
+
+test("REGRESSION (C3): a service that needs a consultation is spoken of as the receptionist handles it -- the agenda said the receptionist 'books a consultation', and it never books; the picker said 'consult first'", () => {
+  const services = [{ name: "Color correction", duration_min: 180, consult_first: true }];
+  assert.equal(toCalendarVM(dto({ services }), NOW).services[0].label, "Color correction · 180 min · consultation first", "REGRESSION: 'consult first'");
+  fresh(dto({ services }));
+  let tree = page();
+  byTestId(tree, "cal-service").props.onChange({ target: { value: "Color correction" } });
+  tree = page();
+  byTestId(tree, "cal-view-agenda").props.onClick();
+  tree = page();
+  const day = textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day").find((n) => n.props.key === "2026-09-09"));
+  assert.match(day, /the receptionist offers a consultation for this, not the service/, "REGRESSION: 'books a consultation' -- it never books");
+  assert.ok(!day.includes("books"), day);
+});
+
+test("(C3) the bridge publishes the hours in the Calendar's words, for the Business card that says them beside the bar", async () => {
+  const { installInboxVerbs } = await import("../../../apps/dashboard/src/legacy-bridge/inbox-verbs.ts");
+  const was = globalThis.window.__hoursLines;
+  try {
+    installInboxVerbs();
+    // What it says, not which copy of contracts it is: the runner loads the bridge's contracts apart from the test's.
+    const week = { mon: { open: "09:00", close: "18:00" }, sat: { open: "10:00", close: "16:00" } };
+    assert.equal(typeof globalThis.window.__hoursLines, "function", "REGRESSION: the card summarised the prompt's runs in the prompt's clock");
+    assert.deepEqual(globalThis.window.__hoursLines(week), ["Mon 9 AM – 6 PM", "Tue–Fri closed", "Sat 10 AM – 4 PM", "Sun closed"]);
+    assert.equal(globalThis.window.__hoursRuns, undefined, "and there is no second way to say them");
+  } finally {
+    globalThis.window.__hoursLines = was;
   }
 });

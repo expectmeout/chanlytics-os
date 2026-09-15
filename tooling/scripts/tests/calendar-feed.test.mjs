@@ -142,8 +142,8 @@ test("the address rule: the public internet over https, webcal in a hat, and not
 test("one sentence per way a feed fails, naming what to do", () => {
   assert.equal(feedProblemWords("address"), "The calendar feed needs to be a full https:// or webcal:// address on the internet.");
   assert.equal(feedProblemWords("unreachable"), "The calendar could not be reached. Check the address and try again.");
-  assert.equal(feedProblemWords("http", 404), "The calendar answered 404. It is usually the private iCal link, not the calendar's web page.");
-  assert.equal(feedProblemWords("http"), "The calendar answered an error. It is usually the private iCal link, not the calendar's web page.");
+  assert.equal(feedProblemWords("http", 404), "The calendar answered 404. It is usually the private iCal address, not the calendar's web page.");
+  assert.equal(feedProblemWords("http"), "The calendar answered an error. It is usually the private iCal address, not the calendar's web page.");
   assert.equal(feedProblemWords("too_large"), "That feed is too large to read (over 2 MB).");
   assert.match(feedProblemWords("not_ical"), /^That address is not an iCal feed\. In Google Calendar it is Settings/);
   assert.equal(feedProblemWords(null), null);

@@ -42,7 +42,7 @@ export async function ensure(view: CalendarView, anchor: string): Promise<boolea
 
 /**
  * Leaving the Calendar: the loaded window goes back to the weeks around today.
- * Today's day, its next opening and its facts read this same surface, so a
+ * Today's day, its next open time and its facts read this same surface, so a
  * board left on another month took them with it until a reload (C1). Reads
  * only when the window had moved, and says whether it had.
  */
@@ -58,7 +58,7 @@ export async function previewFeed(url: string) {
 }
 
 /**
- * Read the loaded window again: the board keeps itself current while it is open, so the now line, the next opening
+ * Read the loaded window again: the board keeps itself current while it is open, so the now line, the next open time
  * and the windows follow the clock. `fresh` is the owner's Refresh (C2): the route reads the calendar itself rather
  * than its few minutes' cache. Says whether a read landed, so the board can say so when none did.
  */

@@ -928,7 +928,7 @@ export function todayDayFacts(cal: CalendarLike | null, agg: { booked: number; r
     const n = today.blocks.length + today.allDay.length;
     const hint = today.closed.yes
       ? `closed today${today.closed.note ? ` · ${today.closed.note}` : ""}`
-      : cal.stats.next !== "—" ? `next opening ${cal.stats.next}` : undefined;
+      : cal.stats.next !== "—" ? `next open time ${cal.stats.next}` : undefined;
     out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
   }
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
