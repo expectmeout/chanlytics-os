@@ -115,7 +115,7 @@
   .inbox, .inbox.with-rail { grid-template-columns: 1fr; grid-template-rows: minmax(0, 42vh) minmax(0, 1fr); }
   .ix-agent-rail { display: none; }
   .ix-list { border-right: none; border-bottom: 1px solid var(--line); }
-  .ix-th-head { padding: 12px 16px; grid-template-columns: 1fr auto; }
+  .ix-th-head { padding: 12px 16px; }
   .ix-th-channels-meta { display: none; }
   .ix-context-strip { padding: 0 16px; }
   .ix-thread-pane > .confirm-block { margin: 10px 16px 4px; }
@@ -381,7 +381,8 @@
   .inbox .ix-thread-pane, .inbox > .ix-empty-state { display: none; }
   .inbox.phone-thread .ix-list { display: none; }
   .inbox.phone-thread .ix-thread-pane { display: flex; }
-  .ix-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }
+  /* Back is the arrow alone, a thumb wide: the top bar says Inbox over it, and "← Inbox" said it again. */
+  .ix-back { display: inline-flex; justify-content: center; width: 44px; min-width: 44px; margin-left: -12px; padding: 0; font-size: 16px; }
 
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
@@ -429,31 +430,35 @@
   /* The top bar says each thing once on a phone: Ask is the ✦ in the tab bar and the theme is in More, under your
      name, and both were in the top bar as well. What stays takes a thumb's width: the bell was 26px wide. */
   .tb-ask, .tb-theme { display: none; }
+  /* On the Inbox it says Inbox, once: the open thread's header names the person, and the crumb named them again
+     over it. */
+  .main:has(.inbox) .crumbs > :not(:first-child) { display: none; }
+  .main:has(.inbox) .crumbs .crumb-link { color: var(--ink); font-weight: 500; }
   .topbar .btn-icon { min-width: 44px; }
   /* Room under every surface for the bar, and the toast sits above it */
   .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
 
   /* The thread on a phone shows the conversation first (I6). The header is one row -- Back, avatar, name and the
-     menu -- since Snooze and the profile are in the menu and a call back is in the composer: it took two rows and
-     121px. The strip under it only said again what the banner and the composer say, in 126px more. A phone number
-     as a name does not wrap thrice. */
-  .ix-th-head { grid-template-columns: minmax(0, 1fr) auto; row-gap: 8px; }
+     menu: it took two rows and 121px. A seeded thread's strip stays off a phone, where it said again what the banner
+     and the composer say, in 126px more. A phone number as a name does not wrap thrice. */
   .ix-th-head-main { display: flex; align-items: center; gap: 8px; min-width: 0; }
   .ix-th-id { min-width: 0; }
   .ix-th-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .inbox .ix-th-actions { grid-column: auto; flex-wrap: nowrap; justify-content: flex-end; }
-  .inbox .ix-th-actions > .btn:not(.btn-icon), .inbox .ix-th-actions > a.btn { display: none; }
+  .inbox .ix-th-actions { flex-wrap: nowrap; justify-content: flex-end; }
+  /* The menu holds Snooze, Archive and the profile now: a thumb wide, where it was 26px. */
+  .inbox .ix-th-actions .btn-icon { min-width: 44px; }
   .inbox .ix-context-strip { display: none; }
   /* The list on a phone shows the threads first too (I6). The buckets sit in one row of three, where a grid of two
-     stacked them in two rows; the search is one input tall; the head is one line, where the coarse-pointer floor
-     made its checkbox 44px tall. Together they took 251px above the first thread. Each tap target keeps its 44px. */
+     stacked them in two rows; the search is one input tall, with the select-all box at its head; the list's head
+     shows only for a search or a pick. Together they took 251px above the first thread. Each tap target keeps its
+     44px: the box's is a thumb wide around it, without growing the row. */
   .inbox .ix-buckets { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 6px 8px; }
   .inbox .ix-bucket { justify-content: center; gap: 6px; padding: 0 6px; }
-  .inbox .ix-search-row { padding: 6px 12px; }
+  .inbox .ix-search-row { padding: 6px 14px; }
   .inbox .ix-search-wrap { padding: 0 8px; }
-  .inbox .ix-list-head { min-height: 0; padding: 0 12px; }
-  .inbox .ix-checkall { min-height: 40px; }
+  .inbox .ix-list-head { min-height: 40px; padding: 0 12px; }
+  .inbox .ix-search-row .ix-checkall { width: 44px; min-height: 44px; margin: 0 -15px; }
   html.legacy-on .inbox .ix-checkall input { min-height: 0; }
 }
 

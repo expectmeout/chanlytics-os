@@ -205,11 +205,12 @@ test("each row says whose it is -- nothing more where the bucket already says Ne
     assert.deepEqual(pills(row("Ada Lovelace")), ["Ana García has it"]);
     const amber = (who) => hasClass("warn")(find(row(who), hasClass("ix-wait")));
     assert.deepEqual([amber("Rosa Díaz"), amber("Nina Park"), amber("Ada Lovelace")], [true, false, false], "REGRESSION: a thread you have waited in amber as if it were waiting on you");
-    assert.equal(textOf(find(tree, hasClass("ix-list-count"))), "1 needs you · 2 being answered", "REGRESSION: '3 threads' under a chip that counts what needs you");
+    assert.equal(find(tree, hasClass("ix-list-head")), undefined, "REGRESSION: the list's head said the chip's number again ('1 needs you · 2 being answered'), and once '3 threads' under a chip that counts what needs you");
 
     // A search spans every bucket, so a row there says Needs you again -- only the one that does.
     find(tree, (n) => n.type === "input" && n.props?.className === "ix-search-input").props.onChange({ target: { value: "a" } });
     tree = draw();
+    assert.equal(textOf(find(tree, hasClass("ix-list-count"))), "4 matches", "a search says what it found");
     assert.deepEqual(
       ["Rosa Díaz", "Nina Park", "Ada Lovelace", "Zoe Martin"].map((who) => pills(row(who))),
       [["Needs you"], ["You have it"], ["Ana García has it"], ["Didn't send"]],

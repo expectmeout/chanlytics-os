@@ -41,9 +41,8 @@ test("a teammate's name on a thread nobody flagged is not a claim: the thread is
   assert.equal(standingOf(leftOver, NOW.getTime()).claimedByOther, false, "REGRESSION: a name left on the row read as a teammate answering");
   const vm = vmOf(quiet([wrote("m1", "Is Saturday open?", 300), ours("m2", "ai", "Yes, from 9.", 299), wrote("m3", "Great, thanks", 200)], { assignee_user_id: TEAMMATE, assignee_is_me: false }));
   assert.deepEqual([vm.state, vm.claimedByOther, vm.needsYou], ["done", false, false]);
-  assert.equal(vm.subject, "Great, thanks", "its subject is what they wrote, not 'A teammate is answering this'");
+  assert.deepEqual([vm.subject, vm.preview], ["", "Great, thanks"], "its row says what they wrote last, not 'A teammate is answering this'");
   assert.equal(vm.summary, "They wrote last — no reply yet.", "and its one sentence is the true one");
-  assert.equal(vm.contextStrip.find((c) => c.label === "Receptionist").value, "Answering");
 
   const flagged = vmOf(quiet([wrote("m1", "Can I speak to Melany?", 40)], { state: "needs_human", assignee_user_id: TEAMMATE, assignee_is_me: false }), asked());
   assert.deepEqual([flagged.claimedByOther, flagged.needsYou, flagged.lastWord], [true, false, null], "a teammate who took a flagged thread still has it");

@@ -442,10 +442,11 @@ export interface InboxThreadVM {
   waited?: string;
   /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
   agent: { name: string; glyph: string };
+  /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
   subject: string;
+  /** The last thing that happened: the newest message that came in or reached them, never a draft. */
   preview: string;
   summary: string;
-  contextStrip: Array<{ label: string; value: string; warn?: boolean }>;
   lastAt: string;
   lastAtFull: string;
   /** Absolute times, epoch ms, for anything that must not drift with the
@@ -536,8 +537,6 @@ export function toInboxThreadVM(
   now = new Date(),
 ): InboxThreadVM {
   const who = contactName(dto);
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
   // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
   // then shows the owned-thread strip + hand-back instead of the take banner.
   const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
@@ -685,19 +684,12 @@ export function toInboxThreadVM(
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
     agent: AGENT,
-    subject:
-      (claimedByOther ? "A teammate is answering this" : null) ??
-      reasonLabel ??
-      (takenOver
-        ? "You're answering this one"
-        : lastInbound
-          ? messageText(lastInbound).slice(0, 80)
-          : last
-            // A contact who has only ever PHONED has no customer messages, but
-            // "No messages yet" reads as "nothing has happened" — their call
-            // note is the honest subject.
-            ? messageText(last).slice(0, 80)
-            : "No messages yet"),
+    // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
+    // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
+    // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
+    // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
+    subject: reasonLabel ?? "",
+    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
     preview: last ? messageText(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
@@ -710,16 +702,6 @@ export function toInboxThreadVM(
         : lastWord
           ? lastWord.text
           : "The receptionist answered this on its own. Nothing is owed.",
-    contextStrip: [
-      ...(reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : []),
-      { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
-      { label: "Receptionist", value: needsHuman ? (claimedByOther ? "Paused — a teammate has it" : escalation?.reason === "callback" ? "Paused — call them back" : "Paused — you have it") : "Answering" },
-      hasChat
-        ? chatChannel === "sms"
-          ? { label: "Texts", value: "No 24-hour window — write any time" }
-          : { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
-        : { label: "WhatsApp", value: "No thread yet — they have only phoned" },
-    ],
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,

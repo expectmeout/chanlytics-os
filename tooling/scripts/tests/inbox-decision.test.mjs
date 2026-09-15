@@ -47,9 +47,7 @@ test("a thread a teammate is answering is theirs: not Needs you, no unread dot, 
   assert.equal(theirs.needsYou, false);
   assert.equal(theirs.unread, false, "REGRESSION: it kept the dot that means a person is needed and nobody has it");
   assert.equal(theirs.summary, "A teammate is answering this. The receptionist stays quiet until they hand it back.");
-  assert.equal(theirs.contextStrip.find((c) => c.label === "Receptionist")?.value, "Paused — a teammate has it");
-  assert.equal(theirs.contextStrip.find((c) => c.label === "Flagged for")?.value, "Customer asked for a person", "the reason stays, but it is not why YOU");
-  assert.ok(!theirs.contextStrip.some((c) => c.label === "Why you"));
+  assert.equal(theirs.subject, "Customer asked for a person", "the reason stays on its row, and the pill says whose it is: the row said 'A teammate is answering this'");
 
   const open = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   assert.deepEqual([open.claimedByOther, open.assigneeUserId, open.needsYou, open.unread], [false, null, true, true]);

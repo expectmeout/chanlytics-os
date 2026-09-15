@@ -58,7 +58,7 @@ const message = (id, conversation_id, tenant_id, over = {}) => ({
 
 /* -------------------------------- a text thread -------------------------------- */
 
-test("a text-message thread is a text thread: its window is open, its channel is Text, and its strip says a text has no window", () => {
+test("a text-message thread is a text thread: its window is open and its channel is Text", () => {
   const rows = [message("m1", uuid(1), A, { body: "Can I come at 4?", channel: "sms", created_at: ago(50 * HOUR), channel_ts: ago(50 * HOUR) })];
   const [msg] = groupMessages(rows).get(uuid(1));
   assert.equal(msg.channel, "sms", "REGRESSION: the list read no channel, so every thread read as WhatsApp");
@@ -68,7 +68,6 @@ test("a text-message thread is a text thread: its window is open, its channel is
   };
   const vm = toInboxThreadVM(dto, null, ZONE, new Date());
   assert.deepEqual([vm.windowOpen, vm.primaryChannel, vm.channels, vm.timeline[0].channel], [true, "sms", ["sms"], "sms"], "REGRESSION: its window read closed, and its composer offered only templates the route refuses on a text");
-  assert.deepEqual(vm.contextStrip.at(-1), { label: "Texts", value: "No 24-hour window — write any time" });
   assert.match(vm.whoMeta, /^Text · /);
 });
 

@@ -256,10 +256,11 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
   return (
     <header className="ix-th-head">
       <div className="ix-th-head-main">
-        {/* Phone only (mobile.css): the list and the thread take turns. */}
+        {/* Phone only (mobile.css): the list and the thread take turns. The arrow alone: the top bar says Inbox over it,
+            and "← Inbox" said it again. */}
         {onBack && (
           <button type="button" className="btn btn-ghost btn-sm ix-back" onClick={onBack} aria-label="Back to the list" data-testid="ix-back">
-            <span aria-hidden="true">&larr;</span> Inbox
+            <span aria-hidden="true">&larr;</span>
           </button>
         )}
         <div className="ix-th-avatar" data-priority={thread.priority}>{thread.avatar}</div>
@@ -285,30 +286,28 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           <div className="ix-th-meta">{thread.whoMeta}</div>
         </div>
       </div>
-      <div className="ix-th-channels-meta">
-        {thread.channels.map((c) => (
-          <span
-            key={c}
-            className={`ix-channel-chip ${c === thread.primaryChannel ? "primary" : ""}`}
-          >
-            <Icon name={channelIcon(c)} size={11} />
-            {channelLabels[c]}
-          </span>
-        ))}
-      </div>
       <div className="ix-th-actions">
-        {thread.real && thread.phone && thread.primaryChannel === "phone" && (
+        {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),
+            and a chip said it again; a seeded thread's line is about the client, so its chips stay. Snooze and the
+            profile are in the menu, where they were already. A caller with no WhatsApp thread has Call back in the
+            reply box, unless they opted out and the box offers nothing: then it is here. */}
+        {!thread.real && (
+          <div className="ix-th-channels-meta">
+            {thread.channels.map((c) => (
+              <span
+                key={c}
+                className={`ix-channel-chip ${c === thread.primaryChannel ? "primary" : ""}`}
+              >
+                <Icon name={channelIcon(c)} size={11} />
+                {channelLabels[c]}
+              </span>
+            ))}
+          </div>
+        )}
+        {thread.real && thread.phone && thread.primaryChannel === "phone" && thread.optedOut && (
           <a className="btn btn-ghost btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
             <Icon name="phone" size={12} /> Call back
           </a>
-        )}
-        <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(thread.id)} disabled={snoozed} {...window.gate("approve", "snooze a conversation")}>
-          <Icon name={snoozed ? "check" : "clock"} size={12} /> {snoozed ? `Wakes ${thread.wake || "tomorrow"}` : "Snooze"}
-        </button>
-        {thread.clientId && (
-          <button className="btn btn-ghost btn-sm" onClick={() => onOpenClient(thread.clientId)} title="Open their profile">
-            <Icon name="users" size={12} /> Open profile
-          </button>
         )}
         <MoreMenu btnClass="btn btn-icon btn-sm" items={[
           { header: "Conversation" },
@@ -321,7 +320,8 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           // happen. The real way to stop the receptionist for one person is
           // the mode on their profile, so that is where a real session goes.
           ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
-          { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") },
+          // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
+          ...(snoozed ? [] : [{ label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") }]),
           // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
           ...(onArchive && !thread.archived ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: window.gate("approve", "archive a conversation") }] : []),
           ...(window.__DEMO_MODE
@@ -335,7 +335,9 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
   );
 };
 
-// =============== CONTEXT STRIP — micro-facts under header ===============
+// =============== CONTEXT STRIP — a seeded thread's micro-facts under the header ===============
+// A real thread has none: each fact was said again by its status line and its reply box, and "Paused — you have it"
+// sat over a thread nobody had taken.
 const ContextStrip = ({ thread }) => {
   if (!thread.contextStrip || thread.contextStrip.length === 0) return null;
   return (
@@ -973,7 +975,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
             <span>Phone · {thread.phoneDisplay || thread.phone || thread.who}</span>
           </div>
           <div className="ix-composer-actions">
-            {thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`}><Icon name="phone" size={12} /> Call back</a>}
+            {thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back"><Icon name="phone" size={12} /> Call back</a>}
             <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>
