@@ -81,6 +81,13 @@ const InboxList = ({
     ? `Archive ${pickedOne.who ? `${pickedOne.who}'s` : "this"} conversation?`
     : `Archive ${selected.length} conversations?`;
   const pressArchive = () => (pickedReal ? setAskArchive(true) : onBulkArchive());
+  // Needs you on a real workspace: how many need you -- the chip's number -- and how many you or a teammate are
+  // answering. It said "3 threads" under a chip that counts what needs you (I2).
+  const realNeeds = !query.trim() && !activeView && activeBucket === "escalated" && visible.some((t) => t.real);
+  const needing = realNeeds ? visible.filter((t) => t.needsYou).length : 0;
+  const needsWords = realNeeds
+    ? `${needing} need${needing === 1 ? "s" : ""} you${visible.length > needing ? ` · ${visible.length - needing} being answered` : ""}`
+    : null;
 
   // The rows are a listbox with one tab stop: the open thread's row, or the first when none of these is
   // open. Arrows, J/K, Home and End open and focus the row on screen -- the page's own J/K walks its
@@ -204,7 +211,7 @@ const InboxList = ({
                 }}
               />
               <span className="ix-list-count tabular">
-                {visible.length} {query.trim() ? (visible.length === 1 ? "match" : "matches") : activeView ? (visible.length === 1 ? "thread in view" : "threads in view") : inNeedsBucket ? "decisions" : "threads"}
+                {needsWords || <>{visible.length} {query.trim() ? (visible.length === 1 ? "match" : "matches") : activeView ? (visible.length === 1 ? "thread in view" : "threads in view") : inNeedsBucket ? "decisions" : "threads"}</>}
               </span>
               {query && (
                 <span className="ix-search-hint">in "{query}"</span>
@@ -289,7 +296,10 @@ const InboxList = ({
               // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
               // pill and the wait chip used to look for "needs", a state no real thread
               // has, so no real thread ever showed how long it had waited.
-              const showStatePill = (searching || !inNeedsBucket) && t.state === "escalated" && !t.claimedByOther;
+              // Needs you only on a thread that does -- never one you or a teammate have -- and not again in the bucket
+              // that already says it: the check looked for the mockup's "needs", which no real thread is in (I2).
+              const inItsBucket = inNeedsBucket || (t.real && activeBucket === "escalated");
+              const showStatePill = (searching || !inItsBucket) && t.state === "escalated" && (t.real ? t.needsYou : !t.claimedByOther);
               return (
                 <div
                   key={t.id}
@@ -325,9 +335,13 @@ const InboxList = ({
                         {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
                         {/* A teammate has it: say whose, never Needs you. */}
                         {t.real && t.claimedByOther && <StatePill kind="thread" value="theirs" label={`${ixAnswerer(t)} has it`} className="ix-state-pill" testid="thread-theirs" />}
+                        {/* A thread you have is yours to answer, not waiting on you (I2). */}
+                        {t.real && t.takenOver && <StatePill kind="thread" value="yours" label="You have it" className="ix-state-pill" testid="thread-yours" />}
+                        {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}
+                        {t.real && t.state === "done" && t.lastWord && t.lastWord.short && <StatePill kind="tone" value={t.lastWord.tone} label={t.lastWord.short} className="ix-state-pill" testid="thread-last-word" />}
                         {/* The wait in the one family (8d, 3h, 40m), amber only when it is waiting on you. */}
                         {t.state === "escalated" && t.waitingMin > 0 && (
-                          <span className={`ix-wait tabular ${t.waitingMin > 30 && !t.claimedByOther ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
+                          <span className={`ix-wait tabular ${t.waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
                         )}
                         {t.state === "snoozed" && t.wake && (
                           <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
