@@ -682,6 +682,9 @@ var WHEN = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" }
 var SERVICE = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES = { ...WHEN, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES = { ...SERVICE, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var LIMIT_TIERS = {
   TIER_50: 50,
   TIER_250: 250,
@@ -1468,6 +1471,9 @@ var WHEN3 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE2 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES2 = { ...WHEN3, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES2 = { ...SERVICE2, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS2 = 72;
+var REPLY_WINDOW_MS2 = REPLY_WINDOW_HOURS2 * 36e5;
+var REPLY_WINDOW_WORDS2 = `within ${REPLY_WINDOW_HOURS2 / 24} days`;
 var LIMIT_TIERS2 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -2311,6 +2317,9 @@ var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 
 var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
+var REPLY_WINDOW_HOURS22 = 72;
+var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * 36e5;
+var REPLY_WINDOW_WORDS22 = `within ${REPLY_WINDOW_HOURS22 / 24} days`;
 function renderTemplate(body, params) {
   return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
     const v = params[Number(n) - 1];
@@ -3129,6 +3138,9 @@ var WHEN4 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE3 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES3 = { ...WHEN4, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES3 = { ...SERVICE3, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS3 = 72;
+var REPLY_WINDOW_MS3 = REPLY_WINDOW_HOURS3 * 36e5;
+var REPLY_WINDOW_WORDS3 = `within ${REPLY_WINDOW_HOURS3 / 24} days`;
 var LIMIT_TIERS3 = {
   TIER_50: 50,
   TIER_250: 250,
@@ -4289,6 +4301,9 @@ var WHEN5 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM" 
 var SERVICE4 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES4 = { ...WHEN5, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES4 = { ...SERVICE4, label: "Servicio", example: "una consulta" };
+var REPLY_WINDOW_HOURS4 = 72;
+var REPLY_WINDOW_MS4 = REPLY_WINDOW_HOURS4 * 36e5;
+var REPLY_WINDOW_WORDS4 = `within ${REPLY_WINDOW_HOURS4 / 24} days`;
 var LIMIT_TIERS4 = {
   TIER_50: 50,
   TIER_250: 250,

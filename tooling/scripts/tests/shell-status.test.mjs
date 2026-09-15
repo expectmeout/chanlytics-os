@@ -488,3 +488,26 @@ test("REGRESSION (C9): a link to a run opens that broadcast, named in the crumbs
     delete win.__BROADCASTS;
   }
 });
+
+test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named in the crumbs -- the route dropped the id", () => {
+  shell.installShell(win);
+  const keepGate = win.gate;
+  win.gate = win.gate || (() => ({}));
+  win.__PLAYBOOKS = { rows: [{ id: "pb-1", name: "Win-back" }] };
+  globalThis.OutboundPage = "OutboundPage";
+  try {
+    const at = (hash) => {
+      const { tree } = mount(hash);
+      return { props: find(tree, (n) => n.type === "OutboundPage").props, crumbs: find(tree, (n) => n.type === "Topbar").props.crumbs };
+    };
+    const one = at("#/outbound/pb-1");
+    assert.equal(one.props.initialPlaybook, "pb-1", "REGRESSION: the route dropped the playbook's id");
+    assert.equal(one.crumbs.at(-1), "Win-back");
+    assert.equal(at("#/outbound").props.initialPlaybook, null);
+    assert.equal(at("#/outbound/pb-gone").crumbs.at(-1), "Playbook", "a playbook since deleted is still named for what it was");
+  } finally {
+    delete win.__PLAYBOOKS;
+    delete globalThis.OutboundPage;
+    win.gate = keepGate;
+  }
+});

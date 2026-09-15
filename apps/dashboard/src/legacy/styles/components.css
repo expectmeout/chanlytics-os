@@ -1408,6 +1408,8 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 /* A send in flight, drawn as far as it has gone; a delete a running playbook holds back, with its way out. */
 .bc-progress { display: block; margin-top: 6px; max-width: 260px; }
 .msg-delete-held { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 12px; line-height: 1.45; color: var(--ink-muted); }
+/* The playbook card a link opened. */
+.ob-card.is-focus { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 
 /* ---------- Shareable views ---------- */

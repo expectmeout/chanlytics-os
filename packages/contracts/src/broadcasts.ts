@@ -52,6 +52,13 @@ export const BROADCAST_MAX_RECIPIENTS = 2000;
 export const BROADCAST_PARAM_MAX = 1024;
 export const BROADCAST_SCHEDULE_MAX_DAYS = 30;
 export const BROADCAST_NAME_MAX = 80;
+/**
+ * A reply is an inbound within this long of the send; a question two weeks later is its own thread. The SQL series
+ * keeps the same window (migration 00064's '72 hours'), and every page says it in these words.
+ */
+export const REPLY_WINDOW_HOURS = 72;
+export const REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 3_600_000;
+export const REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 
 export type AudienceKind = "everyone" | "list" | "saved" | "playbook";
 /** The kinds a person may pick; "playbook" is the sweep's own. */

@@ -4394,7 +4394,7 @@ function todayWeek(r) {
   const find = (id) => r.campaigns.tiles.find((t) => t.id === id);
   const sent = find("sent");
   const yes = find("optins");
-  const offers = r.campaigns.empty || !sent || sent.value === "0" ? "No offers went out." : `${sent.value} offer message${sent.value === "1" ? "" : "s"} sent \xB7 ${yes ? yes.value : "0"} said yes`;
+  const offers = r.campaigns.empty || !sent || sent.value === "0" ? "No campaign message went out." : `${sent.value} campaign message${sent.value === "1" ? "" : "s"} sent \xB7 ${yes ? yes.value : "0"} said yes`;
   const b = r.booking;
   const booking = !b.present ? { text: b.sub, to: "calendar" } : b.pct === null ? { text: "Nobody wrote or called, so there was nothing to book.", to: "reports" } : { text: `Asked \u2192 booked: ${b.headline} \xB7 ${b.pct}%`, to: "reports" };
   return {
@@ -5437,6 +5437,9 @@ var BROADCAST_MAX_RECIPIENTS = 2e3;
 var BROADCAST_PARAM_MAX = 1024;
 var BROADCAST_SCHEDULE_MAX_DAYS = 30;
 var BROADCAST_NAME_MAX = 80;
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
 var AUDIENCE_KINDS = ["everyone", "list", "saved"];
 var EVERYONE_LABEL = "Everyone who said yes";
 function eligibleFor(rows, kind, id, savedIds, purpose) {
@@ -5974,6 +5977,12 @@ function bars(entries) {
 }
 var sum = (xs) => xs.reduce((a, b) => a + b, 0);
 var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
+function priorOf(n, previous, pick) {
+  return Array.from({ length: n }, (_, i) => {
+    const j = previous.length - n + i;
+    return j >= 0 ? pick(previous[j]) : null;
+  });
+}
 function toReportVM(dto) {
   const days = dto.days;
   const series = dto.series ?? [];
@@ -6091,7 +6100,7 @@ function toReportVM(dto) {
     timezone: dto.timezone,
     empty: tot.in === 0 && tot.calls === 0,
     tiles,
-    answered: { points, totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none }, max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)) },
+    answered: { points, totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none }, max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)), prior: priorOf(current.length, previous, (d) => d.messages_in) },
     reasons,
     replyTime: {
       count: sortedReply.length,
@@ -6101,8 +6110,8 @@ function toReportVM(dto) {
       p90Label: fmtSeconds(p90),
       buckets: bars(bucketCounts)
     },
-    calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)) },
-    people: { points, total: tot.newPeople, max: Math.max(1, ...points.map((p) => p.newPeople)) },
+    calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)), prior: priorOf(current.length, previous, (d) => d.calls) },
+    people: { points, total: tot.newPeople, max: Math.max(1, ...points.map((p) => p.newPeople)), prior: priorOf(current.length, previous, (d) => d.new_contacts) },
     table: {
       columns: ["Day", "Customer messages", "Answered by receptionist", "Answered by you", "Unanswered", "Calls", "Needed you", "New people"],
       rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
@@ -6186,7 +6195,7 @@ function toCampaignReportVM(dto) {
       id: "replied",
       label: "Replied",
       value: pct(tot.replied, tot.sent) === null ? "\u2014" : `${pct(tot.replied, tot.sent)}%`,
-      meta: tot.sent ? `${tot.replied} wrote back within 3 days` : "nothing sent",
+      meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
       delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
       spark: points.map((p) => p.replied)
     },
@@ -6215,6 +6224,7 @@ function toCampaignReportVM(dto) {
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
     max: Math.max(1, ...points.map((p) => p.sent)),
+    prior: priorOf(current.length, previous, (d) => d.sent),
     table: {
       columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts])
@@ -8894,6 +8904,9 @@ export {
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
+  REPLY_WINDOW_HOURS,
+  REPLY_WINDOW_MS,
+  REPLY_WINDOW_WORDS,
   REPORT_RANGES,
   RETENTION_DAYS,
   REVIEW_AUTO_REPLIES_PER_SYNC,
@@ -9187,6 +9200,7 @@ export {
   policyRules,
   previewHorizon,
   priceWords,
+  priorOf,
   providerNameOf,
   purposeOfPlaybook,
   purposeOfTemplate,

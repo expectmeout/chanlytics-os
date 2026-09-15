@@ -42,10 +42,10 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   // A call said by name, about its call or the thread that needs a call back, runs: retell-webhook-door.test.mjs.
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/notifications.ts").includes("dedupeFeed([...applyReadState("), "the bridge shows the feed once");
   const server = readCode("apps/dashboard/src/server/broadcasts.ts");
-  assert.ok(server.includes("const REPLY_WINDOW_MS = 72 * 3_600_000;") && server.includes("<= REPLY_WINDOW_MS) {") && server.includes("replied.set(m.conversation_id, m.created_at)"), "a reply is an inbound inside the window, and the FIRST one is kept with its time (slice C)");
+  assert.ok(server.includes("REPLY_WINDOW_MS,") && server.includes("<= REPLY_WINDOW_MS) {") && server.includes("replied.set(m.conversation_id, m.created_at)"), "a reply is an inbound inside the contracts' one window (its value runs in reports-honest.test.mjs), and the FIRST one is kept with its time (slice C)");
   const mig = readRaw("supabase/migrations/00064_campaign_reply_window.sql");
   assert.ok(mig.includes("and i.created_at <= s.sent_at + interval '72 hours')  as replied") && mig.includes("create or replace function public.campaign_series"), "the SQL series keeps the same window");
-  assert.ok(readCode("packages/contracts/src/campaign-report.ts").includes("wrote back within 3 days"));
+  assert.ok(readCode("packages/contracts/src/campaign-report.ts").includes("wrote back ${REPLY_WINDOW_WORDS}"));
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".brief-beat-text { flex: 1; min-width: 0; }"), "a long beat wraps beside its dot, not under it");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes("  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos"), "a long meta wraps in its own cell, not into the next");
   assert.ok(readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes('title={typeof meta === "string" ? meta : undefined}'));

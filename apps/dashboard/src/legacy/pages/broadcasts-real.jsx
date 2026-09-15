@@ -250,7 +250,7 @@ window.bcWhenNote = bcWhenNote;
 // The history's numbers -- sent, delivered, replies -- over the rows the route
 // returned. Past fifty broadcasts the route says older ones exist (more), and
 // the numbers say they are the latest fifty rather than reading as everything.
-const BcHistoryStats = ({ rows, more }) => {
+const BcHistoryStats = ({ rows, more, replyWindow = null }) => {
   const history = (rows || []).filter((r) => !r.open);
   const messages = history.reduce((a, r) => a + r.counts.sent, 0);
   const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
@@ -259,7 +259,7 @@ const BcHistoryStats = ({ rows, more }) => {
     <StatStrip>
       <StatCell label="Sent" value={history.filter((r) => r.state === "sent").length} meta={`${messages.toLocaleString()} messages${scope}`} />
       <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={messages ? `${Math.round((delivered / messages) * 100)}%` : "—"} meta={`from WhatsApp receipts${scope}`} />
-      <StatCell label="Replies" tip="Threads that heard from the customer within 3 days of a broadcast" value={history.reduce((a, r) => a + r.counts.replied, 0)} meta={`answered in the Inbox${scope}`} accent />
+      <StatCell label="Replies" tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"} value={history.reduce((a, r) => a + r.counts.replied, 0)} meta={`answered in the Inbox${scope}`} accent />
     </StatStrip>
   );
 };
@@ -423,7 +423,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
         </section>
       )}
 
-      <BcHistoryStats rows={rows} more={data.more} />
+      <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} />
 
       <section className="bc-composer" data-testid="bc-composer">
         <div className="ct-sec-head">

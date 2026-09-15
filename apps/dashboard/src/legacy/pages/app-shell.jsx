@@ -530,8 +530,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     );
     content = <AgentFleetPage id={param} onSelect={(id) => navigate(`fleet/${id}`)} />;
   } else if (page === "outbound") {
+    // outbound/<id> opens Playbooks on one playbook's card -- a source row on
+    // Reports links here -- named once the playbooks hold it.
+    const pbOpen = param && window.__PLAYBOOKS ? (window.__PLAYBOOKS.rows || []).find(p => p.id === param) : null;
     activeNav = "outbound";
-    crumbs = ["Campaigns", "Playbooks"];
+    crumbs = param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"];
     pane = true;
     // A real workspace's button opens the composer on the page; the seeded
     // page keeps the demo's Ask detour.
@@ -544,7 +547,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <Icon name="plus" size={12} /> New campaign
       </button>
     );
-    content = <OutboundPage />;
+    content = <OutboundPage initialPlaybook={param} />;
   } else if (page === "messages") {
     activeNav = "messages";
     crumbs = ["Campaigns", "Messages"];

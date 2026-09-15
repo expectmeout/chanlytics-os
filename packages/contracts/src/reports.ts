@@ -91,11 +91,12 @@ export interface ReportVM {
   /** Nothing came in during the period: no customer message and no call. */
   empty: boolean;
   tiles: ReportTileVM[];
-  answered: { points: ReportPointVM[]; totals: { in: number; ai: number; you: number; none: number }; max: number };
+  /** `prior`: customer messages the period before, day for day (null where there is no such day). */
+  answered: { points: ReportPointVM[]; totals: { in: number; ai: number; you: number; none: number }; max: number; prior: (number | null)[] };
   reasons: ReportBarVM[];
   replyTime: { count: number; median: number | null; p90: number | null; medianLabel: string; p90Label: string; buckets: ReportBarVM[] };
-  calls: { points: ReportPointVM[]; total: number; minutes: number; voicemail: number; sentiments: ReportBarVM[]; max: number };
-  people: { points: ReportPointVM[]; total: number; max: number };
+  calls: { points: ReportPointVM[]; total: number; minutes: number; voicemail: number; sentiments: ReportBarVM[]; max: number; prior: (number | null)[] };
+  people: { points: ReportPointVM[]; total: number; max: number; prior: (number | null)[] };
   table: { columns: string[]; rows: (string | number)[][] };
 }
 
@@ -170,6 +171,17 @@ function bars(entries: [string, string, number][]): ReportBarVM[] {
 
 const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
 const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/**
+ * The period before, day for day beside the current one: the n days before them, newest last, and null where the
+ * series has no day that far back (a workspace younger than two periods).
+ */
+export function priorOf<T>(n: number, previous: readonly T[], pick: (d: T) => number): (number | null)[] {
+  return Array.from({ length: n }, (_, i) => {
+    const j = previous.length - n + i;
+    return j >= 0 ? pick(previous[j]) : null;
+  });
+}
 
 export function toReportVM(dto: ReportDto): ReportVM {
   const days = dto.days;
@@ -297,7 +309,7 @@ export function toReportVM(dto: ReportDto): ReportVM {
     timezone: dto.timezone,
     empty: tot.in === 0 && tot.calls === 0,
     tiles,
-    answered: { points, totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none }, max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)) },
+    answered: { points, totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none }, max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)), prior: priorOf(current.length, previous, (d) => d.messages_in) },
     reasons,
     replyTime: {
       count: sortedReply.length,
@@ -307,8 +319,8 @@ export function toReportVM(dto: ReportDto): ReportVM {
       p90Label: fmtSeconds(p90),
       buckets: bars(bucketCounts),
     },
-    calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)) },
-    people: { points, total: tot.newPeople, max: Math.max(1, ...points.map((p) => p.newPeople)) },
+    calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)), prior: priorOf(current.length, previous, (d) => d.calls) },
+    people: { points, total: tot.newPeople, max: Math.max(1, ...points.map((p) => p.newPeople)), prior: priorOf(current.length, previous, (d) => d.new_contacts) },
     table: {
       columns: ["Day", "Customer messages", "Answered by receptionist", "Answered by you", "Unanswered", "Calls", "Needed you", "New people"],
       rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople]),
