@@ -290,6 +290,9 @@
   .cal-grid { grid-template-columns: 44px repeat(7, minmax(96px, 1fr)); min-width: 716px; }
   .cal-grid.cal-grid-day { grid-template-columns: 44px minmax(0, 1fr); min-width: 0; }
   .cal-corner, .cal-gutter { position: sticky; left: 0; z-index: 4; background: var(--bg); }
+  /* A week scrolled sideways settles on a day's edge rather than across two (C4). */
+  .cal-scroll { scroll-snap-type: x proximity; scroll-padding-left: 44px; }
+  .cal-dayhead, .cal-col { scroll-snap-align: start; }
 
   /* Profile queue rows: actions wrap to their own right-aligned row */
   .cl-prof-queue-item { flex-wrap: wrap; }

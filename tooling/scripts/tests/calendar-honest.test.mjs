@@ -20,6 +20,9 @@
  *   beside Business's open times; the rules bar said "Rules" and "Edit in Settings"; hours read 09:00–18:00 over a
  *   board in 9 AM; the zone was America/New_York; the feed's state was a coloured dot here and "Readable" on
  *   Connections; one failed read had three wordings; and the agenda said the receptionist books a consultation.
+ * - C4, reach: a day's head was a clickable div no keyboard reached; a month day and an appointment named no date to a
+ *   screen reader, and nothing said which day was today; a move of the board changed the range in silence; and a phone
+ *   was shown the arrow keys.
  * Run against the contracts, the bridge's arithmetic and the page on a stub React.
  */
 import { test } from "node:test";
@@ -725,4 +728,60 @@ test("(C3) the bridge publishes the hours in the Calendar's words, for the Busin
   } finally {
     globalThis.window.__hoursLines = was;
   }
+});
+
+/* ------------------- C4: keyboard, screen reader, phone, contrast ------------------- */
+
+test("REGRESSION (C4): a day's head opens that day from the keyboard -- it was a clickable div no Tab reached, named only in a title", () => {
+  fresh();
+  let tree = page();
+  const opens = () => all(tree, (n) => n.props?.["data-testid"] === "cal-dayhead-open");
+  assert.equal(opens().length, 7, "REGRESSION: a div with onClick, out of the tab order");
+  assert.ok(opens().every((b) => b.type === "button" && b.props.type === "button"));
+  assert.equal(opens()[1].props["aria-label"], "Open Tuesday, September 8 in Day view");
+  assert.equal(opens()[1].props["aria-current"], "date", "today's head says it is today");
+  assert.equal(opens()[0].props["aria-current"], undefined);
+  opens()[3].props.onClick();
+  tree = page();
+  assert.equal(byTestId(tree, "cal-view-day").props["aria-pressed"], true);
+  assert.equal(textOf(byTestId(tree, "cal-range")), "Thu · Sep 10");
+  assert.equal(opens().length, 0, "in Day view the head opens nothing");
+});
+
+test("REGRESSION (C4): a month day names its date and what it holds -- a screen reader heard '8', '1 taken', '1 open' with no date, and nothing said which day was today", async () => {
+  fresh(dto(), [false]);
+  honourDeps = true;
+  try {
+    let tree = page();
+    byTestId(tree, "cal-view-month").props.onClick();
+    page();
+    await settle();
+    tree = page();
+    const cell = (key) => all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell").find((n) => n.props.key === key);
+    assert.equal(cell("2026-09-08").props["aria-label"], "Tuesday, September 8: 1 taken, 1 open");
+    assert.equal(cell("2026-09-08").props["aria-current"], "date");
+    assert.equal(cell("2026-09-09").props["aria-current"], undefined);
+    assert.equal(cell("2026-09-10").props["aria-label"], "Thursday, September 10: 1 taken");
+    assert.equal(cell("2026-09-12").props["aria-label"], "Saturday, September 12: closed · Wedding");
+    assert.equal(cell("2026-09-09").props["aria-label"], "Wednesday, September 9: nothing on the calendar");
+    assert.equal(cell("2026-09-20").props["aria-label"], "Sunday, September 20: couldn't read");
+  } finally {
+    honourDeps = false;
+  }
+});
+
+test("REGRESSION (C4): an appointment and an all-day event name their time and day -- each said only its title, the day being wherever its column was", () => {
+  fresh();
+  const tree = page();
+  assert.equal(byTestId(tree, "cal-block").props["aria-label"], "Ana Ruiz · Color, 2 – 3:30 PM, Tuesday, September 8");
+  assert.equal(find(tree, (n) => n.props?.className === "cal-allday").props["aria-label"], "Team training, all day, Thursday, September 10");
+});
+
+test("REGRESSION (C4): a move of the board is announced, and the key hints are their own part of the legend -- the range changed in silence, and a phone was told to press arrow keys", () => {
+  fresh();
+  const tree = page();
+  assert.equal(byTestId(tree, "cal-range").props["aria-live"], "polite", "REGRESSION: the new range was never announced");
+  const keys = find(byTestId(tree, "cal-legend"), (n) => n.props?.className === "cal-keys");
+  assert.ok(keys && textOf(keys).includes("← → move · T today"), "the keys, apart, where a touch screen can drop them");
+  assert.ok(!textOf(keys).includes("New York"), "and the zone outside them");
 });
