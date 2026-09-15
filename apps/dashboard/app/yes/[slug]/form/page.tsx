@@ -24,7 +24,15 @@ import { printableOrigin } from "@/server/origin";
  * into a box on a web page is not proof that its owner agreed, and a signature
  * on paper in front of the business is the paper version of their own message.
  */
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+// Named as the sheet it is, for the business it asks for (the wiring audit's N14: the tab said "Chanlytics OS"). Read
+// by slug like the page, and still not indexed.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const found = await consentPageFor(slug);
+  return found
+    ? { title: `Sign-up form: ${consentFormVM(found).title}`, robots: { index: false, follow: false } }
+    : { robots: { index: false, follow: false } };
+}
 export const dynamic = "force-dynamic";
 
 export default async function ConsentFormPage({ params }: { params: Promise<{ slug: string }> }) {

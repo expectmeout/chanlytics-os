@@ -35,7 +35,7 @@ export default function DataDeletionPage() {
       <h2>How long it takes</h2>
       <p>We answer a deletion request within 30 days and usually within a few days. Backups roll off on their own schedule, so a copy can survive in an encrypted backup for a short while after the live data is gone; it is never restored into the product.</p>
 
-      <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a></p>
+      <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="/terms">Terms of service</a> · <a href="/login">Sign in</a></p>
     </main>
   );
 }
