@@ -307,7 +307,7 @@ test("REGRESSION (S16): a check that fails does not wear the green check of succ
   type(labelled(tree, "input", "Website"), "not a website");
   tree = again("workspace");
   press(buttonSaying(classed(tree, "set-editor-foot"), "Save"));
-  assert.match(textOf(toasts.at(-1)?.msg), /website/);
+  assert.match(textOf(toasts.at(-1)?.msg), /1 field needs a look/, "the toast counts; the website's own sentence is under its box (settings-editor.test.mjs)");
   assert.equal(toasts.at(-1)?.tone, "warn", "the website check");
   assert.equal(saved.length, 0, "and a refused form is not saved");
   // Who is alerted.

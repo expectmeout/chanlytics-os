@@ -103,7 +103,7 @@ test("the form collects the three things a receptionist cannot exist without", (
   // free-text copy of a provisioned number is how the first live salon came
   // to publish the number it transfers to.
   assert.ok(pane.includes("phone_display: phone || undefined,"));
-  assert.ok(pane.includes('(!phone && !voiceLine) ? "a phone number"'), "and only a workspace with no line AND nothing typed is missing one");
+  assert.ok(pane.includes('if (!phone && !voiceLine) found.phone = needs("a phone number")'), "and only a workspace with no line AND nothing typed is missing one");
   assert.ok(pane.includes("booking_link: link,"));
 });
 
