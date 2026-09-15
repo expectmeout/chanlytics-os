@@ -20,6 +20,7 @@ import {
   composeSystemPrompt,
   resolveSystemPrompt,
   hasProfile,
+  TenantConfigWriteSchema,
 } from "@chanlytics/contracts";
 
 const brain = {
@@ -280,8 +281,16 @@ test("the guardrails still come last, after carried text", () => {
   assert.ok(out.lastIndexOf("Rules you must follow") > out.indexOf(brain.system_prompt.trim()));
 });
 
+test("the owner's instructions hold as much as the prompt they grew out of -- 8,000 against 20,000 failed every save of a longer one (S4)", () => {
+  const config = (extra) => ({ brain: { ...brain, profile: { ...profile, extra_instructions: extra } } });
+  const whole = TenantConfigWriteSchema.safeParse(config("x".repeat(20_000)));
+  assert.ok(whole.success, `REGRESSION: a prompt its old field held is refused in the new one -- ${whole.success ? "" : whole.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+  assert.equal(TenantConfigWriteSchema.safeParse(config("x".repeat(20_001))).success, false, "and past it, refused");
+  assert.ok(TenantConfigWriteSchema.safeParse({ brain: { ...brain, system_prompt: "x".repeat(20_000) } }).success, "the prompt itself holds the same, so whatever it holds fits the box");
+});
+
 test("the editor pre-fills the existing prompt so it is visible, not magic", () => {
-  assert.ok(settingsJsx.includes("p0.extra_instructions || brain.system_prompt"));
+  assert.ok(settingsJsx.includes("const draft0 = window.__instructionsDraft(brain);"));
 });
 
 test("saving reports the moment the SERVER accepts, not after the refetch", () => {

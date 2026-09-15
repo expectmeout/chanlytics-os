@@ -110,7 +110,10 @@ test("the form collects the three things a receptionist cannot exist without", (
 test("an existing workspace's own words are never overwritten by a default", () => {
   // These are what a customer reads when the model is unreachable. Replacing
   // them because somebody opened a form would substitute our words for theirs.
-  assert.ok(pane.includes("system_prompt: brain.system_prompt || defaults.system_prompt,"));
+  // The prompt's words move rather than stay (S4): the box shows them, a save
+  // keeps what the owner left there as their instructions, and the prompt goes
+  // back to the baseline -- settings-editor.test.mjs runs it.
+  assert.ok(pane.includes("system_prompt: defaults.system_prompt,"));
   assert.ok(pane.includes("fallbacks: brain.fallbacks || defaults.fallbacks,"));
 });
 

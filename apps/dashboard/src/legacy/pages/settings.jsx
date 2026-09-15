@@ -1017,7 +1017,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // Pre-filled with the workspace's existing instructions the first time this
   // is opened, so nothing a business already told its receptionist quietly
   // disappears the moment it fills in a form. Visible, and theirs to trim.
-  const [extra, setExtra] = useSetState(p0.extra_instructions || brain.system_prompt || "");
+  // Chosen in contracts (S4): the owner's own words, or the prompt from before
+  // this form, carried and said so below -- never the product's opening lines,
+  // which no owner wrote and which opened here as if one had.
+  const draft0 = window.__instructionsDraft(brain);
+  const [extra, setExtra] = useSetState(draft0.text);
   const [hours, setHours] = useSetState(() => {
     const h = {};
     SET_DAYS.forEach(([d]) => {
@@ -1223,6 +1227,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
     put("escalate_when", esc.length ? esc : undefined);
     put("extra_instructions", extra.trim() || undefined);
+    // As much as the receptionist takes, said under the box before a round trip (S4): the server's refusal named no field.
+    if (extra.trim().length > window.__instructionsMax) {
+      found.extra = <>At most {window.__instructionsMax.toLocaleString("en-US")} characters — this is {extra.trim().length.toLocaleString("en-US")}.</>;
+    }
     // handoff_number is deliberately NOT written here. It is edited in the row
     // that states it, on the Business card, and `profile` starts from what is
     // stored -- so not touching the key preserves it. Its two refusals (the
@@ -1350,13 +1358,18 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         // undefined, not "": absent is the schema's way of saying "use the line".
         phone_display: phone || undefined,
         booking_link: link,
+        // The product's own opening lines, on every save (S4). The box above showed
+        // the prompt written before this form, and what the owner kept of it is
+        // now their instructions; left here as well it was stored twice, and an
+        // emptied box carried it straight back. Built in contracts, under the name
+        // the business has now.
+        system_prompt: defaults.system_prompt,
         // Only invented when there is nothing there. An existing workspace keeps
         // every word it already had — these are the fields a customer actually
         // reads when the model is unreachable, and overwriting them because
         // somebody opened a form would be replacing their words with ours.
         //
         // Built in contracts, beside the schema they have to satisfy.
-        system_prompt: brain.system_prompt || defaults.system_prompt,
         fallbacks: brain.fallbacks || defaults.fallbacks,
         profile,
       },
@@ -1818,8 +1831,24 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         )}
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Anything else it should know" hint="Optional — written in your own words" />
-        <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Parking is behind the building. We do not take walk-ins after 5pm." aria-label="Extra instructions" />
+        <SetSectionHead title="Anything else it should know" hint={draft0.carried ? "Optional" : "Optional — written in your own words"} />
+        {/* Text nobody here wrote sat under "written in your own words" (S4): say where it came from, and which wins. */}
+        {draft0.carried && (
+          <span className="set-sec-hint" data-testid="biz-extra-carried">Carried over from the instructions your receptionist followed before this form. Trim what the fields above now cover — where the two disagree about the address, hours or services, the fields win.</span>
+        )}
+        <textarea
+          className="set-input set-textarea"
+          rows={Math.min(14, Math.max(4, Math.ceil(extra.length / 90)))}
+          value={extra}
+          onChange={(e) => { setExtra(e.target.value); clearProblem("extra"); }}
+          placeholder="Parking is behind the building. We do not take walk-ins after 5pm."
+          aria-label="Extra instructions"
+          {...problemProps("extra")}
+        />
+        {extra.trim().length > window.__instructionsMax * 0.8 && !problems.extra && (
+          <span className="set-sec-hint tabular" data-testid="biz-extra-count">{extra.trim().length.toLocaleString("en-US")} of {window.__instructionsMax.toLocaleString("en-US")} characters</span>
+        )}
+        {problemLine("extra")}
       </div>
       </div>
       {armCancel && (

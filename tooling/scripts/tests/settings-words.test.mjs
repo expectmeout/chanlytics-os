@@ -213,6 +213,8 @@ Object.assign(globalThis.window, {
   __inviteState: () => ({ expired: false, words: "invite pending" }),
   __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
   __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
+  __instructionsDraft: contracts.instructionsDraft,
+  __instructionsMax: contracts.INSTRUCTIONS_MAX,
 });
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 

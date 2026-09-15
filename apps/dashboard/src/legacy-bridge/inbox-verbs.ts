@@ -17,7 +17,7 @@ import {
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
 import type { ApiResult, Params, RouteKey } from "../client/api";
-import { MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn } from "@chanlytics/contracts";
+import { INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, hoursRuns, instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn } from "@chanlytics/contracts";
 import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
 import type { PromptPreviewDto } from "../server/prompt-preview";
@@ -361,6 +361,9 @@ declare global {
     __saveSettings: typeof saveSettings;
     __composedPrompt: typeof composedPrompt;
     __receptionistDefaults: typeof newReceptionistDefaults;
+    /** What the Business editor's instructions box opens with, and the most it holds (S4). */
+    __instructionsDraft: typeof instructionsDraft;
+    __instructionsMax: number;
     __hoursRuns: typeof hoursRuns;
     __configLimits: { maxIntervalsPerDay: number; maxClosures: number };
     /** "Last changed by Ada, two days ago", from the settings row's own author and stamp; "" when there is no stamp. */
@@ -440,6 +443,9 @@ export function installInboxVerbs(): void {
   // The settings form builds a brand-new brain and must satisfy the same
   // schema the edge parses; the defaults live beside that schema.
   window.__receptionistDefaults = newReceptionistDefaults;
+  // The instructions box opens with what contracts says it should, and holds what the schema holds (S4).
+  window.__instructionsDraft = instructionsDraft;
+  window.__instructionsMax = INSTRUCTIONS_MAX;
   // The Settings card summarises the week with the SAME collapse the prompt
   // uses; only the day-name wording differs between them.
   window.__hoursRuns = hoursRuns;

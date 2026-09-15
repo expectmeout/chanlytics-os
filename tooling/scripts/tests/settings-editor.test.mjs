@@ -12,6 +12,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay } from "@chanlytics/contracts";
+import * as C from "@chanlytics/contracts";
 
 const TID = "t-studio";
 
@@ -111,6 +112,8 @@ Object.assign(globalThis.window, {
   __inviteState: () => ({ expired: false, words: "invite pending" }),
   __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
   __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
+  __instructionsDraft: C.instructionsDraft,
+  __instructionsMax: C.INSTRUCTIONS_MAX,
   __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
   __SETTINGS: {
     role: "owner", version: 5,
@@ -292,3 +295,105 @@ test("REGRESSION (S22): leaving the page with unsaved changes asks the browser t
   assert.equal(ev.returnValue, "");
   assert.ok(tree, "the tree is still drawn");
 });
+
+/* ------------------------------ the instructions box (S4) ------------------------------ */
+
+// The wiring audit's S4. The box opened with the prompt written before the form, and every save copied it into the
+// owner's instructions -- capped at 8,000 characters against the prompt's 20,000. A longer prompt failed every save on a
+// box nobody had touched, the text was stored twice, and an emptied box filled itself again from the copy left behind.
+// These build the saved brain with the real defaults from contracts, not the stub above.
+const BRAIN0 = globalThis.window.__SETTINGS.config.brain;
+const LEGACY = "You are the WhatsApp assistant for Northside Studio. Ask for Rosa at the front desk about gift cards. ".repeat(110).trim();
+const withBrain = (patch, run) => {
+  const before = { settings: globalThis.window.__SETTINGS, defaults: globalThis.window.__receptionistDefaults };
+  globalThis.window.__receptionistDefaults = C.newReceptionistDefaults;
+  globalThis.window.__SETTINGS = { ...before.settings, config: { ...before.settings.config, brain: { ...BRAIN0, ...patch } } };
+  try { run(); } finally {
+    globalThis.window.__SETTINGS = before.settings;
+    globalThis.window.__receptionistDefaults = before.defaults;
+  }
+};
+const instructionsBox = (tree) => labelled(tree, "textarea", "Extra instructions");
+const baselineFor = (name) => C.newReceptionistDefaults(name, "", "").system_prompt;
+
+test("REGRESSION (S4): a prompt written before this form saves whole -- past 8,000 characters every save failed on a box nobody touched", () => withBrain({ system_prompt: LEGACY }, () => {
+  let tree = openEditor();
+  assert.equal(instructionsBox(tree).props.value, LEGACY, "the box shows what the receptionist follows");
+  type(labelled(tree, "input", "Website"), "https://northside.example/new");
+  tree = again("workspace");
+  press(saveButton(tree));
+  assert.equal(saved.length, 1, "sent");
+  const next = saved[0].config;
+  const parsed = C.TenantConfigWriteSchema.safeParse(next);
+  assert.ok(parsed.success, `REGRESSION: the server refuses the save -- ${parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
+  assert.equal(next.brain.profile.extra_instructions, LEGACY, "carried whole, never cut");
+  assert.equal(next.brain.system_prompt, baselineFor("Northside Studio"), "REGRESSION: stored twice -- the prompt also stayed where it was");
+}));
+
+test("REGRESSION (S4): an emptied box stays empty -- the old prompt came back into it on the next open, and the receptionist kept following it", () => withBrain({ system_prompt: LEGACY }, () => {
+  let tree = openEditor();
+  type(instructionsBox(tree), "");
+  tree = again("workspace");
+  press(saveButton(tree));
+  assert.equal(saved.length, 1);
+  const next = saved[0].config;
+  assert.equal(next.brain.profile.extra_instructions, undefined, "emptied is removed, not stored as nothing");
+  assert.ok(!C.resolveSystemPrompt(next.brain, "whatsapp").includes("Ask for Rosa"), "REGRESSION: the receptionist still follows the text the owner deleted");
+  // The page re-reads what was saved, and the owner opens the form again.
+  globalThis.window.__SETTINGS = { ...globalThis.window.__SETTINGS, config: next };
+  tree = openEditor();
+  assert.equal(instructionsBox(tree).props.value, "", "REGRESSION: the deleted text is back in the box");
+}));
+
+test("REGRESSION (S4): the product's own opening lines are not put in the owner's box -- a new workspace found them there as if it had written them", () => {
+  withBrain({ system_prompt: baselineFor("Northside Studio") }, () => {
+    const tree = openEditor();
+    assert.equal(instructionsBox(tree).props.value, "", "REGRESSION: the baseline opened as the owner's own instructions");
+    assert.equal(byTestId(tree, "biz-extra-carried"), null, "and nothing says it was carried over");
+  });
+  // Written under the business's earlier name it is still the product's, and a save writes it under the name it has now.
+  withBrain({ system_prompt: baselineFor("Northside Hair") }, () => {
+    const tree = openEditor();
+    assert.equal(instructionsBox(tree).props.value, "");
+    press(saveButton(tree));
+    assert.equal(saved.at(-1)?.config.brain.system_prompt, baselineFor("Northside Studio"));
+    assert.equal(saved.at(-1)?.config.brain.profile.extra_instructions, undefined, "REGRESSION: saving copied the baseline into the owner's instructions");
+  });
+});
+
+test("REGRESSION (S4): the owner's own words stay theirs, and a prompt carried in says where it came from", () => {
+  withBrain({ system_prompt: LEGACY }, () => {
+    const note = byTestId(openEditor(), "biz-extra-carried");
+    assert.ok(note, "REGRESSION: text nobody here wrote sat under \"written in your own words\"");
+    assert.match(textOf(note), /before this form/);
+  });
+  withBrain({ system_prompt: LEGACY, profile: { ...BRAIN0.profile, extra_instructions: "Ask for Rosa." } }, () => {
+    const tree = openEditor();
+    assert.equal(instructionsBox(tree).props.value, "Ask for Rosa.", "the owner's own, as written");
+    assert.equal(byTestId(tree, "biz-extra-carried"), null, "and nothing says it was carried");
+  });
+});
+
+test("REGRESSION (S4): past the most the receptionist takes, the box says so under itself -- the server refused the whole save in a toast", () => withBrain({}, () => {
+  let tree = openEditor();
+  type(instructionsBox(tree), "x".repeat(16_500));
+  tree = again("workspace");
+  assert.match(textOf(byTestId(tree, "biz-extra-count")), /16,500 of 20,000 characters/, "near the most, the box counts");
+  type(instructionsBox(tree), "x".repeat(20_001));
+  tree = again("workspace");
+  press(saveButton(tree));
+  tree = again("workspace");
+  const problem = byTestId(tree, "biz-extra-problem");
+  assert.ok(problem, "REGRESSION: nothing said where the problem is");
+  assert.match(textOf(problem), /At most 20,000 characters — this is 20,001\./);
+  assert.equal(byTestId(tree, "biz-extra-count"), null, "the problem says it; the count steps aside");
+  const box = instructionsBox(tree);
+  assert.equal(box.props["aria-invalid"], true);
+  assert.equal(box.props["aria-describedby"], "biz-extra-problem");
+  assert.equal(saved.length, 0, "nothing is sent");
+  assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 1 field needs a look.");
+  type(box, "Ask for Rosa.");
+  tree = again("workspace");
+  assert.equal(byTestId(tree, "biz-extra-problem"), null, "and the sentence goes when the box changes");
+  assert.equal(byTestId(tree, "biz-extra-count"), null, "a short text is not counted");
+}));
