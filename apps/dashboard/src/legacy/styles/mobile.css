@@ -401,6 +401,8 @@
     background: var(--bg-raised);
     border-top: 1px solid var(--line);
     padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    /* The ✦ has its own place at the bar's right end (ask.css): no tab runs under it, and no page. */
+    padding-right: 60px;
   }
   .phone-tab {
     appearance: none; background: none; border: 0; color: var(--ink-dim); font: inherit; font-size: 10.5px;
@@ -416,6 +418,10 @@
   }
   /* The tab bar's More replaces the hamburger */
   .tb-menu { display: none; }
+  /* The top bar says each thing once on a phone: Ask is the ✦ in the tab bar and the theme is in More, under your
+     name, and both were in the top bar as well. What stays takes a thumb's width: the bell was 26px wide. */
+  .tb-ask, .tb-theme { display: none; }
+  .topbar .btn-icon { min-width: 44px; }
   /* Room under every surface for the bar, and the toast sits above it */
   .main-scroll { padding-bottom: calc(64px + env(safe-area-inset-bottom)); }
   .pp-toast-stack { bottom: calc(76px + env(safe-area-inset-bottom)); }
