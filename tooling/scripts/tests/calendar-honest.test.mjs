@@ -159,7 +159,8 @@ const press = (key) => {
   for (const fn of listeners.keydown ?? []) fn({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, preventDefault() { taken = true; } });
   return taken;
 };
-const stats = (tree) => all(tree, (n) => n.type === globalThis.StatCell);
+/** The three counts over the board, in their order: what is on the calendar, the open times, the next open time. */
+const stats = (tree) => ["cal-count-taken", "cal-count-open", "cal-count-next"].map((id) => byTestId(tree, id));
 
 test("REGRESSION (D14): an appointment opens as a dialog named by its title; Escape closes it, and the board holds still behind it", () => {
   fresh();
@@ -599,8 +600,7 @@ const withNext = (over = {}) => dto({ next_opening: { start: "2026-09-08T19:30:0
 test("REGRESSION (C3): the times the receptionist would offer are open times wherever they are named -- the strip said 'Open windows' and 'Next opening', the service picker 'Windows', and Today 'next opening', while Business and Ask say open times", () => {
   fresh(withNext({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
   const tree = page();
-  // The strip's three cells: the harness walks each once as a child and once as what StatStrip drew.
-  assert.deepEqual(stats(tree).slice(0, 3).map((c) => c.props.label), ["This week", "Open times", "Next open time"], "REGRESSION: 'Open windows' and 'Next opening'");
+  assert.deepEqual(stats(tree).map((c) => c.props.label), ["This week", "Open times", "Next open time"], "REGRESSION: 'Open windows' and 'Next opening'");
   assert.equal(stats(tree)[2].props.value, "today 3:30 PM");
   assert.equal(byTestId(tree, "cal-service").props["aria-label"], "Open times that fit a service", "REGRESSION: 'Windows that fit a service'");
   const vm = toCalendarVM(withNext(), NOW);
@@ -639,7 +639,7 @@ test("REGRESSION (C3): what could not be read is said one way -- a month's days 
 test("REGRESSION (C3): the rules bar says what Business calls each thing -- 'Rules' for the booking rules, 'Edit in Settings' for a tab named Business, and a closure run into its note", () => {
   fresh();
   const bar = byTestId(page(), "cal-rules");
-  assert.deepEqual(all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf), ["Hours", "Closed", "Booking"], "REGRESSION: 'Rules'");
+  assert.deepEqual(all(bar, (n) => n.props?.className === "cal-rules-label").map(textOf), ["Hours", "Closed", "Booking", "Calendar"], "REGRESSION: 'Rules'");
   assert.ok(textOf(bar).includes("Sep 12 (Wedding)"), `REGRESSION: 'Sep 12 Wedding': ${textOf(bar)}`);
   const edit = find(bar, (n) => n.type === "button" && textOf(n).startsWith("Edit in"));
   assert.equal(textOf(edit).trim(), "Edit in Settings › Business", "REGRESSION: 'Edit in Settings', for a tab named Business");
@@ -698,7 +698,7 @@ test("REGRESSION (C3): the page's other words match the product's -- Try again b
   tree = page();
   assert.equal(toCalendarVM(dto(), NOW).zoneCity, "New York");
   assert.match(textOf(byTestId(tree, "cal-legend")), /times are New York time/, "REGRESSION: 'times in America/New_York'");
-  assert.match(textOf(find(tree, (n) => n.props?.className === "cl-page-sub")), /through your booking link/, "REGRESSION: 'your link'");
+  assert.match(textOf(find(tree, (n) => n.props?.className === "cal-about-note")), /through your booking link/, "REGRESSION: 'your link'");
 });
 
 test("REGRESSION (C3): a service that needs a consultation is spoken of as the receptionist handles it -- the agenda said the receptionist 'books a consultation', and it never books; the picker said 'consult first'", () => {
@@ -784,6 +784,48 @@ test("REGRESSION (C4): a move of the board is announced, and the key hints are t
   const keys = find(byTestId(tree, "cal-legend"), (n) => n.props?.className === "cal-keys");
   assert.ok(keys && textOf(keys).includes("← → move · T today"), "the keys, apart, where a touch screen can drop them");
   assert.ok(!textOf(keys).includes("New York"), "and the zone outside them");
+});
+
+test("REGRESSION: the Calendar shows the calendar first -- a title the top bar already says, a paragraph, three stat cards and five rows of controls came before the first day, and on a phone the first day sat below the fold", () => {
+  fresh(dto({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }] }));
+  let tree = page();
+  assert.equal(find(tree, (n) => /\bcl-(head|page-title|page-sub|controls)\b/.test(String(n.props?.className ?? ""))), null, "REGRESSION: the page's own head, title and paragraph");
+  assert.equal(find(tree, (n) => n.type === globalThis.StatStrip || n.type === globalThis.StatCell), null, "REGRESSION: the counts as three cards");
+  // Every control in one bar, and the date field inside the range, which opens it.
+  const bar = byTestId(tree, "cal-bar");
+  for (const id of ["cal-prev", "cal-today", "cal-next", "cal-range", "cal-jump", "cal-service", "cal-view-week", "cal-view-day", "cal-view-month", "cal-view-agenda"]) assert.ok(byTestId(bar, id), `${id} is in the one bar`);
+  const title = find(bar, (n) => n.type === "label" && !!byTestId(n, "cal-jump"));
+  assert.ok(title && byTestId(title, "cal-range"), "the range and the date field are one control");
+  // The counts as one line of text, each saying what it counts, its number, and what the number means.
+  const line = byTestId(tree, "cal-counts");
+  assert.equal(line.type, "p", "one line of text");
+  assert.ok(stats(line).every(Boolean), "the three counts are in it");
+  for (const c of stats(line)) {
+    const said = textOf(c);
+    for (const part of [c.props.label, c.props.value, c.props.meta].filter((p) => p != null)) assert.ok(said.includes(String(part)), `"${said}" says ${part}`);
+  }
+  // The hours, the rules, the calendar's source, Refresh and the booking link wait under the board, one tap away.
+  const about = () => byTestId(tree, "cal-about");
+  const toggle = () => byTestId(tree, "cal-about-toggle");
+  assert.equal(about().props.hidden, true, "shut until asked for");
+  assert.equal(toggle().props["aria-expanded"], false);
+  assert.equal(toggle().props["aria-controls"], about().props.id);
+  for (const id of ["cal-rules", "cal-feed", "cal-refresh", "cal-copy-link"]) {
+    assert.ok(byTestId(about(), id), `${id} is behind the toggle`);
+    assert.equal(byTestId(bar, id), null, `${id} is not among the controls`);
+  }
+  toggle().props.onClick();
+  tree = page();
+  assert.equal(about().props.hidden, false, "one tap shows them");
+  assert.equal(toggle().props["aria-expanded"], true);
+  toggle().props.onClick();
+  tree = page();
+  assert.equal(about().props.hidden, true, "and another puts them away");
+  // A calendar that can't be read still says so over the board, with its Retry, not behind the toggle.
+  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }));
+  tree = page();
+  assert.ok(byTestId(tree, "cal-feed-card") && byTestId(tree, "cal-feed-retry"), "the card and its Retry");
+  assert.equal(byTestId(about(), "cal-feed-card"), null, "over the board, not behind the toggle");
 });
 
 /* ---------------- C5b: a service that needs a consultation first ---------------- */
