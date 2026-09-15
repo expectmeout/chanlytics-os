@@ -21,7 +21,7 @@ import type { Json, RoutedChannel } from "../workspace/db.js";
 import { waCfgFor } from "../tenant-runtime.js";
 import { isVisionMime, photoUserText, toBase64, VISION_MAX_BYTES } from "../vision.js";
 import type { BrainConfig, BrainMeta, NotificationsConfig, SendPurpose } from "../workspace/contracts.js";
-import { isOptedOutContact, resolveSystemPrompt, describeNow } from "../workspace/contracts.js";
+import { isOptedOutContact, resolveSystemPrompt, describeNow, fallbackMessages } from "../workspace/contracts.js";
 import { replyPosture, effectiveReplyMode } from "../reply-posture.js";
 import { resolveConsent } from "../consent.js";
 import { logger, errField } from "../log.js";
@@ -97,6 +97,8 @@ export async function handleInbound(
   let replyMode = posture.replyMode;
   let personMode: string | null = null;
   const brainCfg: BrainConfig | null = rt?.brain ?? (drFallback ? FALLBACK_BRAIN : null);
+  // What goes out in the business's name when the receptionist cannot answer, with its details as they are now (S5).
+  const fallbacks = brainCfg ? fallbackMessages(brainCfg, rt?.known) : null;
   const notif: NotificationsConfig | null = rt?.notifications ?? (drFallback ? FALLBACK_NOTIFICATIONS : null);
   // One addressing decision per message, reused by every alert below.
   const notifyTarget: NotifyTarget = { tenantId, notifications: notif, isEnvDefault };
@@ -484,7 +486,7 @@ export async function handleInbound(
     // opposite. Every other send in this file branches on this.
     const acked = mayAck
       // A courtesy, not an answer: marked so it does not spend the daily cap.
-      ? (await send(brainCfg!.fallbacks.non_text, { ack: true })).outcome === "sent"
+      ? (await send(fallbacks!.non_text, { ack: true })).outcome === "sent"
       : false;
     const pausedUntil = acked ? Date.now() + pauseMs : 0;
     const why = acked
@@ -783,7 +785,7 @@ export async function handleInbound(
         // two copies of the hours is how two channels start disagreeing
         // about when the business opens.
         resolveSystemPrompt(brainCfg, "whatsapp", rt?.timezone, new Date(), rt?.policy, rt?.known),
-        brainCfg.fallbacks.error,
+        fallbacks!.error,
         leadNote,
         // "Are you open?" it could already answer. "Are you open RIGHT NOW?"
         // it was answering too, from nothing — it had a table of hours and no
@@ -806,7 +808,7 @@ export async function handleInbound(
       escalationReason = two.escalationReason;
     } catch (e) {
       L.error("brain_failed", { error: errField(e) });
-      replyText = brainCfg.fallbacks.error;
+      replyText = fallbacks!.error;
       escalate = true;
       escalationReason = "brain_error";
     }
@@ -816,7 +818,7 @@ export async function handleInbound(
     // person, and the platform is paged once per window (noModelPlan says
     // why). A canned greeting passed off as an answer would be the quiet
     // failure this replaces.
-    fallback = noModelPlan(brainCfg.fallbacks);
+    fallback = noModelPlan(fallbacks!);
     replyText = fallback.replyText;
     escalate = fallback.escalate;
     escalationReason = fallback.escalationReason;

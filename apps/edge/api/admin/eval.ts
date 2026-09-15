@@ -17,7 +17,7 @@ import { json } from "../../lib/http.js";
 import { authorizeAdmin, workspaceFor } from "../../lib/admin-auth.js";
 import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
-import { resolveSystemPrompt, describeNow } from "../../lib/workspace/contracts.js";
+import { resolveSystemPrompt, describeNow, fallbackMessages } from "../../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../../lib/workspace/db.js";
 import { generateReply } from "../../lib/brain.js";
 
@@ -84,12 +84,14 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
 
   const system = resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known);
   const nowNote = describeNow(rt.timezone, new Date(), rt.brain.profile?.closures);
+  // The holding message as a customer would get it, its details filled as they are now (S5).
+  const holding = fallbackMessages(rt.brain, rt.known).error;
   const started = Date.now();
   const results = [];
   for (const c of cases) {
     const t0 = Date.now();
     try {
-      const r = await ask(c.history ?? [], c.text, system, rt.brain.fallbacks.error, undefined, nowNote);
+      const r = await ask(c.history ?? [], c.text, system, holding, undefined, nowNote);
       results.push({ id: c.id, ok: true, text: r.text, escalate: r.escalate, reason: r.reason ?? null, meta: r.meta ?? null, usage: r.usage ?? null, ms: Date.now() - t0 });
     } catch (e) {
       results.push({ id: c.id, ok: false, error: String(e instanceof Error ? e.message : e).slice(0, 200), ms: Date.now() - t0 });

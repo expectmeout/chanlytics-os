@@ -1271,3 +1271,65 @@ export function resolveSystemPrompt(
     : { ...profile, extra_instructions: brain.system_prompt };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
 }
+
+/** The details a message sent in the business's name may name, as the owner writes them. */
+export const FALLBACK_DETAILS = ["business", "booking link", "phone"] as const;
+export type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
+
+/**
+ * The product's own wording for the three messages, naming the details rather
+ * than copying them, so they follow the business's details from the first day
+ * and a customer is never sent "call us at ." before a line exists.
+ */
+export const FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
+};
+
+const DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
+const namesADetail = (text: string) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
+const detailOf = (raw: string) => raw.toLowerCase().replace(/\s+/g, " ") as FallbackDetail;
+
+function fillDetails(text: string, values: Record<FallbackDetail, string | null>): string {
+  if (!namesADetail(text)) return text;
+  return text
+    .split("\n")
+    .map((line) => {
+      if (!namesADetail(line)) return line;
+      // Sentence by sentence, so a detail the workspace lacks takes only its own sentence with it.
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])]))
+        .map((s) => s.replace(DETAIL, (_, name: string) => values[detailOf(name)] as string))
+        .join(" ");
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * The three messages sent in the business's name when the receptionist cannot
+ * answer, with its details as they are now (the wiring audit's S5).
+ *
+ * They were written once, from what the form held that day, with the number
+ * and the booking link baked in, and nothing wrote them again: a changed link
+ * or a new line left customers the old one. A message may now name
+ * {business}, {booking link} and {phone}, filled here as it goes out from the
+ * facts the prompt speaks (resolveFacts): the number is the one the owner
+ * typed or the line the receptionist answers, formatted for a person. A
+ * sentence naming a detail the workspace does not have is left out rather
+ * than sent with a hole in it; a message naming none goes out exactly as
+ * written; one that would leave nothing says the default instead.
+ */
+export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null): BrainConfig["fallbacks"] {
+  const facts = resolveFacts(brain, known);
+  const values: Record<FallbackDetail, string | null> = {
+    business: facts.business_name.value ?? brain.business_name,
+    "booking link": facts.booking_link.value ?? brain.booking_link,
+    phone: facts.phone_display.value,
+  };
+  const say = (kind: keyof BrainConfig["fallbacks"]) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
+}

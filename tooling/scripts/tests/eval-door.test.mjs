@@ -111,7 +111,7 @@ const BRAIN = {
   business_name: "Harbor Moving",
   booking_link: "https://book.example/harbor",
   system_prompt: "Answer as the front desk of Harbor Moving: brief and warm, and never guess a price.",
-  fallbacks: { greeting: "g", error: "Sorry, something went wrong on our side. A person will follow up shortly.", non_text: "n" },
+  fallbacks: { greeting: "g", error: "Sorry, something went wrong on our side. A person at {business} will follow up shortly.", non_text: "n" },
   // The closure is TODAY on purpose: the weekly grid says open and only the
   // clock block says shut, so a harness that drops the workspace's closures
   // judges a prompt against a business that is not the one being run.
@@ -249,7 +249,7 @@ test("the run: each case is handed to the brain with its own history and the wor
   assert.deepEqual(b.asked.map((q) => [q.history, q.userText]), [[[], "Are you open Saturday?"], [CASES[1].history, "Quiero reservar para el sábado"]], "the case's own prior turns, or none");
   for (const q of b.asked) {
     assert.equal(q.system, system, "the workspace's real composed prompt, byte for byte: what a prompt or config change is exercised against");
-    assert.equal(q.fallback, BRAIN.fallbacks.error);
+    assert.equal(q.fallback, "Sorry, something went wrong on our side. A person at Harbor Moving will follow up shortly.", "the holding message, with the business named as it is now (S5)");
     assert.equal(q.leadNote, undefined, "no customer: the case is nobody's thread");
     assert.ok(q.nowNote.includes(`(${TZ})`), "the clock, in the business's zone");
     assert.ok(q.nowNote.includes(`The business is CLOSED today \u2014 ${SHUT_TODAY}`), "and the workspace's closures ride with it: the judge is reading what the receptionist would really have been told on a shut day");
@@ -350,7 +350,7 @@ test("the default: called the way Vercel calls it -- POST(request), nothing in t
   // The records the judge reads are the model's own, through the real parse.
   assert.deepEqual(body.results.map(record), [
     { id: "hours_en", ok: true, text: answered.reply, escalate: false, reason: null, meta: { intent: "hours", confidence: 0.92, reason: "", facts_used: ["hours"], language: "en", model: "claude-opus-5" }, usage: { input_tokens: 900, output_tokens: 20 } },
-    { id: "book_es", ok: true, text: BRAIN.fallbacks.error, escalate: true, reason: "refusal", meta: null, usage: { input_tokens: 900, output_tokens: 20 } },
+    { id: "book_es", ok: true, text: "Sorry, something went wrong on our side. A person at Harbor Moving will follow up shortly.", escalate: true, reason: "refusal", meta: null, usage: { input_tokens: 900, output_tokens: 20 } },
   ], "the second is the workspace's own error line, escalated: the fourth argument this door hands the brain is its fallback, and a refusal is what shows it");
   assert.equal(body.prompt_chars, system.length);
   assert.equal(body.timezone, TZ);
