@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay, instructionsDraft, INSTRUCTIONS_MAX } from "@chanlytics/contracts";
+import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay, instructionsDraft, INSTRUCTIONS_MAX, fallbackMessages, FALLBACK_DEFAULTS, unknownDetails } from "@chanlytics/contracts";
 
 const TID = "t-studio";
 
@@ -127,6 +127,10 @@ Object.assign(globalThis.window, {
   // What the instructions box opens with and the most it holds, as the bridge publishes them (S4).
   __instructionsDraft: instructionsDraft,
   __instructionsMax: INSTRUCTIONS_MAX,
+  // And the messages sent in the business's name, as the form previews and checks them (S5).
+  __fallbackMessages: fallbackMessages,
+  __fallbackDefaults: FALLBACK_DEFAULTS,
+  __unknownDetails: unknownDetails,
 });
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 

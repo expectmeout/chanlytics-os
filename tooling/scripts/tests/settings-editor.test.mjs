@@ -114,6 +114,9 @@ Object.assign(globalThis.window, {
   __receptionistDefaults: () => ({ system_prompt: "You answer for Northside Studio.", fallbacks: { greeting: "Hello", error: "Sorry", non_text: "Text, please" } }),
   __instructionsDraft: C.instructionsDraft,
   __instructionsMax: C.INSTRUCTIONS_MAX,
+  __fallbackMessages: C.fallbackMessages,
+  __fallbackDefaults: C.FALLBACK_DEFAULTS,
+  __unknownDetails: C.unknownDetails,
   __ME: { email: "dana@northside.example", role: "owner", display_name: "Dana" },
   __SETTINGS: {
     role: "owner", version: 5,
@@ -396,4 +399,86 @@ test("REGRESSION (S4): past the most the receptionist takes, the box says so und
   tree = again("workspace");
   assert.equal(byTestId(tree, "biz-extra-problem"), null, "and the sentence goes when the box changes");
   assert.equal(byTestId(tree, "biz-extra-count"), null, "a short text is not counted");
+}));
+
+/* ------------------------------ when it can't answer (S5) ------------------------------ */
+
+// The wiring audit's S5: the three messages a customer gets when the receptionist cannot answer were written once, with
+// the number and the booking link baked in, and no page showed them. They are on the form now, naming the details
+// ({business}, {booking link}, {phone}) that are filled as each one goes out.
+const HOLDING = "If it can't write a reply";
+const UNREADABLE = "If it gets something it can't read";
+const NO_MODEL = "If replies can't be written at all";
+const STORED = {
+  greeting: "Hi! Thanks for reaching out to Northside Studio.",
+  error: "Sorry, a person will reply here soon.",
+  non_text: "Thanks! For anything urgent, call us at (305) 555-0199.",
+};
+const messageBox = (tree, label) => labelled(tree, "textarea", label);
+
+test("REGRESSION (S5): the messages sent in the business's name are on the form as stored, and saved as changed -- no page showed them", () => withBrain({ fallbacks: STORED }, () => {
+  let tree = openEditor();
+  assert.equal(messageBox(tree, HOLDING)?.props.value, STORED.error, "REGRESSION: the holding message is not on the form");
+  assert.equal(messageBox(tree, UNREADABLE)?.props.value, STORED.non_text);
+  assert.equal(messageBox(tree, NO_MODEL)?.props.value, STORED.greeting);
+  type(messageBox(tree, HOLDING), "Sorry — {business} will reply here soon.");
+  tree = again("workspace");
+  assert.equal(listeners.beforeunload?.size ?? 0, 1, "an edited message is an unsaved change, asked about before it is thrown away");
+  press(saveButton(tree));
+  assert.equal(saved.length, 1);
+  assert.deepEqual(saved[0].config.brain.fallbacks, { ...STORED, error: "Sorry — {business} will reply here soon." });
+  const parsed = C.TenantConfigWriteSchema.safeParse(saved[0].config);
+  assert.ok(parsed.success, parsed.success ? "" : parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "));
+}));
+
+test("REGRESSION (S5): a new workspace's messages name its details instead of copying them -- one set up before its line told customers \"call us at .\"", () => withBrain({ business_name: undefined, booking_link: undefined, system_prompt: undefined, fallbacks: undefined }, () => {
+  let tree = openEditor();
+  type(labelled(tree, "input", "Business name"), "Northside Studio");
+  tree = again("workspace");
+  type(labelled(tree, "input", "Booking link"), "https://book.example/northside");
+  tree = again("workspace");
+  press(saveButton(tree));
+  assert.equal(saved.length, 1, `saved -- ${JSON.stringify(toasts.at(-1)?.msg ?? null)}`);
+  const brain = saved[0].config.brain;
+  assert.deepEqual(brain.fallbacks, C.FALLBACK_DEFAULTS, "REGRESSION: the product's wording copied the details in instead of naming them");
+  const read = C.fallbackMessages(brain, { channels: [] });
+  assert.ok(!read.non_text.includes("call us at ."), `REGRESSION: ${read.non_text}`);
+  assert.ok(read.greeting.includes("Northside Studio") && read.greeting.includes("https://book.example/northside"));
+}));
+
+test("REGRESSION (S5): a message says under itself what stops it -- empty, too long, or a name nothing fills in", () => withBrain({ fallbacks: STORED }, () => {
+  let tree = openEditor();
+  type(messageBox(tree, HOLDING), "");
+  tree = again("workspace");
+  type(messageBox(tree, UNREADABLE), "Call us at {phone number}.");
+  tree = again("workspace");
+  type(messageBox(tree, NO_MODEL), "x".repeat(2001));
+  tree = again("workspace");
+  press(saveButton(tree));
+  tree = again("workspace");
+  assert.match(textOf(byTestId(tree, "biz-fallback-error-problem")), /Write this message, or use the default wording\./);
+  assert.match(textOf(byTestId(tree, "biz-fallback-non_text-problem")), /\{phone number\} would be sent as written/);
+  assert.match(textOf(byTestId(tree, "biz-fallback-greeting-problem")), /At most 2,000 characters — this is 2,001\./);
+  assert.equal(messageBox(tree, HOLDING).props["aria-invalid"], true);
+  assert.equal(messageBox(tree, HOLDING).props["aria-describedby"], "biz-fallback-error-problem");
+  assert.equal(saved.length, 0, "nothing is sent");
+  assert.equal(textOf(toasts.at(-1)?.msg), "Not saved — 3 fields need a look.");
+  type(messageBox(tree, HOLDING), "Sorry.");
+  tree = again("workspace");
+  assert.equal(byTestId(tree, "biz-fallback-error-problem"), null, "and a message's sentence goes when it changes");
+}));
+
+test("each message shows what a customer reads now, points at a link written out, and offers the default wording back", () => withBrain({ fallbacks: { ...STORED, error: "Sorry — {business} will reply. Book at https://book.example/northside" } }, () => {
+  let tree = openEditor();
+  assert.match(textOf(byTestId(tree, "biz-fallback-error-preview")), /Sorry — Northside Studio will reply\./);
+  type(labelled(tree, "input", "Business name"), "Northside Hair");
+  tree = again("workspace");
+  assert.match(textOf(byTestId(tree, "biz-fallback-error-preview")), /Northside Hair/, "it follows the form as it is typed");
+  assert.match(textOf(byTestId(tree, "biz-fallback-error-written")), /\{booking link\}/, "a link written out is pointed at");
+  assert.match(textOf(byTestId(tree, "biz-fallback-non_text-written")), /\{phone\}/, "and so is a number");
+  assert.equal(byTestId(tree, "biz-fallback-greeting-preview"), null, "a message naming nothing reads as written");
+  press(byTestId(tree, "biz-fallback-greeting-default"));
+  tree = again("workspace");
+  assert.equal(messageBox(tree, NO_MODEL).props.value, C.FALLBACK_DEFAULTS.greeting);
+  assert.equal(byTestId(tree, "biz-fallback-greeting-default"), null, "the default wording has nothing to go back to");
 }));

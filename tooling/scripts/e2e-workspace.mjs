@@ -85,7 +85,7 @@ export function workspaceConfig() {
     business_name: NAME,
     phone_display: BUSINESS_PHONE_DISPLAY,
     booking_link: BOOKING_LINK,
-    ...newReceptionistDefaults(NAME, BUSINESS_PHONE_DISPLAY, BOOKING_LINK),
+    ...newReceptionistDefaults(NAME),
   };
   const parsed = TenantConfigWriteSchema.safeParse({ brain, notifications: { escalation_emails: [ALERT_INBOX] } });
   if (!parsed.success) {

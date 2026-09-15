@@ -968,6 +968,14 @@ const SetSectionHead = ({ title, hint }) => (
   </div>
 );
 
+// The three messages sent in the business's name when the receptionist cannot answer (S5), in the order an owner meets
+// them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words.
+const FALLBACK_ROWS = [
+  { key: "error", label: "If it can't write a reply", when: "The AI service failed or couldn't finish an answer. The conversation then waits for you." },
+  { key: "non_text", label: "If it gets something it can't read", when: "A voice note, a sticker, or a photo it can't look at. It then stays out of that conversation and asks for you." },
+  { key: "greeting", label: "If replies can't be written at all", when: "Only while Chanlytics' AI connection is down. Each conversation then waits for you." },
+];
+
 const BusinessEditor = ({ settings, onDone, flash }) => {
   const brain = (settings.config && settings.config.brain) || {};
   const p0 = brain.profile || {};
@@ -1022,6 +1030,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // which no owner wrote and which opened here as if one had.
   const draft0 = window.__instructionsDraft(brain);
   const [extra, setExtra] = useSetState(draft0.text);
+  // The three messages sent in the business's name when the receptionist cannot answer (S5): shown, and the owner's to
+  // change. They name the details that are filled as each one goes out (contracts fallbackMessages); a new workspace
+  // starts from the product's wording, which names them rather than copying them in.
+  const [fallbacks, setFallbacks] = useSetState(() => ({ ...(brain.fallbacks || window.__fallbackDefaults) }));
+  const setFallback = (k, v) => { setFallbacks((f) => ({ ...f, [k]: v })); clearProblem(`fallback-${k}`); };
   const [hours, setHours] = useSetState(() => {
     const h = {};
     SET_DAYS.forEach(([d]) => {
@@ -1059,7 +1072,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // Unsaved changes, against what the form opened with. Cancel, another Settings tab and closing the page each ask
   // before they throw them away (S22); all three did it silently.
   const [armCancel, setArmCancel] = useSetState(false);
-  const draft = JSON.stringify([bizName, phoneDisplay, bookingLink, address, tone, langs, escalate, website, notes, leadHours, bufferMin, daysAhead, partyMax, slotMin, consultFirst, bookingNotes, icalUrl, vision, extra, hours, services, closures, guards]);
+  const draft = JSON.stringify([bizName, phoneDisplay, bookingLink, address, tone, langs, escalate, website, notes, leadHours, bufferMin, daysAhead, partyMax, slotMin, consultFirst, bookingNotes, icalUrl, vision, extra, fallbacks, hours, services, closures, guards]);
   const opened = React.useRef(draft);
   const dirty = draft !== opened.current;
   const dirtyNow = React.useRef(dirty);
@@ -1231,6 +1244,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     if (extra.trim().length > window.__instructionsMax) {
       found.extra = <>At most {window.__instructionsMax.toLocaleString("en-US")} characters — this is {extra.trim().length.toLocaleString("en-US")}.</>;
     }
+    // Each message says under itself what stops it (S5): nothing to send, more than a message holds, or a name that
+    // nothing fills in and a customer would read as written.
+    FALLBACK_ROWS.forEach(({ key }) => {
+      const t = fallbacks[key].trim();
+      const unknown = window.__unknownDetails(t);
+      if (!t) found[`fallback-${key}`] = <>Write this message, or use the default wording.</>;
+      else if (t.length > 2000) found[`fallback-${key}`] = <>At most 2,000 characters — this is {t.length.toLocaleString("en-US")}.</>;
+      else if (unknown.length) found[`fallback-${key}`] = <>Only {"{business}"}, {"{booking link}"} and {"{phone}"} are filled in — {unknown[0]} would be sent as written.</>;
+    });
     // handoff_number is deliberately NOT written here. It is edited in the row
     // that states it, on the Business card, and `profile` starts from what is
     // stored -- so not touching the key preserves it. Its two refusals (the
@@ -1348,7 +1370,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> });
       return;
     }
-    const defaults = window.__receptionistDefaults(name, phone || voiceLine || "", link);
+    const defaults = window.__receptionistDefaults(name);
 
     const next = {
       ...settings.config,
@@ -1364,13 +1386,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         // emptied box carried it straight back. Built in contracts, under the name
         // the business has now.
         system_prompt: defaults.system_prompt,
-        // Only invented when there is nothing there. An existing workspace keeps
-        // every word it already had — these are the fields a customer actually
-        // reads when the model is unreachable, and overwriting them because
-        // somebody opened a form would be replacing their words with ours.
-        //
-        // Built in contracts, beside the schema they have to satisfy.
-        fallbacks: brain.fallbacks || defaults.fallbacks,
+        // The three messages as the form holds them (S5). An existing workspace's
+        // open with its own words, never replaced because somebody opened a form;
+        // a new one's with the product's wording, which names the details so they
+        // are filled as each goes out.
+        fallbacks: { greeting: fallbacks.greeting.trim(), error: fallbacks.error.trim(), non_text: fallbacks.non_text.trim() },
         profile,
       },
       // A top-level section, read by the edge; an emptied field removes it.
@@ -1849,6 +1869,40 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
           <span className="set-sec-hint tabular" data-testid="biz-extra-count">{extra.trim().length.toLocaleString("en-US")} of {window.__instructionsMax.toLocaleString("en-US")} characters</span>
         )}
         {problemLine("extra")}
+      </div>
+      <div className="set-sec" data-testid="biz-fallbacks">
+        <SetSectionHead title="When it can't answer" hint="Sent in your name. {business}, {booking link} and {phone} are filled in as each goes out" />
+        <div className="set-fallbacks">
+          {FALLBACK_ROWS.map(({ key, label, when }) => {
+            const text = fallbacks[key];
+            const k = `fallback-${key}`;
+            // What a customer would read with the form as it is typed -- the name, the link and the number not saved yet
+            // -- shown only when the message names a detail, since one that names none reads as written.
+            const reads = /\{/.test(text)
+              ? window.__fallbackMessages({ business_name: bizName.trim() || "your business", booking_link: bookingLink.trim(), phone_display: phoneDisplay.trim() || undefined, fallbacks: { ...fallbacks } }, { channels: voiceLine ? [{ kind: "voice", number_e164: voiceLine, status: "active" }] : [] })[key]
+              : null;
+            // A link or a number written out stays as written when the details change; a name follows them.
+            const link = bookingLink.trim();
+            const written = link && text.includes(link) ? "link" : /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/.test(text) ? "number" : null;
+            return (
+              <div className="set-fallback" key={key}>
+                <span className="set-fallback-label">{label}</span>
+                <span className="set-sec-hint">{when}</span>
+                <textarea className="set-input set-textarea" rows={3} value={text} onChange={(e) => setFallback(key, e.target.value)} aria-label={label} {...problemProps(k)} />
+                {problemLine(k)}
+                {reads && !problems[k] && <span className="set-fallback-reads" data-testid={`biz-fallback-${key}-preview`}>A customer reads: {reads}</span>}
+                {written && (
+                  <span className="set-sec-hint" data-testid={`biz-fallback-${key}-written`}>
+                    {written === "link" ? <>Your booking link is written out here — {"{booking link}"} keeps it current.</> : <>A number is written out here — {"{phone}"} gives the one you publish.</>}
+                  </span>
+                )}
+                {text !== window.__fallbackDefaults[key] && (
+                  <button type="button" className="btn btn-ghost btn-sm set-fallback-default" onClick={() => setFallback(key, window.__fallbackDefaults[key])} data-testid={`biz-fallback-${key}-default`}>Use the default wording</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       </div>
       {armCancel && (
