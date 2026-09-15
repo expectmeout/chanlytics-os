@@ -298,7 +298,7 @@
   /* Conversations: the same pattern */
   .conversations { grid-template-rows: minmax(0, 1fr); }
   .conversations .cv-list { border-bottom: none; }
-  .conversations .cv-viewer, .conversations > .ix-empty-state { display: none; }
+  .conversations .cv-viewer, .conversations > .empty-page { display: none; }
   .conversations.phone-detail .cv-list { display: none; }
   .conversations.phone-detail .cv-viewer { display: flex; }
   .cv-back { display: inline-flex; margin-right: 6px; padding-left: 6px; padding-right: 8px; }

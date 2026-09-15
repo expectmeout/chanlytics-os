@@ -83,6 +83,9 @@ export interface ConversationMessageVM {
   media?: MediaVM;
   /** Why the receptionist said it, when the row remembers. */
   why?: ReplyWhyVM;
+  /** Who sent it, for our messages: "the receptionist", "your team", "a broadcast (Spring offer)",
+   *  "the Win-back playbook" (messageAuthor). Absent for the customer's words and a call note. */
+  by?: string;
   /** "Canceled before sending", "Sending…" — absent when there is nothing to
    *  say, which for an ordinary sent message is the honest answer. */
   statusLabel?: string;
@@ -122,6 +125,10 @@ export interface ConversationVM {
   whoShort: string;
   initials: string;
   clientId: string | null;
+  /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
+  threadId: string;
+  /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
+  answeredBy: MessageAuthor["kind"] | null;
   channel: "whatsapp";
   agent: { glyph: string; name: string };
   at: string;
@@ -453,6 +460,8 @@ export interface InboxThreadVM {
         /** Why the receptionist said it, when the row remembers. */
         why?: ReplyWhyVM;
         byYou?: boolean;
+        /** Who sent it, when a person or a run did, in the words Conversations uses: "your team", "a broadcast (…)". */
+        byWords?: string;
         /** Sent by a broadcast, not typed: the name the owner gave it. */
         via?: { kind: "broadcast" | "playbook"; name: string };
         status?: string;
@@ -564,6 +573,8 @@ export function toInboxThreadVM(
         ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph }
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
+      // The words Conversations says too (messageAuthor): a person's reply is the team's.
+      ...(m.sender === "human" && messageAuthor(m) ? { byWords: (messageAuthor(m) as MessageAuthor).words } : {}),
       ...(m.meta?.source === "broadcast"
         ? { via: m.meta.playbook_name
             ? { kind: "playbook" as const, name: String(m.meta.playbook_name) }
@@ -695,6 +706,41 @@ export function toInboxThreadVM(
   };
 }
 
+export interface MessageAuthor {
+  kind: "receptionist" | "team" | "broadcast" | "playbook";
+  /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
+  words: string;
+}
+
+/**
+ * Who sent one of our messages, in the words the Inbox and Conversations both use.
+ *
+ * A person's reply is the team's: the row does not record which member sent
+ * it, and the Inbox said "by you" for all of them. A broadcast or a playbook
+ * run is named from the run. The customer's words and a call note have no
+ * author here.
+ */
+export function messageAuthor(m: MessageDto): MessageAuthor | null {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  if (m.meta?.source === "broadcast") {
+    return m.meta.playbook_name
+      ? { kind: "playbook", words: `the ${String(m.meta.playbook_name)} playbook` }
+      : { kind: "broadcast", words: m.meta.broadcast_name ? `a broadcast (${String(m.meta.broadcast_name)})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+
+/** A chat row's second line: that a person has the thread, or who had the last word. */
+function lastWordLine(needsHuman: boolean, last: MessageDto | undefined, author: MessageAuthor | null): string {
+  if (needsHuman) return "Receptionist paused — a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last — no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+
 export function toConversationVM(dto: ConversationDto, tz: string, now = new Date()): ConversationVM {
   const who = contactName(dto);
   // A phone-like name is not split: "+1" is nobody's first name. The
@@ -713,6 +759,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     text: messageText(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
     ...(m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) as ReplyWhyVM } : {}),
+    ...(messageAuthor(m) ? { by: (messageAuthor(m) as MessageAuthor).words } : {}),
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...(m.sender !== "customer"
@@ -734,6 +781,9 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
   // The last thing that actually happened between them: a queued or cancelled
   // draft is not the thread's last word, and previewing it read "handled".
   const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  // Who had that last word, when it was ours: the receptionist, the team, or a run. The row said
+  // "Answered by the receptionist" whoever answered, and when the customer had spoken last.
+  const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   // Honest pills: escalated when a human has it; open while the last word is
@@ -749,6 +799,9 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     whoShort,
     initials: initialsOf(who),
     clientId: dto.contact.id || null,
+    // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
+    threadId: `th-${dto.id}`,
+    answeredBy: lastAuthor ? lastAuthor.kind : null,
     channel: "whatsapp",
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
@@ -765,7 +818,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
         `${chat.length} message${chat.length === 1 ? "" : "s"}${
           callNotes ? ` · ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""
         }${dto.messages[0] ? ` · started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
-        needsHuman ? "Receptionist paused — a human has this thread" : "Answered by the receptionist",
+        lastWordLine(needsHuman, last, lastAuthor),
       ],
     },
     messages: msgs,

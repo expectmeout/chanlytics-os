@@ -1488,6 +1488,8 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // work it did not do. The bubble already knows its own channel.
       ...m.sender !== "customer" ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph } : {},
       ...m.sender === "human" ? { byYou: true } : {},
+      // The words Conversations says too (messageAuthor): a person's reply is the team's.
+      ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
       ...m.meta?.source === "broadcast" ? { via: m.meta.playbook_name ? { kind: "playbook", name: String(m.meta.playbook_name) } : { kind: "broadcast", name: String(m.meta.broadcast_name ?? "broadcast") } } : {},
       ...m.sender !== "customer" && m.status ? {
         status: m.status,
@@ -1574,6 +1576,22 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     timeline
   };
 }
+function messageAuthor(m) {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  if (m.meta?.source === "broadcast") {
+    return m.meta.playbook_name ? { kind: "playbook", words: `the ${String(m.meta.playbook_name)} playbook` } : { kind: "broadcast", words: m.meta.broadcast_name ? `a broadcast (${String(m.meta.broadcast_name)})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+function lastWordLine(needsHuman, last, author) {
+  if (needsHuman) return "Receptionist paused \u2014 a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last \u2014 no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
   const whoShort = /^[+\d(]/.test(who) ? who : who.split(" ")[0] || who;
@@ -1584,6 +1602,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     text: messageText(m),
     ...mediaVM(m) ? { media: mediaVM(m) } : {},
     ...m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) } : {},
+    ...messageAuthor(m) ? { by: messageAuthor(m).words } : {},
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...m.sender !== "customer" ? {
@@ -1595,6 +1614,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const chat = dto.messages.filter((m) => m.type !== "call_summary");
   const callNotes = dto.messages.length - chat.length;
   const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   const outcome = needsHuman ? "escalated" : last?.direction === "inbound" || dto.state === "snoozed" ? "open" : "handled";
@@ -1604,6 +1624,9 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     whoShort,
     initials: initialsOf(who),
     clientId: dto.contact.id || null,
+    // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
+    threadId: `th-${dto.id}`,
+    answeredBy: lastAuthor ? lastAuthor.kind : null,
     channel: "whatsapp",
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
@@ -1618,7 +1641,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
       headline: lastInbound ? messageText(lastInbound).slice(0, 110) : "No customer messages yet.",
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${callNotes ? ` \xB7 ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""}${dto.messages[0] ? ` \xB7 started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
-        needsHuman ? "Receptionist paused \u2014 a human has this thread" : "Answered by the receptionist"
+        lastWordLine(needsHuman, last, lastAuthor)
       ]
     },
     messages: msgs
@@ -9015,6 +9038,7 @@ export {
   mediaVM,
   memberWords,
   messageAt,
+  messageAuthor,
   messageStatusLabel,
   messageText,
   mondayOf,
