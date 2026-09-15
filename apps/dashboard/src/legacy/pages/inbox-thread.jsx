@@ -966,7 +966,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
       <div className="ix-composer-foot">
         <div className="ix-composer-channel">
           <Icon name={thread.primaryChannel === "phone" ? "phone" : thread.primaryChannel === "mail" ? "mail" : "chat"} size={12} />
-          <span>{thread.real ? "WhatsApp" : (thread.primaryChannel?.toUpperCase() || "SMS")} · to {thread.who}</span>
+          <span>{thread.real ? (thread.primaryChannel === "sms" ? "Text" : "WhatsApp") : (thread.primaryChannel?.toUpperCase() || "SMS")} · to {thread.who}</span>
         </div>
         <div className="ix-composer-actions">
           {/* The mockup's Save draft kept nothing: a real thread keeps no drafts, so it offers none. */}

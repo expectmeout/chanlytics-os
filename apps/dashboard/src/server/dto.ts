@@ -16,7 +16,7 @@ export const CONVERSATION_COLUMNS =
   "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc, marketing_consent)";
 
 export const MESSAGE_COLUMNS =
-  "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts";
+  "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";
 
 export const CALL_COLUMNS =
   "id, retell_call_id, direction, call_type, status, from_e164, from_raw, to_e164, started_at, ended_at, duration_ms, disconnection_reason, sentiment, call_successful, in_voicemail, summary, wanted, outcome, follow_up, caller_name, transcript_object, recording, conversation_id, contact_id, message_id, updated_at, contacts (display_name, wa_profile_name, phone_e164)";
@@ -52,6 +52,8 @@ export interface MessageRow {
   status: string;
   created_at: string;
   channel_ts: string | null;
+  /** The wire it travelled: whatsapp, sms or voice. A text thread read as WhatsApp without it (I5). */
+  channel: string | null;
 }
 
 export interface CallRow {
@@ -117,6 +119,8 @@ export function groupMessages(rows: MessageRow[]): Map<string, MessageDto[]> {
       direction: m.direction as MessageDto["direction"],
       sender: m.sender as MessageDto["sender"],
       type: m.type,
+      // The wire it travelled: a reply goes back on it, and the window is that wire's (replyWindow, I5).
+      ...(m.channel ? { channel: m.channel } : {}),
       body: m.body,
       media: mediaPublic(m.media),
       meta: m.meta as MessageDto["meta"],

@@ -1521,8 +1521,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
-  const primaryChannel = hasChat || !hasCalls ? "whatsapp" : "phone";
-  const channels = [...hasChat || !hasCalls ? ["whatsapp"] : [], ...hasCalls ? ["phone"] : []];
+  const chatChannel = lastInbound?.channel === "sms" ? "sms" : "whatsapp";
+  const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
+  const channels = [...hasChat || !hasCalls ? [chatChannel] : [], ...hasCalls ? ["phone"] : []];
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
@@ -1530,7 +1531,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
-      channel: onPhone ? "phone" : "whatsapp",
+      channel: onPhone ? "phone" : m.channel === "sms" ? "sms" : "whatsapp",
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...media ? { media } : {},
@@ -1582,7 +1583,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     optedOut: isOptedOut(dto),
     offersOk: dto.contact.marketing_consent === "opted_in",
     who,
-    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
+    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : primaryChannel === "sms" ? "Text" : "WhatsApp"),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -1618,7 +1619,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       ...reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : [],
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
       { label: "Receptionist", value: needsHuman ? claimedByOther ? "Paused \u2014 a teammate has it" : escalation?.reason === "callback" ? "Paused \u2014 call them back" : "Paused \u2014 you have it" : "Answering" },
-      hasChat ? { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" } : { label: "WhatsApp", value: "No thread yet \u2014 they have only phoned" }
+      hasChat ? chatChannel === "sms" ? { label: "Texts", value: "No 24-hour window \u2014 write any time" } : { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" } : { label: "WhatsApp", value: "No thread yet \u2014 they have only phoned" }
     ],
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),

@@ -633,7 +633,7 @@ declare function shortTime(iso: string | null, tz: string, now: Date): string;
  *  to read one field (Today was doing exactly that per open escalation). */
 declare function contactName(dto: ConversationDto): string;
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-declare function contactMeta(dto: ConversationDto, channel?: "WhatsApp" | "Phone"): string;
+declare function contactMeta(dto: ConversationDto, channel?: "WhatsApp" | "Phone" | "Text"): string;
 declare function initialsOf(name: string): string;
 /**
  * A reply the receptionist has WRITTEN but not sent — it is sitting out its veto
@@ -759,7 +759,7 @@ interface InboxThreadVM {
     };
     /** The channels the thread has actually used: "whatsapp", "phone", or both. */
     channels: string[];
-    primaryChannel: "whatsapp" | "phone";
+    primaryChannel: "whatsapp" | "phone" | "sms";
     /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
     hasChat: boolean;
     /** The number to call back, E.164, when known. */

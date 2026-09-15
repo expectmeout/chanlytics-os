@@ -71,7 +71,7 @@ test("the reason exists everywhere a reason is read", () => {
 });
 
 test("the escalation upsert reports how it landed", () => {
-  const jobs = readCode("packages/jobs/src/handlers.ts");
+  const jobs = readCode("packages/jobs/src/escalate.ts");
   assert.ok(jobs.includes('export type EscalationOutcome = "opened" | "refreshed" | "failed";'));
   assert.ok(jobs.includes('return "refreshed";'));
 });

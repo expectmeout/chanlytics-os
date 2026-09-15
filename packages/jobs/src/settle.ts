@@ -15,6 +15,7 @@
  * either way. That condition, not `certain`, is what makes this safe to run on
  * a job whose outcome is unknown.
  */
+import { upsertEscalation, type EscalationOutcome } from "./escalate";
 import { MAX_RESUMES, type Db } from "./ledger";
 import { scheduleJob } from "./schedule";
 
@@ -31,6 +32,8 @@ export interface Settled {
   what: "message" | "broadcast";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
+  /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
+  flagged?: EscalationOutcome;
   /** Why nothing could be written, when nothing could be. Never swallowed. */
   error?: string;
   /**
@@ -132,8 +135,14 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
       .eq("id", messageId)
       .eq("tenant_id", job.tenant_id)
       .eq("status", "queued")
-      .select("id");
-    return [{ what: "message", changed: !!data?.length, ...(error ? { error: error.message } : {}) }];
+      .select("id, conversation_id, sender");
+    // A reply that never left is a customer with no answer: the thread is flagged for a person, as a failed
+    // delivery flags it (core send.ts). A job that died marked the row failed and flagged nothing (I5).
+    const row = (data?.[0] ?? null) as { conversation_id?: string | null; sender?: string | null } | null;
+    const flagged = !error && row?.conversation_id
+      ? await upsertEscalation(db, job.tenant_id, row.conversation_id, "send_failed", `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`)
+      : null;
+    return [{ what: "message", changed: !!data?.length, ...(flagged ? { flagged } : {}), ...(error ? { error: error.message } : {}) }];
   }
 
   if (job.kind === "broadcast_send") {
