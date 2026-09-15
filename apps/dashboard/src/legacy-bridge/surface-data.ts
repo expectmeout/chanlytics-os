@@ -989,6 +989,12 @@ export const playbooksOverride: SurfaceOverride = {
 /** The window loaded: a day key and a length in days; null is the window around today. Not persisted — a reload opens on today. */
 let calendarFrom: string | null = null;
 let calendarDays = 63;
+/** The next read asks the calendar itself, not the route's few minutes' cache: the board's Refresh (C2). Taken by that read. */
+let calendarFresh = false;
+
+export function setCalendarFresh(on: boolean): void {
+  calendarFresh = on;
+}
 
 export function getCalendarSpan(): { from: string | null; days: number } {
   return { from: calendarFrom, days: calendarDays };
@@ -1017,9 +1023,12 @@ export const calendarOverride: SurfaceOverride = {
   apply: async () => {
     const from = calendarFrom;
     const days = calendarDays;
+    // A Refresh asks once: the flag goes with the read that takes it.
+    const fresh = calendarFresh;
+    calendarFresh = false;
     // The window around the business's today, not the browser's (zone.ts).
     const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));
-    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days) } });
+    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days), ...(fresh ? { fresh: "1" as const } : {}) } });
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;

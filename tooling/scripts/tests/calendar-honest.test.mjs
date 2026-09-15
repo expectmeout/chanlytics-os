@@ -13,6 +13,9 @@
  *   weekday; a board left on another month took Today's day with it; a day past what the receptionist offers read
  *   as a day with nothing to offer; the party size and the consultation-first services were never said; closures
  *   past the sixth vanished; the strip counted an unreadable calendar, and days still loading, as zero.
+ * - C2, the page's states: the board read itself every five minutes and offered no way to ask sooner; a calendar that
+ *   could not be read sent the owner to Settings with no Try again; days on their way only dimmed; and nothing said
+ *   when the calendar was last tried.
  * Run against the contracts, the bridge's arithmetic and the page on a stub React.
  */
 import { test } from "node:test";
@@ -50,6 +53,8 @@ let cells = [];
 let seq = 0;
 // What each effect hands back to be run when the page goes away, as React runs them on unmount.
 let cleanups = [];
+// What the page said in a toast, newest last.
+let toasts = [];
 const went = [];
 const listeners = {};
 globalThis.Icon = "Icon";
@@ -83,7 +88,7 @@ globalThis.window = {
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead"]) globalThis[k] = globalThis.window[k];
-globalThis.window.usePPToast = () => [null, () => {}];
+globalThis.window.usePPToast = () => [null, (t) => toasts.push(t)];
 // The bridge's own object, with its reads answered here.
 const { calendar } = await import("../../../apps/dashboard/src/legacy-bridge/calendar.ts");
 await import("../../../apps/dashboard/src/legacy/pages/calendar-real.jsx");
@@ -104,6 +109,7 @@ const fresh = (week = dto(), answers = []) => {
   cleanups = [];
   reads = [];
   homes = 0;
+  toasts = [];
   for (const k of Object.keys(listeners)) delete listeners[k];
   globalThis.window.__CALENDAR = { vm: toCalendarVM(week, NOW) };
   globalThis.window.__calendar = {
@@ -420,4 +426,143 @@ test("REGRESSION (C1): leaving the Calendar takes the loaded weeks back to today
   assert.equal(await calendar.home(), true, "a window moved to November goes home");
   assert.equal(getCalendarSpan().from, null, "to the weeks around today");
   assert.equal(await calendar.home(), false, "and a window already home stays as it is");
+});
+
+/* ------------------- C2: refresh, loading, and a calendar that can't be read ------------------- */
+
+test("(C2) the feed line says when the calendar was last tried where that is the news: a read that failed, and a refresh that couldn't reach it", () => {
+  const tried = "2026-09-08T15:57:00.000Z"; // three minutes before NOW
+  const down = toCalendarVM(dto({ feed: { present: true, state: "unavailable", read_at: "2026-09-08T12:00:00.000Z", checked_at: tried, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }), NOW);
+  assert.equal(down.feed.line, "Your calendar could not be read · tried 3m ago · last read 4h ago");
+  const never = toCalendarVM(dto({ feed: { present: true, state: "unavailable", read_at: null, checked_at: tried, events: 0, recurring_expanded: 0, skipped_recurring: 0 } }), NOW);
+  assert.equal(never.feed.line, "Your calendar could not be read · tried 3m ago", "never read: only when it was tried");
+  const stale = toCalendarVM(dto({ feed: { ...dto().feed, stale: true, reason: "http", checked_at: tried } }), NOW);
+  assert.ok(stale.feed.line.includes("· could not be refreshed 3m ago ·"), stale.feed.line);
+  assert.equal(toCalendarVM(dto({ feed: { ...dto().feed, checked_at: tried } }), NOW).feed.line, "From your calendar · read 2m ago · 4 events", "a good read says when it read, nothing more");
+});
+
+test("REGRESSION (C2): the feed line has a Refresh that reads the calendar afresh and says what came of it -- the board read itself every five minutes and offered no way to ask sooner", async () => {
+  fresh();
+  const asked = [];
+  let release = null;
+  globalThis.window.__calendar.refresh = (opts) => { asked.push(opts); return new Promise((r) => { release = r; }); };
+  let tree = page();
+  const button = () => byTestId(tree, "cal-refresh");
+  assert.ok(button(), "REGRESSION: no way to read the calendar again");
+  const pressed = button().props.onClick();
+  tree = page();
+  assert.deepEqual(asked, [{ fresh: true }], "a fresh read, not the cache");
+  assert.match(textOf(button()), /Reading your calendar/, "on its way, it says so");
+  assert.equal(button().props.disabled, true, "and a second press waits for it");
+  button().props.onClick();
+  assert.equal(asked.length, 1, "a press that reaches it anyway sends nothing more");
+  release(true);
+  await pressed;
+  tree = page();
+  assert.equal(textOf(button()), "Refresh");
+  assert.match(textOf(toasts.at(-1).msg), /Read your calendar just now/);
+  // It landed, and the calendar still couldn't be reached: the last good read stays, and the toast says so.
+  globalThis.window.__calendar.refresh = async () => { globalThis.window.__CALENDAR = { vm: toCalendarVM(dto({ feed: { ...dto().feed, stale: true, reason: "http", problem: "The calendar answered 503." } }), NOW) }; return true; };
+  await byTestId(page(), "cal-refresh").props.onClick();
+  assert.equal(toasts.at(-1).tone, "warn");
+  assert.match(textOf(toasts.at(-1).msg), /Couldn't refresh your calendar — showing the last good read/);
+  assert.match(textOf(toasts.at(-1).msg), /The calendar answered 503\./, "with why");
+  // Nothing landed at all.
+  globalThis.window.__calendar.refresh = async () => false;
+  await byTestId(page(), "cal-refresh").props.onClick();
+  assert.equal(toasts.at(-1).tone, "warn");
+  assert.match(textOf(toasts.at(-1).msg), /Couldn't reach Chanlytics/);
+});
+
+test("REGRESSION (C2): a calendar that can't be read, or couldn't be refreshed, offers Try again beside the address -- its only way back was Settings", async () => {
+  fresh(dto({ feed: { present: true, state: "unavailable", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, problem: "The calendar answered 404." } }));
+  const asked = [];
+  globalThis.window.__calendar.refresh = async (opts) => { asked.push(opts); return true; };
+  const retry = byTestId(page(), "cal-feed-retry");
+  assert.ok(retry, "REGRESSION: the card's only way back was Settings");
+  await retry.props.onClick();
+  assert.deepEqual(asked, [{ fresh: true }]);
+  assert.equal(toasts.at(-1).tone, "warn");
+  assert.match(textOf(toasts.at(-1).msg), /Still couldn't read your calendar/);
+  fresh(dto({ feed: { ...dto().feed, stale: true, reason: "http" } }));
+  globalThis.window.__calendar.refresh = async (opts) => { asked.push(opts); return true; };
+  await byTestId(page(), "cal-feed-stale-retry").props.onClick();
+  assert.deepEqual(asked, [{ fresh: true }, { fresh: true }], "and the card over the last good read");
+});
+
+test("REGRESSION (C2): days on their way say so in words -- the board only dimmed them", () => {
+  const later = dto({ from: "2026-09-14", to: "2026-09-20" });
+  later.days = later.days.map((d, i) => ({ key: shiftKey("2026-09-14", i), items: [], windows: [] }));
+  fresh(later);
+  globalThis.window.__calendar.ensure = () => new Promise(() => {});
+  page();
+  let tree = page();
+  const reading = byTestId(tree, "cal-reading");
+  assert.ok(reading, "REGRESSION: nothing said the board was reading");
+  assert.equal(reading.props.role, "status");
+  assert.match(textOf(reading), /Reading those days/);
+  byTestId(tree, "cal-view-agenda").props.onClick();
+  tree = page();
+  assert.match(textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-agenda-day")[0]), /Reading this day/);
+  byTestId(tree, "cal-view-month").props.onClick();
+  tree = page();
+  assert.match(textOf(all(tree, (n) => n.props?.["data-testid"] === "cal-month-cell")[0]), /reading/);
+});
+
+test("(C2) the bridge's fresh read asks the route for fresh=1 once, then reads as before", async () => {
+  const { calendarOverride, setCalendarFresh } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const seen = [];
+  const was = { location: globalThis.window.location, fetch: globalThis.window.fetch, ws: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com" },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => { seen.push(String(url)); return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), { status: 200, headers: { "content-type": "application/json" } }); },
+  });
+  try {
+    setCalendarFresh(true);
+    await calendarOverride.apply();
+    await calendarOverride.apply();
+    assert.equal(seen.length, 2);
+    assert.match(seen[0], /[?&]fresh=1(&|$)/, "the first read asks for a fresh one");
+    assert.ok(!/fresh=/.test(seen[1]), "and only that one");
+  } finally {
+    Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active });
+  }
+});
+
+test("(C2) the bridge's refresh reads through the runner, fresh when asked, says whether a read landed, and never leaves fresh behind", async () => {
+  const { startSurfaces } = await import("../../../apps/dashboard/src/legacy-bridge/surface-runner.ts");
+  const { calendarOverride } = await import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts");
+  const seen = [];
+  const was = { location: globalThis.window.location, fetch: globalThis.window.fetch, ws: globalThis.window.__WORKSPACES, active: globalThis.window.__ACTIVE_WORKSPACE, cal: globalThis.window.__CALENDAR };
+  Object.assign(globalThis.window, {
+    location: { pathname: "/w/harbor", hash: "", origin: "https://app.chanlytics.com", reload() {}, assign() {} },
+    __WORKSPACES: [{ id: "t1", timezone: TZ }],
+    __ACTIVE_WORKSPACE: "t1",
+    fetch: async (url) => { seen.push(String(url)); return new Response(JSON.stringify({ ok: true, data: { calendar: dto() } }), { status: 200, headers: { "content-type": "application/json" } }); },
+  });
+  const pause = () => new Promise((r) => setTimeout(r, 5));
+  const stop = startSurfaces([calendarOverride]);
+  try {
+    for (let i = 0; i < 20 && !seen.length; i += 1) await pause();
+    await pause();
+    seen.length = 0;
+    assert.equal(await calendar.refresh({ fresh: true }), true, "a read that landed says so");
+    assert.equal(seen.length, 1);
+    assert.match(seen[0], /[?&]fresh=1(&|$)/, "REGRESSION: the Refresh read the route's cache");
+    await pause();
+    assert.equal(await calendar.refresh(), true);
+    assert.ok(!/fresh=/.test(seen[1]), "the five-minute read reads as before");
+  } finally {
+    stop();
+  }
+  try {
+    seen.length = 0;
+    assert.equal(await calendar.refresh({ fresh: true }), false, "with no runner nothing lands, and the board is told so");
+    await calendarOverride.apply();
+    assert.ok(!/fresh=/.test(seen[0]), "and the next read does not ask for a fresh one it was never given");
+  } finally {
+    Object.assign(globalThis.window, { location: was.location, fetch: was.fetch, __WORKSPACES: was.ws, __ACTIVE_WORKSPACE: was.active, __CALENDAR: was.cal });
+  }
 });

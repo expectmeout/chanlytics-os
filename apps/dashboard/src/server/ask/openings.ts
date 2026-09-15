@@ -26,6 +26,11 @@ import { tenantFacts } from "../tenant";
 const FEED_TTL_MS = 5 * 60 * 1000;
 /** A failed read is remembered for a minute: one broken feed must not cost eight seconds on every page that reads it. */
 const FEED_FAIL_TTL_MS = 60 * 1000;
+/**
+ * The least time between two fetches an owner's Refresh can force (C2): pressed twice in a row, the calendar is asked
+ * once. Past it, a fresh read skips the caches above -- the board's only way to see a change was to wait them out.
+ */
+const FEED_FRESH_FLOOR_MS = 15 * 1000;
 
 interface FeedEntry {
   /** The last good text and when it was read; null when there has never been one. */
@@ -45,13 +50,15 @@ export interface FeedRead {
   at: number | null;
   reason: FeedFailure | null;
   status: number | null;
+  /** When the calendar was last tried, good or not: what "tried 3m ago" says when a try failed (C2). */
+  checkedAt: number;
 }
 
 class FeedRefused extends Error {
   constructor(readonly reason: FeedFailure, readonly status: number | null = null) { super(reason); }
 }
 
-const asRead = (e: FeedEntry): FeedRead => ({ text: e.text, at: e.at, reason: e.reason, status: e.status });
+const asRead = (e: FeedEntry): FeedRead => ({ text: e.text, at: e.at, reason: e.reason, status: e.status, checkedAt: e.checkedAt });
 
 /**
  * The feed's text and when it was read: fresh within the cache, else the
@@ -60,9 +67,11 @@ const asRead = (e: FeedEntry): FeedRead => ({ text: e.text, at: e.at, reason: e.
  * the same rule the preview applies (feedUrlOk): a private address saved
  * before the rule reached the write path is refused here, never fetched.
  */
-export async function loadFeed(tenantId: string, url: string): Promise<FeedRead> {
+export async function loadFeed(tenantId: string, url: string, opts: { fresh?: boolean } = {}): Promise<FeedRead> {
   const hit = feeds.get(tenantId);
-  if (hit && Date.now() - hit.checkedAt < (hit.reason ? FEED_FAIL_TTL_MS : FEED_TTL_MS)) return asRead(hit);
+  // A fresh read (the board's Refresh) waits out only the floor; everything else, the cache.
+  const ttl = opts.fresh ? FEED_FRESH_FLOOR_MS : hit?.reason ? FEED_FAIL_TTL_MS : FEED_TTL_MS;
+  if (hit && Date.now() - hit.checkedAt < ttl) return asRead(hit);
   const now = Date.now();
   try {
     const safe = feedUrlOk(url);

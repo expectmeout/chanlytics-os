@@ -7,6 +7,8 @@ const Query = z.object({
   from: z.string().optional(),
   /** How many days from there; seven when absent. */
   days: z.string().optional(),
+  /** "1": the calendar itself rather than the few minutes' cache -- the board's Refresh, never more often than the loader's floor. */
+  fresh: z.enum(["1"]).optional(),
 });
 
 /**
@@ -27,6 +29,7 @@ export const GET = read({
     // An owner or operator opening the board puts the people its appointments
     // name in People; a viewer's read changes nothing.
     const canAct = member.role === "owner" || member.role === "operator";
-    return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct }) };
+    const fresh = input.fresh === "1";
+    return { calendar: await calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct, fresh }) };
   },
 });

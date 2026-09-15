@@ -225,6 +225,7 @@ const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
                 <span className="cal-month-num tabular">{d.dayNum}</span>
                 {d.closed.yes && <span className="cal-month-closed">{d.closed.note ? `Closed · ${d.closed.note}` : "Closed"}</span>}
                 {d.unread && <span className="cal-month-none">not read</span>}
+                {d.loading && <span className="cal-month-none">reading…</span>}
                 {!d.closed.yes && !d.loading && !d.unread && feedOk && (
                   <span className="cal-month-counts">
                     {taken > 0 && <span className="cal-month-taken">{taken} taken</span>}
@@ -268,6 +269,7 @@ const CrAgenda = ({ frames, feedOk, fit, service, offer, onOpen }) => (
               ))}
             </div>
           )}
+          {d.loading && <span className="cal-agenda-none">Reading this day…</span>}
           {d.unread && <span className="cal-agenda-none">Couldn't read this day.</span>}
           {!d.loading && !d.unread && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
           {!d.loading && !d.unread && !d.closed.yes && feedOk && !d.past && (
@@ -295,6 +297,8 @@ const CalendarReal = ({ initialDay = null }) => {
   // The span a read failed for: while it is the one on screen, its days say so, with a Retry.
   const [failedSpan, setFailedSpan] = React.useState(null);
   const [serviceName, setServiceName] = React.useState("");
+  // The owner's Refresh on its way (C2): its button says so, and a second press waits for it.
+  const [refreshing, setRefreshing] = React.useState(false);
   const [toastNode, flash] = window.usePPToast();
   const vm = C ? C.vm : null;
   const cal = window.__calendar;
@@ -386,6 +390,19 @@ const CalendarReal = ({ initialDay = null }) => {
     catch { flash({ tone: "warn", msg: <>Could not copy — the link is {vm.bookingLink}</> }); }
   };
   const openDay = (key) => { setAnchorKey(key); setView("day"); };
+  // The owner's Refresh (C2): the calendar itself, now, and what came of it, in the words the read found -- the board
+  // read itself every five minutes and offered no way to ask sooner. One read at a time.
+  const refreshNow = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    let landed = false;
+    try { landed = await cal.refresh({ fresh: true }); } catch { landed = false; } finally { setRefreshing(false); }
+    const f = window.__CALENDAR && window.__CALENDAR.vm ? window.__CALENDAR.vm.feed : null;
+    if (!landed || !f) { flash({ tone: "warn", msg: <>Couldn't reach Chanlytics — the board is as it was.</> }); return; }
+    if (f.state === "ok" && !f.stale) { flash({ msg: <>Read your calendar just now.</> }); return; }
+    const why = f.problem ? ` ${f.problem}` : "";
+    flash({ tone: "warn", msg: f.state === "ok" ? <>Couldn't refresh your calendar — showing the last good read.{why}</> : <>Still couldn't read your calendar.{why}</> });
+  };
   const first = frames[0];
   const last = frames[frames.length - 1];
   const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? cal.monthLabel(anchor) : `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
@@ -447,6 +464,11 @@ const CalendarReal = ({ initialDay = null }) => {
             <span className="cal-sync-dot" />
             {vm.feed.line}
           </span>
+          {vm.feed.present && (
+            <button type="button" className="btn btn-ghost btn-sm cal-refresh" onClick={refreshNow} disabled={refreshing} aria-busy={refreshing ? "true" : "false"} data-testid="cal-refresh">
+              {refreshing ? "Reading your calendar…" : "Refresh"}
+            </button>
+          )}
         </div>
       </div>
 
@@ -491,6 +513,10 @@ const CalendarReal = ({ initialDay = null }) => {
           ) : (
             <span><b>Your calendar could not be read.</b> {vm.feed.problem || "The address is saved; check it in Settings › Business if this keeps happening."}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
           )}
+          {/* A calendar that can't be read: its only way back was Settings (C2). */}
+          {vm.feed.state === "unavailable" && (
+            <button type="button" className="btn btn-sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-retry">{refreshing ? "Trying…" : "Try again"}</button>
+          )}
           <button className="btn btn-primary btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>{vm.feed.state === "none" ? "Connect" : "Check the address"}</button>
         </div>
       )}
@@ -498,6 +524,7 @@ const CalendarReal = ({ initialDay = null }) => {
         <div className="cal-feed-card" data-testid="cal-feed-stale">
           <Icon name="calendar" size={14} />
           <span><b>Showing the last good read.</b> {vm.feed.problem || "The calendar could not be refreshed."} The receptionist is using this read too; it tries again every few minutes.</span>
+          <button type="button" className="btn btn-sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-stale-retry">{refreshing ? "Trying…" : "Try again"}</button>
           <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Check the address</button>
         </div>
       )}
@@ -509,6 +536,10 @@ const CalendarReal = ({ initialDay = null }) => {
       ))}
       {!covered && failedSpan === spanKey && (
         <FailedRead kind="line" what="those days" body="What was already on screen is still current, and the receptionist reads your calendar on its own." onRetry={read} busy={pending} className="cal-failed" testid="cal-failed" />
+      )}
+      {/* A read on its way says so in words; the board only dimmed (C2). */}
+      {pending && (
+        <div className="cal-reading" role="status" data-testid="cal-reading">Reading those days…</div>
       )}
 
       <div key={view} className={`cal-body ${pending ? "is-loading" : ""}`} aria-busy={pending ? "true" : "false"} data-testid="cal-body">
