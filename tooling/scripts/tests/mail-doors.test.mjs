@@ -214,6 +214,21 @@ test("setup-request: a known `what` and a workspace on record, or nothing; the p
   } finally { net.restore(); }
 });
 
+test("setup-request: a port and a repair each tell the platform what was asked for and what to do next (S8, S14)", async () => {
+  use(world());
+  const net = wire();
+  try {
+    assert.deepEqual(await answer(await knock(SETUP, { what: "port", by: "ada@example.com" })), [200, { ok: true, what: "port", tenant: "harbor-moving" }], "REGRESSION: a port was a `what` nobody offers");
+    assert.deepEqual(await answer(await knock(SETUP, { what: "repair", by: "ada@example.com" })), [200, { ok: true, what: "repair", tenant: "harbor-moving" }]);
+    const [port, repair] = net.mail();
+    assert.equal(port.subject, "Harbor Moving asked to bring their phone number");
+    assert.match(port.text, /port-out PIN/, "what the carrier will ask for");
+    assert.match(port.text, /keep their current service/, "and the one thing that loses a number");
+    assert.equal(repair.subject, "Harbor Moving asked for their business settings to be repaired");
+    assert.match(repair.text, /broken\.issues/, "where the problems are listed");
+  } finally { net.restore(); }
+});
+
 test("setup-request: a transport that refuses is a 502 the dashboard shrugs at -- the ask is already on record -- and without the transport's key nothing is even attempted", async () => {
   use(world());
   const refused = wire(() => ({ status: 401, body: { statusCode: 401, message: "API key is invalid" } }));

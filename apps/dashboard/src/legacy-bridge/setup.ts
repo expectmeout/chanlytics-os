@@ -7,7 +7,7 @@
  * map re-reads this surface.
  */
 import {
-  setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM,
+  setupSteps, setupRoute, shouldLandOnSetup, type SetupDto, type SetupVM, type SetupRequestKind,
   forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, agoWords,
 } from "@chanlytics/contracts";
 import type { SurfaceOverride } from "./surface-data";
@@ -26,7 +26,7 @@ export interface SetupApi {
   /** Put an optional row off, or take it back. A preference on this device. */
   later(id: string, on: boolean): void;
   /** Ask a person at Chanlytics for something the product cannot provision yet. */
-  request(what: "line"): Promise<{ ok: boolean; already: boolean; message: string }>;
+  request(what: SetupRequestKind): Promise<{ ok: boolean; already: boolean; message: string }>;
   /** The owner switches a tested capability on: a record, not a claim. Owners only; the route says so. */
   activate(kind: string): Promise<{ ok: boolean; message: string }>;
   /** And off again: the row stays, the history does. Owners only. */

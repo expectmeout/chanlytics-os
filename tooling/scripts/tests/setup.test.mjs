@@ -169,6 +169,30 @@ test("a line that was asked for waits on us and says when; one that exists but i
   assert.equal(row(inactive, "receptionist").sentence, "Switched off with the line.");
 });
 
+test("REGRESSION (S14): a port that was asked for says so on the line row, and what to keep meanwhile -- Bring my number filed a line request and the row said \"set up your line\"", () => {
+  const at = "2026-09-07T13:00:00Z";
+  const port = setupSteps(empty({ requests: { line: null, port: at } }), NOW);
+  assert.equal(row(port, "line").state, "waiting_them", "asked: now it is ours");
+  assert.equal(row(port, "line").verb, null, "asked once — no second ask");
+  assert.equal(row(port, "line").sentence, `Requested ${agoWords(Date.parse(at), NOW)} — a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`, "REGRESSION: a port read as a line");
+  assert.ok(row(port, "line").details.some((d) => d.startsWith("Keep your current phone service")), "and the one thing that loses a number");
+  // The newer ask speaks: a line asked for after a port is a line.
+  const both = setupSteps(empty({ requests: { line: "2026-09-07T14:00:00Z", port: at } }), NOW);
+  assert.ok(row(both, "line").sentence.includes("set up your line with you"), row(both, "line").sentence);
+});
+
+test("REGRESSION (S8): a broken configuration offers the ask for a repair, then waits on us and says when -- the owner was told Chanlytics repairs it, with no way to ask", () => {
+  const broken = { ...empty().business, broken: true };
+  const ask = setupSteps(empty({ business: broken }), NOW);
+  assert.equal(row(ask, "facts").state, "waiting_you");
+  assert.deepEqual(row(ask, "facts").verb, { label: "Ask for a repair", to: "verb:request-repair" }, "REGRESSION: the row's only verb opened Business, which cannot repair it");
+  const at = "2026-09-07T13:00:00Z";
+  const asked = setupSteps(empty({ business: broken, requests: { line: null, repair: at } }), NOW);
+  assert.equal(row(asked, "facts").state, "waiting_them");
+  assert.ok(row(asked, "facts").sentence.endsWith(`Requested ${agoWords(Date.parse(at), NOW)} — a person at Chanlytics will repair them and reach you by email.`), row(asked, "facts").sentence);
+  assert.deepEqual(row(asked, "facts").verb, { label: "Open Business", to: "admin/workspace" }, "where the problems are listed");
+});
+
 test("WhatsApp waits on Meta while the first messages are with them, or while the number is not active", () => {
   const meta = setupSteps(live({ templates: { approved: 0, pending: 3, startersApproved: 0 } }), NOW);
   assert.equal(row(meta, "whatsapp").state, "waiting_them");
@@ -390,7 +414,7 @@ test("wiring: Settings tab, manifest, bridge, routes, registry, rate bucket, eve
   // client, the back office reads another's on the service client. The route
   // is now four lines and the pins live where the work does.
   const get = readCode("apps/dashboard/src/server/setup.ts");
-  for (const pin of ["parseTenantConfigResult(cfgRow.config)", "starterByName(t.name)", "calendarWeek({ supabase }, tenantId, { from: null, days: 7 }", 'viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId)', '.eq("consent", "opted_in")', '.eq("subject_type", "setup")']) assert.ok(get.includes(pin), pin);
+  for (const pin of ["parseTenantConfigResult(cfgRow.config)", "starterByName(t.name)", "calendarWeek({ supabase }, tenantId, { from: null, days: 7 }", 'viewer.kind === "member" ? teamRoster(supabase, tenantId) : teamCounts(supabase, tenantId)', '.eq("consent", "opted_in")', '.eq("kind", "setup.requested")']) assert.ok(get.includes(pin), pin);
   assert.ok(readCode("apps/dashboard/app/api/v1/setup/route.ts").includes('setupDtoFor(ctx.supabase, member.tenantId, { kind: "member" })'), "and the route is its first caller");
   const post = readCode("apps/dashboard/app/api/v1/setup/request/route.ts");
   for (const pin of ['role: "operator",', 'rate: "setup_request",', 'rpc("setup_request", { p_tenant_id: member.tenantId, p_what: what })']) assert.ok(post.includes(pin), pin);

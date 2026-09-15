@@ -380,3 +380,50 @@ test("REGRESSION (the gate): Enter in the area code is the gated button's press,
     globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
   }
 });
+
+/* ---- the asks: bringing a number, and a repair (S14, S8) ---- */
+
+test("REGRESSION (S14): Bring my number asks for a port, and says so -- its Ask us filed a line request", async () => {
+  fresh();
+  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  const asked = [];
+  globalThis.window.__setup.request = async (what) => { asked.push(what); return { ok: true, already: false, message: "" }; };
+  try {
+    let tree = mount();
+    let lineRow = null;
+    walk(tree, (n) => { if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props; });
+    await lineRow.cta.onClick();
+    tree = mount();
+    byTestId(tree, "setup-path-bring").props.onClick();
+    tree = mount();
+    const before = calls.flash.length;
+    await byTestId(tree, "setup-ask-us").props.onClick();
+    assert.deepEqual(asked, ["port"], "REGRESSION: Ask us asked for a line");
+    assert.match(calls.flash[before].msg.props.children.join(""), /move your number/);
+  } finally {
+    delete globalThis.window.__setup.request;
+    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  }
+});
+
+test("REGRESSION (S8): a broken configuration's row asks for a repair, and says so -- its only verb opened Business, which cannot repair it", async () => {
+  fresh();
+  const broken = { ...dto, business: { ...dto.business, broken: true } };
+  globalThis.window.__SETUP = { dto: broken, role: "owner", vm: setupSteps({ ...broken, later: [] }, NOW), fetchedAt: NOW };
+  const asked = [];
+  globalThis.window.__setup.request = async (what) => { asked.push(what); return { ok: true, already: false, message: "" }; };
+  try {
+    const tree = mount();
+    let facts = null;
+    walk(tree, (n) => { if (!facts && n.props?.testid === "setup-row-facts") facts = n.props; });
+    assert.equal(facts.cta.label, "Ask for a repair");
+    const before = { flash: calls.flash.length, nav: calls.nav.length };
+    await facts.cta.onClick();
+    assert.deepEqual(asked, ["repair"], "REGRESSION: the verb was never sent");
+    assert.equal(calls.nav.length, before.nav, "and nothing navigated away");
+    assert.match(calls.flash[before.flash].msg.props.children.join(""), /repair your settings/);
+  } finally {
+    delete globalThis.window.__setup.request;
+    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  }
+});

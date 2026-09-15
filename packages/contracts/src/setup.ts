@@ -63,8 +63,12 @@ export interface SetupDto {
    * ready while a customer-facing fact is wrong is worse than no checklist.
    */
   conflicts?: FactConflict[];
-  /** What the owner has asked a person at Chanlytics for, and when. */
-  requests: { line: string | null };
+  /**
+   * What the owner has asked a person at Chanlytics for, and when: the newest
+   * ask of each thing (00123 added bringing a number and a repair). Optional
+   * beyond the line, so a reader built before them still parses.
+   */
+  requests: { line: string | null; port?: string | null; repair?: string | null };
   /** The workspace's own lines, and whether this deployment can get one. */
   lines?: { rows: LineDto[]; ready: boolean; provider: string | null; costs: { local_number_month_usd: number } };
   /** The business on Google: whether it can be found here, and the listing once it is. */
@@ -312,7 +316,19 @@ export const BROKEN_CONFIG_WORDS = {
   title: "This workspace's settings can't be read",
   body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it.",
   clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong.",
+  /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
+  ask: "Ask for a repair",
+  /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
+  requested: (at: string, nowMs: number) => `Requested ${agoWords(Date.parse(at), nowMs)} — a person at Chanlytics will repair them and reach you by email.`,
 } as const;
+
+/**
+ * What an owner can ask a person at Chanlytics for (00123): a phone line, until
+ * lines provision themselves; bringing the number they have over (S14); and a
+ * repair of a configuration the receptionist can no longer read (S8).
+ */
+export const SETUP_REQUEST_KINDS = ["line", "port", "repair"] as const;
+export type SetupRequestKind = (typeof SETUP_REQUEST_KINDS)[number];
 
 /**
  * Takes only the fields it reads. The back office renders the same
@@ -424,7 +440,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
     const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
     if (b.broken) {
-      row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: "Open Business", to: "admin/workspace" } });
+      // Only Chanlytics can repair it, so the owner's move is the ask (S8); once asked, it waits on us and says when.
+      i.requests.repair
+        ? row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_them", required: true, sentence: `${BROKEN_CONFIG_WORDS.clause} ${BROKEN_CONFIG_WORDS.requested(i.requests.repair, nowMs)}`, details: [], verb: { label: "Open Business", to: "admin/workspace" } })
+        : row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: BROKEN_CONFIG_WORDS.ask, to: "verb:request-repair" } });
     } else if (serious) {
       // Filled in, and wrong in a way a customer feels. The sentence is the
       // resolver's, because it is the one that knows WHY the two disagree.
@@ -478,6 +497,9 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`, details: ["Retry from here; we have been told"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "answering") {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `${lineNum} is set up — connecting it to the receptionist.`, details: [], verb: null });
+  } else if (i.requests.port && !(i.requests.line && Date.parse(i.requests.line) > Date.parse(i.requests.port))) {
+    // Bringing the number they have (S14): its own ask, and while it waits, the one thing that loses a number.
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.port), nowMs)} — a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`, details: ["Keep your current phone service until the move is finished — cancelling it first can lose the number", "Carriers take 7 to 14 business days once the move is filed"], verb: null });
   } else if (i.requests.line) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} — a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else if (lines.ready) {

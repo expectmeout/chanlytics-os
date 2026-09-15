@@ -7025,8 +7025,13 @@ var TEXTING_NEEDS_RECORD_CLAUSE = "Texting needs your business on record for the
 var BROKEN_CONFIG_WORDS = {
   title: "This workspace's settings can't be read",
   body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed \u2014 saving from here would replace what is still there. Chanlytics has to repair it.",
-  clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong."
+  clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong.",
+  /** The owner's one move on a configuration only Chanlytics can repair (S8): it said so, with no way to ask. */
+  ask: "Ask for a repair",
+  /** Once asked: when, and what happens next, on Setup's row and on the pane's card alike. */
+  requested: (at2, nowMs) => `Requested ${agoWords(Date.parse(at2), nowMs)} \u2014 a person at Chanlytics will repair them and reach you by email.`
 };
+var SETUP_REQUEST_KINDS = ["line", "port", "repair"];
 function textingWords(l) {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
@@ -7112,7 +7117,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
     const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
     if (b.broken) {
-      row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: "Open Business", to: "admin/workspace" } });
+      i.requests.repair ? row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_them", required: true, sentence: `${BROKEN_CONFIG_WORDS.clause} ${BROKEN_CONFIG_WORDS.requested(i.requests.repair, nowMs)}`, details: [], verb: { label: "Open Business", to: "admin/workspace" } }) : row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: BROKEN_CONFIG_WORDS.ask, to: "verb:request-repair" } });
     } else if (serious) {
       row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: serious.sentence, details: [`${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`], verb: { label: "Fix it in Business", to: serious.to } });
     } else if (missing.length === 0) {
@@ -7142,6 +7147,8 @@ function setupSteps(i, nowMs = Date.now()) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Setting up ${lineNum} stopped while ${LINE_STEP_WORDS[ownLine.step ?? ""] ?? "working on it"}. A person at Chanlytics has it.`, details: ["Retry from here; we have been told"], verb: { label: "Retry", to: `verb:retry-line:${ownLine.id}` } });
   } else if (ownLine && ownLine.voice_state === "answering") {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `${lineNum} is set up \u2014 connecting it to the receptionist.`, details: [], verb: null });
+  } else if (i.requests.port && !(i.requests.line && Date.parse(i.requests.line) > Date.parse(i.requests.port))) {
+    row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.port), nowMs)} \u2014 a person at Chanlytics will move your number onto Chanlytics with you and reach you by email.`, details: ["Keep your current phone service until the move is finished \u2014 cancelling it first can lose the number", "Carriers take 7 to 14 business days once the move is filed"], verb: null });
   } else if (i.requests.line) {
     row2({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_them", required: !answering, sentence: `Requested ${agoWords(Date.parse(i.requests.line), nowMs)} \u2014 a person at Chanlytics will set up your line with you and reach you by email.`, details: [], verb: null });
   } else if (lines.ready) {
@@ -9063,6 +9070,7 @@ export {
   SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
+  SETUP_REQUEST_KINDS,
   SETUP_STATE_WORDS,
   SHORTCUTS,
   SIGNIN_RESEND_COOLDOWN_S,

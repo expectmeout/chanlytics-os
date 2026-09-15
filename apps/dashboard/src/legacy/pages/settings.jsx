@@ -1964,7 +1964,9 @@ const PaneWorkspace = ({ flash }) => {
   useSetEffect(() => {
     const bump = () => setTick((n) => n + 1);
     window.addEventListener("surface:settings", bump);
-    return () => window.removeEventListener("surface:settings", bump);
+    // And when Setup is read again: a broken configuration's card says when a repair was asked for (S8), and the ask is Setup's.
+    window.addEventListener("surface:setup", bump);
+    return () => { window.removeEventListener("surface:settings", bump); window.removeEventListener("surface:setup", bump); };
   }, []);
   const settings = window.__SETTINGS || null;
   const S = (settings && settings.config && settings.config.brain) || null;
@@ -1999,12 +2001,26 @@ const PaneWorkspace = ({ flash }) => {
   // one that most needs this form. It used to be the one case that could not
   // open it.
   if (broken) {
+    // Only Chanlytics can repair it (S8): the card asks for the repair, and once asked says when -- it said Chanlytics
+    // repairs it, with no way to ask. The ask is Setup's, so when it was made is Setup's to say too.
+    const W = window.__brokenConfigWords;
+    const repairAsked = (window.__SETUP && window.__SETUP.dto && window.__SETUP.dto.requests && window.__SETUP.dto.requests.repair) || null;
+    const askRepair = async () => {
+      if (!(window.canDo && window.canDo("approve")) || !window.__setup) return;
+      const r = await window.__setup.request("repair");
+      flash(r.ok
+        ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will repair your settings and reach you by email.</> }
+        : window.refusalToast(r, "Request not sent"));
+    };
     return (
       <>
         <section className="fl-card set-card">
           <div className="fl-card-head"><span className="fl-card-title">Business</span></div>
-          <FailedRead kind="card" title={window.__brokenConfigWords.title} body={window.__brokenConfigWords.body} testid="settings-broken">
+          <FailedRead kind="card" title={W.title} body={W.body} testid="settings-broken">
             <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
+            {repairAsked
+              ? <span className="set-row-hint" data-testid="settings-broken-requested">{W.requested(repairAsked, Date.now())}</span>
+              : <button type="button" className="btn btn-sm" onClick={askRepair} data-testid="settings-broken-ask" {...window.gate("approve", "ask for a repair")}>{W.ask}</button>}
           </FailedRead>
         </section>
       </>

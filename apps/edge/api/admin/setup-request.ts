@@ -30,6 +30,20 @@ const WHAT: Record<string, { subject: string; how: string }> = {
       '  POST /api/admin/voice-provision  { "tenant_id": "<id>", "area_code": <3 digits> }   (x-diag-key)\n' +
       'then the same body with "apply": true. Their Setup page reads the line as ready by itself once the row exists.',
   },
+  // Bringing the number they have (S14): a person files the port with the carrier; nothing here provisions it.
+  port: {
+    subject: "asked to bring their phone number",
+    how:
+      "Reply for what the losing carrier asks for: the number, the carrier, the account holder's name and service address as the carrier has them, the account number and the port-out PIN, and a recent bill.\n" +
+      "File the port with Twilio, and tell them to keep their current service until it completes -- cancelling it first can lose the number. Their Setup row says so meanwhile.",
+  },
+  // A configuration the receptionist can no longer read (S8): only a person can repair it.
+  repair: {
+    subject: "asked for their business settings to be repaired",
+    how:
+      "Their saved configuration no longer passes the receptionist's checks, so it is silent. GET /api/v1/settings answers the problems as broken.issues, and their Business pane lists them.\n" +
+      "Correct tenant_config.config for this workspace; the receptionist answers again within a minute of the fix.",
+  },
 };
 
 export async function POST(request: Request): Promise<Response> {
