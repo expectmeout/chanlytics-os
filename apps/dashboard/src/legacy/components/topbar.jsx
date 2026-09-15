@@ -138,6 +138,7 @@ const NotifPopover = ({ items, onAction, onReadAll, onDismiss, onClose, alerts =
 const Topbar = ({
   crumbs = [],
   theme = "light",
+  themePref = theme,
   onTheme = () => {},
   onAsk = () => {},
   onMenu = () => {},
@@ -397,6 +398,14 @@ const Topbar = ({
     });
   };
 
+  // The theme button steps through the preference, System included, and says which is on and what a press makes it
+  // (N19). The shell's words decide; the standalone mockup, without them, keeps its light and dark flip.
+  const chromeWords = window.__chrome;
+  const themeNext = chromeWords && chromeWords.nextTheme ? chromeWords.nextTheme(themePref) : theme === "light" ? "dark" : "light";
+  const themeSaid = chromeWords && chromeWords.themeButton
+    ? chromeWords.themeButton(themePref)
+    : { icon: theme === "light" ? "moon" : "sun", label: theme === "light" ? "Switch to dark" : "Switch to light" };
+
   return (
     <div className="topbar">
       <button className="btn btn-ghost btn-icon btn-sm tb-menu" title="Menu" onClick={onMenu}>
@@ -473,10 +482,11 @@ const Topbar = ({
         )}
         <button
           className="btn btn-ghost btn-icon btn-sm tb-theme"
-          title={theme === "light" ? "Switch to dark" : "Switch to light"}
-          onClick={() => onTheme(theme === "light" ? "dark" : "light")}
+          title={themeSaid.label}
+          aria-label={themeSaid.label}
+          onClick={() => onTheme(themeNext)}
         >
-          <Icon name={theme === "light" ? "moon" : "sun"} />
+          <Icon name={themeSaid.icon} />
         </button>
       </div>
 

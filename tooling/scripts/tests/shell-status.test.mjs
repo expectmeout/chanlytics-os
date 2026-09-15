@@ -511,3 +511,100 @@ test("REGRESSION (C13): a link to a playbook opens Playbooks on its card, named 
     win.gate = keepGate;
   }
 });
+
+/* ------------------------------ the shell's own doors (B6a-2) ------------------------------ */
+
+test("REGRESSION (N10): a real workspace's Calendar and Playbooks offer no primary act until the page is ready -- Book and New campaign opened Ask over the skeleton or the failure pane", () => {
+  shell.installShell(win);
+  const keepGate = win.gate;
+  win.gate = () => ({});
+  globalThis.OutboundPage = "OutboundPage";
+  const right = (hash) => find(mount(hash).tree, (n) => n.type === "Topbar").props.right;
+  try {
+    assert.equal(right("#/calendar"), null, "REGRESSION: a Calendar still loading, or failed, offered Book, which opened Ask");
+    assert.equal(right("#/outbound"), null, "REGRESSION: Playbooks still loading, or failed, offered New campaign, which opened Ask");
+    win.__DEMO_MODE = true;
+    assert.equal(textOf(right("#/calendar")).trim(), "Book", "the demo keeps its detour");
+    assert.equal(textOf(right("#/outbound")).trim(), "New campaign");
+    delete win.__DEMO_MODE;
+    win.__CALENDAR = { vm: { bookingLink: "https://book.example/luna" } };
+    assert.equal(right("#/calendar").props.href, "https://book.example/luna", "a ready Calendar books through its own link");
+    win.__PLAYBOOKS = { rows: [] };
+    assert.equal(textOf(right("#/outbound")).trim(), "New playbook", "ready Playbooks open the composer");
+  } finally {
+    for (const k of ["__DEMO_MODE", "__CALENDAR", "__PLAYBOOKS"]) delete win[k];
+    delete globalThis.OutboundPage;
+    win.gate = keepGate;
+  }
+});
+
+test("REGRESSION (N16): an address under soon/ opens a page that has shipped, and a name nothing answers to is not found -- #/soon/calendar said the Calendar was not in this release", async () => {
+  shell.installShell(win);
+  const reg = await importSrc("apps/dashboard/src/legacy-bridge/surface-registry.ts");
+  const replaced = [];
+  const keepReplace = win.location.replace;
+  win.location.replace = (to) => { replaced.push(to); };
+  win.__surfaceState = reg.surfaceStateFor;
+  const shows = (tree, name) => find(tree, (n) => n.type === name || (typeof n.type === "function" && n.type.name === name)) !== undefined;
+  try {
+    let tree = mount("#/soon/calendar").tree;
+    assert.ok(shows(tree, "CalendarPage") && !shows(tree, "ComingSoon"), "REGRESSION: a shipped page answered that it was not in this release");
+    assert.deepEqual(replaced, ["#/calendar"], "and the address becomes the page's own, in place, so Back does not land on it again");
+    assert.ok(shows(mount("#/soon/fleet").tree, "ComingSoon"), "a page kept for the demo still says so");
+    tree = mount("#/soon/nope").tree;
+    assert.ok(shows(tree, "NotFound") && !shows(tree, "ComingSoon"), "a name nothing answers to is not found, rather than promised");
+    replaced.length = 0;
+    delete win.__surfaceState;
+    assert.ok(shows(mount("#/soon/calendar").tree, "ComingSoon") && replaced.length === 0, "the standalone mockup, with no registry, keeps its landings");
+  } finally {
+    win.location.replace = keepReplace;
+    for (const k of ["__surfaceState", "__DEMO_MODE"]) delete win[k];
+  }
+});
+
+test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and System and says which is on -- it flipped light and dark and dropped System", () => {
+  shell.installShell(win);
+  globalThis.usePPToast = () => [null, () => {}];
+  const chosen = [];
+  const themeButton = (themePref, theme) => {
+    deep = true;
+    cells = [];
+    seq = 0;
+    const tree = win.Topbar({ crumbs: ["Today"], theme, themePref, onTheme: (v) => chosen.push(v), onAsk() {}, onMenu() {} });
+    return find(tree, (n) => String(n.props?.className || "").includes("tb-theme"));
+  };
+  try {
+    const dark = themeButton("dark", "dark");
+    dark.props.onClick();
+    assert.equal(chosen.at(-1), "system", "REGRESSION: from Dark the button went to Light, and System could not be reached from the top bar");
+    assert.equal(dark.props["aria-label"], "Theme: Dark. Switch to System");
+    assert.equal(dark.props.title, "Theme: Dark. Switch to System");
+    themeButton("system", "dark").props.onClick();
+    assert.equal(chosen.at(-1), "light", "System, whatever it shows, goes on to Light");
+    themeButton("light", "light").props.onClick();
+    assert.equal(chosen.at(-1), "dark");
+
+    // The shell hands the top bar the preference, not only the theme it resolves to.
+    deep = false;
+    cells = [];
+    seq = 0;
+    win.location.hash = "#/today";
+    globalThis.ShellStatusBar = win.ShellStatusBar;
+    const shellTree = win.ChanlyticsApp({ theme: "dark", themePref: "system", sidebar: "open", onSidebar() {}, onTheme() {} });
+    assert.equal(find(shellTree, (n) => n.type === "Topbar").props.themePref, "system", "REGRESSION: the top bar was handed only the resolved theme");
+  } finally {
+    deep = true;
+    delete globalThis.usePPToast;
+  }
+});
+
+test("REGRESSION (N24): People's tabs stay over every view of the list -- they vanished on a list you keep and on a state", async () => {
+  await import("../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
+  const tabsAt = (param) => { deep = true; cells = []; seq = 0; return win.SurfaceTabs({ page: "clients", param, onNavigate() {} }); };
+  const labels = (tree) => (tree ? tree.props.children.map((b) => textOf(b).trim()) : null);
+  assert.deepEqual(labels(tabsAt(null)), ["People", "Lists"], "the People list");
+  assert.deepEqual(labels(tabsAt("seg:opted_in")), ["People", "Lists"], "a list the receptionist keeps");
+  assert.deepEqual(labels(tabsAt("list:regulars")), ["People", "Lists"], "REGRESSION: a list you keep lost the tabs");
+  assert.deepEqual(labels(tabsAt("state:needs")), ["People", "Lists"], "REGRESSION: a state lost the tabs");
+  assert.equal(tabsAt("p-9"), null, "a person's profile keeps its focus");
+});

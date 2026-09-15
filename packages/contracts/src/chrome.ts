@@ -16,6 +16,23 @@ export const THEME_OPTIONS: ReadonlyArray<{ id: ThemePref; label: string; icon: 
 
 export const isThemePref = (v: unknown): v is ThemePref => v === "light" || v === "dark" || v === "system";
 
+/**
+ * The preference after this one, in THEME_OPTIONS' order, so the top bar's one button reaches all three. It flipped
+ * the resolved theme between light and dark, so System could not be chosen there and a press dropped it (the wiring
+ * audit's N19). An unknown preference reads as System, so the next is the first.
+ */
+export function nextThemePref(pref: unknown): ThemePref {
+  const at = THEME_OPTIONS.findIndex((o) => o.id === pref);
+  return (THEME_OPTIONS[(at + 1) % THEME_OPTIONS.length] as (typeof THEME_OPTIONS)[number]).id;
+}
+
+/** What the top bar's theme button shows and says: the preference in force, and what a press makes it. */
+export function themeButtonWords(pref: unknown): { icon: string; label: string } {
+  const now = THEME_OPTIONS.find((o) => o.id === pref) ?? (THEME_OPTIONS[2] as (typeof THEME_OPTIONS)[number]);
+  const next = THEME_OPTIONS.find((o) => o.id === nextThemePref(now.id)) as (typeof THEME_OPTIONS)[number];
+  return { icon: now.icon, label: `Theme: ${now.label}. Switch to ${next.label}` };
+}
+
 /** What the page paints: a chosen theme, or the device's when the choice is "system". */
 export function resolveTheme(pref: unknown, systemDark: boolean): Theme {
   if (pref === "light" || pref === "dark") return pref;
@@ -109,15 +126,18 @@ export interface Shortcut {
   does: string;
 }
 
-/** Every shortcut the app answers to, in the order the sheet lists them. */
+/**
+ * Every shortcut the app answers to, in the order the sheet lists them, under the page that answers it. "/" and J/K
+ * were listed for every list, where "/" searches only People and J/K walk only the Inbox (the wiring audit's N17).
+ */
 export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘K"], does: "Ask Chanlytics" },
   { group: "Everywhere", keys: ["⌘B"], does: "Collapse or expand the sidebar" },
   { group: "Everywhere", keys: ["⌘1", "⌘9"], does: "Switch to the first to ninth workspace" },
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
-  { group: "Lists", keys: ["/"], does: "Search the page" },
-  { group: "Lists", keys: ["J", "K"], does: "Next and previous item" },
+  { group: "People", keys: ["/"], does: "Search People" },
+  { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
   { group: "Inbox", keys: ["E"], does: "Edit it first" },
