@@ -44,7 +44,7 @@ test("a WhatsApp thread keeps its window, and a thread with both keeps both chan
 
 test("the wiring: the page branches on the channel and reads the reason's sentence; the pills say what they mean", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  for (const s of ["Needs you{thread.waited ? ` · waited ${thread.waited}` : \"\"}", "<>{thread.summary}</>", "I'll call them", "Nothing needed — hand it back to the receptionist", "thread.hasChat === false", "They have only phoned — there is no WhatsApp thread yet.", 'data-testid="ix-call-back"', "`Reply to ${thread.who}…`"]) assert.ok(page.includes(s), s);
+  for (const s of ["Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? \" late\" : \"\"}`}>{` · waited ${thread.waited}`}</span> : \"\"}", "<>{thread.summary}</>", "I'll call them", "Nothing needed — hand it back to the receptionist", "thread.hasChat === false", "They have only phoned — there is no WhatsApp thread yet.", 'data-testid="ix-call-back"', "`${thread.primaryChannel === \"sms\" ? \"Text\" : \"WhatsApp\"} to ${thread.who}…`"]) assert.ok(page.includes(s), s);
   for (const gone of ["already sent a holding reply", "let the AI resume", "Reply as the salon", "Waiting on you{thread.waitingMin"]) assert.ok(!page.includes(gone), `${gone} is gone`);
   const pills = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
   // The words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.
