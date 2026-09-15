@@ -10,6 +10,10 @@
   min-width: 0;
   display: grid;
   grid-template-columns: var(--rail-list) minmax(0, 1fr);
+  /* One row, the Inbox's own height, so the list and the thread scroll inside it. With no row the grid's one implicit
+     row took the height of the taller of the two: past a window's worth of threads the list never scrolled, and
+     Send sat below the fold (1280x800 with 20 threads in Needs you: a 1,955px row in a 748px Inbox). */
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
   background: var(--bg);
   overflow: hidden;
