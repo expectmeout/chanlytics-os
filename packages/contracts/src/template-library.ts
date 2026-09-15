@@ -10,6 +10,7 @@
  * set WhatsApp is expected to approve, not a set that needs fixing first.
  * Titles are for people; names are what Meta and the wire use.
  */
+import { purposeOfTemplate } from "./consent";
 import type { ParamSpec } from "./templates";
 import type { PlaybookTrigger } from "./playbooks";
 
@@ -297,6 +298,55 @@ export function templateTitle(name: string | null | undefined, title?: string | 
   if (s) return s.title;
   const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
+}
+
+/** A language code as people read it: "en_US" is "English", "es" is "Spanish"; the code itself where the runtime cannot say. */
+export function languageWords(code: string): string {
+  const base = String(code ?? "").split(/[-_]/)[0];
+  const Names = (Intl as unknown as { DisplayNames?: new (locales: string[], options: { type: "language" }) => { of(code: string): string | undefined } }).DisplayNames;
+  try {
+    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : undefined;
+    return name && name !== base ? name : String(code ?? "");
+  } catch {
+    return String(code ?? "");
+  }
+}
+
+/** An approved template as the Inbox composer is given it (GET templates). */
+export interface InboxTemplateLike {
+  id: string;
+  name: string;
+  language: string;
+  category?: string | null;
+  variables?: unknown;
+  title?: string | null;
+}
+
+/**
+ * The approved templates the Inbox can send to one person, in the owner's words, and why the rest are not offered.
+ * The reply route fills exactly two values -- the business name and the booking link -- and sends a promotion only
+ * to someone who said yes to offers (core reply.ts), so the composer offered templates it would refuse: a button
+ * whose only outcome was a refusal (I4). The same two judgements, asked before anything is pressed.
+ */
+export function inboxTemplates<T extends InboxTemplateLike>(
+  templates: readonly T[],
+  to: { who: string; offersOk: boolean },
+): { sendable: Array<{ template: T; title: string; label: string }>; hidden: string | null } {
+  const sendable: Array<{ template: T; title: string; label: string }> = [];
+  let promotions = 0;
+  let unfillable = 0;
+  for (const t of templates) {
+    const slots = Array.isArray(t.variables) ? t.variables.length : null;
+    if (slots !== null && slots !== 2) { unfillable += 1; continue; }
+    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) { promotions += 1; continue; }
+    const title = templateTitle(t.name, t.title);
+    sendable.push({ template: t, title, label: `${title} · ${languageWords(t.language)}` });
+  }
+  const held = [
+    promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
+    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} values the Inbox doesn't fill` : "",
+  ].filter(Boolean);
+  return { sendable, hidden: held.length ? `Not offered: ${held.join(" and ")}.` : null };
 }
 
 /**

@@ -138,7 +138,7 @@ const InboxList = ({
           <Icon name="search" size={12} />
           <input
             className="ix-search-input"
-            placeholder="Search threads, clients, tags…"
+            placeholder={allThreads.some((t) => t.real) ? "Search by name or message…" : "Search threads, clients, tags…"}
             aria-label="Search conversations"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -336,7 +336,7 @@ const InboxList = ({
                       <div className="ix-thread-meta">
                         {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
                         {/* A teammate has it: say whose, never Needs you. */}
-                        {t.real && t.claimedByOther && <StatePill kind="thread" value="theirs" label={`${ixAnswerer(t)} has it`} className="ix-state-pill" testid="thread-theirs" />}
+                        {t.real && t.claimedByOther && <StatePill kind="thread" value="theirs" label={`${ixAnswerer(t)} has it`} className="ix-state-pill ix-name-pill" testid="thread-theirs" />}
                         {/* A thread you have is yours to answer, not waiting on you (I2). */}
                         {t.real && t.takenOver && <StatePill kind="thread" value="yours" label="You have it" className="ix-state-pill" testid="thread-yours" />}
                         {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}

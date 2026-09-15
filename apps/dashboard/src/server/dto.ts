@@ -13,7 +13,7 @@ import type { CallDto, ConversationDto, MessageDto } from "@chanlytics/contracts
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc, marketing_consent)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts";
@@ -36,6 +36,7 @@ export interface ConversationRow {
     phone_e164: string | null;
     consent: string | null;
     dnc: boolean | null;
+    marketing_consent: string | null;
   } | null;
 }
 
@@ -152,6 +153,8 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
       phone_e164: c.contacts?.phone_e164 ?? null,
       consent: c.contacts?.consent ?? null,
       dnc: c.contacts?.dnc ?? false,
+      // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
+      marketing_consent: c.contacts?.marketing_consent ?? null,
     },
     messages,
   };

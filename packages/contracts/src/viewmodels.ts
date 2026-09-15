@@ -60,6 +60,8 @@ export interface ConversationDto {
      *  and only 'opted_out'/dnc blocks — never the absence of a value. */
     consent?: string | null;
     dnc?: boolean | null;
+    /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
+    marketing_consent?: string | null;
   };
   messages: MessageDto[];
 }
@@ -372,6 +374,8 @@ export interface InboxThreadVM {
   /** The customer asked to stop receiving messages. Stronger than a closed
    *  24h window: an approved template can't reach them either. */
   optedOut: boolean;
+  /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
+  offersOk: boolean;
   who: string;
   whoMeta: string;
   avatar: string;
@@ -432,6 +436,8 @@ export interface InboxThreadVM {
   hasChat: boolean;
   /** The number to call back, E.164, when known. */
   phone: string | null;
+  /** That number as people read it, "+1 (917) 555-0106": the composer said "+19175550106" under a header that did not (I4). */
+  phoneDisplay: string | null;
   /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
   waited?: string;
   /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
@@ -645,6 +651,7 @@ export function toInboxThreadVM(
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
     who,
     whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
     avatar: initialsOf(who),
@@ -672,6 +679,7 @@ export function toInboxThreadVM(
     primaryChannel,
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
+    phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
     agent: AGENT,
     subject:

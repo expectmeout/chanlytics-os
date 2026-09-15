@@ -56,6 +56,7 @@ export const GET = read({
         phone_e164: row.phone_e164,
         consent: row.consent,
         dnc: row.dnc,
+        marketing_consent: row.marketing_consent,
       },
     };
     const messages: MessageDto[] = (msgs ?? []).reverse().map((m) => ({
