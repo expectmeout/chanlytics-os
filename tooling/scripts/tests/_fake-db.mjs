@@ -93,7 +93,7 @@ function matches(row, filters) {
  * @param faults {Record<string, {message: string}>} `"<table>.select"` or
  *   `"<table>.update"` to make that call fail the way PostgREST fails.
  */
-export function fakeDb(tables, faults = {}, rpcs = {}) {
+export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const seen = [];
 
   const from = (table) => {
@@ -142,6 +142,9 @@ export function fakeDb(tables, faults = {}, rpcs = {}) {
         const matched = out.length;
         if (q.limit != null) out = out.slice(0, q.limit);
         if (q.range) out = out.slice(q.range[0], q.range[1] + 1);
+        // PostgREST's max_rows (`opts.maxRows`, supabase config): a select answers at most that many rows, after its
+        // limit and its range, whatever it asked for. The Inbox asked for 4,000 messages and got 1,000, silently.
+        if (opts.maxRows != null) out = out.slice(0, opts.maxRows);
         // Deliberately a copy: the sweep must not be able to mutate the ledger
         // by holding on to a row it read.
         return { data: out.map((r) => ({ ...r })), error: null, count: q.counted ? matched : null };

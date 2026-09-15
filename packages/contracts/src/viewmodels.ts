@@ -191,7 +191,7 @@ export function contactName(dto: ConversationDto): string {
 }
 
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" = "WhatsApp"): string {
+export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" | "Text" = "WhatsApp"): string {
   const phone = formatPhoneDisplay(dto.contact.phone_e164);
   return contactName(dto) === phone ? `${channel} · no name saved` : `${channel} · ${phone ?? "no phone"}`;
 }
@@ -431,7 +431,7 @@ export interface InboxThreadVM {
   veto?: { window: number; draft: string; endsAtMs: number; messageId: string; why?: ReplyWhyVM };
   /** The channels the thread has actually used: "whatsapp", "phone", or both. */
   channels: string[];
-  primaryChannel: "whatsapp" | "phone";
+  primaryChannel: "whatsapp" | "phone" | "sms";
   /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
   hasChat: boolean;
   /** The number to call back, E.164, when known. */
@@ -565,8 +565,11 @@ export function toInboxThreadVM(
   // verbs, not a notice about a reply window that never opened.
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
-  const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? "whatsapp" : "phone";
-  const channels = [...(hasChat || !hasCalls ? ["whatsapp"] : []), ...(hasCalls ? ["phone"] : [])];
+  // The wire a reply goes out on, as the reply route picks it: where they last wrote. A text thread said WhatsApp,
+  // its window read closed, and its composer offered only templates, which the route refuses on a text (I5).
+  const chatChannel: "whatsapp" | "sms" = lastInbound?.channel === "sms" ? "sms" : "whatsapp";
+  const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
+  const channels = [...(hasChat || !hasCalls ? [chatChannel] : []), ...(hasCalls ? ["phone"] : [])];
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
@@ -575,7 +578,7 @@ export function toInboxThreadVM(
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
-      channel: onPhone ? "phone" : "whatsapp",
+      channel: onPhone ? "phone" : m.channel === "sms" ? "sms" : "whatsapp",
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...(media ? { media } : {}),
@@ -653,7 +656,7 @@ export function toInboxThreadVM(
     optedOut: isOptedOut(dto),
     offersOk: dto.contact.marketing_consent === "opted_in",
     who,
-    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
+    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : primaryChannel === "sms" ? "Text" : "WhatsApp"),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -712,7 +715,9 @@ export function toInboxThreadVM(
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
       { label: "Receptionist", value: needsHuman ? (claimedByOther ? "Paused — a teammate has it" : escalation?.reason === "callback" ? "Paused — call them back" : "Paused — you have it") : "Answering" },
       hasChat
-        ? { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
+        ? chatChannel === "sms"
+          ? { label: "Texts", value: "No 24-hour window — write any time" }
+          : { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
         : { label: "WhatsApp", value: "No thread yet — they have only phoned" },
     ],
     lastAt: shortTime(dto.last_message_at, tz, now),

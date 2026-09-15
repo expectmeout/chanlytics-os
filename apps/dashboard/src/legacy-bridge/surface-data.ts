@@ -283,17 +283,15 @@ export const inboxOverride: SurfaceOverride = {
     // letting a waiting customer be invisible.
     const listed = new Set(convData.conversations.map((c) => c.id));
     const missing = [...byConv.keys()].filter((id) => !listed.has(id));
-    const fetched = await Promise.all(
-      missing.slice(0, 20).map((id) =>
-        read("GET conversations/[id]", { params: { id } })
-          .then((d) => ({ ...d.conversation, messages: d.messages }))
-          .catch(() => null),
-      ),
-    );
-    const extra = fetched.filter((c): c is ConversationDto => !!c);
+    // One read for all of them, by id: one read per thread, the first twenty only, left the twenty-first waiting
+    // customer out of the Inbox with nothing said (I5). The escalations read holds a hundred at most.
+    const extraRead: ConversationDto[] | null = missing.length
+      ? await read("GET conversations", { query: { ids: missing.slice(0, 100).join(",") } }).then((d) => d.conversations, () => null)
+      : [];
+    const extra = extraRead ?? [];
     // One that could not be read is a waiting customer nobody can see: the
     // list says how many, rather than listing fewer.
-    const unreadEscalated = fetched.length - extra.length;
+    const unreadEscalated = missing.length - extra.length;
     if (unreadEscalated) console.error("inbox_escalated_fetch_failed", unreadEscalated);
 
     const all = [...extra, ...convData.conversations];
@@ -307,7 +305,7 @@ export const inboxOverride: SurfaceOverride = {
       THREADS: threads,
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
-      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone" },
+      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone", sms: "Text" },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
     };

@@ -116,6 +116,18 @@ declare function scheduleJob(db: Db, p: ScheduleParams): Promise<{
 declare function cancelJobsFor(db: Db, tenantId: string, kind: JobKind, payloadKey: string, payloadValue: string): Promise<number>;
 
 /**
+ * Flagging a thread for a person, once per hold: the job handlers and the ledger's settle both do it, so it lives
+ * apart from either. Here, rather than in handlers.ts, so that settling a job that died does not load the core.
+ */
+
+/** How an escalation landed: a new open row, a refresh of the one already
+ *  open on that thread, or nothing (the insert failed for another reason).
+ *  Callers that alert a human use it to alert once per hold, not once per
+ *  message. */
+type EscalationOutcome = "opened" | "refreshed" | "failed";
+declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<EscalationOutcome>;
+
+/**
  * Job handlers — dispatched by the edge's api/jobs/tick.ts once
  * claim_due_jobs() has made the job this run's (00098). The rules live in
  * packages/core/src/messages as verbs over ports; each handler here is the
@@ -178,12 +190,7 @@ interface ClaimedJob {
     kind: string;
     payload: Record<string, unknown>;
 }
-/** How an escalation landed: a new open row, a refresh of the one already
- *  open on that thread, or nothing (the insert failed for another reason).
- *  Callers that alert a human use it to alert once per hold, not once per
- *  message. */
-type EscalationOutcome = "opened" | "refreshed" | "failed";
-declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<EscalationOutcome>;
+
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
 
 /**
@@ -216,6 +223,8 @@ interface Settled {
     what: "message" | "broadcast";
     /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
     changed: boolean;
+    /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
+    flagged?: EscalationOutcome;
     /** Why nothing could be written, when nothing could be. Never swallowed. */
     error?: string;
     /**
