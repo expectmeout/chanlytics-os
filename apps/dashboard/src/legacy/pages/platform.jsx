@@ -174,12 +174,16 @@ const PanePlatform = () => {
   const [detail, setDetail] = React.useState(null);
   const [reload, setReload] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
+  // Why the open workspace could not be read: its own state, beside the list's. A failed read of one workspace left
+  // "Reading that workspace…" on screen for good and put its reason on the list (S10).
+  const [detailProblem, setDetailProblem] = React.useState(null);
 
   const load = React.useCallback(async () => {
     setBusy(true);
-    const r = await P.list();
+    // A read that throws is a failed read like any other, not a page left reading for ever.
+    const r = await Promise.resolve().then(() => P.list()).catch(() => ({ ok: false, message: "" }));
     setBusy(false);
-    if (!r.ok) { setProblem(r.message); setTenants([]); setHealth(null); return; }
+    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); return; }
     setProblem(null);
     setTenants(r.tenants);
     setHealth(r.health);
@@ -188,10 +192,14 @@ const PanePlatform = () => {
   React.useEffect(() => { load(); }, [load]);
 
   React.useEffect(() => {
-    if (!openId) { setDetail(null); return undefined; }
+    if (!openId) { setDetail(null); setDetailProblem(null); return undefined; }
     let on = true;
     setDetail(null);
-    P.one(openId).then((r) => { if (on) { setDetail(r.detail); if (!r.ok) setProblem(r.message); } });
+    setDetailProblem(null);
+    Promise.resolve().then(() => P.one(openId)).then(
+      (r) => { if (!on) return; if (r.ok && r.detail) setDetail(r.detail); else setDetailProblem(r.message || "Could not be read right now."); },
+      () => { if (on) setDetailProblem("Could not be read right now."); },
+    );
     return () => { on = false; };
   }, [P, openId, reload]);
 
@@ -240,7 +248,7 @@ const PanePlatform = () => {
           <button className="cl-bucket-link" onClick={load} disabled={busy} data-testid="platform-refresh">{busy ? "Reading…" : "Read again"}</button>
         </div>
         {problem && (
-          <div className="set-row"><div className="set-row-info"><span className="set-row-hint">{problem}</span></div></div>
+          <window.FailedRead kind="line" what="every workspace" why={problem} body="The workspaces themselves are unaffected." onRetry={load} busy={busy} testid="platform-failed" />
         )}
         <div className="set-row">
           <div className="set-row-info">
@@ -255,7 +263,7 @@ const PanePlatform = () => {
           />
         </div>
         <div className="cl-attn-list" data-testid="platform-rows">
-          {shown.length === 0 && (
+          {shown.length === 0 && (q || !problem) && (
             <div className="set-row"><div className="set-row-info"><span className="set-row-hint">{q ? `Nothing matches “${find}”.` : "No workspaces yet."}</span></div></div>
           )}
           {shown.map((r) => {
@@ -279,8 +287,13 @@ const PanePlatform = () => {
         </div>
       </section>
 
-      {openId && !detail && (
+      {openId && !detail && !detailProblem && (
         <section className="fl-card set-card"><div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading that workspace…</span></div></div></section>
+      )}
+      {openId && !detail && detailProblem && (
+        <section className="fl-card set-card">
+          <window.FailedRead kind="card" what="that workspace" why={detailProblem} body="The list above is current." onRetry={() => setReload((n) => n + 1)} testid="platform-detail-failed" />
+        </section>
       )}
       {openId && detail && (
         <PlatformDetail

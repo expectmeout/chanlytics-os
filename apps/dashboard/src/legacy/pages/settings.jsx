@@ -800,8 +800,10 @@ const TeamSection = ({ flash }) => {
               ? `${seatsUsed} ${seatsUsed === 1 ? "person" : "people"}`
               : `${seatsUsed} of ${S.seatsIncluded} seats`}
         </span>
-        {!teamUnavailable && canManage && (!seatsFull
-          ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)}><Icon name="plus" size={12} /> Invite</button>
+        {/* Invite is the card's act, so a role that may not invite sees it gated,
+            saying why when pressed, instead of a card with no act at all. */}
+        {!teamUnavailable && (!seatsFull
+          ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)} {...window.gate("team", "invite a teammate")}><Icon name="plus" size={12} /> Invite</button>
           : <button className="btn btn-sm" disabled title="No seats left — remove someone or upgrade">Seats full</button>
         )}
       </div>
@@ -892,7 +894,7 @@ const TeamSection = ({ flash }) => {
       </div>
 
       {!canManage && (
-        <div className="set-team-gated"><Icon name="shield" size={11} /> {ST_ROLE_META[myRole].label}s can view the team but can't change it — ask an owner.</div>
+        <div className="set-team-gated" data-testid="team-gated"><Icon name="shield" size={11} /> {window.gateTitle("team", "change the team")}</div>
       )}
     </section>
   );
@@ -1791,7 +1793,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
  * button: it is a request answered by a person, as the same page says.
  */
 const WorkspaceData = () => {
-  const can = !!(window.__href && (!window.canDo || window.canDo("export")));
+  // Offered to every role and gated for the ones that may not take it (the one gate). The link was absent for them,
+  // under a sentence of the card's own.
+  const href = window.__href ? window.__href("GET export") : null;
   return (
     <section className="fl-card set-card" data-testid="set-data">
       <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep" />
@@ -1799,9 +1803,9 @@ const WorkspaceData = () => {
         <div className="cl-prof-attr">
           <span className="cl-prof-attr-key">Download everything</span>
           <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {can
-              ? <a className="btn btn-ghost btn-sm" href={window.__href("GET export")} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file"><Icon name="external" size={12} /> Download (JSON)</a>
-              : <span className="set-team-mail">Only an owner can download the workspace's data.</span>}
+            {href && (
+              <a className="btn btn-ghost btn-sm" href={href} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file" {...window.gate("export", "download the workspace's data")}><Icon name="external" size={12} /> Download (JSON)</a>
+            )}
             <span className="set-team-mail">People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.</span>
           </span>
         </div>
@@ -2487,14 +2491,18 @@ const PaneNotificationsReal = ({ flash }) => {
   const cfg = (settings && settings.config) || {};
   const notif = cfg.notifications || {};
   const emails = Array.isArray(notif.escalation_emails) ? notif.escalation_emails : [];
-  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  // Who may change who is alerted: the one gate, in contracts' words. It asked
+  // `__ME.role`, blind to an owner's View-as preview, and put the reason in a
+  // title on disabled controls that no keyboard or finger reaches.
+  const may = window.canDo("settings");
+  const gated = window.gate("settings", "change who is alerted");
   // A save here writes the WHOLE config it read. When the config could not be
   // read, what it read is {} — and saving would replace the broken row with
   // one holding nothing but these addresses.
   const broken = !!(settings && settings.broken);
   const lockTitle = broken
     ? "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change"
-    : isOwner ? undefined : "Only an owner can change who is alerted";
+    : undefined;
 
   const save = (nextEmails, msg, undo = null) => {
     if (!window.__saveSettings || !settings) return;
@@ -2532,14 +2540,18 @@ const PaneNotificationsReal = ({ flash }) => {
         {emails.map((e) => (
           <div className="set-row" key={e}>
             <div className="set-row-info"><span className="set-row-label">{e}</span></div>
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={broken || !isOwner || busy || emails.length <= 1}
-              title={emails.length <= 1 ? "At least one address must stay — the receptionist has to be able to reach someone" : lockTitle}
-              onClick={() => remove(e)}
-            >
-              <Icon name="x" size={11} /> Remove
-            </button>
+            {/* Removing an address is an item's own act: out of sight for a role
+                that may not, and the card says why once, below. */}
+            {may && (
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={broken || busy || emails.length <= 1}
+                title={emails.length <= 1 ? "At least one address must stay — the receptionist has to be able to reach someone" : lockTitle}
+                onClick={() => remove(e)}
+              >
+                <Icon name="x" size={11} /> Remove
+              </button>
+            )}
           </div>
         ))}
         <div className="set-row">
@@ -2549,17 +2561,21 @@ const PaneNotificationsReal = ({ flash }) => {
               type="email"
               placeholder="owner@yourbusiness.com"
               value={email}
-              disabled={broken || !isOwner || busy}
+              disabled={broken || busy}
               title={lockTitle}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && add()}
               aria-label="Add an address to alert"
+              {...gated}
             />
           </div>
-          <button className="btn btn-primary btn-sm" disabled={broken || !isOwner || busy || !email.trim()} title={lockTitle} onClick={add}>
+          <button className="btn btn-primary btn-sm" disabled={broken || busy || !email.trim()} title={lockTitle} onClick={add} {...gated}>
             {busy ? "Saving…" : "Add"}
           </button>
         </div>
+        {!may && (
+          <div className="set-row"><div className="set-row-info"><span className="set-row-hint" data-testid="notif-gated"><Icon name="shield" size={11} /> {window.gateTitle("settings", "change who is alerted")}</span></div></div>
+        )}
       </section>
 
       <section className="fl-card set-card" data-testid="notif-kinds">

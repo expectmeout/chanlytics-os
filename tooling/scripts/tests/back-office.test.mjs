@@ -872,6 +872,48 @@ test("a refusal is the ordinary answer, and it does not look like an empty platf
   assert.equal(attnRows(page.tree).length, 0);
 });
 
+test("REGRESSION (S10): a list that cannot be read says so with a Retry, and never says there are no workspaces", async () => {
+  const calls = [];
+  let fail = true;
+  const harbor = live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" });
+  globalThis.window.__platform = {
+    ...api([harbor], null, calls),
+    list: async () => { calls.push("list"); return fail ? { ok: false, tenants: [], message: "The platform could not be read." } : { ok: true, tenants: [harbor], message: "" }; },
+  };
+  const page = mount(Pane);
+  await page.settle();
+  assert.match(textOf(page.tree), /The platform could not be read/);
+  assert.ok(!/No workspaces yet/.test(textOf(page.tree)), "REGRESSION: a failed read said the platform was empty");
+  const retry = byId(page.tree, "platform-failed-retry");
+  assert.ok(retry, "and it can be read again from where it failed");
+  fail = false;
+  await page.act(retry);
+  assert.equal(calls.filter((c) => c === "list").length, 2);
+  assert.equal(attnRows(page.tree).length, 1, "and the rows arrive");
+  assert.equal(byId(page.tree, "platform-failed"), null);
+});
+
+test("REGRESSION (S10): a workspace that cannot be read says so with its Retry, instead of reading for ever", async () => {
+  const calls = [];
+  globalThis.window.__platform = api([live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" })], null, calls);
+  const page = mount(Pane);
+  await page.settle();
+  await page.press(attnRows(page.tree)[0].props.cta.onClick);
+  assert.ok(!/Reading that workspace/.test(textOf(page.tree)), "REGRESSION: it read for ever");
+  assert.match(textOf(byId(page.tree, "platform-detail-failed")), /No such page/, "what the route said");
+  assert.equal(byId(page.tree, "platform-failed"), null, "the list is not blamed for it");
+  await page.act(byId(page.tree, "platform-detail-failed-retry"));
+  assert.equal(calls.filter((c) => c === "one:a").length, 2, "Retry reads that workspace again");
+});
+
+test("REGRESSION (S10): a read that throws is a failed read, not a page reading for ever", async () => {
+  globalThis.window.__platform = { ...api([]), list: async () => { throw new Error("socket hang up"); } };
+  const page = mount(Pane);
+  await page.settle();
+  assert.ok(!/Reading every workspace/.test(textOf(page.tree)), "REGRESSION: a thrown read left the page reading");
+  assert.ok(byId(page.tree, "platform-failed"));
+});
+
 test("finding a workspace by name or slug, because that is what a support call starts with", async () => {
   globalThis.window.__platform = api([
     live({ tenant_id: "a", slug: "harbor-moving", name: "Harbor Moving" }),

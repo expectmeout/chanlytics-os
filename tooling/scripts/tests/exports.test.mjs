@@ -346,7 +346,7 @@ test("Settings offers the door the privacy page promises: one link, owners only,
     createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
     useState: (i) => HOOKS.useState(i), useEffect: (f) => HOOKS.useEffect(f), useMemo: (f) => HOOKS.useMemo(f), useRef: (v) => HOOKS.useRef(v), useCallback: (f) => HOOKS.useCallback(f),
   };
-  globalThis.window = { __ME: { role: "owner" }, __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=t1`, canDo: (perm) => perm === "export", addEventListener: () => {}, removeEventListener: () => {} };
+  globalThis.window = { __ME: { role: "owner" }, __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=t1`, canDo: (perm) => perm === "export", gate: (perm, doing) => (globalThis.window.canDo(perm) ? {} : { "aria-disabled": true, "data-tip": `Only an owner can ${doing}.`, onClick: (e) => e.preventDefault() }), addEventListener: () => {}, removeEventListener: () => {} };
   globalThis.Icon = "Icon";
   await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
   const Card = globalThis.window.WorkspaceData;
@@ -362,11 +362,12 @@ test("Settings offers the door the privacy page promises: one link, owners only,
   assert.ok(text.includes("hi@chanlytics.com"), "deletion is a request, answered by a person");
   assert.ok(text.includes("removed within 30 days"), "in the privacy page's own words");
   assert.ok(text.includes("Call audio is not included"), "and the file says what it does not carry");
-  // Not an owner: the link is not offered, and the words say why.
+  // Not an owner: the link stays on the card, gated -- refused where it is, saying why (the one gate).
   globalThis.window.canDo = () => false;
   const denied = render(Card({}));
-  assert.equal(denied.find((n) => n.props?.["data-testid"] === "set-export-all"), undefined);
-  assert.ok(JSON.stringify(denied.map((n) => n.props?.children ?? [])).includes("Only an owner can download"));
+  const gated = denied.find((n) => n.props?.["data-testid"] === "set-export-all");
+  assert.equal(gated?.props["aria-disabled"], true, "offered, and refused where it is");
+  assert.equal(gated.props["data-tip"], "Only an owner can download the workspace's data.");
 });
 
 test("everyone as a CSV: owners only, the file, and the ledger row that says who took it", async () => {
