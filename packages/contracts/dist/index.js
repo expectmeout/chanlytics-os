@@ -2100,6 +2100,7 @@ var BookingRulesSchema = z2.object({
   notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
 }).strict();
 var E164 = /^\+[1-9]\d{6,14}$/;
+var INSTRUCTIONS_MAX = 2e4;
 var BusinessProfileSchema = z2.object({
   address: z2.string().max(300).optional(),
   hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
@@ -2126,8 +2127,11 @@ var BusinessProfileSchema = z2.object({
    * The escape hatch that keeps this model honest — without it, structuring
    * the facts would mean losing whatever did not fit, and the first migration
    * would be a downgrade.
+   *
+   * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+   * the form carries that prompt into it.
    */
-  extra_instructions: z2.string().max(8e3).optional()
+  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
 }).strict();
 var BrainConfigSchema = z2.object({
   business_name: z2.string().min(1).max(120),
@@ -2152,7 +2156,7 @@ var BrainConfigSchema = z2.object({
   booking_link: z2.string().url().max(500),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z2.string().min(40).max(2e4),
+  system_prompt: z2.string().min(40).max(INSTRUCTIONS_MAX),
   /**
    * The business's facts, as fields.
    *
@@ -2172,7 +2176,7 @@ var BrainConfigSchema = z2.object({
 }).strict();
 function newReceptionistDefaults(businessName, phoneDisplay, bookingLink) {
   return {
-    system_prompt: `You are the assistant for ${businessName}, answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.`,
+    system_prompt: baselinePrompt(businessName),
     // What a customer reads when the model cannot be reached. Built from what
     // the owner just typed, so they are the business's own details.
     fallbacks: {
@@ -2185,6 +2189,20 @@ Or reply here with any question.`,
       non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`
     }
   };
+}
+var BASELINE_OPENING = "You are the assistant for ";
+var BASELINE_CLOSING = ", answering inbound customer messages. You are warm, concise and professional \u2014 a great front-desk person, in text form. If you do not know something, say so plainly and offer to have a person follow up.";
+function baselinePrompt(businessName) {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+function isBaselinePrompt(text) {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+function instructionsDraft(brain) {
+  const own = brain?.profile?.extra_instructions ?? "";
+  if (own.trim()) return { text: own, carried: false };
+  const prompt = brain?.system_prompt ?? "";
+  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
 }
 var NotificationsConfigSchema = z2.object({
   escalation_emails: z2.array(z2.string().email()).min(1).max(10),
@@ -8919,6 +8937,7 @@ export {
   GuardrailsSchema,
   HELD_REASONS,
   HoursSchema,
+  INSTRUCTIONS_MAX,
   INTENT_LABELS,
   INVOICE_STATUS_WORDS,
   IntervalSchema,
@@ -9206,6 +9225,7 @@ export {
   industryWords,
   initialsOf,
   injectedTurn,
+  instructionsDraft,
   inviteState,
   invoiceStatusWords,
   isActivityNoise,

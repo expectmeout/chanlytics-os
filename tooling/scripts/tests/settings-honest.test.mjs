@@ -15,7 +15,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay } from "@chanlytics/contracts";
+import { stateOf, whyNotAHandoff, whyNotAPhone, samePhone, handoffE164, formatPhoneDisplay, instructionsDraft, INSTRUCTIONS_MAX } from "@chanlytics/contracts";
 
 const TID = "t-studio";
 
@@ -124,6 +124,9 @@ Object.assign(globalThis.window, {
   __inviteState: () => ({ expired: false, words: "invite pending" }),
   // The bridge's versioned save (inbox-verbs.ts). Without it every save returns before its checks run.
   __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
+  // What the instructions box opens with and the most it holds, as the bridge publishes them (S4).
+  __instructionsDraft: instructionsDraft,
+  __instructionsMax: INSTRUCTIONS_MAX,
 });
 await import("../../../apps/dashboard/src/legacy/pages/settings.jsx");
 

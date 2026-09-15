@@ -311,6 +311,16 @@ export type BookingRules = z.infer<typeof BookingRulesSchema>;
 /** E.164: a plus, then 7–15 digits, no leading zero. */
 export const E164 = /^\+[1-9]\d{6,14}$/;
 
+/**
+ * The most either set of the receptionist's instructions holds: the prompt a
+ * workspace wrote before it had fields, and the owner's own instructions that
+ * prompt is carried into. One number, so a carried prompt always fits. The
+ * owner's held 8,000 characters against the prompt's 20,000, and a longer
+ * prompt failed every save of the form on a box nobody had touched (the
+ * wiring audit's S4).
+ */
+export const INSTRUCTIONS_MAX = 20_000;
+
 export const BusinessProfileSchema = z
   .object({
     address: z.string().max(300).optional(),
@@ -338,8 +348,11 @@ export const BusinessProfileSchema = z
      * The escape hatch that keeps this model honest — without it, structuring
      * the facts would mean losing whatever did not fit, and the first migration
      * would be a downgrade.
+     *
+     * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+     * the form carries that prompt into it.
      */
-    extra_instructions: z.string().max(8000).optional(),
+    extra_instructions: z.string().max(INSTRUCTIONS_MAX).optional(),
   })
   .strict();
 
@@ -373,7 +386,7 @@ export const BrainConfigSchema = z
     booking_link: z.string().url().max(500),
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-    system_prompt: z.string().min(40).max(20000),
+    system_prompt: z.string().min(40).max(INSTRUCTIONS_MAX),
     /**
      * The business's facts, as fields.
      *
@@ -420,10 +433,7 @@ export function newReceptionistDefaults(
   bookingLink: string,
 ): Pick<BrainConfig, "system_prompt" | "fallbacks"> {
   return {
-    system_prompt:
-      `You are the assistant for ${businessName}, answering inbound customer messages. ` +
-      "You are warm, concise and professional — a great front-desk person, in text form. " +
-      "If you do not know something, say so plainly and offer to have a person follow up.",
+    system_prompt: baselinePrompt(businessName),
     // What a customer reads when the model cannot be reached. Built from what
     // the owner just typed, so they are the business's own details.
     fallbacks: {
@@ -432,6 +442,49 @@ export function newReceptionistDefaults(
       non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`,
     },
   };
+}
+
+/*
+ * The product's own opening lines, apart from any business's words.
+ *
+ * Every workspace the form sets up gets them as its system_prompt, and a
+ * profile carries that prompt as instructions until the owner writes their
+ * own (resolveSystemPrompt). The form showed them in the owner's box as if the
+ * owner had written them, and a save copied them in (S4) -- so they are
+ * recognised by their shape, whatever business name they were written with.
+ */
+const BASELINE_OPENING = "You are the assistant for ";
+const BASELINE_CLOSING =
+  ", answering inbound customer messages. " +
+  "You are warm, concise and professional — a great front-desk person, in text form. " +
+  "If you do not know something, say so plainly and offer to have a person follow up.";
+
+function baselinePrompt(businessName: string): string {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+
+function isBaselinePrompt(text: string): boolean {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+
+/**
+ * What the Business form's instructions box opens with (S4).
+ *
+ * The owner's own instructions when they have written some. Otherwise the
+ * prompt a profile carries in their place, shown so nothing the receptionist
+ * follows is out of sight and marked `carried` so the form can say where it
+ * came from -- unless it is the product's baseline, which no owner wrote. A
+ * save then keeps what the box holds as the owner's and puts the baseline back
+ * as the prompt: the text is stored once, and an emptied box stays empty
+ * instead of filling itself again from the copy left behind.
+ */
+export function instructionsDraft(
+  brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
+): { text: string; carried: boolean } {
+  const own = brain?.profile?.extra_instructions ?? "";
+  if (own.trim()) return { text: own, carried: false };
+  const prompt = brain?.system_prompt ?? "";
+  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
 }
 
 export const NotificationsConfigSchema = z
