@@ -236,6 +236,25 @@ test("the board's module: no feed says none; a failed feed says why; a good feed
   assert.match(vm.feed.line, /^From your calendar · read just now · 1 event$/);
 });
 
+test("REGRESSION (C1): the board's read carries the receptionist's next open time from now, whatever span it was asked for -- the page worked it out from the loaded weeks", async () => {
+  const url = "https://cal.example/next.ics";
+  answers.set(url, { body: ONE });
+  const t = tables(url);
+  const first = { start: new Date(ny(2026, 9, 8, 15, 30)).toISOString(), end: new Date(ny(2026, 9, 8, 18)).toISOString() };
+  const week = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.deepEqual(week.next_opening, first, "after Ana's appointment, this afternoon");
+  const december = await calendarWeek(ctxFor(t), T, { from: "2026-11-30", days: 7 }, NOW);
+  assert.ok(december.days.every((d) => d.windows.length === 0), "December is past what the receptionist offers");
+  assert.deepEqual(december.next_opening, first, "REGRESSION: a span with no open times had no next opening");
+  assert.equal(toCalendarVM(december, NOW).stats.next, "today 3:30 PM");
+  const none = await calendarWeek(ctxFor(tables(null)), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.equal(none.next_opening, null, "no calendar: the receptionist names no open time");
+  forgetFeeds();
+  answers.set(url, { body: "nope", status: 404 });
+  const failed = await calendarWeek(ctxFor(t), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.equal(failed.next_opening, null, "a calendar that can't be read: none either");
+});
+
 test("the last good read is served when the calendar goes away, and the chip and the card say so", async () => {
   const url = "https://cal.example/ok.ics";
   answers.set(url, { body: ONE });
@@ -290,7 +309,8 @@ test("a day carries at most what the board draws; the rest are counted and said"
   assert.equal(days.find((d) => d.key === "2026-09-08").items.length, MAX_ITEMS_PER_DAY);
   assert.equal(dropped, 3);
   const vm = toCalendarVM({ timezone: TZ, from: "2026-09-07", to: "2026-09-13", feed: { present: true, state: "ok", read_at: NOW.toISOString(), events: 103, recurring_expanded: 0, skipped_recurring: 0, dropped: 3 }, hours: profile.hours, closures: [], rules: null, services: [], booking_link: null, days: days.map((d) => ({ ...d, windows: [] })) }, NOW);
-  assert.ok(vm.feed.line.endsWith("· 103 events · 3 more not shown"), vm.feed.line);
+  assert.ok(vm.feed.line.endsWith("· 103 events"), vm.feed.line);
+  assert.equal(vm.feed.notes.find((n) => n.id === "undrawn")?.title, "3 more events aren't drawn.", "what the day left out is said once, by its note");
 });
 
 test("the route: the answer carries the feed's state and never its address; a viewer's read adds nobody", async () => {

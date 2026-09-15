@@ -6237,9 +6237,19 @@ interface CalendarWeekDto {
     feed: CalendarFeedDto;
     hours: Record<string, Hours | undefined> | null;
     closures: Closure[];
-    rules: BookingRulesLike | null;
+    /** The booking rules as Settings keeps them: how open times are offered, the party size, the services that need a consultation first. */
+    rules: BookingRules | null;
     services: CalendarServiceDto[];
     booking_link: string | null;
+    /**
+     * The receptionist's next open time from now: the first of every time it would
+     * offer, whatever span was asked for. The page worked it out from the loaded
+     * weeks, so a board looking at December had none to name (C1).
+     */
+    next_opening: {
+        start: string;
+        end: string;
+    } | null;
     days: CalendarDayDto[];
     error?: string;
 }
@@ -6260,10 +6270,10 @@ declare function monthLabelOf(key: string): string;
 /** "9 AM", "2:30 PM". */
 declare function clockLabel(t: number): string;
 declare function readAgoLabel(iso: string | null, now: Date): string | null;
-/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots". */
-declare function ruleParts(rules: BookingRulesLike | null | undefined): string[];
+/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots", "up to 6 people per booking". */
+declare function ruleParts(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string[];
 /** "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots". */
-declare function rulesLine(rules: BookingRulesLike | null | undefined): string;
+declare function rulesLine(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string;
 /**
  * What a read left out, in words the owner can act on. The feed line said
  * "2 repeating rules read once" and "3 more not shown" and never what either
@@ -6336,6 +6346,8 @@ interface CalendarDayVM {
     blocks: CalendarBlockVM[];
     allDay: CalendarBlockVM[];
     windows: CalendarWindowVM[];
+    /** Past the last day the receptionist offers: nothing on it is offered yet, however free it is (C1). */
+    beyondOffer: boolean;
 }
 interface CalendarServiceVM {
     name: string;
@@ -6394,11 +6406,21 @@ interface CalendarVM {
         windows: number;
         next: string;
     };
+    /** How far ahead the receptionist offers times: `days` from today, through the day `until` ("Sep 21"). */
+    offer: {
+        days: number;
+        until: string;
+        label: string;
+    };
     rules: string;
     /** The same rules as separate phrases. */
     ruleParts: string[];
     hoursLines: string[];
     closuresAhead: CalendarClosureVM[];
+    /** Closures ahead past the six the bar names. */
+    closuresMore: number;
+    /** The services that need a consultation before they can be booked, as Settings names them. */
+    consultFirst: string[];
     services: CalendarServiceVM[];
     bookingLink: string | null;
 }

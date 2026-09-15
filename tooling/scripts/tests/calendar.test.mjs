@@ -52,6 +52,8 @@ function dto(over = {}) {
     closures: [{ date: "2026-09-12", note: "Wedding" }],
     rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 14 },
     booking_link: "https://booksy.com/melanys",
+    // The receptionist's next open time from now, which the route works out from every day it offers.
+    next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" },
     days,
     ...over,
   };

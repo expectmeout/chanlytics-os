@@ -23,7 +23,7 @@ import {
   shiftKey,
   toVisitDto,
   zoneMidnight,
-  type BookingRulesLike,
+  type BookingRules,
   type CalendarDayDto,
   type CalendarItemDto,
   type CalendarWeekDto,
@@ -209,7 +209,7 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   const cfg = parseTenantConfig(row?.config ?? null);
   const url = cfg?.calendar?.ical_url ?? null;
   const profile = cfg?.brain?.profile ?? null;
-  const rules: BookingRulesLike | null = profile?.booking_rules ?? null;
+  const rules: BookingRules | null = profile?.booking_rules ?? null;
   const hours = profile?.hours ?? null;
   const closures = profile?.closures ?? [];
   const to = shiftKey(span.from, span.days - 1);
@@ -230,6 +230,8 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
       consult_first: (profile?.booking_rules?.consult_first ?? []).some((c: string) => c.trim().toLowerCase() === s.name.trim().toLowerCase()),
     })),
     booking_link: cfg?.brain?.booking_link ?? null,
+    // No readable calendar: the receptionist never names an open time.
+    next_opening: null,
     days: Array.from({ length: span.days }, (_, i) => ({ key: shiftKey(span.from, i), items: [], windows: [] })),
   };
   if (!url) return base;
@@ -257,8 +259,12 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   const { days, dropped } = itemsToDays(parsed.items, span.from, span.days, timezone, people, serviceNames);
   const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
+  // The receptionist's next open time from now, whatever span the page asked for: the first of every time it would
+  // offer. The page worked it out from the span it had loaded, so a board on December had none to name (C1).
+  const first = openings.find((o) => o.windows.length)?.windows[0] ?? null;
   return {
     ...base,
+    next_opening: first ? { start: new Date(first.start).toISOString(), end: new Date(first.end).toISOString() } : null,
     // A reason beside "ok" means the latest try failed and this is the last good read, said so on the chip.
     feed: { present: true, source: feedSourceLabel(url), state: "ok", read_at: feed.at === null ? null : new Date(feed.at).toISOString(), events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring, reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status), stale: feed.reason !== null, dropped },
     days: days.map((d) => ({ ...d, windows: (windowsOf.get(d.key) ?? []).map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() })) })),

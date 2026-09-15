@@ -16,7 +16,7 @@ import { agoWords } from "./time";
  * closures ahead, the booking rules, the services and how long they take.
  * Pure; tests feed fixtures.
  */
-import { DAYS, hoursRuns, type Closure, type Hours } from "./config";
+import { DAYS, hoursRuns, type BookingRules, type Closure, type Hours } from "./config";
 import { waWindow } from "./policy";
 import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, localToUtcMs, type BookingRulesLike } from "./availability";
 import type { FeedFailure } from "./feed-url";
@@ -84,9 +84,16 @@ export interface CalendarWeekDto {
   feed: CalendarFeedDto;
   hours: Record<string, Hours | undefined> | null;
   closures: Closure[];
-  rules: BookingRulesLike | null;
+  /** The booking rules as Settings keeps them: how open times are offered, the party size, the services that need a consultation first. */
+  rules: BookingRules | null;
   services: CalendarServiceDto[];
   booking_link: string | null;
+  /**
+   * The receptionist's next open time from now: the first of every time it would
+   * offer, whatever span was asked for. The page worked it out from the loaded
+   * weeks, so a board looking at December had none to name (C1).
+   */
+  next_opening: { start: string; end: string } | null;
   days: CalendarDayDto[];
   error?: string;
 }
@@ -165,17 +172,19 @@ export function readAgoLabel(iso: string | null, now: Date): string | null {
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
 }
 
-/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots". */
-export function ruleParts(rules: BookingRulesLike | null | undefined): string[] {
+/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots", "up to 6 people per booking". */
+export function ruleParts(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string[] {
   const r = { ...BOOKING_DEFAULTS, ...(rules ?? {}) };
   const parts = [`at least ${r.lead_hours}h ahead`];
   if (r.buffer_min > 0) parts.push(`${r.buffer_min} min between appointments`);
   parts.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  // The party size a booking is held to, when Settings gives one: the receptionist follows it, and the page never said it (C1).
+  if (rules?.party_max) parts.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
   return parts;
 }
 
 /** "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots". */
-export function rulesLine(rules: BookingRulesLike | null | undefined): string {
+export function rulesLine(rules: (BookingRulesLike & Pick<BookingRules, "party_max">) | null | undefined): string {
   return `Offers times ${ruleParts(rules).join(" · ")}`;
 }
 
@@ -272,6 +281,8 @@ export interface CalendarDayVM {
   blocks: CalendarBlockVM[];
   allDay: CalendarBlockVM[];
   windows: CalendarWindowVM[];
+  /** Past the last day the receptionist offers: nothing on it is offered yet, however free it is (C1). */
+  beyondOffer: boolean;
 }
 
 export interface CalendarServiceVM {
@@ -321,11 +332,17 @@ export interface CalendarVM {
     notes: CalendarFeedNoteVM[];
   };
   stats: { events: number; windows: number; next: string };
+  /** How far ahead the receptionist offers times: `days` from today, through the day `until` ("Sep 21"). */
+  offer: { days: number; until: string; label: string };
   rules: string;
   /** The same rules as separate phrases. */
   ruleParts: string[];
   hoursLines: string[];
   closuresAhead: CalendarClosureVM[];
+  /** Closures ahead past the six the bar names. */
+  closuresMore: number;
+  /** The services that need a consultation before they can be booked, as Settings names them. */
+  consultFirst: string[];
   services: CalendarServiceVM[];
   bookingLink: string | null;
 }
@@ -340,6 +357,22 @@ function spanLabel(t1: number, t2: number): string {
   const b = clockLabel(t2);
   const sameHalf = a.slice(-2) === b.slice(-2);
   return `${sameHalf ? a.slice(0, -3) : a} – ${b}`;
+}
+
+/**
+ * When the next open time is, the way an owner says it: "today 3:30 PM",
+ * "tomorrow 10 AM", "Fri 10 AM" within the week, and past it the date,
+ * "Sep 17, 10 AM" -- a weekday alone named a day a week too soon (C1).
+ */
+function nextOpenWords(startIso: string | null, tz: string, todayKey: string): string {
+  const ms = startIso ? Date.parse(startIso) : Number.NaN;
+  if (!Number.isFinite(ms)) return "—";
+  const day = dayInZone(tz, ms);
+  const clock = clockLabel(hoursOf(tz, ms));
+  if (day.key === todayKey) return `today ${clock}`;
+  if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock}`;
+  if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock}`;
+  return `${shortDate(day.key)}, ${clock}`;
 }
 
 function toBlock(item: CalendarItemDto, tz: string, dayStartMs: number, dayEndMs: number, now: Date): CalendarBlockVM {
@@ -404,6 +437,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const tz = dto.timezone;
   const todayKey = dayInZone(tz, now.getTime()).key;
   const nowMs = now.getTime();
+  // How far ahead the receptionist offers: the days freeWindows walks, today and max_days_ahead - 1 after it.
+  // A day past the last of them has no open times however free it is, and says so rather than looking booked (C1).
+  const offerDays = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) }.max_days_ahead;
+  const offerUntil = dayInZone(tz, nowMs + (offerDays - 1) * 86_400_000).key;
 
   // The grid's hours: the business's own, an hour of air on each side.
   let start = 24;
@@ -485,22 +522,21 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
       blocks: timed,
       allDay,
       windows,
+      beyondOffer: d.key > offerUntil,
     };
   });
 
   const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
   const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
-  let next = "—";
-  outer: for (const d of days) {
-    for (const w of d.windows) {
-      const at = zoneMidnight(tz, d.key) + w.t * 3_600_000;
-      if (at >= nowMs) { next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`; break outer; }
-    }
-  }
+  // The receptionist's next open time, as the route found it among every time it would offer -- never worked out
+  // from the loaded weeks, which on a board looking at another month held none (C1).
+  const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "—";
   const ago = readAgoLabel(dto.feed.read_at, now);
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
   const feedLine = dto.feed.state === "ok"
-    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? " · could not be refreshed" : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` · ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}${dto.feed.dropped ? ` · ${dto.feed.dropped} more not shown` : ""}`
+    // What a read left out is said once, by feedNotes, in words the owner can act on; the line said it again as
+    // "2 repeating rules read once · 3 more not shown", unexplained (C1).
+    ? `From ${dto.feed.source ?? "your calendar"} · read ${ago ?? "just now"}${stale ? " · could not be refreshed" : ""} · ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}`
     : dto.feed.state === "unavailable"
       ? `Your calendar could not be read${ago ? ` · last read ${ago}` : ""}`
       : "No calendar connected";
@@ -508,9 +544,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const closuresAhead: CalendarClosureVM[] = dto.closures
+  const ahead = dto.closures
     .filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey)
-    .sort((a, b) => a.date.localeCompare(b.date))
+    .sort((a, b) => a.date.localeCompare(b.date));
+  const closuresAhead: CalendarClosureVM[] = ahead
     .slice(0, 6)
     .map((c) => ({
       key: c.date,
@@ -535,10 +572,14 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     now: nowIn,
     feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
+    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),
     ruleParts: ruleParts(dto.rules),
     hoursLines: hoursLines(dto.hours),
     closuresAhead,
+    // Past the six the bar names, counted: a seventh closure used to vanish without a word (C1).
+    closuresMore: Math.max(0, ahead.length - closuresAhead.length),
+    consultFirst: (dto.rules?.consult_first ?? []).map((s) => s.trim()).filter(Boolean),
     services,
     bookingLink: dto.booking_link,
   };
