@@ -934,6 +934,35 @@ function matchService(services, asked) {
   }
   return best;
 }
+function needsConsultation(name, rules) {
+  const n = foldName(name.trim());
+  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+}
+function offerFor(services, rules, asked) {
+  const service = matchService(services, asked);
+  if (!service) return null;
+  if (!needsConsultation(service.name, rules)) return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
+  let consultationService = null;
+  let best = -1;
+  for (const s of services ?? []) {
+    const n = foldName(s.name);
+    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
+    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    if (score > best) {
+      consultationService = s;
+      best = score;
+    }
+  }
+  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
+}
+function offerLead(offer) {
+  if (!offer) return "";
+  if (!offer.consultation) return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
+  const c = offer.consultationService;
+  const detail = [c && foldName(c.name.trim()) !== "consultation" ? c.name : "", offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""].filter(Boolean).join(", ");
+  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
+}
 
 // src/clock.ts
 var FORMATS = /* @__PURE__ */ new Map();
@@ -2915,10 +2944,12 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
     note: c.note ?? null
   }));
+  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
   const services = (dto.services ?? []).map((s) => ({
     name: s.name,
     duration: s.duration_min,
     consultFirst: s.consult_first,
+    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
     label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consultation first" : ""}`
   }));
   return {
@@ -9327,6 +9358,7 @@ export {
   monthLabelOf,
   monthSpan,
   navigateLabel,
+  needsConsultation,
   newReceptionistDefaults,
   nextOpenMoment,
   nextRunLabel,
@@ -9335,6 +9367,8 @@ export {
   normalizePhone,
   notFoundPageMetadata,
   numberHealth,
+  offerFor,
+  offerLead,
   offeringHorizon,
   offersYesRefusal,
   ok,

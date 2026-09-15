@@ -37,6 +37,7 @@ import {
   type BookingReportDto,
   type ParsedFeed,
   visitsIn,
+  needsConsultation,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -229,7 +230,7 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
     services: (profile?.services ?? []).map((s) => ({
       name: s.name,
       duration_min: typeof s.duration_min === "number" ? s.duration_min : null,
-      consult_first: (profile?.booking_rules?.consult_first ?? []).some((c: string) => c.trim().toLowerCase() === s.name.trim().toLowerCase()),
+      consult_first: needsConsultation(s.name, profile?.booking_rules),
     })),
     booking_link: cfg?.brain?.booking_link ?? null,
     // No readable calendar: the receptionist never names an open time.
