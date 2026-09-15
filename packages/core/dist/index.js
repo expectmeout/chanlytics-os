@@ -664,6 +664,14 @@ var LIMIT_TIERS = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS5 = 864e5;
+var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
@@ -1969,7 +1977,14 @@ var PLAYBOOK_TRIGGERS = [
   { id: "visited", label: "After the visit", list: null, cls: "reengage", kind: "visit", hint: "The day after a visit, when nothing is booked next" }
 ];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
-var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS2 = {
+  min: PLAYBOOK_HOURS2.min,
+  max: PLAYBOOK_HOURS2.max,
+  first: `${PLAYBOOK_HOURS2.min}:00`,
+  range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
+  between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
+};
 var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
@@ -2028,11 +2043,11 @@ function localDate(tz, now) {
 }
 function nextOpenMoment(tz, when) {
   const { date, hour } = parts(tz, when);
-  if (hour >= PLAYBOOK_HOURS.min && hour <= PLAYBOOK_HOURS.max) return { at: when, moved: false };
-  const day = hour < PLAYBOOK_HOURS.min ? date : shiftKey(date, 1);
-  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS.min * 36e5;
+  if (hour >= PLAYBOOK_HOURS2.min && hour <= PLAYBOOK_HOURS2.max) return { at: when, moved: false };
+  const day = hour < PLAYBOOK_HOURS2.min ? date : shiftKey(date, 1);
+  let at2 = zoneMidnight(tz, day) + PLAYBOOK_HOURS2.min * 36e5;
   const landed = parts(tz, new Date(at2)).hour;
-  if (landed !== PLAYBOOK_HOURS.min) at2 += (PLAYBOOK_HOURS.min - landed) * 36e5;
+  if (landed !== PLAYBOOK_HOURS2.min) at2 += (PLAYBOOK_HOURS2.min - landed) * 36e5;
   return { at: new Date(at2), moved: true };
 }
 var PLAYBOOK_CLASS_LABEL2 = {
@@ -2810,6 +2825,14 @@ var LIMIT_TIERS3 = {
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
 var DAY_MS53 = 864e5;
+var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS3 = {
+  min: PLAYBOOK_HOURS3.min,
+  max: PLAYBOOK_HOURS3.max,
+  first: `${PLAYBOOK_HOURS3.min}:00`,
+  range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
+  between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
+};
 var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
@@ -3618,12 +3641,15 @@ async function templateValues(ports, cmd) {
   const specs = [];
   for (const p of rawParams) {
     const spec = parseParamSpec(p);
-    if (!spec) throw new AppError("validation", "Each value is typed text, their first name, the business name, or the booking link.");
+    if (!spec) throw new AppError("validation", "Each value is typed text, their first name, the business name, the booking link, or a visit's time or service.");
     if (spec.kind === "text") {
       const v = cleanParam(spec.value);
       if (v === null) throw new AppError("validation", "Every value is needed, without line breaks or tabs, and under 1024 characters.");
       specs.push({ kind: "text", value: v });
     } else {
+      if ((spec.kind === "visit_when" || spec.kind === "visit_service") && !cmd.visits) {
+        throw new AppError("validation", "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.");
+      }
       specs.push(spec);
     }
   }
@@ -3648,7 +3674,7 @@ async function createBroadcast(ports, cmd) {
   const audienceId = typeof body?.audience?.id === "string" ? body.audience.id : null;
   if (kind === "saved" && (!audienceId || !UUID2.test(audienceId))) throw new AppError("validation", "Pick a list.");
   if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: false });
   let when = now;
   if (typeof body?.scheduled_for === "string" && body.scheduled_for) {
     const t = new Date(body.scheduled_for);
@@ -3767,7 +3793,7 @@ async function checkPlaybook(ports, body) {
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
   if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.");
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: trig.kind === "visit" });
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
     name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} \xB7 ${templateTitle(tpl.name, tpl.title)}`).slice(0, PLAYBOOK_NAME_MAX),
@@ -3777,7 +3803,7 @@ async function checkPlaybook(ports, body) {
     template_language: tpl.language,
     params: specs,
     policy_class: trig.cls,
-    run_hour: int(body?.run_hour, PLAYBOOK_DEFAULTS.runHour, PLAYBOOK_HOURS.min, PLAYBOOK_HOURS.max, "The hour"),
+    run_hour: int(body?.run_hour, PLAYBOOK_DEFAULTS.runHour, PLAYBOOK_HOURS2.min, PLAYBOOK_HOURS2.max, "The hour"),
     cap_per_run: int(body?.cap_per_run, PLAYBOOK_DEFAULTS.capPerRun, 1, 500, "The cap"),
     gap_days: int(body?.gap_days, PLAYBOOK_DEFAULTS.gapDays, 7, 365, "The gap"),
     cadence_days: int(body?.cadence_days, PLAYBOOK_DEFAULTS.cadenceDays, 1, 90, "The cadence")

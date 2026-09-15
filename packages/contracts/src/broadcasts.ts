@@ -163,6 +163,26 @@ export interface BroadcastVM extends BroadcastDto {
   open: boolean;
   /** Sent + skipped + failed over enrolled, for the sending row. */
   progress: number;
+  /** A failed broadcast's reason in the owner's words; null in any other state. */
+  failureLabel: string | null;
+}
+
+/**
+ * Why a whole broadcast stopped, in the owner's words: the codes the send job writes (core messages/broadcast.ts)
+ * and the one the job ledger writes when a run died and none took it up again (jobs settle.ts). Spelled out, as
+ * HELD_REASONS is, so the bundler can see through it.
+ */
+export const BROADCAST_FAILURE_WORDS: Record<string, string> = {
+  paused: "the workspace was paused",
+  template_not_approved: "WhatsApp no longer approves its template",
+  wire_unavailable: "WhatsApp could not be reached",
+  run_interrupted: "its send stopped partway and did not start again",
+};
+
+/** A failed broadcast's reason: its words, a code nobody has written words for yet, or none recorded. */
+export function broadcastFailureWords(failure: string | null | undefined): string {
+  if (!failure) return "no reason was recorded";
+  return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
 }
 
 /** "today 9:00 AM" · "tomorrow 9:00 AM" · "Sep 12 · 10:00 AM", by the business's day and clock (clock.ts). */
@@ -182,6 +202,7 @@ export function toBroadcastVM(d: BroadcastDto, tz: string, now = new Date()): Br
     readPct: c.sent > 0 ? Math.round((c.read / c.sent) * 100) : null,
     open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
     progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
+    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null,
   };
 }
 

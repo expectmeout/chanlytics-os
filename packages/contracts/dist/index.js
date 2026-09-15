@@ -5468,6 +5468,16 @@ function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title
   const day = clockDate(now.getTime(), tz, now.getTime());
   return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
 }
+var BROADCAST_FAILURE_WORDS = {
+  paused: "the workspace was paused",
+  template_not_approved: "WhatsApp no longer approves its template",
+  wire_unavailable: "WhatsApp could not be reached",
+  run_interrupted: "its send stopped partway and did not start again"
+};
+function broadcastFailureWords(failure) {
+  if (!failure) return "no reason was recorded";
+  return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
+}
 function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
   const ms2 = Date.parse(iso);
   return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
@@ -5482,7 +5492,8 @@ function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
     deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
     readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
     open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
-    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0
+    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
+    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null
   };
 }
 var OUTCOME_UNKNOWN = "outcome_unknown";
@@ -5631,6 +5642,11 @@ function parseParamSpecs(raw) {
 function paramLabel(spec) {
   return spec.kind === "text" ? spec.value : PARAM_SOURCE_LABELS[spec.kind].toLowerCase();
 }
+function playbooksStillSending(names) {
+  const quoted = names.map((n) => `\u201C${n}\u201D`);
+  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still sends this message. Pause it, or give it another message, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still send this message. Pause them, or give them another message, first.`;
+}
 function firstNameOf(displayName, waProfileName) {
   const raw = (displayName || waProfileName || "").trim();
   if (!raw || /^[+\d(]/.test(raw)) return null;
@@ -5672,6 +5688,13 @@ var PLAYBOOK_TRIGGERS = [
 var PLAYBOOK_STATES = ["running", "paused"];
 var PLAYBOOK_DEFAULTS = { runHour: 10, capPerRun: 25, gapDays: 90, cadenceDays: 30 };
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
+var SENDING_HOURS_WORDS = {
+  min: PLAYBOOK_HOURS.min,
+  max: PLAYBOOK_HOURS.max,
+  first: `${PLAYBOOK_HOURS.min}:00`,
+  range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
+  between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
+};
 var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
@@ -8665,6 +8688,7 @@ var TONE_OF = {
   broadcast: { pending_approval: "warn", scheduled: "info", sending: "accent", sent: "ok", canceled: "plain", failed: "danger" },
   playbook: { running: "accent", paused: "warn", approval: "warn" },
   template: { approved: "ok", pending: "info", rejected: "danger", paused: "warn", disabled: "warn" },
+  template_quality: { GREEN: "ok", YELLOW: "warn", RED: "danger", UNKNOWN: "plain" },
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
@@ -8680,6 +8704,7 @@ var LABEL_OF = {
   broadcast: BROADCAST_STATE_LABELS,
   playbook: { running: "Running", paused: "Paused", approval: "Needs you" },
   template: { approved: "Approved", pending: "In review", rejected: "Rejected", paused: "Paused", disabled: "Disabled" },
+  template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
   escalation: { open: "Open", resolved: "Resolved" }
@@ -8728,6 +8753,7 @@ export {
   BRAIN_LANGUAGES,
   BRAIN_OUTPUT_JSON_SCHEMA,
   BROADCAST_CHUNK,
+  BROADCAST_FAILURE_WORDS,
   BROADCAST_GAP_MS,
   BROADCAST_MAX_RECIPIENTS,
   BROADCAST_NAME_MAX,
@@ -8880,6 +8906,7 @@ export {
   ROLE_PERMS,
   ROLE_WORDS,
   SCHEMA_SETS,
+  SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
   SERVER_NOTIFICATION_KINDS,
   SETUP_STATE_WORDS,
@@ -8942,6 +8969,7 @@ export {
   billingDoorOpen,
   bookedAfterAsk,
   brainMetaOf,
+  broadcastFailureWords,
   broadcastName,
   buildAskSuggestions,
   buildNotificationFeed,
@@ -9151,6 +9179,7 @@ export {
   platformNumber,
   platformRows,
   platformSummary,
+  playbooksStillSending,
   pointsDelta,
   policyAskClass,
   policyClassOfIntent,

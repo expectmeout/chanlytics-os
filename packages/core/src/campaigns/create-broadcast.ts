@@ -48,7 +48,7 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
 
   // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: false });
 
   // 3. When, as asked: an instant with its offset. A date alone would be read
   // as midnight UTC -- the evening before, in this hemisphere -- and a

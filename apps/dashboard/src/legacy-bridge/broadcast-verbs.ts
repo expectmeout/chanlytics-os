@@ -7,6 +7,7 @@
  * refresh map re-reads the Broadcasts surface, so the Scheduled and History
  * rows are the server's — never a row the page invented while it waited.
  */
+import { broadcastFailureWords } from "@chanlytics/contracts";
 import { api } from "./api";
 import { broadcastsOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -32,6 +33,8 @@ export const broadcasts = {
   approve: (id: string) => api()("POST broadcasts/[id]/approve", { params: { id } }),
   /** One broadcast and every person on it. A read: nothing refreshes. */
   detail: (id: string) => api()("GET broadcasts/[id]", { params: { id } }),
+  /** Why a whole broadcast stopped, in the owner's words, for the detail, which reads the row as the route returns it. */
+  failureWords: broadcastFailureWords,
 };
 
 declare global {

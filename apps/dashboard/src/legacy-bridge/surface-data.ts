@@ -196,7 +196,7 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -747,6 +747,8 @@ export interface BroadcastsSurface {
   number: { present: boolean; display: string | null; health: NumberHealth };
   /** The words for a held-back reason, for the detail view. */
   heldReasons: Record<string, string>;
+  /** How many go out at a time (contracts BROADCAST_CHUNK), for the words that say so. */
+  chunk: number;
   /** How a customer says yes in their own words: the phrase, the link that
    *  opens WhatsApp with it ready, and the QR of that link. Null link without
    *  a number. */
@@ -834,6 +836,7 @@ export const broadcastsOverride: SurfaceOverride = {
         health: numberHealth({ quality: wa?.quality ?? null, event: wa?.quality_event ?? null, limit: wa?.messaging_limit ?? null }),
       },
       heldReasons: HELD_REASONS,
+      chunk: BROADCAST_CHUNK,
       businessName: brain?.business_name || "the business",
       bookingLink: !!brain?.booking_link,
       offersNote: OFFERS_BY_WHATSAPP_NOTE,

@@ -30,6 +30,12 @@ const bcOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) :
 // What a broadcast opens on: the quick note when the workspace holds it, else the first.
 const bcDefault = (list) => ((window.__starters ? window.__starters.defaultFor(list, null) : list[0]) || null);
 const bcFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
+// What fills a slot on a broadcast: the composers' words (contracts PARAM_SOURCE_LABELS) less a visit's time and
+// service, which only a visit playbook's run carries for each person.
+const bcSources = () => Object.fromEntries(Object.entries((window.__starters && window.__starters.sources) || { text: "Type it" }).filter(([k]) => !k.startsWith("visit_")));
+// What is still to come, by state -- "1 sending · 2 scheduled · 1 waiting for you" -- where "N queued" counted runs waiting for a person.
+const BC_OPEN_WORDS = [["sending", "sending"], ["scheduled", "scheduled"], ["pending_approval", "waiting for you"]];
+const bcOpenWords = (open) => BC_OPEN_WORDS.map(([state, words]) => [open.filter((r) => r.state === state).length, words]).filter(([n]) => n > 0).map(([n, words]) => `${n} ${words}`).join(" · ") || "nothing to come";
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
 const BC_NONE = [];
@@ -124,7 +130,8 @@ const BroadcastDetail = ({ id, heldReasons, onClose, solo = false }) => {
         <span className="ct-sec-meta">{solo && bcClock(d.broadcast.started_at || d.broadcast.scheduled_for) ? `${bcClock(d.broadcast.started_at || d.broadcast.scheduled_for)} · ` : ""}{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
         {close}
       </div>
-      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.TC_SOURCES || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
+      {d.broadcast.state === "failed" && <div className="bc-excl-hint" data-testid="bc-detail-failure">It stopped: {window.__broadcasts.failureWords(d.broadcast.failure)}.</div>}
+      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.__starters && window.__starters.sources || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
       <div className="bc-detail-groups">
         <div className="bc-detail-group">
           <div className="cl-prof-rail-label">Got it · {got.length}</div>
@@ -161,7 +168,7 @@ const BC_STOP_WORDS = {
   scheduled: { verb: "Cancel", question: (row) => `Cancel ${row.name}?`, detail: "Nothing will send.", yes: "Yes, cancel it" },
 };
 const bcStopWords = (state) => BC_STOP_WORDS[state] || BC_STOP_WORDS.scheduled;
-const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approve, cancel }) => {
+const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approving = false, approve, cancel }) => {
   const stop = bcStopWords(row.state);
   return (
     <div className="bc-sched" id={`bc-run-${row.id}`} data-testid="bc-open">
@@ -171,9 +178,14 @@ const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approv
           {row.when} · {row.audience.label} · {row.recipient_count}
           {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
         </span>
+        {row.state === "sending" && (
+          <span className="ob-progress bc-progress" role="progressbar" aria-label={`${row.name}, sent so far`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((row.progress || 0) * 100)}>
+            <span className="ob-progress-fill" style={{ width: `${Math.round((row.progress || 0) * 100)}%` }} />
+          </span>
+        )}
       </div>
       <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
-      {!armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve" {...(canSend || !window.gate ? {} : window.gate("approve", "approve a run"))}>Approve</button>}
+      {!armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" disabled={approving} onClick={() => approve(row)} data-testid="bc-approve" {...(canSend || !window.gate ? {} : window.gate("approve", "approve a run"))}>{approving ? "Approving…" : "Approve"}</button>}
       {canSend && !armed && <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">{stop.verb}</button>}
       {canSend && armed && (
         <Confirm question={stop.question(row)} detail={stop.detail} yes={stop.yes} danger busy={stopping} onYes={() => cancel(row)} onNo={() => onArm(false)} testid="bc-stop" />
@@ -190,7 +202,7 @@ window.BroadcastOpenRow = BroadcastOpenRow;
 const bcWhenWords = (d) => {
   const at = d && d.scheduled_for ? Date.parse(d.scheduled_for) : NaN;
   const when = Number.isNaN(at) ? null : window.__clock.when(at);
-  if (d && d.moved_from && when) return `scheduled for ${when} — messages go out between 9:00 and 20:59 by your clock`;
+  if (d && d.moved_from && when) return `scheduled for ${when} — messages go out ${window.__clock.hours.between} by your clock`;
   if (when && at - Date.now() > 60_000) return `scheduled for ${when}`;
   return "sending now";
 };
@@ -230,7 +242,7 @@ const bcWhenNote = (at, maxDays) => {
   const open = C.nextOpen(at);
   if (open.at > now + maxDays * 86_400_000) return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
   return open.moved
-    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — sends wait for 9:00–20:59` }
+    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — sends wait for ${C.hours.range}` }
     : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };
 };
 window.bcWhenNote = bcWhenNote;
@@ -286,14 +298,13 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   // The broadcast open on the page is the one its link names (broadcasts/run:<id>); pressing a row follows that link.
   const openId = initialRun;
   const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
-  // A link lands on its run: the page is long, and a listed run sits under the composer. Once, as the page opens --
-  // a row pressed here is already in view.
-  const landed = React.useRef(false);
+  // A link lands on its run: brought into view when it is out of it -- under the composer on a page just opened, or
+  // first on a page already scrolled past it. A row pressed in view stays where it is.
   React.useEffect(() => {
-    if (landed.current) return;
-    landed.current = true;
     const el = openId && typeof document !== "undefined" && document.getElementById ? document.getElementById(`bc-run-${openId}`) : null;
-    if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
+    if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
+    const at = el.getBoundingClientRect();
+    if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
   }, [openId]);
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = React.useState(null);
@@ -323,11 +334,11 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const numberOk = !!(number && number.present && number.health.canSend);
   const overLimit = !!(active && number && number.health.limitPerDay !== null && activeCount > number.health.limitPerDay);
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
-  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
+  const SRC = bcSources();
   // A starter's slots come filled in; a template written elsewhere gets a
   // guess from its labels. A booking link the workspace has not set falls
   // back to typed text, so nothing is offered that cannot be sent.
-  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : BC_NONE;
+  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => ((k === "booking_link" && !data.bookingLink) || k.startsWith("visit_") ? "text" : k)) : BC_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
   // Each slot's words: a starter's own, else the labels the row carries.
@@ -365,7 +376,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
     const words = bcWhenWords(r.data);
-    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" ? "sending now, 25 at a time" : words}</> });
+    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</> });
   };
   const addStarters = async () => {
     if (!window.__templates || !window.__templates.addStarters || addingStarters) return;
@@ -382,9 +393,17 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     setArmId(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
   };
+  // One approve at a time: a second press while the first is out would be refused by the server, so the button says
+  // it is approving instead, and the guard holds before the button has drawn that.
+  const approvingRef = React.useRef(null);
+  const [approving, setApproving] = React.useState(null);
   const approve = async (row) => {
-    if (!window.__broadcasts || !canSend) return;
+    if (!window.__broadcasts || !canSend || approvingRef.current) return;
+    approvingRef.current = row.id;
+    setApproving(row.id);
     const r = await window.__broadcasts.approve(row.id);
+    approvingRef.current = null;
+    setApproving(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
   };
 
@@ -399,7 +418,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
 
       {/* A run the list does not hold -- older than its newest fifty -- opens here, first, where its link lands. */}
       {openId && !rows.some((r) => r.id === openId) && (
-        <section className="ct-section bc-run-solo" data-testid="bc-run-solo">
+        <section className="ct-section bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
           <BroadcastDetail id={openId} heldReasons={data.heldReasons} onClose={() => openRun(null)} solo />
         </section>
       )}
@@ -484,7 +503,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             {active
               ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
               : "Pick who this goes to"}
-            {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire · sent 25 at a time
+            {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire{data.chunk ? ` · sent ${data.chunk} at a time` : ""}
           </span>
         </div>
         {number && (
@@ -550,14 +569,14 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
       <section className="ct-section">
         <div className="ct-sec-head">
           <span className="ct-sec-title">Scheduled</span>
-          <span className="ct-sec-meta">{open.length} queued</span>
+          <span className="ct-sec-meta" data-testid="bc-open-meta">{bcOpenWords(open)}</span>
         </div>
         {open.length === 0 && (
           <EmptyState kind="line" title="Nothing queued." body="Pick a template above and choose a time, or send now." />
         )}
         {open.map((row) => (
           <React.Fragment key={row.id}>
-          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => openRun(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approve={approve} cancel={cancel} />
+          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => openRun(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approving={approving === row.id} approve={approve} cancel={cancel} />
           {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => openRun(null)} />}
           </React.Fragment>
         ))}
@@ -566,7 +585,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
       <section className="ct-section">
         <div className="ct-sec-head">
           <span className="ct-sec-title">History</span>
-          <span className="ct-sec-meta">{history.length} broadcasts</span>
+          <span className="ct-sec-meta" data-testid="bc-history-meta">{history.length} {history.length === 1 ? "broadcast" : "broadcasts"}{data.more ? " · older broadcasts aren't listed" : ""}</span>
         </div>
         <div className="bc-hist">
           <div className="bc-hist-row head">
@@ -579,7 +598,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
               onClick={() => openRun(openId === h.id ? null : h.id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRun(openId === h.id ? null : h.id); } }}>
               <span className="bc-hist-name">
-                {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}` : ""}</span>
+                {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}${h.failureLabel ? ` — ${h.failureLabel}` : ""}` : ""}</span>
               </span>
               <span className="bc-hist-seg">{h.audience.label}</span>
               <span className="num tabular">{h.counts.sent}{h.counts.skipped + h.counts.failed ? <span className="dim"> · {h.counts.skipped + h.counts.failed} held</span> : null}</span>

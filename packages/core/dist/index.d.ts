@@ -871,6 +871,7 @@ declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): 
 declare function templateValues(ports: TemplateValuesPorts, cmd: {
     templateId: string;
     params: unknown;
+    visits: boolean;
 }): Promise<{
     template: TemplateRow;
     specs: ParamSpec[];
