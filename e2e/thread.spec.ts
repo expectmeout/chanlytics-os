@@ -204,6 +204,34 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
     });
 
+    await test.step("the decision fits the screen: the banner's words keep their width and every control stays on the pane, at 1280, at 1024 and on a phone", async () => {
+      for (const size of [{ width: 1280, height: 800 }, { width: 1024, height: 768 }, { width: 375, height: 812 }]) {
+        await page.setViewportSize(size);
+        await freshLoad(page, `#/inbox/th-${id}`);
+        const pane = page.locator(".ix-thread-pane");
+        await expect(pane.locator(".ix-take")).toBeVisible();
+        // Measured, not asked: toBeVisible passes a box an overflow has cut to nothing.
+        const fit = await pane.evaluate((el) => {
+          const edge = el.getBoundingClientRect();
+          const words = el.querySelector(".ix-take-body")?.getBoundingClientRect();
+          const inside = [...el.querySelectorAll(".ix-take .btn, .ix-th-actions .btn")].every((b) => {
+            const r = b.getBoundingClientRect();
+            return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
+          });
+          const strip = el.querySelector(".ix-context-strip");
+          const name = el.querySelector(".ix-th-id")?.getBoundingClientRect();
+          return {
+            words: !!words && words.width >= Math.min(240, edge.width * 0.6),
+            inside,
+            strip: !strip || strip.scrollWidth <= strip.clientWidth + 1,
+            name: !!name && name.width >= Math.min(160, edge.width * 0.4),
+          };
+        });
+        expect(fit, `at ${size.width}x${size.height}`).toEqual({ words: true, inside: true, strip: true, name: true });
+      }
+      await page.setViewportSize({ width: 1280, height: 720 });
+    });
+
     await test.step("the escalation it opened is listed in Today's queue", async () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");

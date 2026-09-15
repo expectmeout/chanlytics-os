@@ -93,21 +93,19 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
                 ? <>{thread.summary}</>
                 : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
               {/* What they asked, beside the decision: their last message, or what the call left behind. */}
-              {thread.real && thread.ask && (
-                <div className="ix-take-ask" data-testid="ix-take-ask">
-                  <span className="ix-take-ask-label">{thread.ask.label}</span>
-                  <span className="ix-take-ask-text">{thread.ask.quoted ? `“${thread.ask.text}”` : thread.ask.text}</span>
-                </div>
+              {thread.real && thread.ask && <IxAsk ask={thread.ask} />}
+            </div>
+            {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
+            <div className="ix-take-actions">
+              <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
+                {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
+              </button>
+              {thread.real && thread.escalationId && (
+                <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve", "hand a conversation back")}>
+                  Nothing needed — hand it back to the receptionist
+                </button>
               )}
             </div>
-            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
-              {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
-            </button>
-            {thread.real && thread.escalationId && (
-              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve", "hand a conversation back")}>
-                Nothing needed — hand it back to the receptionist
-              </button>
-            )}
           </div>
         )}
         {/* A teammate has it. Nothing to take and nothing to hand back: pressing
@@ -133,12 +131,16 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
           </div>
         ) : null)}
         {thread.takenOver && (
-          <div className="ix-resolved">
+          <div className="ix-resolved ix-owned">
             <Icon name="users" size={13} />
-            {/* On a real thread the reason it was flagged is said here, once: "Where this stands" said it below (I1). */}
-            <span>{thread.real
-              ? <>You own this thread — the receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>
-              : "You own this thread — agents are standing down. Reply below in your own voice."}</span>
+            <div className="ix-take-body">
+              {/* On a real thread the reason it was flagged is said here, once: "Where this stands" said it below (I1). */}
+              <span>{thread.real
+                ? <>You own this thread — the receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>
+                : "You own this thread — agents are standing down. Reply below in your own voice."}</span>
+              {/* What they asked, where you answer it: it was only in the timeline (I3). */}
+              {thread.real && thread.ask ? <IxAsk ask={thread.ask} /> : null}
+            </div>
             <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)} {...window.gate("approve", "hand a conversation back")}>
               Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
             </button>
@@ -193,6 +195,14 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
     </div>
   );
 };
+
+// The customer's own words beside a decision about them: what they last wrote, or what the call left.
+const IxAsk = ({ ask }) => (
+  <div className="ix-take-ask" data-testid="ix-take-ask">
+    <span className="ix-take-ask-label">{ask.label}</span>
+    <span className="ix-take-ask-text">{ask.quoted ? `“${ask.text}”` : ask.text}</span>
+  </div>
+);
 
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
@@ -681,11 +691,13 @@ const SteerBox = ({ messageId }) => {
 const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOver = () => {} }) => (
   <div className={`ix-veto ${remaining == null ? "held" : paused ? "paused" : remaining <= 10 ? "urgent" : ""}`}>
     <span className="ix-veto-dot"></span>
-    <span className="ix-veto-msg" data-tip={thread.real ? "This draft sends itself at zero. Hold stops it, and so does starting to type a reply." : "This draft sends itself at zero — Edit, Hold, or typing a reply cancels it"}>
+    <span className="ix-veto-msg" role="timer" data-tip={thread.real ? "This draft sends itself at zero. Hold stops it, and so does starting to type a reply." : "This draft sends itself at zero — Edit, Hold, or typing a reply cancels it"}>
       {remaining != null
-        ? (paused ? <>Paused at <b>{remaining}s</b> — you're away</> : <><b>Auto-sends in {remaining}s</b></>)
+        ? (paused ? <>Paused at <b>{remaining}s</b> — you're away</> : thread.real && remaining === 0 ? <b>Sending now…</b> : <><b>Auto-sends in {remaining}s</b></>)
         : <>Held — manual send</>}
     </span>
+    {/* What a screen reader hears: the hold and the send, not a number every second (I3). */}
+    <span className="ix-veto-said" role="status">{remaining == null ? "Held — this draft will not send." : thread.real && remaining === 0 && !paused ? "Sending now." : ""}</span>
     {thread.veto.policyClass && <PolicyChip cls={thread.veto.policyClass} />}
     {thread.veto.why && (
       <span className="ix-veto-why" title={thread.veto.why.reason || ""}>

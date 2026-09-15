@@ -20,8 +20,24 @@ const IX_VIEW_FILTERS = {
 // (window.__cancelSend), once per draft. Every countdown stops at once; a
 // draft the server refused -- it may already have gone out -- is released and
 // named, never shown as held.
+// A draft's own record in the veto store: a hold belongs to the draft it held. Kept against the thread, the next
+// draft on that thread read "Held — manual send" while the server sent it (I3). A seeded draft keeps the thread's.
+const ixDraftKey = (t) => (t.real && t.veto && t.veto.messageId ? `draft:${t.veto.messageId}` : t.id);
+const ixHeld = (state, t) => !!(state[ixDraftKey(t)] || {}).held;
+
+// Past a real draft's deadline the only honest move is to go and look -- and to look again while the draft is still
+// there: the job fires on a ten-second tick, and one read at zero left "Auto-sends in 0s" until something else moved (I3).
+const IX_READ_AGAIN_MS = 5000;
+const IX_READ_AGAIN_TRIES = 6;
+const ixReadAgain = (st, nowMs) => {
+  if ((st.tries || 0) >= IX_READ_AGAIN_TRIES || (st.lastTry != null && nowMs - st.lastTry < IX_READ_AGAIN_MS)) return false;
+  st.tries = (st.tries || 0) + 1;
+  st.lastTry = nowMs;
+  return true;
+};
+
 const ixHoldAll = async (drafts, { state, cancelSend }) => {
-  for (const t of drafts) state[t.id] = { ...(state[t.id] || {}), held: true };
+  for (const t of drafts) state[ixDraftKey(t)] = { ...(state[ixDraftKey(t)] || {}), held: true };
   const real = drafts.filter((t) => t.real && t.veto && t.veto.messageId);
   const answers = await Promise.all(real.map((t) => (cancelSend
     ? cancelSend(t.veto.messageId)
@@ -30,7 +46,7 @@ const ixHoldAll = async (drafts, { state, cancelSend }) => {
   answers.forEach((r, i) => {
     if (r && r.ok) return;
     const t = real[i];
-    state[t.id] = { ...(state[t.id] || {}), held: false };
+    state[ixDraftKey(t)] = { ...(state[ixDraftKey(t)] || {}), held: false };
     refused.push({ id: t.id, who: t.who, message: (r && r.message) || null });
   });
   return { held: drafts.length - refused.length, refused };
@@ -78,7 +94,7 @@ const ixRefusedWords = (refused) => {
   return [...by].map(([message, whos]) => `${ixNames(whos)}: ${message}`).join(" ");
 };
 
-Object.assign(window, { ixHoldAll, ixRouteThread, ixRepaintNotice, ixRefusedWords });
+Object.assign(window, { ixHoldAll, ixHeld, ixReadAgain, ixRouteThread, ixRepaintNotice, ixRefusedWords });
 
 const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
@@ -331,7 +347,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
    */
   const realVetoAct = (t, act) => {
     if (!window.canDo("approve")) return;
-    const st = VW.state[t.id] || (VW.state[t.id] = {});
+    const heldKey = ixDraftKey(t);
+    const st = VW.state[heldKey] || (VW.state[heldKey] = {});
     if (act === "edit") {
       window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
       return;
@@ -357,8 +374,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     const t = threads.find((x) => x.id === id);
     if (t && t.real) {
       if (!t.veto) return null;
-      const st = VW.state[id];
-      if (st && st.held) return null;                    // withdrawn — no countdown
+      if (ixHeld(VW.state, t)) return null;              // withdrawn, by the draft's own record — no countdown
       return Math.max(0, Math.ceil((t.veto.endsAtMs - Date.now()) / 1000));
     }
     return window.VW_UTIL.remaining(id);
@@ -382,9 +398,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       // At zero the only honest move is to re-read what actually happened.
       if (t.real) {
         if (!t.veto || Date.now() < t.veto.endsAtMs) return;
-        const st = VW.state[t.id] || (VW.state[t.id] = {});
-        if (st.reconciled) return;
-        st.reconciled = true;
+        const readKey = ixDraftKey(t);
+        const st = VW.state[readKey] || (VW.state[readKey] = {});
+        if (st.held || !ixReadAgain(st, Date.now())) return;
         if (window.__refreshInbox) window.__refreshInbox();
         return;
       }
