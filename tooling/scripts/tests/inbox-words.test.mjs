@@ -33,25 +33,31 @@ const conv = (over = {}) => ({
 const asked = (over = {}) => ({ id: "e1", reason: "human_token", details: null, state: "open", created_at: ago(40), ...over });
 // Templates as GET templates returns them to the composer.
 const tpl = (name, over = {}) => ({ id: `t-${name}-${over.language ?? "en_US"}`, channel: "whatsapp", name, language: "en_US", body_preview: "Hi", variables: [{}, {}], category: "utility", meta_status: "approved", title: null, ...over });
-const booking = tpl("booking_link_v1");
-const offer = tpl("monthly_offer", { category: "marketing" });
-const note = tpl("quick_note", { variables: [{}] });
-const saveEs = tpl("save_our_number", { language: "es" });
+// The shapes the salon's rows have: a Meta template's labels, and the starters' "Value n" labels with their examples.
+const valued = (...examples) => examples.map((example, i) => ({ label: `Value ${i + 1}`, example, position: i + 1 }));
+const booking = tpl("booking_link_v1", { variables: [{ label: "Business name", example: "Melany's Beauty Salon", position: 1 }, { label: "Booking link", example: "booksy.com/melanys", position: 2 }] });
+const offer = tpl("monthly_offer", { category: "marketing", variables: valued("Dani", "Luna Studio", "20% off balayage for regulars, book by Friday.", "https://booksy.com/luna-studio") });
+const note = tpl("quick_note", { variables: valued("Dani", "Luna Studio", "we're open late on Thursdays this month.") });
+const saveEs = tpl("save_our_number", { language: "es", variables: [{ label: "Nombre", example: "Dani", position: 1 }, { label: "Nombre del negocio", example: "Luna Studio", position: 2 }, { label: "Enlace de reservas", example: "https://booksy.com/luna-studio", position: 3 }] });
+const welcome = tpl("welcome_new", { variables: valued("Dani", "Luna Studio", "https://booksy.com/luna-studio") });
 
 /* ------------------------------ the contracts ------------------------------ */
 
-test("the templates a person can be sent: two values the Inbox fills, a promotion only to someone who said yes to offers -- in the owner's words, with why the rest are not offered", () => {
+test("the templates a person can be sent: every slot a fact the Inbox has, a promotion only to someone who said yes to offers -- in the owner's words, with why the rest are not offered", () => {
   const { inboxTemplates, languageWords } = contracts;
   assert.deepEqual([languageWords("en_US"), languageWords("es"), languageWords("pt-BR")], ["English", "Spanish", "Portuguese"]);
   const no = inboxTemplates([booking, offer, note, saveEs], { who: "Rosa Díaz", offersOk: false });
   assert.deepEqual(no.sendable.map((s) => [s.template.name, s.title, s.label]), [["booking_link_v1", "Booking link", "Booking link · English"], ["save_our_number", "Save our number", "Save our number · Spanish"]]);
-  assert.equal(no.hidden, "Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs values the Inbox doesn't fill.");
-  const yes = inboxTemplates([booking, offer, note], { who: "Rosa Díaz", offersOk: true });
-  assert.deepEqual(yes.sendable.map((s) => s.title), ["Booking link", "This month's offer"], "a yes to offers lets a promotion through");
-  assert.equal(yes.hidden, "Not offered: 1 that needs values the Inbox doesn't fill.");
+  assert.equal(no.hidden, "Not offered: 2 that need words the Inbox doesn't ask for.", "an offer and a note have words to write; the Inbox asks for none");
+  const yes = inboxTemplates([booking, offer, note, welcome], { who: "Rosa Díaz", offersOk: true });
+  assert.deepEqual(yes.sendable.map((s) => s.title), ["Booking link", "Welcome"], "REGRESSION: a starter that opens with their first name was turned away for taking three values");
+  assert.equal(yes.hidden, "Not offered: 2 that need words the Inbox doesn't ask for.");
+  const promo = inboxTemplates([booking, tpl("welcome_new", { category: "marketing", variables: welcome.variables })], { who: "Rosa Díaz", offersOk: false });
+  assert.equal(promo.hidden, "Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers).", "a promotion still waits for a yes to offers");
   assert.equal(inboxTemplates([booking], { who: "Rosa Díaz", offersOk: false }).hidden, null, "nothing held back, nothing said");
-  assert.deepEqual(inboxTemplates([tpl("x", { category: null })], { who: "Rosa Díaz", offersOk: false }).sendable, [], "a template with no category is a promotion, as the route judges it");
-  assert.equal(inboxTemplates([tpl("given", { title: "Spring hello" })], { who: "Rosa Díaz", offersOk: false }).sendable[0].title, "Spring hello", "the title the workspace gave it first");
+  assert.deepEqual(inboxTemplates([tpl("x", { category: null, variables: booking.variables })], { who: "Rosa Díaz", offersOk: false }).sendable, [], "a template with no category is a promotion, as the route judges it");
+  assert.equal(inboxTemplates([tpl("given", { title: "Spring hello", variables: booking.variables })], { who: "Rosa Díaz", offersOk: false }).sendable[0].title, "Spring hello", "the title the workspace gave it first");
+  assert.equal(inboxTemplates([tpl("unsynced", { variables: null })], { who: "Rosa Díaz", offersOk: false }).sendable.length, 1, "a template whose slots were never recorded keeps the two the Inbox always sent");
 });
 
 test("the thread knows what the composer needs: whether they said yes to offers, and their number as people read it", async () => {
@@ -156,7 +162,7 @@ test("the template send offers what can go to this person, by title and language
   let tree = composerOf(closed);
   assert.equal(find(tree, (n) => n.type === "select"), undefined, "one template this person can be sent: no picker");
   assert.ok(buttonsOf(tree).includes("Send “Booking link”"), "REGRESSION: 'Send booking link', whichever template was picked");
-  assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs values the Inbox doesn't fill.", "REGRESSION: all seven were offered, and most would be refused");
+  assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "Not offered: 2 that need words the Inbox doesn't ask for.", "REGRESSION: all seven were offered, and most would be refused");
 
   globalThis.window.__TEMPLATES = [booking, saveEs];
   tree = composerOf(closed);
@@ -164,9 +170,9 @@ test("the template send offers what can go to this person, by title and language
   assert.deepEqual(findAll(pick, (n) => n.type === "option").map(textOf), ["Booking link · English", "Save our number · Spanish"], "REGRESSION: booking_link_v1 · en_US");
   assert.ok(buttonsOf(tree).includes("Send template"));
 
-  globalThis.window.__TEMPLATES = [offer, note];
+  globalThis.window.__TEMPLATES = [tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note];
   tree = composerOf(closed);
-  assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "None of your approved templates can go to Rosa Díaz. Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs values the Inbox doesn't fill.");
+  assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "None of your approved templates can go to Rosa Díaz. Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs words the Inbox doesn't ask for.");
   assert.ok(!buttonsOf(tree).some((b) => b.startsWith("Send")), "REGRESSION: a button whose only outcome was a refusal");
 
   globalThis.window.__TEMPLATES = [];

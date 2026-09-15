@@ -5557,8 +5557,7 @@ function inboxTemplates(templates, to) {
   let promotions = 0;
   let unfillable = 0;
   for (const t of templates) {
-    const slots = Array.isArray(t.variables) ? t.variables.length : null;
-    if (slots !== null && slots !== 2) {
+    if (slotToWrite(t)) {
       unfillable += 1;
       continue;
     }
@@ -5571,7 +5570,7 @@ function inboxTemplates(templates, to) {
   }
   const held = [
     promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
-    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} values the Inbox doesn't fill` : ""
+    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
   ].filter(Boolean);
   return { sendable, hidden: held.length ? `Not offered: ${held.join(" and ")}.` : null };
 }
@@ -5622,6 +5621,14 @@ function slotLabels(t) {
     const n = typeof v?.position === "number" ? v.position : i + 1;
     return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
   });
+}
+function inboxSlots(t) {
+  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
+}
+function slotToWrite(t) {
+  const at2 = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
+  if (at2 < 0) return null;
+  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 
 // src/broadcasts.ts
@@ -9375,6 +9382,7 @@ export {
   hoursLines2 as hoursLines,
   hoursRuns,
   identityWords,
+  inboxSlots,
   inboxTemplates,
   indexFeed,
   industryOf,
@@ -9543,6 +9551,7 @@ export {
   shouldLandOnSetup,
   signupPosture,
   slotLabels,
+  slotToWrite,
   slugTemplateName,
   smsConsentSentence,
   smsStateRow,

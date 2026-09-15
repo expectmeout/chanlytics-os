@@ -1865,6 +1865,9 @@ function starterForTrigger(trigger) {
   if (!trigger) return null;
   return STARTER_TEMPLATES.find((s) => s.trigger === trigger) ?? null;
 }
+function starterText(s, language) {
+  return s.texts[language] ?? s.texts.en_US;
+}
 var TEMPLATE_TITLE_MAX = 60;
 function templateTitle(name, title) {
   const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
@@ -1873,6 +1876,47 @@ function templateTitle(name, title) {
   if (s) return s.title;
   const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
+}
+function guessSlotKind(label, example) {
+  const l = String(label ?? "").toLowerCase();
+  const e = String(example ?? "").toLowerCase();
+  if (/link|url|book/.test(l) || /^https?:\/\//.test(e) || /booksy|calendly|square|fresha|\.com\//.test(e)) return "booking_link";
+  if (/business|salon|company|shop|studio|clinic|brand|negocio/.test(l)) return "business_name";
+  if (/first name|^name$|nombre|customer|client/.test(l)) return "first_name";
+  return "text";
+}
+function defaultSlotKinds(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const kinds = starterText(s, "en_US").slots.map((x) => x.kind);
+    return vars.length === kinds.length || vars.length === 0 ? kinds : vars.map((_, i) => kinds[i] ?? "text");
+  }
+  return vars.map((v) => guessSlotKind(typeof v?.label === "string" ? v.label : null, typeof v?.example === "string" ? v.example : null));
+}
+function defaultParamSpecs(t) {
+  return defaultSlotKinds(t).map((k) => k === "text" ? { kind: "text", value: "" } : { kind: k });
+}
+function slotLabels(t) {
+  const vars = Array.isArray(t.variables) ? t.variables : [];
+  const s = starterByName(t.name);
+  if (s) {
+    const labels = starterText(s, t.language ?? "en_US").slots.map((x) => x.label);
+    if (vars.length === 0 || vars.length === labels.length) return labels;
+  }
+  return vars.map((v, i) => {
+    const label = typeof v?.label === "string" ? v.label.trim() : "";
+    const n = typeof v?.position === "number" ? v.position : i + 1;
+    return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
+  });
+}
+function inboxSlots(t) {
+  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
+}
+function slotToWrite(t) {
+  const at2 = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
+  if (at2 < 0) return null;
+  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 var BROADCAST_CHUNK = 25;
 var BROADCAST_GAP_MS = 300;
@@ -3286,13 +3330,17 @@ async function replyToConversation(ports, cmd) {
     if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
       throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
     }
-    const expected = Array.isArray(tpl.variables) ? tpl.variables.length : null;
-    if (expected !== null && expected !== 2) {
-      throw new AppError("validation", `This template takes ${expected} value${expected === 1 ? "" : "s"}; the Inbox fills two, the business name and the booking link. Pick a template with those two slots.`);
+    const toWrite = slotToWrite(tpl);
+    if (toWrite) {
+      throw new AppError("validation", `This template needs words for \u201C${toWrite}\u201D, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`);
     }
     const facts = await ports.templateFacts(conv.tenant_id);
     if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Business first.");
-    const params = [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")];
+    const params = resolveParams(inboxSlots(tpl), {
+      firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+      businessName: facts.business_name,
+      bookingLink: facts.booking_link.replace(/^https?:[/][/]/, "")
+    });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
     messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;
