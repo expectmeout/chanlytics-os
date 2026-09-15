@@ -204,8 +204,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
     });
 
-    await test.step("the decision fits the screen: the banner's words keep their width and every control stays on the pane, at 1280, at 1024 and on a phone", async () => {
-      for (const size of [{ width: 1280, height: 800 }, { width: 1024, height: 768 }, { width: 375, height: 812 }]) {
+    await test.step("the decision fits the screen: the banner's words keep their width, every control stays on the pane, and the Inbox ends where the screen does, at 1280, on a short window, at 1024 and on a phone", async () => {
+      for (const size of [{ width: 1280, height: 800 }, { width: 1280, height: 480 }, { width: 1024, height: 768 }, { width: 375, height: 812 }]) {
         await page.setViewportSize(size);
         await freshLoad(page, `#/inbox/th-${id}`);
         const pane = page.locator(".ix-thread-pane");
@@ -220,14 +220,18 @@ test.describe("The thread, in the nightly's own workspace", () => {
           });
           const strip = el.querySelector(".ix-context-strip");
           const name = el.querySelector(".ix-th-id")?.getBoundingClientRect();
+          // The list and the thread end at the screen's edge and scroll inside it. The grid had columns and no row,
+          // so its one row grew to the taller of the two: the list never scrolled and Send sat below the fold.
+          const list = document.querySelector(".ix-list")?.getBoundingClientRect();
           return {
             words: !!words && words.width >= Math.min(240, edge.width * 0.6),
             inside,
             strip: !strip || strip.scrollWidth <= strip.clientWidth + 1,
             name: !!name && name.width >= Math.min(160, edge.width * 0.4),
+            height: edge.bottom <= window.innerHeight + 1 && (!list || list.bottom <= window.innerHeight + 1),
           };
         });
-        expect(fit, `at ${size.width}x${size.height}`).toEqual({ words: true, inside: true, strip: true, name: true });
+        expect(fit, `at ${size.width}x${size.height}`).toEqual({ words: true, inside: true, strip: true, name: true, height: true });
       }
       await page.setViewportSize({ width: 1280, height: 720 });
     });
