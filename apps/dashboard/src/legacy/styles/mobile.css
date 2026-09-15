@@ -444,6 +444,16 @@
   .inbox .ix-th-actions { grid-column: auto; flex-wrap: nowrap; justify-content: flex-end; }
   .inbox .ix-th-actions > .btn:not(.btn-icon), .inbox .ix-th-actions > a.btn { display: none; }
   .inbox .ix-context-strip { display: none; }
+  /* The list on a phone shows the threads first too (I6). The buckets sit in one row of three, where a grid of two
+     stacked them in two rows; the search is one input tall; the head is one line, where the coarse-pointer floor
+     made its checkbox 44px tall. Together they took 251px above the first thread. Each tap target keeps its 44px. */
+  .inbox .ix-buckets { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 6px 8px; }
+  .inbox .ix-bucket { justify-content: center; gap: 6px; padding: 0 6px; }
+  .inbox .ix-search-row { padding: 6px 12px; }
+  .inbox .ix-search-wrap { padding: 0 8px; }
+  .inbox .ix-list-head { min-height: 0; padding: 0 12px; }
+  .inbox .ix-checkall { min-height: 40px; }
+  html.legacy-on .inbox .ix-checkall input { min-height: 0; }
 }
 
 /* The drawer is never a rail: on a phone the sidebar shows everything. */
