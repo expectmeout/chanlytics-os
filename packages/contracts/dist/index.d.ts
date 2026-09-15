@@ -703,6 +703,16 @@ interface InboxThreadVM {
     /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
     archived: boolean;
     /**
+     * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
+     * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
+     * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
+     */
+    lastWord: {
+        text: string;
+        tone: "ok" | "plain" | "warn" | "danger";
+        short: string | null;
+    } | null;
+    /**
      * This thread is waiting on a human, and no human has it yet.
      *
      * THE definition of "needs you", emitted once. It was previously re-derived
@@ -798,6 +808,10 @@ interface InboxThreadVM {
             name: string;
         };
         status?: string;
+        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
+        statusLabel?: string;
+        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
+        reachedCustomer?: boolean;
         messageId?: string;
         /** Written but NOT sent — sitting out its veto window. */
         pending?: true;
@@ -825,6 +839,7 @@ declare function threadStanding(dto: ConversationDto, escalation: EscalationDto 
     state: InboxThreadVM["state"];
     takenOver: boolean;
     needsYou: boolean;
+    claimedByOther: boolean;
 };
 declare function toInboxThreadVM(dto: ConversationDto, escalation: EscalationDto | null, 
 /** The workspace's zone: every time in the thread is said by its clock. */

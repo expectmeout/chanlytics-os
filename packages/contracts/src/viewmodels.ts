@@ -389,6 +389,12 @@ export interface InboxThreadVM {
   /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
   archived: boolean;
   /**
+   * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
+   * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
+   * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
+   */
+  lastWord: { text: string; tone: "ok" | "plain" | "warn" | "danger"; short: string | null } | null;
+  /**
    * This thread is waiting on a human, and no human has it yet.
    *
    * THE definition of "needs you", emitted once. It was previously re-derived
@@ -465,6 +471,10 @@ export interface InboxThreadVM {
         /** Sent by a broadcast, not typed: the name the owner gave it. */
         via?: { kind: "broadcast" | "playbook"; name: string };
         status?: string;
+        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
+        statusLabel?: string;
+        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
+        reachedCustomer?: boolean;
         messageId?: string;
         /** Written but NOT sent — sitting out its veto window. */
         pending?: true;
@@ -490,7 +500,7 @@ export function threadStanding(
   dto: ConversationDto,
   escalation: EscalationDto | null,
   now = new Date(),
-): { state: InboxThreadVM["state"]; takenOver: boolean; needsYou: boolean } {
+): { state: InboxThreadVM["state"]; takenOver: boolean; needsYou: boolean; claimedByOther: boolean } {
   // One rule for the Inbox, People and Today (standing.ts). Snoozed wins over
   // escalated, and that ordering is the whole point.
   //
@@ -509,7 +519,7 @@ export function threadStanding(
     open_escalation: !!escalation,
   }, now.getTime());
   const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
-  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you" };
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
 
 export function toInboxThreadVM(
@@ -524,7 +534,7 @@ export function toInboxThreadVM(
   const needsHuman = dto.state === "needs_human" || paused;
   // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
   // then shows the owned-thread strip + hand-back instead of the take banner.
-  const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   // The LAST held draft, not the first: if two ever coexist the newer one is
   // what the customer would receive, so it is the one to offer controls for.
   // Cancelling withdraws every queued AI row on the thread anyway.
@@ -535,7 +545,6 @@ export function toInboxThreadVM(
   const heldDraft = draftMsg
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
     : null;
-  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
@@ -588,6 +597,8 @@ export function toInboxThreadVM(
             // the Conversations pane cannot describe the same message
             // differently — which is exactly what they were doing.
             ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
+            // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
+            reachedCustomer: reachedCustomer(m.status),
           }
         : {}),
       // A held draft is not a sent message and must not read as one.
@@ -601,7 +612,7 @@ export function toInboxThreadVM(
       type: "event" as const,
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${escalation.details.slice(0, 120)}”` : ""}`,
+      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
@@ -623,6 +634,9 @@ export function toInboxThreadVM(
         ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" }
         : null;
 
+  // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
+  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -641,6 +655,7 @@ export function toInboxThreadVM(
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
     archived: dto.state === "archived",
+    lastWord,
     heldDraft,
     ...(heldDraft
       ? {
@@ -681,7 +696,9 @@ export function toInboxThreadVM(
       ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
       : takenOver
         ? "You're answering this one. The receptionist stays quiet until you hand it back."
-        : "The receptionist answered this on its own. Nothing is owed.",
+        : lastWord
+          ? lastWord.text
+          : "The receptionist answered this on its own. Nothing is owed.",
     contextStrip: [
       ...(reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : []),
       { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
@@ -739,6 +756,50 @@ function lastWordLine(needsHuman: boolean, last: MessageDto | undefined, author:
   if (author.kind === "receptionist") return "Answered by the receptionist";
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
+}
+
+/**
+ * A quiet thread's one line in the Inbox: who had the last word, in Conversations' words (lastWordLine), and
+ * whether a later message of ours didn't send. Every quiet thread read "Answered by the receptionist — no one
+ * asked for you": over a customer who wrote last, and over a reply that never left (I1). A reply someone
+ * canceled is not a failure: the customer is simply waiting.
+ */
+function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]> {
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  // Back from the newest: our words that never left, down to the last thing that happened between them.
+  let at = chat.length - 1;
+  let failed: MessageDto | null = null;
+  for (; at >= 0; at--) {
+    const m = chat[at];
+    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
+    if (!failed && m.status === "failed") failed = m;
+  }
+  const last = at >= 0 ? chat[at] : null;
+  const failedBy = failed ? (messageAuthor(failed)?.words ?? "us") : null;
+  if (!last) {
+    if (failedBy) return { text: `Nothing has reached them — the message from ${failedBy} didn't send.`, tone: "danger", short: "Didn't send" };
+    return dto.messages.some((m) => m.type === "call_summary")
+      ? { text: "The phone receptionist handled their call — no one asked for you.", tone: "ok", short: null }
+      : { text: "No messages yet.", tone: "plain", short: null };
+  }
+  if (last.direction === "inbound") {
+    return failedBy
+      ? { text: `They wrote last, and the reply from ${failedBy} didn't send — as far as they know, nobody answered.`, tone: "danger", short: "Didn't send" }
+      : { text: "They wrote last — no reply yet.", tone: "plain", short: null };
+  }
+  const said = lastWordLine(false, last, messageAuthor(last));
+  return failedBy
+    ? { text: `${said} — the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" }
+    : { text: `${said} — no one asked for you.`, tone: "ok", short: null };
+}
+
+/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
+function clipAtWord(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}…`;
 }
 
 export function toConversationVM(dto: ConversationDto, tz: string, now = new Date()): ConversationVM {

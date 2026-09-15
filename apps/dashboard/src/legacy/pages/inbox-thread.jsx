@@ -124,16 +124,21 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
             <Icon name="check" size={13} />
             <span>Archived — their request is closed. If they write again, it comes back.</span>
           </div>
-        ) : (
-          <div className="ix-resolved">
-            <Icon name="check" size={13} />
-            <span>Answered by the receptionist — no one asked for you.</span>
+        ) : thread.lastWord ? (
+          // Who had the last word, and whether a reply didn't send (the view model's lastWord). Every quiet thread
+          // read "Answered by the receptionist — no one asked for you", over a reply that never left (I1).
+          <div className={`ix-resolved${thread.lastWord.tone === "ok" ? "" : ` ${thread.lastWord.tone}`}`} data-testid="ix-last-word">
+            <Icon name={thread.lastWord.tone === "ok" ? "check" : thread.lastWord.tone === "plain" ? "chat" : "flag"} size={13} />
+            <span>{thread.lastWord.text}</span>
           </div>
-        ))}
+        ) : null)}
         {thread.takenOver && (
           <div className="ix-resolved">
             <Icon name="users" size={13} />
-            <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
+            {/* On a real thread the reason it was flagged is said here, once: "Where this stands" said it below (I1). */}
+            <span>{thread.real
+              ? <>You own this thread — the receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>
+              : "You own this thread — agents are standing down. Reply below in your own voice."}</span>
             <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)} {...window.gate("approve", "hand a conversation back")}>
               Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
             </button>
@@ -301,7 +306,8 @@ const ContextStrip = ({ thread }) => {
 
 // =============== NARRATIVE SUMMARY ===============
 const NarrativeSummary = ({ thread }) => {
-  if (!thread.summary) return null;
+  // A real thread's banner says its one sentence; this said it again below it (I1). The mockup keeps its story.
+  if (!thread.summary || thread.real) return null;
   return (
     <div className="ix-summary">
       <span className="ix-summary-eyebrow">{thread.real ? "Where this stands" : "The story so far"}</span>
@@ -545,12 +551,16 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
   // ordinary agent bubble it reads as already-sent, and an operator would
   // either ignore it or apologise for something that never went out.
   const held = !!entry.pending;
+  // As Conversations draws them: a call note is a note, not words the receptionist sent, and words that never
+  // left are dashed. The receptionist's failed reply was drawn as a sent bubble (I1).
+  const note = !!thread.real && entry.channel === "phone";
+  const undelivered = !isClient && !held && entry.reachedCustomer === false;
   return (
-    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}`}>
+    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}${note ? " note" : ""}${undelivered ? " undelivered" : ""}`}>
       <div className="tl-msg-bubble">
         <div className="tl-msg-meta">
           <Icon name={channelIcon(entry.channel)} size={10} />
-          <span>{channelLabels[entry.channel]}</span>
+          <span>{note ? "Phone · call note" : channelLabels[entry.channel]}</span>
           <span className="tl-msg-time tabular">{entry.at}</span>
         </div>
         <div className="tl-msg-body">{entry.body}</div>
@@ -581,6 +591,8 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
                     · {entry.why.summary}
                   </span>
                 )}
+                {/* What became of it, as the team's bubbles say: "Didn't send", "Canceled before sending", "Read". */}
+                {!held && entry.statusLabel ? <span> · {entry.statusLabel}</span> : null}
                 {held && <span className="tl-held-tag">Not sent yet</span>}
               </>
             )}
