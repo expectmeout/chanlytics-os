@@ -27,7 +27,7 @@ test.describe("Settings → Notifications on a real workspace", () => {
     for (const s of INVENTED) expect(text, `a toggle nothing reads: "${s}"`).not.toContain(s);
     await expect(page.getByText("A customer needs a person")).toBeVisible();
     await expect(page.getByText("After every phone call")).toBeVisible();
-    await expect(page.getByText("SMS and push notifications are not built")).toBeVisible();
+    await expect(page.getByText("switch alerts on from the bell")).toBeVisible();
   });
 
   test("adding an address saves the whole config with its version, scoped to the workspace — intercepted", async ({ page }) => {
