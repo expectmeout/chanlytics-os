@@ -3241,7 +3241,7 @@ async function replyToConversation(ports, cmd) {
       throw new AppError("validation", `This template takes ${expected} value${expected === 1 ? "" : "s"}; the Inbox fills two, the business name and the booking link. Pick a template with those two slots.`);
     }
     const facts = await ports.templateFacts(conv.tenant_id);
-    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Workspace first.");
+    if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings \u203A Business first.");
     const params = [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")];
     templateName = tpl.name;
     templateVars = { language: tpl.language, params };
@@ -3622,7 +3622,7 @@ async function templateValues(ports, cmd) {
     }
   }
   if (specs.some((s) => s.kind === "booking_link") && !await ports.bookingLink()) {
-    throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings \u203A Workspace first.", 409);
+    throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings \u203A Business first.", 409);
   }
   return { template: tpl, specs };
 }

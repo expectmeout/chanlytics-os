@@ -2622,12 +2622,38 @@ function readAgoLabel(iso, now) {
   if (!iso) return null;
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
 }
-function rulesLine(rules) {
+function ruleParts(rules) {
   const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
   const parts2 = [`at least ${r.lead_hours}h ahead`];
   if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
   parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
-  return `Offers times ${parts2.join(" \xB7 ")}`;
+  return parts2;
+}
+function rulesLine(rules) {
+  return `Offers times ${ruleParts(rules).join(" \xB7 ")}`;
+}
+function feedNotes(feed) {
+  if (feed.state !== "ok") return [];
+  const notes = [];
+  const repeats = feed.skipped_recurring || 0;
+  if (repeats > 0) {
+    const one = repeats === 1;
+    notes.push({
+      id: "repeats",
+      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`
+    });
+  }
+  const undrawn = feed.dropped || 0;
+  if (undrawn > 0) {
+    const one = undrawn === 1;
+    notes.push({
+      id: "undrawn",
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`
+    });
+  }
+  return notes;
 }
 function hoursLines2(hours) {
   if (!hours) return [];
@@ -2822,9 +2848,10 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale },
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
+    ruleParts: ruleParts(dto.rules),
     hoursLines: hoursLines2(dto.hours),
     closuresAhead,
     services,
@@ -3186,7 +3213,7 @@ function bookedAfterAsk(visits, askedMs) {
   return !!visits.last && visits.last.start >= askedMs - 864e5;
 }
 function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none") return { present: false, headline: "\u2014", sub: "Connect your calendar under Settings \u203A Workspace to see who booked.", pct: null, asked: 0, booked: 0 };
+  if (!dto || dto.calendar === "none") return { present: false, headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", pct: null, asked: 0, booked: 0 };
   if (dto.calendar === "unavailable") return { present: false, headline: "\u2014", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
   if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
@@ -7219,7 +7246,7 @@ var SIGNUP_WORDS = {
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",
   newHere: "New to Chanlytics?",
-  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Workspace.`,
+  clock: (tz) => `Your clock: ${tz}, read from this device. Change it later in Settings \u203A Business.`,
   /* ------------------------------------------------------------ google
    * The provider's own words for its button, and ours for what follows it. */
   google: "Continue with Google",
@@ -8974,6 +9001,7 @@ export {
   factConflicts,
   fastPath,
   feedBodyProblem,
+  feedNotes,
   feedProblemWords,
   feedSourceLabel,
   feedUrlOk,
@@ -9141,6 +9169,7 @@ export {
   reviewSnippet,
   reviewsWords,
   roleGate,
+  ruleParts,
   rulesLine,
   runDueNow,
   safeNavigate,

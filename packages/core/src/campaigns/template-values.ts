@@ -34,7 +34,7 @@ export async function templateValues(ports: TemplateValuesPorts, cmd: { template
     }
   }
   if (specs.some((s) => s.kind === "booking_link") && !(await ports.bookingLink())) {
-    throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings › Workspace first.", 409);
+    throw new AppError("conflict", "This message takes the booking link, and none is on file. Add it in Settings › Business first.", 409);
   }
   return { template: tpl, specs };
 }

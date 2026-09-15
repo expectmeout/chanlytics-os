@@ -165,13 +165,50 @@ export function readAgoLabel(iso: string | null, now: Date): string | null {
   return agoWords(Date.parse(iso), now.getTime(), { dateAfterMs: Number.POSITIVE_INFINITY });
 }
 
-/** "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots". */
-export function rulesLine(rules: BookingRulesLike | null | undefined): string {
+/** The booking rules as separate phrases, so a narrow screen wraps between rules and never inside one: "at least 2h ahead", "15 min between appointments", "up to 14 days out", "30-min slots". */
+export function ruleParts(rules: BookingRulesLike | null | undefined): string[] {
   const r = { ...BOOKING_DEFAULTS, ...(rules ?? {}) };
   const parts = [`at least ${r.lead_hours}h ahead`];
   if (r.buffer_min > 0) parts.push(`${r.buffer_min} min between appointments`);
   parts.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
-  return `Offers times ${parts.join(" · ")}`;
+  return parts;
+}
+
+/** "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots". */
+export function rulesLine(rules: BookingRulesLike | null | undefined): string {
+  return `Offers times ${ruleParts(rules).join(" · ")}`;
+}
+
+/**
+ * What a read left out, in words the owner can act on. The feed line said
+ * "2 repeating rules read once" and "3 more not shown" and never what either
+ * meant: a repeat whose pattern parseIcs cannot follow keeps only its first
+ * date, so a later one could be offered to a caller; and a day holding more
+ * events than the board draws still has every one of them taken, because the
+ * windows are worked out from all of them.
+ */
+export function feedNotes(feed: Pick<CalendarFeedDto, "state" | "skipped_recurring" | "dropped">): CalendarFeedNoteVM[] {
+  if (feed.state !== "ok") return [];
+  const notes: CalendarFeedNoteVM[] = [];
+  const repeats = feed.skipped_recurring || 0;
+  if (repeats > 0) {
+    const one = repeats === 1;
+    notes.push({
+      id: "repeats",
+      title: `${repeats} repeating event${one ? " counts" : "s count"} only once.`,
+      body: `${one ? "It repeats" : "They repeat"} in a pattern the receptionist can't follow, like the second Tuesday of each month, so only the first date is treated as taken, and a caller could be offered a time on a later one. Repeating daily, weekly on set days, or monthly on one date fixes it.`,
+    });
+  }
+  const undrawn = feed.dropped || 0;
+  if (undrawn > 0) {
+    const one = undrawn === 1;
+    notes.push({
+      id: "undrawn",
+      title: `${undrawn} more event${one ? " isn't" : "s aren't"} drawn.`,
+      body: `${one ? "It falls" : "They fall"} on a day holding more events than the board draws; the receptionist still treats ${one ? "its time" : "their times"} as taken.`,
+    });
+  }
+  return notes;
 }
 
 /** "Mon–Fri 10:00–19:00", "Sat 10:00–16:00", "Sun closed" — one line per run of days with the same hours. */
@@ -252,6 +289,14 @@ export interface CalendarClosureVM {
   note: string | null;
 }
 
+/** Something a read of the calendar left out, said so the owner can act on it. */
+export interface CalendarFeedNoteVM {
+  id: "repeats" | "undrawn";
+  /** "2 repeating events count only once." */
+  title: string;
+  body: string;
+}
+
 export interface CalendarVM {
   timezone: string;
   from: string;
@@ -266,9 +311,19 @@ export interface CalendarVM {
   today: string;
   /** Where the now line sits, hours from midnight, when today is in the span. */
   now: number | null;
-  feed: { present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string; problem: string | null; stale: boolean };
+  feed: {
+    present: boolean; state: "ok" | "unavailable" | "none"; line: string; events: number; source: string; problem: string | null; stale: boolean;
+    /** Repeating events whose pattern the receptionist cannot follow: only their first date is taken. */
+    skippedRecurring: number;
+    /** Events past what a crowded day draws; their times are still taken. */
+    dropped: number;
+    /** Those two explained, when a read that landed left anything out. */
+    notes: CalendarFeedNoteVM[];
+  };
   stats: { events: number; windows: number; next: string };
   rules: string;
+  /** The same rules as separate phrases. */
+  ruleParts: string[];
   hoursLines: string[];
   closuresAhead: CalendarClosureVM[];
   services: CalendarServiceVM[];
@@ -478,9 +533,10 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale },
+    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
     rules: rulesLine(dto.rules),
+    ruleParts: ruleParts(dto.rules),
     hoursLines: hoursLines(dto.hours),
     closuresAhead,
     services,
