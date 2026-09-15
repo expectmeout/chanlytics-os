@@ -97,7 +97,7 @@ export default function PrivacyPage() {
       <h2>Changes</h2>
       <p>When this policy changes, the date above changes with it and workspace owners are told in the product.</p>
 
-      <p className="legal-foot">Chanlytics OS · <a href="/data-deletion">Deleting your data</a> · <a href="/terms">Terms of service</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
+      <p className="legal-foot">Chanlytics OS · <a href="/data-deletion">Deleting your data</a> · <a href="/terms">Terms of service</a> · <a href="/login">Sign in</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
     </main>
   );
 }

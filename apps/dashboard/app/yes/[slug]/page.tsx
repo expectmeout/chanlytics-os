@@ -25,7 +25,15 @@ import { consentPageFor } from "@/server/consent-page";
  * the page. Not indexed — it is for the people given the link, not for a
  * search result competing with the business's own site.
  */
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+// Named for the business the customer is agreeing to hear from, in the page's own heading (the wiring audit's N14: the
+// tab said "Chanlytics OS"). Read by slug like the page, as /b/<slug> reads its own, and still not indexed.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  const found = await consentPageFor(slug);
+  return found
+    ? { title: consentPageVM(found).title, robots: { index: false, follow: false } }
+    : { robots: { index: false, follow: false } };
+}
 export const dynamic = "force-dynamic";
 
 export default async function ConsentPage({ params }: { params: Promise<{ slug: string }> }) {

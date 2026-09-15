@@ -69,7 +69,7 @@ export default function TermsPage() {
       <h2>Contact</h2>
       <p>Questions about these terms go to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>.</p>
 
-      <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
+      <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="/login">Sign in</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
     </main>
   );
 }

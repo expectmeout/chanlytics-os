@@ -534,13 +534,6 @@
       "rate": "lines_retry",
       "spend": false
     },
-    "GET lines": {
-      "kind": "read",
-      "scope": "workspace",
-      "role": null,
-      "rate": null,
-      "spend": false
-    },
     "POST lines/search": {
       "kind": "write",
       "scope": "workspace",

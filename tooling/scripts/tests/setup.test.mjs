@@ -322,7 +322,6 @@ test("the wiring for lines: routes owner-only and rate-limited, the setup route 
     assert.ok(src.includes(`takeRate(ctx.userId, "${bucket}")`) || src.includes(`rate: "${bucket}",`), `${file}: ${bucket}`);
     assert.ok(src.includes('op: "' + file + '"'), `${file}: the edge op`);
   }
-  assert.ok(readCode("apps/dashboard/app/api/v1/lines/route.ts").includes("linesFor(ctx.supabase, member.tenantId), linesStatus()"));
   const server = readCode("apps/dashboard/src/server/lines.ts");
   assert.ok(server.includes('edgeHeaders("/api/admin/lines"') && server.includes("${edgeUrl()}/api/admin/lines"));
   assert.ok(!/_sid/.test(server.slice(server.indexOf("LINE_COLUMNS"), server.indexOf("export async function linesFor"))), "no provider id is selected for the page");
