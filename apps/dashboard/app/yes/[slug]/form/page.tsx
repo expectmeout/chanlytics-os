@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { headers } from "next/headers";
 import { notFound } from "next/navigation";
-import { consentFormVM } from "@chanlytics/contracts";
+import { consentFormMetadata, consentFormVM } from "@chanlytics/contracts";
 import { consentPageFor } from "@/server/consent-page";
 import { printableOrigin } from "@/server/origin";
 
@@ -24,14 +24,11 @@ import { printableOrigin } from "@/server/origin";
  * into a box on a web page is not proof that its owner agreed, and a signature
  * on paper in front of the business is the paper version of their own message.
  */
-// Named as the sheet it is, for the business it asks for (the wiring audit's N14: the tab said "Chanlytics OS"). Read
-// by slug like the page, and still not indexed.
+// Named as the sheet it is, for the business it asks for, or Not found (the wiring audit's N14 and N21). Never indexed;
+// the rule is contracts'.
 export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
   const { slug } = await params;
-  const found = await consentPageFor(slug);
-  return found
-    ? { title: `Sign-up form: ${consentFormVM(found).title}`, robots: { index: false, follow: false } }
-    : { robots: { index: false, follow: false } };
+  return consentFormMetadata(await consentPageFor(slug));
 }
 export const dynamic = "force-dynamic";
 

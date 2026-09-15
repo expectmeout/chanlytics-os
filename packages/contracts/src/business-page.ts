@@ -27,6 +27,7 @@
  * fixtures.
  */
 import { formatPhoneDisplay } from "./phone";
+import { notFoundPageMetadata, type PublicPageMetadata } from "./chrome";
 
 /**
  * The clauses every carrier review looks for, word for word.
@@ -207,6 +208,24 @@ export function textingTermsVM(f: BusinessPageFacts): TextingTermsVM {
     privacyUrl: f.privacyUrl,
     empty,
   };
+}
+
+/**
+ * What `/b/<slug>`'s tab and search listing say, by the rule the page renders by: Not found, and unindexed, when there
+ * is no record or it does not name a legal business with an address. An unknown slug left the tab on the app's own
+ * title, and an unfinished record named Not found for the business and marked it indexable (the wiring audit's N21).
+ */
+export function businessPageMetadata(f: BusinessPageFacts | null): PublicPageMetadata {
+  const vm = f ? businessPageVM(f) : null;
+  if (!vm || vm.empty) return notFoundPageMetadata();
+  return { title: vm.title, description: `${vm.title} — who we are, what we do, and our text-message terms.`, robots: { index: true, follow: true } };
+}
+
+/** The program's terms, by the same rule: named for the business customers know, or Not found and unindexed. */
+export function textingTermsMetadata(f: BusinessPageFacts | null): PublicPageMetadata {
+  if (!f || textingTermsVM(f).empty) return notFoundPageMetadata();
+  const name = businessPageVM(f).title;
+  return { title: `Text messaging terms: ${name}`, description: `The terms of the text messages ${name} sends.`, robots: { index: true, follow: true } };
 }
 
 /* -------------------------------------------------------------------------- *

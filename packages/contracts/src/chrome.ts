@@ -72,6 +72,21 @@ export function pageTitle(crumbs: readonly Crumb[] | null | undefined, needs?: n
   return n > 0 ? `(${n}) ${where}` : where;
 }
 
+/** What a public page's tab and search listing say about it: the fields of Next's metadata those pages set. */
+export interface PublicPageMetadata {
+  title: string;
+  description?: string;
+  robots: { index: boolean; follow: boolean };
+}
+
+/**
+ * A public page with nothing to show: named Not found, like the app's own not-found page, and never indexed. A page
+ * that named nothing before it called notFound() left the tab on the app's title (the wiring audit's N21).
+ */
+export function notFoundPageMetadata(): PublicPageMetadata {
+  return { title: pageTitle(["Not found"]), robots: { index: false, follow: false } };
+}
+
 /** What the shell knows that the page does not: the connection, the live feed, a pause, a newer build, surfaces that stopped refreshing. */
 export interface ShellStatus {
   stale: boolean;

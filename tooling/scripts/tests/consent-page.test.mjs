@@ -137,7 +137,7 @@ test("the wiring: public by one prefix, read by slug, writes nothing, and the ow
   const page = readCode("apps/dashboard/app/yes/[slug]/page.tsx");
   assert.ok(page.includes("const facts = await consentPageFor(slug);") && page.includes("if (!facts) notFound();"));
   assert.ok(!/<form|<input|useState|"POST"/.test(page), "no field, no write: a number typed into a box is not consent");
-  assert.ok(page.includes('robots: { index: false, follow: false }'), "for the people given the link, not for a search result");
+  assert.ok(page.includes("return consentPageMetadata(await consentPageFor(slug));"), "for the people given the link, not for a search result: contracts' rule, run in public-page-titles.test.mjs");
   const server = readCode("apps/dashboard/src/server/consent-page.ts");
   assert.ok(server.includes('import "server-only";') && server.includes("createServiceClient({"));
   assert.ok(server.includes('if (!tenant || tenant.status === "test") return null;'), "a fixture workspace has no page");
