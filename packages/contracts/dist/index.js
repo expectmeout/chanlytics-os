@@ -2602,6 +2602,32 @@ ${rules.map((r) => `- ${r}`).join("\n")}` : brain.system_prompt;
   const carried = profile.extra_instructions?.trim() ? profile : { ...profile, extra_instructions: brain.system_prompt };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
 }
+var FALLBACK_DETAILS = ["business", "booking link", "phone"];
+var FALLBACK_DEFAULTS = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} \u2014 or a member of our team will reply here soon.",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}."
+};
+var DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
+var namesADetail = (text) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
+var detailOf = (raw) => raw.toLowerCase().replace(/\s+/g, " ");
+function fillDetails(text, values) {
+  if (!namesADetail(text)) return text;
+  return text.split("\n").map((line) => {
+    if (!namesADetail(line)) return line;
+    return line.split(/(?<=[.!?])\s+/).filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])])).map((s) => s.replace(DETAIL, (_, name) => values[detailOf(name)])).join(" ");
+  }).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+}
+function fallbackMessages(brain, known) {
+  const facts = resolveFacts(brain, known);
+  const values = {
+    business: facts.business_name.value ?? brain.business_name,
+    "booking link": facts.booking_link.value ?? brain.booking_link,
+    phone: facts.phone_display.value
+  };
+  const say = (kind) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
+}
 
 // src/calendar.ts
 var DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -8929,6 +8955,8 @@ export {
   EVENT_EVIDENCE_KINDS,
   EVENT_KINDS,
   EVERYONE_LABEL,
+  FALLBACK_DEFAULTS,
+  FALLBACK_DETAILS,
   FEED_MAX_BYTES,
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
@@ -9181,6 +9209,7 @@ export {
   exampleParams,
   extractContacts,
   factConflicts,
+  fallbackMessages,
   fastPath,
   feedBodyProblem,
   feedNotes,

@@ -13,7 +13,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
-import { optInConfirmation } from "@chanlytics/contracts";
+import { optInConfirmation, formatPhoneDisplay } from "@chanlytics/contracts";
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../../..");
 const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
@@ -402,4 +402,37 @@ test("a confirmation the door refuses reaches a person, not just the log", async
   assert.match(w.seen.escalations[0].details, /no_marketing_consent/);
   assert.equal(w.seen.alerts[0].reason, "opt-in not confirmed");
   assert.equal(w.seen.processed, 1);
+});
+
+/* ------------------------- in the business's name, as it is now (S5) ------------------------- */
+
+// The three messages sent when the receptionist cannot answer were written once, with the number and the booking link
+// baked in. They may now name {business}, {booking link} and {phone}, each filled as the message goes out.
+
+test("REGRESSION (S5): a voice note's acknowledgement gives the line the receptionist answers, as it is now -- the number was baked in the day the message was written", async () => {
+  const LINE = "+13055550123";
+  const rt = runtime({
+    brain: { ...runtime().brain, fallbacks: { ...runtime().brain.fallbacks, non_text: "Thanks for your message! For anything urgent, call us at {phone}." } },
+    known: { workspace: { name: "Harbor Nails", timezone: null }, channels: [{ kind: "voice", number_e164: LINE, status: "active" }], listing: null },
+  });
+  const w = world({ rt });
+  await w.run({ from: FROM, id: "wamid.vn9", type: "audio", timestamp: String(Math.floor(Date.now() / 1000)), audio: { id: "a9", mime_type: "audio/ogg" } });
+  assert.deepEqual(w.seen.sent.map((s) => s.body), [`Thanks for your message! For anything urgent, call us at ${formatPhoneDisplay(LINE)}.`]);
+});
+
+test("REGRESSION (S5): with no model key the greeting names the business and its booking link as they are now", async () => {
+  const rt = runtime({ brain: { ...runtime().brain, booking_link: "https://book.example/harbor", fallbacks: { ...runtime().brain.fallbacks, greeting: "Thanks for writing to {business}. Book at {booking link}." } } });
+  const w = world({ rt });
+  await w.run(text("hi, do you have time tomorrow?"));
+  assert.deepEqual(w.seen.sent.map((s) => s.body), ["Thanks for writing to Harbor Nails. Book at https://book.example/harbor."]);
+});
+
+test("REGRESSION (S5): the holding message is filled as it goes out, whether the model hands it back or fails outright", async () => {
+  const rt = runtime({ brain: { ...runtime().brain, fallbacks: { ...runtime().brain.fallbacks, error: "Sorry — {business} will reply here soon." } } });
+  const handedBack = world({ rt, env: { modelKey: "k" } });
+  await handedBack.run(text("are you open?"), { brain: async () => ({ generateReply: async (_h, _t, _s, fallback) => ({ text: fallback, escalate: true, reason: "refusal" }) }) });
+  assert.deepEqual(handedBack.seen.sent.map((s) => s.body), ["Sorry — Harbor Nails will reply here soon."], "handed to the model filled, so what it hands back is filled");
+  const failed = world({ rt, env: { modelKey: "k" } });
+  await failed.run(text("are you open?", "wamid.2"), { brain: async () => ({ generateReply: async () => { throw new Error("model down"); } }) });
+  assert.deepEqual(failed.seen.sent.map((s) => s.body), ["Sorry — Harbor Nails will reply here soon."]);
 });

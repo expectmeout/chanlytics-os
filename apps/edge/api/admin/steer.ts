@@ -23,7 +23,7 @@ import { pg } from "../../lib/pg.js";
 import { loadTenantRuntime } from "../../lib/tenant-runtime.js";
 import { readThreadState, readLeadContext, describeLead } from "../../lib/workspace/db.js";
 import type { RoutedChannel } from "../../lib/workspace/db.js";
-import { resolveSystemPrompt, describeNow, frameSteer, violatesNoPrices, replyDelayMs } from "../../lib/workspace/contracts.js";
+import { resolveSystemPrompt, describeNow, frameSteer, violatesNoPrices, replyDelayMs, fallbackMessages } from "../../lib/workspace/contracts.js";
 import { cancelJobsFor } from "../../lib/workspace/jobs.js";
 import { generateReply } from "../../lib/brain.js";
 import { queueDraft } from "../../lib/draft-queue.js";
@@ -124,7 +124,7 @@ export async function POST(request: Request, brain?: BrainPort | null): Promise<
       thread.history,
       lastUser.content,
       resolveSystemPrompt(rt.brain, "whatsapp", rt.timezone, new Date(), rt.policy, rt.known),
-      rt.brain.fallbacks.error,
+      fallbackMessages(rt.brain, rt.known).error,
       leadNote,
       describeNow(rt.timezone, new Date(), rt.brain.profile?.closures),
       undefined,
