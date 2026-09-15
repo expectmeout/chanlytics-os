@@ -826,6 +826,7 @@ test("REGRESSION: the Calendar shows the calendar first -- a title the top bar a
   tree = page();
   assert.ok(byTestId(tree, "cal-feed-card") && byTestId(tree, "cal-feed-retry"), "the card and its Retry");
   assert.equal(byTestId(about(), "cal-feed-card"), null, "over the board, not behind the toggle");
+  assert.deepEqual(stats(tree).map((c) => (c ? [c.props.label, c.props.value, c.props.meta] : null)), [["This week", "—", "could not be read"], null, null], "one count and why: two more dashes said 'needs the calendar' under the card that says so");
 });
 
 /* ---------------- C5b: a service that needs a consultation first ---------------- */

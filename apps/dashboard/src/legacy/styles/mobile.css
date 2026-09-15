@@ -314,6 +314,13 @@
   /* The foot on a phone: the legend takes the width, and the toggle its own line under it. */
   .cal-legend { flex-basis: 100%; }
   .cal-about-toggle { margin-left: -8px; }
+  /* The hours and the rules on a phone: each label over what it says, and the booking rules one to a line. Beside
+     their labels the values ran in a narrow column, and a wrapped rule began its line with the separator. */
+  .cal-rules { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .cal-rules-label { padding-top: var(--space-2); }
+  .cal-rules > .cal-rules-group:first-child > .cal-rules-label { padding-top: 0; }
+  .cal-rules .cal-rule-parts { flex-direction: column; }
+  .cal-rules .cal-rule + .cal-rule::before { content: none; }
 
   /* Profile queue rows: actions wrap to their own right-aligned row */
   .cl-prof-queue-item { flex-wrap: wrap; }
