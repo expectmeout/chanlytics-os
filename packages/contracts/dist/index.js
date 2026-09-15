@@ -824,12 +824,18 @@ function dayIntervals(h) {
 function closedOn(closures, key) {
   return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
 }
+function onTheGrid(tz, atMs, slotMin) {
+  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
+  const c = clockInZone(tz, atMs);
+  const into = (c.mm % grid * 60 + c.ss) * 1e3 + (atMs % 1e3 + 1e3) % 1e3;
+  return into === 0 ? atMs : atMs - into + grid * 6e4;
+}
 function freeWindows(input) {
   const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
   const leadMs = rules.lead_hours * 36e5;
   const bufferMs = rules.buffer_min * 6e4;
   const slotMs = rules.slot_min * 6e4;
-  const earliest = input.now.getTime() + leadMs;
+  const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
