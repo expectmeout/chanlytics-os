@@ -121,7 +121,7 @@ const ListsReal = ({ initialId = null }) => {
     return r;
   };
   const create = async (name) => {
-    const r = await run(() => window.__lists.create(name), <><b>{name}</b> made — add people from their profile</>);
+    const r = await run(() => window.__lists.create(name), <><b>{name}</b> made. Pick people on People and use Add to list, or add them from their profile.</>);
     if (r && r.ok && r.data && r.data.id) setSel(lsKey("saved", r.data.id));
     return r || { ok: false, message: "Lists are not available here." };
   };
@@ -139,9 +139,16 @@ const ListsReal = ({ initialId = null }) => {
   };
   const drop = (p) => run(() => window.__lists.drop(current.id, [p.id]), <><b>{p.name}</b> is off <b>{label}</b></>);
   const useInBroadcast = () => window.CHANLY.nav(`broadcasts/${current.id}`);
+  // A smart list's next step, the one the People rail shows for it (contracts peopleListAction). A step that
+  // is a broadcast is the list's one door to the composer, worded for the audience it opens on; the head's
+  // "Use in a broadcast" beside it named the list and opened Everyone for a consent list.
+  const step = kind === "list" && current && current.action ? current.action : null;
+  const stepIsBroadcast = !!(step && step.to.startsWith("broadcasts"));
+  // The columns the members table has: a kept list an owner edits has one more, for taking people off.
+  const cols = kind === "saved" && canEdit ? 5 : 4;
 
   return (
-    <div className="clients" data-testid="lists-real">
+    <div className="clients lists-page" data-testid="lists-real">
       <aside className="cl-rail">
         <div className="cl-rail-section" data-testid="lists-rail-saved">
           <div className="cl-rail-label">Kept by hand</div>
@@ -191,7 +198,7 @@ const ListsReal = ({ initialId = null }) => {
                 </span>
               </div>
               <div className="bc-chips">
-                {offersYes > 0 && (
+                {offersYes > 0 && !stepIsBroadcast && (
                   <button className="btn btn-primary btn-sm" onClick={useInBroadcast} data-testid="lists-use-in-broadcast">
                     <Icon name="wave" size={11} /> Use in a broadcast
                   </button>
@@ -207,6 +214,14 @@ const ListsReal = ({ initialId = null }) => {
                 )}
               </div>
             </div>
+            {step && (
+              <div className="cl-list-action" data-testid="lists-action">
+                <span className="cl-list-action-text">{step.text}</span>
+                <button className={`btn btn-sm ${step.enabled ? "btn-primary" : ""}`} disabled={!step.enabled} onClick={() => window.CHANLY.nav(step.to)}>
+                  {step.cta} <Icon name="arrow-right" size={10} />
+                </button>
+              </div>
+            )}
             <div className="cl-table-wrap">
               <table className="cl-table" data-testid="lists-members">
                 <thead>
@@ -215,21 +230,22 @@ const ListsReal = ({ initialId = null }) => {
                 <tbody>
                   {members.map((p) => (
                     <tr key={p.id} onClick={() => window.CHANLY.nav(`clients/${p.id}`)}>
-                      <td>
+                      <td className="lists-name-cell">
                         <div className="cl-row-name">
                           <div className="ix-thread-avatar">{p.initials}</div>
                           <div className="cl-row-name-block">
-                            <div className="cl-row-fullname">{p.name}</div>
+                            {/* The name is a button, so a keyboard reaches the person too; the row keeps its click for a mouse. */}
+                            <div className="cl-row-fullname"><button type="button" className="cl-row-open" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`clients/${p.id}`); }} data-testid="lists-open-person">{p.name}</button></div>
                             {p.phone && p.phone !== p.name && <div className="cl-row-meta"><span>{p.phone}</span></div>}
                           </div>
                         </div>
                       </td>
                       {/* Under the Offers heading: the answer about offers, never the yes to messages. */}
-                      <td className="shrink dim">{p.consent.marketingLabel}</td>
-                      <td className="shrink dim">{p.lastContact.label}</td>
-                      <td className="shrink dim">{p.stateLabel}</td>
+                      <td className="shrink dim lists-offers-cell">{p.consent.marketingLabel}</td>
+                      <td className="shrink dim lists-last-cell">{p.lastContact.label}</td>
+                      <td className="shrink dim lists-state-cell">{p.stateLabel}</td>
                       {kind === "saved" && canEdit && (
-                        <td className="shrink">
+                        <td className="shrink lists-drop-cell">
                           <button className="cl-seg-filter-x" title={`Take ${p.name} off ${label}`} disabled={busy} onClick={(e) => { e.stopPropagation(); drop(p); }}>
                             <Icon name="x" size={9} />
                           </button>
@@ -238,7 +254,7 @@ const ListsReal = ({ initialId = null }) => {
                     </tr>
                   ))}
                   {members.length === 0 && (
-                    <tr><td colSpan={5}><EmptyState kind="line" className="empty-center" title={kind === "saved" ? "Nobody on this list yet." : "Nobody here right now."} body={kind === "saved" ? "Add people from their profile." : null} /></td></tr>
+                    <tr><td colSpan={cols}><EmptyState kind="line" className="empty-center" title={kind === "saved" ? "Nobody on this list yet." : "Nobody here right now."} body={kind === "saved" ? "Pick people on People and use Add to list, or add them from their profile." : null} /></td></tr>
                   )}
                 </tbody>
               </table>

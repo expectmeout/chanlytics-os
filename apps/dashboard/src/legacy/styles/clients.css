@@ -1706,3 +1706,7 @@
 .cl-tl-filters { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
 .cl-tl-time-link { font: inherit; color: var(--ink-faint); background: none; border: 0; padding: 0; cursor: pointer; }
 .cl-tl-time-link:hover { color: var(--ink); text-decoration: underline; }
+
+/* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
+.lists-page .cl-row-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
+.lists-page .cl-row-open:hover { text-decoration: underline; }

@@ -731,7 +731,10 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
   opted_in: { cta: "Get their yes to offers", to: "broadcasts", text: "They answer and hear about their own visits. Offers need a second, separate yes." },
-  offers_ok: { cta: "New broadcast", to: "broadcasts", broadcast: true },
+  // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer
+  // opens on Everyone, and the button says so in the composer's words (broadcasts.ts EVERYONE_LABEL). It said
+  // "New broadcast" here and "Use in a broadcast" on Lists, and opened an audience with another name.
+  offers_ok: { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true },
 };
 
 /**
