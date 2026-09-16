@@ -52,7 +52,10 @@ test.describe("Reports on a real workspace", () => {
     // The main chart is an SVG with a legend of three series — or, when no
     // customer wrote in the period, an honest sentence instead of an empty plot.
     const main = report.getByTestId("chart-answered");
-    await expect(main.locator(".rp2-legend .rp2-key")).toHaveCount(3);
+    // Three series, and a fourth key for the period before when that period has data (#557 folded the delta into the chart).
+    const keys = main.locator(".rp2-legend .rp2-key");
+    for (const who of ["Receptionist", "You", "Unanswered"]) await expect(keys.filter({ hasText: who })).toHaveCount(1);
+    expect(await keys.count()).toBeLessThanOrEqual(4);
     if (await main.locator(".empty").count()) {
       await expect(main.getByText("No customer messages in this period")).toBeVisible();
     } else {
