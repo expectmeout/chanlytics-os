@@ -184,8 +184,11 @@ const mountToday = (vm) => {
   cells = []; seq = 0;
   const hero = textOf(globalThis.window.HeroBrief());
   cells = []; seq = 0;
+  // The day's own lines sit under the work now, in the recap; the hero is the standing line above it.
+  const recap = textOf(globalThis.window.TodayRecap());
+  cells = []; seq = 0;
   const queue = textOf(globalThis.window.AgentCommand());
-  return { hero, queue };
+  return { hero, recap, queue };
 };
 
 test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say new messages go unanswered", () => {
@@ -195,13 +198,15 @@ test("REGRESSION: while a line is down, Today never says nothing needs you -- th
   assert.ok(!hero.includes("Queue clear"), hero);
   assert.ok(!queue.includes("All caught up"), queue);
   assert.ok(!queue.includes("nothing needs you"), `the queue's own heading does not reassure either: ${queue}`);
-  assert.ok(hero.includes("Nothing waiting in the Inbox — new messages go unanswered until the line is back"), hero);
+  assert.ok(hero.includes(down.standing.alert), `the line above the work carries the dark line: ${hero}`);
   assert.ok(queue.includes("Nothing in the queue — new messages go unanswered until the line is back."), queue);
 });
 
 test("with every line up and nothing waiting, the reassurance stands", () => {
   const { hero, queue } = mountToday(todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
-  assert.ok(hero.includes("Queue clear — nothing needs you"), hero);
+  // The reassurance is the queue's own, said once: a chip above it said it again, over the work it describes.
+  assert.ok(hero.includes("1 of 1 line connected"), hero);
+  assert.ok(!hero.includes("Queue clear"), `and the standing line does not say it too: ${hero}`);
   assert.ok(queue.includes("All caught up — the receptionist is answering on its own."), queue);
 });
 
@@ -455,7 +460,7 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     cells = []; seq = 0;
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
-    walk(globalThis.window.HeroBrief(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
+    walk(globalThis.window.TodayRecap(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
     const said = (lines || []).map(textOf).join(" | ");
     assert.ok(said.includes("went out at 1:30 AM — 8 sent, 1 replied") && said.includes("Spring offer"), `REGRESSION: yesterday in New York, so not said at all: ${said}`);
   });

@@ -68,13 +68,14 @@ test("the facts beside the recap's: appointments today with the next open time o
 });
 
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, week: todayWeek, journey: todayJourney, away: todayAway };"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
   for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null, window.__PEOPLE || null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"', 'className="td-item-rail"', "data-phase={b.phase}", 'className="td-item-flag"', "b.person ? b.person.name : b.title"]) assert.ok(page.includes(s), s);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes("<DayFacts />") && brief.includes("window.__today.facts(C ? C.vm : null, P ? P.aggregates : null)"), "the day's facts ride the recap's strip");
+  assert.ok(brief.includes("window.__today.dayLine(C ? C.vm : null, P ? P.aggregates : null)"), "the day's numbers ride the recap's one sentence");
+  assert.ok(!brief.includes("<DayFacts />"), "the strip of stat cards above the work is that sentence now");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
   const dash = readCode("apps/dashboard/src/legacy/pages/dashboard-a.jsx");
   assert.ok(dash.indexOf("<AgentCommand />") < dash.indexOf("<TodayDay />"), "the queue, then the day, in the core");

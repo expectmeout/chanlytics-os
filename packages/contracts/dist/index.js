@@ -4186,6 +4186,18 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
   ];
   const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
+  const trafficParts = [];
+  if (p.messages_in > 0) {
+    trafficParts.push(
+      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`}`
+    );
+  }
+  if (p.calls) {
+    trafficParts.push(
+      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`
+    );
+  }
+  const trafficLine = trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
   if (isQuiet) {
     const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
     const gap = live.last_outbound_at && live.last_inbound_at && new Date(live.last_outbound_at) > new Date(live.last_inbound_at) ? Math.round(
@@ -4206,7 +4218,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       },
       needsYou: null,
       windowClosing: null,
-      recap: { label: "Today so far", sentences: [], facts, receipts: [] },
+      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
       callsRead,
@@ -4268,12 +4280,14 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (p.answered_by_ai && !headlineCoversTraffic) {
     sentences.push({
-      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`
+      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`,
+      traffic: true
     });
   }
   if (p.calls && !headlineCoversTraffic) {
     sentences.push({
-      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`
+      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`,
+      traffic: true
     });
   }
   if (p.messages_out_you) {
@@ -4451,7 +4465,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
       rows: closingRows
     } : null,
-    recap: { label: "Today so far", sentences, facts, receipts },
+    recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
     pulse,
     callsRead,
     calls: p.calls ? {
@@ -4538,6 +4552,15 @@ function todayDayFacts(cal, agg) {
   }
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
   return out;
+}
+function todayDayLine(cal, agg) {
+  const facts = todayDayFacts(cal, agg);
+  if (!facts.length) return null;
+  const said = facts.map((f) => {
+    const what = f.label === "Appointments today" ? `${f.value} appointment${f.value === "1" ? "" : "s"} today` : `${f.value} booked ahead`;
+    return f.hint ? `${what}, ${f.hint}` : what;
+  });
+  return `${said.join(". ")}.`;
 }
 function todayWeek(r) {
   if (!r) return null;
@@ -9607,6 +9630,7 @@ export {
   todayAway,
   todayDay,
   todayDayFacts,
+  todayDayLine,
   todayJourney,
   todayWeek,
   tomorrowAtIn,

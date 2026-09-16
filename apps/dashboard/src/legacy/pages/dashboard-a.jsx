@@ -1,4 +1,4 @@
-/* global React, HeroBrief, AgentCommand, TodayDay, TodayWeek, TodayAway, TodayJourney, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
+/* global React, HeroBrief, TodayRecap, AgentCommand, TodayDay, TodayWeek, TodayAway, TodayJourney, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
 // Dashboard — Operator's brief.
 // Composition: HeroBrief → (AgentCommand + TodayDay) → TodayWeek → (TodayAway + TodayJourney);
 // the seeded panels below stay demo-only.
@@ -17,6 +17,9 @@ const DashboardA = ({ onAsk = () => {} }) => (
           only until each engine's slice lands. */}
       {window.__DEMO_MODE && <NowPlayingRail />}
     </div>
+
+    {/* The day so far, under the work it explains: it was a strip of stat cards above everything. */}
+    <TodayRecap />
 
     <TodayWeek />
 

@@ -112,6 +112,8 @@ const textOf = (n) => {
 };
 const buttonsSaying = (tree, words) => findAll(tree, (n) => n.type === "button" && textOf(n).includes(words));
 const mountHero = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.HeroBrief(); };
+// The day's lines -- its numbers, the receipts, the proof, a reply that failed -- sit under the work now (TodayRecap).
+const mountRecap = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.TodayRecap(); };
 const mountQueue = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.AgentCommand(); };
 const todayWith = (channels, over = {}) => toTodayVM(metrics({ channels, now: zeroNow, period: quietPeriod, ...over }), [], [], [], NOW);
 
@@ -123,8 +125,25 @@ test("REGRESSION (A21): a reply that failed to deliver opens its thread -- 'See 
   const vm = toTodayVM(metrics({ period: { ...busyPeriod, send_failures: 1 } }), [failed], [], [], NOW);
   const warn = vm.recap.sentences.find((s) => s.warn);
   assert.equal(warn.to, "inbox/th-cv9", "REGRESSION: the failed send's sentence carried no thread");
-  buttonsSaying(mountHero(vm), "See the thread")[0].props.onClick();
+  buttonsSaying(mountRecap(vm), "See the thread")[0].props.onClick();
   assert.equal(went.at(-1), "inbox/th-cv9");
+});
+
+test("REGRESSION: Today's first screen is the work -- above it stood a greeting, a headline the queue says again, four sentences, a chip repeating its count, an arc and six stat cards, and on a phone the first thing needing a person started 679px down", () => {
+  const vm = toTodayVM(metrics(), [conversation("cv1", "Rosa Díaz", [msg({})])], [], [], NOW);
+  const standing = mountHero(vm);
+  const said = textOf(standing);
+  assert.match(said, /lines connected/, "the standing line says the day, the time and whether the lines are up");
+  assert.ok(!/Good (morning|afternoon|evening)/.test(said), "REGRESSION: a greeting above the work");
+  assert.ok(!/need you/.test(said), "REGRESSION: a chip saying the queue's own count, over the queue");
+  assert.equal(find(standing, (n) => typeof n.type === "function" && n.type.name === "PulseArc"), undefined, "REGRESSION: an arc saying the answered ratio a third time");
+  assert.equal(findAll(standing, (n) => typeof n.type === "function" && n.type.name === "StatCell").length, 0, "REGRESSION: six stat cards over the work");
+
+  // Under the work: the day's numbers as one sentence, and only the lines that sentence does not carry.
+  const recap = mountRecap(vm);
+  assert.match(textOf(find(recap, (n) => n.props?.["data-testid"] === "today-recap-line")), /messages in, .*answered by the receptionist/);
+  const beats = findAll(recap, (n) => typeof n.props?.className === "string" && n.props.className.includes("brief-beat-text")).map(textOf);
+  assert.ok(!beats.some((b) => /receptionist answered|reached the phone line/.test(b)), `REGRESSION: the sentence above says these already: ${beats.join(" | ")}`);
 });
 
 test("REGRESSION (A21): Open Live beside a call in progress opens that call -- it opened Live's list, where the oldest call leads", () => {
@@ -164,7 +183,7 @@ test("the day's receipts are all drawn -- the view model kept three and the hero
   ]));
   const vm = toTodayVM(metrics(), convs, [], [], NOW);
   assert.equal(vm.recap.receipts.length, 3, "the fixture is a day with three replies");
-  const receipts = findAll(mountHero(vm), (n) => n.props?.["data-testid"] === "brief-receipt");
+  const receipts = findAll(mountRecap(vm), (n) => n.props?.["data-testid"] === "brief-receipt");
   assert.equal(receipts.length, 3, "REGRESSION: two of the three receipts were never drawn");
   buttonsSaying(receipts[2], "Open")[0].props.onClick();
   assert.equal(went.at(-1), vm.recap.receipts[2].to);
@@ -174,7 +193,7 @@ test("a quiet day shows its proof -- which lines are on -- and the way to the co
   const yesterday = conversation("cv1", "Rosa Díaz", [msg({ created_at: "2026-09-05T12:00:00Z" })]);
   const vm = toTodayVM(metrics({ now: zeroNow, period: quietPeriod }), [yesterday], [], [], NOW);
   assert.ok(vm.quiet && vm.quiet.launchpad, "the fixture is a quiet day with an earlier conversation");
-  const hero = mountHero(vm);
+  const hero = mountRecap(vm);
   const proof = find(hero, (n) => n.props?.["data-testid"] === "brief-quiet-proof");
   assert.ok(proof, "REGRESSION: the quiet day's proof was never drawn");
   assert.match(textOf(proof), /WhatsApp/);
@@ -190,11 +209,12 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
   try {
     const vm = todayWith([]);
     const hero = mountHero(vm);
+    const recap = mountRecap(vm);
     const queue = mountQueue(vm);
-    const said = textOf(hero) + textOf(queue);
+    const said = textOf(hero) + textOf(recap) + textOf(queue);
     assert.ok(!said.includes("answering on its own"), "REGRESSION: the queue said the receptionist was answering, with no line to answer on");
     assert.ok(!said.includes("Queue clear — nothing needs you"), "nor that the queue was clear, as if all were well");
-    assert.equal(buttonsSaying(hero, "Open Setup").length + buttonsSaying(queue, "Open Setup").length, 1, "one door to Setup");
+    assert.equal(buttonsSaying(hero, "Open Setup").length + buttonsSaying(recap, "Open Setup").length + buttonsSaying(queue, "Open Setup").length, 1, "one door to Setup");
   } finally {
     delete globalThis.window.__SETUP;
   }
