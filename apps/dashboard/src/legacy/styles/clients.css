@@ -1117,6 +1117,7 @@
   margin-bottom: 14px;
 }
 .cl-prof-avatar {
+  flex: none;
   width: 56px; height: 56px;
   border-radius: 50%;
   background: var(--bg-sunken);
@@ -1236,7 +1237,7 @@
 }
 
 /* Agent queue (what's up next) */
-.cl-prof-queue { display: flex; flex-direction: column; gap: 8px; }
+.cl-prof-queue { display: flex; flex-direction: column; gap: 8px; container-type: inline-size; }
 .cl-prof-queue-item {
   background: var(--bg-raised);
   border: 1px solid var(--line);
@@ -1291,6 +1292,12 @@
   line-height: 1.4;
 }
 .cl-prof-queue-actions { display: flex; gap: 4px; flex-shrink: 0; }
+/* After the row's own rules, so it wins by order. A row too narrow for its sentence and its buttons side by side puts the buttons under the sentence -- by the
+   row's own width, because between 901 and 1250px the profile's column is narrow while the window is not. */
+@container (max-width: 560px) {
+  .cl-prof-queue-item { grid-template-columns: 26px minmax(0, 1fr); }
+  .cl-prof-queue-actions { grid-column: 2; flex-wrap: wrap; gap: 6px; }
+}
 
 /* Timeline (mixed channel + agent action) */
 .cl-prof-timeline {
@@ -1401,6 +1408,14 @@
 .cl-prof-attr:last-child { border-bottom: none; }
 .cl-prof-attr-key { color: var(--ink-dim); }
 .cl-prof-attr-val { color: var(--ink); font-variant-numeric: tabular-nums; }
+.cl-prof-attr-door { margin-left: 8px; }
+/* The line under a person's name breaks between its parts, never inside one, and no line starts with a dot: every
+   part carries its separator in a 14px lead, and the run sits 14px left inside a clip, so the part that starts a
+   line has its dot cut off. */
+.cl-prof-idline { display: block; overflow: hidden; }
+.cl-prof-idline-run { display: flex; flex-wrap: wrap; margin-left: -14px; }
+.cl-prof-meta-part { white-space: nowrap; }
+.cl-prof-meta-part::before { content: "·"; display: inline-block; width: 14px; text-align: center; color: var(--ink-faint); }
 
 .cl-prof-autonomy {
   display: grid;

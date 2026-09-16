@@ -84,15 +84,26 @@ test.describe("People on a real workspace", () => {
     await expect(page).toHaveURL(/#\/clients\/[0-9a-f-]{36}$/);
     await assertMeasuredOnly(page, "the profile");
 
-    await expect(page.getByText("Last exchange")).toBeVisible();
+    // Who they are, then what is happening, then everything that happened. The Last exchange card quoted the
+    // two newest messages the timeline opens on, and a six-cell strip said the rail's facts again.
+    await expect(page.getByText("Last exchange")).toHaveCount(0);
+    await expect(page.locator(".cl-prof-money")).toHaveCount(0);
     await expect(page.getByText("Right now")).toBeVisible();
     await expect(page.locator(".cl-prof-section-title", { hasText: "Timeline" })).toBeVisible();
 
-    const facts = await page.locator(".cl-prof-money .stat-cell-label").allInnerTexts();
-    const labels = facts.map((f) => f.trim().toLowerCase());
-    // A seventh cell, Next visit, appears once the workspace has a calendar connected.
-    expect(labels.slice(0, 6)).toEqual(["first contact", "last contact", "conversations", "calls", "consent", "receptionist"]);
-    expect(labels.slice(6)).toEqual(labels.length > 6 ? ["next visit"] : []);
+    // The strip's counts are About's History row; the line under the name holds the number and since when.
+    const keys = (await page.locator(".cl-prof-attr-key").allInnerTexts()).map((k) => k.trim());
+    expect(keys).toContain("History");
+    for (const said of ["Phone", "Channels", "First contact"]) expect(keys, `${said} is said under the name`).not.toContain(said);
+
+    // One button to the thread: the header's Open thread and Right now's Open in Inbox went to the same place.
+    expect(await page.locator(".cl-profile button", { hasText: /^(Open thread|Open in Inbox)$/ }).count()).toBeLessThanOrEqual(1);
+
+    // Between 901 and 1250px the name's column went to zero beside the header's buttons. The column, not the
+    // name: a name's own box is only as wide as its letters, and passes while the column around it is broken.
+    await page.setViewportSize({ width: 1000, height: 800 });
+    const column = (await page.locator(".cl-prof-titles").boundingBox())!;
+    expect(column.width, "the name's column keeps its width at 1000px").toBeGreaterThan(200);
 
     // Back returns to the list, not to a "client not found" page.
     await page.locator(".cl-prof-back").click();
