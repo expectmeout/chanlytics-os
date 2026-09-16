@@ -188,7 +188,7 @@ async function draftReply(t: ToolContext, input: Record<string, unknown>): Promi
     title: `Reply to ${who}`,
     summary: text,
     payload: { conversation_id: id, text, voice, who, window_open: win.open, price_warning: price },
-    undo: "Cancel within 15 seconds of sending",
+    undo: "Sends 15 seconds after you approve; cancel within them",
   });
 }
 

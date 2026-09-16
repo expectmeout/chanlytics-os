@@ -851,8 +851,13 @@ export async function handleInbound(
   // business the only thing it could not previously have: a chance to redirect
   // the bot BEFORE the customer reads it, rather than apologising after.
   //
-  // Falls back to sending immediately if the job cannot be scheduled. A late
-  // reply is a worse outcome than an un-vetoed one, and silence is the worst.
+  // A VETO WINDOW that cannot be scheduled falls back to sending immediately:
+  // the owner chose to auto-send with a chance to undo, a late reply is a
+  // worse outcome than an un-vetoed one, and the fallback is recorded below.
+  // A LOW-CONFIDENCE HOLD that cannot be scheduled sends nothing: the owner
+  // said a reply the model is not sure of does not send itself, and a
+  // database that is having a bad minute is not permission. That branch is
+  // a few lines below the fallback event.
   // replyLimits is the same row read above for the daily cap and the pause.
   // THE CONFIDENCE DIAL rides on the same window: under 'auto' a reply the
   // model is not sure enough about waits where a vetoed one would
@@ -893,6 +898,27 @@ export async function handleInbound(
     // no veto window configured was shown `policy.veto_window_skipped` events
     // for one and sent looking for a setting they had never turned on.
     await sink.vetoFallback(delayMs, plan.source);
+  }
+  // THE HOLD THAT IS A POLICY. Under 'auto' with a confidence floor the owner
+  // said: a reply the model is not sure of waits for a person. The hold could
+  // not be written, so the words stay unsent, the thread is a person's for
+  // the pause window, the owner is told what the customer said and why
+  // nothing answered, and the message is marked handled so the redelivery
+  // gate holds. An infrastructure failure never widens what the receptionist
+  // may say on its own.
+  if (delayMs > 0 && !queued && heldForConfidence) {
+    thread.history.push({ role: "user", content: bodyText });
+    thread.pausedUntil = Date.now() + pauseMs;
+    const post: Promise<unknown>[] = [];
+    if (usage) post.push(sink.usage({ ...usage, ...replyQuality, escalate: true }));
+    post.push(sink.pause(new Date(Date.now() + pauseMs).toISOString()));
+    post.push(sink.escalate("policy_block", `the receptionist was not sure enough to answer on its own (confidence ${brainMeta?.confidence ?? "unknown"}, floor ${plan.minConfidence}) and the hold for a person could not be written, so nothing was sent — "${bodyText}"`));
+    post.push(tell(bodyText, replyText, "held for low confidence; the hold could not be scheduled, so nothing was sent", pauseHours));
+    await Promise.all(post);
+    await ports.store.save(ns, from, thread);
+    await sink.processed();
+    L.warn("wa_hold_unscheduled_kept", { confidence: brainMeta?.confidence, min: plan.minConfidence });
+    return;
   }
   if (queued) {
     thread.history.push({ role: "user", content: bodyText });

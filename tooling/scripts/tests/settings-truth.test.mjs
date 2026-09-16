@@ -72,7 +72,7 @@ test("F35: every pause reads the workspace's own pause_hours, not a hard-coded d
   // owner the receptionist was out of a thread it was still answering.
   assert.ok(alerts.includes("ctx.pausedHours\n        ? `Reply from the Inbox"), "and only when this branch paused it");
   assert.ok(inbound.includes('"non-text message", pausedUntil ? pauseHours : null)'), "the acknowledgement states it only when it actually acknowledged");
-  assert.equal((inbound.match(/, pauseHours\)\)/g) ?? []).length, 2, "and the escalating reply does, held or sent");
+  assert.equal((inbound.match(/, pauseHours\)\)/g) ?? []).length, 3, "and the escalating reply does, held, sent, or kept unsent because its hold could not be written");
   assert.ok(inbound.includes("const tell = (userText: string, botText: string, reason: string, pausedHours: number | null = null) =>"), "and the rest default to promising nothing");
 });
 

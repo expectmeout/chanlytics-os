@@ -65,7 +65,7 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
     case "reply": {
       const r = await viaAsk(client, "POST conversations/[id]/reply", { params: { id: s(pl.conversation_id) }, body: { text: s(pl.text) } });
       if (!r.ok) return r;
-      return { ok: true, receipt: `Sent to ${s(pl.who)} — cancel within 15 seconds`, undo: { message_id: r.data.message_id, cancelable_until: r.data.cancelable_until, decision_id: decisionOf(r.data) } };
+      return { ok: true, receipt: `On its way to ${s(pl.who)} — sends in 15 seconds unless you cancel`, undo: { message_id: r.data.message_id, cancelable_until: r.data.cancelable_until, decision_id: decisionOf(r.data) } };
     }
     case "steer": {
       const r = await viaAsk(client, "POST messages/[id]/steer", { params: { id: s(pl.message_id) }, body: { text: s(pl.instruction) } });

@@ -149,6 +149,8 @@ export interface DeliverPorts {
 
 interface WireFacts {
   pausedUntil: string | null;
+  /** The person who took the thread over, when one did. */
+  assignee: string | null;
   contact: { consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null };
   tenantStatus: string | null;
 }
@@ -162,7 +164,7 @@ interface WireFacts {
 async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   const { data, error } = await db
     .from("conversations")
-    .select("paused_until, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)")
+    .select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)")
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId)
     .maybeSingle();
@@ -170,11 +172,13 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data as unknown as {
     paused_until: string | null;
+    assignee_user_id?: string | null;
     contacts: WireFacts["contact"] | null;
     tenants: { status: string | null } | null;
   };
   return {
     pausedUntil: row.paused_until ?? null,
+    assignee: row.assignee_user_id ?? null,
     contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null },
     tenantStatus: row.tenants?.status ?? null,
   };
@@ -201,6 +205,12 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
+  // A thread a person holds does not take the receptionist's draft. Taking
+  // over withdraws the drafts written before it; this is the same promise
+  // kept at the wire, for the withdrawal that failed or the draft written in
+  // the same second. Only the draft: an answer meets the pause below, a
+  // system message is owed whoever holds the thread.
+  if (kind === "draft" && f.assignee) return "human_has_it";
   // The thread's pause holds the receptionist answering now, and a broadcast.
   // It does not hold a queued draft, written before the pause it now meets --
   // the receptionist's own escalation pauses the thread and queues its holding
