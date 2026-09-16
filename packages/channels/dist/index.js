@@ -1142,8 +1142,10 @@ async function getAgent(cfg, agentId) {
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
-    // (?key=...) and this object is meant to be printed by a diagnostic.
+    // (?key=...) and this object is meant to be printed by a diagnostic. That
+    // a key rides there at all is kept as a fact, so the planner can retire it.
     webhook_url: str4("webhook_url")?.split("?")[0] ?? null,
+    webhook_url_keyed: /[?&]key=/.test(str4("webhook_url") ?? ""),
     webhook_events: Array.isArray(a.webhook_events) ? a.webhook_events.map(String) : null,
     webhook_timeout_ms: num2("webhook_timeout_ms"),
     data_storage_setting: str4("data_storage_setting"),
@@ -1505,6 +1507,10 @@ function planAgentSettings(live, opts = {}) {
       ...CALL_ANALYSIS_FIELDS.map((f) => ({ ...f }))
     ];
   }
+  if (typeof live.webhook_url === "string" && live.webhook_url !== "" && (live.webhook_url_keyed === true || /[?&]key=/.test(live.webhook_url))) {
+    drift.push("webhook_url still carries the retired query-string key; the signature is the credential and the door no longer reads one");
+    patch.webhook_url = live.webhook_url.split("?")[0];
+  }
   if (opts.retentionDays !== void 0 && live.data_storage_retention_days !== opts.retentionDays) {
     if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {
       drift.push(`retention must be a whole number of days from 1 to 730, not ${opts.retentionDays}`);
@@ -1564,7 +1570,7 @@ function voiceAgentCreateBody(o, s, fnUrl = DEFAULT_FN_URL) {
     response_engine: { type: "retell-llm", llm_id: o.llmId, ...o.llmVersion === null ? {} : { version: o.llmVersion } },
     ...VOICE_AGENT_DEFAULTS,
     language: [...VOICE_AGENT_DEFAULTS.language],
-    webhook_url: withKey(voiceEndpoints(fnUrl).webhook, s.fnSecret),
+    webhook_url: voiceEndpoints(fnUrl).webhook,
     webhook_events: [...VOICE_WEBHOOK_EVENTS],
     webhook_timeout_ms: VOICE_WEBHOOK_TIMEOUT_MS,
     opt_in_signed_url: true,

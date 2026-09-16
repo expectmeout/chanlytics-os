@@ -6,7 +6,7 @@
  * nothing had ever called its POST.
  *
  * The door: a signature over the raw body opens it, one over the re-serialised
- * body opens it and is recorded as such, the ?key= opens it only while
+ * body opens it and is recorded as such, the ?key= never opens it (the
  * RETELL_FN_SECRET is set, and a refusal is a 401 that leaves ONE evidence row
  * a minute. Past the door: a call nobody's agent owns is dead-lettered under
  * the platform; a routed call is ingested, an inbound test call marks the
@@ -45,7 +45,7 @@ after(() => setPg(null));
 
 /* ------------------------------------------------------------ the door */
 
-test("the door: a refusal is a 401 with one evidence row a minute; the raw body, the re-serialised body and the ?key= each open it, and the row says which", async () => {
+test("the door: a refusal is a 401 with one evidence row a minute; the raw body and the re-serialised body each open it, the ?key= never does, and the row says which", async () => {
   const w = world();
   const db = w.open();
   const rows = () => kind(w.tables, "webhook.auth");
@@ -72,11 +72,14 @@ test("the door: a refusal is a 401 with one evidence row a minute; the raw body,
   assert.equal((await knock(raw)).status, 401, "no credential at all");
   assert.equal(rows().length, 1, "three refusals, one row");
 
-  // The ?key= NEVER opens the door while RETELL_FN_SECRET is empty or unset --
-  // the shape a rotation leaves behind for a moment. "" compared with "" once
-  // admitted anyone.
-  for (const secret of ["", undefined]) {
+  // The ?key= NEVER opens this door: not the right secret, not while the
+  // secret is empty or unset (the shape a rotation leaves behind, where ""
+  // compared with "" once admitted anyone), not at all. The signature is the
+  // credential; the key was retired once a real delivery verified.
+  const fnSecret = process.env.RETELL_FN_SECRET;
+  for (const secret of [fnSecret, "", undefined]) {
     await withEnv({ RETELL_FN_SECRET: secret }, async () => {
+      assert.equal((await knock(raw, { key: fnSecret })).status, 401, `secret ${JSON.stringify(secret)}, the secret itself as the key`);
       assert.equal((await knock(raw, { key: "" })).status, 401, `secret ${JSON.stringify(secret)}, key ""`);
       assert.equal((await knock(raw, { key: "anything" })).status, 401, `secret ${JSON.stringify(secret)}, key "anything"`);
     });
@@ -100,19 +103,14 @@ test("the door: a refusal is a 401 with one evidence row a minute; the raw body,
   assert.equal((await knock(escaped, { signature: sign(reserialised) })).status, 200);
   assert.deepEqual(rows()[2].data, { provider: "retell", sig: true, key: false, sig_raw: false, sig_restringified: true });
 
-  // The ?key= opens it while the secret is set; the row says the signature did not.
-  assert.equal((await knock(raw, { key: process.env.RETELL_FN_SECRET })).status, 200);
-  assert.deepEqual(rows()[3].data, { provider: "retell", sig: false, key: true, sig_raw: false, sig_restringified: false });
-  assert.equal((await knock(raw, { key: "wrong-secret" })).status, 401);
-
   // With RETELL_WEBHOOK_KEY empty the API key is tried underneath, as before --
   // and the badged key then verifies nothing.
   await withEnv({ RETELL_WEBHOOK_KEY: undefined }, async () => {
     assert.equal((await knock(raw, { signature: sign(raw, { key: process.env.RETELL_API_KEY }) })).status, 200);
     assert.equal((await knock(raw, { signature: sign(raw, { key: "badged-key-for-this-file" }) })).status, 401);
   });
-  assert.equal(rows().length, 5, "four accepted, and the one refusal");
-  assert.equal(w.tables.events.length, 5, "a body carrying no call writes nothing but its auth row");
+  assert.equal(rows().length, 4, "three accepted, and the one refusal");
+  assert.equal(w.tables.events.length, 4, "a body carrying no call writes nothing but its auth row");
   assert.equal(ingests(db).length, 0);
 });
 

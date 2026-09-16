@@ -35,6 +35,27 @@ test("a converged agent plans nothing, and extra events are kept", () => {
   assert.equal(longer.agentPatch, null, "a longer budget than we need is not drift");
 });
 
+test("a leftover ?key= on the call webhook's URL is drift, planned away to the bare URL, in either form the agent is read", () => {
+  const live = { webhook_events: [...VOICE_WEBHOOK_EVENTS], webhook_timeout_ms: 20000, opt_in_signed_url: true, data_storage_retention_days: null, post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })) };
+  const bare = "https://chanlytics-messaging.vercel.app/api/retell-webhook";
+  // Raw from the provider (the converger, the script): the query is still on the URL.
+  const raw = planAgentSettings({ ...live, webhook_url: `${bare}?key=the-old-secret` });
+  assert.deepEqual(raw.agentPatch, { webhook_url: bare });
+  assert.equal(raw.drift.length, 1);
+  assert.ok(raw.drift[0].includes("query-string key") && !raw.drift[0].includes("the-old-secret"), "the drift names the problem and never prints the secret");
+  // Parsed (the diagnostic): the query is gone and the flag says it was there.
+  const parsed = planAgentSettings({ ...live, webhook_url: bare, webhook_url_keyed: true });
+  assert.deepEqual(parsed.agentPatch, { webhook_url: bare });
+  // Converged: the bare URL, flagged or unflagged, is not drift.
+  assert.equal(planAgentSettings({ ...live, webhook_url: bare, webhook_url_keyed: false }).agentPatch, null);
+  assert.equal(planAgentSettings({ ...live, webhook_url: bare }).agentPatch, null);
+  assert.equal(planAgentSettings({ ...live, webhook_url: null }).agentPatch, null, "an agent with no webhook at all is someone else's drift");
+  // What provisioning creates plans nothing here.
+  const created = voiceAgentCreateBody({ llmId: "llm_1", llmVersion: 0, agentName: "x" }, { fnSecret: "s" });
+  assert.equal(created.webhook_url, bare);
+  assert.equal(planAgentSettings(created).agentPatch, null);
+});
+
 test("retention is planned only when asked, and refused outside the provider's range", () => {
   const live = { webhook_events: [...VOICE_WEBHOOK_EVENTS], webhook_timeout_ms: 20000, opt_in_signed_url: true, data_storage_retention_days: null, post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })) };
   const asked = planAgentSettings(live, { retentionDays: 365 });
