@@ -40,7 +40,7 @@ test.describe("People on a real workspace", () => {
   test("the list is the workspace's people, in facts only, with Lists beside it and the Tier 2 tabs absent", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".cl-page-title")).toHaveText("People");
+    await expect(page.getByTestId("people-standing")).toBeVisible();
     await assertMeasuredOnly(page, "#/clients");
 
     // The seeded strip offered Leads, Deal board and Lists. Lists has been real
@@ -56,17 +56,21 @@ test.describe("People on a real workspace", () => {
     expect(headers).toEqual(["customer", "state", "last contact", cal?.state === "ok" ? "visits" : "receptionist", "offers"]);
     // Every Offers cell is one of the three answers.
     for (const t of await page.getByTestId("row-offers").allInnerTexts()) expect(["Yes", "No", "Not asked"]).toContain(t.trim());
-    // One state switcher: the strip above; the tab row is gone.
+    // One state switcher: the rail, and the count in the line above. The tab row
+    // and the five-tab strip are both gone.
     await expect(page.locator(".cl-section-head .cl-tabs")).toHaveCount(0);
+    await expect(page.getByTestId("attention-strip")).toHaveCount(0);
 
     // Every state pill is one of the six.
     const pills = await page.locator(".cl-row-bucket-pill").allInnerTexts();
     for (const p of pills) expect(["needs you", "waiting on you", "opted out", "new", "quiet", "active"]).toContain(p.trim().toLowerCase());
 
-    // The header counts are integers, and "People" equals the rows shown when nothing is filtered.
+    // The one line's count equals the rows shown when nothing is filtered, and
+    // it is the only place the page says it besides the table's own foot.
     const shown = await page.locator(".cl-table tbody tr:not(:has(.empty))").count();
-    const total = (await page.locator(".cl-head-stats .stat-cell").first().locator(".stat-cell-value").innerText()).trim();
-    expect(Number(total)).toBe(shown);
+    const standing = (await page.getByTestId("people-standing").innerText()).trim();
+    expect(standing).toMatch(new RegExp(`^${shown} (person|people)\\b`));
+    await expect(page.locator(".cl-head-stats")).toHaveCount(0);
   });
 
   test("a profile opens from the list and is a timeline, not a form", async ({ page }) => {
@@ -92,7 +96,7 @@ test.describe("People on a real workspace", () => {
 
     // Back returns to the list, not to a "client not found" page.
     await page.locator(".cl-prof-back").click();
-    await expect(page.locator(".cl-page-title")).toHaveText("People");
+    await expect(page.getByTestId("people-standing")).toBeVisible();
   });
 
   test("a profile deep link to a stranger's id says so instead of inventing a person", async ({ page }) => {
@@ -113,7 +117,8 @@ test.describe("People on a real workspace", () => {
     if (body.calendar?.state === "ok") {
       expect(has("Booked"), "a connected calendar shows the outcome lists").toBe(true);
       expect(has("Asked, never booked")).toBe(true);
-      await expect(page.locator(".cl-head-stats .stat-cell", { hasText: "Booked" })).toHaveCount(1);
+      // Booked is the rail's list now; the four stat cards above the table are gone.
+      await expect(page.locator(".cl-rail-row.smart", { hasText: "Booked" }).first()).toBeVisible();
       // Every green day in the Visits column belongs to a person the route says has an appointment ahead.
       const ahead = body.people.filter((p) => (p.visits as { next?: unknown } | null)?.next).length;
       await expect(page.locator('[data-testid="row-next-visit"] .cl-row-next')).toHaveCount(ahead);
@@ -132,7 +137,7 @@ test.describe("People on a real workspace", () => {
     for (const gone of ["leads", "pipeline"]) {
       await page.goto(`/#/${gone}`);
       await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe("#/clients");
-      await expect(page.locator(".cl-page-title")).toHaveText("People");
+      await expect(page.getByTestId("people-standing")).toBeVisible();
     }
   });
 
@@ -250,34 +255,44 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".cl-prof-name")).toBeVisible();
   });
 
-  test("the attention strip keeps its height across every tab, and its rows say something true", async ({ page }) => {
+  test("the page opens on its people: one line above the table, and the count in it is the tap that filters", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const strip = page.getByTestId("attention-strip");
-    await expect(strip).toBeVisible();
-    // No header, no toggle: the strip is the page's hero, as drawn.
-    await expect(page.locator(".cl-buckets-toggle")).toHaveCount(0);
-    // Inset like the sections around it: its left edge is the search box's, its right edge the table's.
-    const stripBox = (await strip.boundingBox())!;
-    const searchBox = (await page.locator(".cl-search-wrap").boundingBox())!;
+
+    // A title under a top bar that already says People, two sentences of
+    // explanation, four stat cards and a five-tab strip stood in front of the
+    // table; the strip drew the table's own first rows over again.
+    await expect(page.locator(".cl-page-title")).toHaveCount(0);
+    await expect(page.locator(".cl-head-stats")).toHaveCount(0);
+    await expect(page.getByTestId("attention-strip")).toHaveCount(0);
+
+    const standing = page.getByTestId("people-standing");
+    await expect(standing).toBeVisible();
+    await expect(standing).toContainText(/\d+ (person|people)/);
+
+    // The line sits above the table, and the table's first row is close behind it.
+    const lineBox = (await standing.boundingBox())!;
     const tableBox = (await page.locator(".cl-table-wrap").boundingBox())!;
-    expect(Math.abs(stripBox.x - searchBox.x)).toBeLessThanOrEqual(1);
-    expect(Math.abs(stripBox.x + stripBox.width - (tableBox.x + tableBox.width))).toBeLessThanOrEqual(1);
-    const heights: number[] = [];
-    for (const t of ["needs_you", "waiting_on_you", "new", "quiet", "active"]) {
-      await page.getByTestId(`attention-tab-${t}`).click();
-      await expect(page.getByTestId(`attention-tab-${t}`)).toHaveAttribute("aria-selected", "true");
-      heights.push((await strip.boundingBox())!.height);
+    expect(lineBox.y).toBeLessThan(tableBox.y);
+
+    // When somebody needs a person the count is a button, and pressing it shows
+    // exactly them -- the rail is hidden on a phone, so this is the way there.
+    const needs = page.getByTestId("people-standing-needs");
+    if (await needs.count()) {
+      const said = (await needs.innerText()).trim();
+      const n = Number(said.split(" ")[0]);
+      await needs.click();
+      await expect(page.getByTestId("state-filter")).toBeVisible();
+      await expect(page.locator(".cl-table tbody tr:not(:has(.empty))")).toHaveCount(n);
+      for (const p of await page.locator(".cl-row-bucket-pill").allInnerTexts()) expect(p.trim().toLowerCase()).toBe("needs you");
+      await needs.click();
+      await expect(page.getByTestId("state-filter")).toHaveCount(0);
     }
-    // Whatever each tab holds — three rows, one, none — the strip does not move the page.
-    for (const h of heights) expect(Math.abs(h - heights[0])).toBeLessThanOrEqual(1);
-    // Every row shown: a sentence that is never the old placeholder, and a state line with words.
-    for (const row of await page.getByTestId("attention-row").all()) {
-      const sentence = (await row.locator(".cl-attn-sentence").innerText()).trim();
-      expect(sentence.length).toBeGreaterThan(0);
-      expect(sentence).not.toMatch(/nothing written to quote/);
-      expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
+
+    // Every row still says its own words and its own state -- what the strip said.
+    for (const row of await page.locator(".cl-table tbody tr:not(:has(.empty))").all()) {
+      const words = row.getByTestId("row-words");
+      if (await words.count()) expect((await words.innerText()).trim()).not.toMatch(/nothing written to quote/);
     }
-    for (const b of await page.getByTestId("attention-cta").allInnerTexts()) expect(["Open in Inbox", "Open thread"]).toContain(b.trim());
   });
 });

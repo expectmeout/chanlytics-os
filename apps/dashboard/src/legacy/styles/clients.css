@@ -1613,12 +1613,60 @@
    tabs moves nothing below it. The cells wear the tab's own colour. */
 /* Inset like every section (the head, the search row, the table): the old
    wrapper carried these 28px; the strip carries them itself now. */
-.cl-attn { --attn-row: 68px; margin: 16px 28px 4px; }
-.cl-attn .cl-triage-cell.on { opacity: 0.55; }
-.cl-attn .cl-triage-tab.active .cl-triage-cell.on { opacity: 0.95; }
-.cl-attn .cl-triage-tab:hover .cl-triage-cell.on { opacity: 0.8; }
-.cl-attn .cl-triage-cell:not(.on) { background: var(--line-strong); opacity: 0.3; }
-.cl-attn-list { min-height: calc(3 * var(--attn-row)); animation: cl-attn-in 140ms ease-out; }
+/* On a phone the People rows stack: the name and the state on the first line,
+   then when they last wrote, what is on the calendar, and their answer to
+   offers. The table was 760px wide inside a sideways scroll, so the state --
+   the column that says who needs a person -- sat off the right edge, and the
+   strip above it was the only place a phone could see it. */
+@media (max-width: 720px) {
+  .cl-table-wrap.pl-table-wrap { overflow-x: visible; margin: 0 16px; }
+  .cl-table.pl-table { min-width: 0; }
+  .pl-table thead { display: none; }
+  .pl-table tbody tr {
+    display: grid;
+    /* The state is bounded so a long detail cannot squeeze the name out of its own row. */
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 40%);
+    grid-template-areas: "sel name state" "sel last visits" "sel offers acts";
+    align-items: center;
+    gap: 2px 0;
+    padding: 8px 0;
+  }
+  .pl-table tbody tr > td { padding: 0 10px; min-width: 0; }
+  /* Everything in the name cell is a flex row built for a 572px column; without
+     a zero floor its parts refuse to shrink and run under the state beside them. */
+  .pl-table .cl-row-name, .pl-table .cl-row-name-block, .pl-table .cl-row-name-line { min-width: 0; }
+  .pl-table .cl-row-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The number, the WhatsApp name, the thread count and the first contact are
+     the profile's, one tap away; the row keeps the name, the words and when. */
+  .pl-table .cl-row-meta { display: none; }
+  .pl-table td.cl-sel { grid-area: sel; align-self: start; padding-top: 4px; }
+  .pl-table td.cl-name-cell { grid-area: name; }
+  .pl-table td.cl-state-cell { grid-area: state; justify-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 100%; }
+  .pl-table .cl-row-recept-mark { margin-left: 0; }
+  .pl-table .cl-row-state-detail { margin-top: 0; max-width: 100%; white-space: normal; }
+  .pl-table td.cl-last-cell { grid-area: last; }
+  .pl-table td.cl-visits-cell, .pl-table td.cl-recept-cell { grid-area: visits; justify-self: end; }
+  .pl-table td.cl-offers-cell { grid-area: offers; }
+  .pl-table td.cl-actions-cell { grid-area: acts; justify-self: end; }
+  /* A row's own actions are a hover affordance; a finger has the row itself. */
+  .pl-table .cl-row-actions { opacity: 1; }
+  .pl-table tbody tr td:empty { display: none; }
+}
+
+/* One line above the table: the count, who needs a person, who was reached. */
+.pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: 12.5px; color: var(--ink-dim); }
+.pl-standing-total { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.pl-standing-part { display: inline-flex; align-items: center; gap: 6px; }
+.pl-standing-dot { color: var(--ink-faint); }
+.pl-standing-needs { min-height: 28px; padding: 0 6px; margin-left: -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--danger); cursor: pointer; font-variant-numeric: tabular-nums; }
+.pl-standing-needs:hover { background: var(--bg-hover); }
+.pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
+.pl-standing-reached { font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .pl-standing { padding: 12px 16px 0; } }
+/* --attn-row was set on the People strip's own container, which is gone; every
+   page that still draws these rows (Today's queue, Setup, the back office) sets
+   it itself or lets the row size to its content, as it already did. */
+.cl-attn-list { animation: cl-attn-in 140ms ease-out; }
 .cl-attn-row {
   display: grid;
   grid-template-columns: 30px 1fr auto;
@@ -1675,15 +1723,12 @@
 .cl-attn-cta.primary:hover { filter: brightness(1.06); }
 .cl-attn-cta.ghost { background: transparent; color: var(--ink-muted); border-color: var(--line); }
 .cl-attn-cta.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
-.cl-attn-empty { min-height: calc(3 * var(--attn-row)); display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 12px; }
-.cl-attn-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 34px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--bg-sunken); }
-.cl-attn-foot-sub { font-size: 11px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 @keyframes cl-attn-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }
 @media (max-width: 720px) {
-  .cl-attn-row { grid-template-columns: 30px 1fr; height: auto; min-height: var(--attn-row); padding: 10px 14px; }
+  .cl-attn-row { grid-template-columns: 30px 1fr; height: auto; padding: 10px 14px; }
   .cl-attn-cta { grid-column: 2; justify-self: start; }
-  .cl-attn-list, .cl-attn-empty { min-height: 0; }
 }
 
 /* The row's verbs: the one button, and where a state asks a second thing of
