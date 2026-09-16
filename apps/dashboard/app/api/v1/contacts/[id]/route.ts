@@ -2,7 +2,7 @@ import { AppError, consentChangeOf } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { read, write, workspace } from "@/server/route";
 import { erasureScope, recordDecision } from "@/server/verbs";
-import { schedule, removeMediaObjects, erasedThreadIds, rescheduleBlobErase, scrubErasedJobs } from "@/server/service";
+import { schedule, removeMediaObjects, erasedThreadIds, rescheduleBlobErase, scrubErasedJobs, beginErasure } from "@/server/service";
 import { requireUuid } from "@/server/request-guards";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "@/server/dto";
 import type { MessageDto, PersonDecisionDto, PersonDetailDto, PersonEscalationDto, PersonRowDto } from "@chanlytics/contracts";
@@ -22,13 +22,17 @@ const digits = (s: string) => s.replace(/\D/g, "");
  * rather than a leak, and the role (owner) is judged against the contact's
  * own workspace, never a default one.
  *
- * ORDER IS THE DESIGN. The Blob job is queued FIRST — durably, as a jobs row —
- * because its key is the customer's phone digits and after the tombstone there
- * is nowhere left to recompute it. Storage objects go SECOND, before the rows
- * that name their paths, and a Storage failure STOPS here rather than running
- * the irreversible delete. The rows go LAST, in one transaction. A crash at
- * any point leaves the request retryable; the reverse order leaves a
- * transcript in Blob that nobody can ever find again.
+ * ORDER IS THE DESIGN. The keys are read first (reads only, retryable with
+ * nothing to undo). Then the BLOCK (beginErasure, 00124): from that moment the
+ * wire refuses the person and the passive doors will not bring them back,
+ * whatever happens to the legs below. The Blob job is queued next —
+ * durably, as a jobs row — because its key is the customer's phone digits and
+ * after the tombstone there is nowhere left to recompute it. Storage objects
+ * go after, before the rows that name their paths, and a Storage failure STOPS
+ * there rather than running the irreversible delete; the person is blocked
+ * meanwhile, not live. The rows go LAST, in one transaction. A crash at any
+ * point leaves the request retryable; the reverse order leaves a transcript
+ * in Blob that nobody can ever find again.
  */
 export const DELETE = write({
   scope: erasureScope,
@@ -100,7 +104,19 @@ export const DELETE = write({
       ...(media ?? []).map((m) => (m.media as { storage_path?: string } | null)?.storage_path),
     ].filter((p): p is string => !!p))];
 
-    /* ---- 2. Blob FIRST: queued durably before anything is destroyed ---- */
+    /* ---- the block, before anything is destroyed ---- */
+    // After the reads (they destroy nothing and a failed one is a retry with
+    // nothing to undo), before the first destructive leg. Written with the
+    // number still on the row: the digest the tombstone keeps is computed
+    // from it. A write that could not be made is a retry too.
+    try {
+      await beginErasure(contact.tenant_id, id, contact.phone_e164 ?? null);
+    } catch (e) {
+      console.error("erase_begin_failed", id, e instanceof Error ? e.message : e);
+      throw new AppError("internal", "Could not mark this person as being erased, so nothing was deleted. Try again.", 500);
+    }
+
+    /* ---- 2. Blob, queued durably before anything is destroyed ---- */
     let blob: Json;
     try {
       const { jobId } = await schedule(contact.tenant_id, "blob_thread_erase", new Date(), {

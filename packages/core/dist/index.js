@@ -3069,19 +3069,19 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+  const { data, error } = await db.from("conversations").select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
     assignee: row.assignee_user_id ?? null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null },
+    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null },
     tenantStatus: row.tenants?.status ?? null
   };
 }
 function refusalFor(d, f, nowMs) {
-  if (f.contact.erased_at) return "erased";
+  if (f.contact.erased_at || f.contact.erasing_since) return "erased";
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;

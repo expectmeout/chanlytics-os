@@ -692,6 +692,8 @@ export type Database = {
           display_name: string | null
           dnc: boolean
           erased_at: string | null
+          erased_phone_hash: string | null
+          erasing_since: string | null
           first_seen_at: string
           id: string
           last_seen_at: string
@@ -713,6 +715,8 @@ export type Database = {
           display_name?: string | null
           dnc?: boolean
           erased_at?: string | null
+          erased_phone_hash?: string | null
+          erasing_since?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
@@ -734,6 +738,8 @@ export type Database = {
           display_name?: string | null
           dnc?: boolean
           erased_at?: string | null
+          erased_phone_hash?: string | null
+          erasing_since?: string | null
           first_seen_at?: string
           id?: string
           last_seen_at?: string
