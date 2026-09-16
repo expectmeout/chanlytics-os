@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { headers } from "next/headers";
 
 /**
  * Every page is rendered per request. The Content-Security-Policy carries a
@@ -51,9 +52,22 @@ export const viewport: Viewport = {
   themeColor: "#0e1512",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+/** The nonce the middleware minted for this request, as it reached the render: read from the header Next reads. */
+async function requestNonce(): Promise<string | null> {
+  const h = await headers();
+  const csp = h.get("content-security-policy") ?? h.get("content-security-policy-report-only") ?? "";
+  const m = /'nonce-([A-Za-z0-9+/=_-]+)'/.exec(csp);
+  return m ? m[1] : null;
+}
+
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  // Rendered into the page so the nightly can compare it with the header's:
+  // a page whose scripts carry no nonce while this meta carries one is Next
+  // not applying it; one where this is empty is the header not arriving.
+  const nonce = await requestNonce();
   return (
     <html lang="en" data-theme="dark" className={`${geist.variable} ${geistMono.variable}`}>
+      <head>{nonce ? <meta name="csp-nonce" content={nonce} /> : null}</head>
       <body>{children}</body>
     </html>
   );
