@@ -116,6 +116,14 @@ test("a paused workspace holds the machine, never the person; a held thread hold
   }
 });
 
+test("a person who asked to be erased is refused from the moment they asked, not only once the erasure finished", async () => {
+  const asked = tables({ conversations: [thread({ contacts: person({ erasing_since: "2026-09-10T09:00:00.000Z" }) })] });
+  const w = wireOf();
+  const out = await deliver(ports(asked, w), words({ sender: "human" }));
+  assert.deepEqual([out.outcome, out.reason], ["refused", "erased"], "the block is written before anything is destroyed; a person's own reply meets it too");
+  assert.equal(w.calls.length, 0);
+});
+
 test("a thread a person holds refuses the receptionist's draft, and only the draft: the take-over's withdrawal, kept at the wire", async () => {
   const held = () => thread({ assignee_user_id: "u-owner" });
   const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };

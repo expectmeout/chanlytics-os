@@ -10,7 +10,7 @@ import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
-import { AppError, type JobKind } from "@chanlytics/contracts";
+import { AppError, erasedPhoneHash, type JobKind } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { recordDecision } from "./verbs";
 
@@ -60,6 +60,27 @@ export async function signedMediaUrl(storagePath: string, seconds = 300): Promis
  * erasure. A key that is already absent is the desired end state, so a short
  * `removed` list is NOT a failure; only a transport error is.
  */
+/**
+ * The first leg of an erasure: the block, written before anything is
+ * destroyed. From this moment the wire refuses the person (deliver.ts reads
+ * erasing_since beside erased_at), and the tombstone keeps the keyed digest
+ * of the number (contracts/erasure.ts) so the calendar import and a late
+ * call event do not bring them back. Service role: a session cannot write
+ * contacts, and the route has already judged the owner. Idempotent: a second
+ * request finds the block written and changes nothing.
+ */
+export async function beginErasure(tenantId: string, contactId: string, phoneE164: string | null): Promise<void> {
+  const hash = phoneE164 ? await erasedPhoneHash(tenantId, phoneE164) : null;
+  const { error } = await serviceDb()
+    .from("contacts")
+    .update({ erasing_since: new Date().toISOString(), ...(hash ? { erased_phone_hash: hash } : {}) })
+    .eq("id", contactId)
+    .eq("tenant_id", tenantId)
+    .is("erased_at", null)
+    .is("erasing_since", null);
+  if (error) throw new Error(`begin_erasure: ${error.message}`);
+}
+
 export async function removeMediaObjects(
   paths: string[],
 ): Promise<{ requested: number; removed: string[]; error: string | null }> {

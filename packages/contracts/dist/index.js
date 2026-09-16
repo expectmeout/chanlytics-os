@@ -9046,6 +9046,13 @@ function stateLabel(kind, value) {
 function stateOf(kind, value) {
   return { tone: stateTone(kind, value), label: stateLabel(kind, value) };
 }
+
+// src/erasure.ts
+async function erasedPhoneHash(tenantId, phoneE164) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${phoneE164}`);
+  const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 export {
   ABANDONED_MS,
   ACTIVITY_KINDS,
@@ -9388,6 +9395,7 @@ export {
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
+  erasedPhoneHash,
   err,
   eventText,
   exampleParams,

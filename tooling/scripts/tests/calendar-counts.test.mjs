@@ -143,7 +143,7 @@ test("the sweep's library: a person the feed names is made once, a name fills on
     { phone: "+19175550001", name: "Ana Ruiz", title: "Ana Ruiz · Balayage", uid: "v1", start: NOW.getTime() + DAY },
     { phone: "+19175550002", name: "Bo Chen", title: "Bo Chen · Cut", uid: "v2", start: NOW.getTime() + 2 * DAY },
   ]);
-  assert.deepEqual(r, { seen: 2, added: 1, named: 1 });
+  assert.deepEqual(r, { seen: 2, added: 1, named: 1, erased: 0 });
   const first = (s) => (Array.isArray(s.values) ? s.values[0] : s.values);
   const contacts = db.seen.filter((s) => s.table === "contacts");
   assert.ok(contacts.some((s) => s.op === "update" && first(s).display_name === "Ana Ruiz"), "the known number is named, not made again");
@@ -151,6 +151,19 @@ test("the sweep's library: a person the feed names is made once, a name fills on
   const ev = db.seen.find((s) => s.table === "events" && s.op === "insert");
   assert.equal(first(ev).kind, "contact.added");
   assert.deepEqual(first(ev).data, { source: "calendar", title: "Bo Chen · Cut", uid: "v2", start: iso(NOW.getTime() + 2 * DAY) });
+});
+
+test("the sweep's library: a person who asked to be erased is not brought back by their own appointment", async () => {
+  const { erasedPhoneHash } = await import("@chanlytics/contracts");
+  const h = await erasedPhoneHash(T, "+19175550003");
+  const db = fakeDb({ contacts: [{ id: "k-gone", tenant_id: T, phone_e164: null, display_name: null, erased_at: iso(NOW.getTime() - DAY), erasing_since: null, erased_phone_hash: h, merged_into_contact_id: null }], events: [] });
+  const r = await addPeopleFromCalendar(db, T, [
+    { phone: "+19175550003", name: "Cara Voss", title: "Cara Voss · Cut", uid: "v3", start: NOW.getTime() + DAY },
+    { phone: "+19175550004", name: "Dev Rao", title: "Dev Rao · Colour", uid: "v4", start: NOW.getTime() + DAY },
+  ]);
+  assert.deepEqual(r, { seen: 2, added: 1, named: 0, erased: 1 });
+  const inserted = db.seen.filter((s) => s.table === "contacts" && s.op === "insert").map((s) => (Array.isArray(s.values) ? s.values[0] : s.values).phone_e164);
+  assert.deepEqual(inserted, ["+19175550004"], "the erased number is left erased; the other is made");
 });
 
 test("the edge reads the feed by the same address rule: a private address is never fetched, a good one is parsed once", async () => {

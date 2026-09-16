@@ -151,7 +151,7 @@ interface WireFacts {
   pausedUntil: string | null;
   /** The person who took the thread over, when one did. */
   assignee: string | null;
-  contact: { consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null };
+  contact: { consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null; erasing_since: string | null };
   tenantStatus: string | null;
 }
 
@@ -164,7 +164,7 @@ interface WireFacts {
 async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   const { data, error } = await db
     .from("conversations")
-    .select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)")
+    .select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since), tenants (status)")
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId)
     .maybeSingle();
@@ -179,7 +179,7 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   return {
     pausedUntil: row.paused_until ?? null,
     assignee: row.assignee_user_id ?? null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null },
+    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null },
     tenantStatus: row.tenants?.status ?? null,
   };
 }
@@ -187,8 +187,9 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
 /** Why the door is shut for this send, or null when it may go. */
 function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal | null {
   // A person who asked to be forgotten is never messaged, whatever the row
-  // that survived says.
-  if (f.contact.erased_at) return "erased";
+  // that survived says -- from the moment they asked (erasing_since, written
+  // before anything is destroyed), not only once the erasure finished.
+  if (f.contact.erased_at || f.contact.erasing_since) return "erased";
   // The texting line is registered with the carriers for replies and
   // appointment messages, and nothing else: an informational campaign, filed
   // that way after the fourth refusal (30896). A promotion by text would go out
