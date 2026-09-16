@@ -149,7 +149,7 @@ test("the composer names the channel and the number the way the header does", ()
   globalThis.window.__TEMPLATES = [booking];
   globalThis.window.__inboxTemplates = contracts.inboxTemplates;
   const phoneOnly = toInboxThreadVM(conv({ last_wa_inbound_at: null, contact: person({ phone_e164: "+19175550106" }), messages: [callNote] }), asked({ reason: "callback", details: "Call back" }), ZONE, NOW);
-  assert.equal(textOf(find(composerOf(phoneOnly), hasClass("ix-composer-channel"))), "Phone · +1 (917) 555-0106", "REGRESSION: it read PHONE · +19175550106");
+  assert.equal(find(composerOf(phoneOnly), hasClass("ix-composer-channel")), undefined, "a caller with no WhatsApp thread has the channel and the number in the header, and the reply box said them again");
   const closed = toInboxThreadVM(conv(), asked(), ZONE, NOW);
   assert.equal(textOf(find(composerOf(closed), hasClass("ix-composer-channel"))), "WhatsApp · to Rosa Díaz", "REGRESSION: it read WHATSAPP · to Rosa Díaz");
 });
@@ -162,6 +162,11 @@ test("the template send offers what can go to this person, by title and language
   let tree = composerOf(closed);
   assert.equal(find(tree, (n) => n.type === "select"), undefined, "one template this person can be sent: no picker");
   assert.ok(buttonsOf(tree).includes("Send “Booking link”"), "REGRESSION: 'Send booking link', whichever template was picked");
+  // Why the rest are not offered is one tap away, never a sentence sitting under the reply box.
+  assert.equal(find(tree, byTestId("ix-tpl-hidden")), undefined, "not until it is asked for");
+  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
+  seq = 0;
+  tree = InboxComposer({ thread: closed, reply: "", onSend() {} });
   assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "Not offered: 2 that need words the Inbox doesn't ask for.", "REGRESSION: all seven were offered, and most would be refused");
 
   globalThis.window.__TEMPLATES = [booking, saveEs];
@@ -172,7 +177,11 @@ test("the template send offers what can go to this person, by title and language
 
   globalThis.window.__TEMPLATES = [tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note];
   tree = composerOf(closed);
-  assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "None of your approved templates can go to Rosa Díaz. Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs words the Inbox doesn't ask for.");
+  assert.match(textOf(find(tree, hasClass("ix-tpl-none"))), /^No approved message can go to Rosa Díaz yet\.\s*Why\?$/, "eight words, with the counts behind them");
+  find(tree, (n) => n.type === "button" && textOf(n).trim() === "Why?").props.onClick();
+  seq = 0;
+  tree = InboxComposer({ thread: closed, reply: "", onSend() {} });
+  assert.equal(textOf(find(tree, byTestId("ix-tpl-hidden"))), "Not offered: 1 promotion (Rosa Díaz hasn't said yes to offers) and 1 that needs words the Inbox doesn't ask for.");
   assert.ok(!buttonsOf(tree).some((b) => b.startsWith("Send")), "REGRESSION: a button whose only outcome was a refusal");
 
   globalThis.window.__TEMPLATES = [];

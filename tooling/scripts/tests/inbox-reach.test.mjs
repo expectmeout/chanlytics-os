@@ -105,7 +105,12 @@ test("the Needs you banner keeps its words and its buttons apart: the words take
   const take = find(paneOf(vmOf(chat({ last_wa_inbound_at: null, messages: [callNote] }), callback)), hasClass("ix-take"));
   const actions = find(take, hasClass("ix-take-actions"));
   assert.ok(actions, "REGRESSION: the buttons shared the words' row, and at 1024 the words were 0px wide");
-  assert.deepEqual(buttonsOf(actions), ["I'll call them", "Nothing needed — hand it back to the receptionist"]);
+  // One press dials and claims it: "I'll call them" only claimed it, over a reply box whose own Call back only
+  // dialled, under a banner that said to call them back, under a sentence that said it first.
+  const call = find(actions, (n) => n.type === "a");
+  assert.ok(call && String(call.props.href).startsWith("tel:"), "the call is the primary action");
+  assert.equal(textOf(call).trim(), "Call back");
+  assert.deepEqual(buttonsOf(actions), ["Hand back"], "and the way out, in two words");
   assert.equal(find(find(take, hasClass("ix-take-body")), hasClass("ix-take-actions")), undefined, "beneath the words, not inside them");
   assert.match(textOf(find(take, byTestId("ix-take-ask"))), /Call Rosa back to confirm the bridal trial/);
 });
