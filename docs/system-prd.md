@@ -119,9 +119,7 @@ The two apps deploy independently from `main`, so a change both must agree on sh
 | Resend | Every email a person receives from the system, and the platform's pages | `RESEND_API_KEY` (the hosted Supabase project sends through it too, which lifted the two-an-hour ceiling) |
 | Vercel Blob | The receptionist's pre-Postgres thread memory, now a shadow copy | `BLOB_READ_WRITE_TOKEN`; retired by `BLOB_SHADOW=off` |
 
-Every provider is reached from the edge and nowhere else.
-
-> **Δ1 · Open** Jobs no longer travel through QStash. Since #320 (migration 00098) a job is only a row, and a ten-second pg_cron heartbeat runs whatever is due (S-08). `api/jobs/fire.ts` stays as a responder that answers 200, so QStash stops retrying deliveries it accepted before the switch. Delete it and the `QSTASH_*` variables after 10 October 2026 — the longest delay ever scheduled through QStash was a thirty-day snooze.
+Every provider is reached from the edge and nowhere else. QStash, the job clock before #320, is gone entirely: the responder that answered its last retries and the `QSTASH_*` variables were removed on 16 September, since no QStash account exists to retry anything.
 
 ### The four doors
 
@@ -230,7 +228,7 @@ Six modules, each for one reason: `server/service.ts` (scheduling jobs, signing 
 
 `/signup` → `POST /api/v1/signup` (public; same-origin; limited per network and per address, and a stranger counts against the shared limit; an invite code compared in constant time when `SIGNUP_CODE` is set) → the service role creates the auth user with the password, keeps what the form said — the workspace's name and details — **on the auth user**, and sends the confirmation code. **The workspace waits for its owner**: the person who enters the code makes it, signed in, through `create_workspace`. Nothing exists for an address until its owner does; a stranger typing someone else's address gets that person nothing they did not ask for. The page says the same sentence whether or not the address was known; a code that could not be sent is said, not answered 500; and the platform mailbox is told through `/api/admin/signup-notify`. The front door has three postures: open, invite code, and waitlist (`waitlist`, 00088). The first-workspace screen joins the waitlist itself and offers a way out.
 
-> **Δ2 · Open** Production sign-up runs open. Closing the front door (gate 2 of the launch plan) is shipped as code and waits on an environment change, which is Ruben's decision.
+> **Δ1 · Open** Production sign-up runs open. Closing the front door (gate 2 of the launch plan) is shipped as code and waits on an environment change, which is Ruben's decision.
 
 A signed-in person with no workspace sees `CreateWorkspace` instead of the app, and the workspace menu offers another workspace the same way (`create_workspace`, five an hour). A new workspace opens at its slug, so the app boots once and lands on its Setup.
 
@@ -398,7 +396,7 @@ sequenceDiagram
 
 A recording reaches a browser only through `/api/v1/calls/:id/recording`, as a five-minute signed URL. The provider's unsigned URL is never stored on a row, because `calls` is in the realtime publication and every column reaches every member's browser.
 
-> **Δ3 · Open** An empty Retell function secret should open neither door (`?key=` on the tool calls and the call start). PR #479 closes it and waits on Ruben.
+> **Δ2 · Open** An empty Retell function secret should open neither door (`?key=` on the tool calls and the call start). PR #479 closes it and waits on Ruben.
 
 ## S-07 · Channels: SMS, lines and carrier registration
 
@@ -431,11 +429,11 @@ Each step records its receipt on the row before the next runs, so a retry resume
 - **The filing that a reviewer passes** — `POST /api/v1/lines/register` (owner, and `requireSpend`) → edge `registerLine` → the A2P saga, run in the workspace's own subaccount and referencing Chanlytics' approved primary Trust Hub profile: customer (or starter) profile, end users, address, documents, evaluation and submission, A2P messaging profile, brand, then the campaign on the line's Messaging Service — the campaign in the reviewers' own register, the business's own terms, a confirmation on every yes, the message flow saying what the product does with every way in numbered, the spoken script and the auto-reply quoted (the fifth refusal, 30896, is what taught the form). Every receipt is recorded, so a resumed filing pays nothing twice. `mock` files against the provider's free test registry: a rehearsal, where nothing routes. A refused campaign has a door to be replaced (`platform/lines/replace`).
 - **The registration sweep** (hourly) asks the carriers where each filing stands, files the campaign once the brand is through, and keeps the carriers' own refusal reasons with their codes. What was filed is remembered (`lines.reg_sole_prop`, 00090), because the record can change after the brand cannot.
 
-> **Δ4 · Open** The sole-proprietor verification code: nothing sets `otp_waiting` yet, and the shape of the resend call is unconfirmed. Both need one real sole-proprietor filing to observe — a few dollars, and irreversible — which is Ruben's decision. Until then the row tells the owner to reply from the handset and offers no button.
+> **Δ3 · Open** The sole-proprietor verification code: nothing sets `otp_waiting` yet, and the shape of the resend call is unconfirmed. Both need one real sole-proprietor filing to observe — a few dollars, and irreversible — which is Ruben's decision. Until then the row tells the owner to reply from the handset and offers no button.
 
-> **Δ5 · Open** The live campaign's opt-in confirmation still names the workspace's old name. The campaign's editable fields cannot change it (refused three times); the replace door files a new campaign at a second vetting fee (about $15), and paying it is Ruben's decision.
+> **Δ4 · Open** The live campaign's opt-in confirmation still names the workspace's old name. The campaign's editable fields cannot change it (refused three times); the replace door files a new campaign at a second vetting fee (about $15), and paying it is Ruben's decision.
 
-> **Δ6 · Open** PR #530 — an owner asking for their number to be brought over, and for a broken configuration to be repaired, as two more setup-request kinds (S8, S14 of the launch audit) — waits on Ruben's push of migration 00123 to production, then merges.
+> **Δ5 · Open** PR #530 — an owner asking for their number to be brought over, and for a broken configuration to be repaired, as two more setup-request kinds (S8, S14 of the launch audit) — waits on Ruben's push of migration 00123 to production, then merges.
 
 ## S-08 · The jobs ledger and row clocks
 
@@ -561,7 +559,7 @@ The other thread verbs: **take over** pauses the receptionist and claims the thr
 - Limits per signed-in person, counted in Postgres so a burst across serverless instances is limited in total (`take_rate`), falling back to memory when the database is slow — and the memory limiter announces itself; money fails closed. The buckets (`RATE`): replies 30 a minute, conversation changes 120, whispers and call controls 20, settings 30, broadcasts 10, playbook changes 30, consent, list and receptionist changes 60, profile edits 60, notification marks 120, report reads 240; an hour holds 10 invitations, 30 team changes, 5 erasures, 5 new workspaces, 60 people added, 5 setup requests, 20 number searches, 3 lines bought, 10 line retries, 10 forwarding changes, 20 business-record changes, 3 registrations; the back office 30 retries, 20 refiles and 5 releases for other workspaces. A refusal is the envelope's `rate_limited` (429) with a retry hint, said in the owner's words.
 - Response headers deny framing (`frame-ancestors`): the app has Send and Approve buttons bound to a session.
 
-> **Δ7 · Open** No Content-Security-Policy beyond `frame-ancestors` (the ported mockup's inline styles need nonce plumbing first, and a policy that provides no protection while looking like it does is worse than none), and no CAPTCHA on the auth endpoints, so the public anon key can still ask Supabase whether an address has an account.
+> **Δ6 · Open** No Content-Security-Policy beyond `frame-ancestors` (the ported mockup's inline styles need nonce plumbing first, and a policy that provides no protection while looking like it does is worse than none), and no CAPTCHA on the auth endpoints, so the public anon key can still ask Supabase whether an address has an account.
 
 ### 10.4 Erasure, export and retention
 
@@ -916,16 +914,15 @@ The redlines in one place: where the built system departs from a plan, or where 
 
 | Δ | Sheet | Note | Decision with |
 |---|---|---|---|
-| 1 | S-02 | QStash is retired as the job clock; delete `api/jobs/fire.ts` and the `QSTASH_*` variables after 10 October 2026 | Engineering |
-| 2 | S-04 | Production sign-up runs open (launch gate 2); closing it is an environment change | Ruben |
-| 3 | S-06 | PR #479: an empty Retell function secret should open neither door | Ruben |
-| 4 | S-07 | The sole-proprietor verification-code leg waits on one real filing | Ruben |
-| 5 | S-07 | The live campaign's opt-in message names the old workspace; the replace door files a new one at a second vetting fee | Ruben |
-| 6 | S-07 | PR #530 (number port-in and repair requests) waits on the push of migration 00123 to production | Ruben |
-| 7 | S-10 | No Content-Security-Policy beyond `frame-ancestors`; no CAPTCHA on sign-in | Engineering |
-| 8 | S-22 | Two Dependabot majors open: TypeScript 7 (#401) and eslint-plugin-react-hooks 7 (#489) | Engineering |
+| 1 | S-04 | Production sign-up runs open (launch gate 2); closing it is an environment change | Ruben |
+| 2 | S-06 | PR #479: an empty Retell function secret should open neither door | Ruben |
+| 3 | S-07 | The sole-proprietor verification-code leg waits on one real filing | Ruben |
+| 4 | S-07 | The live campaign's opt-in message names the old workspace; the replace door files a new one at a second vetting fee | Ruben |
+| 5 | S-07 | PR #530 (number port-in and repair requests) waits on the push of migration 00123 to production | Ruben |
+| 6 | S-10 | No Content-Security-Policy beyond `frame-ancestors`; no CAPTCHA on sign-in | Engineering |
+| 7 | S-22 | Two Dependabot majors open: TypeScript 7 (#401) and eslint-plugin-react-hooks 7 (#489) | Engineering |
 
-Closed since the first edition: tenancy by convention (Δ2 then — `route()` scopes, `choose_workspace`, the workspace in the URL); rules in two apps (Δ7 — three groups of `packages/core`); realtime unfiltered by workspace (Δ8 — #351); the legacy frontend's future and the demo surfaces (Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%); nothing paging the operator (Δ11 — the pager, six conditions).
+Closed since the first edition: QStash (Δ1 then — the responder and its variables removed, there being no account to retry from); tenancy by convention (Δ2 then — `route()` scopes, `choose_workspace`, the workspace in the URL); rules in two apps (Δ7 — three groups of `packages/core`); realtime unfiltered by workspace (Δ8 — #351); the legacy frontend's future and the demo surfaces (Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%); nothing paging the operator (Δ11 — the pager, six conditions).
 
 ## Appendix A · Glossary
 
