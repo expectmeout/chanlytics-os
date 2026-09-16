@@ -37,16 +37,15 @@ test.describe("People on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the list is the workspace's people, in facts only, with Lists beside it and the Tier 2 tabs absent", async ({ page }) => {
+  test("the list is the workspace's people, in facts only, with no tab strip over it", async ({ page }) => {
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("people-standing")).toBeVisible();
     await assertMeasuredOnly(page, "#/clients");
 
-    // The seeded strip offered Leads, Deal board and Lists. Lists has been real
-    // since #123, so a real workspace sees People and Lists; Leads and the deal
-    // board are seed data and stay out rather than two dead tabs.
-    await expect(page.locator(".stabs .stabs-tab")).toHaveText([/People/, /Lists/]);
+    // The seeded strip offered Leads, Deal board and Lists. Leads and the deal board are seed data; Lists is a
+    // view of People now (its rail, a sheet on a phone). One real tab is no strip at all.
+    await expect(page.locator(".stabs .stabs-tab")).toHaveCount(0);
 
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.

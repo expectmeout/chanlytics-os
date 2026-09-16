@@ -312,7 +312,7 @@ test("REGRESSION (B18): a list chip on a profile opens its list -- the name was 
   const open = byTestId(lists, "person-list-open");
   assert.ok(open && textOf(open).includes("Regulars"), "the name is a door");
   press(open);
-  assert.deepEqual(went, ["segments/s1"]);
+  assert.deepEqual(went, ["clients/list:s1"], "the list, picked, on People -- the Lists page folded into it");
 });
 
 test("REGRESSION: a person's page says who they are once -- the header held two buttons to one thread and two pills, a card quoted the timeline's first two messages, and six cells said the rail again", async () => {
@@ -508,8 +508,8 @@ test("a person known by number is invited to name them; an empty Lists section i
     const lists = byTestId(tree, "person-lists");
     assert.match(textOf(lists), /No lists yet\./);
     went.length = 0;
-    press(find(lists, (n) => n.type === "button" && /Make one on Lists/.test(textOf(n))));
-    assert.deepEqual(went, ["segments"], "REGRESSION: 'make one on the People rail' -- a rail a phone does not have");
+    press(byTestId(lists, "person-lists-make"));
+    assert.deepEqual(went, ["clients"], "REGRESSION: 'make one on the People rail' -- a rail a phone does not have; the door lands on People with the box opening");
   } finally {
     globalThis.window.__PEOPLE = saved;
   }

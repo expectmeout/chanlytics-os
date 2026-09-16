@@ -519,7 +519,8 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
-  { label: "Lists", to: "segments", kind: "page", sub: "the people you keep together" },
+  // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People" },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },

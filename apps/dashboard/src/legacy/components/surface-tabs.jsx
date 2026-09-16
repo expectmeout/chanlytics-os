@@ -16,12 +16,9 @@ const ST_GROUPS = {
       // hides itself rather than offering three Coming Soon panes.
       { id: "leads", label: "Leads", to: "leads", demoOnly: true, badge: () => (window.__DEMO_MODE ? ((window.LEADS || []).filter(l => l.stage === "ready").length) || null : null), tip: "Leads scored ready — your call to make" },
       { id: "pipeline", label: "Deal board", to: "pipeline", demoOnly: true, tip: "Deals are leads with money attached — same people, board view" },
-      // NOT demoOnly: Lists has been real since #123 and the registry calls it
-      // "People > Lists". The flag outlived the surface being seed-only, and
-      // because it was the only other People tab, the bar fell under the
-      // two-tab minimum and vanished -- so a shipped surface was reachable in
-      // production only from a "New segment" button in a rail on People.
-      { id: "segments", label: "Lists", to: "segments", tip: "The lists kept by hand and the ones an agent keeps for you" },
+      // No Lists tab: on a real workspace the lists are the People rail (and a sheet on a phone), and `segments/<id>`
+      // lands on People with that list picked. A real workspace has one People tab, so the bar draws nothing there;
+      // the demo keeps the seeded Segments page behind the seeded rail's own doors.
     ],
   },
   conversations: {

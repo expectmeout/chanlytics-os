@@ -3678,16 +3678,22 @@ function peopleListAction(id, members) {
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  return broadcastStep(step.cta, step.to, members);
+}
+function savedListAction(id, members) {
+  return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
+}
+function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
     return {
       text: members.length ? "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer. The phrase and the QR are on Broadcasts." : "Nobody here right now.",
-      cta: step.cta,
-      to: step.to,
+      cta,
+      to,
       enabled: false
     };
   }
-  return { text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  return { text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta, to, enabled: true };
 }
 function peopleAggregates(rows, nowMs) {
   let needsYou = 0;
@@ -5034,7 +5040,8 @@ var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
-  { label: "Lists", to: "segments", kind: "page", sub: "the people you keep together" },
+  // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People" },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
@@ -9557,6 +9564,7 @@ export {
   sameName,
   samePhone,
   sameQuestion,
+  savedListAction,
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,

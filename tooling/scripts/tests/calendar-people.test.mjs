@@ -474,7 +474,7 @@ test("the list page: Next visit takes the receptionist's column with a calendar,
   assert.ok(page.includes('data-testid="row-next-visit"') && !page.includes("row-booked"), "the column carries the outcome; the chip is gone");
   assert.ok(page.includes('data-testid={`rail-group-${g.id}`}') && page.includes("cl-rail-group-label"));
   assert.ok(page.includes('data-testid="state-filter"') && !page.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
-  assert.ok(page.includes('data-testid="list-action"') && page.includes("window.CHANLY.nav(activeList.action.to)"));
+  assert.ok(page.includes('data-testid="list-action"') && page.includes("window.CHANLY.nav(listStep.to)"));
   assert.ok(page.includes('window.history.replaceState(null, "", next)') && page.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");
   assert.ok(page.includes('const PL_VIEW_KEY = "chanlytics-people-view";') && page.includes("plSaveView(view);") && page.includes('window.__saveView("people", view)'), "remembered: on this device, and on the member's row in the workspace");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");

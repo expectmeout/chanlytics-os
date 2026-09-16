@@ -751,16 +751,29 @@ export function peopleListAction(id: string, members: PersonRowVM[]): PeopleList
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  return broadcastStep(step.cta, step.to, members);
+}
+
+/**
+ * A list kept by hand has one onward step: a broadcast to the people on it who said yes to offers. The same
+ * sentence and the same rule as a smart list's broadcast step, so the two kinds of list read alike on People,
+ * which is where both live now (the Lists page folded into it).
+ */
+export function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction {
+  return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
+}
+
+function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
     return {
       text: members.length
         ? "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts."
         : "Nobody here right now.",
-      cta: step.cta, to: step.to, enabled: false,
+      cta, to, enabled: false,
     };
   }
-  return { text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  return { text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta, to, enabled: true };
 }
 
 export interface PeopleAggregates {

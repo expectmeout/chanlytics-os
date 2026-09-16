@@ -77,7 +77,7 @@
     "registration-path.test.mjs": 8,
     "review-reply.test.mjs": 10,
     "runtime-freshness.test.mjs": 2,
-    "saved-lists.test.mjs": 16,
+    "saved-lists.test.mjs": 14,
     "settings-truth.test.mjs": 13,
     "setup.test.mjs": 25,
     "shared-limits.test.mjs": 1,

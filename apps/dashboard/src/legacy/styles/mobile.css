@@ -128,26 +128,16 @@
   /* ---------- Clients ---------- */
   .clients { grid-template-columns: 1fr; }
   .cl-rail { display: none; }
-  /* Lists on a phone: the rail is its only list picker, so here it stays, as one scrolling row of chips above
-     the page. Its member rows get cards of their own: People's card grid places People's cells, and put a
-     list's unmarked cells into its checkbox column, one letter wide. */
-  .clients.lists-page { grid-template-rows: auto minmax(0, 1fr); }
-  .clients.lists-page .cl-rail { display: flex; flex-direction: row; align-items: center; gap: 6px; overflow-x: auto; padding: 8px 16px; border-right: none; border-bottom: 1px solid var(--line); scrollbar-width: none; }
-  .clients.lists-page .cl-rail::-webkit-scrollbar { display: none; }
-  .clients.lists-page .cl-rail-section { display: contents; }
-  .clients.lists-page .cl-rail-label, .clients.lists-page .cl-rail-hint { display: none; }
-  .clients.lists-page .cl-rail-row { flex: none; min-height: 36px; padding: 6px 12px; border: 1px solid var(--line); border-radius: 999px; }
-  .clients.lists-page .cl-rail-row .label { flex: none; }
-  .clients.lists-page .cl-rail-row.smart::before { display: none; }
-  .clients.lists-page .cl-rail-foot { flex: none; margin: 0; padding: 0; border-top: none; }
-  .clients.lists-page .cl-rail-newseg { width: auto; min-height: 36px; padding: 6px 12px; white-space: nowrap; }
-  .clients.lists-page .cl-table { min-width: 0; }
-  .clients.lists-page .cl-table tbody tr { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "name state" "last drop" "offers offers"; }
-  .clients.lists-page .cl-table td.lists-name-cell { grid-area: name; }
-  .clients.lists-page .cl-table td.lists-state-cell { grid-area: state; justify-self: end; }
-  .clients.lists-page .cl-table td.lists-last-cell { grid-area: last; }
-  .clients.lists-page .cl-table td.lists-drop-cell { grid-area: drop; justify-self: end; }
-  .clients.lists-page .cl-table td.lists-offers-cell { grid-area: offers; }
+  /* The rail's lists on a phone: behind one tap on the standing line, as a sheet from the bottom -- the same rows,
+     counts and New list the desktop rail has. They were a Lists tab of their own with a chip row over a second
+     table of the same people. */
+  .pl-standing-lists { display: inline-flex; }
+  /* A list's head on a narrow screen: the title, Show everyone and Delete on one line, and the "Save these as a
+     list" door under them, not beside them squeezing the three into a 92px stack. */
+  .clients .cl-section-head { flex-wrap: wrap; gap: 4px 12px; }
+  .pl-sheet { left: 0; right: 0; top: auto; bottom: 0; transform: none; width: auto; max-height: 82vh; border-radius: var(--radius-lg) var(--radius-lg) 0 0; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); }
+  .pl-sheet .sb-sheet-head { padding: 0 16px 6px; }
+  .pl-sheet .cl-rail { display: block; width: auto; border-right: none; background: transparent; }
   /* A selection's bulk bar wraps on a phone instead of running off the edge. */
   .cl-bulk { flex-wrap: wrap; row-gap: 6px; }
   .cl-triage-tabs { grid-template-columns: 1fr 1fr; }
