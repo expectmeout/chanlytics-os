@@ -95,7 +95,7 @@ test("every thread verb the assistant may propose is one the committer can send,
 test("a reply: the words to the thread's reply route, marked as a card's; the receipt names the person and the cancel window; undo keeps the message, its window and the ledger row", async () => {
   const t = tab();
   const r = await commitProposal(t.win, card("reply", { conversation_id: C1, text: "On our way.", who: "Rosa" }), t.client);
-  assert.deepEqual(r, { ok: true, receipt: "Sent to Rosa — cancel within 15 seconds", undo: { message_id: "m-9", cancelable_until: "2026-09-12T10:00:15.000Z", decision_id: D(1) } });
+  assert.deepEqual(r, { ok: true, receipt: "On its way to Rosa — sends in 15 seconds unless you cancel", undo: { message_id: "m-9", cancelable_until: "2026-09-12T10:00:15.000Z", decision_id: D(1) } });
   assert.deepEqual(one(t), { key: `POST /api/v1/conversations/${C1}/reply`, body: { text: "On our way." }, via: "ask", undoOf: undefined });
   assert.ok(t.events.includes(`refresh:POST conversations/[id]/reply`), "the surfaces the map names are re-read, as after the page's own button");
 });

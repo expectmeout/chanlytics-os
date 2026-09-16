@@ -113,6 +113,39 @@ test("no model key: the workspace's greeting leaves labelled a fallback, the thr
   assert.equal(t.replies.length, 1);
 });
 
+test("a hold that cannot be written: the veto window sends now and says so; the confidence floor sends nothing and hands the thread to a person", async () => {
+  const sure = { intent: "hours", confidence: 0.9, reason: "", facts_used: [], language: "en", model: "m" };
+  const unsure = { ...sure, confidence: 0.3 };
+  const model = (meta) => ({ brain: async () => ({ generateReply: async () => ({ text: "We open at 9.", escalate: false, meta }) }) });
+  // queueReply answers false in this world: no hold can be written.
+  const veto = world({ env: { modelKey: "sk-test" }, rt: runtime({ policy: { reply: { mode: "veto", limits: { reply_delay_ms: 60_000 } } } }) });
+  await veto.run(text("when do you open?"), model(sure));
+  assert.equal(veto.seen.sent.length, 1, "the veto window is a comfort: the reply goes now rather than late");
+  assert.equal(veto.seen.escalations.length, 0);
+  assert.equal(veto.seen.processed, 1);
+
+  const floor = world({ env: { modelKey: "sk-test" }, rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }) });
+  await floor.run(text("when do you open?"), model(unsure));
+  assert.equal(floor.seen.sent.length, 0, "the floor is a policy: a reply the model is not sure of never sends itself, whatever the database did");
+  assert.equal(floor.seen.escalations.length, 1);
+  assert.equal(floor.seen.escalations[0].reason, "policy_block");
+  assert.match(floor.seen.escalations[0].details, /not sure enough/);
+  assert.match(floor.seen.escalations[0].details, /could not be written/);
+  assert.match(floor.seen.escalations[0].details, /when do you open/, "the customer's words travel with it");
+  assert.equal(floor.seen.pauses.length, 1, "the thread is a person's for the pause window");
+  assert.equal(floor.seen.alerts.length, 1, "the owner is told");
+  assert.match(floor.seen.alerts[0].reason, /nothing was sent/);
+  assert.equal(floor.seen.processed, 1, "marked handled: the redelivery gate holds");
+  const t = floor.thread();
+  assert.ok(t.pausedUntil > Date.now());
+  assert.deepEqual(t.history.map((h) => h.role), ["user"], "the unsent words are not remembered as said");
+
+  // Sure enough under the same floor: the reply goes (the hold was never asked for).
+  const fine = world({ env: { modelKey: "sk-test" }, rt: runtime({ policy: { reply: { mode: "auto", limits: { min_confidence: 0.7, reply_delay_ms: 60_000 } } } }) });
+  await fine.run(text("when do you open?"), model(sure));
+  assert.equal(fine.seen.sent.length, 1);
+});
+
 test("the same customer's next text inside the pause is recorded and not answered", async () => {
   const w = world();
   await w.run(text("hi, do you have time tomorrow?"));

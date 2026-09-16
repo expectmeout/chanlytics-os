@@ -116,6 +116,22 @@ test("a paused workspace holds the machine, never the person; a held thread hold
   }
 });
 
+test("a thread a person holds refuses the receptionist's draft, and only the draft: the take-over's withdrawal, kept at the wire", async () => {
+  const held = () => thread({ assignee_user_id: "u-owner" });
+  const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
+  const t = tables({ conversations: [held()], messages: [{ ...draft }] });
+  const w = wireOf();
+  const out = await deliver(ports(t, w), words({ sender: "ai", messageId: "m1" }));
+  assert.deepEqual([out.outcome, out.reason], ["refused", "human_has_it"], "the draft the withdrawal missed is refused here");
+  assert.equal(t.messages[0].status, "canceled", "and retired in place");
+  assert.equal(w.calls.length, 0, "nothing reached the wire");
+  // The person's own reply on the thread they hold goes; so does a system
+  // message, owed whoever holds it; an answer meets the pause, not this.
+  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "human" }))).outcome, "sent");
+  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "system" }))).outcome, "sent");
+  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "ai" }))).outcome, "sent");
+});
+
 test("a queued row is finalized in place: sent with its id, or canceled with its reason and an event that says why", async () => {
   const queued = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "See you at 3", sender: "human", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
   const sentT = tables({ messages: [{ ...queued }] });
