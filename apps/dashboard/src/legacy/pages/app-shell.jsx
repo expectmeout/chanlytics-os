@@ -21,6 +21,9 @@ const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
+// A real workspace: the bridge is here (it publishes the registry) and the session did not declare itself a demo.
+// Not a gate (the honesty gate below is the one gate); which of two real drawings a route gets before its surface lands.
+const realWorkspace = () => !window.__DEMO_MODE && !!window.__surfaceState;
 
 const SurfaceUnavailable = ({ onNavigate }) => (
   <FailedRead
@@ -451,7 +454,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     );
     content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
-  } else if (page === "segments" && (window.__PEOPLE || (window.__surfaceState && window.__surfaceState("segments") === "real" && !window.__DEMO_MODE))) {
+  } else if (page === "segments" && (window.__PEOPLE || realWorkspace())) {
     // Lists is a view of People on a real workspace: the list's own route lands on People with that list picked
     // (the People page's rule, window.__listRoute), so Playbooks' list, an answer's jump and a kept address still
     // arrive. Drawn here as that view, and the address is replaced (the effect above) so Back leaves People.
