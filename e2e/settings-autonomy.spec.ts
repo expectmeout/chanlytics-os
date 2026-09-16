@@ -64,9 +64,11 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     await expect(reviews.locator(".pol-dot.on")).toHaveCount(1);
     await expect(reviews.locator(".pol-dot").first()).toBeEnabled();
 
-    // Hard limits are numbers the runtime actually uses.
-    await expect(page.getByText(/Stops after \d+ automatic replies/)).toBeVisible();
-    await expect(page.getByText(/Stays paused for \d+ hours/)).toBeVisible();
+    // The hard limits are the owner's dials now (S6): the reply cap and the pause after a person steps in, each a
+    // control with a number the runtime actually uses -- they were two sentences.
+    await expect(page.getByTestId("aut-reply-cap")).toBeVisible();
+    await expect(page.getByTestId("aut-pause")).toBeVisible();
+    expect(await page.getByTestId("aut-reply-cap").inputValue()).toMatch(/^\d+$/);
   });
 
   test("changing the reply mode issues a workspace-scoped PUT with the class and mode — intercepted", async ({ page }) => {

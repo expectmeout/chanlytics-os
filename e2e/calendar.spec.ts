@@ -41,7 +41,8 @@ test.describe("Calendar on a real workspace", () => {
     await expect(board.getByTestId("cal-dayhead")).toHaveCount(7);
     await expect(board.getByTestId("cal-col")).toHaveCount(7);
     await expect(board.getByTestId("cal-legend")).toBeVisible();
-    await expect(board.getByTestId("cal-feed")).toContainText(/From (your calendar|Google Calendar|Apple Calendar|Outlook)|No calendar connected|could not be read/);
+    // The chip is the one state pill Connections and Setup use (contracts CALENDAR_FEED_WORDS), with the detail beside it.
+    await expect(board.getByTestId("cal-feed-state")).toContainText(/^(Readable|Last good read|Could not be read|Not connected)$/);
 
     // The blocks and windows are exactly the route's.
     const items = cal.days.reduce((a, d) => a + d.items.length, 0);
