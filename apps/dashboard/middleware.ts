@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isRetryableAuthError } from "@/server/auth-errors";
+import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -84,7 +85,19 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
 export async function middleware(request: NextRequest) {
   const moved = canonicalRedirect(request);
   if (moved) return moved;
-  let response = NextResponse.next({ request });
+  // One nonce per request, on the request so Next attaches it to the inline
+  // scripts it renders, and on the response so the browser enforces -- for
+  // now, reports -- the policy composed in src/csp.ts.
+  const nonce = btoa(crypto.randomUUID());
+  const csp = contentSecurityPolicy({ nonce, supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL, dev: process.env.NODE_ENV !== "production" });
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set(CSP_HEADER, csp);
+  const nextWithPolicy = () => {
+    const r = NextResponse.next({ request: { headers: requestHeaders } });
+    r.headers.set(CSP_HEADER, csp);
+    return r;
+  };
+  let response = nextWithPolicy();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -96,7 +109,7 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = nextWithPolicy();
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );
