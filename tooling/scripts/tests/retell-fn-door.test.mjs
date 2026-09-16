@@ -267,6 +267,13 @@ test("the door: no header, an empty one, a wrong one and the secret on the URL a
         assert.equal((await knock(w.ask(caller), { secret })).status, 401, `no secret configured, header ${JSON.stringify(secret)}`);
       }
     });
+    // An empty secret is no secret: an empty header must not match it, as the
+    // webhook door already refuses.
+    await withEnv({ RETELL_FN_SECRET: "" }, async () => {
+      for (const secret of [null, "", "anything"]) {
+        assert.equal((await knock(w.ask(caller), { secret })).status, 401, `an empty secret configured, header ${JSON.stringify(secret)}`);
+      }
+    });
     assert.equal(db.seen.length, 0, "not one row read");
     assert.deepEqual(w.left().calls, [], "nothing sent");
     assert.deepEqual(log.lines, [], "and nothing said");

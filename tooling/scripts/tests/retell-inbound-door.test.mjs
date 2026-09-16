@@ -216,6 +216,13 @@ test("the door: no key, an empty one and a wrong one are each a 401 that reads n
         assert.equal((await knock(w.call(), { key })).status, 401, `no secret configured, key ${JSON.stringify(key)}`);
       }
     });
+    // An empty secret is no secret: an empty key must not match it. The webhook
+    // door already refuses this (retell-webhook.ts guards with !!urlKey).
+    await withEnv({ RETELL_FN_SECRET: "" }, async () => {
+      for (const key of [null, "", "anything"]) {
+        assert.equal((await knock(w.call(), { key })).status, 401, `an empty secret configured, key ${JSON.stringify(key)}`);
+      }
+    });
     assert.equal(db.seen.length, 0, "not one row read before the key holds");
     assert.deepEqual(w.left(), [], "nothing left the process");
     assert.deepEqual(log.lines, [], "and nothing was said: a knock on a public URL is not a call");

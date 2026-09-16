@@ -80,8 +80,11 @@ const CANNOT_SEND =
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
   // Retell custom-function calls are authenticated via the shared-secret header
-  // configured on the tool (Retell does not HMAC-sign these like webhooks).
-  if (request.headers.get("x-fn-secret") !== process.env.RETELL_FN_SECRET) {
+  // configured on the tool (Retell does not HMAC-sign these like webhooks). An
+  // unset or empty secret matches nothing, as in retell-webhook.ts: an empty
+  // header must never open the door because the secret is empty too.
+  const secret = process.env.RETELL_FN_SECRET;
+  if (!secret || request.headers.get("x-fn-secret") !== secret) {
     return json(401, { ok: false, error: "bad_secret" });
   }
 

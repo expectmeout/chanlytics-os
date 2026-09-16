@@ -34,7 +34,11 @@ import { logger } from "../lib/log.js";
 const ALERT_BUDGET_MS = 3_000;
 
 export async function POST(request: Request): Promise<Response> {
-  if (new URL(request.url).searchParams.get("key") !== process.env.RETELL_FN_SECRET) {
+  // An unset or empty secret matches nothing: an empty key must never open this
+  // door because the configured secret is empty too. retell-webhook.ts guards
+  // the same variable the same way.
+  const secret = process.env.RETELL_FN_SECRET;
+  if (!secret || new URL(request.url).searchParams.get("key") !== secret) {
     return json(401, { ok: false });
   }
   const raw = await request.text();

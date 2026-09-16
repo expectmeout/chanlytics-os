@@ -49,7 +49,11 @@ export function availabilityAnswer(
 
 export async function POST(request: Request): Promise<Response> {
   const raw = await request.text();
-  if (request.headers.get("x-fn-secret") !== process.env.RETELL_FN_SECRET) {
+  // The third Retell door, guarded like the other two (retell-fn, retell-inbound)
+  // and the webhook: an unset or empty secret matches nothing, so an empty
+  // header never opens it because the configured secret is empty too.
+  const secret = process.env.RETELL_FN_SECRET;
+  if (!secret || request.headers.get("x-fn-secret") !== secret) {
     return json(401, { ok: false, error: "bad_secret" });
   }
   let body: { call?: { call_id?: string; agent_id?: string }; args?: { day?: unknown; service?: unknown } } = {};

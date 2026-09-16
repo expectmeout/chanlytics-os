@@ -177,7 +177,7 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   assert.deepEqual(Object.keys(tool.parameters.properties).sort(), ["day", "service"]);
   assert.equal(availabilityUrl("https://preview.example/api/retell-fn"), "https://preview.example/api/retell-availability");
   const edge = readCode("apps/edge/api/retell-availability.ts");
-  assert.ok(edge.includes('request.headers.get("x-fn-secret") !== process.env.RETELL_FN_SECRET'));
+  assert.ok(edge.includes('if (!secret || request.headers.get("x-fn-secret") !== secret)'), "the door refuses an unset or empty secret, as the other two Retell doors do");
   assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null })"));
   assert.ok(edge.includes("return json(200, { result: CANNOT_SEE })"), "a refusal is a sentence the agent speaks, never an error status");
   const brain = { business_name: "S", phone_display: "(646) 932-5775", booking_link: "https://booksy.com/x", system_prompt: "x".repeat(50), fallbacks: { greeting: "g", error: "e", non_text: "n" } };
