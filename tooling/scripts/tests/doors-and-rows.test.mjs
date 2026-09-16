@@ -66,7 +66,7 @@ test("an auth outage is a 503 at the gate too, and the predicate is shared", () 
   assert.equal(isRetryableAuthError({ status: 401, name: "AuthApiError" }), false);
   assert.equal(isRetryableAuthError({ status: 503, name: "AuthApiError" }), true);
   assert.equal(isRetryableAuthError({ name: "AuthRetryableFetchError" }), true, "no status = could not reach the auth server");
-  const middleware = readCode("apps/dashboard/middleware.ts");
+  const middleware = readCode("apps/dashboard/proxy.ts");
   const wrapper = readCode("apps/dashboard/src/server/with-route.ts");
   for (const [name, src] of [["middleware", middleware], ["withRoute", wrapper]]) {
     assert.ok(src.includes("isRetryableAuthError(authErr)"), `${name} uses the shared predicate`);
