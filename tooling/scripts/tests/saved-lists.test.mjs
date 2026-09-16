@@ -47,7 +47,7 @@ test("the routes: one workspace's lists with their ids, owner or operator to cha
 test("the surface: lists ride People, counted over the rows on the page; the verbs re-fetch it", async () => {
   const s = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(s.includes('read("GET segments")'));
-  assert.ok(s.includes("const ids = l.ids.filter((id) => rowIds.has(id));"), "an erased person never counts");
+  assert.ok(s.includes("const members = rows.filter((r) => idSet.has(r.id));") && s.includes("action: savedListAction(l.id, members)"), "an erased person never counts, and the list carries its one step");
   const v = readCode("apps/dashboard/src/legacy-bridge/people-lists.ts");
   for (const verb of ["create:", "rename:", "remove:", "add:", "drop:"]) assert.ok(v.includes(verb), verb);
   const { AFTER } = await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts");
@@ -64,25 +64,22 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.ok(p.includes('window.__ME.role === "operator"'), "operators keep lists too");
   const prof = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
-  assert.ok(prof.includes("No lists yet.") && prof.includes("Make one on Lists"), "the empty rail is a door to Lists, a page a phone has; the People rail is not");
+  assert.ok(prof.includes("No lists yet.") && prof.includes("Make one on People"), "the empty section is a door to People with the New list box opening; 'the People rail' is not a place a phone has");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));
 });
 
-test("People › Lists is real: the lists kept by hand and the computed ones with their people, fed by the People surface; the seeded page keeps the demo", async () => {
+test("Lists is a view of People: a kept list is the page's title with its rename, its delete and its one door; the old route lands there; the seeded page keeps the demo", async () => {
   const reg = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/legacy-bridge/surface-registry.ts")).href);
-  assert.equal(reg.SURFACE_STATES.segments, "real");
+  assert.equal(reg.SURFACE_STATES.segments, "real", "the route is real: it lands on People");
   assert.equal(reg.ROUTE_SURFACE.segments, "people", "the same facts as People, never a second fetch");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/segments-real.jsx";'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/segments.jsx").includes("window.SegmentsSeed = SegmentsPage;"));
-  const p = readCode("apps/dashboard/src/legacy/pages/segments-real.jsx");
-  for (const id of ["lists-real", "lists-rail-saved", "lists-rail-smart", "lists-members", "lists-use-in-broadcast", "lists-new-name", "lists-delete"]) {
+  assert.ok(!readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes("segments-real"), "REGRESSION: a second page of the same people");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/segments.jsx").includes("window.SegmentsPage = SegmentsPage;"), "the demo's page under the name the shell draws");
+  const p = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
+  for (const id of ["saved-filter", "list-rename", "list-rename-name", "list-action", "row-drop-list", "bulk-drop-list", "show-everyone", "people-lists-pick", "people-lists-sheet"]) {
     assert.ok(p.includes(`data-testid="${id}"`), id);
   }
-  assert.ok(p.includes('window.addEventListener("segments:new", show);'), "the shell's New list button opens the name box");
-  assert.ok(p.includes("window.CHANLY.nav(`broadcasts/${current.id}`)"), "a list's onward step is a broadcast");
-  assert.ok(p.includes('question={`Delete “${label}”?`} detail="The people stay."'), "the Lists page asks through the one Confirm too");
-  assert.ok(!/sgParseRules|agent builds|SG_STORE/.test(p), "no list is built from prose by an invented agent");
-  const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
-  assert.ok(shell.includes('{real ? "New list" : "New segment"}'));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx").includes('(a.kind === "saved" || a.kind === "list") && a.id === initialSegment'), "a broadcast opened from any list preselects it");
+  assert.ok(p.includes('window.addEventListener("segments:new", onNew);'), "the shell's and a profile's New list open the box");
+  assert.ok(p.includes("window.__listRoute = plListRoute;"), "the People page owns where a list's route lands");
+  // The rest is behaviour, tested as such: the shell landing segments/<id> on People (shell-status.test.mjs), no
+  // Lists tab on a real workspace (shell-status), a kept list's door and sentence (people-honest).
 });

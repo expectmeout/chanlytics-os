@@ -635,10 +635,11 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
   }
   if (saved.length === 0) {
     // "The People rail" is not on a phone; the Lists page is, from here.
+    // The lists live on People: the door lands there with the New list box open (segments:new, once the page is up).
     return (
       <div className="cl-prof-aut-hint">
         No lists yet.{" "}
-        <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("segments")}>Make one on Lists <Icon name="arrow-right" size={10} /></button>
+        <button type="button" className="cl-bucket-link" onClick={() => { window.CHANLY.nav("clients"); setTimeout(() => window.dispatchEvent(new CustomEvent("segments:new")), 450); }} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
       </div>
     );
   }
@@ -647,7 +648,7 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
       <div className="cl-tag-stack cl-prof-list-chips">
         {on.map((s) => (
           <span key={s.id} className="seg-chip" data-testid="person-list-chip">
-            <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(s.id))} title={`Open ${s.name} in Lists`} data-testid="person-list-open">{s.name}</button>
+            <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
             {canEdit && (
               <button
                 type="button"

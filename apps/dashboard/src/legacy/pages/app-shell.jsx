@@ -302,6 +302,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // A list's own route (`segments/<id>`) is People with that list picked on a real workspace; the address says so.
+  // Replaced, not pushed, so Back leaves People rather than bouncing through the old route.
+  useShellEffect(() => {
+    if (route.page !== "segments" || !window.__PEOPLE || !window.__listRoute) return;
+    window.location.replace("#/" + window.__listRoute(route.param));
+  }, [route.page, route.param]);
 
   useShellEffect(() => {
     const handler = (e) => {
@@ -434,18 +440,28 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     );
     content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
+  } else if (page === "segments" && window.__PEOPLE) {
+    // Lists is a view of People on a real workspace: the list's own route lands on People with that list picked
+    // (the People page's rule, window.__listRoute), so Playbooks' list, an answer's jump and a kept address still
+    // arrive. Drawn here as that view, and the address is replaced (the effect above) so Back leaves People.
+    const to = window.__listRoute ? window.__listRoute(param) : "clients";
+    const kind = to.startsWith("clients/") ? to.slice(8, to.indexOf(":")) : null;
+    const listId = kind ? to.slice(to.indexOf(":") + 1) : null;
+    const surfaceList = kind === "seg" ? (window.__PEOPLE.lists || []).find((l) => l.id === listId) : null;
+    const savedMeta = kind === "list" ? (window.__PEOPLE.saved || []).find((s) => s.id === listId) : null;
+    activeNav = "clients";
+    crumbs = surfaceList || savedMeta ? [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : savedMeta.name] : ["People"];
+    pane = true;
+    content = <ClientsA initialSegment={kind === "seg" ? listId : null} initialSaved={kind === "list" ? listId : null} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "segments") {
-    // A real workspace's list by its own name; the seeded page keeps its segments.
-    const real = !!window.__PEOPLE;
-    const savedMeta = real && param ? ((window.__PEOPLE.saved || []).find((s) => s.id === param) || (window.__PEOPLE.lists || []).find((l) => l.id === param)) : null;
-    const segMeta = !real && param ? (window.CLIENT_SEGMENTS || []).find(s => s.id === param) : null;
-    const name = savedMeta ? (savedMeta.name || savedMeta.label) : segMeta ? segMeta.label : null;
+    // The seeded page keeps the demo's segments.
+    const segMeta = param ? (window.CLIENT_SEGMENTS || []).find(s => s.id === param) : null;
     activeNav = "segments";
-    crumbs = name ? ["People", { label: real ? "Lists" : "Segments", to: "segments" }, name] : ["People", real ? "Lists" : "Segments"];
+    crumbs = segMeta ? ["People", { label: "Segments", to: "segments" }, segMeta.label] : ["People", "Segments"];
     pane = true;
     primaryAction = (
       <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("segments:new"))}>
-        <Icon name="plus" size={12} /> {real ? "New list" : "New segment"}
+        <Icon name="plus" size={12} /> New segment
       </button>
     );
     content = <SegmentsPage initialId={param} />;

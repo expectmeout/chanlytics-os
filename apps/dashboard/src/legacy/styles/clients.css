@@ -1861,5 +1861,14 @@
 .cl-tabs.cl-tl-filters { display: inline-flex; flex-wrap: wrap; margin: 0 0 var(--space-3); }
 
 /* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
-.lists-page .cl-row-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
-.lists-page .cl-row-open:hover { text-decoration: underline; }
+/* ---- Lists on People: a picked list is the section's title, with its rename and its delete on the line ---- */
+.cl-section-lead { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-section-lead:hover .cl-list-rename, .cl-list-rename:focus-visible { opacity: 1; }
+.cl-list-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
+@media (hover: none) { .cl-list-rename { opacity: 1; } }
+.cl-list-renaming { flex-wrap: wrap; }
+.cl-list-renaming input { font-size: 14px; font-weight: 500; }
+.cl-row-act-drop:hover { color: var(--danger); }
+/* The phone's way to the lists, on the standing line; a desktop has the rail beside it. */
+.pl-standing-lists { display: none; }

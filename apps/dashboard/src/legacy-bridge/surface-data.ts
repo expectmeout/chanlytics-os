@@ -176,6 +176,7 @@ import {
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
+  savedListAction,
   type PersonRowVM,
   type PeopleAggregates,
   attentionRow,
@@ -538,8 +539,8 @@ export interface PeopleSurface {
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
-  saved: { id: string; name: string; count: number; ids: string[]; members: string[] }[];
-  /** Whether the saved lists were read: false leaves People standing without them, and the rail, the profile and Lists say so. */
+  saved: { id: string; name: string; count: number; ids: string[]; members: string[]; action: { text: string; cta: string; to: string; enabled: boolean } }[];
+  /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
   aggregates: PeopleAggregates;
 
@@ -575,7 +576,6 @@ function publishPeople(): void {
   const { tz } = peopleLoaded;
   const now = new Date();
   const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
-  const rowIds = new Set(rows.map((r) => r.id));
   const calendar = peopleLoaded.calendar;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
@@ -588,8 +588,11 @@ function publishPeople(): void {
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     saved: (peopleLoaded.saved ?? []).map((l) => {
-      const ids = l.ids.filter((id) => rowIds.has(id));
-      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids };
+      const idSet = new Set(l.ids);
+      const members = rows.filter((r) => idSet.has(r.id));
+      const ids = members.map((r) => r.id);
+      // The list's own step, the way a smart list carries its: a broadcast to those on it who said yes.
+      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids, action: savedListAction(l.id, members) };
     }),
     savedRead: peopleLoaded.saved !== null,
     // The total is the server's: past the first page the rows here are not everyone.

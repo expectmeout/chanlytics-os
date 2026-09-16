@@ -322,33 +322,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   assert.ok(buttons(seed).some((b) => b.includes("Save draft")), "the demo keeps its mockup control");
 });
 
-/* -------- People › Lists: the Offers column is the answer about offers -------- */
-
-globalThis.Confirm = globalThis.window.Confirm;
-await import("../../../apps/dashboard/src/legacy/pages/segments-real.jsx");
-
-test("REGRESSION: on a list, the Offers column shows the answer about offers -- it showed the yes to messages under the Offers heading", () => {
-  const person = (id, name, marketing, marketingLabel) => ({
-    id, real: true, name, initials: name.split(" ").map((w) => w[0]).join(""), phone: "+1 (917) 555-0109",
-    consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person", marketing, marketingSource: null, marketingSub: "", marketingLabel },
-    lastContact: { label: "You replied · 7d ago" }, stateLabel: "Active",
-  });
-  Object.assign(globalThis.window, {
-    __ME: { role: "owner" },
-    __mayReceive: (p, purpose) => (purpose === "marketing" ? p.consent.marketing === "opted_in" : p.consent.state === "opted_in"),
-    __PEOPLE: {
-      rows: [person("p1", "Nina Petrova", "unknown", "Not asked"), person("p2", "Tom Baker", "opted_in", "Yes")],
-      lists: [{ id: "opted_in", label: "Said yes to messages", group: "reach", count: 2, ids: ["p1", "p2"] }],
-      saved: [], groups: [],
-    },
-  });
-  cells = []; seq = 0;
-  const tree = globalThis.window.SegmentsPage({ initialId: "opted_in" });
-  const rows = [];
-  walk(tree, (n) => { if (n.type === "tr" && n.props?.onClick) rows.push(n); });
-  const cellsOf = (tr) => (tr.props.children || []).filter((c) => c && c.type === "td").map((td) => textOf(td));
-  assert.deepEqual(rows.map((tr) => cellsOf(tr)[1]), ["Not asked", "Yes"], `the cells: ${JSON.stringify(rows.map(cellsOf))}`);
-});
+/* People › Lists folded into People (#563): the Offers-column test lives in people-honest.test.mjs, on the People table. */
 
 /* ---------------------- Calendar: Day view steps a day ---------------------- */
 
