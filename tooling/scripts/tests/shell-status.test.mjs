@@ -639,3 +639,29 @@ test("a list's own route lands on People with that list picked, and the address 
     delete win.location.replace;
   }
 });
+
+test("the old route on a cold load: the People surface is still on its way, so the redirect waits for it instead of running once and never again", () => {
+  // The nightly found it: /#/segments loaded cold stayed at #/segments in production. The effect ran before the
+  // surface had landed, found no window.__PEOPLE, returned, and had no reason to run again.
+  win.__listRoute = (id) => (id === "s1" && win.__PEOPLE ? "clients/list:s1" : "clients");
+  win.__surfaceState = () => "real";
+  const replaced = [];
+  win.location.replace = (hash) => replaced.push(hash);
+  try {
+    const cold = mount("#/segments/s1");
+    assert.ok(find(cold.tree, (n) => n.type === "ClientsA"), "People draws from the first frame on a real workspace");
+    assert.ok(!find(cold.tree, (n) => n.type === "SegmentsPage"), "never the seeded Segments page while the surface is on its way");
+    assert.deepEqual(replaced, [], "nothing to land on yet: which list s1 names is the surface's to say");
+    win.__PEOPLE = { rows: [], lists: [], saved: [{ id: "s1", name: "Regulars", ids: [] }] };
+    fire("surface:clients");
+    assert.deepEqual(replaced, ["#/clients/list:s1"], "the moment the surface lands, the address says where it landed");
+    fire("surface:clients");
+    fire("surface:people");
+    assert.deepEqual(replaced, ["#/clients/list:s1"], "once: a later page of People, or its refresh, does not replace the address again");
+  } finally {
+    delete win.__PEOPLE;
+    delete win.__listRoute;
+    delete win.__surfaceState;
+    delete win.location.replace;
+  }
+});

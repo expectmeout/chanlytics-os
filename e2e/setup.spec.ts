@@ -65,7 +65,7 @@ test.describe("Setup on a real workspace", () => {
     const hasNext = (await page.getByTestId("setup-next").count()) > 0;
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".brief")).toBeVisible();
+    await expect(page.getByTestId("today-standing")).toBeVisible();
     const line = page.getByTestId("brief-setup");
     if (!hasNext) {
       await expect(line).toHaveCount(0);
@@ -84,7 +84,7 @@ test.describe("Setup on a real workspace", () => {
     test.skip(/not answering yet/.test(sentence), "this workspace answers nowhere yet — the landing rule applies");
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".brief")).toBeVisible();
+    await expect(page.getByTestId("today-standing")).toBeVisible();
     await expect(page).toHaveURL(/#\/today/);
   });
 });

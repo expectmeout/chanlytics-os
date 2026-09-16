@@ -25,7 +25,7 @@ test.describe("creating another workspace", () => {
     await signIn(page);
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".brief")).toBeVisible();
+    await expect(page.getByTestId("today-standing")).toBeVisible();
     const homeId = await page.evaluate(() => (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
     expect(homeId).not.toBeNull();
     const name = `E2E probe ${Date.now()}`;
