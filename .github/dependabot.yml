@@ -18,6 +18,12 @@ updates:
       # does not have, so it moves when the runtime does.
       - dependency-name: "@types/node"
         update-types: ["version-update:semver-major"]
+      # TypeScript 7 is the native compiler with a new API; tsup's --dts (every
+      # package build) dies on it (`useCaseSensitiveFileNames` of undefined) and
+      # Next 15's type plugin is not on it either. It moves when the toolchain
+      # does (#401 was that bump, closed).
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]
