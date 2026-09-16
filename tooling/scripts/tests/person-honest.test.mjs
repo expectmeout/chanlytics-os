@@ -314,3 +314,57 @@ test("REGRESSION (B18): a list chip on a profile opens its list -- the name was 
   press(open);
   assert.deepEqual(went, ["segments/s1"]);
 });
+
+test("REGRESSION: a person's page says who they are once -- the header held two buttons to one thread and two pills, a card quoted the timeline's first two messages, and six cells said the rail again", async () => {
+  const vm = toPersonVM(detail({ booking_link: "https://book.example/salon" }), ZONE, new Date(NOW));
+  const draw = await profile(vm);
+  const tree = draw();
+  const cls = (n) => String(n.props?.className || "");
+
+  // Who they are: the name, then one line with the number and since when.
+  const line = byTestId(tree, "person-id-line");
+  assert.ok(line && textOf(line).includes(vm.phone) && textOf(line).includes("since "), `the line under the name: ${line && textOf(line)}`);
+  const id = find(tree, (n) => cls(n) === "cl-prof-id");
+  assert.deepEqual(
+    all(id, (n) => n.type === "button").map((b) => b.props["data-testid"]),
+    ["person-rename"],
+    "REGRESSION: between 901 and 1250px the header's buttons kept their width and the name's column went to zero",
+  );
+  assert.equal(all(id, (n) => typeof n.type === "function" && n.type.name === "StatePill").length, 0, "REGRESSION: two pills Right now and the rail already say");
+
+  // One way to the thread, in Right now, with the booking link beside it.
+  const threadButtons = all(tree, (n) => n.type === "button" && /^(Open thread|Open in Inbox)$/.test(textOf(n).trim()));
+  assert.equal(threadButtons.length, 1, "REGRESSION: Open thread in the header and Open in Inbox in Right now went to the same thread");
+  const actions = find(tree, (n) => cls(n) === "cl-prof-queue-actions");
+  assert.ok(byTestId(actions, "person-open-thread") && byTestId(actions, "text-booking-link"), "the action lives beside what needs doing");
+
+  assert.ok(!find(tree, (n) => cls(n) === "cl-prof-narr"), "REGRESSION: Last exchange quoted the two messages the timeline opens on");
+  assert.ok(!find(tree, (n) => cls(n).includes("cl-prof-money")), "REGRESSION: six cells said the rail's facts again");
+
+  // About carries the strip's counts, and not what the line under the name says.
+  const keys = all(tree, (n) => n.props?.className === "cl-prof-attr-key").map((k) => textOf(k));
+  assert.ok(keys.includes("History"), `About: ${keys}`);
+  for (const k of ["Phone", "Channels", "First contact"]) assert.ok(!keys.includes(k), `${k} is said under the name, not again in About: ${keys}`);
+  assert.ok(byTestId(tree, "fact-next-visit"), "the next visit still opens its day, from About");
+
+  assert.ok(!textOf(tree).includes("· receptionist"), "REGRESSION: every receptionist entry read Receptionist · receptionist");
+});
+
+test("someone who said stop keeps their way into the thread, and is offered no booking link", async () => {
+  const vm = toPersonVM(detail({
+    row: row({ visits: VISITS, consent: "opted_out", needs_human: false, open_escalation_reason: null, open_escalation_since: null, escalation_count: 0 }),
+    escalations: [],
+    receptionist_mode: null,
+    booking_link: "https://book.example/salon",
+  }), ZONE, new Date(NOW));
+  assert.equal(vm.rightNow.cta, null, "the silent case: Right now has no button of its own");
+  assert.ok(vm.openThread, "and they do have a thread");
+  const draw = await profile(vm);
+  const tree = draw();
+  const actions = find(tree, (n) => String(n.props?.className || "") === "cl-prof-queue-actions");
+  const open = byTestId(actions, "person-open-thread");
+  assert.equal(open && textOf(open).trim(), "Open thread", "the header's Open thread was their only way in");
+  press(open);
+  assert.deepEqual(went, [vm.openThread]);
+  assert.equal(byTestId(tree, "text-booking-link"), null, "REGRESSION: a booking link sat under 'Silent, they opted out'");
+});

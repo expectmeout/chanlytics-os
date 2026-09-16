@@ -677,8 +677,10 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null }) =>
   const kit = window.__timeline;
   const shown = kit ? kit.filter(items, filter) : items;
   const offered = kit && onFilter ? kit.filters.filter((f) => f.id === "all" || items.some((i) => (f.kinds || []).includes(i.kind))) : [];
+  // The filters sit above the timeline, not inside it: the rail line runs the timeline's height, and it ran
+  // through the All button when the filters were its first child.
   return (
-    <div className="cl-prof-timeline">
+    <>
       {offered.length > 2 && (
         <div className="cl-tl-filters" role="group" aria-label="Show on the timeline">
           {offered.map((f) => (
@@ -686,51 +688,53 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null }) =>
           ))}
         </div>
       )}
-      {shown.map((e) => {
-        const dayHead = e.day !== lastDay ? <div className="cl-rail-label" style={{ margin: "10px 0 4px" }}>{e.day}</div> : null;
-        lastDay = e.day;
-        const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" || e.kind === "visit" ? "session" : "event";
-        const mark =
-          e.kind === "customer" ? initials
-          : e.kind === "receptionist" ? "W"
-          : e.kind === "you" ? "You"
-          : e.kind === "call" ? <Icon name="phone" size={12} />
-          : e.kind === "visit" ? <Icon name="calendar" size={12} />
-          : e.kind === "escalation" ? <Icon name="alert" size={11} />
-          : e.kind === "consent" ? <Icon name="shield" size={11} />
-          : <Icon name="dot" size={10} />;
-        return (
-          <React.Fragment key={e.id}>
-            {dayHead}
-            <div className="cl-tl-row">
-              <div className={`cl-tl-mark ${markClass}`}>{mark}</div>
-              <div className="cl-tl-body">
-                <div className="cl-tl-head">
-                  <span className="cl-tl-who">{e.who}</span>
-                  {e.kind === "receptionist" && <span style={{ color: "var(--ink-faint)" }}>· receptionist</span>}
-                  {e.sub && <span style={{ color: "var(--ink-faint)" }}>· {e.sub}</span>}
-                  {e.link && TL_QUIET[e.kind]
-                    ? <button type="button" className="cl-tl-time-link" style={{ marginLeft: "auto" }} onClick={() => window.CHANLY.nav(e.link.to)} title={e.link.label} data-testid="timeline-open">{e.time}</button>
-                    : <span style={{ marginLeft: "auto", color: "var(--ink-faint)" }}>{e.time}</span>}
-                </div>
-                <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>
-                  {e.text}
-                  {e.link && !TL_QUIET[e.kind] && (
-                    <>
-                      {" "}
-                      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(e.link.to)} data-testid="timeline-open">
-                        {e.link.label} <Icon name="arrow-right" size={10} />
-                      </button>
-                    </>
-                  )}
+      <div className="cl-prof-timeline">
+        {shown.map((e) => {
+          const dayHead = e.day !== lastDay ? <div className="cl-rail-label" style={{ margin: "10px 0 4px" }}>{e.day}</div> : null;
+          lastDay = e.day;
+          const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" || e.kind === "visit" ? "session" : "event";
+          const mark =
+            e.kind === "customer" ? initials
+            : e.kind === "receptionist" ? "W"
+            : e.kind === "you" ? "You"
+            : e.kind === "call" ? <Icon name="phone" size={12} />
+            : e.kind === "visit" ? <Icon name="calendar" size={12} />
+            : e.kind === "escalation" ? <Icon name="alert" size={11} />
+            : e.kind === "consent" ? <Icon name="shield" size={11} />
+            : <Icon name="dot" size={10} />;
+          return (
+            <React.Fragment key={e.id}>
+              {dayHead}
+              <div className="cl-tl-row">
+                <div className={`cl-tl-mark ${markClass}`}>{mark}</div>
+                <div className="cl-tl-body">
+                  <div className="cl-tl-head">
+                    {/* The receptionist's entries are named "Receptionist"; a "· receptionist" beside it said it twice. */}
+                    <span className="cl-tl-who">{e.who}</span>
+                    {e.sub && <span style={{ color: "var(--ink-faint)" }}>· {e.sub}</span>}
+                    {e.link && TL_QUIET[e.kind]
+                      ? <button type="button" className="cl-tl-time-link" style={{ marginLeft: "auto" }} onClick={() => window.CHANLY.nav(e.link.to)} title={e.link.label} data-testid="timeline-open">{e.time}</button>
+                      : <span style={{ marginLeft: "auto", color: "var(--ink-faint)" }}>{e.time}</span>}
+                  </div>
+                  <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>
+                    {e.text}
+                    {e.link && !TL_QUIET[e.kind] && (
+                      <>
+                        {" "}
+                        <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(e.link.to)} data-testid="timeline-open">
+                          {e.link.label} <Icon name="arrow-right" size={10} />
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
               </div>
-            </div>
-          </React.Fragment>
-        );
-      })}
-      {items.length === 0 && <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />}
-    </div>
+            </React.Fragment>
+          );
+        })}
+        {items.length === 0 && <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />}
+      </div>
+    </>
   );
 };
 
@@ -929,16 +933,34 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     ppFlash({ msg: <><b>{p.name}</b> deleted — their messages, media and recordings are gone</> });
     onBack();
   };
-  // Nobody is called "+1": a person known only by number is "them" in copy
-  // and their full number where a speaker is named.
+  // Nobody is called "+1": a person known only by number is "them" in copy,
+  // and the line under their name does not say the number twice.
   const phoneOnly = /^[+\d(]/.test(p.name);
   const first = phoneOnly ? "them" : p.name.split(" ")[0];
   // After `first`, not above it. The recorders above read `who` only when a button
   // is pressed, but it was DECLARED above `first` itself -- a const read before its
   // line runs -- so every real profile threw the moment its person loaded (#313).
   const who = first === "them" ? "This person" : first;
-  const speaker = phoneOnly ? p.name : first;
   const hot = tone === "escalated" || tone === "queued";
+  // The one line under the name: their channels, their number (unless the number is their name) and since when.
+  const channelWords = p.channels.map((c) => (c === "whatsapp" ? "WhatsApp" : "Phone")).join(" · ");
+  const sinceWords = p.since ? p.since.charAt(0).toLowerCase() + p.since.slice(1) : "";
+  // Each part keeps its words together, so a narrow screen breaks the line between parts, never inside "Sep 3".
+  const idLine = [channelWords, phoneOnly ? null : p.phone, sinceWords].filter(Boolean);
+  // The action lives in Right now, beside what needs doing. Its own button is the thread in every state that
+  // has one, except a person who opted out: the header's Open thread was their only way in, so it falls back to it.
+  const threadCta = p.rightNow.cta || (p.openThread ? { label: "Open thread", to: p.openThread } : null);
+  // About holds what the line under the name does not. The six-cell strip that sat above Right now said first
+  // contact, the channels, the counts and the next visit again, beside a rail that said them too; its counts and
+  // its day door move here.
+  const said = new Set(["Phone", "Channels", "First contact"]);
+  const count = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
+  const history = {
+    k: "History",
+    v: `${count(p.threads, "conversation")}${p.escalations ? `, ${p.escalations} needed you` : ""} · ${count(p.calls, "call")}${p.calls ? `, ${Math.max(1, Math.round(p.callSeconds / 60))} min` : ""}`,
+  };
+  const aboutRows = p.about.filter((a) => !said.has(a.k));
+  aboutRows.splice(aboutRows.findIndex((a) => a.k === "WhatsApp name") + 1, 0, history);
   return (
     <div className="cl-profile">
       <div className="cl-prof-main">
@@ -947,81 +969,27 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
             <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
             People
           </button>
+          {/* Who they are, said once. The row beside the name held two buttons and two pills as well, and between
+              901 and 1250px wide the buttons kept their width and the name's column went to zero: the name broke in
+              two and "Since Sep 3" stacked a word to a line. Right now has the button to the same thread, and the
+              pills are Right now's state and the consent control on the rail. The Last exchange card quoted the
+              two newest messages, and the timeline below opens on the same two. */}
           <div className="cl-prof-id">
             <div className="cl-prof-avatar">{p.initials}</div>
             <div className="cl-prof-titles">
               <PersonName p={p} canEdit={canRecord} flash={ppFlash} />
-              <div className="cl-prof-meta">
-                {p.since && <><span>{p.since}</span><span style={{ color: "var(--ink-faint)" }}>·</span></>}
-                <span>{p.metaLine}</span>
-                <span style={{ color: "var(--ink-faint)" }}>·</span>
-                <span style={{ display: "inline-flex", gap: 3 }}>
-                  {p.channels.map((ch, i) => <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : "chat"} primary={i === 0} size={11} />)}
-                </span>
-                <span className="cl-tag-stack" style={{ marginLeft: 4 }}>
-                  <StatePill kind="consent" value={p.consent.state} />
-                  <StatePill kind="person" value={p.state} label={p.stateLabel} />
-                </span>
-              </div>
-            </div>
-            <div className="cl-prof-actions">
-              {p.openThread && (
-                <button className="btn btn-sm btn-primary" onClick={() => window.CHANLY.nav(p.openThread)}>
-                  <Icon name="chat" size={12} /> Open thread
-                </button>
+              {idLine.length > 0 && (
+                <div className="cl-prof-meta cl-prof-idline" data-testid="person-id-line">
+                  <div className="cl-prof-idline-run">{idLine.map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
+                </div>
               )}
-              {p.openThread && p.bookingLink && canRecord && (
-                <button
-                  className="btn btn-sm"
-                  data-testid="text-booking-link"
-                  title={p.replyWindow && p.replyWindow.open ? `Opens the thread with the link ready to send · ${p.replyWindow.hoursLeft}h left in their reply window` : "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it"}
-                  onClick={() => {
-                    // Inside the 24-hour window a plain reply is allowed: the
-                    // composer opens with the link ready. Outside it the thread
-                    // offers the approved template; nothing is sent from here.
-                    if (p.replyWindow && p.replyWindow.open) {
-                      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: `Here's the link to book your appointment: ${p.bookingLink}` })); } catch { /* nothing to carry */ }
-                    }
-                    window.CHANLY.nav(p.openThread);
-                  }}
-                >
-                  <Icon name="calendar" size={12} /> {p.replyWindow && p.replyWindow.open ? "Text the booking link" : "Send the booking-link template"}
-                </button>
-              )}
-              {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="phone" size={12} /> Call</button>}
-              {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="calendar" size={12} /> Book</button>}
             </div>
           </div>
-          <div className="cl-prof-narr">
-            <span className="cl-prof-narr-eyebrow">Last exchange</span>
-            <div>
-              {p.lastExchange.customer ? (
-                <div className="cl-prof-narr-text"><b>{speaker}</b> “{p.lastExchange.customer.text}” <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.customer.at}</span></div>
-              ) : (
-                <div className="cl-prof-narr-text">{p.calls ? "They have only phoned — the transcript is in Conversations." : "Nothing written yet."}</div>
-              )}
-              {p.lastExchange.reply && (
-                <div className="cl-prof-narr-text"><b>{p.lastExchange.reply.who}</b> “{p.lastExchange.reply.text}” <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.reply.at}</span></div>
-              )}
-              <div className="cl-prof-narr-byline">Verbatim from the thread</div>
-            </div>
-          </div>
-          <StatStrip className="cl-prof-money">
-            {p.facts.map((f) => (
-              <StatCell key={f.label} label={f.label} value={f.value} valueSize={typeof f.value === "string" ? 14 : undefined} meta={f.meta} metaTone={f.tone || ""}>
-                {/* The next visit opens its day on the Calendar; the tile opened nothing. */}
-                {f.label === "Next visit" && p.nextVisitDate && (
-                  <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
-                )}
-              </StatCell>
-            ))}
-          </StatStrip>
         </div>
 
         <div className="cl-prof-section">
           <div className="cl-prof-section-head">
             <span className="cl-prof-section-title">Right now</span>
-            <span className="cl-prof-section-sub">what the receptionist is doing for {first}</span>
           </div>
           <div className="cl-prof-queue">
             <div className={`cl-prof-queue-item ${hot ? "approval" : ""}`}>
@@ -1034,9 +1002,28 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 <div className="cl-prof-queue-action">{p.rightNow.detail}</div>
               </div>
               <div className="cl-prof-queue-actions">
-                {p.rightNow.cta && (
-                  <button className={`btn btn-sm ${tone === "escalated" ? "btn-primary" : ""}`} onClick={() => window.CHANLY.nav(p.rightNow.cta.to)}>
-                    {p.rightNow.cta.label}
+                {threadCta && (
+                  <button className={`btn btn-sm ${tone === "escalated" ? "btn-primary" : ""}`} onClick={() => window.CHANLY.nav(threadCta.to)} data-testid="person-open-thread">
+                    {threadCta.label}
+                  </button>
+                )}
+                {/* Never for someone who said stop or is on do-not-contact: the button sat under "Silent, they opted out". */}
+                {p.openThread && p.bookingLink && canRecord && p.consent.state !== "opted_out" && !p.consent.dnc && (
+                  <button
+                    className="btn btn-sm"
+                    data-testid="text-booking-link"
+                    title={p.replyWindow && p.replyWindow.open ? `Opens the thread with the link ready to send · ${p.replyWindow.hoursLeft}h left in their reply window` : "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it"}
+                    onClick={() => {
+                      // Inside the 24-hour window a plain reply is allowed: the
+                      // composer opens with the link ready. Outside it the thread
+                      // offers the approved template; nothing is sent from here.
+                      if (p.replyWindow && p.replyWindow.open) {
+                        try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: `Here's the link to book your appointment: ${p.bookingLink}` })); } catch { /* nothing to carry */ }
+                      }
+                      window.CHANLY.nav(p.openThread);
+                    }}
+                  >
+                    <Icon name="calendar" size={12} /> {p.replyWindow && p.replyWindow.open ? "Text the booking link" : "Send the booking-link template"}
                   </button>
                 )}
               </div>
@@ -1047,7 +1034,6 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         <div className="cl-prof-section">
           <div className="cl-prof-section-head">
             <span className="cl-prof-section-title">Timeline</span>
-            <span className="cl-prof-section-sub">Messages, calls, visits and your decisions · in true order</span>
           </div>
           <PersonTimeline items={p.timeline} initials={p.initials} filter={tlFilter} onFilter={setTlFilter} />
         </div>
@@ -1057,8 +1043,17 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
         <div className="cl-prof-rail-section">
           <div className="cl-prof-rail-label">About</div>
           <div className="cl-prof-attr-list">
-            {p.about.map((a) => (
-              <div className="cl-prof-attr" key={a.k}><span className="cl-prof-attr-key">{a.k}</span><span className="cl-prof-attr-val">{a.v}</span></div>
+            {aboutRows.map((a) => (
+              <div className="cl-prof-attr" key={a.k}>
+                <span className="cl-prof-attr-key">{a.k}</span>
+                <span className="cl-prof-attr-val">
+                  {a.v}
+                  {/* The next visit opens its day on the Calendar; the row opened nothing. */}
+                  {a.k === "Next visit" && p.nextVisitDate && (
+                    <button type="button" className="cl-bucket-link cl-prof-attr-door" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
+                  )}
+                </span>
+              </div>
             ))}
           </div>
         </div>
