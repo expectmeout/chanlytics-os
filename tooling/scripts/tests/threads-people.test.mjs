@@ -125,7 +125,7 @@ test("the profile's Right now agrees with the mode two inches away", () => {
   assert.match(vm.rightNow.detail, /come straight to you/);
   const ws = toPersonVM({ ...detail, receptionist_mode: null, workspace_reply_mode: "ask" }, ZONE, NOW);
   assert.equal(ws.rightNow.title, "Held for you, set to Ask me first");
-  assert.match(ws.rightNow.detail, /workspace reply setting/);
+  assert.match(ws.rightNow.detail, /for the workspace/);
 });
 
 test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", () => {

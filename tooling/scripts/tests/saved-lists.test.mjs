@@ -64,7 +64,7 @@ test("the page: the rail's Saved section is real, a name typed there is the only
   assert.ok(p.includes('window.__ME.role === "operator"'), "operators keep lists too");
   const prof = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   assert.ok(prof.includes('data-testid="person-lists"') && prof.includes('data-testid="person-list-chip"'));
-  assert.ok(prof.includes("No lists yet — make one on the People rail, then add people here."));
+  assert.ok(prof.includes("No lists yet.") && prof.includes("Make one on Lists"), "the empty rail is a door to Lists, a page a phone has; the People rail is not");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-rail-newlist input {"));
 });
 

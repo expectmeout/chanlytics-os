@@ -1077,7 +1077,8 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       kind: "escalation",
       who: "Escalated",
       text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
-      sub: e.state === "resolved" ? "Resolved" : "Open",
+      // "Open" beside a row that opens something read as the verb; the state is what it says.
+      sub: e.state === "resolved" ? "Resolved" : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` },
     });
   }
@@ -1143,9 +1144,13 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     }
   }
 
-  // Right now: what the receptionist is doing for this person.
+  // Right now: what the receptionist is doing for this person. The card names the receptionist and wears the
+  // standing's own word as a pill (tone.ts, the word the People row wears), so `detail` is one sentence: the
+  // reason and what happens next -- never the receptionist's name again, never the state a second time. Ask
+  // reads `title` and `detail` together (server/ask/tools.ts), so the title keeps the state for it.
   const threadTo = row.latest_conversation_id ? `inbox/th-${row.latest_conversation_id}` : null;
-  const openInbox = threadTo ? { label: "Open in Inbox", to: threadTo } : null;
+  // One door, one label: the header's "Open thread" and this card's "Open in Inbox" went to the same thread.
+  const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
   const r = row;
   let rightNow: PersonRightNow;
   if (r.open_escalation_reason) {
@@ -1153,34 +1158,36 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     rightNow = {
       tone: "escalated",
       title: `Escalated · ${reasonShort(r.open_escalation_reason)}`,
-      detail: `${since ? `Since ${since} · ` : ""}the receptionist is paused on this thread until someone answers`,
-      cta: openInbox,
+      detail: `${capitalize(reasonShort(r.open_escalation_reason))}${since ? ` · since ${since}` : ""}. Paused until someone answers.`,
+      cta: openThread,
     };
   } else if (r.needs_human) {
-    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "The receptionist stopped and nobody has taken the thread yet", cta: openInbox };
+    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "Stopped, and nobody has taken the thread yet.", cta: openThread };
   } else if (r.queued_reply_at) {
     const q = ts(r.queued_reply_at);
-    rightNow = { tone: "queued", title: "Reply sending", detail: `Queued ${q !== null ? ago(q, tz, nowMs) : ""} · it can still be stopped from the Inbox`.replace("  ", " "), cta: openInbox };
+    rightNow = { tone: "queued", title: "Reply sending", detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`, cta: openThread };
   } else if (base.receptionist.tone === "snoozed") {
-    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}`, cta: openInbox };
+    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`, cta: openThread };
   } else if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
+    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
   } else if (base.consent.state === "opted_out") {
-    rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
+    // The consent ask on the rail carries the date and the words; here, only what it means for the thread.
+    rightNow = { tone: "silent", title: "Silent, they opted out", detail: "They said stop — nothing goes out to them until they ask again.", cta: null };
   } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
     // "Answering" sat two inches from "Receptionist for Dani: Never".
     const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
     const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    const word = PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"];
     rightNow = {
       tone: "paused",
-      title: `Held for you, set to ${PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"]}`,
+      title: `Held for you, set to ${word}`,
       detail: theirs
-        ? "You set the receptionist to stay out of this person's thread — their messages come straight to you"
-        : "Your workspace reply setting holds every message for a person",
-      cta: openInbox,
+        ? `Set to ${word} for them — their messages come straight to you.`
+        : `Set to ${word} for the workspace — every message waits for a person.`,
+      cta: openThread,
     };
   } else {
-    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
+    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically.", cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null };
   }
 
   // Facts strip.
