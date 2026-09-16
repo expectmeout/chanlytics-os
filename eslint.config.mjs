@@ -112,6 +112,8 @@ export default [
       "apps/dashboard/src/server/**/*.ts",
       "apps/dashboard/src/lib/**/*.ts",
       "apps/dashboard/src/legacy-bridge/**/*.{ts,tsx}",
+      // The few modules that sit at src/ itself (csp.ts): the middleware's own rules.
+      "apps/dashboard/src/*.ts",
       "apps/dashboard/*.{ts,mjs}",
     ],
     languageOptions: {
