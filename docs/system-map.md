@@ -92,11 +92,11 @@ door in practice. The endpoint warns about exactly this on every request.
 - **21 key-guarded back-office doors** under `admin/`
 - **8 cron sweeps** — `calendar`, `calls`, `deadman`, `google`, `health`,
   `lines`, `playbooks`, `registrations`
-- **2 job endpoints** — `jobs/tick`, `jobs/fire`
+- **1 job endpoint** — `jobs/tick`
 
-Three of those are retired but still reachable: `jobs/fire.ts`,
-`admin/backfill.ts` and `admin/pause.ts`, which the dashboard still calls. They
-go after 10 October with the rest of the Blob and QStash code;
+Two of those are retired but still reachable: `admin/backfill.ts` and
+`admin/pause.ts`, which the dashboard still calls. They go with the rest of the
+Blob code; `jobs/fire.ts`, the QStash responder, went on 16 September;
 `admin/backfill-calls.ts` and its driver were deleted on 14 September.
 
 The admin doors share one lock. `EDGE_CALL_SECRET` — the per-workspace,
