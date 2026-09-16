@@ -98,8 +98,6 @@ async function openRobin(page: Page, bucket: "Handled" | "Needs you" | "Snoozed"
   return pane;
 }
 
-/** The context strip's word for the receptionist on this thread: answering, or paused for a person. */
-const receptionist = (pane: Locator) => pane.locator(".ix-ctx").filter({ hasText: /^Receptionist/ });
 
 /**
  * The thread as the seed left it, whatever a run did: a reply still inside its
@@ -162,12 +160,12 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/inbox");
       const pane = await openRobin(page, "Handled");
       await expect(pane.getByText(/Answered by the receptionist/)).toBeVisible();
-      await expect(receptionist(pane)).toContainText("Answering");
     });
 
     await test.step("a reply written in the composer is on its way, and the thread is now yours", async () => {
       const pane = await openRobin(page, "Handled");
-      await pane.getByPlaceholder(`Reply to ${ROBIN.name}`).fill(words);
+      // The field by its name: its placeholder names the channel a reply goes out on ("WhatsApp to …").
+      await pane.getByLabel(`Reply to ${ROBIN.name}`).fill(words);
       const replied = page.waitForResponse(
         (r) => r.request().method() === "POST" && new URL(r.url()).pathname === `/api/v1/conversations/${id}/reply`,
       );
@@ -181,7 +179,6 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(bubble).toContainText("Sending");
       // A reply takes the thread: the receptionist steps back for the person who wrote.
       await expect(pane.getByText(/You own this thread/)).toBeVisible();
-      await expect(receptionist(pane)).toContainText("you have it");
     });
 
     await test.step("the number has no credentials: the send fails, and the thread says so in its own words", async () => {
@@ -204,6 +201,46 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(pane.getByText(/The reply never reached them/)).toBeVisible();
     });
 
+    await test.step("the decision fits the screen: the banner's words keep their width, every control stays on the pane, the Inbox ends where the screen does, and the thread opens at its newest entry, at 1280, on a short window, at 1024 and on a phone", async () => {
+      for (const size of [{ width: 1280, height: 800 }, { width: 1280, height: 480 }, { width: 1024, height: 768 }, { width: 375, height: 812 }]) {
+        await page.setViewportSize(size);
+        await freshLoad(page, `#/inbox/th-${id}`);
+        const pane = page.locator(".ix-thread-pane");
+        await expect(pane.locator(".ix-take")).toBeVisible();
+        // Measured, not asked: toBeVisible passes a box an overflow has cut to nothing.
+        const fit = await pane.evaluate((el) => {
+          const edge = el.getBoundingClientRect();
+          const words = el.querySelector(".ix-take-body")?.getBoundingClientRect();
+          const inside = [...el.querySelectorAll(".ix-take .btn, .ix-th-actions .btn")].every((b) => {
+            const r = b.getBoundingClientRect();
+            return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
+          });
+          // The person gets the header, not a sliver of it: the name column was 35px at 1024 (I3). Measured on the
+          // column, since the name and number inside it are only as wide as their own letters -- 156px for this one.
+          const name = el.querySelector(".ix-th-head-main")?.getBoundingClientRect();
+          // The list and the thread end at the screen's edge and scroll inside it. The grid had columns and no row,
+          // so its one row grew to the taller of the two: the list never scrolled and Send sat below the fold.
+          const list = document.querySelector(".ix-list")?.getBoundingClientRect();
+          return {
+            words: !!words && words.width >= Math.min(240, edge.width * 0.6),
+            inside,
+            name: !!name && name.width >= Math.min(240, edge.width * 0.6),
+            height: edge.bottom <= window.innerHeight + 1 && (!list || list.bottom <= window.innerHeight + 1),
+          };
+        });
+        expect(fit, `at ${size.width}x${size.height}`).toEqual({ words: true, inside: true, name: true, height: true });
+        // The thread opens at its newest entry: it opened at the oldest, and on a phone the words to answer were two
+        // scrolls down.
+        await expect.poll(() => pane.evaluate((el) => {
+          const scroller = el.querySelector(".ix-th-scroll")?.getBoundingClientRect();
+          const all = el.querySelectorAll(".ix-timeline > *");
+          const last = all.length ? all[all.length - 1].getBoundingClientRect() : null;
+          return !scroller || !last || (last.bottom <= scroller.bottom + 1 && last.bottom > scroller.top);
+        }), { message: `the newest entry on screen at ${size.width}x${size.height}` }).toBe(true);
+      }
+      await page.setViewportSize({ width: 1280, height: 720 });
+    });
+
     await test.step("the escalation it opened is listed in Today's queue", async () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
@@ -216,7 +253,9 @@ test.describe("The thread, in the nightly's own workspace", () => {
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {
       await freshLoad(page, "#/inbox");
       let pane = await openRobin(page, "Needs you");
-      await pane.getByRole("button", { name: "Snooze", exact: true }).click();
+      // Snooze is in the thread's menu: the header had it as a button too, beside the menu that held it.
+      await pane.getByRole("button", { name: "More", exact: true }).click();
+      await pane.getByRole("menuitem", { name: "Snooze" }).click();
       await expect(page.getByText(/snoozed until/)).toBeVisible();
       pane = await openRobin(page, "Snoozed");
       await expect(pane.getByText(/still waiting for you/)).toBeVisible();
@@ -232,7 +271,6 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(page.getByText(/the receptionist is paused/)).toBeVisible();
       pane = await openRobin(page, "Needs you");
       await expect(pane.getByText(/You own this thread/)).toBeVisible();
-      await expect(receptionist(pane)).toContainText("you have it");
       const { conversation: c } = await readThread(page, id);
       expect(c.state).toBe("needs_human");
       expect(Date.parse(c.paused_until ?? ""), "paused into the future").toBeGreaterThan(Date.now());
@@ -268,7 +306,6 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await expect(page.getByText(/handed back/)).toBeVisible();
       pane = await openRobin(page, "Handled");
       await expect(pane.getByText(/Answered by the receptionist/)).toBeVisible();
-      await expect(receptionist(pane)).toContainText("Answering");
       await expect(pane.locator(".tl-msg").filter({ hasText: words })).toContainText("Didn't send");
       const t = await readThread(page, id);
       expect(t.conversation.state).toBe("open");

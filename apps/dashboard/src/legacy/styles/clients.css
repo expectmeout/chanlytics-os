@@ -1078,6 +1078,9 @@
   background: var(--bg);
   overflow: hidden;
 }
+/* Loading, missing, a failed read: nothing to put on a rail, so no rail column and no hairline beside "Loading…". */
+.cl-profile--solo { grid-template-columns: minmax(0, 1fr); }
+.cl-profile--solo .cl-prof-main { border-right: 0; }
 
 .cl-prof-main {
   overflow-y: auto;
@@ -1095,6 +1098,7 @@
 .cl-prof-hero {
   padding: 24px 32px 20px;
   border-bottom: 1px solid var(--line);
+  container-type: inline-size;
 }
 .cl-prof-back {
   display: inline-flex;
@@ -1116,7 +1120,10 @@
   gap: 14px;
   margin-bottom: 14px;
 }
+/* The reading column keeps a prose measure on a wide window: a sentence in Right now ran 1,100px at 1440. */
+.cl-prof-id, .cl-prof-queue, .cl-tl-filters, .cl-prof-timeline { max-width: var(--measure-prose); }
 .cl-prof-avatar {
+  flex: none;
   width: 56px; height: 56px;
   border-radius: 50%;
   background: var(--bg-sunken);
@@ -1128,10 +1135,21 @@
 .cl-prof-avatar[data-priority="P1"] { box-shadow: inset 0 0 0 2px var(--accent); }
 .cl-prof-titles { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
 .cl-prof-name {
+  margin: 0;
   font-size: 22px;
   font-weight: 500;
   letter-spacing: -0.02em;
   color: var(--ink);
+  overflow-wrap: anywhere;
+}
+/* By the column's own width, not the window's: between 901 and 1250px the main column is 300 to 630px wide beside
+   the sidebar and the rail, and a 56px avatar with a 22px name broke "Daniela Reyes" in two at 920. The mark and
+   the name take the phone's sizes when the column is that narrow. After the avatar and the name: it overrides
+   their rules at equal specificity, so it has to come later. */
+@container (max-width: 400px) {
+  .cl-prof-id { gap: 10px; }
+  .cl-prof-avatar { width: 40px; height: 40px; font-size: 14px; }
+  .cl-prof-name { font-size: 18px; }
 }
 .cl-prof-meta {
   display: flex;
@@ -1225,6 +1243,7 @@
   margin-bottom: 10px;
 }
 .cl-prof-section-title {
+  margin: 0;
   font-size: 13px;
   color: var(--ink);
   font-weight: 500;
@@ -1236,7 +1255,7 @@
 }
 
 /* Agent queue (what's up next) */
-.cl-prof-queue { display: flex; flex-direction: column; gap: 8px; }
+.cl-prof-queue { display: flex; flex-direction: column; gap: 8px; container-type: inline-size; }
 .cl-prof-queue-item {
   background: var(--bg-raised);
   border: 1px solid var(--line);
@@ -1251,14 +1270,16 @@
   border-color: var(--accent);
   background: var(--bg-raised);
 }
-.cl-prof-queue-item.approval::before {
-  /* coral leftedge nope we use ring on agent avatar instead */
-}
+/* Right now wears the standing's tone (tone.ts) on its edge, the colour of the pill inside it: the accent edge
+   said "yours to approve" on a card whose pill said "Needs you" in warn. */
+.cl-prof-now[data-tone="escalated"] { border-color: var(--warn); }
+.cl-prof-now[data-tone="queued"] { border-color: var(--info); }
 .cl-prof-queue-body { min-width: 0; }
 .cl-prof-queue-line1 {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
   margin-bottom: 3px;
 }
 .cl-prof-queue-agent {
@@ -1291,12 +1312,18 @@
   line-height: 1.4;
 }
 .cl-prof-queue-actions { display: flex; gap: 4px; flex-shrink: 0; }
+/* After the row's own rules, so it wins by order. A row too narrow for its sentence and its buttons side by side puts the buttons under the sentence -- by the
+   row's own width, because between 901 and 1250px the profile's column is narrow while the window is not. */
+@container (max-width: 560px) {
+  .cl-prof-queue-item { grid-template-columns: 26px minmax(0, 1fr); }
+  .cl-prof-queue-actions { grid-column: 2; flex-wrap: wrap; gap: 6px; }
+}
 
 /* Timeline (mixed channel + agent action) */
 .cl-prof-timeline {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--space-3);
   position: relative;
 }
 .cl-prof-timeline::before {
@@ -1308,13 +1335,41 @@
   width: 1px;
   background: var(--line);
 }
+/* The day, on the page's own ground, so the rail line stops under it instead of running through "TODAY". */
+.cl-tl-day {
+  position: relative;
+  z-index: 1;
+  align-self: flex-start;
+  margin-top: var(--space-1);
+  padding: 2px 10px 2px 0;
+  background: var(--bg);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.cl-tl-day:first-child { margin-top: 0; }
 .cl-tl-row {
   display: grid;
-  grid-template-columns: 28px 1fr;
+  grid-template-columns: 28px minmax(0, 1fr) auto;
   gap: 12px;
   align-items: flex-start;
   position: relative;
+  padding: 3px 8px 3px 0;
+  margin: -3px 0;
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
 }
+/* A row with somewhere to go is the door -- the whole row; the arrow says so on hover, and always under a thumb. */
+.cl-tl-row-door { cursor: pointer; }
+.cl-tl-row-door:hover, .cl-tl-row-door:focus-visible { background: var(--bg-sunken); outline: none; }
+.cl-tl-row-door:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+.cl-tl-go { align-self: center; color: var(--ink-faint); opacity: 0; transition: opacity 120ms ease; }
+.cl-tl-row-door:hover .cl-tl-go, .cl-tl-row-door:focus-visible .cl-tl-go { opacity: 1; }
+@media (hover: none) { .cl-tl-go { opacity: 0.7; } }
+.cl-tl-older { margin: var(--space-1) 0 0 40px; align-self: flex-start; }
 .cl-tl-mark {
   width: 28px; height: 28px;
   border-radius: 50%;
@@ -1332,12 +1387,14 @@
 .cl-tl-body { padding-bottom: 6px; min-width: 0; }
 .cl-tl-head {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
   font-size: 11px;
   color: var(--ink-dim);
-  margin-bottom: 4px;
+  margin-bottom: 3px;
 }
+.cl-tl-time { margin-left: auto; color: var(--ink-faint); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cl-tl-sub { margin-top: 3px; font-size: 11px; color: var(--ink-faint); }
 .cl-tl-who { font-weight: 500; color: var(--ink); }
 .cl-tl-channel {
   display: inline-flex;
@@ -1349,6 +1406,7 @@
   font-size: 12.5px;
   color: var(--ink);
   line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 .cl-tl-text.muted { color: var(--ink-muted); }
 
@@ -1374,6 +1432,14 @@
 .cl-prof-rail-section {
   padding: 16px 18px;
   border-bottom: 1px solid var(--line);
+}
+/* The reader's role, said once at the top of the rail; every locked control used to say it again under itself. */
+.cl-prof-rail-note {
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--line);
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: var(--ink-dim);
 }
 .cl-prof-rail-section:last-child { border-bottom: none; }
 .cl-prof-rail-label {
@@ -1401,6 +1467,14 @@
 .cl-prof-attr:last-child { border-bottom: none; }
 .cl-prof-attr-key { color: var(--ink-dim); }
 .cl-prof-attr-val { color: var(--ink); font-variant-numeric: tabular-nums; }
+.cl-prof-attr-door { margin-left: 8px; }
+/* The line under a person's name breaks between its parts, never inside one, and no line starts with a dot: every
+   part carries its separator in a 14px lead, and the run sits 14px left inside a clip, so the part that starts a
+   line has its dot cut off. */
+.cl-prof-idline { display: block; overflow: hidden; }
+.cl-prof-idline-run { display: flex; flex-wrap: wrap; margin-left: -14px; }
+.cl-prof-meta-part { white-space: nowrap; }
+.cl-prof-meta-part::before { content: "·"; display: inline-block; width: 14px; text-align: center; color: var(--ink-faint); }
 
 .cl-prof-autonomy {
   display: grid;
@@ -1428,6 +1502,36 @@
   color: var(--ink);
   box-shadow: var(--shadow-sm);
 }
+/* Locked (the reader's role, or a person who said stop): it reads as locked, and hover does nothing. */
+.cl-prof-aut-seg:disabled { opacity: 0.5; cursor: default; }
+.cl-prof-aut-seg:disabled:hover { color: var(--ink-muted); background: transparent; }
+.cl-prof-aut-seg.active:disabled { opacity: 0.75; }
+/* Armed, not answered: ringed until the how is chosen; the answer on record keeps the solid tile. */
+.cl-prof-aut-seg.armed { color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink-faint); }
+/* How they told you: a row of chips, not a fourth cell in the three-button grid. */
+.cl-prof-how { margin-top: 8px; }
+.cl-prof-how > .cl-prof-aut-hint { margin-top: 0; }
+.cl-prof-how-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.cl-prof-how-chip {
+  font: inherit;
+  font-size: 11.5px;
+  padding: 5px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--bg-raised);
+  color: var(--ink);
+  cursor: pointer;
+}
+.cl-prof-how-chip:hover { border-color: var(--ink-faint); }
+.cl-prof-how-chip:disabled { opacity: 0.5; cursor: default; }
+/* The explanation a reader may want and never needs in the way. */
+.cl-prof-why { margin-top: 6px; }
+.cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: 11px; color: var(--ink-muted); cursor: pointer; }
+.cl-prof-why > summary::-webkit-details-marker { display: none; }
+.cl-prof-why > summary:hover, .cl-prof-why[open] > summary { color: var(--ink); }
+.cl-prof-why[open] > summary svg { transform: rotate(180deg); }
+.cl-prof-why > .cl-prof-aut-hint { margin-top: 4px; }
+@media (pointer: coarse) { .cl-prof-why > summary { padding: 8px 0; } }
 .cl-prof-aut-hint {
   font-size: 11px;
   color: var(--ink-dim);
@@ -1532,12 +1636,18 @@
 
 /* ---- A name the owner gives; notes the receptionist reads ---- */
 .cl-prof-name-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.cl-prof-name-row.editing { gap: 6px; }
+/* Editing wraps: the input takes the line and the two buttons follow it, on a phone under it. The input's fixed
+   240px beside two buttons pushed a 375px page 80px wide of itself. */
+.cl-prof-name-row.editing { flex-wrap: wrap; gap: 6px; }
 .cl-prof-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
 .cl-prof-id:hover .cl-prof-rename, .cl-prof-rename:focus-visible { opacity: 1; }
 .cl-prof-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
-.cl-prof-name-input { font: inherit; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 10px; min-width: 240px; outline: none; }
+/* No name yet: the control is the invitation, always drawn, with its word. A phone has no hover to reveal it. */
+.cl-prof-rename.is-plain { width: auto; gap: 5px; padding: 0 8px 0 6px; opacity: 1; color: var(--ink-muted); border-color: var(--line); font: inherit; font-size: 11.5px; }
+@media (hover: none) { .cl-prof-rename { opacity: 1; } }
+.cl-prof-name-input { font: inherit; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 10px; flex: 1 1 200px; min-width: 0; max-width: 420px; outline: none; }
 .cl-prof-name-input:focus { border-color: var(--accent); }
+.cl-prof-name-acts { display: inline-flex; align-items: center; gap: 6px; }
 .cl-prof-notes { display: flex; flex-direction: column; gap: 6px; }
 .cl-prof-notes textarea { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; resize: vertical; min-height: 78px; outline: none; }
 .cl-prof-notes textarea:focus { border-color: var(--accent); }
@@ -1613,12 +1723,60 @@
    tabs moves nothing below it. The cells wear the tab's own colour. */
 /* Inset like every section (the head, the search row, the table): the old
    wrapper carried these 28px; the strip carries them itself now. */
-.cl-attn { --attn-row: 68px; margin: 16px 28px 4px; }
-.cl-attn .cl-triage-cell.on { opacity: 0.55; }
-.cl-attn .cl-triage-tab.active .cl-triage-cell.on { opacity: 0.95; }
-.cl-attn .cl-triage-tab:hover .cl-triage-cell.on { opacity: 0.8; }
-.cl-attn .cl-triage-cell:not(.on) { background: var(--line-strong); opacity: 0.3; }
-.cl-attn-list { min-height: calc(3 * var(--attn-row)); animation: cl-attn-in 140ms ease-out; }
+/* On a phone the People rows stack: the name and the state on the first line,
+   then when they last wrote, what is on the calendar, and their answer to
+   offers. The table was 760px wide inside a sideways scroll, so the state --
+   the column that says who needs a person -- sat off the right edge, and the
+   strip above it was the only place a phone could see it. */
+@media (max-width: 720px) {
+  .cl-table-wrap.pl-table-wrap { overflow-x: visible; margin: 0 16px; }
+  .cl-table.pl-table { min-width: 0; }
+  .pl-table thead { display: none; }
+  .pl-table tbody tr {
+    display: grid;
+    /* The state is bounded so a long detail cannot squeeze the name out of its own row. */
+    grid-template-columns: auto minmax(0, 1fr) minmax(0, 40%);
+    grid-template-areas: "sel name state" "sel last visits" "sel offers acts";
+    align-items: center;
+    gap: 2px 0;
+    padding: 8px 0;
+  }
+  .pl-table tbody tr > td { padding: 0 10px; min-width: 0; }
+  /* Everything in the name cell is a flex row built for a 572px column; without
+     a zero floor its parts refuse to shrink and run under the state beside them. */
+  .pl-table .cl-row-name, .pl-table .cl-row-name-block, .pl-table .cl-row-name-line { min-width: 0; }
+  .pl-table .cl-row-words { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* The number, the WhatsApp name, the thread count and the first contact are
+     the profile's, one tap away; the row keeps the name, the words and when. */
+  .pl-table .cl-row-meta { display: none; }
+  .pl-table td.cl-sel { grid-area: sel; align-self: start; padding-top: 4px; }
+  .pl-table td.cl-name-cell { grid-area: name; }
+  .pl-table td.cl-state-cell { grid-area: state; justify-self: end; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; max-width: 100%; }
+  .pl-table .cl-row-recept-mark { margin-left: 0; }
+  .pl-table .cl-row-state-detail { margin-top: 0; max-width: 100%; white-space: normal; }
+  .pl-table td.cl-last-cell { grid-area: last; }
+  .pl-table td.cl-visits-cell, .pl-table td.cl-recept-cell { grid-area: visits; justify-self: end; }
+  .pl-table td.cl-offers-cell { grid-area: offers; }
+  .pl-table td.cl-actions-cell { grid-area: acts; justify-self: end; }
+  /* A row's own actions are a hover affordance; a finger has the row itself. */
+  .pl-table .cl-row-actions { opacity: 1; }
+  .pl-table tbody tr td:empty { display: none; }
+}
+
+/* One line above the table: the count, who needs a person, who was reached. */
+.pl-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 14px 28px 0; font-size: 12.5px; color: var(--ink-dim); }
+.pl-standing-total { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
+.pl-standing-part { display: inline-flex; align-items: center; gap: 6px; }
+.pl-standing-dot { color: var(--ink-faint); }
+.pl-standing-needs { min-height: 28px; padding: 0 6px; margin-left: -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--danger); cursor: pointer; font-variant-numeric: tabular-nums; }
+.pl-standing-needs:hover { background: var(--bg-hover); }
+.pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
+.pl-standing-reached { font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .pl-standing { padding: 12px 16px 0; } }
+/* --attn-row was set on the People strip's own container, which is gone; every
+   page that still draws these rows (Today's queue, Setup, the back office) sets
+   it itself or lets the row size to its content, as it already did. */
+.cl-attn-list { animation: cl-attn-in 140ms ease-out; }
 .cl-attn-row {
   display: grid;
   grid-template-columns: 30px 1fr auto;
@@ -1675,15 +1833,12 @@
 .cl-attn-cta.primary:hover { filter: brightness(1.06); }
 .cl-attn-cta.ghost { background: transparent; color: var(--ink-muted); border-color: var(--line); }
 .cl-attn-cta.ghost:hover { color: var(--ink); border-color: var(--ink-faint); }
-.cl-attn-empty { min-height: calc(3 * var(--attn-row)); display: flex; align-items: center; justify-content: center; color: var(--ink-faint); font-size: 12px; }
-.cl-attn-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 34px; padding: 0 16px; border-top: 1px solid var(--line); background: var(--bg-sunken); }
-.cl-attn-foot-sub { font-size: 11px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
 @keyframes cl-attn-in { from { opacity: 0; } to { opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }
 @media (max-width: 720px) {
-  .cl-attn-row { grid-template-columns: 30px 1fr; height: auto; min-height: var(--attn-row); padding: 10px 14px; }
+  .cl-attn-row { grid-template-columns: 30px 1fr; height: auto; padding: 10px 14px; }
   .cl-attn-cta { grid-column: 2; justify-self: start; }
-  .cl-attn-list, .cl-attn-empty { min-height: 0; }
 }
 
 /* The row's verbs: the one button, and where a state asks a second thing of
@@ -1702,11 +1857,18 @@
 .cl-row-visit:hover .cl-row-next, .cl-row-visit:hover .cl-row-last-visit { text-decoration: underline; }
 .seg-chip-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; }
 .seg-chip-open:hover { text-decoration: underline; }
-/* A profile's timeline filter, and a message's time that opens its thread. */
-.cl-tl-filters { display: flex; flex-wrap: wrap; gap: 4px; margin: 0 0 8px; }
-.cl-tl-time-link { font: inherit; color: var(--ink-faint); background: none; border: 0; padding: 0; cursor: pointer; }
-.cl-tl-time-link:hover { color: var(--ink); text-decoration: underline; }
+/* A profile's timeline filter: the page's own tab strip (.cl-tabs), sized to its words. */
+.cl-tabs.cl-tl-filters { display: inline-flex; flex-wrap: wrap; margin: 0 0 var(--space-3); }
 
 /* A person on a list is a button, so a keyboard reaches them; it reads as the name it was. */
-.lists-page .cl-row-open { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer; text-align: left; }
-.lists-page .cl-row-open:hover { text-decoration: underline; }
+/* ---- Lists on People: a picked list is the section's title, with its rename and its delete on the line ---- */
+.cl-section-lead { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 4px 10px; min-width: 0; }
+.cl-list-rename { display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; border-radius: 6px; border: 1px solid transparent; background: transparent; color: var(--ink-faint); cursor: pointer; opacity: 0; transition: opacity 120ms ease, color 120ms ease; }
+.cl-section-lead:hover .cl-list-rename, .cl-list-rename:focus-visible { opacity: 1; }
+.cl-list-rename:hover { color: var(--ink); border-color: var(--line); background: var(--bg-raised); }
+@media (hover: none) { .cl-list-rename { opacity: 1; } }
+.cl-list-renaming { flex-wrap: wrap; }
+.cl-list-renaming input { font-size: 14px; font-weight: 500; }
+.cl-row-act-drop:hover { color: var(--danger); }
+/* The phone's way to the lists, on the standing line; a desktop has the rail beside it. */
+.pl-standing-lists { display: none; }

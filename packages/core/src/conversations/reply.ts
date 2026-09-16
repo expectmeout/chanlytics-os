@@ -1,4 +1,4 @@
-import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, replyWindow } from "@chanlytics/contracts";
+import { AppError, firstNameOf, inboxSlots, isOptedOutContact, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, replyWindow, resolveParams, slotToWrite } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
 
@@ -27,6 +27,9 @@ export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e1
   consent: string | null;
   dnc: boolean | null;
   marketing_consent: string | null;
+  /** The names on file, for a template that opens with their first name. */
+  display_name?: string | null;
+  wa_profile_name?: string | null;
 }
 export interface QueuedReply {
   tenant_id: string;
@@ -121,13 +124,14 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     if (purposeOfTemplate(tpl.category) === "marketing" && conv.marketing_consent !== "opted_in") {
       throw new AppError("forbidden", "This template is a promotion, and this person has not said yes to offers. Use an appointment template, or ask them first.");
     }
-    // The Inbox fills exactly two slots -- the business name and the booking
-    // link -- so the template must take exactly two. Judged here, where the
-    // operator hears a sentence: Meta refuses a count mismatch at the wire,
-    // fifteen seconds after "queued".
-    const expected = Array.isArray(tpl.variables) ? tpl.variables.length : null;
-    if (expected !== null && expected !== 2) {
-      throw new AppError("validation", `This template takes ${expected} value${expected === 1 ? "" : "s"}; the Inbox fills two, the business name and the booking link. Pick a template with those two slots.`);
+    // The template's own slots, filled as broadcasts and the assistant fill them (inboxSlots, resolveParams): the
+    // customer's first name, the business name, the booking link. The Inbox filled exactly two -- the business name
+    // and the link -- and turned away the workspace's own starters, which open with the first name (I6). A slot with
+    // words to write is one the Inbox does not ask for: refused here, in its own label, where the operator hears a
+    // sentence, not by Meta fifteen seconds after "queued".
+    const toWrite = slotToWrite(tpl);
+    if (toWrite) {
+      throw new AppError("validation", `This template needs words for “${toWrite}”, which the Inbox does not ask for. Pick a template without them, or send it from Campaigns.`);
     }
     // Params are TENANT FACTS (E4): the workspace's own words for the slots
     // that name it, never the browser's, so the browser never chooses the
@@ -135,7 +139,11 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     // send a template from here, and is told so before anything is queued.
     const facts = await ports.templateFacts(conv.tenant_id);
     if (!facts) throw new AppError("validation", "This workspace has no template facts configured yet. Add the business name and booking link in Settings › Business first.");
-    const params: string[] = [facts.business_name, facts.booking_link.replace(/^https?:[/][/]/, "")];
+    const params: string[] = resolveParams(inboxSlots(tpl), {
+      firstName: firstNameOf(conv.display_name, conv.wa_profile_name),
+      businessName: facts.business_name,
+      bookingLink: facts.booking_link.replace(/^https?:[/][/]/, ""),
+    });
     templateName = tpl.name;
     templateVars = { language: tpl.language, params } as Json;
     messageBody = renderTemplate(tpl.body_preview, params) || `[template ${tpl.name}]`;

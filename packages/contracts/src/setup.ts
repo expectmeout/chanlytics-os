@@ -15,6 +15,7 @@
 import type { SchemaSet } from "./schema-sets";
 import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./line-failure";
 import { formatPhoneDisplay } from "./phone";
+import { CALENDAR_FEED_WORDS } from "./calendar";
 import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
@@ -592,10 +593,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
 
   // 6. Calendar — what is taken, so the receptionist offers real times.
   row(i.calendar.state === "ok"
-    ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable — the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } }
+    ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: `${CALENDAR_FEED_WORDS.ok} — the receptionist offers times from it.`, details: [], verb: { label: "Open Calendar", to: "calendar" } }
     : i.calendar.state === "unavailable"
-      ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings › Business.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } }
-      : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+      ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings › Business.`, details: [], verb: { label: "Check the address", to: "admin/workspace" } }
+      : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the address", to: "admin/workspace" } });
 
   // 7. Team and alerts — someone else who answers, and where alerts go.
   {

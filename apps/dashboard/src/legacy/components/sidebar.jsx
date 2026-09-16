@@ -63,7 +63,10 @@ const sbOverlay = (a) => {
 const sbNeedsCount = () => {
   const threads = ((window.INBOX_DATA || {}).THREADS) || [];
   return threads.filter(t => {
-    if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false; // real escalations count too
+    // A real thread counts when it needs you, the badge's rule (needsYou): this counted a teammate's thread (I2).
+    // The Inbox owns that rule (ixWaitsOnYou), so a reply about to send counts in both places, or in neither.
+    if (t.real) return window.ixWaitsOnYou ? window.ixWaitsOnYou(t) : !!t.needsYou;
+    if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false;
     const rec = window.IX_STORE && window.IX_STORE.get(t.id);
     return !(rec && (rec.kind === "decided" || rec.kind === "snoozed"));
   }).length;
@@ -537,3 +540,5 @@ const Sidebar = ({
 
 window.Sidebar = Sidebar;
 window.ACTIVE_AGENTS_DEFAULT = ACTIVE_AGENTS_DEFAULT;
+// Published for inbox-counts.test.mjs, which counts the sidebar's first number on its own.
+window.sbNeedsCount = sbNeedsCount;

@@ -23,7 +23,7 @@ import {
   shiftKey,
   toVisitDto,
   zoneMidnight,
-  type BookingRulesLike,
+  type BookingRules,
   type CalendarDayDto,
   type CalendarItemDto,
   type CalendarWeekDto,
@@ -37,6 +37,7 @@ import {
   type BookingReportDto,
   type ParsedFeed,
   visitsIn,
+  needsConsultation,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -80,16 +81,18 @@ interface ParsedRead {
   /** Why the latest try failed; with a parse it means the parse is the last good read. */
   reason: FeedFailure | null;
   status: number | null;
+  /** When the calendar was last tried, good or not; null when it never was. */
+  checkedAt: number | null;
 }
 
-async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Date): Promise<ParsedRead> {
-  const feed = await loadFeed(tenantId, url);
-  if (!feed.text) return { parsed: null, at: null, reason: feed.reason, status: feed.status };
+async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Date, fresh = false): Promise<ParsedRead> {
+  const feed = await loadFeed(tenantId, url, { fresh });
+  if (!feed.text) return { parsed: null, at: null, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
   const hit = parsedFeeds.get(tenantId);
-  if (hit && hit.text === feed.text && hit.tz === tz) return { parsed: hit.parsed, at: feed.at, reason: feed.reason, status: feed.status };
+  if (hit && hit.text === feed.text && hit.tz === tz) return { parsed: hit.parsed, at: feed.at, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
   const parsed = parseIcs(feed.text, tz, { horizon: seasonHorizon(now) });
   parsedFeeds.set(tenantId, { text: feed.text, tz, parsed });
-  return { parsed, at: feed.at, reason: feed.reason, status: feed.status };
+  return { parsed, at: feed.at, reason: feed.reason, status: feed.status, checkedAt: feed.checkedAt };
 }
 
 /** The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name — and the booking link, which a row may offer. */
@@ -201,7 +204,7 @@ async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: stri
  * assembly calls this for a workspace that is not the caller's own -- the back
  * office reading somebody else's -- and there is no request behind that.
  */
-export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId: string, by: { from: string | null; days: number }, now = new Date(), opts: { canAct?: boolean } = {}): Promise<CalendarWeekDto> {
+export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId: string, by: { from: string | null; days: number }, now = new Date(), opts: { canAct?: boolean; fresh?: boolean } = {}): Promise<CalendarWeekDto> {
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
   const span = spanFor(by.from, by.days, timezone, now);
   const { data: row, error } = await ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle();
@@ -209,7 +212,7 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   const cfg = parseTenantConfig(row?.config ?? null);
   const url = cfg?.calendar?.ical_url ?? null;
   const profile = cfg?.brain?.profile ?? null;
-  const rules: BookingRulesLike | null = profile?.booking_rules ?? null;
+  const rules: BookingRules | null = profile?.booking_rules ?? null;
   const hours = profile?.hours ?? null;
   const closures = profile?.closures ?? [];
   const to = shiftKey(span.from, span.days - 1);
@@ -218,7 +221,7 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
     timezone,
     from: span.from,
     to,
-    feed: { present: !!url, source: feedSourceLabel(url), state: url ? "unavailable" : "none", read_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, reason: null, status: null, problem: null, stale: false, dropped: 0 },
+    feed: { present: !!url, source: feedSourceLabel(url), state: url ? "unavailable" : "none", read_at: null, checked_at: null, events: 0, recurring_expanded: 0, skipped_recurring: 0, reason: null, status: null, problem: null, stale: false, dropped: 0 },
     hours,
     closures,
     rules,
@@ -227,9 +230,11 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
     services: (profile?.services ?? []).map((s) => ({
       name: s.name,
       duration_min: typeof s.duration_min === "number" ? s.duration_min : null,
-      consult_first: (profile?.booking_rules?.consult_first ?? []).some((c: string) => c.trim().toLowerCase() === s.name.trim().toLowerCase()),
+      consult_first: needsConsultation(s.name, profile?.booking_rules),
     })),
     booking_link: cfg?.brain?.booking_link ?? null,
+    // No readable calendar: the receptionist never names an open time.
+    next_opening: null,
     days: Array.from({ length: span.days }, (_, i) => ({ key: shiftKey(span.from, i), items: [], windows: [] })),
   };
   if (!url) return base;
@@ -237,16 +242,16 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   // One parse per fetch, shared with the profile, the People list and the
   // report. Its horizon — ninety days either side — covers any span the page
   // asks for and the openings' reach from now, so the windows are the
-  // receptionist's own, never computed from a feed cut short.
+  // receptionist's own, never computed from a feed cut short. A fresh read is the board's Refresh (C2).
   let feed: ParsedRead;
   try {
-    feed = await parsedFeedFor(tenantId, url, timezone, now);
+    feed = await parsedFeedFor(tenantId, url, timezone, now, !!opts.fresh);
   } catch (e) {
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    feed = { parsed: null, at: null, reason: "not_ical", status: null };
+    feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   // Nothing readable, ever: the board says why, in the words the preview uses.
-  if (!feed.parsed) return { ...base, feed: { ...base.feed, reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status) } };
+  if (!feed.parsed) return { ...base, feed: { ...base.feed, checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(), reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status) } };
   const parsed = feed.parsed;
   const serviceNames = (profile?.services ?? []).map((s) => s.name);
   const people = (await listPeople(ctx, tenantId).catch(() => [])).map(personLike);
@@ -257,10 +262,14 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   const { days, dropped } = itemsToDays(parsed.items, span.from, span.days, timezone, people, serviceNames);
   const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
+  // The receptionist's next open time from now, whatever span the page asked for: the first of every time it would
+  // offer. The page worked it out from the span it had loaded, so a board on December had none to name (C1).
+  const first = openings.find((o) => o.windows.length)?.windows[0] ?? null;
   return {
     ...base,
+    next_opening: first ? { start: new Date(first.start).toISOString(), end: new Date(first.end).toISOString() } : null,
     // A reason beside "ok" means the latest try failed and this is the last good read, said so on the chip.
-    feed: { present: true, source: feedSourceLabel(url), state: "ok", read_at: feed.at === null ? null : new Date(feed.at).toISOString(), events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring, reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status), stale: feed.reason !== null, dropped },
+    feed: { present: true, source: feedSourceLabel(url), state: "ok", read_at: feed.at === null ? null : new Date(feed.at).toISOString(), checked_at: feed.checkedAt === null ? null : new Date(feed.checkedAt).toISOString(), events: parsed.events, recurring_expanded: parsed.recurringExpanded, skipped_recurring: parsed.skippedRecurring, reason: feed.reason, status: feed.status, problem: feedProblemWords(feed.reason, feed.status), stale: feed.reason !== null, dropped },
     days: days.map((d) => ({ ...d, windows: (windowsOf.get(d.key) ?? []).map((w) => ({ start: new Date(w.start).toISOString(), end: new Date(w.end).toISOString() })) })),
   };
 }
@@ -318,7 +327,7 @@ export async function personVisits(ctx: RouteContext, tenantId: string, person: 
     feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    feed = { parsed: null, at: null, reason: "not_ical", status: null };
+    feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed) return { timezone, source, state: "unavailable", next: null, last: null };
   const index = indexFeed(feed.parsed.items);
@@ -351,7 +360,7 @@ export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: Pe
     feed = await parsedFeedFor(tenantId, url, timezone, now);
   } catch (e) {
     console.error("calendar_parse_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) }));
-    feed = { parsed: null, at: null, reason: "not_ical", status: null };
+    feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed) return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink };
   const index = indexFeed(feed.parsed.items);

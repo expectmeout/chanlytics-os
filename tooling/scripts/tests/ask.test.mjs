@@ -428,7 +428,7 @@ test("voice and the phone: hold to talk uses the browser's recogniser, the origi
   assert.ok(shell.includes("{!askOpen && !navOpen && ("), "hidden while the palette or the drawer is open");
   const askCss = readRaw("apps/dashboard/src/legacy/styles/ask.css");
   assert.ok(askCss.includes(".phone-ask { display: none; }"), "a desktop has the topbar button and ⌘K");
-  assert.ok(askCss.includes("position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));"), "above the bridge pill (74px + its height), at the thumb; the pill covered it at 70px");
+  assert.ok(askCss.includes("position: fixed; right: 10px; bottom: calc(6px + env(safe-area-inset-bottom));"), "in the tab bar's own row, at the thumb and over no page: it floated 126px up, over what the page drew there");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes("grid-template-columns: repeat(5, 1fr);"), "the five tabs keep their places");
   assert.ok(!readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".phone-ask") && !readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".ask-card"), "the palette's rules live in ask.css alone");
   const legacyCss = readRaw("apps/dashboard/src/legacy-bridge/legacy.css");

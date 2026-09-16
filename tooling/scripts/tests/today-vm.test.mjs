@@ -139,6 +139,16 @@ test("no fact carries a delta, a percentage or a sparkline", () => {
   }
 });
 
+test("the day's numbers are one sentence: they were six stat cards over two sentences that said them again, and an arc that said the ratio a third time", () => {
+  const busy = toTodayVM(metrics({ period: { messages_in: 14, messages_out_ai: 11, messages_out_you: 2, conversations_active: 6, answered_by_ai: 11, median_reply_seconds_ai: 38, calls: 3, call_seconds: 420 } }), [], [], [], NOW);
+  assert.equal(busy.recap.line, "14 messages in, 11 answered by the receptionist, typically in 38s. 3 calls, 7 minutes.");
+  // Ask reads every sentence; the page prints the line and skips the two the line already says.
+  assert.ok(busy.recap.sentences.every((s) => !s.traffic || /receptionist answered|reached the phone line/.test(s.text)), busy.recap.sentences.map((s) => s.text).join(" | "));
+  assert.ok(busy.recap.sentences.filter((s) => !s.traffic).every((s) => !/receptionist answered|reached the phone line/.test(s.text)));
+  const quiet = toTodayVM(metrics(), [], [], [], NOW);
+  assert.equal(quiet.recap.line, "Nothing has come in yet today.");
+});
+
 test("the reply-window region is absent when nothing is closing", () => {
   const m = metrics({ period: { messages_in: 1, conversations_active: 1 } });
   // last_wa_inbound_at is 1h old, so ~23h of window remain — not "closing"

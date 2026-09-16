@@ -268,7 +268,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
   const waiting = p.totals.waiting;
   const status = pbStatus(p);
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
-  const listRoute = trig && trig.list ? `segments/${trig.list}` : "segments/opted_in";
+  // The trigger's list, on People (a smart list's own view); `segments/<id>` would land there too, one hop later.
+  const listRoute = trig && trig.list ? `clients/seg:${trig.list}` : "clients/seg:opted_in";
   // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
   const surface = window.__PLAYBOOKS || {};
   const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;

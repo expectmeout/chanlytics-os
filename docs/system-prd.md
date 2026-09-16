@@ -1,0 +1,969 @@
+# Chanlytics OS As-Built
+
+A system reference in PRD form: every system and subsystem of Chanlytics OS, the logic it runs, and what it is wired to. It is written from the code at commit `14efd153` (PR #563, 16 September 2026), not from the plans. The first edition was cut at `95f7a22` (PR #327, 10 September); 236 pull requests landed between the two, and every sheet below was re-read against the code. Where the built system departs from a plan, or a known gap stands, the note is marked **Δ** — a redline, in the drafting sense: the mark on a drawing that records what was actually built. They are collected in S-24, with the six the first edition carried that have since closed.
+
+| Sheet | Covers |
+|---|---|
+| S-01 | Product and scope |
+| S-02 | The system map: deployables, providers, trust boundaries |
+| S-03 | House rules |
+| S-04 | Tenancy, identity and access |
+| S-05 | Channels: WhatsApp |
+| S-06 | Channels: voice |
+| S-07 | Channels: SMS, lines and carrier registration |
+| S-08 | The jobs ledger and row clocks |
+| S-09 | Scheduled sweeps |
+| S-10 | The app plane (`/api/v1`) and core |
+| S-11 | The UI and the legacy bridge |
+| S-12 | Product surfaces |
+| S-13 | Control plane: config, facts and autonomy |
+| S-14 | Consent, broadcasts and playbooks |
+| S-15 | Calendar and availability |
+| S-16 | Google |
+| S-17 | Billing |
+| S-18 | Ask and the models |
+| S-19 | Alerts, notifications and the pager |
+| S-20 | Data model |
+| S-21 | Observability |
+| S-22 | Quality system |
+| S-23 | Operations |
+| S-24 | Revision schedule |
+| A, B | Glossary; environment |
+
+## S-01 · Product and scope
+
+Chanlytics OS is a multi-tenant AI receptionist for appointment businesses — salons first. Customers text a business's WhatsApp number, phone its voice line or text its SMS line; the receptionist answers within seconds, says what is open, sends the booking link, and hands anything it should not decide to a person. The owner works from a dashboard that shows what the receptionist did, lets them take over, and runs campaigns to the people who said yes.
+
+It is live: real businesses, real customers, real numbers. Four workspaces are in production (launch-readiness plan, 9 September 2026), three of them on a direct billing arrangement.
+
+The charter — what the receptionist never does:
+
+- **Decide money.** No refunds, discounts or negotiation. The `money` policy class is locked to `never` by a database trigger (00102 proved the lock holds).
+- **Quote a price where the workspace forbids it.** A deterministic check after generation blocks the send ("layer two"), whatever the prompt said. On the phone, a price the agent nonetheless spoke is corrected in the same call and put in front of the owner (S-06).
+- **Book an appointment.** It reads the calendar and sends the booking link; the booking tool behind the link does the booking.
+
+This document covers the `expectmeout/chanlytics-os` repository: `apps/edge`, `apps/dashboard`, `packages/*`, `supabase/`, `tooling/`, `e2e/` and `.github/`. S-23 lists what sits outside it.
+
+| Area | At this commit |
+|---|---|
+| `apps/edge` | 40 HTTP handlers, 54 libraries — about 14,600 lines |
+| `apps/dashboard` | 105 `/api/v1` route files (123 declared routes), 35 server modules plus the `ask` set, 41 bridge modules; the legacy UI is about 30,000 lines of JSX |
+| `packages/*` | contracts ~17,700 lines, db ~4,700 (with generated types), channels ~4,400, core ~1,900 (new since the first edition), jobs ~900 |
+| `supabase/migrations` | 122 migrations, about 14,300 lines |
+| Tests | 305 `node:test` files (~2,590 tests, 126 of them the database and integration suites that skip without credentials), 36 Playwright specs |
+
+## S-02 · The system map
+
+<!-- fig:map -->
+```mermaid
+flowchart LR
+  subgraph People
+    C[Customers]
+    O[Owner and staff]
+  end
+  subgraph Providers
+    META[Meta WhatsApp]
+    RET[Retell voice]
+    TWI[Twilio SMS and numbers]
+  end
+  subgraph Edge["Edge — Vercel chanlytics-messaging"]
+    WH[Webhooks]
+    TICK[Job runner]
+    CRON[Sweeps]
+    ADM[Admin doors]
+  end
+  subgraph DB["Supabase"]
+    PG[(Postgres + RLS)]
+    PGC[pg_cron + pg_net]
+    V[Vault]
+    RT[Realtime]
+  end
+  subgraph Dash["Dashboard — app.chanlytics.com"]
+    UI[Operator UI]
+    API["/api/v1"]
+  end
+  C --> META & RET & TWI
+  META & RET & TWI -->|signed webhooks| WH
+  WH -->|service role| PG
+  PGC -->|x-cron-key| TICK & CRON
+  TICK -->|sends| META & TWI
+  O --> UI -->|session cookie| API -->|RLS session client| PG
+  API -->|x-edge-token| ADM
+  ADM --> RET & TWI & META
+  RT -->|row changes, one workspace| UI
+```
+
+### Deployables
+
+| Deployable | Code | Runs on | Address | Holds |
+|---|---|---|---|---|
+| Edge | `apps/edge` — vanilla Vercel functions, no framework | Vercel project `chanlytics-messaging` | `chanlytics-messaging.vercel.app` (the dashboard reaches it through one variable, `EDGE_URL`) | Every provider key, the service role, the webhooks, the job runner, the sweeps |
+| Dashboard | `apps/dashboard` — Next.js 15 | Vercel project `chanlytics-os` | `app.chanlytics.com` (`CANONICAL_HOST`; in production any `*.vercel.app` host redirects there); a workspace lives at `/w/<slug>` | Auth, the `/api/v1` app plane, the public pages, the operator UI; the service role in six named modules only (S-04) |
+| Database | `supabase/` | Supabase: Postgres 15+, Auth, Realtime, Storage, Vault, pg_cron, pg_net | — | All state, with RLS on every table |
+| Packages | `packages/contracts`, `core`, `db`, `channels`, `jobs` | bundled into both apps | — | Pure rules and view models; the use cases behind ports; repositories; provider adapters; the jobs ledger |
+
+The two apps deploy independently from `main`, so a change both must agree on ships in a shape that works in either order. `packages/*/dist` is committed and the edge imports it by relative path (`apps/edge/lib/workspace/*.ts` re-export `../../../../packages/<pkg>/dist/index.js`), because Vercel's function bundler does not follow pnpm's workspace symlinks. CI fails when the committed `dist` differs from a fresh build, and the dashboard is built on every pull request the way Vercel builds it.
+
+**What a deployment may do** is decided once (`server/deployment.ts`): production reaches the real providers; a preview or a laptop reaches them only when `EDGE_PROVIDERS=live` says its `EDGE_URL` points at an edge holding sandbox keys, and otherwise every such call — buying a number, filing a registration, connecting WhatsApp, syncing templates, Checkout, a word into a live call, the model — answers "not here". An unset `VERCEL_ENV` is a laptop, never production.
+
+### Providers
+
+| Provider | Used for | Credentials |
+|---|---|---|
+| Meta WhatsApp Cloud API | Inbound messages, delivery statuses, owner echoes, account (WABA) events; text and template sends; Embedded Signup; templates | `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_PHONE_ID` for the pilot line; each connected business's token in Vault. The environment pair sends for the environment's own number alone — a workspace whose credentials cannot be read gets a refusal, never the pilot's token |
+| Retell AI | Hosted phone agents: calls, transcripts, recordings, live-call context, ending and handing over a call; agents, LLMs, numbers | `RETELL_API_KEY`; `RETELL_WEBHOOK_KEY` (the badged key its webhook signs with); `RETELL_FN_SECRET` on its callbacks |
+| Twilio | A subaccount per workspace, numbers, SIP trunks to Retell, Messaging Services, SMS, A2P 10DLC through Trust Hub | Master SID and token in env; subaccount token and SIP credential in Vault (`line-creds-<line>`) |
+| Anthropic | The receptionist (`claude-opus-5`); Ask, template drafts, review replies (`claude-sonnet-5`) | `ANTHROPIC_API_KEY`, on the edge — the dashboard's model calls pass through the edge gateway |
+| Stripe | Checkout, customer portal, subscriptions, invoices, webhooks | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID` |
+| Google | Sign in with Google (OAuth, PKCE); Places API (New) for the public listing; Business Profile (OAuth) for reviews and replies | The Supabase provider for sign-in; Places key and OAuth client in env; refresh tokens in Vault (`google-creds-<workspace>`) |
+| Resend | Every email a person receives from the system, and the platform's pages | `RESEND_API_KEY` (the hosted Supabase project sends through it too, which lifted the two-an-hour ceiling) |
+| Vercel Blob | The receptionist's pre-Postgres thread memory, now a shadow copy | `BLOB_READ_WRITE_TOKEN`; retired by `BLOB_SHADOW=off` |
+
+Every provider is reached from the edge and nowhere else.
+
+> **Δ1 · Open** Jobs no longer travel through QStash. Since #320 (migration 00098) a job is only a row, and a ten-second pg_cron heartbeat runs whatever is due (S-08). `api/jobs/fire.ts` stays as a responder that answers 200, so QStash stops retrying deliveries it accepted before the switch. Delete it and the `QSTASH_*` variables after 10 October 2026 — the longest delay ever scheduled through QStash was a thirty-day snooze.
+
+### The four doors
+
+1. **Provider → edge.** Every webhook is verified before it is read: HMAC-SHA256 over the raw body (Meta, `x-hub-signature-256`), `X-Retell-Signature` keyed with `RETELL_WEBHOOK_KEY` (Retell's call webhook; the scheme is proved by a test), `?key=` with `RETELL_FN_SECRET` (Retell tool calls and call start), `X-Twilio-Signature` keyed with the line's own subaccount token (SMS), `Stripe-Signature` (billing).
+2. **Browser → dashboard.** A Supabase session cookie, verified with `getUser()` on every request; same-origin required for every write.
+3. **Dashboard → edge.** A token minted for the door it opens (`x-edge-token`, `packages/channels` edge-token): one door, one workspace, one person, one minute, signed with `EDGE_CALL_SECRET`. While the secret rolls out the shared `x-diag-key` (`DIAG_KEY`) still opens a door, compared in constant time; an edge that holds the secret and is shown a bad token refuses rather than falling back to the key. A door that acts on a workspace believes the token's workspace over the body. The dashboard proves who the person is and what they may do; the edge spends the key.
+4. **Database → edge.** `x-cron-key` on `/api/cron/*` and `/api/jobs/tick`: one door (`lib/cron-auth.ts`, held to every cron route by a hygiene test) against the sweep key both sides read from Vault (`get_cron_sweep_key()`), so the value exists in exactly one place.
+
+And one door with no key at all: `GET /api/health` says only whether the platform's clocks are healthy and due work is draining — 200 or 503 — so a pinger outside the failure domain can page a person when the edge, the database or pg_cron is the thing that is down.
+
+## S-03 · House rules
+
+The invariants every subsystem obeys, and where each is enforced. When a change fights one of these, the change is wrong.
+
+| Rule | What it means | Enforced by |
+|---|---|---|
+| Nothing states a fact the database cannot support | Invented numbers render only in a declared demo session; a zero is a measurement and is shown; a read that fails is never drawn as nothing there | `window.__DEMO_MODE` (false in the app); the surface registry (S-11); `EmptyState` and `FailedRead`; `e2e/no-fabricated-data.spec.ts` |
+| RLS is the floor, the role check is the door | RLS stops cross-tenant access; which member may act is decided in the route | RLS on every table, uniform (00120–00122); `route()`'s declared policy |
+| Every route declares its policy | Scope, role, rate, spend and input are said in the route's definition and enforced by one pipeline, in one order | `server/route.ts`; `route-policy.json` pins every route's declaration |
+| A forbidden UPDATE does not raise | RLS makes it match zero rows and return success | Permission-sensitive updates `.select()` and count the rows |
+| Persist, then process, then acknowledge | A customer's message is on record before anything can fail; a message the database did not accept is not acknowledged, so the provider retries | `ingest_inbound` runs before any decision; the WhatsApp webhook answers 503 on a failed write and 200 otherwise |
+| A door's decisions are a function, apart from the wire | What a webhook, a health check or a call start decides is a pure function a test runs every way it can fall short | `whatsapp/steps.ts`, `reply-posture.ts`, `planSmsIngress`, `planCallStart`, `judgeHealth`, `callbackPlan`; the handlers run over a ports object |
+| Nothing is assumed sent | A message is recorded as sent only when the provider accepted it; a receipt that stops coming is watched | `outbound_send` and the reply route; `receipts-watch.ts` |
+| Time lives in the row | Every clock is a timestamp that a sweep or the heartbeat acts on, and every clock is registered as data | `jobs.due_at`, `conversations.paused_until` and `snooze_until` (S-08); the clock register (00107) |
+| A state machine keeps its edges | Every transition a row may make is a trigger's business, not each writer's | `jobs_guard`, `messages_guard`; broadcasts, escalations, a line's voice and texting, a broadcast's recipient (00106, 00116) |
+| One fact, one owner | What the platform provisioned or a third party verified is referenced, never retyped | `contracts/facts.ts` `resolveFacts`; conflicts shown in Settings |
+| One predicate per rule | Consent, standing, "may we send", the reply window, the service match, when a day is open — each exists once, and every path calls it | `mayMessageFor`, `standingOf`, `outboundGate`, `replyWindow`, `serviceMatch`, `hoursReader` |
+| Fail closed at the wire | "We could not check" is never "yes" | The send job throws on an unreadable consent row; broadcasts skip a person they cannot read; the ports fail closed |
+| Silence over someone else's voice | An unknown or unconfigured tenant never speaks; the disaster fallback covers a failed read, never a configuration; a missing model key is a degraded state a person can see | `reply-posture.ts` truth table; `tenant-fallback.ts`; the pager |
+| Closed sets come from the database | Every CHECK-constrained set is generated from the database and each hand-kept copy is held to it at compile time | `gen-schema-sets.mjs` → `schema-sets.generated.ts`; `check-db-types.mjs`; the Database workflow |
+| Provider keys live on the edge | The dashboard never holds a provider secret | The env manifests and `env-manifest.test.mjs` |
+| Every sweep that changes something is watched | pg_cron's "succeeded" only means "enqueued" | `sweep_health()` over the clock register and `/api/cron/health` (S-09) |
+| Every time is said by the business's clock | A minute, a day, a "tomorrow" is the workspace's, not the browser's | `contracts/clock.ts` through `window.__clock` |
+| The interface says each thing once, and the phone shows the work first | One tone vocabulary, one pill, one Confirm, one empty state, one toast; a page's numbers are one line, its rules behind a tap, no strip above the work on a phone | `contracts/tone.ts`, `chrome.ts`, `refusal.ts`; `data-bits.jsx`; the interface plan's passes (S-11) |
+| Production scripts meet the bar | Dry run by default, a JSONL backup first, idempotent, `--apply` to mean it | Every writing script in `tooling/scripts` |
+| Either deploy order works | A shape both apps must agree on is compatible in both orders | Review rule; README |
+
+## S-04 · Tenancy, identity and access
+
+### 4.1 The model
+
+A workspace is a row in `tenants` (name, slug, timezone, status `active | paused | test`). People join it through `memberships` (user × workspace × role; the member's views of a page — People's sort and filters — ride on the row, so a view is the workspace's, not the device's, 00113). `platform_admins` lists Chanlytics staff and is read only through `is_platform_admin()`. `profiles` holds the name a person goes by; `invitations` holds open invites, each expiring on its card.
+
+What each role may do (`ROLE_PERMS` in `contracts/config.ts`, published to the UI and enforced by the routes):
+
+| Role | Approve | Autonomy | Settings | Team | Billing | Disconnect | Export |
+|---|---|---|---|---|---|---|---|
+| owner | yes | yes | yes | yes | yes | yes | yes |
+| operator | yes | yes | — | — | — | — | — |
+| viewer | — | — | — | — | — | — | — |
+
+Viewers read everything and change nothing. A control a role may not press says who may, before the press (`roleGate`), and a refusal after one is in the owner's words (`refusalOf`): the title says what kind of no it is, the server's own sentence stays, the wait and a form's fields ride along.
+
+### 4.2 Sign-in and the session gate
+
+- **A password is the everyday credential.** Twelve characters at least, seventy-two bytes at most (the hash reads no more), no composition rules; the real strength check is the hosted breach list. The emailed one-time code is the way back in (`/reset-password`), and confirming the address is what makes the account. **Sign in with Google** runs the PKCE flow through `/auth/callback`, which exchanges the code through the same cookie-backed client every route uses and lands the browser on this site only (`callbackPlan`). The login page says one sentence per failure and never reveals whether an address has an account; an address that was never confirmed is told so and sent a fresh code rather than "wrong password".
+- `middleware.ts` admits exactly these without a session: `/login`, `/auth/signout`, `/auth/callback`, `/api/version`, `/manifest.webmanifest`, `/signup`, `/api/v1/signup`, `/reset-password`, `/privacy`, `/terms`, `/data-deletion`, and anything under `/yes/` and `/b/`. Everything else requires a validated user; a signed-in visitor is kept off both auth doors.
+- An outage at the auth server answers 503, not 401 (`isRetryableAuthError`). A 401 makes the client clear its cache and sign the person out; a blip must not.
+- **The product has one address.** A workspace is a page, `/w/<slug>`; the client names its workspace on every request, and a tab off a workspace page asks the server which workspace the account may open before any other read is issued.
+
+### 4.3 `route()`, the one definition
+
+Every `/api/v1` handler is declared with `route()` (`server/route.ts`), which says five things and does none of them:
+
+| | |
+|---|---|
+| **scope** | which workspace it acts on: the one this tab named (`workspace`), the row's own (`row(load)` — read under RLS, so a row the caller cannot see is a 404 and the role is judged where the row lives), none (`account`: your name, your workspaces, a new one), or every one, for platform staff (`platform`, which the database decides through `backOffice`) |
+| **role** | who may do it; a read with none is open to every member |
+| **rate** | the bucket it counts against (`RATE`, S-10), or `null` said out loud |
+| **spend** | whether it may cost Chanlytics money (`requireSpend`, 402 with the fix named when `billing_accounts` says no) |
+| **input** | the zod schema its body — or, for a read, its query — must pass |
+
+The order is the contract: a viewer is refused before a token is spent, so is a workspace that may not spend, and all of that before the body is judged — a 403 or a 402 never hides behind a 429. The exported handler carries its `policy`, which `route-policy.test.mjs` compares with `route-policy.json` (123 routes; a change there is a change to who may do what, reviewed as one), and `run(req, ctx)`, which a test calls with a database in memory. `withRoute` keeps the transport it always had: same-origin (`Sec-Fetch-Site`, then `Origin`), the verified session, the session-scoped Supabase client so RLS decides every read and write, the envelope `{ ok, data } | { ok, error: { code, message } }` with `private, no-store`, the log line, and `via: "ask"` when an Ask card sent the request.
+
+**Which workspace.** `?workspace=` (an id or a slug) names it. An account in two workspaces that named neither is refused — reads and writes alike — with `choose_workspace`, and the client forgets the last workspace it used, drops the rows read under it, and goes home to be sent to the right address, once per tab. The first edition's redline (73 hand-read parameters, silent defaults on reads, a business record pre-filled from the wrong workspace) is closed.
+
+### 4.4 The doors in the database
+
+- **Reads**: members read their own workspace's rows.
+- **Verb writes**: `is_acting_member()` (operator or owner) on conversations, messages, escalations and decisions (00014); UPDATE grants are scoped to the columns a verb may change (00037), and a column grant is a fence only because the table-wide grant is gone (00121); a new object in `public` starts closed to `anon` (00122); the four tables that are the service role's alone have RLS on and zero policies, uniformly (00120).
+- **Privileged writes** go through `SECURITY DEFINER` functions with a pinned `search_path`; each is the one audited place its privilege exists.
+
+| Door | Called by | Does |
+|---|---|---|
+| `create_workspace` | a signed-in person | Workspace and owner membership in one transaction, recorded where it is made (00104); at most ten per account |
+| `provision_tenant` (trigger on insert) | automatic | Seeds the policy matrix, `tenant_config` and the billing row |
+| `set_contact_consent`, `set_marketing_consent` | operators and owners; the edge | The two consent answers, with an event that keeps the evidence — the channel, the provider's message id and the words of a texted answer (00110, S-14) |
+| `create_person`, `set_person_name`, `set_person_notes`, `set_person_reply_mode` | operators and owners | People added and described by hand; the receptionist's mode for one person, and for fifty at a time |
+| `set_template_hidden`, `set_template_title` | operators and owners | How a template appears in the composers |
+| `line_forwarding_set`, `line_forwarding_test` | owners | Keep-your-number rows (S-07) |
+| `profile_set` | the person | Their display name |
+| `notifications_seen`, `notification_mark` | the person | Their read state on the bell, keyed by the workspace and pruned with the feed |
+| `setup_request` | operators and owners | Ask a person at Chanlytics for something the product cannot provision yet |
+| `team_roster`, `lookup_user_for_invite` | members; owners | The roster, and an invitee, each in one indexed query |
+| `erase_contact`, `scrub_ask_for_contact` | owners, through the route | A deletion request (S-10) |
+| `put_/get_channel_credentials`, `put_/get_line_credentials`, `put_/get_/drop_google_credentials` | service role only | Vault secrets |
+| `ingest_inbound`, `ingest_call`, `mark_processed`, `claim_due_jobs` | service role (the edge) | The atomic gates |
+| `take_rate` | the routes | Shared rate limiting |
+| `is_platform_admin`, `platform_overview`, `platform_health` | any session; platform admins | The back office (4.8) |
+
+### 4.5 Where the dashboard holds the service role
+
+Six modules, each for one reason: `server/service.ts` (scheduling jobs, signing media URLs, team administration, calling the edge), `server/signup.ts` (the one door a stranger may use, and it writes no tenant data), `server/consent-page.ts` and `server/business-page.ts` (public pages with no session, which return exactly what they display), `server/platform.ts` (the back office, reachable only through a `BackOffice` capability), and `server/rate-limit.ts` (counting hits through `take_rate`). App-plane routes never import the service client.
+
+### 4.6 Sign-up and new workspaces
+
+`/signup` → `POST /api/v1/signup` (public; same-origin; limited per network and per address, and a stranger counts against the shared limit; an invite code compared in constant time when `SIGNUP_CODE` is set) → the service role creates the auth user with the password, keeps what the form said — the workspace's name and details — **on the auth user**, and sends the confirmation code. **The workspace waits for its owner**: the person who enters the code makes it, signed in, through `create_workspace`. Nothing exists for an address until its owner does; a stranger typing someone else's address gets that person nothing they did not ask for. The page says the same sentence whether or not the address was known; a code that could not be sent is said, not answered 500; and the platform mailbox is told through `/api/admin/signup-notify`. The front door has three postures: open, invite code, and waitlist (`waitlist`, 00088). The first-workspace screen joins the waitlist itself and offers a way out.
+
+> **Δ2 · Open** Production sign-up runs open. Closing the front door (gate 2 of the launch plan) is shipped as code and waits on an environment change, which is Ruben's decision.
+
+A signed-in person with no workspace sees `CreateWorkspace` instead of the app, and the workspace menu offers another workspace the same way (`create_workspace`, five an hour). A new workspace opens at its slug, so the app boots once and lands on its Setup.
+
+### 4.7 Team
+
+Owners invite through `/api/v1/team/invite`, which sends Supabase's real invitation email; owners themselves are added by hand, never invited. Role changes and removals keep at least one owner, and a promotion says where it came from. Every change lands on the decisions ledger (`invite`, `revoke_invite`, `change_role`, `remove_member`). Open invitations are honoured on every workspace read (`acceptOpenInvites`), so a person invited before they had an account still arrives in the workspace. The writes run in CI.
+
+### 4.8 The back office
+
+The one surface that crosses workspaces on purpose, and the pane that says whether the platform's own machinery is running.
+
+- `is_platform_admin()` answers only about the caller, so every session may ask; the navigation needs that one bit.
+- `platform_overview()` checks it as its first statement and is the only way into the cross-workspace join, `platform_overview_rows()` — a SQL-language function, so a mistyped column fails the deploy rather than the first support call, with execute granted to no role at all.
+- In the dashboard, `backOffice(ctx)` returns a branded capability only when the database says yes; nothing else hands out the service client. The pane is classified `real` in the surface registry, so it draws for the people it exists for and never the Not-in-this-release card.
+- Each workspace gets one of ten verdicts — broken · billing · rehearsal · stalled · waiting on them · quiet · new · live · paused · test — sorted so the ones needing a person come first. The detail pane runs the customer's own `setupDtoFor`, so support reads the rows the customer reads.
+- Its actions — retry, refile, **replace** a refused campaign, and release a line — are recorded as `platform.acted` before they run, and refused when that record cannot be written.
+
+## S-05 · Channels: WhatsApp
+
+### 5.1 The webhook — `POST /api/whatsapp`
+
+- Verifies `x-hub-signature-256`, an HMAC-SHA256 of the raw body keyed with `META_APP_SECRET`. A missing secret is a 401, never a skipped check. `GET` answers Meta's verification handshake.
+- Answers **200 after processing** inside `maxDuration: 60` — the contract frozen during Meta App Review — and **503 when the database did not accept a message**, so Meta retries; Meta's retries and the dedupe make replays safe. The handler runs over a ports object (`whatsapp/ports.ts`: the database, the thread store, the runtime, the sink, the sender, the alerts, the pager, the model — the real modules by default), so a test runs it from the signature to the ack.
+- For each change in the delivery:
+  - **Account events** (quality rating, messaging limit, template status, account review) are keyed on the WABA, not a number: routed to the workspace by its WABA id, kept as events, and alerted when they change what the business can do (`lib/waba-events.ts`). A template's new status lands on its row.
+  - **messages** are routed by `metadata.phone_number_id` through `tenant_channels` (`kind 'whatsapp'`, `external_id`). Found: that workspace. The lookup *failed*: an infrastructure blip, which only the environment's own pilot number may ride out on its baked profile. The lookup *answered* and the channel is not active: unroutable — nothing is persisted or answered, an `ingest.unroutable` event is kept, and a person is told, throttled. Each message runs in its own try/catch, so one failure cannot swallow the rest of the batch.
+  - **statuses** (sent, delivered, read, failed) update the message found by its WhatsApp id, and each receipt keeps its time (00111). The `messages_guard` trigger keeps status moving forward and makes `failed` and `canceled` terminal. Receipts that stop coming are watched: a message Meta accepted with no delivered, read or failed receipt for six hours, in a workspace where nothing has been receipted since, pages the platform (`receipts-watch.ts`) — the webhook, not a phone that is off.
+  - **smb_message_echoes** — the owner replied from the WhatsApp Business app — pause that thread for the workspace's own pause length, recorded on the conversation.
+
+### 5.2 One message — `handleInbound`
+
+`lib/whatsapp/inbound.ts` is the order; `steps.ts` holds its side-effect-free decisions as truth tables; `persist.ts` is the Postgres bookkeeping every branch reports through; `alerts.ts` is who gets told. SMS walks the same road (S-07).
+
+<!-- fig:inbound -->
+```mermaid
+flowchart TD
+  A[Signed delivery, routed to a workspace] --> B[Tenant runtime: persona, policy, credentials, clock]
+  B --> C{Short code or pilot allowlist?}
+  C -- yes --> C1[Recorded, never answered]
+  C -- no --> D[ingest_inbound: persist first]
+  D --> E[Read memory · dedupe · this person's mode]
+  E --> F{Memory unreadable · opted out · carriers hold}
+  F -- yes --> F1[Escalate, no reply]
+  F -- no --> G{Not words: reaction, location, media}
+  G -- yes --> G1[Record, acknowledge or escalate]
+  G -- no --> H{Late · paused · daily cap · token budget · workspace paused · mode ask or never}
+  H -- yes --> H1[Escalate with its reason]
+  H -- no --> I[Brain composes]
+  I --> J[Layer two: price block, ask classes]
+  J --> K{Veto window or low confidence?}
+  K -- yes --> K1[Queued draft + outbound_send job]
+  K -- no --> L[Send now, record, pause and alert on handoff]
+```
+
+The gates, in the order they run. Each stop reports through the sink, and tells a person wherever one is needed. The dedupe gate sits above every branch that escalates, so a redelivery never opens a second escalation.
+
+<!-- class:ladder -->
+| # | Gate | When it stops the reply |
+|---|---|---|
+| 1 | The sender is a short code | Recorded; `ingest.unreachable_sender`; never answered |
+| 2 | The pilot allowlist (the environment's own number only) | Recorded; `ingest.allowlist_skip` |
+| 3 | `ingest_inbound` — persist first | — the message is now on record (or the webhook answers 503) |
+| 4 | Read memory (Postgres; Blob only while shadowed) | — |
+| 5 | A duplicate delivery (`is_new` false) | Skipped, before anything below |
+| 6 | This person's own receptionist mode | Changes the mode in force |
+| 7 | Memory unreadable from every source | Escalation `state_unavailable` |
+| 8 | Consent: this message is STOP, or an opt-out on record, or a cached one when Postgres is down | No reply; on the STOP itself, escalation `opt_out`. The carriers' opt-out words belong to the carriers' channel: a texting line honours them; WhatsApp keeps its own list |
+| 9 | An SMS line the carriers have not approved | Escalation `carriers` |
+| 10 | A reaction or a system notice | Recorded; nothing was asked |
+| 11 | A location or a contact card | Escalation `non_text`, without an apology |
+| 12 | A photo, when `features.vision` is on | Fetched and shown to the model |
+| 13 | Anything else that is not words | Acknowledged when the mode may speak; escalation `non_text`; thread paused |
+| 14 | More than two hours late | Escalation `stale` (ten minutes to two hours late is answered, and logged) |
+| 15 | The thread is paused for a person | Added to history; no reply. The pause is for the machine: a queued draft yields only to a person's words |
+| 16 | Twenty automatic replies on this thread today (the owner's dial) | Escalation `rate_cap` |
+| 17 | The workspace's day of model tokens is spent (`budget.ts`, from `usage.llm_tokens`) | Escalation `budget` |
+| 18 | The workspace is paused (billing) | Escalation `paused` |
+| 19 | Reply mode `ask` or `never`, or no persona | Escalation `policy_block`, or `person_hold` for a hold set on this person |
+| 20 | No model key at all | A degraded state a person can see: escalation, and the platform paged — never a canned receptionist |
+| 21 | The brain composes | On error: the persona's fallback words and escalation `brain_error` |
+| 22 | Layer two | A price in the draft blocks it; a booking or pricing question under "ask me first" escalates `policy_ask` |
+| 23 | The hold plan | Veto window, or confidence below `min_confidence`: written as a `queued` draft with an `outbound_send` job (`draft-queue.ts`, the one writer, shared with steer) |
+| 24 | Send now | Outbound row written `sent` only when the provider accepted it, and `usage.llm_tokens`; on a handoff, pause + escalation + an alert whose email tells the truth; on a failed send, escalation `send_failed` |
+
+A draft that cannot be queued is sent at once and recorded (`vetoFallback`): an un-vetoed reply beats silence.
+
+**`ingest_inbound`** is the concurrency gate, one RPC in one transaction: an advisory lock per workspace, channel and identity; dedupe before any side effect; contact, identity and conversation upserts; the message insert; an archived or snoozed thread reopened (never overriding a person who has it); the WhatsApp 24-hour window from `last_wa_inbound_at`; metering; and the consent keywords — STOP, BAJA, UNSUBSCRIBE and ALTO opt out; START, UNSTOP, RESUME and ALTA opt back in to conversation; YES OFFERS and SÍ OFERTAS answer the separate marketing question (00095), with the words, the channel and the provider's id kept on the event (00110). It returns the consent it just wrote, so the gate needs no second query.
+
+### 5.3 The brain
+
+`lib/brain.ts` calls `claude-opus-5` with a structured output schema (`contracts/brain.ts`): the reply, the customer's intent, whether a person should take over and why, a confidence, the facts it leaned on, and the language. If the API refuses the schema, the same request runs unstructured and is read the old way; the words go out either way. The system prompt comes from `resolveSystemPrompt` — the workspace's structured profile, composed by the same function that fills the phone agent's facts — plus the clock and closures in the business's timezone, the open times from its calendar, and what is known about this person (`readLeadContext` and their visits). **The prompt preview is the prompt**: the Business pane shows it composed on the server with every input the edge has (`server/prompt-preview.ts`), and the instructions box holds the prompt it came from, once.
+
+### 5.4 Memory, and the levers on it
+
+Postgres is the receptionist's memory: `packages/db/repositories/thread.ts` returns the history, the pause and today's replies. The Blob object per thread is the pre-Postgres copy.
+
+| Edge variable | Effect |
+|---|---|
+| `PG_WRITES=on` | Postgres writes on; anything else is a silent no-op |
+| `PG_READS=on` | Postgres is the memory; a Postgres miss falls back to Blob |
+| `PG_DEDUPE=on` | Postgres dedupe without `PG_READS` (implied by it) |
+| `BLOB_SHADOW=off` | Blob neither read nor written; a Postgres miss hands the thread to a person |
+
+A flag reaches the running deployment only after a redeploy. `GET /api/diag` reports the live `memory` and `store`.
+
+### 5.5 Credentials, and connecting a number
+
+The receptionist answers on the workspace's own business token when its channel row carries a Vault reference, and on the environment pair only for the environment's own number: credentials refuse rather than fall back. A business connects its own number through Embedded Signup:
+
+browser (Meta's SDK, `whatsapp-connect.ts`) → `POST /api/v1/channels/whatsapp/connect` (owner) → edge `/api/admin/whatsapp/connect`: exchange the one-time code for the business token → read the number back and prove it belongs to the WABA → subscribe the app to the WABA's webhooks → register the number for Cloud API with a two-step PIN → write the channel row (which repaints Setup and Connections through realtime, 00117) → `put_channel_credentials` → ledger `connect_channel`.
+
+### 5.6 Templates
+
+`templates` rows hold Meta's truth: status (`approved | pending | rejected | paused | disabled`), category (utility or marketing — which decides the consent a send needs), components, quality score and origin. Only the edge writes them: sync from Meta (`templates-sync`, which never deletes a row Meta did not return), create (submit for review) and delete; status changes arrive on the webhook. The starter library (`contracts/template-library.ts`) offers seven — win-back, welcome, save our number, the month's offer, visit reminder, after the visit, a quick note — in English and Spanish, each passing the same checks a hand-written template passes. The assistant drafts templates (`claude-sonnet-5`, validated by the submission checks) and returns a draft, never a submission. Hiding a template and giving it a title are the workspace's own presentation (definer doors). A template goes out with the values its own slots ask for, and the Inbox offers only the templates that can send.
+
+## S-06 · Channels: voice
+
+### 6.1 How a workspace gets a phone receptionist
+
+Two roads to one agent:
+
+- **A Retell-owned number** — `/api/admin/voice-provision`: create the Retell LLM (the shell) and the agent over it, publish the first version, bind an existing or newly bought number with the call-start webhook, and write the voice channel row **last**, so a row that exists is a line that works. A dry run by default; resumable with the ids a failed run returns.
+- **A Chanlytics line** — a Twilio number over SIP: the lines saga (S-07) creates the same agent through `lib/voice-agent.ts`.
+
+Routing is always `agent_id → tenant_channels (kind 'voice', external_id)`. One Retell account hosts many agents, so a call that routes nowhere is dead-lettered, never guessed into a workspace. A line's voice state is a guarded state machine (00106).
+
+### 6.2 The shell
+
+`packages/channels/src/voice-shell.ts` is the one definition of everything the phone agent is told that is not a fact: the prompt and its placeholders (`{{business_facts}}`, `{{caller_context}}`, `{{greeting}}`, `{{handoff_number}}`), a spoken default for any variable that cannot be filled (Retell reads an unfilled placeholder aloud, braces and all), four tools, the webhook events (`call_started`, `transcript_updated`, `call_ended`, `call_analyzed`) on a 20-second budget, and the post-call analysis fields (`caller_wanted`, `outcome`, `follow_up`, `caller_name`). Three readers use it: provisioning; the converger (`/api/admin/voice-converge` and `voice-converge.mjs` — a published version cannot change, so it drafts a new one, patches it, and publishes only when told); and the diagnostic that reports drift.
+
+| Tool | Answered by | Does |
+|---|---|---|
+| `check_availability` | `/api/retell-availability` | Reads the calendar feed and rules the WhatsApp receptionist reads; books nothing. A service that needs a consultation first is offered as a consultation |
+| `send_booking_link` | `/api/retell-fn` | Texts the booking link as an approved WhatsApp template, through the same consent and pause gates as every send (`outboundGate` → `mayMessageFor`), recorded in the caller's thread |
+| `transfer_to_staff` | Retell | A warm transfer to `{{handoff_number}}` |
+| `end_call` | Retell | Ends the call |
+
+The tool endpoints answer 200 with a sentence even when they refuse — the agent speaks whatever comes back.
+
+### 6.3 A call, from start to finish
+
+<!-- fig:voice -->
+```mermaid
+sequenceDiagram
+  participant Caller
+  participant Retell
+  participant Edge
+  participant DB as Postgres
+  Caller->>Retell: calls the number
+  Retell->>Edge: call start (retell-inbound)
+  Edge->>DB: workspace by agent, facts, caller history
+  Edge-->>Retell: dynamic variables
+  Retell->>Edge: transcript_updated (each turn)
+  Edge->>DB: ingest_call, heartbeat
+  Note over Edge,Retell: an operator may whisper, hand over, or end the call
+  Retell->>Edge: call_ended, call_analyzed
+  Edge->>DB: ingest_call (forward-only), note in the thread, recording copy
+  Edge-->>Edge: summary email, callback escalation
+```
+
+1. **Arrives.** `/api/retell-inbound` runs `planCallStart` — a function apart from the wire, tested every way it can fall short — which resolves the workspace from the agent and returns the dynamic variables: the business facts (from the same profile the WhatsApp receptionist reads), the caller's cross-channel context, the greeting and the handoff number. No workspace, no context: a caller treated as new beats a caller read someone else's conversation.
+2. **During.** With `transcript_updated` on, each turn refreshes the `calls` row's transcript and heartbeat, and the Live page shows calls under the heartbeat rule, with what the caller wanted and the line it rang. **A standing rule broken out loud** — a price the guardrails forbid — is caught on the transcript, corrected in the call by an injected turn, and put in front of the owner as an escalation. Three controls, each a ledger verb through the per-call token: **whisper** (`POST /api/v1/calls/:id/whisper` → `/api/admin/whisper` → `update-live-call`; the words are framed as context the receptionist works in when it fits, never a script, never past its guardrails, `contracts/whisper.ts`); **hand over** (`/hand-over` → `/api/admin/hand-over`: the agent is told the owner is picking up and transfers the caller to the business's own line with `transfer_to_staff`, the line riding as an override for a call that began before there was one); **end** (`/end` → `/api/admin/stop-call`, ledger `end_call`, 00118). Listening in and speaking from a browser microphone are what the provider's dashboard offers and its API does not, so Live does not offer them.
+3. **Ends, and is analyzed.** `/api/retell-webhook` verifies the signature with the badged key and calls `ingest_call`: forward-only by rank (registered < ongoing < ended, error or not connected — an older event is `skipped`), idempotent per `retell_call_id`, metering voice seconds once. Then: a `call_summary` note in the caller's one thread; the recording copied into the private `media` bucket (bounded, at most three attempts); the post-call email, claimed once; keep-your-number verification; and, when the analysis says `callback_needed`, an escalation `callback` with the thread paused. A caller who rang and hung up within fifteen seconds is not lost: they have a name, a row and a door on Today.
+4. **Reconciled.** `/api/cron/calls` asks Retell every five minutes about calls still marked ongoing — it never infers from elapsed time — retries recording copies still pending, and removes audio past its ninety days (`contracts/retention.ts`).
+
+A recording reaches a browser only through `/api/v1/calls/:id/recording`, as a five-minute signed URL. The provider's unsigned URL is never stored on a row, because `calls` is in the realtime publication and every column reaches every member's browser.
+
+> **Δ3 · Open** An empty Retell function secret should open neither door (`?key=` on the tool calls and the call start). PR #479 closes it and waits on Ruben.
+
+## S-07 · Channels: SMS, lines and carrier registration
+
+### 7.1 Lines — the numbers the platform owns
+
+`lines` is the asset: one row per number the platform bought or forwards, and the whole story of getting it working. `tenant_channels` is the routing derived from it (`config.line_id` points back). A channel row can exist with no line — a number bought inside Retell, like the live salon's — and `number_drift()` reports where the two disagree (00087).
+
+The saga (`packages/channels/src/lines-saga.ts`, pure over its ports; `apps/edge/lib/lines.ts` wires the real ones):
+
+subaccount → number → trunk → agent → import → channel, with the Messaging Service for texting (00074)
+
+Each step records its receipt on the row before the next runs, so a retry resumes where it stopped and buys nothing twice. Secrets go to Vault (`line-creds-<line>`), never onto the row. The provider is Twilio when the master credentials exist, `dry` on previews (`LINES_DRY_RUN=1`, fake ids, no network), and none on production without credentials — Setup then offers "we set it up with you" through `setup_request`.
+
+- **A line is provisioned on the ledger** (00109). `buy` (owner, and `requireSpend`) schedules a `line_provision` job; the heartbeat runs it under a lease, resumes a worker that died, and bounds the retries (`line-provision-job.ts`). The saga used to run inside the request that asked for it — about 180 seconds against a 60-second ceiling — and could be killed before reaching its own failure handler.
+- `retry` resumes a line that failed. Which lines may be resumed, and taking one so that nobody else resumes it too, is decided in `line-resume.ts`: a compare-and-swap, so the quarter-hourly **lines sweep**, an owner pressing Retry and support can never run the saga twice on one row; after `MAX_AUTOMATIC_RESUMES` a person is told (00097).
+- A failure leaves the step and the provider's words on the row, rings the workspace's bell and emails the platform, all from `lib/provision.ts` — the one place that tells everybody.
+- **Keep your number**: a line of kind `forwarded` (provider `carrier`) carries the carrier's forwarding codes as `tel:` links and a 30-minute test window; a call that reaches the receptionist's line inside the window marks it verified — the call webhook does that.
+- **An owner's activation is a record** (00108): a capability — voice, WhatsApp, texting — is available when its records allow it; readiness is computed from what the workspace holds, the owner's switch is its own row (`POST /api/v1/capabilities/:kind`), and evidence is a call answered or a message replied to, never a claim the product makes about itself. Texting is not sold until the carriers approve a real registration, and says so.
+
+### 7.2 Texting
+
+- **Inbound** — `/api/inbound-sms`: `X-Twilio-Signature` over the exact URL and every field, keyed with the subaccount token from Vault. Everything the door decides — whether Twilio is told to redeliver, whether and how the platform is alerted, whether the receptionist may speak — is `planSmsIngress`, a function a test runs every way (`sms-ingress.ts`). A text on a line the platform cannot handle is said out loud, never dropped in silence. The text becomes the WhatsApp handler's message (`smsAsWaMessage`) and walks the same gates with an `InboundCarrier`: the first reply to a person carries the SMS footer, the carriers' own opt-out words are honoured on this channel, and a line the carriers have not approved yet holds every text for a person (`carriers`). Twilio gets an empty `<Response/>`; the reply goes out through the line's Messaging Service.
+- **Outbound** — the same `outbound_send` job with the `sms` sender (S-08). A workspace with no line is a loud failure, never a send on the other wire. **The texting line carries no promotions**: the campaign is filed as informational, offers go by WhatsApp, and the door enforces it.
+- A line's texting state is a guarded state machine (00116).
+
+### 7.3 Registering with the carriers (A2P 10DLC)
+
+- **The business on record** (`business_records`, one per workspace) is one form (`contracts/business-record.ts`). Its first question picks the path: **standard**, with a tax ID, or **sole proprietor**, without one — one number, one campaign, about one message a second, and around a thousand a day on T-Mobile. A field appears on a path only if something that path files reads it. The editor shows each problem at its field and asks before discarding changes; an empty record guesses no website, and the filing names the workspace's own page.
+- **Pre-flight.** The hosted business page (`/b/<slug>`) and consent page (`/yes/<slug>`) exist because the carriers refused Chanlytics' own campaign for reasons about pages (30919, 30907) and for bundled consent (30913).
+- **The filing that a reviewer passes** — `POST /api/v1/lines/register` (owner, and `requireSpend`) → edge `registerLine` → the A2P saga, run in the workspace's own subaccount and referencing Chanlytics' approved primary Trust Hub profile: customer (or starter) profile, end users, address, documents, evaluation and submission, A2P messaging profile, brand, then the campaign on the line's Messaging Service — the campaign in the reviewers' own register, the business's own terms, a confirmation on every yes, the message flow saying what the product does with every way in numbered, the spoken script and the auto-reply quoted (the fifth refusal, 30896, is what taught the form). Every receipt is recorded, so a resumed filing pays nothing twice. `mock` files against the provider's free test registry: a rehearsal, where nothing routes. A refused campaign has a door to be replaced (`platform/lines/replace`).
+- **The registration sweep** (hourly) asks the carriers where each filing stands, files the campaign once the brand is through, and keeps the carriers' own refusal reasons with their codes. What was filed is remembered (`lines.reg_sole_prop`, 00090), because the record can change after the brand cannot.
+
+> **Δ4 · Open** The sole-proprietor verification code: nothing sets `otp_waiting` yet, and the shape of the resend call is unconfirmed. Both need one real sole-proprietor filing to observe — a few dollars, and irreversible — which is Ruben's decision. Until then the row tells the owner to reply from the handset and offers no button.
+
+> **Δ5 · Open** The live campaign's opt-in confirmation still names the workspace's old name. The campaign's editable fields cannot change it (refused three times); the replace door files a new campaign at a second vetting fee (about $15), and paying it is Ruben's decision.
+
+> **Δ6 · Open** PR #530 — an owner asking for their number to be brought over, and for a broken configuration to be repaired, as two more setup-request kinds (S8, S14 of the launch audit) — waits on Ruben's push of migration 00123 to production, then merges.
+
+## S-08 · The jobs ledger and row clocks
+
+The product has one way to do work later: a row.
+
+<!-- fig:ledger -->
+```mermaid
+stateDiagram-v2
+  [*] --> scheduled: scheduleJob (one insert)
+  scheduled --> fired: claim_due_jobs (lease 90 s)
+  scheduled --> canceled: cancelJobsFor
+  fired --> done: completeJob
+  fired --> failed: failJob, then settle + tell the workspace
+  fired --> fired: lease expired, internal work re-claimed (up to 3)
+  fired --> failed: lease expired, speaks to a person: give up
+```
+
+**The ledger.** `jobs` carries four kinds — `outbound_send`, `broadcast_send`, `blob_thread_erase`, `line_provision` — through `scheduled → fired → done | failed`, or `scheduled → canceled`. The `jobs_guard` trigger refuses every other transition inside the database. Scheduling is one insert (`scheduleJob`, service role only); `cancelJobsFor` withdraws them. An approval of an ask-mode run moves its send to the next open moment, and the row says so (00119).
+
+**The heartbeat.** pg_cron's `jobs-tick` runs every ten seconds; `trigger_jobs_tick()` checks for due rows and only then posts to the edge through `pg_net` with the sweep key. `/api/jobs/tick` binds the database and each job's own workspace credentials into ports and hands them to `runTick` (`packages/jobs/src/tick.ts`, tested against fakes):
+
+- It claims **one** job at a time with `claim_due_jobs()` (`FOR UPDATE SKIP LOCKED`, a 90-second lease) for the first 20 seconds of the run, so "claimed" always means "started".
+- A handler that loops yields at 45 seconds and schedules its own follow-up.
+- A row whose lease ran out is claimed again, and `verdictFor` decides: work that speaks to a person (`outbound_send`, `broadcast_send`) **gives up** rather than risk a second message; internal work retries up to three times. The **stale-jobs sweep** (:04, :19, :34, :49 — off the grid the other sweeps tick on) re-claims what the heartbeat missed.
+- `completeJob` and `failJob` are compare-and-swaps on the state *and* the attempt. A failed job is **settled** by kind (a message stops saying "Sending…", a broadcast closes) and its workspace is told (`alertFor`, addressed from the workspace's own settings, naming the channel the reply failed on). A run that fails many jobs at once pages the platform (S-19).
+
+**The handlers** (`packages/jobs/src/handlers.ts`) are thin: each runs a `packages/core` use case over the runtime's ports.
+
+| Kind | Payload | What it does |
+|---|---|---|
+| `outbound_send` | message, conversation, phone, body or template | core `sendQueued`: still `queued`? Otherwise nothing to do → consent read through the conversation; an unreadable row **throws** (fail closed, and the owner hears) → opted out: canceled, `message.send_blocked` → the channel's sender (WhatsApp strips the "+"; SMS goes through the line) → marked `sent` only if the provider accepted it and the row is still `queued`; a cancel that raced the send is recorded as `message.send_raced_cancel`; `message.sent` names the real sender. A provider refusing with 401 or 403 — credentials, not content — pages the platform. On failure: `failed`, escalation `send_failed`, an alert |
+| `broadcast_send` | broadcast | core `sendBroadcastBatch`: only `scheduled` or `sending` → a paused workspace fails it → the template must still be approved, and its category decides which consent → up to 25 people, 300 ms apart, each re-checked (erased, no phone, `mayMessageFor(…, { proactive: true })`, a person has the thread) → values resolved per person → sent as the template and recorded in their thread → more left: schedule the next batch; none: close, record, tell the workspace. One read per batch; a send says what it is |
+| `blob_thread_erase` | contact, namespace, thread keys | core `eraseBlobThread`: deletes the Blob copies; on success, scrubs the phone digits from every job payload for that contact and records the erase on the ledger (actor `system`) |
+| `line_provision` | line | core `provisionLine` over the edge's ports (S-07): a fresh buy, a person's retry, or a worker that died; receipts per step |
+
+**The row clocks.** Two more ten-second pg_cron jobs, pure SQL, each on its own schedule so neither can stop the other: `expire-stale-pauses` hands paused threads back to the receptionist — never one with an open escalation, because a person's request stays with a person — and `wake-stale-snoozes` wakes snoozed threads. A pause and a snooze are timestamps on the conversation, not jobs.
+
+The timings a reader will meet:
+
+| | |
+|---|---|
+| A person's reply: undo window | 15 s; the message lands 15–25 s after Send |
+| Veto window (reply mode `veto`) | 30 s by default, 5 s to 10 min |
+| Thread pause after a handoff or an owner's echo | 24 h by default (`pause_hours`, the owner's dial) |
+| Automatic replies per thread per day | 20 by default (`max_replies_day`, the owner's dial) |
+| WhatsApp free-form window | 24 h from the customer's last message |
+| A late message | answered up to 2 h late; escalated beyond |
+| An abandoned call | hung up within 15 s of connecting |
+| Live calls | drop off the Live page after 5 min without a heartbeat; stop counting as live after 10 |
+| Job lease · claim window · yield | 90 s · 20 s · 45 s |
+| Broadcast batches | 25 people, 300 ms apart; at most 2,000 per broadcast |
+| Campaign breath | one playbook message per person per week |
+| A page to the platform | once per condition per 6 h, stamped only after delivery |
+
+## S-09 · Scheduled sweeps
+
+Every clock in the product is a pg_cron job, and **every clock is registered as data** (00107): one row per clock with the cron job it is, how long it may go silent, and whether it is judged on its runs or its answers. `sweep_health()` reads the register, so a clock nobody typed in — the monthly partition precreate, the five purges — is judged too, and an unregistered clock is reported unhealthy. A sweep that needs the edge posts to it through `pg_net` with the Vault-held key; a sweep that is pure SQL runs inside the database.
+
+| Job | Schedule (UTC) | Runs | Does |
+|---|---|---|---|
+| `jobs-tick` | every 10 s | edge `/api/jobs/tick`, only when a job is due | The ledger's heartbeat (S-08) |
+| `expire-stale-pauses` | every 10 s | SQL | Pause expiry |
+| `wake-stale-snoozes` | every 10 s | SQL | Snooze expiry |
+| `stale-jobs-sweep` | :04 :19 :34 :49 | edge `/api/jobs/tick` | Re-claim rows whose lease expired |
+| `call-reconcile` | every 5 min | edge `/api/cron/calls` | Close calls the webhook never ended; retry recording copies; remove audio past retention |
+| `deadman-sweep` | every 10 min | edge `/api/cron/deadman` | An escalation nobody picked up: found in SQL (`deadman_candidates()`), alerted by the edge, once (`deadman_alerted_at`); a workspace with nobody on file to tell pages the platform |
+| `lines-sweep` | :08 :23 :38 :53 | edge `/api/cron/lines` | Resume line sagas that were cut off |
+| `playbooks-sweep` | hourly at :05 | edge `/api/cron/playbooks` | Run the playbooks whose hour it is (S-14) |
+| `calendar-people-sweep` | hourly at :23 | edge `/api/cron/calendar` | People from calendar appointments (S-15) |
+| `registration-sweep` | hourly at :23 | edge `/api/cron/registrations` | Carrier registration status; file the campaign |
+| `google-listings-sweep` | hourly at :37 | edge `/api/cron/google` | Listings and profiles not read for 20 h (S-16) |
+| `sweep-health` | :13 and :43 | edge `/api/cron/health` | The watcher — alerts on any sweep in trouble; pages for due jobs nobody claims and receipts that stopped |
+| `events-partition-precreate` | the 25th, 12:00 | SQL | Next months' `events` partitions (a default partition catches the rest) |
+| `purge-*` | nightly, 04:13–04:41 | SQL | Rate-limit hits (two hours old); cron history (a day for the ten-second jobs, fourteen otherwise); the events ledger's **evidence** kinds after thirty days (00115 — the record kinds are kept); Ask threads and notifications after 90 days |
+
+**How a sweep is watched.** pg_cron marks a run "succeeded" the moment `net.http_post` is *enqueued*, whatever the edge then answers. So each trigger records its pg_net request id in `sweep_status` (`request_sweep()`, 00086), and `sweep_health()` joins those ids to the responses pg_net actually received; the SQL-only sweeps are judged on their runs. `/api/cron/health` — offset to :13 and :43 so it never judges a request seconds old — decides when to shout (`chooseSweepAlerts`, with suppression) and reaches a person through `notify()`; `/api/health` is the same judgement read from outside, with no key.
+
+**Fair sweeps.** Sweeps that visit every workspace (`sweep-rotation.ts`: the calendar and the playbooks, as the Google sweep already did) take the least recently served first, capped per tick, and record what they could not reach; three ticks in a row with a backlog answer 503, because the queue is growing faster than it drains (`note_sweep_backlog`, 00089).
+
+On a local or CI database, `supabase/seed.sql` removes the production edge address from Vault, so no sweep there can post to production.
+
+## S-10 · The app plane (`/api/v1`) and core
+
+105 route files, 123 declared routes, grouped here by domain. The write column names the role each route declares; RLS is always the floor beneath it, and every route's full policy is in `route-policy.json`.
+
+| Domain | Routes | Read | Write |
+|---|---|---|---|
+| Conversations | `conversations` (with `/:id`, `/export`); the verbs `reply`, `take-over`, `hand-back`, `snooze`, `wake`, `archive`; `escalations` and `/:id/resolve`; `messages/:id/cancel-send`, `/steer`, `/media` | members | operator |
+| People | `contacts` (list — paged and searched on the server, 00112 — and add); `/:id` (profile; delete: owner); `/consent`, `/marketing-consent`, `/details` (operator); `/receptionist` (owner); the batch doors `contacts/consent`, `/marketing-consent`, `/notes`, `/receptionist` (fifty at a time); `contacts/export` (owner); `segments` and `/:id`; `consent/qr`; `views/:page` | members | operator, or owner where noted |
+| Calls | `calls`, `/:id/recording`, `/:id/export`, `/:id/whisper`, `/:id/hand-over`, `/:id/end` | members | operator |
+| Campaigns | `templates` (with `/:id`, `/draft`, `/starter`, `/sync`); `broadcasts` (with `/:id`, `/approve`, `/cancel`); `playbooks` (with `/:id`, `/run`) | members | operator |
+| Numbers and reports | `metrics`, `reports`, `reports/campaigns`, `calendar`, `calendar/preview`, `activity` (both ledgers) | members; activity: owner | preview: operator |
+| Workspace | `settings` (owner, versioned), `policies` (operator), `team`, `/invite`, `/:id` (owner), `me`, `workspaces` and `/create`, `notifications`, `export` (everything, owner) | members | as noted |
+| Setup and lines | `setup`, `setup/request`, `capabilities/:kind`, `lines` with `search`, `buy`, `retry`, `register`, `forwarding`, `forwarding/test`; `business-record` | members | owner; spend where it costs |
+| Channels | `channels`, `channels/whatsapp/signup`, `channels/whatsapp/connect` | members | owner |
+| Google | `google` with `search`, `link`, `refresh`, `connect`, `callback`, `locations`, `connection`, `reviews/:id/draft`, `reviews/:id/reply` | members | owner; refresh and reply: operator |
+| Billing | `billing` with `checkout`, `portal`, `invoices`, `resume`, `sync` | members | owner; sync: operator |
+| Ask | `ask` (a streamed turn), `ask/threads` and `/:id`, `ask/openings`, `ask/messages/:id/proposals/:pid` | the person's own | the person's own |
+| Back office | `platform/overview`, `platform/tenants/:id`, `platform/lines/retry`, `/refile`, `/replace`, `/release` | platform admin | platform admin |
+| Public | `signup` | anyone | anyone, rate-limited |
+
+### 10.1 Core, and a committing verb
+
+The rules a route or a job runs live in **`packages/core`**, as use cases behind ports; the route and the job handler are adapters. Three groups: **conversations** (reply, cancel-send, take over, hand back, snooze, wake, resolve, archive), **messages** (the queued send, the broadcast batch, the thread erasure, line provisioning — and `deliver`, the one sender both apps use) and **campaigns** (create, approve and cancel a broadcast; assemble an audience; a playbook's run and its check; template values). Every branch is run by a test calling the use case with fakes; the source-reading pins that held the routes' text were deleted with each extraction. What stays on the edge is the WhatsApp handler itself, over its ports object.
+
+Every verb is **a decision row plus a change to its subject**, both on the session client so RLS enforces them (`server/verbs.ts`). Side effects that need the service role — scheduling a job, the Blob pause mirror, calling the edge — go through `server/service.ts`. The ledger's verbs are a closed set: approve, edit, decline, snooze, wake, take_over, hand_back, resolve, archive, reply, cancel_send, pause_agent, resume_agent, invite, revoke_invite, change_role, remove_member, erase, whisper, connect_channel, consent_change, send_broadcast, cancel_broadcast, start_playbook, pause_playbook, reply_review, workspace, export, end_call. Every event kind declared is written and every kind written is declared (`EVENT_KINDS`, held by a test).
+
+### 10.2 A reply, and its honest undo
+
+`POST /conversations/:id/reply` (operator; 30 a minute) is core's `reply` over the route's ports:
+
+1. The WhatsApp window decides the shape (`replyWindow`, one rule in contracts): within 24 hours of the customer's last message, free text; outside it, an approved template or nothing.
+2. An idempotency key, scoped to the caller and a hash of the request; a replay gets the stored receipt.
+3. Any receptionist reply still waiting is withdrawn, and the conversation pauses: a person replying takes the thread from the receptionist (decision D10 of the blueprint).
+4. The message is written `queued` and an `outbound_send` job is scheduled 15 seconds out; the response carries `cancelable_until`.
+5. `cancel-send` inside that window cancels the message and the job; after it, the route says the message has gone.
+
+The other thread verbs: **take over** pauses the receptionist and claims the thread, leaving the escalation open; **hand back** resumes the receptionist and resolves it; **snooze** hides the thread until it wakes while the receptionist keeps answering; **wake** ends the snooze and nothing else — whatever the thread was, it is again; **archive** is a state, never a deletion; **resolve** records "no change was needed"; **steer** has the edge rewrite a held draft to one instruction — the new draft is queued before the old one is retired, and a rewrite that quotes a price is refused.
+
+### 10.3 Guards on every route
+
+- Same-origin writes, validated ids and parsed bodies, and the declared input schema (`server/request-guards.ts`, `route()`).
+- Limits per signed-in person, counted in Postgres so a burst across serverless instances is limited in total (`take_rate`), falling back to memory when the database is slow — and the memory limiter announces itself; money fails closed. The buckets (`RATE`): replies 30 a minute, conversation changes 120, whispers and call controls 20, settings 30, broadcasts 10, playbook changes 30, consent, list and receptionist changes 60, profile edits 60, notification marks 120, report reads 240; an hour holds 10 invitations, 30 team changes, 5 erasures, 5 new workspaces, 60 people added, 5 setup requests, 20 number searches, 3 lines bought, 10 line retries, 10 forwarding changes, 20 business-record changes, 3 registrations; the back office 30 retries, 20 refiles and 5 releases for other workspaces. A refusal is the envelope's `rate_limited` (429) with a retry hint, said in the owner's words.
+- Response headers deny framing (`frame-ancestors`): the app has Send and Approve buttons bound to a session.
+
+> **Δ7 · Open** No Content-Security-Policy beyond `frame-ancestors` (the ported mockup's inline styles need nonce plumbing first, and a policy that provides no protection while looking like it does is worse than none), and no CAPTCHA on the auth endpoints, so the public anon key can still ask Supabase whether an address has an account.
+
+### 10.4 Erasure, export and retention
+
+`DELETE /contacts/:id` (owner; five an hour) runs in a fixed order so that a crash leaves a request that can be retried:
+
+1. The Blob job is queued first — its key is the phone digits, which cannot be recomputed after the tombstone.
+2. Storage objects go next; a Storage failure stops everything.
+3. `erase_contact` tombstones the person (every identifier removed, the id kept so the ledger still resolves; no answer about offers survives, 00101) and deletes their messages, calls, identities, policies and events in one transaction.
+4. Ask turns that mention them are scrubbed for every member.
+
+The ledger records `erase` twice: the owner's decision, and the system finishing the Blob leg. The other half of the privacy promise is access, and every export leaves a ledger row too (00114): a thread or a call as a text file (members), everyone as a CSV (owner), and **everything** — people, conversations with their messages, calls with their transcripts, and the consent history with who recorded each answer and how — as one JSON file written a section at a time (`export-bundle.ts`, owner). Recordings are not in it: audio is removed on its own schedule. **How long the product keeps what** is stated once (`contracts/retention.ts`) and enforced where stated: call recordings 90 days, the events ledger's evidence kinds 30, Ask threads 90, the bell 90, cron history 14; the privacy page reads the same file.
+
+## S-11 · The UI and the legacy bridge
+
+The operator UI is a ported HTML mockup — about 30,000 lines of hand-written React in classic-script style, with its state on `window` and no imports — running inside the Next app rather than rewritten. A surface becomes real by branching inside the existing components (`XReal` / `XSeed`), never by redesigning them. The mockup-only surfaces stay in the tree and stay hidden from every real workspace; by Ruben's decision (#403, #405) they are revisited when the product is at 100%, and none is built before then.
+
+<!-- fig:seam -->
+```mermaid
+flowchart LR
+  L["(os) layout: auth gate"] --> H["LegacyHost (client only)"]
+  H --> S[seed-globals] --> M[manifest: 68 files in order]
+  M --> C[hydrate the surface cache]
+  C --> I["one typed client, the couriers on window"]
+  I --> R[startSurfaces: 15 overrides]
+  R -->|"api(key) → /api/v1 ?workspace="| API[(app plane)]
+  API -->|DTOs| VM[contracts view models]
+  VM -->|write| G[window globals the mockup reads]
+  G -->|"surface:* events"| UI[mockup components re-render]
+  RT[Realtime, one subscription, this workspace] -->|row changed| R
+  UI -->|verbs| I
+```
+
+### 11.1 Boot
+
+`app/(os)/layout.tsx` (the server-side auth gate) → `page.tsx`, or `w/[workspace]/page.tsx` for a workspace's own address → `LegacyHost` (client only, `ssr: false`, because the mockup touches `window` at module scope) → `LegacyApp`:
+
+1. `seed-globals.ts` makes the bundle's React the `window.React` (one hook dispatcher), sets `__DEMO_MODE = false`, and publishes the contracts helpers the pages call (`ROLE_PERMS`, `__FACT_WORDS`, the phone checks, the clock, the tone map, the gate).
+2. `manifest.ts` imports the 68 legacy files in the exact order the mockup's own script tags use; data files seed globals that pages read at module scope. The standalone harness loads the same list (11.5).
+3. `hydrateSurfaceCache()` runs at module scope, before React's first render, restoring each surface's last real data from `sessionStorage` — per tab, dying with it, keyed by the build's commit and the workspace, capped at 2 MB, cleared on sign-out, on a 401 and on a workspace change. A refresh paints real, seconds-old data and never the mockup's seeds.
+4. **One typed client** (`src/client/api.ts`, pure, over `routes.generated.ts` from `gen-route-types.mjs`): every request names a route key, and the compiler knows what the route takes and answers, so a courier that hand-typed the server's answer stops compiling. It owns the envelope, the 401, the timeout and the refusal once (`refusalOf`), and **the refresh map** (`refresh-map.ts`): after a write lands, which surfaces could now be stale — one table keyed by route, replacing the list each of eleven couriers carried. The couriers on `window` — `__inboxVerb`, `__personDetail`, `__lists`, `__ask`, `__waConnect`, `__templates`, `__broadcasts`, `__playbooks`, `__calendar`, `__today`, `__setup`, `__google`, `__billing`, `__connections`, `__businessRecord`, `__platform`, `__activity`, `__identity`, `__tz`, `__clock`, `__me`, `__workspace`, `__shell`, `__chrome`, `__notifs`, `__listRoute` and the `POLICY` store — are the only way a page, which cannot import, reaches the server, and each refreshes through the map, never a row the page invented while it waited.
+5. The route gate: a real route waits for its surface (`__surfaceGate`, with an eight-second escape hatch) instead of painting seeds.
+6. `startSurfaces(SURFACES)` starts the fifteen overrides. On a workspace page they fire at once with the name riding on every request; off one, the workspace surface goes first and the rest wait, so no read is issued the server would have to guess at.
+
+### 11.2 The SurfaceData seam
+
+An override fetches from `/api/v1` through the client, maps the rows through a contracts view model, writes the **same window globals** the mockup already reads, and dispatches the mockup's own events so mounted components re-render. The runner owns retry, one shared realtime subscription, per-surface debounce, refetch on focus and reconnect, the 401 redirect, and three honest states: `seeded` (never loaded; the route shows a skeleton, never seeds), `live`, and `degraded` (real data, and the latest refresh failed); the shell says which, in one status line, with when the tab last read and whether a newer build is out.
+
+| Override | Reads | Writes | Repaints on changes to |
+|---|---|---|---|
+| workspace | `/workspaces` | `__WORKSPACES`, `__ME`, `__ACTIVE_WORKSPACE` | — |
+| inbox | `/conversations`, `/escalations?state=open`, `/templates` | `INBOX_DATA`, `__TEMPLATES` | messages, conversations, escalations |
+| today | `/metrics?days=1`, `/conversations`, `/escalations`, `/calls` | `TODAY_DATA` | the same, plus calls |
+| conversations | `/conversations`, `/calls` | `CONVERSATIONS_DATA` | messages, conversations, escalations |
+| settings | `/settings`, `/team`, `/policies`, `/channels`, `/templates?all=1` | `__SETTINGS`, `__FACTS`, `__TEAM`, `__TEAM_INVITES`, `__POLICIES`, `__CHANNELS`, `__TEMPLATES_ALL` | tenant channels |
+| people | `/contacts` (every page, up to fifty), `/segments`, `/views/people` | `__PEOPLE` | messages, conversations, escalations |
+| broadcasts | `/broadcasts`, `/contacts`, `/segments`, `/templates`, `/channels`, `/settings` | `__BROADCASTS` | messages, conversations, escalations |
+| playbooks | `/playbooks`, `/contacts`, `/templates`, `/channels`, `/settings` | `__PLAYBOOKS` | messages, conversations, escalations |
+| calendar | `/calendar?from=&days=` | `__CALENDAR` | — |
+| reports | `/reports`, `/reports/campaigns` | `__REPORTS` | messages, conversations, escalations |
+| live | `/calls`, `/channels` | `__LIVE` | calls |
+| notifications | `/notifications` | `__NOTIFICATIONS` | notifications |
+| setup | `/setup` | `__SETUP` | lines, tenant channels, capability activations, notifications |
+| google | `/google` | `__GOOGLE` | the three Google tables |
+| billing | `/billing` | `__BILLING_ACCOUNT` | billing accounts |
+
+Realtime goes through one wrapper, `packages/db/src/realtime.ts`, which pushes the session's token to Realtime **before** the channel joins (a channel that joins as `anon` receives nothing, forever, because RLS filters every event) and **filters every subscription to the workspace the tab shows** (`tenant_id=eq.<id>`), so a change in another workspace a person belongs to no longer refetches every tab they have open.
+
+### 11.3 Real or demo — the surface registry
+
+`surface-registry.ts` classifies every route the shell knows, a test fails CI when a route is added without a classification, and the tab strip offers only what the registry says is real.
+
+- **Real**: today, inbox, conversations, clients (People — and its lists, which since #563 are a view of it rather than a page), calendar, live, reports, broadcasts, outbound (Playbooks), messages, and the Settings panes profile, setup, workspace (Business), team, autonomy, notifications, integrations (Connections), billing, memory, activity, and platform (the back office). `segments` stays classified real because the route is: `#/segments/<id>` lands on People with that list picked.
+- **Demo** — the honest Not-in-this-release pane outside a demo session: tasks, fleet, store, studio, content, shared.
+- **Retired**: leads and pipeline redirect to People, because the booked appointment is the conversion.
+
+### 11.4 Chrome, and how the interface speaks
+
+The sidebar carries the workspace menu, the navigation (Today · Inbox · People · Conversations · Calendar · Campaigns · Reports · Settings — Agents only in a demo), the shell's one status line and the account menu. Merged surfaces are tabs above the page (`SurfaceTabs`), drawn only when a group has two real tabs: Conversations — All, Live; Campaigns — Playbooks, Broadcasts, Messages. People has one real tab, so no strip. The top bar holds Ask and the bell and cycles three themes; ⌘K opens Ask, ⌘B the rail, `?` the shortcuts sheet. At phone width a tab bar replaces the sidebar (with ✦ for Ask), the top bar says each thing once, and the app installs to a home screen (`app/manifest.ts`).
+
+The words and states come from one place each: **tones** (`contracts/tone.ts`: accent is live, warn needs a person, info is on its way, ok is done, danger failed, plain neutral) drawn by one `StatePill`; **one Confirm** for every act that asks, with one danger button; **one `EmptyState`** for nothing here and **one `FailedRead`** for could not read, which are never confused; **one toast**, with tones decided in contracts and an Undo that lives as long as the undo does; **refusals** in the owner's words and **gates** that say who may before the press; **every time by the business's clock**; and, on a phone, **the work first** — no title, sub-headline, stat cards or control rows above the content; counts as one line; rules behind a tap. Those rules were applied surface by surface in the interface plan of 12 September and the passes that followed (S-12).
+
+### 11.5 The standalone harness
+
+`src/legacy/Chanlytics.html` opens the same files without Next, for design review (`node tooling/scripts/serve-legacy.mjs`, which sends `no-store`). `data/bridge-stubs.jsx` loads first and stands in for the bridge's globals only where they are absent, turning demo mode on. `legacy-harness.test.mjs` holds the harness's script list to the bridge manifest — a file on disk is a file the harness loads, nothing loaded is gone, and the order matches — because seventeen files had gone into the manifest alone and the harness booted to a blank page for as long as that took to notice (PR #564).
+
+## S-12 · Product surfaces
+
+Every real surface went through the interface plan (12 September; A1–A8 the conventions, B1–B6 the surfaces) and then a "to 100" pass each, whose rule was: say what is true, say it once, and on a phone show the work first.
+
+| Surface | Route | Shows, and from where | What a person can do |
+|---|---|---|---|
+| Today | `#/today` | One line above the work and the day's numbers in one sentence below it; `metrics_summary` in the business's own timezone; open escalations; calls, including the caller who rang and hung up; the day from the calendar; the week from Reports; what happened while away | Open or snooze a queue row, resolve, approve a held playbook run; every door opens the record |
+| Inbox | `#/inbox` | The conversation first on a phone; conversations with their open escalations and held drafts (`toInboxThreadVM`, `standingOf`); a reply about to send at the top of Needs you; buckets in one row; texts read as texts, every thread's messages paged, older escalations, a reply that never left flagged; the owner's own words; only the templates that can send, with the values their slots ask for | Reply within the window rules, undo for 15 s, take over, hand back, snooze, wake, resolve, archive, steer a held draft; a keyboard and a screen reader can follow the decision |
+| Conversations | `#/conversations` | Every thread and every call, with transcripts and recordings, and who answered | Read, play (a recording that failed once replays), export |
+| People | `#/clients` | `people_list`, paged and searched on the server past the first thousand — one row per person: last contact, consent, standing, visits, what their last call was about; the six smart lists by group and the lists kept by hand, in the rail (a sheet on a phone); a picked list is the page's title with its rename, its delete and its one door | Add a person by hand; select and act on fifty at a time: add to a list or take off it, record which yes and how, set the receptionist, add a note, export; per person: name and notes, receptionist mode, both consent answers, delete; a view remembered as the workspace's |
+| A person | `#/clients/<id>` | Who they are, once; Right now (the standing's own word, the reason, one door to the thread); a timeline whose linked rows are the doors, folded past twenty; About, notes for the receptionist, the receptionist's mode for them, the two consent asks with how each answer was given, their lists | Rename, note, set the mode, record a yes or a no with its source, add to or leave a list, delete |
+| Calendar | `#/calendar` | The calendar first: one bar, counts as one line, the rules behind "Hours and rules"; the owner's iCal feed under the receptionist's rules, a moved appointment drawn once, overlapping blocks in lanes, the board following the clock; a read on its way or failed, said | Week, day, month, agenda: taken, open and closed; an appointment opens as a dialog with the booking link; preview a feed before saving it; the keyboard, a screen reader and a thumb reach it. Books nothing |
+| Live | `#/live` | Calls under the heartbeat rule, transcripts as they arrive, what the caller wanted, the line it rang, the calls that just ended | Whisper, hand over to the business, end the call |
+| Reports | `#/reports` | One line for the range and the dates; tiles that keep the number; `report_series` and `campaign_series` over 7, 30 or 90 days; bookings after asking; Google | Change the range; every row a door; charts the keyboard reads; answer reviews |
+| Playbooks | `#/outbound` | Playbooks, what each sends, and its runs, each with a page of its own | Create, pause, resume, run now, approve or skip a held run |
+| Broadcasts | `#/broadcasts` | Broadcasts and every recipient; audiences crossed with consent; each state in words | Send now or schedule; cancel; get their yes (the phrase and the QR) |
+| Messages | `#/messages` | Templates as the customer will see them, naming this business | Sync, draft with the assistant, submit, add starters, hide, rename, delete |
+| Setup | `#/admin/setup` | `setupDtoFor` → `setupSteps`: every row a fact the workspace holds and repaints when its facts change; nothing stores "done"; a failed read has a retry; the sole proprietor's deadline is said | One verb per row; switch a capability on or off; ask for what the product cannot provision (`setup_request`). An owner whose receptionist answers nowhere lands here once per session |
+| Settings | `#/admin/<pane>` | Profile, Business (by that name; the prompt preview; the messages sent in the business's name), Team, Autonomy (the owner's dials), Connections, Notifications, Billing (and whether Stripe runs on its test keys), AI memory, Activity (both ledgers, owners), Back office (platform admins) | S-04, S-13, S-17; the owner panes gate as one; the editor shows each problem at its field and asks before discarding |
+| Ask | ⌘K, ✦ | The palette: jumps to every shipped page and to people, three fixed questions, open times; a streamed turn (S-18) | Ask, jump, approve a card; delete a conversation after being asked |
+| The bell | top bar | `notifications` rows the edge writes, with each person's read marks, agreeing across devices | Open the thing it points at; mark read |
+| Public pages | `/b/<slug>`, `/yes/<slug>`, `/privacy`, `/terms`, `/data-deletion`, `/signup`, `/login`, `/reset-password` | Service-role reads that return exactly what the page shows; each says where it is and how to go on, and names its tab Not found when it shows it | Read; say yes by sending a message from their own phone; sign up, sign in, get back in |
+
+## S-13 · Control plane: config, facts and autonomy
+
+### 13.1 `tenant_config`
+
+One JSON document per workspace, parsed by the same zod schema (`TenantConfigSchema`, zod 4) in the Settings form, the routes and the edge — so an option in the UI exists in the runtime by construction.
+
+- `brain` — the business name and booking link; the profile: hours (up to four intervals a day, read by one reader wherever a day's openness is asked), closures, services with their durations and whether a consultation comes first, booking rules, guardrails, notes, the handoff number, the tone, and the instructions box, which holds the prompt it came from and stays empty when emptied; and the fallbacks the receptionist says when it cannot answer.
+- `notifications` — who is alerted.
+- `calendar` — the iCal feed's address.
+- `features` — `vision`, off by default.
+
+Writes are owner-only and a versioned compare-and-swap (`PUT /settings` echoes the version it read; a conflict recovers without a reload and the card says who last changed it). Each stamps `updated_by` and records an event naming the fields that moved — never their values (00085). Every section is audited.
+
+### 13.2 One fact, one owner
+
+`contracts/facts.ts` resolves every fact the receptionist states from its owner: **provisioned** (the channel rows — what the line actually answers), **verified** (the Google listing), **workspace**, **typed** (only what only a person can know) and **absent**. Settings names any conflict. The defect it exists for: the live salon's published number was its transfer number, so customers were told to ring a person's mobile instead of the receptionist standing by. The messages sent in the business's name fill in its details as they go out, and a new workspace's name fills its details.
+
+### 13.3 Autonomy
+
+`policies` rows are a class, a mode and limits.
+
+| Class | Modes | Enforced by |
+|---|---|---|
+| `reply` | auto · veto · ask · never | The edge, on every inbound message |
+| `booking` | auto · ask | Layer two (a booking question under ask escalates `policy_ask`); the visit-reminder playbook |
+| `faq` | auto · ask | Layer two (a service or pricing question under ask escalates `policy_ask`) |
+| `reengage` | auto · veto · ask · never | Playbook runs: win-back, save our number, after the visit |
+| `campaign` | auto · veto · ask · never | Playbook runs: welcome, the month's offer |
+| `reviews` | auto · ask · never | Google: auto answers within the hour; ask drafts; never leaves reviews to people |
+| `money` | never | Locked by the `enforce_money_lock` trigger (proved to hold, 00102) |
+
+A per-person row (`subject_type 'contact'`) overrides the workspace's reply mode for one customer; the edge reads it on every message and never caches it. The reply row's limits are **the owner's dials** on the Autonomy pane: `max_replies_day`, `pause_hours`, `max_llm_tokens_day` (the day's budget has its handle), `min_confidence`, and the veto delay. Every switch on the pane is one something honours, and the copy says what the dial does.
+
+### 13.4 The tenant runtime
+
+`apps/edge/lib/tenant-runtime.ts` is the one door between the runtime and the control plane: the persona, notifications, calendar and features; the policy matrix; the workspace's WhatsApp credentials from Vault; its timezone; whether billing has paused it; and the facts the platform knows. One batched read, cached per function instance and checked against `runtime_stamp()` on every message, so a setting saved in the dashboard reaches the next message.
+
+The posture rules (`lib/reply-posture.ts`): absence configures — no persona means the receptionist never speaks — and errors fall back: only the environment's own number may use its baked profile (`tenant-fallback.ts`), and only when the control plane cannot be read. `refresh-dr-fallback.mjs` regenerates that profile from the live config, and a test holds the two byte-identical.
+
+## S-14 · Consent, broadcasts and playbooks
+
+### 14.1 Two answers
+
+Since 00095 each person carries two consent answers, because the carriers require marketing consent to be collected separately (error 30913).
+
+| Answer | Columns | Given by | Spent on |
+|---|---|---|---|
+| Conversational | `consent` (`unknown · opted_in · opted_out`), `dnc` | The customer's own STOP or START; a person recording it (`set_contact_consent`) | The receptionist's replies, a person's replies, utility templates such as visit reminders |
+| Marketing | `marketing_consent` | YES OFFERS or SÍ OFERTAS from their own phone; a person recording a signed form (`set_marketing_consent`) — **a yes to offers is written or it is not recorded** (00100) | Promotional templates and campaigns, by WhatsApp only |
+
+**Consent as evidence and as history** (00110): a texted answer keeps its message — the channel, the provider's id and the words — on the event that records it; a person's page shows every change to either answer, with who recorded it and how; a bulk yes is one request for fifty. An erased row holds no answer (00101).
+
+One predicate decides: `mayMessageFor(contact, purpose, { proactive })`. A template's purpose comes from Meta's category (`purposeOfTemplate`, which fails closed to marketing when the category is unknown); a playbook's comes from its class. It is asked at the inbound gate, in the reply route, in the `outbound_send` job (the last gate, failing closed), at broadcast enrolment and again at every send, in playbook eligibility, and before the voice booking link.
+
+The yes is always the customer's own message. `/yes/<slug>` asks twice, each with its own keyword and disclosures, and collects no number; `/api/v1/consent/qr` encodes WhatsApp opened on the workspace's number with the phrase ready to send; the People page and every list say how many said yes to offers, which is the number a broadcast reaches, and where to get the rest.
+
+### 14.2 Broadcasts — send this once
+
+`POST /api/v1/broadcasts` (operator; ten a minute) is core's `createBroadcast`: it checks that the template is approved and its values are ones Meta accepts, crosses the audience — one of People's lists, a list kept by hand, or everyone — with who may receive it (`assemble`), **enrols** the recipients so the owner sees who and how many (at most 2,000; a number's daily limit is said when the audience exceeds it), records `send_broadcast`, and schedules `broadcast_send` now or at the chosen time. States: `pending_approval → scheduled → sending → sent | canceled | failed`, kept by a trigger (00106); a recipient's state too (00116). Every number is a row's: sent, skipped and failed from the recipients; delivered and read from the status webhook; replied means an inbound message within 72 hours.
+
+### 14.3 Playbooks — keep doing this
+
+A standing rule that sends one approved template to people who newly qualify.
+
+| Trigger | Who | Class |
+|---|---|---|
+| Win-back | Nothing heard in 30 days | reengage |
+| Welcome | First contact in the last 7 days | campaign |
+| Save our number | Only ever phoned | reengage |
+| The month's offer | Everyone who said yes, on a cadence | campaign |
+| Visit reminder | The day before an appointment on the calendar | booking |
+| After the visit | The day after a visit, with nothing booked next | reengage |
+
+A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own.
+
+## S-15 · Calendar and availability
+
+The receptionist never books; it may **see** the calendar. The owner's appointments arrive as an iCal feed — what Booksy, Calendly, Square and the rest sync into Google or Apple calendars — read from its private address, which the address rule guards on every fetch.
+
+- `apps/edge/lib/availability.ts` fetches the feed with a five-minute cache and never lets it block a reply; `contracts/availability.ts` parses it (a moved appointment draws once; extra dates are read) and computes the open windows against the hours, closures, lead time and buffers, in the business's timezone, under **one horizon rule, one clock and one byte ceiling**. The first open time is on the slot grid, not the minute it was asked (`onTheGrid`). A service that needs a consultation first is sized by its own length on the board and in Ask, while the receptionist offers a consultation (`offerFor`, `needsConsultation`, `offerLead`).
+- Four readers compute the same windows: the WhatsApp prompt (open times, and this person's visits), the phone tool `check_availability`, the dashboard's Calendar (`server/calendar.ts`; the feed's address never reaches the browser), and Ask's openings fast path (`openingsFor`, pinned equal to the board's `fit`).
+- **People from the calendar**: an appointment that carries a phone number puts its person in People — get-or-create by phone through `create_person`; a name fills only an empty one; consent stays unknown, because a booking is not a yes to offers; a `contact.added` event says where they came from. It happens when the owner opens the Calendar and every hour by the sweep, rotated across workspaces so none starves.
+- Visits feed People's lists (booked, lapsed, asked but never booked), the visit playbooks (whose chips count everyone), and Reports' count of people who booked after asking.
+
+## S-16 · Google
+
+Switched on by its keys, end to end: without them there is no Setup row, no Reports section and no Connections card. (Sign in with Google is the auth provider's, S-04.)
+
+- **The public listing** (Places API New). Setup searches from the name and address on record; the owner links the right place; the edge reads it — the rating, the count, and the five reviews Google shows — at link time, on Check now, and hourly for anything unread for 20 hours (40 a tick, never-read first). A review is news only when it is not on record and was written since the previous check; the first read is history and raises nothing. Tables: `google_listings`, `google_reviews`, `google_listing_days`.
+- **The Business Profile** (OAuth). `/api/v1/google/connect` signs a state (workspace, person, nonce) with `GOOGLE_OAUTH_STATE_SECRET` → Google's consent screen, asked offline so a refresh token comes back → `/api/v1/google/callback` proves the state before trusting anything (`callbackPlan`, decided without a network) → the edge exchanges the code and keeps the refresh token in Vault → the owner chooses a location → every review syncs, with the right to answer. An answer is a ledger verb (`reply_review`). Under the reviews class the receptionist drafts replies (`claude-sonnet-5`), or under auto answers a handful each sync.
+
+## S-17 · Billing
+
+- `billing_accounts`, one per workspace: `mode` is `direct` (the workspaces that predate Stripe — never gated and never touched by Stripe) or `stripe` (everyone who signs up), with Stripe's own status copied verbatim: `none · incomplete · incomplete_expired · trialing · active · past_due · canceled · unpaid · paused`. `billing_events` keeps each webhook delivery by its event id and outlives the workspace, so a redelivery changes nothing; a customer Stripe deleted is forgotten.
+- The edge is the only place the Stripe key lives and the only writer of billing rows (`apps/edge/lib/billing.ts`). `/api/admin/billing` runs status, checkout (a card and the 14-day trial, inside the deployment gate), portal, invoices (off the Checkout bucket), sync and resume. `/api/stripe-webhook` verifies the signature on the raw body, keeps the delivery once, applies subscription events through the same routine (`planBilling`), and answers 500 on a failed write so Stripe tries again; the webhook is exercised by a machine in CI.
+- Two questions, kept apart (launch PRD 1). **May the receptionist answer** — `receptionistOn` drives `tenants.status` for Stripe workspaces, and `paused` holds every message for a person and stops campaigns; a workspace whose last payment failed keeps answering. **May this workspace spend the platform's money** — `maySpend`, behind `requireSpend`, on buying a number and filing a registration; that workspace buys nothing.
+- Without the three Stripe variables, nothing that charges is drawn; when Stripe runs on its test keys, Billing and Setup say so.
+
+## S-18 · Ask and the models
+
+| Model | Where it runs | For | Budget |
+|---|---|---|---|
+| `claude-opus-5` | edge `lib/brain.ts` | The receptionist's replies | Optional `max_llm_tokens_day` per workspace, counted from `usage.llm_tokens` events |
+| `claude-sonnet-5` | dashboard `server/ask/loop.ts`, through the edge gateway | Ask | 1.5 million tokens a day per workspace, on its own event kind (`usage.ask_tokens`), so questions never spend the receptionist's budget |
+| `claude-sonnet-5` | dashboard `server/templates.ts`, through the gateway | Template drafts | Ask's budget |
+| `claude-sonnet-5` | edge `lib/review-reply.ts` | Replies to Google reviews | The sync's cap |
+
+The gateway (`/api/admin/llm`) accepts only those two models — one name shared by the loop, the gateway and the route — checks the request's size, spends the key, streams the API's own events back as they arrive, and writes the usage row. The dashboard never holds the key. The turn runs in CI against a scripted model.
+
+### 18.1 One Ask turn
+
+1. The palette (`ask-real.jsx`, through `window.__ask`) answers what needs no model: jumping to every shipped page (`ASK_PAGES`) or to a person, three fixed questions, and open times (`/api/v1/ask/openings`). What the shell sends as it opens seeds the box.
+2. Anything else is `POST /api/v1/ask`, which streams JSON lines: `thread`, `trace` while a read runs, `delta` as words arrive, `final`. The turn (`server/ask/loop.ts`) starts from a **snapshot** — who needs a person, held drafts, the newest threads, today's calls, the counts, in about 150 ms of parallel reads — plus a **prefetch** when the question names what it needs.
+3. Up to four model rounds within 45 seconds, over fourteen tools. Read tools run as the signed-in person, under RLS, through the same view models the pages use, and every row they return joins the **read set** — the only rows an answer may cite. Act tools never act: they validate the request and return a **proposal**, a card.
+4. The finish tool is the answer, streamed as it is written; a citation outside the read set is dropped.
+5. A card the person approves commits through the verb's own route with `x-via: ask`, where the role and the state are checked again; every card leaves a mark, an undo names what it undid, and its outcome is recorded on the turn, so the thread reads "Sent" rather than offering Approve twice.
+6. A thread belongs to one person (`ask_threads`, `ask_messages`, RLS to their own rows), is purged after 90 days, is scrubbed when someone it mentions is erased, and is deleted only after asking.
+
+Evaluation: `eval-brain.mjs` runs `tooling/evals/whatsapp-cases.json` against the deployed edge (`/api/admin/eval` composes the real prompt, sends nothing and writes nothing) and judges the answers locally (`eval-judge.mjs`); `eval-ask.mjs` runs `ask-cases.json` as a real signed-in member.
+
+## S-19 · Alerts, notifications and the pager
+
+`apps/edge/lib/notify.ts` is the one way the system reaches a person.
+
+- `chooseAddressing` picks the recipients from the workspace's own settings. A workspace that cannot be addressed produces a **redacted** notice to the platform — never someone else's mailbox with a customer's words in it. An owner's alert names the channel the reply failed on.
+- Resend is called with a timeout and its response is checked; an expired key once silenced every alert at once.
+- `recordNotification` writes the same alert to `notifications`, which the bell reads in real time. Each person keeps their own read marks across devices — the seen moment is the server's, the marks are keyed by the workspace's id and pruned with the feed — and the browser can raise a system notification while the app is in the background.
+
+Kinds: needs_you, held_draft, missed_call, invite, handoff, deadman, call, number, sweep, job_failed, playbook, calendar_people, alert, review, billing. The platform mailbox (`LEAD_TO`) hears about new sign-ups, setup requests, lines that failed and traffic nobody routes.
+
+**The pager** (`page-operator.ts`, `operator_pages`, 00105) is for a condition that is the platform's, not a workspace's: one page per condition key per six hours, stamped only after delivery, so a page that did not send earns no quiet. Six conditions call it: the heartbeat failing many jobs in one run; a provider refusing a send with 401 or 403 — credentials, not content; due jobs nobody is claiming; WhatsApp messages Meta accepted with no receipt for six hours; a customer waiting in a workspace with nobody on file to tell; and the receptionist having no model key. Two people can be paged; the alarm channel runs in CI; and a condition whose last page failed or went unaddressed is readable on `/api/diag`, so a broken alarm is at least visible from the one door that does not depend on it.
+
+## S-20 · Data model
+
+Every table has RLS. Writers: **E** the edge (service role), **S** the dashboard's session client under RLS, **D** a definer function, **J** the job runner.
+
+| Domain | Table | Holds | Written by |
+|---|---|---|---|
+| Tenancy | `tenants` | The workspace: name, slug, timezone, status | D; an owner may change the timezone |
+| | `memberships` | Person × workspace × role; the member's views of a page (00113) | D; team routes; `views/:page` |
+| | `platform_admins` | Chanlytics staff | D (`platform_admin_add`) |
+| | `profiles` | The name a person goes by | D (`profile_set`) |
+| | `invitations` | Open invites, each with its expiry | team routes |
+| Routing | `tenant_channels` | Kind × provider id → workspace; status; Vault reference | E, D |
+| | `lines` | Numbers the platform owns; saga and registration receipts; voice and texting states, guarded | E, J; D (forwarding) |
+| | `business_records` | The business as the carriers are told it | E, through the route |
+| | `capability_activations` | An owner's switch for voice, WhatsApp, texting (00108) | S (owner) |
+| Conversation | `contacts` | A person: phone, names, both consent answers, `dnc`, notes, erased or merged | E (`ingest_*`), D |
+| | `contact_identities` | Channel identities (a WhatsApp id, a phone) | E |
+| | `conversations` | One thread per person: state, paused and snooze deadlines, assignee, WhatsApp window | E; S (verbs) |
+| | `messages` | Append-only content; status only moves forward (`messages_guard`), and each receipt keeps its time (00111) | E; S (reply); J |
+| | `calls` | One row per call: status rank, transcript, analysis, recording state | E (`ingest_call`) |
+| | `escalations` | What needs a person — one open per conversation; its states guarded (00106) | E, S, J |
+| | `decisions` | Every committing verb: who, how, and through which door | S, J, E |
+| | `events` | The append-only ledger, partitioned by month with a default partition; evidence kinds purged at thirty days, record kinds kept | E, D, J |
+| | `idempotency_keys` | Reply dedupe | S |
+| Control | `tenant_config` | The receptionist's profile and the workspace's settings, versioned | S (owner) |
+| | `policies` | Class × mode × limits; per-person rows | D (provisioning); S |
+| Work | `jobs` | The ledger (S-08), four kinds | service role; J |
+| | `sweep_status`, the clock register | Each sweep's pg_net request and backlog; every clock and what it is judged on (00107) | D |
+| | `rate_hits` | Shared rate limiting | D (`take_rate`) |
+| | `operator_pages` | The pager's memory: when each condition last paged, and how many times (00105) | E |
+| Campaigns | `templates` | WhatsApp templates, as Meta holds them | E |
+| | `broadcasts`, `broadcast_recipients` | What was sent, and who got it; states guarded (00106, 00116) | S, J |
+| | `playbooks` | Standing rules | S |
+| | `segments`, `segment_members` | Lists kept by hand | S |
+| Integrations | `google_listings`, `google_reviews`, `google_listing_days`, `google_connections` | Google | E |
+| | `billing_accounts`, `billing_events` | Billing | E |
+| People-facing | `notifications`, `notification_reads`, `notification_marks` | The bell | E, D |
+| | `ask_threads`, `ask_messages` | Ask | S |
+| | `waitlist` | The front door's third posture | sign-up route |
+
+Beside the tables: the private `media` bucket (inbound attachments and call recordings, served only as five-minute signed URLs, audio removed at ninety days); Vault (`cron_sweep_key`, `edge_base_url`, and every per-workspace credential); and the realtime publication (conversations, messages, escalations, decisions, calls, notifications, lines, tenant_channels, capability_activations, business_records, the Google tables, billing_accounts).
+
+**The read functions** are `SECURITY INVOKER`, so RLS scopes every inner select to the caller: `metrics_summary` (Today), `report_series` and `campaign_series` (Reports, two periods in one call), `first_replies` (one definition of who answered and how fast, timed from when the reply actually left), `people_list` (People — a query, a limit and an offset, 00112). They share the evidence rules: a row imported without a provider timestamp sits on no calendar day and never proves a person is new, and a canceled or failed send never counts as sent.
+
+**Closed sets** are text with a CHECK, never native enums. `gen-schema-sets.mjs` regenerates `schema-sets.generated.ts` from a database built from every migration, `check-db-types.mjs` guards the generated types, and the compiler holds each hand-kept copy to it.
+
+**Migrations by slice**: 00001 foundation · 00002–00003 conversations and hardening · 00004–00006 the Inbox · 00007–00008 calls · 00009–00011 metrics · 00012–00017 control plane, opt-out, roles, message lifecycle, provisioning · 00018–00026 watchdogs, workspace creation, team, sweep health · 00027–00039 erasure, People, reports, the call pipeline, metrics truth, budget · 00040–00041 Ask · 00042–00051 channel connect, consent, lists, templates, broadcasts, playbooks, campaign reports · 00052–00064 people and the calendar, notifications, call outcomes, visit playbooks · 00065–00077 setup, lines, forwarding, profiles, Google, sign-up, billing, texting, registration · 00078–00083 job recovery · 00084–00090 timezone, config audit, watched sweeps, number ownership, waitlist, rotation, the registration path · 00091–00094 the back office · 00095–00096 marketing consent · 00097 stuck lines · 00098–00099 the outbox · 00100–00104 a written yes, an erased row's silence, the money lock proved, a stranger's limit, a workspace recorded where made · 00105–00109 the pager, guarded state machines, the clock register, activations, lines on the ledger · 00110–00115 consent evidence, receipt times, People paged, the workspace's views, exports on the ledger, the evidence purge · 00116–00119 two more state machines, Setup repainting, a call ended by hand, an approval moving the send · 00120–00122 the uniform floor and the grants.
+
+## S-21 · Observability
+
+| Question | Where the answer is |
+|---|---|
+| What did the system do? | `events` — `message.sent`, `escalation.opened`, `usage.llm_tokens`, `ingest.unroutable`, `line.failed`, `platform.acted`, `contact.consent_changed` with its evidence, and the rest, every kind declared |
+| Who decided what? | `decisions` — every operator verb with its actor, marked when an Ask card committed it; an owner reads both ledgers on Settings › Activity, in their own words |
+| What needed a person, and why? | `escalations` and their reasons |
+| Is every sweep running? | `sweep_health()` over the clock register; `/api/cron/health` alerts and pages; `/api/health` for a monitor outside |
+| Did the platform's own alarm work? | `/api/diag` lists each pager condition's last outcome |
+| How is the edge configured right now? | `GET /api/diag` (`x-diag-key`): memory source and store with a live probe, which variables are present, whether the Meta token is permanent, sweep health, number drift, voice-shell drift, the pager, and the last day of the receptionist's quality |
+| What happened to one message? | Structured logs: one JSON object per line with level, event, workspace, a correlation id and a phone tail on the message path (`lib/log.ts`); event names never change |
+| Which build is this tab on? | `/api/version`; the shell's status line says when a newer build is out, and when the tab last read |
+
+## S-22 · Quality system
+
+| Layer | What | When |
+|---|---|---|
+| Unit and integration | 305 `node:test` files (about 2,590 tests) under `tsx`, with `--conditions=react-server`. The database and integration suites (27 files) need Supabase credentials and **skip** without them | Every CI run (credential-free); nightly with credentials |
+| The doors, executed | The WhatsApp handler from the signature to the ack, the SMS door and the ledger's heartbeat, the call-start door and the function bridge — each over a ports object or a pure plan; the route policies by running `run()` with a database in memory; every use case in core; every tenant table's tenancy under real sessions | CI |
+| SQL rules | `*.db.test.mjs` against a local Supabase built from every migration | The Database workflow: a required check on every pull request, replaying only when the database could have changed (`db-paths-changed.mjs`); a superseded push cancels its run |
+| Schema and type agreement | `gen-schema-sets.mjs --check`, `check-db-types.mjs`, `gen-route-types.mjs`, `route-policy.json` | CI and the Database workflow |
+| Static | Typecheck, ESLint across the workspace, gitleaks on every pull-request commit, committed-`dist` drift, the dashboard built as Vercel builds it | CI |
+| Browser | 36 Playwright specs against production. The signed-in ones sign in to the nightly's **own workspace** (`e2e-workspace.mjs`, made with `--apply`), spend nothing, and either only read or intercept their own writes | Nightly at 09:00 UTC; a failure opens an issue |
+| An honest green | `REQUIRE_SERVICE_CREDENTIALS=1` turns a skipped signed-in suite into a failure; a skip ceiling catches a hollow run | Nightly |
+| The edge's contract | `golden-edge.mjs` against a deployed URL: signatures, the frozen public pages | Before an edge release |
+| The receptionist and Ask | `eval-brain.mjs`, `eval-ask.mjs` with their judges; the Ask turn in CI against a scripted model | On a prompt or model change; CI |
+| The ratchet | Assertions that read source text may only get fewer (`source-scan-baseline.json`); a behaviour test replaces each one that goes | CI |
+| Dependencies | Dependabot, weekly and grouped; every workflow action on Node 24, the code on Node 22 | Weekly |
+
+## S-23 · Operations
+
+### 23.1 Levers
+
+| To | Do |
+|---|---|
+| Silence one business's receptionist | Set its `tenant_channels.status` to `disabled` (inbound becomes unroutable and a person is emailed), or its reply policy to `never` |
+| Stop one queued reply | The cancel window in the Inbox, or `messages.status = 'canceled'` while it is still `queued` |
+| Hold one customer for a person | People → the person → Receptionist → Ask me first, or Never |
+| Cap or pause the receptionist for a workspace | Settings › Autonomy: the replies per day, the pause length, the day's tokens |
+| Roll memory back to Blob | `PG_READS=off`, redeploy, and confirm `/api/diag` reads `blob` — not available once `BLOB_SHADOW=off` |
+| Retire Blob | `BLOB_SHADOW=off`, redeploy |
+| Let a preview reach the providers | `EDGE_PROVIDERS=live` with `EDGE_URL` at an edge holding sandbox keys; `LINES_DRY_RUN=1` for fake lines |
+| Roll the edge's credential | Set `EDGE_CALL_SECRET` on both projects, in either order; drop `DIAG_KEY` when every caller carries a token |
+| Close the front door, or queue it | `SIGNUP_CODE` (invite code), or the waitlist posture |
+| Switch on Google, Stripe or Embedded Signup | Their variables on the edge; absent means nothing is drawn |
+
+A Vercel variable reaches a running deployment only after a redeploy.
+
+### 23.2 Scripts
+
+Every script that writes is a dry run by default, writes a JSONL backup first, is idempotent, and needs `--apply`: `delete-tenant.mjs` (which refuses while the workspace still owns a number, a Google grant or Vault secrets), `filler.mjs` (every scenario on a live workspace, with fictional 555-01xx numbers), `optout-probe.mjs`, `refresh-dr-fallback.mjs`, `voice-converge.mjs`, `run-backfill.mjs` (the history import), `seed-memberships.mjs` and `e2e-workspace.mjs` (the nightly's workspace). Beside them: `gen-schema-sets.mjs`, `gen-route-types.mjs`, `check-db-types.mjs`, `check-dist.mjs`, `db-paths-changed.mjs`, `golden-edge.mjs`, `eval-brain.mjs`, `eval-ask.mjs`, `eval-judge.mjs` and `serve-legacy.mjs`.
+
+### 23.3 Secrets
+
+Each Vercel project's variables are listed in its `.env.example`, and `env-manifest.test.mjs` fails when code reads a variable the manifest does not list. Vault holds `cron_sweep_key`, `edge_base_url` and every per-workspace credential, each written and read only through its own definer functions.
+
+### 23.4 Outside the OS
+
+Nothing in this repository calls another Chanlytics codebase at runtime. The marketing site at `www.chanlytics.com`, in a separate repository, is linked from the privacy and terms pages and carries the SMS terms Chanlytics' own campaign was filed against. No code here references the other Chanlytics folders in the workspace: the earlier v2 assistant, the legacy `ai.chanlytics.com` portal, the agency site and the outreach tooling. The plans the code was built from are under `docs/plans`, each saying where it stands.
+
+## S-24 · Revision schedule
+
+The redlines in one place: where the built system departs from a plan, or where a known gap stands.
+
+| Δ | Sheet | Note | Decision with |
+|---|---|---|---|
+| 1 | S-02 | QStash is retired as the job clock; delete `api/jobs/fire.ts` and the `QSTASH_*` variables after 10 October 2026 | Engineering |
+| 2 | S-04 | Production sign-up runs open (launch gate 2); closing it is an environment change | Ruben |
+| 3 | S-06 | PR #479: an empty Retell function secret should open neither door | Ruben |
+| 4 | S-07 | The sole-proprietor verification-code leg waits on one real filing | Ruben |
+| 5 | S-07 | The live campaign's opt-in message names the old workspace; the replace door files a new one at a second vetting fee | Ruben |
+| 6 | S-07 | PR #530 (number port-in and repair requests) waits on the push of migration 00123 to production | Ruben |
+| 7 | S-10 | No Content-Security-Policy beyond `frame-ancestors`; no CAPTCHA on sign-in | Engineering |
+| 8 | S-22 | Two Dependabot majors open: TypeScript 7 (#401) and eslint-plugin-react-hooks 7 (#489) | Engineering |
+
+Closed since the first edition: tenancy by convention (Δ2 then — `route()` scopes, `choose_workspace`, the workspace in the URL); rules in two apps (Δ7 — three groups of `packages/core`); realtime unfiltered by workspace (Δ8 — #351); the legacy frontend's future and the demo surfaces (Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%); nothing paging the operator (Δ11 — the pager, six conditions).
+
+## Appendix A · Glossary
+
+| Term | Meaning |
+|---|---|
+| Workspace | One business: a `tenants` row, at `/w/<slug>` |
+| Receptionist | The AI that answers — the WhatsApp and SMS brain, and the phone agent |
+| Escalation | A thread flagged for a person, with a reason; one open per conversation |
+| Standing | Who has a thread: needs you · yours · theirs · snoozed · quiet (`standingOf`); the word a pill wears |
+| Handoff | The receptionist deciding a person should answer |
+| Held draft | A reply written and waiting: a veto window, or low confidence |
+| Veto window | The delay before a receptionist reply sends, in which a person can stop or steer it |
+| Steer | Rewriting a held draft to one instruction |
+| Whisper · hand over · end | The three things a person can do to a live call |
+| The window | WhatsApp's 24 hours after a customer's last message, when free text is allowed; outside it, templates only |
+| Template | A message Meta approved; its category, utility or marketing, decides the consent it needs |
+| Broadcast · playbook | Send this once · keep doing this |
+| Line | A phone number the platform bought or forwards |
+| Channel | A routing row: which workspace a provider's delivery belongs to |
+| Capability | Voice, WhatsApp or texting, available when the records allow it and switched on by the owner |
+| Surface · override · seam | An area of the UI · the bridge module that feeds it real data · the mechanism between them |
+| Seed · demo mode | The mockup's invented data · the session flag that allows it on screen |
+| Sweep · clock | A scheduled pg_cron job · any of them, registered as data |
+| The ledger | The jobs table — and, in "the decisions ledger", every operator verb |
+| Core | `packages/core`: the use cases behind ports that routes and jobs adapt |
+| Δ | A redline in this document |
+
+## Appendix B · Environment
+
+Names only; values live in each Vercel project.
+
+| Deployable | Group | Variables |
+|---|---|---|
+| Edge | WhatsApp | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_ID`, `META_APP_SECRET`, `META_APP_ID`, `META_ES_CONFIG_ID`, `WHATSAPP_TEST_ALLOWLIST` |
+| | Voice and lines | `RETELL_API_KEY`, `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PRIMARY_PROFILE_SID`, `LINES_DRY_RUN` |
+| | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM` |
+| | Memory | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PG_WRITES`, `PG_READS`, `PG_DEDUPE`, `BLOB_SHADOW`, `BLOB_READ_WRITE_TOKEN` |
+| | Google | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_OAUTH_AUDIENCE` |
+| | Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `BILLING_TRIAL_DAYS`, `DASHBOARD_ORIGIN` |
+| | Operations | `DIAG_KEY`, `EDGE_CALL_SECRET`, `EDGE_ORIGIN` |
+| Dashboard | | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DIAG_KEY`, `EDGE_URL`, `EDGE_CALL_SECRET`, `EDGE_PROVIDERS`, `GOOGLE_OAUTH_STATE_SECRET`, `CANONICAL_HOST`, `NEXT_PUBLIC_BUILD_SHA` (from `VERCEL_GIT_COMMIT_SHA`), `SIGNUP_CODE` |

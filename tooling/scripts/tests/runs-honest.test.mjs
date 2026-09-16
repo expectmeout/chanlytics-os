@@ -340,8 +340,9 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     next.props.onClick();
     assert.deepEqual(went, ["broadcasts/run:b-wait", "broadcasts/run:b-wait", "broadcasts/run:b-soon", "broadcasts/run:b-soon"], "REGRESSION: Playbooks, and the page of every broadcast");
     fresh();
-    const hero = globalThis.window.HeroBrief();
-    press(buttonsSaying(byTestId(hero, "brief-run-done"), "Open")[0]);
+    // What ran today is a line of the day so far, under the work (TodayRecap); it was a beat of the hero above it.
+    const recap = globalThis.window.TodayRecap();
+    press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
     assert.deepEqual(went, ["broadcasts/run:b-done"]);
   } finally {
     delete globalThis.window.TODAY_DATA;

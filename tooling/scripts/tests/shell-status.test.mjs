@@ -598,13 +598,44 @@ test("REGRESSION (N19): the top bar's theme button steps through Light, Dark and
   }
 });
 
-test("REGRESSION (N24): People's tabs stay over every view of the list -- they vanished on a list you keep and on a state", async () => {
+test("People has no tab strip on a real workspace -- its one real tab is People, and Lists is a view of it; the demo keeps its seeded three, over every view (N24)", async () => {
   await import("../../../apps/dashboard/src/legacy/components/surface-tabs.jsx");
   const tabsAt = (param) => { deep = true; cells = []; seq = 0; return win.SurfaceTabs({ page: "clients", param, onNavigate() {} }); };
   const labels = (tree) => (tree ? tree.props.children.map((b) => textOf(b).trim()) : null);
-  assert.deepEqual(labels(tabsAt(null)), ["People", "Lists"], "the People list");
-  assert.deepEqual(labels(tabsAt("seg:opted_in")), ["People", "Lists"], "a list the receptionist keeps");
-  assert.deepEqual(labels(tabsAt("list:regulars")), ["People", "Lists"], "REGRESSION: a list you keep lost the tabs");
-  assert.deepEqual(labels(tabsAt("state:needs")), ["People", "Lists"], "REGRESSION: a state lost the tabs");
-  assert.equal(tabsAt("p-9"), null, "a person's profile keeps its focus");
+  for (const param of [null, "seg:opted_in", "list:regulars", "state:needs", "p-9"]) assert.equal(tabsAt(param), null, `nothing to switch to at ${param}: one real tab is no strip`);
+  win.__DEMO_MODE = true;
+  try {
+    assert.deepEqual(labels(tabsAt(null)), ["People", "Leads", "Deal board"], "the demo's seeded tabs, and no Lists among them");
+    assert.deepEqual(labels(tabsAt("list:regulars")), ["People", "Leads", "Deal board"], "REGRESSION (N24): a list you keep lost the tabs");
+    assert.deepEqual(labels(tabsAt("state:needs")), ["People", "Leads", "Deal board"], "REGRESSION (N24): a state lost the tabs");
+    assert.equal(tabsAt("p-9"), null, "a person's profile keeps its focus");
+  } finally {
+    delete win.__DEMO_MODE;
+  }
+});
+
+test("a list's own route lands on People with that list picked, and the address is replaced so Back leaves People -- the Lists page folded into People", () => {
+  // The People page's rule, as it publishes it (people-honest.test.mjs runs the real one).
+  win.__PEOPLE = { rows: [], lists: [{ id: "needs_you", label: "Needs you", ids: [] }], saved: [{ id: "s1", name: "Regulars", ids: [] }] };
+  win.__listRoute = (id) => (id === "s1" ? "clients/list:s1" : id === "needs_you" ? "clients/seg:needs_you" : "clients");
+  const replaced = [];
+  win.location.replace = (hash) => replaced.push(hash);
+  try {
+    const kept = mount("#/segments/s1");
+    const page = find(kept.tree, (n) => n.type === "ClientsA");
+    assert.ok(page, "People is what draws");
+    assert.deepEqual([page.props.initialSaved, page.props.initialSegment], ["s1", null], "with the kept list picked");
+    assert.equal(kept.title, "Regulars · People · Chanlytics", "named for the list, under People");
+    assert.deepEqual(replaced, ["#/clients/list:s1"], "the address says where it landed");
+    const smart = mount("#/segments/needs_you");
+    assert.deepEqual([find(smart.tree, (n) => n.type === "ClientsA").props.initialSegment, replaced.at(-1)], ["needs_you", "#/clients/seg:needs_you"], "a smart list too");
+    const gone = mount("#/segments/nope");
+    assert.equal(find(gone.tree, (n) => n.type === "ClientsA").props.initialSaved, null, "a list that is not here is People itself");
+    assert.equal(replaced.at(-1), "#/clients");
+    assert.ok(!find(gone.tree, (n) => n.type === "SegmentsPage"), "never the seeded Segments page on a real workspace");
+  } finally {
+    delete win.__PEOPLE;
+    delete win.__listRoute;
+    delete win.location.replace;
+  }
 });

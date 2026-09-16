@@ -3,8 +3,17 @@
    ==================================================================== */
 
 .inbox {
+  /* The Inbox fills the shell's row. Inside that flex row the grid was only as wide as its columns' content, and
+     once the thread pane sized itself by its own width (container: ixpane, #542) it had none: the pane collapsed
+     to 1px at every screen size. */
+  flex: 1 1 auto;
+  min-width: 0;
   display: grid;
   grid-template-columns: var(--rail-list) minmax(0, 1fr);
+  /* One row, the Inbox's own height, so the list and the thread scroll inside it. With no row the grid's one implicit
+     row took the height of the taller of the two: past a window's worth of threads the list never scrolled, and
+     Send sat below the fold (1280x800 with 20 threads in Needs you: a 1,955px row in a 748px Inbox). */
+  grid-template-rows: minmax(0, 1fr);
   height: 100%;
   background: var(--bg);
   overflow: hidden;
@@ -59,6 +68,13 @@
 .ix-bucket.active.accent { background: var(--accent-soft); }
 
 .ix-bucket-label { flex: 1; }
+/* Three buckets, one row of words: the icon says again what the label says, and at 12.5px "Needs you" did not fit the
+   106px a third of the rail gives it. Six seeded buckets keep their grid. */
+.ix-buckets.one-row { grid-template-columns: repeat(3, minmax(0, 1fr)); padding: 8px; }
+.ix-buckets.one-row .ix-bucket { gap: 6px; padding: 7px 8px; font-size: 11.5px; }
+.ix-buckets.one-row .ix-bucket > .icon { display: none; }
+.ix-buckets.one-row .ix-bucket-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.ix-buckets.one-row .ix-bucket-count { min-width: 14px; }
 .ix-bucket-count {
   font-size: 11px;
   color: var(--ink-dim);
@@ -68,13 +84,14 @@
 }
 .ix-bucket.accent .ix-bucket-count { color: var(--accent); font-weight: 500; }
 
-/* Search row */
+/* Search row. Its select-all box sits over the rows' own boxes, and the field starts where their avatars do. */
 .ix-search-row {
   display: flex;
-  gap: 6px;
-  padding: 10px 12px;
+  gap: 10px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--line);
 }
+.ix-search-row .ix-checkall { flex: none; align-self: center; justify-content: center; width: 14px; }
 .ix-search-wrap {
   flex: 1;
   display: flex;
@@ -175,6 +192,7 @@
 }
 .ix-checkall input { accent-color: var(--ink); }
 .ix-list-count { font-weight: 500; color: var(--ink-muted); }
+.ix-list-said { display: flex; align-items: baseline; gap: 8px; min-width: 0; font-size: 11.5px; color: var(--ink-dim); }
 .ix-list-tools { display: flex; gap: 2px; }
 .ix-search-hint {
   font-size: 11px;
@@ -299,8 +317,13 @@
   flex-shrink: 0;
 }
 .ix-thread-time { font-size: 10.5px; color: var(--ink-dim); }
+/* A reply of its own on the way out: the one thing on a row that runs out, so it carries the accent and the dot. */
+.ix-sending { display: inline-flex; align-items: center; gap: 5px; color: var(--accent); }
+.ix-sending .ix-veto-dot { width: 6px; height: 6px; }
 /* The thread's state is the shared pill (StatePill); the list keeps it small. */
 .ix-state-pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+/* A name keeps its own letters: an email in capitals is shouting (I4). */
+.ix-state-pill.ix-name-pill { text-transform: none; letter-spacing: 0; }
 
 .ix-thread-subject {
   font-size: 12px;
@@ -317,6 +340,8 @@
   gap: 6px;
   margin-bottom: 6px;
 }
+/* A row ends at its last line: a real row has no foot, and a row with no reason has no subject line. */
+.ix-thread-subject:last-child, .ix-thread-line3:last-child { margin-bottom: 0; }
 .ix-thread-channels {
   display: flex;
   gap: 2px;
@@ -391,6 +416,9 @@
   background: var(--bg);
   border-right: 1px solid var(--line);
   overflow: hidden;
+  /* The pane's own width decides its header, strip, banners and composer: a collapsed sidebar, a closed rail or a
+     phone narrows it without the window changing (I3). */
+  container: ixpane / inline-size;
 }
 .ix-th-scroll {
   flex: 1 1 auto;
@@ -415,7 +443,7 @@
 /* === Header === */
 .ix-th-head {
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 16px;
   padding: 14px 24px;
@@ -452,7 +480,7 @@
 }
 .ix-th-meta { font-size: 11.5px; color: var(--ink-dim); margin-top: 1px; }
 
-.ix-th-channels-meta { display: flex; gap: 4px; }
+.ix-th-channels-meta { display: flex; gap: 4px; margin-right: 12px; }
 .ix-channel-chip {
   display: inline-flex;
   align-items: center;
@@ -470,7 +498,7 @@
   border-color: var(--ink-faint);
 }
 
-.ix-th-actions { display: flex; gap: 4px; }
+.ix-th-actions { display: flex; align-items: center; gap: 4px; }
 
 /* === Context strip === */
 .ix-context-strip {
@@ -876,10 +904,12 @@
   line-height: 14px;
 }
 .kbd-text { color: var(--ink-dim); margin-right: 6px; }
+/* The button's own colour, so the hint reads on either theme's primary: literal white was 1.11:1 on the dark theme's
+   near-white button. */
 .kbd-on-dark {
-  background: rgba(255,255,255,0.15);
-  border-color: rgba(255,255,255,0.25);
-  color: white;
+  background: color-mix(in oklab, currentColor 14%, transparent);
+  border-color: color-mix(in oklab, currentColor 28%, transparent);
+  color: inherit;
 }
 
 /* === Timeline === */
@@ -1383,19 +1413,37 @@
 .ix-resolved .cl-bucket-link { margin-left: auto; white-space: nowrap; }
 .ix-resolved.declined { background: var(--bg-sunken); }
 .ix-resolved.declined > .icon { color: var(--ink-muted); }
+/* A quiet thread's last word, in its tone (I1): plain when they wrote last, amber when a later message didn't
+   send, red when nothing of ours reached them. An answered thread keeps the green line. */
+.ix-resolved.plain { background: var(--bg-sunken); }
+.ix-resolved.plain > .icon { color: var(--ink-muted); }
+.ix-resolved.warn { background: var(--warn-soft); }
+.ix-resolved.warn > .icon { color: var(--warn); }
+.ix-resolved.danger { background: var(--danger-soft); border-color: color-mix(in oklab, var(--danger) 35%, var(--line)); }
+.ix-resolved.danger > .icon { color: var(--danger); }
 
 /* Escalation take-over banner */
+/* The words take the width and the buttons wrap beneath them: they shared one row, and the words were 182px wide
+   at 1280, 0px at 1024 and on a phone, where the hand-back button ran 95px past the screen (I3). */
 .ix-take {
-  display: flex;
-  align-items: center;
-  gap: 11px;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  column-gap: 11px;
+  row-gap: 10px;
   padding: 12px 14px;
   border: 1px solid var(--danger);
   border-radius: var(--radius-lg);
   background: var(--bg-raised);
 }
-.ix-take > .icon { color: var(--danger); flex-shrink: 0; }
+.ix-take > .icon { color: var(--danger); flex-shrink: 0; margin-top: 2px; }
 .ix-take-body { flex: 1; min-width: 0; }
+.ix-take-actions { grid-column: 2; display: flex; flex-wrap: wrap; gap: 8px; }
+.ix-take-actions .btn { height: auto; padding-block: 4px; white-space: normal; text-align: left; }
+/* A thread you have: its words first, the hand-back beside them, or beneath them when the pane is narrow. */
+.ix-resolved.ix-owned { flex-wrap: wrap; align-items: flex-start; }
+.ix-resolved.ix-owned > .icon { margin-top: 2px; }
+.ix-resolved.ix-owned > .ix-take-body { flex: 1 1 260px; }
 .ix-take-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
 .ix-take-sub { font-size: 11px; color: var(--ink-dim); margin-top: 2px; }
 /* The customer's own words, beside the decision: their last message, or what the call left behind. */
@@ -1546,6 +1594,19 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 /* The composer's honest state when a workspace has no approved template.
    Outside the 24-hour window WhatsApp delivers nothing else, so the operator
    needs to see that the gap is at Meta rather than on this screen. */
+/* An explanation one tap away: the counts of what cannot be sent, and why, took a sentence of their own. */
+.ix-why {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ix-why:hover { color: var(--ink); }
+.ix-why-said { display: block; margin-top: 4px; color: var(--ink-dim); }
 .ix-tpl-none {
   font-size: 12px;
   color: var(--ink-dim);
@@ -1555,9 +1616,94 @@ button.ix-policy.pill-warn{border:1px solid transparent}
   max-width: 210px;
   font-size: 12px;
 }
+/* Why an approved template is not offered to this person (I4). */
+.ix-tpl-hidden { flex-basis: 100%; font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
 
 /* a deep link to a thread that is not in view: the first thread shows, with this */
 .ix-notice { padding: 8px 24px; font-size: 12px; color: var(--warn); border-bottom: 1px solid var(--line); }
 /* Archive's question, under the thread's header, on the header's own gutter. */
 .ix-thread-pane > .confirm-block { flex-shrink: 0; margin: 10px 24px 4px; }
 .ix-list > .confirm-block { flex-shrink: 0; margin: 8px 12px 0; max-width: none; }
+
+/* The pane's own width, not the window's (I3). At 1024 the header's name column was 35px, the strip hid 399px of
+   its facts behind a scroll with no scrollbar, and the template picker was 31px wide on a phone. */
+@container ixpane (max-width: 640px) {
+  .ix-th-channels-meta { display: none; }
+  .ix-th-id { min-width: 0; }
+}
+@container ixpane (max-width: 900px) {
+  .ix-context-strip { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 16px; overflow: visible; }
+  .ix-ctx { border-right: none; margin-right: 0; padding-right: 0; min-width: 0; }
+  .ix-ctx-value { overflow-wrap: anywhere; }
+}
+.ix-composer-foot { flex-wrap: wrap; row-gap: 8px; column-gap: 12px; }
+.ix-composer-actions { flex-wrap: wrap; justify-content: flex-end; }
+@container ixpane (max-width: 520px) {
+  .ix-composer-actions { width: 100%; justify-content: flex-start; }
+  .ix-tpl-pick { flex: 1 1 100%; max-width: none; }
+}
+/* A text field shows where the keys go: the composer and the search set outline:none and moved only a border (I3). */
+.ix-composer-text:focus-visible { box-shadow: var(--focus-ring); }
+.ix-search-wrap:focus-within { box-shadow: var(--focus-ring); }
+/* Heard, not seen: the countdown's hold and send, for a screen reader (I3). */
+.ix-veto-said { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ====================================================================
+   THE THREAD'S STATUS — by the reply box, one state at a time
+   What a thread needs from you sits under the conversation, over the reply box. Over the timeline it was a stack of
+   cards (a red-outlined banner with a boxed quote inside it, green and amber fills) that took a phone's first screen
+   and scrolled away with the words. Calm: no cards, and one signal, the dot and the wait, amber past 30 minutes.
+   ==================================================================== */
+.ix-th-status {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 50%;
+  overflow-y: auto;
+  padding: 12px 24px 0;
+  border-top: 1px solid var(--line);
+  background: var(--bg);
+}
+.ix-th-status:empty { display: none; }
+.ix-th-status + .ix-composer { border-top: none; padding-top: 12px; }
+/* Each state is its words and its buttons on the pane's own ground: no border, fill or rounded card. */
+.ix-th-status .ix-take,
+.ix-th-status .ix-resolved,
+.ix-th-status .ix-veto,
+.ix-th-status .ix-stale { margin: 0; padding: 0; border: 0; border-radius: 0; background: none; }
+.ix-th-status .ix-resolved { align-items: flex-start; font-size: var(--text-sm); line-height: 1.45; color: var(--ink-muted); }
+.ix-th-status .ix-resolved > .icon { margin-top: 2px; color: var(--ink-faint); }
+.ix-th-status .ix-resolved.warn > .icon { color: var(--warn); }
+.ix-th-status .ix-resolved.danger > .icon { color: var(--danger); }
+.ix-th-status .ix-take { column-gap: 12px; row-gap: 8px; }
+/* The one signal: a thread that needs you has a dot, and its wait turns amber past 30 minutes. */
+.ix-status-dot { width: 8px; height: 8px; margin-top: 6px; border-radius: var(--radius-full); background: var(--accent); }
+.ix-th-status .ix-take-title { font-size: var(--text-base); font-weight: 500; }
+.ix-take-wait { font-weight: 400; color: var(--ink-dim); }
+.ix-take-wait.late { color: var(--warn); }
+.ix-th-status .ix-take-sub { margin-top: 2px; font-size: var(--text-sm); line-height: 1.45; }
+/* What they asked, as words under the reason: it was a boxed quote with a side stripe inside the banner. */
+.ix-th-status .ix-take-ask { flex-direction: row; flex-wrap: wrap; align-items: baseline; column-gap: 6px; margin-top: 4px; padding: 0; border: 0; border-radius: 0; background: none; }
+.ix-th-status .ix-take-ask-label { font-size: var(--text-sm); font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
+.ix-th-status .ix-take-ask-text { font-size: var(--text-sm); -webkit-line-clamp: 2; }
+.ix-th-status .ix-take-actions .btn-ghost { color: var(--ink-dim); }
+.ix-th-status .ix-veto { gap: 8px; font-size: var(--text-sm); }
+/* A pulsing countdown is motion: still, for a reader who asked for no motion. */
+@media (prefers-reduced-motion: reduce) { .ix-veto-dot { animation: none; } }
+
+/* ====================================================================
+   THE CONVERSATION FIRST — a real thread's reply box
+   One line that grows as it fills, with Send beside it (Composer): it was a three-line field over a line repeating the
+   channel and the name, 185px of a phone.
+   ==================================================================== */
+.ix-composer-row { display: flex; align-items: flex-end; gap: 8px; }
+.ix-composer-row .ix-composer-text { flex: 1; min-width: 0; min-height: 36px; max-height: 160px; overflow-y: auto; padding: 8px 12px; }
+.ix-composer-send { flex: none; height: 36px; }
+@media (pointer: coarse) {
+  .ix-composer-row .ix-composer-text, .ix-composer-send { min-height: 44px; }
+  /* A hint for a keyboard, not a thumb. */
+  .ix-composer .kbd { display: none; }
+}
+/* Under a thread that opens at its newest message, what they wrote is in view over its status: the quote said it again. */
+@container ixpane (max-width: 640px) { .ix-th-status .ix-take-ask { display: none; } }

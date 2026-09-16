@@ -496,12 +496,14 @@ const ClientProfileSeed = ({ id = "c-aisha", onBack = () => {} }) => {
 };
 
 // ====== Real branch — one person, in full ======
-// The name as the owner gives it. A number is what most people arrive as;
-// a click on the pencil turns it into a name, Enter saves, Escape leaves it.
+// The name as the owner gives it. A number is what most people arrive as, so for
+// a person with no name yet the control is the invitation ("Name them"), always
+// visible; a person who has a name shows a quiet pencil beside it. The pencil
+// used to show on hover alone, which a phone never has. Enter saves, Escape leaves.
 const PersonName = ({ p, canEdit, flash }) => {
-  const [editing, setEditing] = React.useState(false);
-  const [value, setValue] = React.useState("");
-  const [busy, setBusy] = React.useState(false);
+  const [editing, setEditing] = useStateP(false);
+  const [value, setValue] = useStateP("");
+  const [busy, setBusy] = useStateP(false);
   const open = () => { setValue(p.givenName || ""); setEditing(true); };
   const save = async () => {
     if (!window.__setPersonDetails || busy) return;
@@ -515,12 +517,21 @@ const PersonName = ({ p, canEdit, flash }) => {
     flash({ msg: next ? <>Named <b>{next}</b></> : <>Name cleared — the number shows again</> });
   };
   if (!editing) {
+    const unnamed = !p.givenName;
     return (
       <div className="cl-prof-name-row">
-        <div className="cl-prof-name">{p.name}</div>
+        <h1 className="cl-prof-name">{p.name}</h1>
         {canEdit && (
-          <button className="cl-prof-rename" title={p.givenName ? "Rename" : "Give them a name"} aria-label="Rename" onClick={open} data-testid="person-rename">
+          <button
+            type="button"
+            className={`cl-prof-rename ${unnamed ? "is-plain" : ""}`}
+            title={unnamed ? "Give them a name" : "Rename"}
+            aria-label={unnamed ? "Give them a name" : "Rename"}
+            onClick={open}
+            data-testid="person-rename"
+          >
             <Icon name="edit" size={11} />
+            {unnamed && <span className="cl-prof-rename-word">Name them</span>}
           </button>
         )}
       </div>
@@ -535,22 +546,27 @@ const PersonName = ({ p, canEdit, flash }) => {
         placeholder="Their name"
         maxLength={80}
         disabled={busy}
+        aria-label="Their name"
         data-testid="person-name-input"
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
       />
-      <button className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-name-save">{busy ? "Saving…" : "Save"}</button>
-      <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+      <span className="cl-prof-name-acts">
+        <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+        <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-name-save">{busy ? "Saving…" : "Save"}</button>
+      </span>
     </div>
   );
 };
 
 // The owner's notes: facts the receptionist uses when this person writes or
-// calls — who they see, what they like, what not to bring up. Never sent.
+// calls — who they see, what they like, what not to bring up. Never sent, never
+// read aloud. The section's label says who reads them; the foot says only the count
+// and the one rule that is not obvious.
 const PersonNotes = ({ p, canEdit, flash }) => {
-  const [value, setValue] = React.useState(p.notes || "");
-  const [busy, setBusy] = React.useState(false);
-  React.useEffect(() => { setValue(p.notes || ""); }, [p.id, p.notes]);
+  const [value, setValue] = useStateP(p.notes || "");
+  const [busy, setBusy] = useStateP(false);
+  useEffectP(() => { setValue(p.notes || ""); }, [p.id, p.notes]);
   const dirty = value.trim() !== (p.notes || "");
   const save = async () => {
     if (!window.__setPersonDetails || busy || !dirty) return;
@@ -563,7 +579,7 @@ const PersonNotes = ({ p, canEdit, flash }) => {
   if (!canEdit) {
     return p.notes
       ? <div className="cl-prof-notes-read" data-testid="person-notes">{p.notes}</div>
-      : <div className="cl-prof-aut-hint" data-testid="person-notes">No notes yet. Only an owner or operator can write them.</div>;
+      : <div className="cl-prof-aut-hint" data-testid="person-notes">No notes yet.</div>;
   }
   return (
     <div className="cl-prof-notes" data-testid="person-notes">
@@ -573,16 +589,17 @@ const PersonNotes = ({ p, canEdit, flash }) => {
         maxLength={600}
         disabled={busy}
         placeholder="Who they see, what they like, what not to bring up…"
+        aria-label="Notes for the receptionist"
         data-testid="person-notes-input"
         onChange={(e) => setValue(e.target.value)}
         onKeyDown={(e) => { if ((e.metaKey || e.ctrlKey) && e.key === "Enter") save(); }}
       />
       <div className="cl-prof-notes-foot">
-        <span className="cl-prof-aut-hint">{value.length}/600 · the receptionist uses these as facts and never reads them aloud</span>
+        <span className="cl-prof-aut-hint">{value.length}/600 · used as facts, never read aloud</span>
         {dirty && (
-          <span style={{ display: "flex", gap: 6 }}>
-            <button className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setValue(p.notes || "")}>Cancel</button>
-            <button className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-notes-save">{busy ? "Saving…" : "Save"}</button>
+          <span className="cl-prof-name-acts">
+            <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setValue(p.notes || "")}>Cancel</button>
+            <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={save} data-testid="person-notes-save">{busy ? "Saving…" : "Save"}</button>
           </span>
         )}
       </div>
@@ -595,11 +612,11 @@ const PersonNotes = ({ p, canEdit, flash }) => {
 // server's. Owner or operator may change them.
 const PersonLists = ({ personId, canEdit, first, flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
+  useEffectP(() => {
     window.addEventListener("surface:clients", bump);
     return () => window.removeEventListener("surface:clients", bump);
   }, []);
-  const [busy, setBusy] = React.useState(false);
+  const [busy, setBusy] = useStateP(false);
   const saved = (window.__PEOPLE && window.__PEOPLE.saved) || [];
   const on = saved.filter((s) => s.ids.includes(personId));
   const off = saved.filter((s) => !s.ids.includes(personId));
@@ -617,18 +634,27 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
     return <FailedRead kind="line" what="their lists" surface="people" testid="person-lists-failed" />;
   }
   if (saved.length === 0) {
-    return <div className="cl-prof-aut-hint">No lists yet — make one on the People rail, then add people here.</div>;
+    // "The People rail" is not on a phone; the Lists page is, from here.
+    // The lists live on People: the door lands there with the New list box open (segments:new, once the page is up).
+    return (
+      <div className="cl-prof-aut-hint">
+        No lists yet.{" "}
+        <button type="button" className="cl-bucket-link" onClick={() => { window.CHANLY.nav("clients"); setTimeout(() => window.dispatchEvent(new CustomEvent("segments:new")), 450); }} data-testid="person-lists-make">Make one on People <Icon name="arrow-right" size={10} /></button>
+      </div>
+    );
   }
   return (
-    <div>
-      <div className="cl-tag-stack" style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 6 }}>
+    <div className="cl-prof-lists">
+      <div className="cl-tag-stack cl-prof-list-chips">
         {on.map((s) => (
           <span key={s.id} className="seg-chip" data-testid="person-list-chip">
-            <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(window.CHANLY.R.segment(s.id))} title={`Open ${s.name} in Lists`} data-testid="person-list-open">{s.name}</button>
+            <button type="button" className="seg-chip-open" onClick={() => window.CHANLY.nav(`clients/list:${s.id}`)} title={`Open ${s.name} on People`} data-testid="person-list-open">{s.name}</button>
             {canEdit && (
               <button
+                type="button"
                 className="cl-seg-filter-x"
                 title={`Take ${who} off ${s.name}`}
+                aria-label={`Take ${who} off ${s.name}`}
                 disabled={busy}
                 onClick={() => change(() => window.__lists.drop(s.id, [personId]), <><b>{who}</b> is off <b>{s.name}</b></>)}
               >
@@ -639,11 +665,13 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
         ))}
         {on.length === 0 && <span className="cl-prof-aut-hint">On no list yet.</span>}
       </div>
+      {/* Left-aligned: the button sits at the rail's left edge, and a menu anchored to its right edge opened 96px off a phone's screen and under the rail's clip on a desktop. */}
       {canEdit && off.length > 0 && (
         <MoreMenu
           btnClass="btn btn-sm"
           label="Add to…"
           title="Add to a list"
+          align="left"
           items={[
             { header: "Add to" },
             ...off.map((s) => ({
@@ -654,7 +682,6 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
           ]}
         />
       )}
-      {!canEdit && <div className="cl-prof-aut-hint">Only an owner or operator can change lists.</div>}
     </div>
   );
 };
@@ -665,72 +692,88 @@ const PersonLists = ({ personId, canEdit, first, flash }) => {
 // six money cells became six measured facts, the agent queue became what the
 // receptionist is doing right now, and the timeline is the record itself.
 
-
-// A message opens its thread from its time, quietly: an "Open" on every line of a conversation would drown it.
-const TL_QUIET = { customer: true, receptionist: true, you: true, system: true };
+// Newer than this many rows waits behind one press. The Inbox is the whole thread; a profile that drew a
+// year of messages ran to five screens on a phone, with everything the owner can write underneath.
+const TL_CAP = 20;
 
 // The timeline narrows by kind (contracts TIMELINE_FILTERS, through the bridge's window.__timeline): All, then
 // only the kinds this person's record holds. The choice is the page's, so this stays a plain function of its
-// props. Every item with a thread or a day opens it; only calls did.
-const PersonTimeline = ({ items, initials, filter = "all", onFilter = null }) => {
+// props. A row that has somewhere to go IS the door -- the whole row, as a link, with the time as plain text.
+// Every message row used to hide its door in the time itself (a button that looked like a timestamp, underlined
+// on hover only), and on a touch screen the 44px floor on every button made each of those timestamps a 44px
+// line, so every row wore 27px of air.
+const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, showAll = false, onShowAll = null }) => {
   let lastDay = null;
   const kit = window.__timeline;
   const shown = kit ? kit.filter(items, filter) : items;
   const offered = kit && onFilter ? kit.filters.filter((f) => f.id === "all" || items.some((i) => (f.kinds || []).includes(i.kind))) : [];
+  // A fold of three rows is not worth a press.
+  const visible = showAll || shown.length <= TL_CAP + 3 ? shown : shown.slice(0, TL_CAP);
+  const older = shown.length - visible.length;
+  // The app's routes are hashes (`/#/inbox/th-…`). NOT window.__href: that is the bridge's API URL builder
+  // ("GET contacts/export" → a route table → `.path`), and handed a route it threw, and the whole pane with it.
+  const href = (to) => `#/${to}`;
+  const go = (to) => (e) => { if (e && e.preventDefault) e.preventDefault(); window.CHANLY.nav(to); };
   return (
-    <div className="cl-prof-timeline">
+    <>
       {offered.length > 2 && (
-        <div className="cl-tl-filters" role="group" aria-label="Show on the timeline">
+        <div className="cl-tabs cl-tl-filters" role="group" aria-label="Show on the timeline">
           {offered.map((f) => (
             <button key={f.id} type="button" className={`cl-tab ${filter === f.id ? "active" : ""}`} aria-pressed={filter === f.id} onClick={() => onFilter(f.id)} data-testid={`timeline-filter-${f.id}`}>{f.label}</button>
           ))}
         </div>
       )}
-      {shown.map((e) => {
-        const dayHead = e.day !== lastDay ? <div className="cl-rail-label" style={{ margin: "10px 0 4px" }}>{e.day}</div> : null;
-        lastDay = e.day;
-        const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" || e.kind === "visit" ? "session" : "event";
-        const mark =
-          e.kind === "customer" ? initials
-          : e.kind === "receptionist" ? "W"
-          : e.kind === "you" ? "You"
-          : e.kind === "call" ? <Icon name="phone" size={12} />
-          : e.kind === "visit" ? <Icon name="calendar" size={12} />
-          : e.kind === "escalation" ? <Icon name="alert" size={11} />
-          : e.kind === "consent" ? <Icon name="shield" size={11} />
-          : <Icon name="dot" size={10} />;
-        return (
-          <React.Fragment key={e.id}>
-            {dayHead}
-            <div className="cl-tl-row">
-              <div className={`cl-tl-mark ${markClass}`}>{mark}</div>
-              <div className="cl-tl-body">
-                <div className="cl-tl-head">
-                  <span className="cl-tl-who">{e.who}</span>
-                  {e.kind === "receptionist" && <span style={{ color: "var(--ink-faint)" }}>· receptionist</span>}
-                  {e.sub && <span style={{ color: "var(--ink-faint)" }}>· {e.sub}</span>}
-                  {e.link && TL_QUIET[e.kind]
-                    ? <button type="button" className="cl-tl-time-link" style={{ marginLeft: "auto" }} onClick={() => window.CHANLY.nav(e.link.to)} title={e.link.label} data-testid="timeline-open">{e.time}</button>
-                    : <span style={{ marginLeft: "auto", color: "var(--ink-faint)" }}>{e.time}</span>}
+      {items.length === 0 ? (
+        <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />
+      ) : (
+        <div className="cl-prof-timeline">
+          {visible.map((e) => {
+            // The day sits above the rail line, on the page's own ground: the line ran through "TODAY".
+            const dayHead = e.day !== lastDay ? <div className="cl-tl-day">{e.day}</div> : null;
+            lastDay = e.day;
+            const markClass = e.kind === "customer" ? "client" : e.kind === "receptionist" || e.kind === "you" ? "agent" : e.kind === "call" || e.kind === "visit" ? "session" : "event";
+            const mark =
+              e.kind === "customer" ? initials
+              : e.kind === "receptionist" ? <Icon name="sparkle" size={12} />
+              : e.kind === "you" ? "You"
+              : e.kind === "call" ? <Icon name="phone" size={12} />
+              : e.kind === "visit" ? <Icon name="calendar" size={12} />
+              : e.kind === "escalation" ? <Icon name="alert" size={11} />
+              : e.kind === "consent" ? <Icon name="shield" size={11} />
+              : <Icon name="dot" size={10} />;
+            const body = (
+              <>
+                <div className={`cl-tl-mark ${markClass}`}>{mark}</div>
+                <div className="cl-tl-body">
+                  <div className="cl-tl-head">
+                    <span className="cl-tl-who">{e.who}</span>
+                    <span className="cl-tl-time">{e.time}</span>
+                  </div>
+                  <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>{e.text}</div>
+                  {e.sub && <div className="cl-tl-sub">{e.sub}</div>}
                 </div>
-                <div className={`cl-tl-text ${e.kind === "customer" ? "" : "muted"}`}>
-                  {e.text}
-                  {e.link && !TL_QUIET[e.kind] && (
-                    <>
-                      {" "}
-                      <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(e.link.to)} data-testid="timeline-open">
-                        {e.link.label} <Icon name="arrow-right" size={10} />
-                      </button>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-          </React.Fragment>
-        );
-      })}
-      {items.length === 0 && <EmptyState kind="line" className="empty-center" title="Nothing recorded yet." />}
-    </div>
+                {e.link && <span className="cl-tl-go" aria-hidden="true"><Icon name="arrow-right" size={11} /></span>}
+              </>
+            );
+            return (
+              <React.Fragment key={e.id}>
+                {dayHead}
+                {e.link ? (
+                  <a className="cl-tl-row cl-tl-row-door" href={href(e.link.to)} onClick={go(e.link.to)} title={e.link.label} data-testid="timeline-open">{body}</a>
+                ) : (
+                  <div className="cl-tl-row">{body}</div>
+                )}
+              </React.Fragment>
+            );
+          })}
+          {older > 0 && (
+            <button type="button" className="cl-bucket-link cl-tl-older" onClick={onShowAll} data-testid="timeline-older">
+              Show {older} older <Icon name="chevron-down" size={10} />
+            </button>
+          )}
+        </div>
+      )}
+    </>
   );
 };
 
@@ -745,12 +788,16 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null }) =>
  * `consentPageVM().asks`; this is the desk-side equivalent for an answer given in
  * person, on the phone, or on a signed form.
  *
- * Its own `pick` state, so arming one ask never arms the other.
+ * Its own `pick` state, so arming one ask never arms the other. An armed button
+ * is drawn as armed (dashed), never as the answer on record: nothing is written
+ * until the how is chosen, and `aria-pressed` follows the record alone.
  */
 // `yesSources` narrows the ways a YES may have been given, for the ask that has to
 // be written (offers); a no keeps every source, because a no is honoured however
-// it is said.
-const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, onRecord, testid }) => {
+// it is said. `why` is the explanation a reader may want and never needs in the
+// way: one line behind a tap. `lockedNote` is appended when the ask is locked; the
+// page passes null and says the role once for the whole rail.
+const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, why = null, onRecord, testid, lockedNote = "Only an owner or operator can change this." }) => {
   const [st, setSt] = useStateP({ busy: false, error: null, pick: null });
   const pick = (state) => {
     if (state === "unknown") {
@@ -771,11 +818,12 @@ const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint
   return (
     <div className="cl-prof-rail-section" data-testid={testid}>
       <div className="cl-prof-rail-label">{label}</div>
-      <div className="cl-prof-autonomy">
+      <div className="cl-prof-autonomy" role="group" aria-label={label}>
         {[["opted_in", "Yes"], ["unknown", "Not asked"], ["opted_out", "No"]].map(([sv, text]) => (
           <button
             key={sv}
-            className={`cl-prof-aut-seg ${(st.pick ? st.pick === sv : value === sv) ? "active" : ""}`}
+            type="button"
+            className={`cl-prof-aut-seg ${value === sv ? "active" : ""} ${st.pick === sv ? "armed" : ""}`}
             aria-pressed={value === sv}
             disabled={!canRecord || st.busy}
             onClick={() => pick(sv)}
@@ -785,32 +833,41 @@ const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint
         ))}
       </div>
       {st.pick && (
-        <div data-testid={`${testid}-how`}>
+        <div className="cl-prof-how" data-testid={`${testid}-how`}>
           <div className="cl-prof-aut-hint">{st.pick === "opted_in" && yesHow ? yesHow : "How did they tell you?"}</div>
-          <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
+          <div className="cl-prof-how-chips">
             {(st.pick === "opted_in" && yesSources ? yesSources : sources).map((so) => (
-              <button key={so.id} className="cl-prof-aut-seg" disabled={st.busy} onClick={() => record(st.pick, so.id)}>{so.label}</button>
+              <button key={so.id} type="button" className="cl-prof-how-chip" disabled={st.busy} onClick={() => record(st.pick, so.id)}>{so.label}</button>
             ))}
+            <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={() => setSt({ busy: false, error: null, pick: null })}>Cancel</button>
           </div>
-          <button className="cl-bucket-link" disabled={st.busy} onClick={() => setSt({ busy: false, error: null, pick: null })}>Cancel</button>
         </div>
       )}
       <div className="cl-prof-aut-hint">
         {hint}
-        {!canRecord && " Only an owner or operator can change this."}
+        {!canRecord && lockedNote ? ` ${lockedNote}` : ""}
       </div>
+      {why && (
+        <details className="cl-prof-why">
+          <summary>{why.label} <Icon name="chevron-down" size={10} /></summary>
+          <div className="cl-prof-aut-hint">{why.text}</div>
+        </details>
+      )}
       <window.FieldError message={st.error} testid={testid ? `${testid}-error` : null} />
     </div>
   );
 };
 
+// The frame around a page that has no person to draw yet (loading, missing, a
+// failed read): the same hero, with no rail column -- the two-column grid drew an
+// empty 320px column and a stray hairline beside "Loading…".
 const PersonProfileFrame = ({ onBack, children }) => (
-  <div className="cl-profile">
+  <div className="cl-profile cl-profile--solo">
     <div className="cl-prof-main">
       <div className="cl-prof-hero">
-        <button className="cl-prof-back" onClick={onBack}>
+        <button type="button" className="cl-prof-back" onClick={onBack} aria-label="Back to People">
           <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
-          People
+          <span className="cl-prof-back-word">People</span>
         </button>
         {children}
       </div>
@@ -826,8 +883,9 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // draws it; the typed text and the match stay here, with the record.
   const [del, setDel] = useStateP({ open: false, typed: "", busy: false, error: null });
   const [rm, setRm] = useStateP({ busy: false, error: null });
-  // What the timeline shows; the timeline itself stays a plain function of its props.
+  // What the timeline shows, and whether the fold is open; the timeline itself stays a plain function of its props.
   const [tlFilter, setTlFilter] = useStateP("all");
+  const [tlAll, setTlAll] = useStateP(false);
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
     setSt((s) => ({ ...s, loading: !s.vm, error: null }));
@@ -845,12 +903,14 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const { vm, loading, missing, error } = st;
   if (missing) return (
     <PersonProfileFrame onBack={onBack}>
-      <EmptyState kind="page" glyph="user" title="This person is not in your workspace" body="They may have been deleted." action={{ label: "Back to People", onClick: onBack }} />
+      <EmptyState kind="page" glyph="user" title="This person is not in your workspace" body="They may have been deleted." />
     </PersonProfileFrame>
   );
   if (!vm) return (
     <PersonProfileFrame onBack={onBack}>
-      {loading ? <div className="cl-decision-empty" aria-busy="true">Loading…</div> : <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />}
+      {loading
+        ? <div className="cl-prof-loading" aria-busy="true"><span className="cl-prof-avatar cl-prof-avatar-ghost" /><span className="cl-prof-loading-words">Loading…</span></div>
+        : <FailedRead kind="card" what="this person" why={error} onRetry={load} testid="person-failed" />}
     </PersonProfileFrame>
   );
 
@@ -929,114 +989,104 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
     ppFlash({ msg: <><b>{p.name}</b> deleted — their messages, media and recordings are gone</> });
     onBack();
   };
-  // Nobody is called "+1": a person known only by number is "them" in copy
-  // and their full number where a speaker is named.
+  // Nobody is called "+1": a person known only by number is "them" in copy,
+  // and the line under their name does not say the number twice.
   const phoneOnly = /^[+\d(]/.test(p.name);
   const first = phoneOnly ? "them" : p.name.split(" ")[0];
   // After `first`, not above it. The recorders above read `who` only when a button
   // is pressed, but it was DECLARED above `first` itself -- a const read before its
   // line runs -- so every real profile threw the moment its person loaded (#313).
   const who = first === "them" ? "This person" : first;
-  const speaker = phoneOnly ? p.name : first;
-  const hot = tone === "escalated" || tone === "queued";
+  // The one line under the name: their channels, their number (unless the number is their name) and since when.
+  const channelWords = p.channels.map((c) => (c === "whatsapp" ? "WhatsApp" : "Phone")).join(" · ");
+  const sinceWords = p.since ? p.since.charAt(0).toLowerCase() + p.since.slice(1) : "";
+  // Each part keeps its words together, so a narrow screen breaks the line between parts, never inside "Sep 3".
+  const idLine = [channelWords, phoneOnly ? null : p.phone, sinceWords].filter(Boolean);
+  // The action lives in Right now, beside what needs doing. Its own button is the thread in every state that
+  // has one, except a person who opted out: the header's Open thread was their only way in, so it falls back to it.
+  const threadCta = p.rightNow.cta || (p.openThread ? { label: "Open the thread", to: p.openThread } : null);
+  // About holds what the line under the name does not. The six-cell strip that sat above Right now said first
+  // contact, the channels, the counts and the next visit again, beside a rail that said them too; its counts and
+  // its day door move here. History leads, whatever else the row holds.
+  const said = new Set(["Phone", "Channels", "First contact"]);
+  const count = (n, one) => `${n} ${n === 1 ? one : `${one}s`}`;
+  // Ten seconds on the phone is not "1 min".
+  const callTime = p.callSeconds >= 60 ? `${Math.round(p.callSeconds / 60)} min` : `${p.callSeconds} s`;
+  const history = {
+    k: "History",
+    v: `${count(p.threads, "conversation")}${p.escalations ? `, ${p.escalations} needed you` : ""} · ${count(p.calls, "call")}${p.calls ? `, ${callTime}` : ""}`,
+  };
+  const aboutRows = [history, ...p.about.filter((a) => !said.has(a.k))];
+  // The role, said once for the rail: every locked control used to say it again under itself.
+  const roleNote = !canRecord ? "You can read this page; an owner or operator changes it." : null;
   return (
     <div className="cl-profile">
       <div className="cl-prof-main">
         <div className="cl-prof-hero">
-          <button className="cl-prof-back" onClick={onBack}>
+          {/* On a phone the word goes and the arrow takes a thumb's width: the top bar says People over it. */}
+          <button type="button" className="cl-prof-back" onClick={onBack} aria-label="Back to People">
             <Icon name="chevron" size={11} style={{ transform: "rotate(180deg)" }} />
-            People
+            <span className="cl-prof-back-word">People</span>
           </button>
+          {/* Who they are, said once. The row beside the name held two buttons and two pills as well, and between
+              901 and 1250px wide the buttons kept their width and the name's column went to zero: the name broke in
+              two and "Since Sep 3" stacked a word to a line. Right now has the button to the same thread, and the
+              pills are Right now's state and the consent control on the rail. The Last exchange card quoted the
+              two newest messages, and the timeline below opens on the same two. */}
           <div className="cl-prof-id">
-            <div className="cl-prof-avatar">{p.initials}</div>
+            <div className="cl-prof-avatar" aria-hidden="true">{p.initials}</div>
             <div className="cl-prof-titles">
               <PersonName p={p} canEdit={canRecord} flash={ppFlash} />
-              <div className="cl-prof-meta">
-                {p.since && <><span>{p.since}</span><span style={{ color: "var(--ink-faint)" }}>·</span></>}
-                <span>{p.metaLine}</span>
-                <span style={{ color: "var(--ink-faint)" }}>·</span>
-                <span style={{ display: "inline-flex", gap: 3 }}>
-                  {p.channels.map((ch, i) => <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : "chat"} primary={i === 0} size={11} />)}
-                </span>
-                <span className="cl-tag-stack" style={{ marginLeft: 4 }}>
-                  <StatePill kind="consent" value={p.consent.state} />
-                  <StatePill kind="person" value={p.state} label={p.stateLabel} />
-                </span>
-              </div>
-            </div>
-            <div className="cl-prof-actions">
-              {p.openThread && (
-                <button className="btn btn-sm btn-primary" onClick={() => window.CHANLY.nav(p.openThread)}>
-                  <Icon name="chat" size={12} /> Open thread
-                </button>
+              {idLine.length > 0 && (
+                <div className="cl-prof-meta cl-prof-idline" data-testid="person-id-line">
+                  <div className="cl-prof-idline-run">{idLine.map((part) => <span key={part} className="cl-prof-meta-part">{part}</span>)}</div>
+                </div>
               )}
-              {p.openThread && p.bookingLink && canRecord && (
-                <button
-                  className="btn btn-sm"
-                  data-testid="text-booking-link"
-                  title={p.replyWindow && p.replyWindow.open ? `Opens the thread with the link ready to send · ${p.replyWindow.hoursLeft}h left in their reply window` : "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it"}
-                  onClick={() => {
-                    // Inside the 24-hour window a plain reply is allowed: the
-                    // composer opens with the link ready. Outside it the thread
-                    // offers the approved template; nothing is sent from here.
-                    if (p.replyWindow && p.replyWindow.open) {
-                      try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: `Here's the link to book your appointment: ${p.bookingLink}` })); } catch { /* nothing to carry */ }
-                    }
-                    window.CHANLY.nav(p.openThread);
-                  }}
-                >
-                  <Icon name="calendar" size={12} /> {p.replyWindow && p.replyWindow.open ? "Text the booking link" : "Send the booking-link template"}
-                </button>
-              )}
-              {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="phone" size={12} /> Call</button>}
-              {window.__DEMO_MODE && <button className="btn btn-sm"><Icon name="calendar" size={12} /> Book</button>}
             </div>
           </div>
-          <div className="cl-prof-narr">
-            <span className="cl-prof-narr-eyebrow">Last exchange</span>
-            <div>
-              {p.lastExchange.customer ? (
-                <div className="cl-prof-narr-text"><b>{speaker}</b> “{p.lastExchange.customer.text}” <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.customer.at}</span></div>
-              ) : (
-                <div className="cl-prof-narr-text">{p.calls ? "They have only phoned — the transcript is in Conversations." : "Nothing written yet."}</div>
-              )}
-              {p.lastExchange.reply && (
-                <div className="cl-prof-narr-text"><b>{p.lastExchange.reply.who}</b> “{p.lastExchange.reply.text}” <span className="dim" style={{ fontSize: 11 }}>{p.lastExchange.reply.at}</span></div>
-              )}
-              <div className="cl-prof-narr-byline">Verbatim from the thread</div>
-            </div>
-          </div>
-          <StatStrip className="cl-prof-money">
-            {p.facts.map((f) => (
-              <StatCell key={f.label} label={f.label} value={f.value} valueSize={typeof f.value === "string" ? 14 : undefined} meta={f.meta} metaTone={f.tone || ""}>
-                {/* The next visit opens its day on the Calendar; the tile opened nothing. */}
-                {f.label === "Next visit" && p.nextVisitDate && (
-                  <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
-                )}
-              </StatCell>
-            ))}
-          </StatStrip>
         </div>
 
         <div className="cl-prof-section">
           <div className="cl-prof-section-head">
-            <span className="cl-prof-section-title">Right now</span>
-            <span className="cl-prof-section-sub">what the receptionist is doing for {first}</span>
+            <h2 className="cl-prof-section-title">Right now</h2>
           </div>
           <div className="cl-prof-queue">
-            <div className={`cl-prof-queue-item ${hot ? "approval" : ""}`}>
-              <div className={`agent-avatar ${hot ? "active" : ""}`}>W</div>
+            {/* The pill wears the standing's own word (the one the People row wears); the sentence says the reason
+                and what happens next. The pill used to carry the whole title -- "Escalated · asked for a person" --
+                which said the state twice and spilled past the card's edge between 901 and 990px wide. */}
+            <div className="cl-prof-queue-item cl-prof-now" data-tone={tone}>
+              <div className="agent-avatar" aria-hidden="true"><Icon name="sparkle" size={12} /></div>
               <div className="cl-prof-queue-body">
                 <div className="cl-prof-queue-line1">
                   <span className="cl-prof-queue-agent">Receptionist</span>
-                  <StatePill kind="standing" value={tone} label={p.rightNow.title} />
+                  <StatePill kind="standing" value={tone} testid="person-standing" />
                 </div>
                 <div className="cl-prof-queue-action">{p.rightNow.detail}</div>
               </div>
               <div className="cl-prof-queue-actions">
-                {p.rightNow.cta && (
-                  <button className={`btn btn-sm ${tone === "escalated" ? "btn-primary" : ""}`} onClick={() => window.CHANLY.nav(p.rightNow.cta.to)}>
-                    {p.rightNow.cta.label}
+                {threadCta && (
+                  <button type="button" className={`btn btn-sm ${tone === "escalated" ? "btn-primary" : ""}`} onClick={() => window.CHANLY.nav(threadCta.to)} data-testid="person-open-thread">
+                    {threadCta.label}
+                  </button>
+                )}
+                {/* Never for someone who said stop or is on do-not-contact: the button sat under "Silent, they opted out". */}
+                {p.openThread && p.bookingLink && canRecord && p.consent.state !== "opted_out" && !p.consent.dnc && (
+                  <button
+                    type="button"
+                    className="btn btn-sm"
+                    data-testid="text-booking-link"
+                    title={p.replyWindow && p.replyWindow.open ? `Opens the thread with the link ready to send · ${p.replyWindow.hoursLeft}h left in their reply window` : "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it"}
+                    onClick={() => {
+                      // Inside the 24-hour window a plain reply is allowed: the
+                      // composer opens with the link ready. Outside it the thread
+                      // offers the approved template; nothing is sent from here.
+                      if (p.replyWindow && p.replyWindow.open) {
+                        try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: `Here's the link to book your appointment: ${p.bookingLink}` })); } catch { /* nothing to carry */ }
+                      }
+                      window.CHANLY.nav(p.openThread);
+                    }}
+                  >
+                    <Icon name="calendar" size={12} /> {p.replyWindow && p.replyWindow.open ? "Text the booking link" : "Send the booking-link template"}
                   </button>
                 )}
               </div>
@@ -1046,32 +1096,42 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
 
         <div className="cl-prof-section">
           <div className="cl-prof-section-head">
-            <span className="cl-prof-section-title">Timeline</span>
-            <span className="cl-prof-section-sub">Messages, calls, visits and your decisions · in true order</span>
+            <h2 className="cl-prof-section-title">Timeline</h2>
           </div>
-          <PersonTimeline items={p.timeline} initials={p.initials} filter={tlFilter} onFilter={setTlFilter} />
+          <PersonTimeline items={p.timeline} initials={p.initials} filter={tlFilter} onFilter={setTlFilter} showAll={tlAll} onShowAll={() => setTlAll(true)} />
         </div>
       </div>
 
       <div className="cl-prof-rail">
+        {roleNote && <div className="cl-prof-rail-note" data-testid="person-role-note">{roleNote}</div>}
         <div className="cl-prof-rail-section">
           <div className="cl-prof-rail-label">About</div>
           <div className="cl-prof-attr-list">
-            {p.about.map((a) => (
-              <div className="cl-prof-attr" key={a.k}><span className="cl-prof-attr-key">{a.k}</span><span className="cl-prof-attr-val">{a.v}</span></div>
+            {aboutRows.map((a) => (
+              <div className="cl-prof-attr" key={a.k}>
+                <span className="cl-prof-attr-key">{a.k}</span>
+                <span className="cl-prof-attr-val">
+                  {a.v}
+                  {/* The next visit opens its day on the Calendar; the row opened nothing. */}
+                  {a.k === "Next visit" && p.nextVisitDate && (
+                    <button type="button" className="cl-bucket-link cl-prof-attr-door" onClick={() => window.CHANLY.nav(`calendar/${p.nextVisitDate}`)} data-testid="fact-next-visit">Open the day <Icon name="arrow-right" size={10} /></button>
+                  )}
+                </span>
+              </div>
             ))}
           </div>
         </div>
         <div className="cl-prof-rail-section">
-          <div className="cl-prof-rail-label">Notes · the receptionist reads these</div>
+          <div className="cl-prof-rail-label">Notes for the receptionist</div>
           <PersonNotes p={p} canEdit={canRecord} flash={ppFlash} />
         </div>
         <div className="cl-prof-rail-section" data-testid="receptionist-mode">
           <div className="cl-prof-rail-label">Receptionist for {first === "them" ? "this person" : first}</div>
-          <div className="cl-prof-autonomy">
+          <div className="cl-prof-autonomy" role="group" aria-label={`Receptionist for ${first === "them" ? "this person" : first}`}>
             {["auto", "ask", "never"].map((m) => (
               <button
                 key={m}
+                type="button"
                 className={`cl-prof-aut-seg ${rmEffective === m ? "active" : ""}`}
                 aria-pressed={rmEffective === m}
                 disabled={!isOwner || rm.busy}
@@ -1087,10 +1147,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 : rmPerson === "ask" ? "Every message from this person waits for you before anything is sent."
                 : "The receptionist stays out of their WhatsApp thread — their messages come straight to you, and it won't text them after a call. It still answers the phone.")
               : `Following the workspace${p.receptionistMode.workspace ? ` (${rmWord(p.receptionistMode.workspace)})` : ""}.`}
-            {!isOwner && " Only an owner can change this."}
+            {!isOwner && canRecord && " Only an owner can change this."}
           </div>
           {rmPerson && isOwner && (
-            <button className="cl-bucket-link" disabled={rm.busy} onClick={() => setMode("inherit")}>
+            <button type="button" className="cl-bucket-link" disabled={rm.busy} onClick={() => setMode("inherit")}>
               {rmWord("inherit")} <Icon name="arrow-right" size={10} />
             </button>
           )}
@@ -1109,6 +1169,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           sources={CS_SOURCES}
           yesHow={askScript ? `How did they tell you? In person or on the phone, ask in these words: “${askScript}”` : undefined}
           canRecord={canRecord}
+          lockedNote={null}
           onRecord={recordFor("conversational")}
           hint={
             p.consent.state === "opted_in"
@@ -1128,6 +1189,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           yesSources={OFFERS_YES}
           yesHow="How did they give it in writing? A spoken yes is not enough for offers."
           canRecord={canRecord && p.consent.state !== "opted_out"}
+          lockedNote={null}
           onRecord={recordFor("marketing")}
           hint={
             p.consent.state === "opted_out"
@@ -1136,8 +1198,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                 ? `Yes — ${p.consent.marketingSub}. This is the answer a broadcast needs.`
                 : p.consent.marketing === "opted_out"
                   ? `No — ${p.consent.marketingSub}. Messages about their own visit still reach them.`
-                  : "Separate and entirely optional, and the only answer a broadcast may be sent on. It has to be in writing: their own message, or a sign-up form they signed — print one from Broadcasts."
+                  : "Not asked. Separate and optional — the one answer a broadcast may be sent on."
           }
+          why={p.consent.state !== "opted_out" && p.consent.marketing === "unknown" ? {
+            label: "Why in writing?",
+            text: <>The carriers require it: their own message, or a sign-up form they signed — <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("broadcasts")}>print one from Broadcasts</button>.</>,
+          } : null}
         />
         <div className="cl-prof-rail-section" data-testid="person-lists">
           <div className="cl-prof-rail-label">Lists</div>
@@ -1147,7 +1213,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           <div className="cl-prof-rail-section">
             <div className="cl-prof-rail-label">Danger</div>
             {!del.open ? (
-              <button className="btn btn-sm danger" onClick={() => setDel({ open: true, typed: "", busy: false, error: null })} data-testid="delete-person">
+              <button type="button" className="btn btn-sm danger" onClick={() => setDel({ open: true, typed: "", busy: false, error: null })} data-testid="delete-person">
                 Delete this person…
               </button>
             ) : (

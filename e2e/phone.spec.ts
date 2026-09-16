@@ -4,10 +4,12 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 /**
  * The phone shell, on a real workspace at a phone's width.
  *
- * The tab bar is there and the hamburger is not; the Inbox shows its list
- * and not its thread until a tap, then the thread and a Back; Conversations
- * does the same. And the installable pieces are served to a browser with no
- * session, because that is how a phone's installer asks for them.
+ * The tab bar is there and the hamburger is not; Ask is the ✦ in the tab bar,
+ * and the top bar has no second Ask and no theme button; the Inbox shows its
+ * list and not its thread until a tap, then the thread and a Back;
+ * Conversations does the same. And the installable pieces are served to a
+ * browser with no session, because that is how a phone's installer asks for
+ * them.
  */
 test.describe("Installable shell, no session", () => {
   test("the manifest, the worker and the icons are public", async ({ request }) => {
@@ -34,11 +36,19 @@ test.describe("Phone shell on a real workspace", () => {
     await signIn(page);
   });
 
-  test("the ✦ above the tab bar opens Ask as a sheet, and it hides while the sheet is open", async ({ page }) => {
+  test("the ✦ in the tab bar opens Ask as a sheet and hides while the sheet is open, and the top bar says neither Ask nor the theme again", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
     const fab = page.getByTestId("phone-ask");
     await expect(fab).toBeVisible();
+    // In the tab bar's own row, clear of the tabs: it floated 126px up, over the page.
+    const bar = await page.getByTestId("phone-tabs").boundingBox();
+    const at = await fab.boundingBox();
+    expect(bar && at && at.y >= bar.y, `the ✦ at ${JSON.stringify(at)} sits in the tab bar at ${JSON.stringify(bar)}`).toBe(true);
+    const rightmost = await page.getByTestId("phone-tabs").getByRole("button").evaluateAll((els) => Math.max(...els.map((el) => el.getBoundingClientRect().right)));
+    expect(rightmost, "no tab runs under it").toBeLessThanOrEqual((at?.x ?? 0) + 1);
+    await expect(page.getByTestId("tb-ask")).toBeHidden();
+    await expect(page.locator(".tb-theme")).toBeHidden();
     await fab.click();
     const pal = page.getByTestId("ask-real");
     await expect(pal).toBeVisible();

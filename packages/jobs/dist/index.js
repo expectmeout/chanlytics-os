@@ -268,7 +268,7 @@ function feedProblemWords(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -1073,7 +1073,7 @@ function feedProblemWords2(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -1921,7 +1921,7 @@ function feedProblemWords22(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -2748,7 +2748,7 @@ function feedProblemWords3(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -3915,7 +3915,7 @@ function feedProblemWords4(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -4484,6 +4484,27 @@ var POS_TTL_MS2 = 5 * 60 * 1e3;
 var NEG_TTL_MS2 = 60 * 1e3;
 var DAY_MS23 = 24 * 3600 * 1e3;
 
+// src/escalate.ts
+async function upsertEscalation(db, tenantId, conversationId, reason, details) {
+  const { error } = await db.from("escalations").insert({
+    tenant_id: tenantId,
+    conversation_id: conversationId,
+    reason,
+    details
+  });
+  if (!error) return "opened";
+  if (error.code === "23505") {
+    const { error: refreshErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
+    if (refreshErr) {
+      console.error("escalation_refresh_failed", refreshErr.message);
+      return "failed";
+    }
+    return "refreshed";
+  }
+  console.error("escalation_upsert_failed", error.message);
+  return "failed";
+}
+
 // src/handlers.ts
 function must(what, r) {
   if (r.error) throw new Error(`${what}: ${r.error.message}`);
@@ -4543,25 +4564,6 @@ async function blobThreadErase(ctx, job) {
     },
     { tenantId: job.tenant_id, jobId: job.id, payload: job.payload }
   );
-}
-async function upsertEscalation(db, tenantId, conversationId, reason, details) {
-  const { error } = await db.from("escalations").insert({
-    tenant_id: tenantId,
-    conversation_id: conversationId,
-    reason,
-    details
-  });
-  if (!error) return "opened";
-  if (error.code === "23505") {
-    const { error: refreshErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
-    if (refreshErr) {
-      console.error("escalation_refresh_failed", refreshErr.message);
-      return "failed";
-    }
-    return "refreshed";
-  }
-  console.error("escalation_upsert_failed", error.message);
-  return "failed";
 }
 async function broadcastSend(ctx, job) {
   const p = job.payload;
@@ -4748,8 +4750,10 @@ async function settleJob(db, job, certain) {
   if (job.kind === "outbound_send") {
     const messageId = idFrom(job.payload, "message_id");
     if (!messageId) return [{ what: "message", changed: false, error: "no message_id on the job" }];
-    const { data, error } = await db.from("messages").update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id");
-    return [{ what: "message", changed: !!data?.length, ...error ? { error: error.message } : {} }];
+    const { data, error } = await db.from("messages").update({ status: "failed", error: { reason, note: certain ? NEVER_SENT : MAY_HAVE_SENT } }).eq("id", messageId).eq("tenant_id", job.tenant_id).eq("status", "queued").select("id, conversation_id, sender");
+    const row = data?.[0] ?? null;
+    const flagged = !error && row?.conversation_id ? await upsertEscalation(db, job.tenant_id, row.conversation_id, "send_failed", `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`) : null;
+    return [{ what: "message", changed: !!data?.length, ...flagged ? { flagged } : {}, ...error ? { error: error.message } : {} }];
   }
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");

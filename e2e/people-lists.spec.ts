@@ -51,18 +51,21 @@ test.describe("Saved lists on People", () => {
     expect(seen[0].body).toEqual({ name: "Regulars" });
   });
 
-  test("People › Lists is the real page: the workspace's lists, their people, and a broadcast as the onward step", async ({ page }) => {
+  test("Lists is a view of People: a list's old route lands on People with the list picked, and a smart list shows its step there", async ({ page }) => {
     await page.goto("/#/segments");
     await page.waitForLoadState("networkidle");
-    const real = page.getByTestId("lists-real");
-    await expect(real).toBeVisible();
-    await expect(page.getByTestId("lists-rail-smart")).toContainText("Needs you");
+    await expect(page.getByTestId("people-standing")).toBeVisible();
+    await expect(page).toHaveURL(/#\/clients$/);
+    await expect(page.getByTestId("lists-real")).toHaveCount(0);
     const res = await apiGet(page, "/api/v1/segments");
     const { data } = await res.json();
-    await expect(page.getByTestId("lists-rail-saved").locator(".cl-rail-row")).toHaveCount(data.lists.length);
-    // A computed list opens with its people, never a Coming Soon card.
-    await page.getByTestId("lists-rail-smart").locator(".cl-rail-row").first().click();
-    await expect(page.getByTestId("lists-members")).toBeVisible();
+    await expect(page.getByTestId("saved-lists").locator(".cl-rail-row")).toHaveCount(data.lists.length);
+    // A computed list's own route: People, that list picked, its step under the head, never a Coming Soon card.
+    await page.goto("/#/segments/needs_you");
+    await page.waitForLoadState("networkidle");
+    await expect(page).toHaveURL(/#\/clients\/seg:needs_you$/);
+    await expect(page.getByTestId("smart-filter")).toContainText("Needs you");
+    await expect(page.getByTestId("list-action")).toBeVisible();
     await expect(page.locator("text=Coming soon")).toHaveCount(0);
   });
 

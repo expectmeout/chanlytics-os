@@ -376,32 +376,15 @@ const rpTopRound = (x, y, w, h, r) => {
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 };
 
-const RpSpark = ({ points }) => {
-  if (!points || points.length < 2) return null;
-  const w = 88, h = 24, pad = 3;
-  const max = Math.max(1, ...points);
-  const step = (w - pad * 2) / (points.length - 1);
-  const xy = points.map((v, i) => [pad + i * step, pad + (h - pad * 2) * (1 - v / max)]);
-  const d = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const last = xy[xy.length - 1];
-  return (
-    <svg className="rp2-spark" viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden="true">
-      <path d={`${d} L${last[0].toFixed(1)},${h - pad} L${pad},${h - pad} Z`} className="rp2-spark-area" />
-      <path d={d} className="rp2-spark-line" />
-      <circle cx={last[0]} cy={last[1]} r="3" className="rp2-spark-end" />
-    </svg>
-  );
-};
-
+// A number, what it is, and one line of what it holds. It also drew a seven-point sparkline beside a number the chart
+// below plots properly, and a delta that claimed percentages on counts of two -- "+100% vs prior 7 days" is 2 to 4,
+// and "-100%" is a zero. The view model still carries both: Ask reads the change, and every chart draws the period
+// before as its own faint line.
 const RpTile = ({ t }) => (
   <div className="rp2-tile" data-tile={t.id}>
     <div className="rp2-tile-label" title={t.label}>{t.label}</div>
     <div className="rp2-tile-value">{t.value}</div>
     <div className="rp2-tile-meta" title={t.meta}>{t.meta}</div>
-    <div className="rp2-tile-foot">
-      <span className={`rp2-delta ${t.delta ? t.delta.tone : ""}`}>{t.delta ? t.delta.text : ""}</span>
-      <RpSpark points={t.spark} />
-    </div>
   </div>
 );
 
@@ -819,32 +802,33 @@ const ReportsReal = () => {
   };
   return (
     <div className="reports" data-testid="reports-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Reports</div>
-          <div className="cl-page-sub" title={`Days follow ${vm.timezone}`}>What the receptionist handled and what your campaigns sent · {vm.since} – {vm.until}</div>
-        </div>
+      {/* One line above the numbers: the period, and the days it covers. The top bar says Reports, and a sub-headline
+          under that title said what the page is for -- 162px of a phone before a single number. */}
+      <div className="rp2-head">
         <div className="rp2-range cl-tabs" role="group" aria-label="Period">
           {RP2_RANGES.map(([d, l]) => (
             <button key={d} className={`cl-tab ${R.days === d ? "active" : ""}`} aria-pressed={R.days === d} aria-disabled={busy} onClick={() => pick(d)}>{l}</button>
           ))}
         </div>
+        <span className="rp2-head-dates" title={`Days follow ${vm.timezone}`}>{vm.since} – {vm.until}</span>
         {failed && (
-          <div className="rp2-range-failed" role="status">
+          <span className="rp2-range-failed" role="status">
             Couldn't load {(RP2_RANGES.find(([d]) => d === failed) || [])[1]} — still showing {(RP2_RANGES.find(([d]) => d === R.days) || [])[1]}.
-          </div>
+          </span>
         )}
       </div>
 
       <div className={`rp-body rp2-body ${busy ? "rp2-loading" : ""}`} aria-busy={busy ? "true" : "false"}>
-        <RpSection label="The receptionist" meta={`last ${vm.rangeLabel}`} />
+        {/* The period is the control above, once. */}
+        <RpSection label="The receptionist" />
         <div className="rp2-tiles rp2-strip-reception">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
 
         {vm.empty ? (
           <EmptyState kind="card" glyph="wave" title="Nothing came in" body={`Nobody wrote or called between ${vm.since} and ${vm.until}, so there is nothing to chart. The numbers above are real zeros.`} action={R.days !== widest ? { label: `Look at ${widestLabel}`, onClick: () => pick(widest) } : null} />
         ) : (
           <>
-            <RpCard title="Who answered, day by day" sub={`${vm.answered.totals.in} customer messages`} testid="chart-answered" table={vm.table} className="rp2-main">
+            {/* The strip above says how many messages came in; the legend below says who answered them. */}
+            <RpCard title="Who answered, day by day" testid="chart-answered" table={vm.table} className="rp2-main">
               <div className="rp2-legend">
                 <span className="rp2-key"><i className="rp2-swatch ai" />Receptionist <b>{vm.answered.totals.ai}</b></span>
                 <span className="rp2-key"><i className="rp2-swatch you" />You <b>{vm.answered.totals.you}</b></span>
@@ -857,7 +841,7 @@ const ReportsReal = () => {
             </RpCard>
 
             <div className="rp2-row">
-              <RpCard title="Why the receptionist stopped" sub={vm.reasons.length ? `${vm.tiles[3].value} times` : ""} testid="chart-reasons"
+              <RpCard title="Why the receptionist stopped" testid="chart-reasons"
                 table={{ columns: ["Reason", "Times"], rows: vm.reasons.map((r) => [r.label, r.value]) }}>
                 <RpBars rows={vm.reasons} empty={vm.answered.totals.you === 0 && vm.answered.totals.none === 0
                   ? "It never stopped in this period — every message was answered without you."
@@ -901,7 +885,7 @@ const ReportsReal = () => {
           <>
             <RpSection label="Calls and people" />
             <div className="rp2-row rp2-row-three">
-              <RpCard title="Calls" sub={vm.calls.total ? `${vm.calls.total} calls · ${vm.calls.minutes} min · ${vm.calls.voicemail} to voicemail` : "no calls in this period"} testid="chart-calls"
+              <RpCard title="Calls" sub={vm.calls.total ? "" : "no calls in this period"} testid="chart-calls"
                 table={{ columns: ["Day", "Calls", "Seconds"], rows: vm.calls.points.map((p) => [p.label, p.calls, p.callSeconds]) }}>
                 {vm.calls.total ? (
                   <>
@@ -912,7 +896,7 @@ const ReportsReal = () => {
                   </>
                 ) : <EmptyState kind="line" title="Nobody phoned in this period." />}
               </RpCard>
-              <RpCard title="New people" sub={vm.people.total ? `${vm.people.total} first contacts, by evidence` : "nobody new"} testid="chart-people"
+              <RpCard title="New people" sub={vm.people.total ? "" : "nobody new"} testid="chart-people"
                 table={{ columns: ["Day", "New people"], rows: vm.people.points.map((p) => [p.label, p.newPeople]) }}>
                 {vm.people.total
                   ? <RpColumns points={vm.people.points} field="newPeople" max={vm.people.max} days={vm.days} label="new people" prior={vm.people.prior} priorLabel={`the ${vm.rangeLabel} before`} />
@@ -939,4 +923,4 @@ const ReportsPage = () => (window.__REPORTS === undefined ? <ReportsSeed /> : <R
 
 window.ReportsPage = ReportsPage;
 // Today draws the period with the same tile.
-Object.assign(window, { RpTile, RpSpark });
+Object.assign(window, { RpTile });

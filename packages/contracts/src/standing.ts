@@ -45,7 +45,7 @@ export interface StandingVerdict {
 export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
   const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByOther = !!i.assignee_user_id && i.assignee_is_me === false;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
   // A pause with no escalation open is the one a person's own reply leaves
   // behind: the receptionist stepped back because someone answered. A pause
   // WITH an escalation open is the receptionist waiting for that someone.
@@ -53,8 +53,10 @@ export function standingOf(i: StandingInput, nowMs: number): StandingVerdict {
   const standing: Standing =
     i.state === "snoozed" ? "snoozed"
     : !flagged ? "quiet"
-    : claimedByOther ? "theirs"
+    : claimedByTeammate ? "theirs"
     : mine ? "yours"
     : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther };
+  // A teammate has it while it is flagged, as "yours" is: a name left on a quiet thread is not a claim, and the
+  // Inbox said "X is answering this" over a receptionist that was answering (I1).
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
 }

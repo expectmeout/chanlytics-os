@@ -2023,3 +2023,6 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 @media (max-width: 640px) {
   .msg-grid { grid-template-columns: 1fr; }
 }
+
+/* Under a thumb the quiet "No" beside a Confirm's button is 14px wide: the 44px floor gives it height, not width. */
+@media (pointer: coarse) { .confirm-acts .cl-bucket-link { padding-left: 12px; padding-right: 12px; } }

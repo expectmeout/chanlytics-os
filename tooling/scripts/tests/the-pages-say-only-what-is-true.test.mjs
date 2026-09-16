@@ -184,8 +184,11 @@ const mountToday = (vm) => {
   cells = []; seq = 0;
   const hero = textOf(globalThis.window.HeroBrief());
   cells = []; seq = 0;
+  // The day's own lines sit under the work now, in the recap; the hero is the standing line above it.
+  const recap = textOf(globalThis.window.TodayRecap());
+  cells = []; seq = 0;
   const queue = textOf(globalThis.window.AgentCommand());
-  return { hero, queue };
+  return { hero, recap, queue };
 };
 
 test("REGRESSION: while a line is down, Today never says nothing needs you -- the hero and the queue say new messages go unanswered", () => {
@@ -195,13 +198,15 @@ test("REGRESSION: while a line is down, Today never says nothing needs you -- th
   assert.ok(!hero.includes("Queue clear"), hero);
   assert.ok(!queue.includes("All caught up"), queue);
   assert.ok(!queue.includes("nothing needs you"), `the queue's own heading does not reassure either: ${queue}`);
-  assert.ok(hero.includes("Nothing waiting in the Inbox — new messages go unanswered until the line is back"), hero);
+  assert.ok(hero.includes(down.standing.alert), `the line above the work carries the dark line: ${hero}`);
   assert.ok(queue.includes("Nothing in the queue — new messages go unanswered until the line is back."), queue);
 });
 
 test("with every line up and nothing waiting, the reassurance stands", () => {
   const { hero, queue } = mountToday(todayWith([{ kind: "whatsapp", status: "active", number: "+1 305" }]));
-  assert.ok(hero.includes("Queue clear — nothing needs you"), hero);
+  // The reassurance is the queue's own, said once: a chip above it said it again, over the work it describes.
+  assert.ok(hero.includes("1 of 1 line connected"), hero);
+  assert.ok(!hero.includes("Queue clear"), `and the standing line does not say it too: ${hero}`);
   assert.ok(queue.includes("All caught up — the receptionist is answering on its own."), queue);
 });
 
@@ -227,8 +232,9 @@ test("REGRESSION: Hold all withdraws every real draft through the door the singl
   const result = await globalThis.window.ixHoldAll(drafts, { state, cancelSend });
   assert.deepEqual(calls, ["m1", "m2"], "REGRESSION: the old Hold all never called the server, so every draft still sent");
   assert.ok(heldWhenAsked.length === 2 && heldWhenAsked.every(Boolean), "every countdown stopped before the first answer came back");
-  assert.equal(state["th-1"].held, true);
-  assert.equal(state["th-2"].held, false, "a draft the server could not hold is not shown as held");
+  // A hold is the draft's own record (I3): kept against the thread, the next draft there read "Held" and sent.
+  assert.equal(state["draft:m1"].held, true);
+  assert.equal(state["draft:m2"].held, false, "a draft the server could not hold is not shown as held");
   assert.equal(result.held, 1);
   assert.deepEqual(result.refused.map((r) => r.who), ["Ana"]);
 });
@@ -316,33 +322,7 @@ test("REGRESSION: a real thread's composer offers no Save draft -- it flashed 'D
   assert.ok(buttons(seed).some((b) => b.includes("Save draft")), "the demo keeps its mockup control");
 });
 
-/* -------- People › Lists: the Offers column is the answer about offers -------- */
-
-globalThis.Confirm = globalThis.window.Confirm;
-await import("../../../apps/dashboard/src/legacy/pages/segments-real.jsx");
-
-test("REGRESSION: on a list, the Offers column shows the answer about offers -- it showed the yes to messages under the Offers heading", () => {
-  const person = (id, name, marketing, marketingLabel) => ({
-    id, real: true, name, initials: name.split(" ").map((w) => w[0]).join(""), phone: "+1 (917) 555-0109",
-    consent: { state: "opted_in", dnc: false, label: "Opted in", sub: "", source: "in_person", marketing, marketingSource: null, marketingSub: "", marketingLabel },
-    lastContact: { label: "You replied · 7d ago" }, stateLabel: "Active",
-  });
-  Object.assign(globalThis.window, {
-    __ME: { role: "owner" },
-    __mayReceive: (p, purpose) => (purpose === "marketing" ? p.consent.marketing === "opted_in" : p.consent.state === "opted_in"),
-    __PEOPLE: {
-      rows: [person("p1", "Nina Petrova", "unknown", "Not asked"), person("p2", "Tom Baker", "opted_in", "Yes")],
-      lists: [{ id: "opted_in", label: "Said yes to messages", group: "reach", count: 2, ids: ["p1", "p2"] }],
-      saved: [], groups: [],
-    },
-  });
-  cells = []; seq = 0;
-  const tree = globalThis.window.SegmentsPage({ initialId: "opted_in" });
-  const rows = [];
-  walk(tree, (n) => { if (n.type === "tr" && n.props?.onClick) rows.push(n); });
-  const cellsOf = (tr) => (tr.props.children || []).filter((c) => c && c.type === "td").map((td) => textOf(td));
-  assert.deepEqual(rows.map((tr) => cellsOf(tr)[1]), ["Not asked", "Yes"], `the cells: ${JSON.stringify(rows.map(cellsOf))}`);
-});
+/* People › Lists folded into People (#563): the Offers-column test lives in people-honest.test.mjs, on the People table. */
 
 /* ---------------------- Calendar: Day view steps a day ---------------------- */
 
@@ -454,7 +434,7 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     cells = []; seq = 0;
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
-    walk(globalThis.window.HeroBrief(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
+    walk(globalThis.window.TodayRecap(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
     const said = (lines || []).map(textOf).join(" | ");
     assert.ok(said.includes("went out at 1:30 AM — 8 sent, 1 replied") && said.includes("Spring offer"), `REGRESSION: yesterday in New York, so not said at all: ${said}`);
   });

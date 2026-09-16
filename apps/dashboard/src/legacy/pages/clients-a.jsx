@@ -650,13 +650,7 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
 
 const PL_TABS = ["needs_you", "waiting_on_you", "new", "quiet", "active"];
 const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Waiting on you", new: "New", quiet: "Quiet", active: "Active" };
-const PL_TAB_SUB = {
-  needs_you: "The receptionist stopped and is waiting for a person",
-  waiting_on_you: "You own the thread and they wrote last",
-  new: "First contact within 7 days, by evidence",
-  quiet: "Nothing heard in 30 days",
-  active: "Answered and current",
-};
+
 const PL_LIST_TIP = {
   needs_you: "An open escalation, or a thread waiting for a person",
   waiting_on_you: "You took over and they wrote last",
@@ -702,13 +696,6 @@ const plDownload = (name, text) => {
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
 
-const plAgo = (ms) => {
-  const diff = Math.max(0, Date.now() - ms);
-  if (diff < 3600000) return `${Math.max(1, Math.round(diff / 60000))}m`;
-  if (diff < 86400000) return `${Math.round(diff / 3600000)}h`;
-  return `${Math.round(diff / 86400000)}d`;
-};
-
 // A stable empty list, so a workspace without saved lists does not re-run the
 // table's memo on every render.
 const PL_NO_LISTS = [];
@@ -742,12 +729,14 @@ const PeopleReceptionist = ({ r }) => (
 
 // A list kept by hand, named on the rail. The name is the only thing typed
 // here; people join from their profile. The POST answers before the rail
-// re-reads the surface, so the new row is the server's.
-const NewListRow = ({ onCreate }) => {
+// re-reads the surface, so the new row is the server's. `openSignal` opens the
+// box from outside: the shell's and a profile's "New list" (segments:new).
+const NewListRow = ({ onCreate, openSignal = 0 }) => {
   const [open, setOpen] = React.useState(false);
   const [name, setName] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState(null);
+  React.useEffect(() => { if (openSignal) setOpen(true); }, [openSignal]);
   const close = () => { setOpen(false); setName(""); setError(null); };
   const submit = async () => {
     const n = name.trim();
@@ -817,9 +806,95 @@ const DeleteListButton = ({ list, onDeleted }) => {
   );
 };
 
+// A list kept by hand is named where it is shown: the title turns into the box, Enter saves, Escape leaves.
+// Lists had a Rename button of its own; here the list IS the page's title while it is open.
+const ListTitle = ({ list, canEdit, onRenamed }) => {
+  const [editing, setEditing] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState(null);
+  const save = async () => {
+    const n = name.trim();
+    if (!n || busy || !window.__lists) return;
+    if (n === list.name) { setEditing(false); return; }
+    setBusy(true); setError(null);
+    const r = await window.__lists.rename(list.id, n);
+    setBusy(false);
+    if (!r.ok) { setError(r.message || "Could not rename the list."); return; }
+    setEditing(false);
+    onRenamed(n);
+  };
+  if (!editing) {
+    return (
+      <span className="cl-section-title" data-testid="saved-filter">
+        <Icon name="filter" size={12} />
+        {list.name}
+        {canEdit && (
+          <button type="button" className="cl-list-rename" title="Rename the list" aria-label="Rename the list" onClick={() => { setName(list.name); setError(null); setEditing(true); }} data-testid="list-rename">
+            <Icon name="edit" size={11} />
+          </button>
+        )}
+      </span>
+    );
+  }
+  return (
+    <span className="cl-bulk-naming cl-list-renaming" data-testid="saved-filter">
+      <input
+        autoFocus
+        value={name}
+        maxLength={60}
+        disabled={busy}
+        aria-label="The list's name"
+        aria-invalid={error ? true : undefined}
+        aria-describedby={error ? "list-rename-error" : undefined}
+        data-testid="list-rename-name"
+        onChange={(e) => setName(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") save(); if (e.key === "Escape") setEditing(false); }}
+      />
+      <button type="button" className="btn btn-ghost btn-sm" disabled={busy} onClick={() => setEditing(false)}>Cancel</button>
+      <button type="button" className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={save} data-testid="list-rename-save">{busy ? "Saving…" : "Save"}</button>
+      <window.FieldError id="list-rename-error" message={error} testid="list-rename-error" />
+    </span>
+  );
+};
+
+// On a phone the rail is not drawn, so its lists come up behind one tap on the standing line, as a sheet: the
+// same rows, the same counts and the same New list, and a pick closes it. They were a Lists tab of their own,
+// with a chip row above a second table of the same people.
+const PeopleListsSheet = ({ onClose, children }) => {
+  React.useEffect(() => {
+    const onKey = (e) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+  return (
+    <>
+      <div className="sb-sheet-backdrop" onClick={onClose} />
+      <div className="sb-sheet pl-sheet" role="dialog" aria-label="Lists" data-testid="people-lists-sheet">
+        <div className="sb-sheet-head">
+          <span className="sb-sheet-title">Lists</span>
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onClose} data-testid="people-lists-close">Done</button>
+        </div>
+        {children}
+      </div>
+    </>
+  );
+};
+
+// Where a list's own route lands now that Lists is a view of People: the list, picked, by its kind. A link that
+// named the old page (Playbooks' list, an answer's jump, an address someone kept) still arrives. The shell asks.
+const plListRoute = (id) => {
+  const people = window.__PEOPLE;
+  if (!id || !people) return "clients";
+  if ((people.saved || []).some((s) => s.id === id)) return `clients/list:${id}`;
+  if ((people.lists || []).some((l) => l.id === id)) return `clients/seg:${id}`;
+  return "clients";
+};
+window.__listRoute = plListRoute;
+
 const PL_DEFAULT_GROUPS = [{ id: "attention", label: "Attention" }, { id: "journey", label: "Journey" }, { id: "reach", label: "Reach" }];
 
-const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null }) => (
+const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved = [], savedRead = true, activeSaved = null, onPickSaved = () => {}, canEdit = false, onCreateList = null, newListSignal = 0 }) => (
   <aside className="cl-rail">
     <div className="cl-rail-section">
       <div className="cl-rail-label">
@@ -856,87 +931,51 @@ const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved =
         <div className="cl-rail-hint">No lists yet. Keep one by hand — regulars, one staff member's customers, a special group — and add people from their profile.</div>
       )}
     </div>
-    {canEdit && onCreateList && <NewListRow onCreate={onCreateList} />}
+    {canEdit && onCreateList && <NewListRow onCreate={onCreateList} openSignal={newListSignal} />}
   </aside>
 );
 
-// The strip's cells take the state's own tone from contracts, so the tab and
-// the pill on the row below it are one colour for one state.
-const plTabTone = (state) => {
-  const tone = window.__chrome && window.__chrome.state ? window.__chrome.state("person", state).tone : "plain";
-  return tone === "plain" ? "var(--ink-dim)" : `var(--${tone})`;
-};
-
-// One row of the strip: the name, where and when, one sentence, one state
-// line, one button (contracts/people.ts attentionRow). The row opens the
-// profile; the button is the thread, when there is one.
-// One row of the strip: the person, in the shared grammar (attention-bits.jsx
-// window.AttnRow); the words come from contracts/people.ts attentionRow. The
-// row opens the profile; the button is the thread, when there is one.
-const AttentionRow = ({ p, a, onOpen }) => {
-  const numbered = plIsNumber(p.name);
-  const toThread = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
-  return (
-    <window.AttnRow
-      initials={p.initials}
-      glyph={numbered ? "phone" : null}
-      name={p.name}
-      meta={a ? (a.channel ? `${a.channel} · ${a.when}` : a.when) : ""}
-      sentence={a ? a.sentence : ""}
-      quoted={!!(a && a.quoted)}
-      status={a ? a.status : []}
-      tone={a ? a.tone : "answering"}
-      cta={a && a.cta && p.threadId ? { label: a.cta.label, kind: a.cta.kind, onClick: toThread } : null}
-      onOpen={() => onOpen(p.id)}
-    />
-  );
-};
-
-// The strip: five tabs, three rows, a footer that explains the tab and
-// offers the rest. Its height never depends on what a tab holds — three
-// rows, one, none — so switching tabs moves nothing below it.
-const PeopleTriage = ({ rows, recency, attention, attentionTab, setAttentionTab, onOpen, onSeeAll }) => {
-  const counts = {};
-  PL_TABS.forEach((t) => { counts[t] = rows.filter((r) => r.state === t).length; });
-  const active = PL_TABS.includes(attentionTab) ? attentionTab : "needs_you";
-  const shown = rows.filter((r) => r.state === active).slice(0, 3);
-  return (
-    <section className="cl-triage cl-attn" data-testid="attention-strip">
-      {/* Five states on the seeded four-column strip would wrap the fifth. */}
-      <div className="cl-triage-tabs" role="tablist" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
-        {PL_TABS.map((t) => {
-          const cells = (recency && recency[t]) || [];
-          return (
-            <button key={t} role="tab" aria-selected={t === active} className={`cl-triage-tab ${t === active ? "active" : ""} ${t === "needs_you" ? "accent" : ""}`} onClick={() => setAttentionTab(t)} data-testid={`attention-tab-${t}`}>
-              <div className="cl-triage-tab-row">
-                <span className="cl-triage-tab-label">{PL_TAB_LABEL[t]}</span>
-                <span className="cl-triage-tab-count">{counts[t]}</span>
-              </div>
-              <div className="cl-triage-tab-strip" data-tip="Days since last contact — most recent on the left">
-                {cells.map((c) => (
-                  <span key={c.label} className={`cl-triage-cell ${c.count ? "on" : ""}`} style={c.count ? { background: plTabTone(t) } : undefined} />
-                ))}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      <div className="cl-attn-list" key={active} data-testid="attention-list">
-        {shown.map((p) => <AttentionRow key={p.id} p={p} a={attention ? attention[p.id] : null} onOpen={onOpen} />)}
-        {shown.length === 0 && <div className="cl-attn-empty">Nobody here right now.</div>}
-      </div>
-      <div className="cl-attn-foot">
-        <span className="cl-attn-foot-sub">{PL_TAB_SUB[active]}</span>
-        {counts[active] > shown.length && (
-          <button className="cl-triage-seeall" onClick={() => onSeeAll(active)} data-testid="attention-see-all">
-            See all {counts[active]}
-            <Icon name="arrow-right" size={10} />
-          </button>
-        )}
-      </div>
-    </section>
-  );
-};
+// One line above the table: how many people there are, how many need a person, and how many were reached this
+// week -- and the middle one is the tap that shows them. It replaces a page title under a top bar that already
+// says People, two sentences explaining the page, four stat cards, and a 320px strip of five tabs and three rows.
+// The strip drew the same two people the table's own first rows drew, with the same sentences; "Needs you" was
+// said in four places at once (the rail, a stat card, a tab, and every matching row's pill). Every number it
+// held is still on the page: the rail counts each state, and each row says its own.
+// On a phone, where the rail is not drawn, the line also holds the way to the lists: one word, or the name of
+// the list that is open, and a tap brings the rail up as a sheet. Hidden on a desktop, whose rail is beside it.
+const PeopleStanding = ({ agg, needsShown, onNeeds, onLists = null, listWord = null }) => (
+  <div className="pl-standing" data-testid="people-standing">
+    <span className="pl-standing-total">{agg.total.toLocaleString()} {agg.total === 1 ? "person" : "people"}</span>
+    {agg.needsYou > 0 && (
+      <span className="pl-standing-part">
+        <span className="pl-standing-dot" aria-hidden="true">·</span>
+        <button
+          type="button"
+          className={`pl-standing-needs ${needsShown ? "on" : ""}`}
+          aria-pressed={needsShown}
+          onClick={onNeeds}
+          data-testid="people-standing-needs"
+        >
+          {agg.needsYou} need you
+        </button>
+      </span>
+    )}
+    {agg.reachedWeek > 0 && (
+      <span className="pl-standing-part">
+        <span className="pl-standing-dot" aria-hidden="true">·</span>
+        <span className="pl-standing-reached">{agg.reachedWeek} reached this week</span>
+      </span>
+    )}
+    {onLists && (
+      <span className="pl-standing-part pl-standing-lists">
+        <span className="pl-standing-dot" aria-hidden="true">·</span>
+        <button type="button" className={`pl-standing-needs ${listWord ? "on" : ""}`} onClick={onLists} data-testid="people-lists-pick">
+          {listWord || "Lists"} <Icon name="chevron-down" size={10} />
+        </button>
+      </span>
+    )}
+  </div>
+);
 
 // With a calendar connected the outcome takes the column the receptionist's
 // state held: "Answering" on every row said nothing, the next visit does.
@@ -973,8 +1012,10 @@ const plWhen = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.
 // The row's own next steps, on hover: the thread, and the booking link when
 // there is one — a reply carried in inside the 24-hour window, the template
 // outside it. Nothing is sent from the row.
-const PeopleRowActions = ({ p, bookingLink }) => {
-  if (!p.threadId) return null;
+// With a list kept by hand open, the row also takes the person off it (`drop`): the one thing the Lists page
+// could do that this table could not.
+const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
+  if (!p.threadId && !drop) return null;
   const open = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
   const link = () => {
     if (p.replyWindow && p.replyWindow.open) {
@@ -984,17 +1025,23 @@ const PeopleRowActions = ({ p, bookingLink }) => {
   };
   return (
     <span className="cl-row-actions" onClick={(e) => e.stopPropagation()}>
-      <button className="cl-row-act" title="Open the thread" aria-label="Open the thread" onClick={open} data-testid="row-open-thread"><Icon name="chat" size={12} /></button>
-      {bookingLink && (
+      {p.threadId && <button className="cl-row-act" title="Open the thread" aria-label="Open the thread" onClick={open} data-testid="row-open-thread"><Icon name="chat" size={12} /></button>}
+      {p.threadId && bookingLink && (
         <button className="cl-row-act" title={p.replyWindow && p.replyWindow.open ? `Text the booking link · ${p.replyWindow.hoursLeft}h left in their reply window` : "Send the booking-link template — their reply window is closed"} aria-label="Booking link" onClick={link} data-testid="row-booking-link"><Icon name="calendar" size={12} /></button>
+      )}
+      {drop && (
+        <button className="cl-row-act cl-row-act-drop" title={`Take ${p.name} off ${drop.list.name}`} aria-label={`Take ${p.name} off ${drop.list.name}`} onClick={() => drop.onDrop(p)} data-testid="row-drop-list"><Icon name="x" size={11} /></button>
       )}
     </span>
   );
 };
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null, attention = null }) => (
-  <div className={`cl-table-wrap ${sel.size ? "selecting" : ""}`}>
-    <table className="cl-table">
+const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null, attention = null, drop = null }) => (
+  <div className={`cl-table-wrap pl-table-wrap ${sel.size ? "selecting" : ""}`}>
+    {/* pl-table is the phone's hook: on a narrow screen these rows stop being a
+        760px sideways scroll and stack, so the state is on the row instead of
+        off the right edge. The seeded page, Leads and Lists keep the table. */}
+    <table className="cl-table pl-table">
       <thead>
         <tr>
           {selectable && (
@@ -1070,7 +1117,7 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
                 )
                 : <td className="cl-recept-cell"><PeopleReceptionist r={p.receptionist} /></td>}
               <td className="shrink cl-offers-cell" title={p.consent.marketingSub} data-testid="row-offers"><span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span></td>
-              <td className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={bookingLink} /></td>
+              <td className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={bookingLink} drop={drop} /></td>
             </tr>
           );
         })}
@@ -1107,7 +1154,7 @@ const plUndoList = async (id, name, flash) => {
 // What a selection can become: people on a list, a yes on record, a file.
 // Adding to a list and recording a yes are owner-or-operator on the server;
 // the bar shows what the role allows and says why when it does not.
-const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash }) => {
+const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport, onClear, onKeep = () => {}, flash, activeSaved = null }) => {
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
@@ -1237,6 +1284,12 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <button className="btn btn-sm btn-primary" disabled={busy || !name.trim()} onClick={createAndAdd}>Make it</button>
         </span>
       )}
+      {/* With a list kept by hand open, the selection can leave it; the people stay. The rows leave the view, so the bar closes with them. */}
+      {canEdit && window.__lists && activeSaved && !naming && (
+        <button className="btn btn-sm" disabled={busy} onClick={() => run(() => window.__lists.drop(activeSaved.id, batch), () => <>{batch.length} taken off <b>{activeSaved.name}</b>{restWords}</>, () => { if (rest.length) onKeep(rest); else onClear(); })} data-testid="bulk-drop-list">
+          <Icon name="x" size={11} /> Take off {activeSaved.name}
+        </button>
+      )}
       {canEdit && window.__setPersonConsentMany && sources.length > 0 && (
         <MoreMenu
           btnClass="btn btn-sm"
@@ -1356,6 +1409,18 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const saved = people.saved || PL_NO_LISTS;
   const [savedId, setSavedId] = useState(initialSaved);
   React.useEffect(() => { setSavedId(initialSaved); }, [initialSaved]);
+  // The phone's list picker (the rail, as a sheet), and the New list box. The shell's and a profile's "New list"
+  // (segments:new) open the box; on a phone the sheet comes up with it, since the rail it sits in is not drawn there.
+  const [listsOpen, setListsOpen] = useState(false);
+  const [newListSignal, setNewListSignal] = useState(0);
+  React.useEffect(() => {
+    const onNew = () => {
+      setNewListSignal((n) => n + 1);
+      if (window.matchMedia && window.matchMedia("(max-width: 720px)").matches) setListsOpen(true);
+    };
+    window.addEventListener("segments:new", onNew);
+    return () => window.removeEventListener("segments:new", onNew);
+  }, []);
   const canEditLists = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
   const canExport = !!(window.__href && (!window.canDo || window.canDo("export")));
   const [toastNode, plFlash] = window.usePPToast();
@@ -1367,6 +1432,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     if (r.ok) {
       plFlash({ msg: <><b>{name}</b> made. Pick people and use Add to list, or add them from their profile.</> });
       if (r.data && r.data.id) { setListId(null); setSavedId(r.data.id); }
+      setListsOpen(false);
     }
     return r;
   };
@@ -1380,19 +1446,20 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const remembered = React.useMemo(() => ({ ...plLoadView(), ...((people.views && people.views.people) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const [attentionTab, setAttentionTab] = useState(PL_TABS.includes(remembered.attentionTab) ? remembered.attentionTab : "needs_you");
   const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
-  const savedView = React.useRef(JSON.stringify({ attentionTab: remembered.attentionTab, sortBy: remembered.sortBy, sortDir: remembered.sortDir }));
+  // The strip's tab was remembered too; a view saved before it went carries an
+  // attentionTab this ignores, and the next save drops it.
+  const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir }));
   React.useEffect(() => {
-    const view = { attentionTab, sortBy, sortDir };
+    const view = { sortBy, sortDir };
     plSaveView(view);
     // The workspace's copy, once per change and never for the view it already holds.
     const key = JSON.stringify(view);
     if (key === savedView.current || !window.__saveView) return;
     savedView.current = key;
     window.__saveView("people", view).then((r) => { if (!r.ok) console.error("people_view_not_saved", r.message); });
-  }, [attentionTab, sortBy, sortDir]);
+  }, [sortBy, sortDir]);
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1433,19 +1500,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
-  const tableRef = React.useRef(null);
-
   useHotkey(
     (e, typing) => !typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === "/",
     () => searchRef.current && searchRef.current.focus()
   );
 
-  const seeAll = (id) => {
-    setTab(id);
-    setAttentionTab(id);
-    const sc = scrollRef.current, el = tableRef.current;
-    if (sc && el) sc.scrollTo({ top: Math.max(0, el.offsetTop - 12), behavior: "smooth" });
-  };
   const onSort = (key) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
@@ -1506,6 +1565,22 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const sortLabel = (sortLabels[sortBy] || ["Sorted", "Sorted"])[sortDir === "desc" ? 0 : 1];
   const activeList = listId && lists.find((l) => l.id === listId);
   const activeSaved = savedId && saved.find((s) => s.id === savedId);
+  const listStep = (activeSaved && activeSaved.action) || (activeList && activeList.action) || null;
+  // One list open at a time: it is the page's title, so two open at once would be a title over a table it does
+  // not describe. Picking the open one again shows everyone.
+  const pickSmart = (id) => { setSavedId(null); setListId((cur) => (cur === id ? null : id)); };
+  const pickSaved = (id) => { setListId(null); setSavedId((cur) => (cur === id ? null : id)); };
+  // One person off the list kept by hand that is open, from their row; Undo puts them back.
+  const dropFromList = async (p) => {
+    if (!window.__lists || !activeSaved) return;
+    const list = activeSaved;
+    const r = await window.__lists.drop(list.id, [p.id]);
+    if (!r.ok) { plFlash(window.refusalToast(r, `Still on ${list.name}`)); return; }
+    plFlash({
+      msg: <><b>{p.name}</b> is off <b>{list.name}</b></>,
+      undo: async () => { const u = await window.__lists.add(list.id, [p.id]); if (!u.ok) plFlash(window.refusalToast(u, `Not back on ${list.name}`)); },
+    });
+  };
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);
   const shownIds = shown.map((p) => p.id);
@@ -1538,7 +1613,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     return () => window.removeEventListener("keydown", onKey);
   });
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
-  const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
 
   return (
     <div className="clients">
@@ -1546,33 +1620,25 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         lists={lists}
         groups={people.groups || PL_DEFAULT_GROUPS}
         active={listId}
-        onPick={(id) => setListId((cur) => (cur === id ? null : id))}
+        onPick={pickSmart}
         saved={saved}
         activeSaved={savedId}
-        onPickSaved={(id) => setSavedId((cur) => (cur === id ? null : id))}
+        onPickSaved={pickSaved}
         canEdit={canEditLists}
         onCreateList={window.__lists ? createList : null}
         savedRead={people.savedRead !== false}
+        newListSignal={newListSignal}
       />
 
       <div className="cl-main">
         <div className="cl-main-scroll" ref={scrollRef}>
-          <div className="cl-head">
-            <div className="cl-head-titles">
-              <div className="cl-page-title">People</div>
-              <div className="cl-page-sub">
-                Everyone who has written to or phoned {ws ? ws.name : "your business"}. The receptionist handles the routine — these lists show where you matter.
-              </div>
-            </div>
-            <StatStrip className="cl-head-stats">
-              <StatCell label="People" value={agg.total} meta={agg.newThisMonth ? `+${agg.newThisMonth} this month` : "none new this month"} metaTone={agg.newThisMonth ? "pos" : ""} />
-              <StatCell label="Needs you" value={agg.needsYou} meta={agg.needsYouOldestMs ? `oldest ${plAgo(agg.needsYouOldestMs)}` : "nobody waiting"} metaTone={agg.needsYou ? "neg" : ""} />
-              <StatCell label="Reached this week" value={agg.reachedWeek} meta={`${agg.reachedWeekNew} new`} />
-              {people.calendar && people.calendar.state === "ok" && (
-                <StatCell label="Booked" tip="An appointment ahead on your calendar. The booking is the conversion Chanlytics counts" value={agg.booked} meta={agg.askedNotBooked ? `${agg.askedNotBooked} never booked` : "everyone who asked"} metaTone={agg.askedNotBooked ? "neg" : ""} />
-              )}
-            </StatStrip>
-          </div>
+          <PeopleStanding
+            agg={agg}
+            needsShown={tab === "needs_you"}
+            onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))}
+            onLists={() => setListsOpen(true)}
+            listWord={activeSaved ? activeSaved.name : activeList ? activeList.label : null}
+          />
 
           <div className="cl-controls">
             <div className="cl-search-wrap">
@@ -1595,30 +1661,19 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             </div>
           </div>
 
-          <PeopleTriage rows={rows} recency={people.recency} attention={people.attention} attentionTab={attentionTab} setAttentionTab={(id) => { setAttentionTab(id); setTab(id); }} onOpen={onOpenProfile} onSeeAll={seeAll} />
-
-          <div className="cl-section" ref={tableRef}>
+          <div className="cl-section">
             <div className="cl-section-head">
-              <div>
-                <span className="cl-section-title">Everyone</span>
-                <span className="cl-section-sub" style={{ marginLeft: 10 }}>{shown.length} shown</span>
-                {activeList && (
-                  <span className="cl-seg-filter">
-                    <Icon name="sparkle" size={10} />
-                    {activeList.label}
-                    <button className="cl-seg-filter-x" title="Clear list filter" onClick={() => setListId(null)}>
-                      <Icon name="x" size={9} />
-                    </button>
-                  </span>
-                )}
-                {activeSaved && (
-                  <span className="cl-seg-filter" data-testid="saved-filter">
-                    <Icon name="filter" size={10} />
-                    {activeSaved.name}
-                    <button className="cl-seg-filter-x" title="Clear list filter" onClick={() => setSavedId(null)}>
-                      <Icon name="x" size={9} />
-                    </button>
-                  </span>
+              <div className="cl-section-lead">
+                {/* The count is the line above and the table's own foot; here it would be a third. A list picked is
+                    the title, not a chip beside "Everyone": the table IS that list, so its name, its rename and its
+                    delete sit on the one line, where the Lists page had them over a second table of the same people. */}
+                {activeSaved
+                  ? <ListTitle list={activeSaved} canEdit={canEditLists && !!window.__lists} onRenamed={(n) => plFlash({ msg: <>Renamed to <b>{n}</b></> })} />
+                  : activeList
+                    ? <span className="cl-section-title" data-testid="smart-filter"><Icon name="sparkle" size={12} />{activeList.label}</span>
+                    : <span className="cl-section-title">Everyone</span>}
+                {(activeList || activeSaved) && (
+                  <button type="button" className="cl-bucket-link" onClick={() => { setListId(null); setSavedId(null); }} data-testid="show-everyone">Show everyone</button>
                 )}
                 {activeSaved && canEditLists && <DeleteListButton list={activeSaved} onDeleted={() => setSavedId(null)} />}
                 {tab !== "all" && (
@@ -1634,14 +1689,16 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
               <span className="cl-section-sub">
                 {filtered && shown.length > 0 && canEditLists && window.__lists
                   ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
-                  : (filtered ? "Filtered from the rail and the strip above" : "The rail and the strip above narrow this")}
+                  : (filtered ? "Filtered" : "")}
               </span>
             </div>
-            {activeList && activeList.action && (
+            {/* The list's own step: a smart list's next move, or a kept list's one door, a broadcast to those on it who
+                said yes (contracts peopleListAction and savedListAction, the one sentence for both). */}
+            {listStep && (
               <div className="cl-list-action" data-testid="list-action">
-                <span className="cl-list-action-text">{activeList.action.text}</span>
-                <button className={`btn btn-sm ${activeList.action.enabled ? "btn-primary" : ""}`} disabled={!activeList.action.enabled} onClick={() => window.CHANLY.nav(activeList.action.to)}>
-                  {activeList.action.cta} <Icon name="arrow-right" size={10} />
+                <span className="cl-list-action-text">{listStep.text}</span>
+                <button className={`btn btn-sm ${listStep.enabled ? "btn-primary" : ""}`} disabled={!listStep.enabled} onClick={() => window.CHANLY.nav(listStep.to)}>
+                  {listStep.cta} <Icon name="arrow-right" size={10} />
                 </button>
               </div>
             )}
@@ -1665,6 +1722,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
+            drop={activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: dropFromList } : null}
           />
           {hasMore && (
             <div className="cl-section-sub" style={{ padding: "8px 0 16px" }} data-testid="people-more">
@@ -1674,7 +1732,26 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             </div>
           )}
         </div>
-        {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} />}
+        {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} />}
+        {/* The phone's rail, as a sheet (the rail itself is not drawn under 720px). Last in the tree, after everything
+            whose state a stub React keys by order. */}
+        {listsOpen && (
+          <PeopleListsSheet onClose={() => setListsOpen(false)}>
+            <PeopleRail
+              lists={lists}
+              groups={people.groups || PL_DEFAULT_GROUPS}
+              active={listId}
+              onPick={(id) => { pickSmart(id); setListsOpen(false); }}
+              saved={saved}
+              activeSaved={savedId}
+              onPickSaved={(id) => { pickSaved(id); setListsOpen(false); }}
+              canEdit={canEditLists}
+              onCreateList={window.__lists ? createList : null}
+              savedRead={people.savedRead !== false}
+              newListSignal={newListSignal}
+            />
+          </PeopleListsSheet>
+        )}
         {toastNode}
       </div>
     </div>

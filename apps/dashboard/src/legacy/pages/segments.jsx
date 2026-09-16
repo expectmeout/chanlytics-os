@@ -705,4 +705,7 @@ const SegmentPulse = () => {
 
 // A real workspace renders its lists (segments-real.jsx); the seeded page keeps the demo.
 window.SegmentsSeed = SegmentsPage;
+// The demo's page under the name the shell draws. A real workspace never reaches it: its lists live on People, and
+// `segments/<id>` lands there with the list picked (app-shell, window.__listRoute).
+window.SegmentsPage = SegmentsPage;
 window.SegmentPulse = SegmentPulse;

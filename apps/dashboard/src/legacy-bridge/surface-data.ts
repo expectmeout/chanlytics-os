@@ -176,12 +176,11 @@ import {
   PEOPLE_LISTS,
   PEOPLE_LIST_GROUPS,
   peopleListAction,
+  savedListAction,
   type PersonRowVM,
   type PeopleAggregates,
-  recencyCells,
   attentionRow,
   type AttentionRowVM,
-  PEOPLE_TABS,
   toChannelVM,
   type ChannelVM,
   toReportVM,
@@ -283,17 +282,15 @@ export const inboxOverride: SurfaceOverride = {
     // letting a waiting customer be invisible.
     const listed = new Set(convData.conversations.map((c) => c.id));
     const missing = [...byConv.keys()].filter((id) => !listed.has(id));
-    const fetched = await Promise.all(
-      missing.slice(0, 20).map((id) =>
-        read("GET conversations/[id]", { params: { id } })
-          .then((d) => ({ ...d.conversation, messages: d.messages }))
-          .catch(() => null),
-      ),
-    );
-    const extra = fetched.filter((c): c is ConversationDto => !!c);
+    // One read for all of them, by id: one read per thread, the first twenty only, left the twenty-first waiting
+    // customer out of the Inbox with nothing said (I5). The escalations read holds a hundred at most.
+    const extraRead: ConversationDto[] | null = missing.length
+      ? await read("GET conversations", { query: { ids: missing.slice(0, 100).join(",") } }).then((d) => d.conversations, () => null)
+      : [];
+    const extra = extraRead ?? [];
     // One that could not be read is a waiting customer nobody can see: the
     // list says how many, rather than listing fewer.
-    const unreadEscalated = fetched.length - extra.length;
+    const unreadEscalated = missing.length - extra.length;
     if (unreadEscalated) console.error("inbox_escalated_fetch_failed", unreadEscalated);
 
     const all = [...extra, ...convData.conversations];
@@ -307,7 +304,7 @@ export const inboxOverride: SurfaceOverride = {
       THREADS: threads,
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
-      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone" },
+      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone", sms: "Text" },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
     };
@@ -542,12 +539,11 @@ export interface PeopleSurface {
   /** The lists kept by hand (segments), counted over the rows on the page so
    *  an erased person never counts; `members` is every id the server keeps on
    *  the list, so an Undo can tell who an add really added. */
-  saved: { id: string; name: string; count: number; ids: string[]; members: string[] }[];
-  /** Whether the saved lists were read: false leaves People standing without them, and the rail, the profile and Lists say so. */
+  saved: { id: string; name: string; count: number; ids: string[]; members: string[]; action: { text: string; cta: string; to: string; enabled: boolean } }[];
+  /** Whether the saved lists were read: false leaves People standing without them, and the rail and the profile say so. */
   savedRead: boolean;
   aggregates: PeopleAggregates;
-  /** Days-since-last-contact histogram per state, for the console strip. */
-  recency: Record<string, { label: string; count: number }[]>;
+
   /** One row of the attention strip per person: the sentence, the state line, the one button. */
   attention: Record<string, AttentionRowVM>;
   /** The workspace's calendar: the outcome lists and the Booked cell exist only when it is "ok". */
@@ -580,7 +576,6 @@ function publishPeople(): void {
   const { tz } = peopleLoaded;
   const now = new Date();
   const rows = peopleLoaded.people.map((r) => toPersonRowVM(r, tz, now));
-  const rowIds = new Set(rows.map((r) => r.id));
   const calendar = peopleLoaded.calendar;
   (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE = {
     rows,
@@ -593,15 +588,16 @@ function publishPeople(): void {
     calendar,
     bookingLink: peopleLoaded.bookingLink,
     saved: (peopleLoaded.saved ?? []).map((l) => {
-      const ids = l.ids.filter((id) => rowIds.has(id));
-      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids };
+      const idSet = new Set(l.ids);
+      const members = rows.filter((r) => idSet.has(r.id));
+      const ids = members.map((r) => r.id);
+      // The list's own step, the way a smart list carries its: a broadcast to those on it who said yes.
+      return { id: l.id, name: l.name, count: ids.length, ids, members: l.ids, action: savedListAction(l.id, members) };
     }),
     savedRead: peopleLoaded.saved !== null,
     // The total is the server's: past the first page the rows here are not everyone.
     aggregates: { ...peopleAggregates(rows, now.getTime()), total: peopleLoaded.page?.total ?? rows.length },
-    recency: Object.fromEntries(
-      PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
-    ),
+
     attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
     page: peopleLoaded.page,
     views: peopleLoaded.views,
@@ -989,6 +985,12 @@ export const playbooksOverride: SurfaceOverride = {
 /** The window loaded: a day key and a length in days; null is the window around today. Not persisted — a reload opens on today. */
 let calendarFrom: string | null = null;
 let calendarDays = 63;
+/** The next read asks the calendar itself, not the route's few minutes' cache: the board's Refresh (C2). Taken by that read. */
+let calendarFresh = false;
+
+export function setCalendarFresh(on: boolean): void {
+  calendarFresh = on;
+}
 
 export function getCalendarSpan(): { from: string | null; days: number } {
   return { from: calendarFrom, days: calendarDays };
@@ -1017,9 +1019,12 @@ export const calendarOverride: SurfaceOverride = {
   apply: async () => {
     const from = calendarFrom;
     const days = calendarDays;
+    // A Refresh asks once: the flag goes with the read that takes it.
+    const fresh = calendarFresh;
+    calendarFresh = false;
     // The window around the business's today, not the browser's (zone.ts).
     const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));
-    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days) } });
+    const data = await read("GET calendar", { query: { from: w.from, days: String(w.days), ...(fresh ? { fresh: "1" as const } : {}) } });
     // Two moves in a row: the earlier read may land after the later one. A
     // read for a span the page has since left is dropped, never painted.
     if (from !== calendarFrom || days !== calendarDays) return;

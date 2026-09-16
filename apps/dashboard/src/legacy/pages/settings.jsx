@@ -915,19 +915,12 @@ const DAY_LABEL_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "
  * to be a hand-copied second implementation under a comment promising it
  * matched the prompt. Two copies of "which days share the same hours" is how
  * the card and the receptionist start disagreeing, on the one screen an owner
- * glances at to check. Only the wording is ours: short day names here, full
- * ones in the prompt.
+ * glances at to check. The words are the Calendar's too (C3): the same runs in
+ * the board's clock, so this card and the Calendar's bar say one thing.
  */
 const hoursSummary = (hours) => {
-  if (!hours || !window.__hoursRuns) return null;
-  return window.__hoursRuns(hours)
-    .map((r) => {
-      const label = r.from === r.to
-        ? DAY_LABEL_SHORT[r.from]
-        : DAY_LABEL_SHORT[r.from] + "–" + DAY_LABEL_SHORT[r.to];
-      return label + " " + r.text;
-    })
-    .join(" · ");
+  if (!hours || !window.__hoursLines) return null;
+  return window.__hoursLines(hours).join(" · ") || null;
 };
 
 /**
@@ -1700,7 +1693,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             const r = await window.__calendar.previewFeed(icalUrl.trim());
             setCalChecking(false);
             setCalCheck(r.ok ? { ok: true, ...r.data } : { ok: false, message: r.message });
-          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the link"}</button>
+          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the address"}</button>
           {calCheck && (
             <span className={`set-row-hint ${calCheck.ok ? "" : "warn"}`} data-testid="cal-check-result">
               {calCheck.ok
@@ -1708,7 +1701,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                 : calCheck.message}
             </span>
           )}
-          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open the calendar</button>}
+          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open Calendar</button>}
         </div>
       </div>
       </div>

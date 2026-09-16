@@ -236,7 +236,6 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
 /* ------------------------------ People and Lists ------------------------------ */
 
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
-await import("../../../apps/dashboard/src/legacy/pages/segments-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 
 test("REGRESSION (B5): a refused list delete keeps the question open and says why -- it closed with no word", async () => {
@@ -255,22 +254,8 @@ test("REGRESSION (B5): a refused list delete keeps the question open and says wh
   assert.ok(say(question).includes("Only an owner or operator can change lists."), say(question));
 });
 
-test("REGRESSION: the forms that coloured their own error red -- a new list in two places, adding a person, recording consent -- say it as a field error the box points at", async () => {
+test("REGRESSION: the forms that coloured their own error red -- a new list, adding a person, recording consent -- say it as a field error the box points at", async () => {
   const taken = () => refused("A list called VIP regulars already exists.");
-
-  // Lists: New list.
-  const NewListBox = globalThis.window.NewListBox;
-  assert.equal(typeof NewListBox, "function");
-  cells = [];
-  const box = () => { seq = 0; return NewListBox({ onCreate: async () => taken(), openSignal: 1 }); };
-  box();
-  byTestId(box(), "lists-new-name").props.onChange({ target: { value: "VIP regulars" } });
-  await byTestId(box(), "lists-new-add").props.onClick();
-  let tree = box();
-  assert.equal(byTestId(tree, "lists-new-error")?.props.role, "alert");
-  assert.equal(byTestId(tree, "lists-new-name").props["aria-invalid"], true);
-  assert.equal(byTestId(tree, "lists-new-name").props["aria-describedby"], "lists-new-error");
-  assert.equal(inlineDanger(tree), 0);
 
   // People: New list in the rail.
   const NewListRow = globalThis.window.NewListRow;
@@ -280,7 +265,7 @@ test("REGRESSION: the forms that coloured their own error red -- a new list in t
   byTestId(row(), "new-list").props.onClick();
   byTestId(row(), "new-list-name").props.onChange({ target: { value: "VIP regulars" } });
   await byTestId(row(), "new-list-add").props.onClick();
-  tree = row();
+  let tree = row();
   assert.equal(byTestId(tree, "new-list-error")?.props.role, "alert");
   assert.equal(byTestId(tree, "new-list-name").props["aria-describedby"], "new-list-error");
   assert.equal(inlineDanger(tree), 0);

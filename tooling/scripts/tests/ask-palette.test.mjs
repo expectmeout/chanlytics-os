@@ -283,7 +283,7 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   assert.ok(jumps.some((j) => j.startsWith("Calendar")), `REGRESSION: ${jumps.join(" | ") || "no jump"}`);
 
   const read = { person: new Set(), thread: new Set(), conversation: new Set(), call: new Set() };
-  for (const [words, to] of [["calendar", "calendar"], ["lists", "segments"], ["playbooks", "outbound"], ["broadcasts", "broadcasts"], ["messages", "messages"], ["setup", "admin/setup"], ["billing", "admin/billing"], ["activity", "admin/activity"], ["profile", "admin/profile"]]) {
+  for (const [words, to] of [["calendar", "calendar"], ["lists", "clients"], ["playbooks", "outbound"], ["broadcasts", "broadcasts"], ["messages", "messages"], ["setup", "admin/setup"], ["billing", "admin/billing"], ["activity", "admin/activity"], ["profile", "admin/profile"]]) {
     assert.ok(askJump(words, ASK_PAGES).some((j) => j.to === to), `"${words}" jumps to ${to}`);
     assert.ok(ASK_PAGE_ROUTES.includes(to), `${to} is a page an answer may name`);
     assert.equal(safeNavigate(to, read), true, `and an answer may open ${to}`);

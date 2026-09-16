@@ -91,7 +91,9 @@ test("the wiring: one row component for People and Today, the queue in the comma
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   assert.ok(manifest.indexOf('"@/legacy/pages/attention-bits.jsx"') < manifest.indexOf('"@/legacy/pages/dashboard-a-brief.jsx"'), "loaded before the pages that draw it");
   const people = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(people.includes("<window.AttnRow") && !people.includes('className="cl-attn-status"'), "People's strip is an adapter over it");
+  // People drew three of these rows above its table -- the table's own first rows
+  // again -- so the strip went and each row carries the words itself.
+  assert.ok(!people.includes("<window.AttnRow") && !people.includes('className="cl-attn-status"'), "People says it on the row, once");
   const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   for (const s of ['data-testid="today-queue"', "<TodayQueue vm={window.TODAY_DATA} />", "vm.queue.rows", 'testid="brief-run-row"', 'testid="brief-run-soon"', 'data-testid="brief-live-call"', "surface:live", "surface:broadcasts", 'verb(r, r.also.verb)']) assert.ok(queue.includes(s), s);
   const real = queue.slice(queue.indexOf("const LiveRail"), queue.indexOf("const AgentCommandSeed"));

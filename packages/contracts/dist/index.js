@@ -465,6 +465,10 @@ function agoWords(atMs, nowMs, opts = {}) {
   const u = spanUnits(gap);
   return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
 }
+function timezoneCity(tz) {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}
 
 // src/availability.ts
 function zoneParts(tz, at2) {
@@ -820,12 +824,18 @@ function dayIntervals(h) {
 function closedOn(closures, key) {
   return !!closures?.some((c) => c.date <= key && key <= (c.until && c.until >= c.date ? c.until : c.date));
 }
+function onTheGrid(tz, atMs, slotMin) {
+  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
+  const c = clockInZone(tz, atMs);
+  const into = (c.mm % grid * 60 + c.ss) * 1e3 + (atMs % 1e3 + 1e3) % 1e3;
+  return into === 0 ? atMs : atMs - into + grid * 6e4;
+}
 function freeWindows(input) {
   const rules = { ...BOOKING_DEFAULTS, ...input.rules ?? {} };
   const leadMs = rules.lead_hours * 36e5;
   const bufferMs = rules.buffer_min * 6e4;
   const slotMs = rules.slot_min * 6e4;
-  const earliest = input.now.getTime() + leadMs;
+  const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
@@ -924,6 +934,35 @@ function matchService(services, asked) {
   }
   return best;
 }
+function needsConsultation(name, rules) {
+  const n = foldName(name.trim());
+  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+}
+function offerFor(services, rules, asked) {
+  const service = matchService(services, asked);
+  if (!service) return null;
+  if (!needsConsultation(service.name, rules)) return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
+  let consultationService = null;
+  let best = -1;
+  for (const s of services ?? []) {
+    const n = foldName(s.name);
+    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
+    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    if (score > best) {
+      consultationService = s;
+      best = score;
+    }
+  }
+  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
+}
+function offerLead(offer) {
+  if (!offer) return "";
+  if (!offer.consultation) return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
+  const c = offer.consultationService;
+  const detail = [c && foldName(c.name.trim()) !== "consultation" ? c.name : "", offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""].filter(Boolean).join(", ");
+  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
+}
 
 // src/clock.ts
 var FORMATS = /* @__PURE__ */ new Map();
@@ -1020,10 +1059,10 @@ function fromZonedInput(value, tz) {
 function standingOf(i, nowMs) {
   const paused = !!i.paused_until && new Date(i.paused_until).getTime() > nowMs;
   const flagged = i.open_escalation || i.state === "needs_human" || paused;
-  const claimedByOther = !!i.assignee_user_id && i.assignee_is_me === false;
+  const claimedByTeammate = !!i.assignee_user_id && i.assignee_is_me === false;
   const mine = !!i.assignee_user_id || paused && !i.open_escalation;
-  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByOther ? "theirs" : mine ? "yours" : "needs_you";
-  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther };
+  const standing = i.state === "snoozed" ? "snoozed" : !flagged ? "quiet" : claimedByTeammate ? "theirs" : mine ? "yours" : "needs_you";
+  return { standing, flagged, paused, takenOver: standing === "yours", claimedByOther: standing === "theirs" };
 }
 
 // src/whisper.ts
@@ -1445,7 +1484,7 @@ var ESCALATION_SUMMARIES = {
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
-  callback: "They phoned, and the receptionist could not finish it. Call them back \u2014 the details say what they wanted.",
+  callback: "They phoned and the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup."
 };
@@ -1461,13 +1500,11 @@ function threadStanding(dto, escalation, now = /* @__PURE__ */ new Date()) {
     open_escalation: !!escalation
   }, now.getTime());
   const state = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
-  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you" };
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
 function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
-  const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   let draftMsg = null;
   for (let i = dto.messages.length - 1; i >= 0; i--) {
     if (isHeldDraft(dto.messages[i])) {
@@ -1476,15 +1513,15 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     }
   }
   const heldDraft = draftMsg ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) } : null;
-  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
   const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
-  const primaryChannel = hasChat || !hasCalls ? "whatsapp" : "phone";
-  const channels = [...hasChat || !hasCalls ? ["whatsapp"] : [], ...hasCalls ? ["phone"] : []];
+  const chatChannel = lastInbound?.channel === "sms" ? "sms" : "whatsapp";
+  const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
+  const channels = [...hasChat || !hasCalls ? [chatChannel] : [], ...hasCalls ? ["phone"] : []];
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
@@ -1492,7 +1529,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
-      channel: onPhone ? "phone" : "whatsapp",
+      channel: onPhone ? "phone" : m.channel === "sms" ? "sms" : "whatsapp",
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...media ? { media } : {},
@@ -1512,7 +1549,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
         // The words themselves live in messageStatusLabel, so this pane and
         // the Conversations pane cannot describe the same message
         // differently — which is exactly what they were doing.
-        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}
+        ...messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {},
+        // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
+        reachedCustomer: reachedCustomer(m.status)
       } : {},
       // A held draft is not a sent message and must not read as one.
       ...isHeldDraft(m) ? { pending: true, sendsAtMs: draftSendsAtMs(m) } : {}
@@ -1524,13 +1563,14 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       type: "event",
       kind: "flag",
       at: shortTime(escalation.created_at, tz, now),
-      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${escalation.details.slice(0, 120)}\u201D` : ""}`
+      body: `Flagged for a human \u2014 ${reasonLabel}${escalation.details ? ` \xB7 \u201C${clipAtWord(escalation.details, 120)}\u201D` : ""}`
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
   }
   const waitingMin = escalation ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 6e4)) : void 0;
   const ask = !escalation ? null : escalation.reason === "callback" ? escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null : lastInbound ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" } : null;
+  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -1539,8 +1579,9 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
     who,
-    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
+    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : primaryChannel === "sms" ? "Text" : "WhatsApp"),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -1549,6 +1590,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     assigneeUserId: dto.assignee_user_id ?? null,
     ask,
     archived: dto.state === "archived",
+    lastWord,
     heldDraft,
     ...heldDraft ? {
       veto: {
@@ -1563,19 +1605,19 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     primaryChannel,
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
+    phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
     agent: AGENT,
-    subject: (claimedByOther ? "A teammate is answering this" : null) ?? reasonLabel ?? (takenOver ? "You're answering this one" : lastInbound ? messageText(lastInbound).slice(0, 80) : last ? messageText(last).slice(0, 80) : "No messages yet"),
+    // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
+    // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
+    // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
+    // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
+    subject: reasonLabel ?? "",
+    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
     preview: last ? messageText(last).slice(0, 110) : "",
     // A thread a teammate has is theirs to answer: the reason's sentence ("they're
     // waiting on you") would tell everyone else the opposite of what is true.
-    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : "The receptionist answered this on its own. Nothing is owed.",
-    contextStrip: [
-      ...reasonLabel ? [{ label: claimedByOther ? "Flagged for" : "Why you", value: reasonLabel }] : [],
-      { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 6e4) : "\u2014", ...waitingMin && waitingMin > 30 ? { warn: true } : {} },
-      { label: "Receptionist", value: needsHuman ? claimedByOther ? "Paused \u2014 a teammate has it" : escalation?.reason === "callback" ? "Paused \u2014 call them back" : "Paused \u2014 you have it" : "Answering" },
-      hasChat ? { label: "Reply window", value: win ? "Open \u2014 you can write freely" : "Closed \u2014 template only" } : { label: "WhatsApp", value: "No thread yet \u2014 they have only phoned" }
-    ],
+    summary: claimedByOther ? "A teammate is answering this. The receptionist stays quiet until they hand it back." : escalation ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.` : takenOver ? "You're answering this one. The receptionist stays quiet until you hand it back." : lastWord ? lastWord.text : "The receptionist answered this on its own. Nothing is owed.",
     lastAt: shortTime(dto.last_message_at, tz, now),
     lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
@@ -1606,6 +1648,34 @@ function lastWordLine(needsHuman, last, author) {
   if (author.kind === "receptionist") return "Answered by the receptionist";
   if (author.kind === "team") return "Answered by your team";
   return `Last message: ${author.words}`;
+}
+function lastWordOf(dto) {
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  let at2 = chat.length - 1;
+  let failed = null;
+  for (; at2 >= 0; at2--) {
+    const m = chat[at2];
+    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
+    if (!failed && m.status === "failed") failed = m;
+  }
+  const last = at2 >= 0 ? chat[at2] : null;
+  const failedBy = failed ? messageAuthor(failed)?.words ?? "us" : null;
+  if (!last) {
+    if (failedBy) return { text: `Nothing has reached them \u2014 the message from ${failedBy} didn't send.`, tone: "danger", short: "Didn't send" };
+    return dto.messages.some((m) => m.type === "call_summary") ? { text: "The phone receptionist handled their call \u2014 no one asked for you.", tone: "ok", short: null } : { text: "No messages yet.", tone: "plain", short: null };
+  }
+  if (last.direction === "inbound") {
+    return failedBy ? { text: `They wrote last, and the reply from ${failedBy} didn't send \u2014 as far as they know, nobody answered.`, tone: "danger", short: "Didn't send" } : { text: "They wrote last \u2014 no reply yet.", tone: "plain", short: null };
+  }
+  const said = lastWordLine(false, last, messageAuthor(last));
+  return failedBy ? { text: `${said} \u2014 the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" } : { text: `${said} \u2014 no one asked for you.`, tone: "ok", short: null };
+}
+function clipAtWord(text, max) {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}\u2026`;
 }
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
@@ -1793,7 +1863,7 @@ function feedProblemWords(reason, status) {
     case "unreachable":
       return "The calendar could not be reached. Check the address and try again.";
     case "http":
-      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+      return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large":
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
@@ -2681,13 +2751,14 @@ function readAgoLabel(iso, now) {
 }
 function ruleParts(rules) {
   const r = { ...BOOKING_DEFAULTS, ...rules ?? {} };
-  const parts2 = [`at least ${r.lead_hours}h ahead`];
+  const parts2 = [`at least ${r.lead_hours}h notice`];
   if (r.buffer_min > 0) parts2.push(`${r.buffer_min} min between appointments`);
-  parts2.push(`up to ${r.max_days_ahead} days out`, `${r.slot_min}-min slots`);
+  parts2.push(`up to ${r.max_days_ahead} days ahead`, `${r.slot_min}-min slots`);
+  if (rules?.party_max) parts2.push(`up to ${rules.party_max} ${rules.party_max === 1 ? "person" : "people"} per booking`);
   return parts2;
 }
 function rulesLine(rules) {
-  return `Offers times ${ruleParts(rules).join(" \xB7 ")}`;
+  return `Offers times with ${ruleParts(rules).join(" \xB7 ")}`;
 }
 function feedNotes(feed) {
   if (feed.state !== "ok") return [];
@@ -2716,8 +2787,15 @@ function hoursLines2(hours) {
   if (!hours) return [];
   const clean = {};
   for (const d of DAYS) if (hours[d]) clean[d] = hours[d];
-  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${r.text.toLowerCase() === "closed" ? "closed" : r.text}`);
+  return hoursRuns(clean).map((r) => `${DAY_SHORT[r.from] ?? r.from}${r.to !== r.from ? `\u2013${DAY_SHORT[r.to] ?? r.to}` : ""} ${dayHoursWords(clean[r.from])}`);
 }
+function dayHoursWords(h) {
+  const at2 = (s) => Number(s.split(":")[0]) + Number(s.split(":")[1]) / 60;
+  const parts2 = dayIntervals(h).map(([o, c]) => spanLabel2(at2(o), at2(c)));
+  if (!parts2.length) return h?.open || h?.close || h?.intervals?.length ? "hours incomplete" : "closed";
+  return parts2.length < 3 ? parts2.join(" and ") : `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}`;
+}
+var CALENDAR_FEED_WORDS = { ok: "Readable", stale: "Last good read", unavailable: "Could not be read", none: "Not connected" };
 function hoursOf(tz, ms2) {
   const c = clockInZone(tz, ms2);
   return c.hh + c.mm / 60;
@@ -2725,8 +2803,18 @@ function hoursOf(tz, ms2) {
 function spanLabel2(t1, t2) {
   const a = clockLabel(t1);
   const b = clockLabel(t2);
-  const sameHalf = a.slice(-2) === b.slice(-2);
+  const sameHalf = t2 < 24 && t1 < 12 === t2 < 12;
   return `${sameHalf ? a.slice(0, -3) : a} \u2013 ${b}`;
+}
+function nextOpenWords(startIso, tz, todayKey) {
+  const ms2 = startIso ? Date.parse(startIso) : Number.NaN;
+  if (!Number.isFinite(ms2)) return "\u2014";
+  const day = dayInZone(tz, ms2);
+  const clock2 = clockLabel(hoursOf(tz, ms2));
+  if (day.key === todayKey) return `today ${clock2}`;
+  if (day.key === shiftKey(todayKey, 1)) return `tomorrow ${clock2}`;
+  if (day.key <= shiftKey(todayKey, 6)) return `${DAY_SHORT[day.weekday] ?? day.weekday} ${clock2}`;
+  return `${shortDate(day.key)}, ${clock2}`;
 }
 function toBlock(item, tz, dayStartMs, dayEndMs, now) {
   const s = Math.max(Date.parse(item.start), dayStartMs);
@@ -2785,6 +2873,8 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const tz = dto.timezone;
   const todayKey = dayInZone(tz, now.getTime()).key;
   const nowMs = now.getTime();
+  const offerDays = { ...BOOKING_DEFAULTS, ...dto.rules ?? {} }.max_days_ahead;
+  const offerUntil = dayInZone(tz, nowMs + (offerDays - 1) * 864e5).key;
   let start = 24;
   let end = 0;
   for (const h of Object.values(dto.hours ?? {})) {
@@ -2863,40 +2953,39 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
       bands,
       blocks: timed,
       allDay,
-      windows
+      windows,
+      beyondOffer: d.key > offerUntil
     };
   });
   const events = days.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
   const windowCount = days.reduce((a, d) => a + d.windows.length, 0);
-  let next = "\u2014";
-  outer: for (const d of days) {
-    for (const w of d.windows) {
-      const at2 = zoneMidnight(tz, d.key) + w.t * 36e5;
-      if (at2 >= nowMs) {
-        next = `${d.today ? "today" : d.dow} ${clockLabel(w.t)}`;
-        break outer;
-      }
-    }
-  }
+  const next = dto.feed.state === "ok" ? nextOpenWords(dto.next_opening?.start ?? null, tz, todayKey) : "\u2014";
   const ago3 = readAgoLabel(dto.feed.read_at, now);
   const stale = dto.feed.state === "ok" && !!dto.feed.stale;
-  const feedLine = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? " \xB7 could not be refreshed" : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}${dto.feed.skipped_recurring ? ` \xB7 ${dto.feed.skipped_recurring} repeating rule${dto.feed.skipped_recurring === 1 ? "" : "s"} read once` : ""}${dto.feed.dropped ? ` \xB7 ${dto.feed.dropped} more not shown` : ""}` : dto.feed.state === "unavailable" ? `Your calendar could not be read${ago3 ? ` \xB7 last read ${ago3}` : ""}` : "No calendar connected";
+  const tried = readAgoLabel(dto.feed.checked_at ?? null, now);
+  const feedDetail = dto.feed.state === "ok" ? `From ${dto.feed.source ?? "your calendar"} \xB7 read ${ago3 ?? "just now"}${stale ? ` \xB7 could not be refreshed${tried ? ` ${tried}` : ""}` : ""} \xB7 ${dto.feed.events} event${dto.feed.events === 1 ? "" : "s"}` : dto.feed.state === "unavailable" ? [tried ? `tried ${tried}` : "", ago3 ? `last read ${ago3}` : ""].filter(Boolean).join(" \xB7 ") : "";
+  const feedLine = dto.feed.state === "ok" ? feedDetail : dto.feed.state === "unavailable" ? `Your calendar could not be read${feedDetail ? ` \xB7 ${feedDetail}` : ""}` : "No calendar connected";
+  const feedHealth = dto.feed.state === "ok" ? stale ? "stale" : "ok" : dto.feed.state;
   const nowIn = days.some((d) => d.today) ? hoursOf(tz, nowMs) : null;
   const last = dto.days[dto.days.length - 1]?.key ?? dto.from;
   const sameMonth = dto.from.slice(0, 7) === last.slice(0, 7);
-  const closuresAhead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date)).slice(0, 6).map((c) => ({
+  const ahead = dto.closures.filter((c) => (c.until && c.until >= c.date ? c.until : c.date) >= todayKey).sort((a, b) => a.date.localeCompare(b.date));
+  const closuresAhead = ahead.slice(0, 6).map((c) => ({
     key: c.date,
     label: c.until && c.until > c.date ? `${shortDate(c.date)} \u2013 ${c.until.slice(0, 7) === c.date.slice(0, 7) ? c.until.slice(8).replace(/^0/, "") : shortDate(c.until)}` : shortDate(c.date),
     note: c.note ?? null
   }));
+  const listed = (dto.services ?? []).map((s) => ({ name: s.name, duration_min: s.duration_min ?? void 0 }));
   const services = (dto.services ?? []).map((s) => ({
     name: s.name,
     duration: s.duration_min,
     consultFirst: s.consult_first,
-    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consult first" : ""}`
+    offerMinutes: offerFor(listed, dto.rules, s.name)?.minMinutes ?? null,
+    label: `${s.name}${s.duration_min ? ` \xB7 ${s.duration_min} min` : ""}${s.consult_first ? " \xB7 consultation first" : ""}`
   }));
   return {
     timezone: tz,
+    zoneCity: timezoneCity(tz),
     from: dto.from,
     to: last,
     rangeLabel: `${shortDate(dto.from)} \u2013 ${sameMonth ? shortDate(last).replace(/^[A-Za-z]+ /, "") : shortDate(last)}`,
@@ -2905,12 +2994,16 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
     days,
     today: todayKey,
     now: nowIn,
-    feed: { present: dto.feed.present, state: dto.feed.state, line: feedLine, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
+    feed: { present: dto.feed.present, state: dto.feed.state, health: feedHealth, line: feedLine, detail: feedDetail, events: dto.feed.events, source: dto.feed.source ?? "your calendar", problem: dto.feed.problem ?? null, stale, skippedRecurring: dto.feed.skipped_recurring || 0, dropped: dto.feed.dropped || 0, notes: feedNotes(dto.feed) },
     stats: { events, windows: windowCount, next },
+    offer: { days: offerDays, until: offerUntil, label: shortDate(offerUntil) },
     rules: rulesLine(dto.rules),
     ruleParts: ruleParts(dto.rules),
     hoursLines: hoursLines2(dto.hours),
     closuresAhead,
+    // Past the six the bar names, counted: a seventh closure used to vanish without a word (C1).
+    closuresMore: Math.max(0, ahead.length - closuresAhead.length),
+    consultFirst: (dto.rules?.consult_first ?? []).map((s) => s.trim()).filter(Boolean),
     services,
     bookingLink: dto.booking_link
   };
@@ -3585,16 +3678,22 @@ function peopleListAction(id, members) {
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  return broadcastStep(step.cta, step.to, members);
+}
+function savedListAction(id, members) {
+  return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
+}
+function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
     return {
       text: members.length ? "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer. The phrase and the QR are on Broadcasts." : "Nobody here right now.",
-      cta: step.cta,
-      to: step.to,
+      cta,
+      to,
       enabled: false
     };
   }
-  return { text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  return { text: `${offersYes} of ${members.length} on this list said yes to offers \u2014 a broadcast reaches them.`, cta, to, enabled: true };
 }
 function peopleAggregates(rows, nowMs) {
   let needsYou = 0;
@@ -3770,7 +3869,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
       kind: "escalation",
       who: "Escalated",
       text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
-      sub: e.state === "resolved" ? "Resolved" : "Open",
+      // "Open" beside a row that opens something read as the verb; the state is what it says.
+      sub: e.state === "resolved" ? "Resolved" : "Still open",
       link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` }
     });
   }
@@ -3829,7 +3929,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     }
   }
   const threadTo = row2.latest_conversation_id ? `inbox/th-${row2.latest_conversation_id}` : null;
-  const openInbox = threadTo ? { label: "Open in Inbox", to: threadTo } : null;
+  const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
   const r = row2;
   let rightNow;
   if (r.open_escalation_reason) {
@@ -3837,31 +3937,32 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     rightNow = {
       tone: "escalated",
       title: `Escalated \xB7 ${reasonShort(r.open_escalation_reason)}`,
-      detail: `${since ? `Since ${since} \xB7 ` : ""}the receptionist is paused on this thread until someone answers`,
-      cta: openInbox
+      detail: `${capitalize(reasonShort(r.open_escalation_reason))}${since ? ` \xB7 since ${since}` : ""}. Paused until someone answers.`,
+      cta: openThread
     };
   } else if (r.needs_human) {
-    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "The receptionist stopped and nobody has taken the thread yet", cta: openInbox };
+    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "Stopped, and nobody has taken the thread yet.", cta: openThread };
   } else if (r.queued_reply_at) {
     const q = ts(r.queued_reply_at);
-    rightNow = { tone: "queued", title: "Reply sending", detail: `Queued ${q !== null ? ago(q, tz, nowMs) : ""} \xB7 it can still be stopped from the Inbox`.replace("  ", " "), cta: openInbox };
+    rightNow = { tone: "queued", title: "Reply sending", detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} \u2014 it can still be stopped from the Inbox.`, cta: openThread };
   } else if (base.receptionist.tone === "snoozed") {
-    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}`, cta: openInbox };
+    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`, cta: openThread };
   } else if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
+    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
   } else if (base.consent.state === "opted_out") {
-    rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
+    rightNow = { tone: "silent", title: "Silent, they opted out", detail: "They said stop \u2014 nothing goes out to them until they ask again.", cta: null };
   } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
     const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
     const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    const word = PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"];
     rightNow = {
       tone: "paused",
-      title: `Held for you, set to ${PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"]}`,
-      detail: theirs ? "You set the receptionist to stay out of this person's thread \u2014 their messages come straight to you" : "Your workspace reply setting holds every message for a person",
-      cta: openInbox
+      title: `Held for you, set to ${word}`,
+      detail: theirs ? `Set to ${word} for them \u2014 their messages come straight to you.` : `Set to ${word} for the workspace \u2014 every message waits for a person.`,
+      cta: openThread
     };
   } else {
-    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
+    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically.", cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null };
   }
   const firstIsCall = d.calls.some((k) => k.started_at && ts(k.started_at) === base.firstContact.ts);
   const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
@@ -4093,6 +4194,18 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` \xB7 ${callMinutes} min` : ""}` : "0" }
   ];
   const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
+  const trafficParts = [];
+  if (p.messages_in > 0) {
+    trafficParts.push(
+      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`}`
+    );
+  }
+  if (p.calls) {
+    trafficParts.push(
+      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`
+    );
+  }
+  const trafficLine = trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
   if (isQuiet) {
     const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
     const gap = live.last_outbound_at && live.last_inbound_at && new Date(live.last_outbound_at) > new Date(live.last_inbound_at) ? Math.round(
@@ -4113,7 +4226,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       },
       needsYou: null,
       windowClosing: null,
-      recap: { label: "Today so far", sentences: [], facts, receipts: [] },
+      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
       callsRead,
@@ -4175,12 +4288,14 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (p.answered_by_ai && !headlineCoversTraffic) {
     sentences.push({
-      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`
+      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`,
+      traffic: true
     });
   }
   if (p.calls && !headlineCoversTraffic) {
     sentences.push({
-      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`
+      text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${callMinutes ? ` \u2014 ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""}.`,
+      traffic: true
     });
   }
   if (p.messages_out_you) {
@@ -4358,7 +4473,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       hint: "WhatsApp only lets you write freely for 24 hours after someone messages you. After that it's an approved template.",
       rows: closingRows
     } : null,
-    recap: { label: "Today so far", sentences, facts, receipts },
+    recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
     pulse,
     callsRead,
     calls: p.calls ? {
@@ -4440,11 +4555,20 @@ function todayDayFacts(cal, agg) {
   const today = cal.days.find((d) => d.today);
   if (today) {
     const n = today.blocks.length + today.allDay.length;
-    const hint = today.closed.yes ? `closed today${today.closed.note ? ` \xB7 ${today.closed.note}` : ""}` : cal.stats.next !== "\u2014" ? `next opening ${cal.stats.next}` : void 0;
+    const hint = today.closed.yes ? `closed today${today.closed.note ? ` \xB7 ${today.closed.note}` : ""}` : cal.stats.next !== "\u2014" ? `next open time ${cal.stats.next}` : void 0;
     out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
   }
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
   return out;
+}
+function todayDayLine(cal, agg) {
+  const facts = todayDayFacts(cal, agg);
+  if (!facts.length) return null;
+  const said = facts.map((f) => {
+    const what = f.label === "Appointments today" ? `${f.value} appointment${f.value === "1" ? "" : "s"} today` : `${f.value} booked ahead`;
+    return f.hint ? `${what}, ${f.hint}` : what;
+  });
+  return `${said.join(". ")}.`;
 }
 function todayWeek(r) {
   if (!r) return null;
@@ -4916,7 +5040,8 @@ var ASK_PAGES = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
-  { label: "Lists", to: "segments", kind: "page", sub: "the people you keep together" },
+  // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People" },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
@@ -5446,6 +5571,38 @@ function templateTitle(name, title) {
   const words = String(name ?? "").replace(/_v\d+$/i, "").replace(/_/g, " ").replace(/\s+/g, " ").trim();
   return words ? words[0].toUpperCase() + words.slice(1) : String(name ?? "");
 }
+function languageWords(code2) {
+  const base = String(code2 ?? "").split(/[-_]/)[0];
+  const Names = Intl.DisplayNames;
+  try {
+    const name = base && Names ? new Names(["en"], { type: "language" }).of(base) : void 0;
+    return name && name !== base ? name : String(code2 ?? "");
+  } catch {
+    return String(code2 ?? "");
+  }
+}
+function inboxTemplates(templates, to) {
+  const sendable = [];
+  let promotions = 0;
+  let unfillable = 0;
+  for (const t of templates) {
+    if (slotToWrite(t)) {
+      unfillable += 1;
+      continue;
+    }
+    if (purposeOfTemplate(t.category) === "marketing" && !to.offersOk) {
+      promotions += 1;
+      continue;
+    }
+    const title = templateTitle(t.name, t.title);
+    sendable.push({ template: t, title, label: `${title} \xB7 ${languageWords(t.language)}` });
+  }
+  const held = [
+    promotions ? `${promotions} promotion${promotions === 1 ? "" : "s"} (${to.who} hasn't said yes to offers)` : "",
+    unfillable ? `${unfillable} that ${unfillable === 1 ? "needs" : "need"} words the Inbox doesn't ask for` : ""
+  ].filter(Boolean);
+  return { sendable, hidden: held.length ? `Not offered: ${held.join(" and ")}.` : null };
+}
 function guessSlotKind(label, example) {
   const l = String(label ?? "").toLowerCase();
   const e = String(example ?? "").toLowerCase();
@@ -5493,6 +5650,14 @@ function slotLabels(t) {
     const n = typeof v?.position === "number" ? v.position : i + 1;
     return label && !/^Value \d+$/.test(label) ? label : `Value ${n}`;
   });
+}
+function inboxSlots(t) {
+  return Array.isArray(t.variables) ? defaultParamSpecs({ name: t.name, variables: t.variables }) : [{ kind: "business_name" }, { kind: "booking_link" }];
+}
+function slotToWrite(t) {
+  const at2 = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
+  if (at2 < 0) return null;
+  return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
 }
 
 // src/broadcasts.ts
@@ -7207,7 +7372,7 @@ function setupSteps(i, nowMs = Date.now()) {
   } else {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
   }
-  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable \u2014 the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+  row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: `${CALENDAR_FEED_WORDS.ok} \u2014 the receptionist offers times from it.`, details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`, details: [], verb: { label: "Check the address", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the address", to: "admin/workspace" } });
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
@@ -7507,10 +7672,6 @@ function cleanTimezone(raw) {
   if (!isTimezone(tz)) return { ok: false, reason: `${tz} is not a timezone this system knows.` };
   return { ok: true, tz };
 }
-function timezoneCity(tz) {
-  const tail = tz.split("/").pop() || tz;
-  return tail.replace(/_/g, " ");
-}
 function timezoneWords(tz, nowMs = Date.now()) {
   const zone = tz && isTimezone(tz) ? tz : DEFAULT_TIMEZONE;
   const city = timezoneCity(zone);
@@ -7756,11 +7917,11 @@ function connectionRows(i, nowMs = Date.now()) {
   }
   const cal = i.calendar?.state ?? "none";
   if (cal === "ok") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: "Readable", sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: CALENDAR_FEED_WORDS.ok, sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
   } else if (cal === "unavailable") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: "Could not be read", sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.", verb: { label: "Check the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: CALENDAR_FEED_WORDS.unavailable, sentence: "Your calendar could not be read. Check the address in Settings \u203A Business.", verb: { label: "Check the address", to: "admin/workspace", who: "owner" } }));
   } else {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: "Not connected", sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: CALENDAR_FEED_WORDS.none, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the address", to: "admin/workspace", who: "owner" } }));
   }
   out.push(row({ kind: "instagram", icon: "instagram", title: "Instagram", detail: null, state: "later", stateWords: "Later", sentence: "Direct messages, answered by the receptionist like WhatsApp.", verb: null }));
   out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "later", stateWords: "Later", sentence: "An address the receptionist answers.", verb: null }));
@@ -8842,6 +9003,7 @@ var TONE_OF = {
   setup: { waiting_you: "warn", waiting_them: "info", ready: "ok", not_started: "plain" },
   role: { owner: "info", operator: "plain", viewer: "plain" },
   tone: { accent: "accent", warn: "warn", info: "info", ok: "ok", danger: "danger", plain: "plain" },
+  calendar: { ok: "ok", stale: "warn", unavailable: "warn", none: "plain" },
   escalation: { open: "warn", resolved: "ok" }
 };
 var LABEL_OF = {
@@ -8857,6 +9019,7 @@ var LABEL_OF = {
   template_quality: { GREEN: "High quality", YELLOW: "Medium quality", RED: "Low quality", UNKNOWN: "Quality not rated yet" },
   setup: SETUP_STATE_WORDS,
   role: ROLE_WORDS,
+  calendar: CALENDAR_FEED_WORDS,
   escalation: { open: "Open", resolved: "Resolved" }
 };
 function stateTone(kind, value) {
@@ -8919,6 +9082,7 @@ export {
   BrainConfigSchema,
   BrainOutputSchema,
   BusinessProfileSchema,
+  CALENDAR_FEED_WORDS,
   CALL_HEARTBEAT_MS,
   CALL_OUTCOMES,
   CALL_OUTCOME_WORDS,
@@ -9255,6 +9419,8 @@ export {
   hoursLines2 as hoursLines,
   hoursRuns,
   identityWords,
+  inboxSlots,
+  inboxTemplates,
   indexFeed,
   industryOf,
   industryWords,
@@ -9280,6 +9446,7 @@ export {
   isUngrounded,
   isUsablePassword,
   knownTimezones,
+  languageWords,
   lastChangedWords,
   lineCredentialFailure,
   lineRetryRefusal,
@@ -9305,6 +9472,7 @@ export {
   monthLabelOf,
   monthSpan,
   navigateLabel,
+  needsConsultation,
   newReceptionistDefaults,
   nextOpenMoment,
   nextRunLabel,
@@ -9313,6 +9481,8 @@ export {
   normalizePhone,
   notFoundPageMetadata,
   numberHealth,
+  offerFor,
+  offerLead,
   offeringHorizon,
   offersYesRefusal,
   ok,
@@ -9402,6 +9572,7 @@ export {
   sameName,
   samePhone,
   sameQuestion,
+  savedListAction,
   scheduleLine,
   scopeFromRoute,
   seasonHorizon,
@@ -9418,6 +9589,7 @@ export {
   shouldLandOnSetup,
   signupPosture,
   slotLabels,
+  slotToWrite,
   slugTemplateName,
   smsConsentSentence,
   smsStateRow,
@@ -9476,6 +9648,7 @@ export {
   todayAway,
   todayDay,
   todayDayFacts,
+  todayDayLine,
   todayJourney,
   todayWeek,
   tomorrowAtIn,

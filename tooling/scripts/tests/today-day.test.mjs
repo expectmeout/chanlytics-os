@@ -42,7 +42,7 @@ test("today and tomorrow, as the calendar reads them: items in time order with t
   assert.deepEqual(vm.reminders, { text: "Visit reminder: 2 people · next run today 10:00", to: "outbound" }, "only the visit playbooks speak here");
 });
 
-test("without a feed the day says nothing; with one and no visit playbook it offers to start one; a dash is no next opening", () => {
+test("without a feed the day says nothing; with one and no visit playbook it offers to start one; a dash is no next open time", () => {
   assert.deepEqual(todayDay(null, null), { feed: "none", frames: [], nextOpening: null, reminders: null });
   const off = todayDay(cal([day("2026-09-06", { today: true })], { feed: { present: true, state: "unavailable", line: "", events: 0, source: "x" } }), []);
   assert.equal(off.feed, "unavailable");
@@ -55,10 +55,10 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   assert.match(paused.reminders.text, /^No visit reminders yet/, "a paused playbook is not a reminder going out");
 });
 
-test("the facts beside the recap's: appointments today with the next opening or the closure, and what is booked ahead", () => {
+test("the facts beside the recap's: appointments today with the next open time or the closure, and what is booked ahead", () => {
   const c = cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Gloss")], allDay: [block("a1", 0, "", "Stock")] })]);
   assert.deepEqual(todayDayFacts(c, { booked: 3, reachedWeek: 4 }), [
-    { label: "Appointments today", value: "2", hint: "next opening Mon 9:30 AM" },
+    { label: "Appointments today", value: "2", hint: "next open time Mon 9:30 AM" },
     { label: "Booked ahead", value: "3", hint: "4 reached this week" },
   ]);
   const closed = cal([day("2026-09-06", { today: true, closed: { yes: true, note: "holiday" } })]);
@@ -68,13 +68,14 @@ test("the facts beside the recap's: appointments today with the next opening or 
 });
 
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, week: todayWeek, journey: todayJourney, away: todayAway };"));
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"));
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
   for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null, window.__PEOPLE || null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"', 'className="td-item-rail"', "data-phase={b.phase}", 'className="td-item-flag"', "b.person ? b.person.name : b.title"]) assert.ok(page.includes(s), s);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes("<DayFacts />") && brief.includes("window.__today.facts(C ? C.vm : null, P ? P.aggregates : null)"), "the day's facts ride the recap's strip");
+  assert.ok(brief.includes("window.__today.dayLine(C ? C.vm : null, P ? P.aggregates : null)"), "the day's numbers ride the recap's one sentence");
+  assert.ok(!brief.includes("<DayFacts />"), "the strip of stat cards above the work is that sentence now");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
   const dash = readCode("apps/dashboard/src/legacy/pages/dashboard-a.jsx");
   assert.ok(dash.indexOf("<AgentCommand />") < dash.indexOf("<TodayDay />"), "the queue, then the day, in the core");

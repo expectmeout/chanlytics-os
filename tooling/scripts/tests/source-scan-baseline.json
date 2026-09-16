@@ -6,7 +6,8 @@
     "hygiene.test.mjs",
     "ops-hygiene.test.mjs",
     "runtime-freshness.test.mjs",
-    "event-kinds.test.mjs"
+    "event-kinds.test.mjs",
+    "legacy-harness.test.mjs"
   ],
   "counts": {
     "a2p-refile.test.mjs": 17,
@@ -70,14 +71,14 @@
     "phone.test.mjs": 4,
     "playbooks.test.mjs": 27,
     "policy-classes.test.mjs": 6,
-    "polish.test.mjs": 13,
+    "polish.test.mjs": 12,
     "prompt-preview.test.mjs": 3,
     "rate-limit.test.mjs": 4,
     "receptionist-setup.test.mjs": 1,
     "registration-path.test.mjs": 8,
     "review-reply.test.mjs": 10,
     "runtime-freshness.test.mjs": 2,
-    "saved-lists.test.mjs": 16,
+    "saved-lists.test.mjs": 14,
     "settings-truth.test.mjs": 13,
     "setup.test.mjs": 25,
     "shared-limits.test.mjs": 1,
