@@ -1862,7 +1862,12 @@ function twilioProvider(http = fetchTwilio) {
       return { sid: sid2 };
     },
     async sendSms(acct, o) {
-      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), { MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body });
+      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+        MessagingServiceSid: o.serviceSid,
+        To: o.to,
+        Body: o.body,
+        ...o.statusCallback ? { StatusCallback: o.statusCallback } : {}
+      });
       const ok2 = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
       return { ok: ok2, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? a.body.code : null };
     }
@@ -2177,6 +2182,41 @@ var SMS_HELD_REASON = "carriers";
 var SMS_HELD_DETAILS = "This text arrived on your line before the carriers approved it for texting, so the receptionist did not answer. It is kept here; answer it yourself, or wait for the approval on Setup.";
 function smsInboundUrl(fnUrl) {
   return `${fnUrl.replace(/\/api\/retell-fn$/, "")}/api/inbound-sms`;
+}
+function smsStatusUrl(fnUrl) {
+  return `${fnUrl.replace(/\/api\/retell-fn$/, "")}/api/sms-status`;
+}
+function smsStatusFrom(form2) {
+  const messageSid = form2.MessageSid || form2.SmsSid || "";
+  const status = (form2.MessageStatus || form2.SmsStatus || "").toLowerCase();
+  const from = form2.From || "";
+  const to = form2.To || "";
+  if (!messageSid || !status || !from || !to) return null;
+  return {
+    messageSid,
+    status,
+    errorCode: form2.ErrorCode ? String(form2.ErrorCode) : null,
+    from,
+    to,
+    messagingServiceSid: form2.MessagingServiceSid || null,
+    accountSid: form2.AccountSid || null
+  };
+}
+function smsStatusToRow(status) {
+  switch (status) {
+    case "sent":
+      return "sent";
+    case "delivered":
+      return "delivered";
+    case "read":
+      return "read";
+    case "undelivered":
+    case "failed":
+    case "canceled":
+      return "failed";
+    default:
+      return null;
+  }
 }
 function twilioSignedString(url, form2) {
   return url + Object.keys(form2).sort().map((k) => `${k}${form2[k]}`).join("");
@@ -3381,6 +3421,9 @@ export {
   smsInboundUrl,
   smsKeywordConsent,
   smsStateFor,
+  smsStatusFrom,
+  smsStatusToRow,
+  smsStatusUrl,
   soleProprietorEndUserRequest,
   soleProprietorProfileRequest,
   starRatingNumber,
