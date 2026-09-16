@@ -49,7 +49,6 @@ test("the wiring: words on the edge, a bounded reply on both sides, the layout f
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css").includes(".brief-beat-text { flex: 1; min-width: 0; }"), "a long beat wraps beside its dot, not under it");
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/components.css").includes("  overflow-wrap: anywhere;\n}\n.stat-cell-meta.pos"), "a long meta wraps in its own cell, not into the next");
   assert.ok(readCode("apps/dashboard/src/legacy/components/data-bits.jsx").includes('title={typeof meta === "string" ? meta : undefined}'));
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/reports.css").includes(".rp2-delta { font-size: 10.5px; white-space: normal; line-height: 1.25; min-width: 0; }"), "a delta wraps instead of truncating");
   const today = readCode("packages/contracts/src/today.ts");
   assert.ok((today.match(/tzClock\(/g) ?? []).length >= 5, "every closing time names its day");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");

@@ -275,11 +275,29 @@ test("REGRESSION (C28): a card with a table saves it as a CSV -- the numbers wer
 
 /* ------------------------------ words ------------------------------ */
 
+test("REGRESSION: a tile is a number, what it is and one line under it -- it also drew a seven-point sparkline beside a number the chart below plots, and a delta claiming a percentage on a count of two", () => {
+  const tree = reports();
+  const tiles = all(tree, (n) => classes(n).includes("rp2-tile"));
+  assert.ok(tiles.length >= 6, `the strip is drawn: ${tiles.length} tiles`);
+  assert.ok(!find(tree, (n) => classes(n).includes("rp2-spark")), "REGRESSION: a sparkline in every tile");
+  assert.ok(!find(tree, (n) => classes(n).includes("rp2-delta")), "REGRESSION: \"+100% vs prior 7 days\" on a count of four");
+  // The view model still carries both -- Ask reads the change, and every chart draws the period before as a faint line.
+  const vm = toReportVM(reportDto());
+  assert.ok(vm.tiles.some((t) => t.delta) && vm.tiles.every((t) => Array.isArray(t.spark)), "the numbers are still there to read");
+
+  // One line above them: the period, and the days it covers.
+  const head = find(tree, (n) => classes(n).includes("rp2-head"));
+  assert.ok(head && textOf(head).includes("7 days") && textOf(head).includes("–"), `the period and its days: ${textOf(head)}`);
+  const said = textOf(tree);
+  assert.ok(!said.includes("What the receptionist handled"), "REGRESSION: a sub-headline under a title the top bar already says");
+  assert.ok(!said.includes("Reports"), "and the page does not title itself");
+});
+
 test("REGRESSION (C25): Reports says what the campaigns sent, not what offers earned -- a visit reminder is no offer", () => {
   const said = textOf(reports());
   assert.ok(!said.includes("offers earned"), "REGRESSION: offers over visit reminders");
-  assert.ok(said.includes("what your campaigns sent"), "the page's own line");
-  assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section's");
+  // The page said it twice: a sub-headline under a title the top bar already carries, and the section's own line.
+  assert.ok(said.includes("what your broadcasts and playbooks sent"), "the section says what a campaign is");
 });
 
 test("REGRESSION (C25): the reply window is one rule said one way -- three places said it three ways", () => {
