@@ -417,7 +417,7 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   assert.ok(bridge.includes("window.__setPersonDetails = setPersonDetails;") && bridge.includes('"PUT contacts/[id]/details"'));
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
   for (const id of ["person-rename", "person-name-input", "person-name-save", "person-notes", "person-notes-input", "person-notes-save"]) assert.ok(page.includes(`data-testid="${id}"`), id);
-  assert.ok(page.includes("Notes · the receptionist reads these") && page.includes("the receptionist uses these as facts and never reads them aloud"));
+  assert.ok(page.includes("Notes for the receptionist") && page.includes("used as facts, never read aloud"));
   assert.ok(page.includes("<PersonName p={p} canEdit={canRecord} flash={ppFlash} />"), "the hero name is the editable one");
   const vm = toPersonVM({ ...detail_(), notes: "  Sees Sofia  " }, TZ, new Date(NOW));
   assert.equal(vm.notes, "Sees Sofia");

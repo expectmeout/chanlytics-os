@@ -97,7 +97,7 @@ test.describe("People on a real workspace", () => {
     for (const said of ["Phone", "Channels", "First contact"]) expect(keys, `${said} is said under the name`).not.toContain(said);
 
     // One button to the thread: the header's Open thread and Right now's Open in Inbox went to the same place.
-    expect(await page.locator(".cl-profile button", { hasText: /^(Open thread|Open in Inbox)$/ }).count()).toBeLessThanOrEqual(1);
+    expect(await page.locator(".cl-profile button", { hasText: /^(Open thread|Open in Inbox|Open the thread)$/ }).count()).toBeLessThanOrEqual(1);
 
     // Between 901 and 1250px the name's column went to zero beside the header's buttons. The column, not the
     // name: a name's own box is only as wide as its letters, and passes while the column around it is broken.
