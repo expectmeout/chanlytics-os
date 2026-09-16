@@ -709,7 +709,9 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
   // A fold of three rows is not worth a press.
   const visible = showAll || shown.length <= TL_CAP + 3 ? shown : shown.slice(0, TL_CAP);
   const older = shown.length - visible.length;
-  const href = (to) => (window.__href ? window.__href(to) : `#/${to}`);
+  // The app's routes are hashes (`/#/inbox/th-…`). NOT window.__href: that is the bridge's API URL builder
+  // ("GET contacts/export" → a route table → `.path`), and handed a route it threw, and the whole pane with it.
+  const href = (to) => `#/${to}`;
   const go = (to) => (e) => { if (e && e.preventDefault) e.preventDefault(); window.CHANLY.nav(to); };
   return (
     <>

@@ -374,9 +374,19 @@ test("someone who said stop keeps their way into the thread, and is offered no b
 
 test("the timeline's linked rows are the doors themselves -- a message's door hid in its time, a button that looked like a timestamp", async () => {
   const vm = toPersonVM(detail(), ZONE, new Date(NOW));
-  const draw = await profile(vm);
-  const tree = draw();
+  // The bridge's window.__href is the API URL builder (inbox-verbs.ts): "GET contacts/export" in, a URL out, and a
+  // route string in throws on its route table. The page once built its row hrefs through it and every person's
+  // page fell over in production (the error surface: can't access property "path"). Installed here as it behaves.
+  globalThis.window.__href = (key) => { const routes = {}; return routes[key].path; };
+  let tree;
+  try {
+    const draw = await profile(vm);
+    tree = draw();
+  } finally {
+    delete globalThis.window.__href;
+  }
   const doors = all(tree, (n) => n.props?.["data-testid"] === "timeline-open");
+  for (const d of doors) assert.match(d.props.href, /^#\/(inbox|calendar)\//, `a hash route, the app's own: ${d.props.href}`);
   assert.ok(doors.length >= 2, "the message and the escalation open somewhere");
   for (const d of doors) {
     assert.equal(d.type, "a", "a row that goes somewhere is a link, so it has a URL and a keyboard reaches it");
