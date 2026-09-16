@@ -2060,7 +2060,7 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
       return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS52)) && !r.booked;
     });
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2.slice(0, Math.max(1, p.cap_per_run));
+    return pool2;
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS52;
@@ -2113,13 +2113,27 @@ var PLAYBOOK_CLASS_LABEL2 = {
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short
 };
-function visitFactsFor(trigger, visit, tz) {
+function visitFactsFor(trigger, visit, tz, sendAt) {
   const t = triggerOf(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
-    visit_when: trigger === "visit_tomorrow" ? `tomorrow at ${visitStartTime(visit, tz)}` : "yesterday",
+    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
     visit_service: visit.title.trim() || "your appointment"
   };
+}
+function visitDayWord(visit, tz, sendAt, assumed) {
+  if (!sendAt) return assumed;
+  const visitDay2 = localDate(tz, new Date(visit.start));
+  const sendDay = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS52);
+  if (delta === 1) return "tomorrow";
+  if (delta === 0) return "today";
+  if (delta === -1) return "yesterday";
+  try {
+    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+  } catch {
+    return delta > 0 ? "soon" : "recently";
+  }
 }
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -3655,15 +3669,20 @@ async function runPlaybook(ports, cmd) {
     { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
     now.getTime()
   );
-  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) eligible = eligible.slice(0, Math.max(0, Math.floor(ctx.health.limitPerDay)));
+  let dropped = 0;
+  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) {
+    const keep = Math.max(0, Math.floor(ctx.health.limitPerDay));
+    dropped = eligible.length - keep;
+    eligible = eligible.slice(0, keep);
+  }
   if (eligible.length === 0) {
-    await record({ mode, eligible: 0 });
+    await record({ mode, eligible: 0, ...dropped ? { dropped } : {} });
     return { outcome: "empty", eligible: 0, mode };
   }
   const specs = parseParamSpecs(p.params);
   const factsOf = (r) => {
     const v = ctx.visits.get(r.id);
-    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz);
+    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz, open ? open.at : now);
   };
   const n = eligible.length;
   const made = await assembleRun(ports, {
@@ -3817,7 +3836,11 @@ async function createBroadcast(ports, cmd) {
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
-  const open = nextOpenMoment(await ports.timezone(), cmd.now);
+  const tz = await ports.timezone();
+  if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
+    throw new AppError("conflict", `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`, 409);
+  }
+  const open = nextOpenMoment(tz, cmd.now);
   const at = open.at;
   if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {

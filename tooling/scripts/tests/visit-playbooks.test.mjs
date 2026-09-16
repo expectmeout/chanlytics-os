@@ -58,7 +58,7 @@ test("a visit's day is the calendar's day: eleven at night tomorrow is still tom
   assert.equal(lateTomorrow.calendarTz, TZ);
   const p = { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
   assert.deepEqual(eligibleForPlaybook([lateTomorrow, dayAfter, today, earlyTomorrow], p, untouched, nowMs).map((r) => r.id), ["d", "a"], "tomorrow's visits, earliest first");
-  assert.deepEqual(eligibleForPlaybook([lateTomorrow, earlyTomorrow], { ...p, cap_per_run: 1 }, untouched, nowMs).map((r) => r.id), ["d"], "the cap");
+  assert.deepEqual(eligibleForPlaybook([lateTomorrow, earlyTomorrow], { ...p, cap_per_run: 1 }, untouched, nowMs).map((r) => r.id), ["d", "a"], "the cap is a fatigue limit for offers: a reminder is owed to everyone with a visit tomorrow");
   const noCalendar = toPersonRowVM(dto("e"), TZ, NOW);
   assert.deepEqual(eligibleForPlaybook([noCalendar], p, untouched, nowMs), [], "no calendar, nobody");
   const notYes = withVisits("f", visit("2026-09-07T15:00:00Z", "Cut"), null, { consent: "unknown" });
