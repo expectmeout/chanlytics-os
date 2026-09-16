@@ -6,7 +6,9 @@
 > Ruben's decision: most of it is revisited when the product is at 100%; none of those features is built before then.
 > Nothing below this line is a plan to build them.
 
-Single-page React (Babel, no bundler). `Chanlytics.html` loads: tokens/css → data/*.jsx → components/*.jsx → pages/*.jsx → app-shell. Bump `?v=N` on every edited file.
+Single-page React (Babel, no bundler). These files load TWICE, from two lists that must stay identical: `../legacy-bridge/manifest.ts` (the app) and `Chanlytics.html` (the standalone harness, `node tooling/scripts/serve-legacy.mjs`). Order in both: `data/bridge-stubs.jsx` (harness) or `seed-globals.ts` (app) → components/*.jsx → data/*.jsx → pages/*.jsx → app-shell; `Chanlytics.html` loads tokens/css first.
+
+**A new file goes in BOTH lists.** Seventeen went into the manifest alone — each with its own test — and the harness booted to a blank page for however long that took to notice. `tooling/scripts/tests/legacy-harness.test.mjs` pins the two lists together now, in file order. Bump `?v=N` on every edited file; the harness's server sends `no-store` because the document itself has no version.
 
 ## Architecture
 - **Data layer** (`data/*.jsx`): seed objects exported on `window.*`. No React. Files own their domain:
