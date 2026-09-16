@@ -38,6 +38,13 @@ test.describe("Content-Security-Policy, report-only", () => {
     expect(policy).toContain("frame-ancestors 'none'");
     // The enforced header next.config.ts has always sent, whatever the report-only one says.
     expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    // The page was rendered with this request's nonce, and every script it ships carries it: a nonce on
+    // the header alone is a policy that would take the page down the day it enforces.
+    const nonce = /'nonce-([^']+)'/.exec(policy)![1];
+    await expect(page.locator('meta[name="csp-nonce"]')).toHaveAttribute("content", nonce);
+    const scripts = await page.locator("script").evaluateAll((els) => els.map((el) => ({ src: el.getAttribute("src"), nonce: (el as HTMLScriptElement).nonce })));
+    expect(scripts.length).toBeGreaterThan(0);
+    expect(scripts.filter((s) => !s.nonce).map((s) => s.src ?? "inline"), "scripts without the nonce").toEqual([]);
     // Two requests, two nonces.
     const again = await page.goto("/login");
     expect(again!.headers()["content-security-policy-report-only"]).not.toEqual(policy);

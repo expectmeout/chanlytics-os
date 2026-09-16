@@ -97,6 +97,12 @@ export async function middleware(request: NextRequest) {
   });
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(CSP_HEADER, csp);
+  // On the REQUEST only, never the response: Next reads the nonce for the
+  // scripts it emits from the request's content-security-policy header first
+  // and the report-only one second. The first nightly with every page dynamic
+  // still found no script nonced in production, so the nonce rides under the
+  // name Next reads first as well; the browser sees only the response header.
+  requestHeaders.set("content-security-policy", csp);
   const nextWithPolicy = () => {
     const r = NextResponse.next({ request: { headers: requestHeaders } });
     r.headers.set(CSP_HEADER, csp);
