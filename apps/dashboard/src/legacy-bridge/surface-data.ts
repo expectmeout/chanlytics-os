@@ -178,10 +178,8 @@ import {
   peopleListAction,
   type PersonRowVM,
   type PeopleAggregates,
-  recencyCells,
   attentionRow,
   type AttentionRowVM,
-  PEOPLE_TABS,
   toChannelVM,
   type ChannelVM,
   toReportVM,
@@ -544,8 +542,7 @@ export interface PeopleSurface {
   /** Whether the saved lists were read: false leaves People standing without them, and the rail, the profile and Lists say so. */
   savedRead: boolean;
   aggregates: PeopleAggregates;
-  /** Days-since-last-contact histogram per state, for the console strip. */
-  recency: Record<string, { label: string; count: number }[]>;
+
   /** One row of the attention strip per person: the sentence, the state line, the one button. */
   attention: Record<string, AttentionRowVM>;
   /** The workspace's calendar: the outcome lists and the Booked cell exist only when it is "ok". */
@@ -597,9 +594,7 @@ function publishPeople(): void {
     savedRead: peopleLoaded.saved !== null,
     // The total is the server's: past the first page the rows here are not everyone.
     aggregates: { ...peopleAggregates(rows, now.getTime()), total: peopleLoaded.page?.total ?? rows.length },
-    recency: Object.fromEntries(
-      PEOPLE_TABS.filter((t) => t.id !== "all").map((t) => [t.id, recencyCells(rows.filter((r) => r.state === t.id), now.getTime())]),
-    ),
+
     attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),
     page: peopleLoaded.page,
     views: peopleLoaded.views,

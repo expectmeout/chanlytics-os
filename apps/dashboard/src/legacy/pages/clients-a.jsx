@@ -650,13 +650,7 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
 
 const PL_TABS = ["needs_you", "waiting_on_you", "new", "quiet", "active"];
 const PL_TAB_LABEL = { all: "All", needs_you: "Needs you", waiting_on_you: "Waiting on you", new: "New", quiet: "Quiet", active: "Active" };
-const PL_TAB_SUB = {
-  needs_you: "The receptionist stopped and is waiting for a person",
-  waiting_on_you: "You own the thread and they wrote last",
-  new: "First contact within 7 days, by evidence",
-  quiet: "Nothing heard in 30 days",
-  active: "Answered and current",
-};
+
 const PL_LIST_TIP = {
   needs_you: "An open escalation, or a thread waiting for a person",
   waiting_on_you: "You took over and they wrote last",
@@ -701,13 +695,6 @@ const plDownload = (name, text) => {
 };
 // The receptionist, in one word beside the state, only when it is not simply answering.
 const PL_RECEPT_MARK = { escalated: "escalated", queued: "reply queued", snoozed: "snoozed", paused: "held for you", silent: "silent" };
-
-const plAgo = (ms) => {
-  const diff = Math.max(0, Date.now() - ms);
-  if (diff < 3600000) return `${Math.max(1, Math.round(diff / 60000))}m`;
-  if (diff < 86400000) return `${Math.round(diff / 3600000)}h`;
-  return `${Math.round(diff / 86400000)}d`;
-};
 
 // A stable empty list, so a workspace without saved lists does not re-run the
 // table's memo on every render.
@@ -860,83 +847,37 @@ const PeopleRail = ({ lists, groups = PL_DEFAULT_GROUPS, active, onPick, saved =
   </aside>
 );
 
-// The strip's cells take the state's own tone from contracts, so the tab and
-// the pill on the row below it are one colour for one state.
-const plTabTone = (state) => {
-  const tone = window.__chrome && window.__chrome.state ? window.__chrome.state("person", state).tone : "plain";
-  return tone === "plain" ? "var(--ink-dim)" : `var(--${tone})`;
-};
-
-// One row of the strip: the name, where and when, one sentence, one state
-// line, one button (contracts/people.ts attentionRow). The row opens the
-// profile; the button is the thread, when there is one.
-// One row of the strip: the person, in the shared grammar (attention-bits.jsx
-// window.AttnRow); the words come from contracts/people.ts attentionRow. The
-// row opens the profile; the button is the thread, when there is one.
-const AttentionRow = ({ p, a, onOpen }) => {
-  const numbered = plIsNumber(p.name);
-  const toThread = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
-  return (
-    <window.AttnRow
-      initials={p.initials}
-      glyph={numbered ? "phone" : null}
-      name={p.name}
-      meta={a ? (a.channel ? `${a.channel} · ${a.when}` : a.when) : ""}
-      sentence={a ? a.sentence : ""}
-      quoted={!!(a && a.quoted)}
-      status={a ? a.status : []}
-      tone={a ? a.tone : "answering"}
-      cta={a && a.cta && p.threadId ? { label: a.cta.label, kind: a.cta.kind, onClick: toThread } : null}
-      onOpen={() => onOpen(p.id)}
-    />
-  );
-};
-
-// The strip: five tabs, three rows, a footer that explains the tab and
-// offers the rest. Its height never depends on what a tab holds — three
-// rows, one, none — so switching tabs moves nothing below it.
-const PeopleTriage = ({ rows, recency, attention, attentionTab, setAttentionTab, onOpen, onSeeAll }) => {
-  const counts = {};
-  PL_TABS.forEach((t) => { counts[t] = rows.filter((r) => r.state === t).length; });
-  const active = PL_TABS.includes(attentionTab) ? attentionTab : "needs_you";
-  const shown = rows.filter((r) => r.state === active).slice(0, 3);
-  return (
-    <section className="cl-triage cl-attn" data-testid="attention-strip">
-      {/* Five states on the seeded four-column strip would wrap the fifth. */}
-      <div className="cl-triage-tabs" role="tablist" style={{ gridTemplateColumns: "repeat(5, 1fr)" }}>
-        {PL_TABS.map((t) => {
-          const cells = (recency && recency[t]) || [];
-          return (
-            <button key={t} role="tab" aria-selected={t === active} className={`cl-triage-tab ${t === active ? "active" : ""} ${t === "needs_you" ? "accent" : ""}`} onClick={() => setAttentionTab(t)} data-testid={`attention-tab-${t}`}>
-              <div className="cl-triage-tab-row">
-                <span className="cl-triage-tab-label">{PL_TAB_LABEL[t]}</span>
-                <span className="cl-triage-tab-count">{counts[t]}</span>
-              </div>
-              <div className="cl-triage-tab-strip" data-tip="Days since last contact — most recent on the left">
-                {cells.map((c) => (
-                  <span key={c.label} className={`cl-triage-cell ${c.count ? "on" : ""}`} style={c.count ? { background: plTabTone(t) } : undefined} />
-                ))}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-      <div className="cl-attn-list" key={active} data-testid="attention-list">
-        {shown.map((p) => <AttentionRow key={p.id} p={p} a={attention ? attention[p.id] : null} onOpen={onOpen} />)}
-        {shown.length === 0 && <div className="cl-attn-empty">Nobody here right now.</div>}
-      </div>
-      <div className="cl-attn-foot">
-        <span className="cl-attn-foot-sub">{PL_TAB_SUB[active]}</span>
-        {counts[active] > shown.length && (
-          <button className="cl-triage-seeall" onClick={() => onSeeAll(active)} data-testid="attention-see-all">
-            See all {counts[active]}
-            <Icon name="arrow-right" size={10} />
-          </button>
-        )}
-      </div>
-    </section>
-  );
-};
+// One line above the table: how many people there are, how many need a person, and how many were reached this
+// week -- and the middle one is the tap that shows them. It replaces a page title under a top bar that already
+// says People, two sentences explaining the page, four stat cards, and a 320px strip of five tabs and three rows.
+// The strip drew the same two people the table's own first rows drew, with the same sentences; "Needs you" was
+// said in four places at once (the rail, a stat card, a tab, and every matching row's pill). Every number it
+// held is still on the page: the rail counts each state, and each row says its own.
+const PeopleStanding = ({ agg, needsShown, onNeeds }) => (
+  <div className="pl-standing" data-testid="people-standing">
+    <span className="pl-standing-total">{agg.total.toLocaleString()} {agg.total === 1 ? "person" : "people"}</span>
+    {agg.needsYou > 0 && (
+      <span className="pl-standing-part">
+        <span className="pl-standing-dot" aria-hidden="true">·</span>
+        <button
+          type="button"
+          className={`pl-standing-needs ${needsShown ? "on" : ""}`}
+          aria-pressed={needsShown}
+          onClick={onNeeds}
+          data-testid="people-standing-needs"
+        >
+          {agg.needsYou} need you
+        </button>
+      </span>
+    )}
+    {agg.reachedWeek > 0 && (
+      <span className="pl-standing-part">
+        <span className="pl-standing-dot" aria-hidden="true">·</span>
+        <span className="pl-standing-reached">{agg.reachedWeek} reached this week</span>
+      </span>
+    )}
+  </div>
+);
 
 // With a calendar connected the outcome takes the column the receptionist's
 // state held: "Answering" on every row said nothing, the next visit does.
@@ -993,8 +934,11 @@ const PeopleRowActions = ({ p, bookingLink }) => {
 };
 
 const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null, attention = null }) => (
-  <div className={`cl-table-wrap ${sel.size ? "selecting" : ""}`}>
-    <table className="cl-table">
+  <div className={`cl-table-wrap pl-table-wrap ${sel.size ? "selecting" : ""}`}>
+    {/* pl-table is the phone's hook: on a narrow screen these rows stop being a
+        760px sideways scroll and stack, so the state is on the row instead of
+        off the right edge. The seeded page, Leads and Lists keep the table. */}
+    <table className="cl-table pl-table">
       <thead>
         <tr>
           {selectable && (
@@ -1380,19 +1324,20 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const remembered = React.useMemo(() => ({ ...plLoadView(), ...((people.views && people.views.people) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const [attentionTab, setAttentionTab] = useState(PL_TABS.includes(remembered.attentionTab) ? remembered.attentionTab : "needs_you");
   const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
-  const savedView = React.useRef(JSON.stringify({ attentionTab: remembered.attentionTab, sortBy: remembered.sortBy, sortDir: remembered.sortDir }));
+  // The strip's tab was remembered too; a view saved before it went carries an
+  // attentionTab this ignores, and the next save drops it.
+  const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir }));
   React.useEffect(() => {
-    const view = { attentionTab, sortBy, sortDir };
+    const view = { sortBy, sortDir };
     plSaveView(view);
     // The workspace's copy, once per change and never for the view it already holds.
     const key = JSON.stringify(view);
     if (key === savedView.current || !window.__saveView) return;
     savedView.current = key;
     window.__saveView("people", view).then((r) => { if (!r.ok) console.error("people_view_not_saved", r.message); });
-  }, [attentionTab, sortBy, sortDir]);
+  }, [sortBy, sortDir]);
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1433,19 +1378,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
-  const tableRef = React.useRef(null);
-
   useHotkey(
     (e, typing) => !typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === "/",
     () => searchRef.current && searchRef.current.focus()
   );
 
-  const seeAll = (id) => {
-    setTab(id);
-    setAttentionTab(id);
-    const sc = scrollRef.current, el = tableRef.current;
-    if (sc && el) sc.scrollTo({ top: Math.max(0, el.offsetTop - 12), behavior: "smooth" });
-  };
   const onSort = (key) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     else { setSortBy(key); setSortDir(key === "name" || key === "visits" ? "asc" : "desc"); }
@@ -1538,7 +1475,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     return () => window.removeEventListener("keydown", onKey);
   });
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
-  const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
 
   return (
     <div className="clients">
@@ -1557,22 +1493,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
 
       <div className="cl-main">
         <div className="cl-main-scroll" ref={scrollRef}>
-          <div className="cl-head">
-            <div className="cl-head-titles">
-              <div className="cl-page-title">People</div>
-              <div className="cl-page-sub">
-                Everyone who has written to or phoned {ws ? ws.name : "your business"}. The receptionist handles the routine — these lists show where you matter.
-              </div>
-            </div>
-            <StatStrip className="cl-head-stats">
-              <StatCell label="People" value={agg.total} meta={agg.newThisMonth ? `+${agg.newThisMonth} this month` : "none new this month"} metaTone={agg.newThisMonth ? "pos" : ""} />
-              <StatCell label="Needs you" value={agg.needsYou} meta={agg.needsYouOldestMs ? `oldest ${plAgo(agg.needsYouOldestMs)}` : "nobody waiting"} metaTone={agg.needsYou ? "neg" : ""} />
-              <StatCell label="Reached this week" value={agg.reachedWeek} meta={`${agg.reachedWeekNew} new`} />
-              {people.calendar && people.calendar.state === "ok" && (
-                <StatCell label="Booked" tip="An appointment ahead on your calendar. The booking is the conversion Chanlytics counts" value={agg.booked} meta={agg.askedNotBooked ? `${agg.askedNotBooked} never booked` : "everyone who asked"} metaTone={agg.askedNotBooked ? "neg" : ""} />
-              )}
-            </StatStrip>
-          </div>
+          <PeopleStanding agg={agg} needsShown={tab === "needs_you"} onNeeds={() => setTab((t) => (t === "needs_you" ? "all" : "needs_you"))} />
 
           <div className="cl-controls">
             <div className="cl-search-wrap">
@@ -1595,13 +1516,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             </div>
           </div>
 
-          <PeopleTriage rows={rows} recency={people.recency} attention={people.attention} attentionTab={attentionTab} setAttentionTab={(id) => { setAttentionTab(id); setTab(id); }} onOpen={onOpenProfile} onSeeAll={seeAll} />
-
-          <div className="cl-section" ref={tableRef}>
+          <div className="cl-section">
             <div className="cl-section-head">
               <div>
+                {/* The count is the line above and the table's own foot; here it would be a third. */}
                 <span className="cl-section-title">Everyone</span>
-                <span className="cl-section-sub" style={{ marginLeft: 10 }}>{shown.length} shown</span>
                 {activeList && (
                   <span className="cl-seg-filter">
                     <Icon name="sparkle" size={10} />
@@ -1634,7 +1553,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
               <span className="cl-section-sub">
                 {filtered && shown.length > 0 && canEditLists && window.__lists
                   ? <SaveShownAsList ids={shownIds} suggested={activeList ? activeList.label : activeSaved ? `${activeSaved.name} copy` : tab !== "all" ? PL_TAB_LABEL[tab] : ""} flash={plFlash} />
-                  : (filtered ? "Filtered from the rail and the strip above" : "The rail and the strip above narrow this")}
+                  : (filtered ? "Filtered from the rail" : "")}
               </span>
             </div>
             {activeList && activeList.action && (

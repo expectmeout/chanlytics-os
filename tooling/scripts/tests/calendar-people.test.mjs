@@ -395,7 +395,9 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('if (retiredTo) window.location.hash = "/" + retiredTo;'), "a real workspace lands on People");
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(page.includes('data-testid="row-next-visit"') && page.includes('<StatCell label="Booked"') && page.includes("asked_never_booked:"), "the column, the cell, the tips");
+  // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
+  assert.ok(page.includes('data-testid="row-next-visit"') && page.includes("asked_never_booked:"), "the column and the tips");
+  assert.ok(!page.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes('testid="chart-booking"'));
 });
 

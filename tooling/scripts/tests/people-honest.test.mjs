@@ -351,3 +351,57 @@ test("REGRESSION (B6): past everyone loaded, a search keeps the loaded people it
   tree = draw();
   assert.match(textOf(byTestId(tree, "people-more")), /couldn't search past/, "a search that could not ask the server says so");
 });
+
+test("REGRESSION: People opens on the people -- one line, then the table; a title, two sentences, four stat cards and a five-tab strip stood in front of them", async () => {
+  await freshPage({
+    people: [
+      person(1, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(3 * H), latest_state: "needs_human" }),
+      person(2, { needs_human: true, open_escalation_reason: "callback", open_escalation_since: iso(H), latest_state: "needs_human" }),
+      person(3),
+    ],
+  });
+  let tree = draw();
+  const cls = (n) => String(n.props?.className || "");
+
+  // The one line: the count, who needs a person, and the week.
+  const standing = byTestId(tree, "people-standing");
+  assert.ok(standing, "the page opens on its one line");
+  assert.match(textOf(standing), /3 people/);
+  assert.match(textOf(standing), /2 need you/);
+
+  // What stood in front of the table.
+  assert.ok(!byTestId(tree, "attention-strip"), "REGRESSION: five tabs, three rows and a footer above the table");
+  assert.ok(!byTestId(tree, "attention-tab-needs_you"), "REGRESSION: a tab counting what the rail and the rows already count");
+  assert.ok(!find(tree, (n) => cls(n).includes("cl-head-stats")), "REGRESSION: four stat cards");
+  assert.ok(!find(tree, (n) => cls(n).includes("cl-page-title")), "REGRESSION: a page title under a top bar that says People");
+  const said = textOf(tree);
+  assert.ok(!said.includes("The receptionist handles the routine"), "REGRESSION: the page explained itself on every visit");
+  assert.ok(!said.includes("the strip above"), "REGRESSION: the page explained its own furniture");
+
+  // The two who need a person are in the table, once, with their state on the row.
+  const rows = all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]);
+  assert.deepEqual(rows.length, 3, `everyone is in the table: ${rows}`);
+  assert.equal(rows.filter((r) => r === "Select Person 1").length, 1, "REGRESSION: the strip drew the table's own first rows over again");
+  assert.ok(all(tree, (n) => n.props?.["data-testid"] === "row-state-detail").length >= 2, "each row says its own state");
+
+  // The count in the line is the tap that shows them, because a phone has no rail.
+  byTestId(tree, "people-standing-needs").props.onClick();
+  tree = draw();
+  assert.deepEqual(
+    all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]),
+    ["Select Person 1", "Select Person 2"],
+    "tapping the count shows the people it counts",
+  );
+  assert.equal(byTestId(tree, "people-standing-needs").props["aria-pressed"], true, "and says it is on");
+  byTestId(tree, "people-standing-needs").props.onClick();
+  tree = draw();
+  assert.equal(all(tree, (n) => n.props?.["data-testid"] === "row-select").length, 3, "tapping again shows everyone");
+});
+
+test("a day nobody needs you says the count and the week, and offers no tap", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  const standing = byTestId(draw(), "people-standing");
+  assert.match(textOf(standing), /2 people/);
+  assert.ok(!textOf(standing).includes("need you"), "nothing claims your attention when nothing does");
+  assert.ok(!byTestId(draw(), "people-standing-needs"), "and there is no button to press");
+});
