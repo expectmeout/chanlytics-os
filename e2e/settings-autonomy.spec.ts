@@ -68,7 +68,9 @@ test.describe("Settings → Autonomy on a real workspace", () => {
     // control with a number the runtime actually uses -- they were two sentences.
     await expect(page.getByTestId("aut-reply-cap")).toBeVisible();
     await expect(page.getByTestId("aut-pause")).toBeVisible();
-    expect(await page.getByTestId("aut-reply-cap").inputValue()).toMatch(/^\d+$/);
+    // Each dial is a row of options with one pressed; the pressed one is the number the runtime uses.
+    await expect(page.getByTestId("aut-reply-cap").locator(".cl-tab.active")).toHaveText(/^\d+$/);
+    await expect(page.getByTestId("aut-pause").locator(".cl-tab.active")).toHaveText(/^\d+h$/);
   });
 
   test("changing the reply mode issues a workspace-scoped PUT with the class and mode — intercepted", async ({ page }) => {

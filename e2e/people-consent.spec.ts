@@ -98,6 +98,6 @@ test.describe("Consent for one person", () => {
     await page.getByTestId("person-notes-save").click();
     await expect.poll(() => seen.length).toBe(2);
     expect(seen[1].body).toEqual({ notes: "Sees Sofia. Prefers mornings." });
-    await expect(page.getByText("Notes · the receptionist reads these")).toBeVisible();
+    await expect(page.getByText("Notes for the receptionist")).toBeVisible();
   });
 });
