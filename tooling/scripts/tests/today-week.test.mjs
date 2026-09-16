@@ -71,7 +71,7 @@ test("while you were away: the bell's unread rows, newest first as the bell orde
 
 test("the wiring: the bridge publishes the three, Reports lends its tile, the page composes below the core in order", () => {
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes("Object.assign(window, { RpTile, RpSpark });"), "the tile is shared, not copied");
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes("Object.assign(window, { RpTile });"), "the tile is shared, not copied");
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-week.jsx");
   for (const s of ['data-testid="today-week"', "window.__today.week(R)", 'className="rp2-tiles"', 'data-testid={`today-week-${l.id}`}', 'data-testid="today-journey"', "window.__today.journey(P)", 'data-testid="today-journey-row"', 'data-testid="today-away"', "window.__today.away(rows, 5)", "api.read(n.id); twNav(to);", "api.seenAll()", "api.dismiss(n.id)", "return api.onChange(refresh);"]) assert.ok(page.includes(s), s);
   assert.ok(page.includes("!window.__DEMO_MODE && window.__notifs ? window.__notifs : null"), "the same bell the topbar reads, never in a demo");
