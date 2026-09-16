@@ -24,6 +24,7 @@ const money = (usd) => (typeof usd === "number" ? `about $${usd.toFixed(2)} a mo
 // before the press -- it used to say so after, in a toast.
 const SETUP_GATES = [
   ["verb:request-line", "approve", "ask for a line"],
+  ["verb:request-repair", "approve", "ask for a repair"],
   ["verb:billing-checkout", "billing", "start the subscription"],
   ["verb:billing-portal", "billing", "manage the subscription"],
   ["verb:forwarding-test:", "team", "test forwarding"],
@@ -75,11 +76,12 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
       : <>Setting up {chosen.friendly} stopped part-way — a person at Chanlytics has it, and Retry is on the row.</> });
     onDone();
   };
+  // Bringing the number you have is its own ask (S14): it filed a line request, and the row then said "set up your line".
   const ask = async () => {
     if (!(window.canDo && window.canDo("approve"))) return;
-    const r = await window.__setup.request("line");
+    const r = await window.__setup.request("port");
     flash(r.ok
-      ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</> }
+      ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will move your number with you and reach you by email.</> }
       : window.refusalToast(r, "Request not sent"));
     onDone();
   };
@@ -144,8 +146,8 @@ const LineChooser = ({ S, flash, onDone, onKeep }) => {
         </div>
       ) : (
         <div className="setup-ask">
-          <span className="setup-ask-text">A port is filed by a person at Chanlytics. Ask, and we set it up with you.</span>
-          <button className="btn btn-sm" onClick={ask} data-testid="setup-ask-us" {...window.gate("approve", "ask for a line")}>Ask us</button>
+          <span className="setup-ask-text">A person at Chanlytics files the move with your carrier. Ask, and we reach you by email for what your carrier needs.</span>
+          <button className="btn btn-sm" onClick={ask} data-testid="setup-ask-us" {...window.gate("approve", "ask to bring your number")}>Ask us</button>
         </div>
       )}
     </section>
@@ -337,6 +339,17 @@ const PaneSetup = () => {
         const r = await window.__setup.request("line");
         flash(r.ok
           ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will set up your line with you.</> }
+          : window.refusalToast(r, "Request not sent"));
+      });
+      return;
+    }
+    // A configuration only Chanlytics can repair: the row's ask (S8), gated as the line's is.
+    if (verb.to === "verb:request-repair") {
+      if (!(window.canDo && window.canDo("approve"))) return;
+      await once(verb.to, async () => {
+        const r = await window.__setup.request("repair");
+        flash(r.ok
+          ? { msg: r.already ? <>Already asked — a person at Chanlytics has it.</> : <>We got it — a person at Chanlytics will repair your settings and reach you by email.</> }
           : window.refusalToast(r, "Request not sent"));
       });
       return;

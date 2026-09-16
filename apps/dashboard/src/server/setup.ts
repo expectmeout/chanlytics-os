@@ -70,6 +70,15 @@ async function teamCounts(supabase: SupabaseClient<Database>, tenantId: string):
 }
 
 /**
+ * The newest ask of each thing a workspace has asked a person at Chanlytics
+ * for, from setup.requested events that arrive newest first (00123).
+ */
+function requestsFrom(rows: ReadonlyArray<{ created_at: string; data: unknown }> | null): SetupDto["requests"] {
+  const newest = (what: string) => (rows ?? []).find((r) => (r.data as { what?: unknown } | null)?.what === what)?.created_at ?? null;
+  return { line: newest("line"), port: newest("port"), repair: newest("repair") };
+}
+
+/**
  * @param supabase the client to read with -- session-scoped for a workspace
  *   reading its own, service-role for the back office reading another's.
  * @param viewer which of those two this is. It is not a preference: the back
@@ -103,8 +112,11 @@ export async function setupDtoFor(
       // the yes to offers, no do-not-contact, and a number to send to. The number was
       // missing, so this row counted people the broadcast route would not enrol.
       .eq("marketing_consent", "opted_in").eq("dnc", false).is("erased_at", null).not("phone_e164", "is", null),
-    supabase.from("notifications").select("created_at").eq("tenant_id", tenantId).eq("subject_type", "setup")
-      .order("created_at", { ascending: false }).limit(1).maybeSingle(),
+    // What the owner has asked a person at Chanlytics for, newest first (00123: a line, a port, a repair). From the
+    // events the ask records, not the bell: a bell row cannot say which thing was asked for, and the edge's own
+    // "your phone line is ready" row shares its subject, so it read as a request.
+    supabase.from("events").select("created_at, data").eq("tenant_id", tenantId).eq("kind", "setup.requested")
+      .order("created_at", { ascending: false }).limit(30),
     linesFor(supabase, tenantId),
     linesStatus(),
     listingFor(supabase, tenantId),
@@ -198,7 +210,7 @@ export async function setupDtoFor(
       alertEmails: cfg?.notifications?.escalation_emails?.length ?? 0,
     },
     consent: { yes: yes.count ?? 0, offers: offersYes.count ?? 0 },
-    requests: { line: requested.data?.created_at ?? null },
+    requests: requestsFrom(requested.data),
     lines: { rows: lineRows, ready: lineStatus.ready, provider: lineStatus.provider, costs: { local_number_month_usd: lineStatus.costs.local_number_month_usd } },
     google: {
       ready: google.places || google.profile,

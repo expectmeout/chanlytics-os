@@ -270,6 +270,18 @@ test("a setup request: an operator's, one thing it can ask for, recorded through
   assert.equal(again.told, false, "a repeat is never told twice");
 });
 
+test("REGRESSION (S8, S14): a port and a repair are asked for through the same door, each by name -- the door knew only a line", async () => {
+  const asked = [];
+  const rpcs = { setup_request: (a) => { asked.push(a); return { already: false, id: "r1" }; } };
+  const tables = { memberships: both("viewer", "operator") };
+  for (const what of ["port", "repair"]) {
+    const r = await setupRequest.POST.run(send("POST", { what }, inB), ctxFor(tables, {}, rpcs));
+    assert.equal(r.told, false, "not production: the mailbox is not reached");
+  }
+  assert.deepEqual(asked, [{ p_tenant_id: B, p_what: "port" }, { p_tenant_id: B, p_what: "repair" }], "REGRESSION: refused before the database was asked");
+  await refused(setupRequest.POST.run(send("POST", { what: "unicorn" }, inB), ctxFor(tables, {}, rpcs)), "validation", 400, "Say what you are asking for.");
+});
+
 test("lines: searching, retrying and forwarding are the owner's; each body is judged in its words; the forwarding doors get the normalized number", async () => {
   const doors = [];
   const rpcs = {

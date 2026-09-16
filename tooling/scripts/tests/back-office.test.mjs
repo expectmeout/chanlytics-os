@@ -493,6 +493,21 @@ test("a workspace reading its own Setup still gets the roster, on its own client
   assert.equal(setup.team.invitesOpen, 1);
 });
 
+test("REGRESSION (S14): Setup reads what was asked for per thing, from the events -- a port read as a line, and the edge's line-is-ready bell read as a request", async () => {
+  const db = fakeDb({
+    ...workspaceTables(),
+    notifications: [{ tenant_id: TENANT, kind: "number", title: "Your phone line is ready", body: "x", route: "admin/setup", subject_type: "setup", subject_id: "c1", created_at: ago(1) }],
+    events: [
+      { tenant_id: TENANT, kind: "setup.requested", category: "setup", data: { what: "port", by: "u1" }, created_at: "2026-09-07T13:00:00Z" },
+      { tenant_id: TENANT, kind: "setup.requested", category: "setup", data: { what: "port", by: "u1" }, created_at: "2026-09-06T13:00:00Z" },
+      { tenant_id: TENANT, kind: "setup.requested", category: "setup", data: { what: "repair", by: "u1" }, created_at: "2026-09-07T14:00:00Z" },
+      { tenant_id: TENANT, kind: "policy.changed", category: "system", data: {}, created_at: "2026-09-07T15:00:00Z" },
+    ],
+  });
+  const setup = await setupDtoFor(db, TENANT, { kind: "back_office" });
+  assert.deepEqual(setup.requests, { line: null, port: "2026-09-07T13:00:00Z", repair: "2026-09-07T14:00:00Z" }, "REGRESSION: the newest setup bell of any kind read as a line request");
+});
+
 test("the service-role client cannot be obtained without passing the check", () => {
   // The first version exported `platformDb()` — no arguments, no relationship to
   // the guard — and relied on a test walking ONE directory to prove nothing else

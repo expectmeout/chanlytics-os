@@ -84,7 +84,7 @@ test("REGRESSION (S8): a broken configuration is said once, the same on Setup an
   assert.match(f.sentence, /could not be read/);
   assert.match(f.sentence, /Chanlytics/, "who repairs it");
   assert.ok(!/repair them before anything else|Open Workspace/.test(JSON.stringify(f)), "REGRESSION: the owner was sent to repair what only Chanlytics can");
-  assert.deepEqual(f.verb, { label: "Open Business", to: "admin/workspace" }, "the verb opens the page that lists what is wrong");
+  assert.deepEqual(f.verb, { label: W.ask, to: "verb:request-repair" }, "the owner's one move is the ask for a repair (S8); once asked, the row opens the page that lists what is wrong");
   assert.match(W.body, /Chanlytics has to repair it/);
 });
 
@@ -277,12 +277,34 @@ const workspace = (over = {}, rules = {}) => {
 test("REGRESSION (S8): the Business pane's broken card says the words Setup's row says, from the bridge", () => {
   const W = globalThis.window.__brokenConfigWords;
   assert.ok(W && W.title && W.body, "REGRESSION: the bridge published no shared words");
-  assert.deepEqual(W, contracts.BROKEN_CONFIG_WORDS, "contracts' own");
+  // The words by value; the once-asked sentence by what it says, since the bridge and this file may hold contracts apart.
+  const { requested, ...words } = W;
+  const { requested: ownRequested, ...ownWords } = contracts.BROKEN_CONFIG_WORDS;
+  assert.deepEqual(words, ownWords, "contracts' own");
+  assert.equal(requested("2026-09-07T13:00:00Z", NOW), ownRequested("2026-09-07T13:00:00Z", NOW), "and the same sentence once a repair is asked for");
   workspace({ __SETTINGS: { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } } });
   const card = byTestId(settings("workspace"), "settings-broken");
   assert.ok(card, "the broken card is drawn");
   assert.equal(textOf(classed(card, "empty-title")), W.title);
   assert.ok(textOf(classed(card, "empty-body")).startsWith(W.body), textOf(classed(card, "empty-body")));
+});
+
+test("REGRESSION (S8): the broken card asks for the repair from the card, then says when it was asked -- it said Chanlytics repairs it, with no way to ask", async () => {
+  const W = globalThis.window.__brokenConfigWords;
+  const asks = [];
+  const broken = { role: "owner", version: 4, config: {}, broken: { issues: ["brain.business_name must be text"] } };
+  workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null } } }, __setup: { request: async (what) => { asks.push(what); return { ok: true, already: false, message: "" }; }, refresh: async () => {} } });
+  let tree = settings("workspace");
+  const ask = byTestId(tree, "settings-broken-ask");
+  assert.ok(ask, "REGRESSION: no way to ask");
+  assert.equal(textOf(ask).trim(), W.ask);
+  press(ask);
+  await new Promise((r) => setImmediate(r));
+  assert.deepEqual(asks, ["repair"]);
+  workspace({ __SETTINGS: broken, __SETUP: { dto: { requests: { line: null, repair: "2026-09-07T13:00:00Z" } } } });
+  tree = settings("workspace");
+  assert.equal(byTestId(tree, "settings-broken-ask"), null, "asked once");
+  assert.match(textOf(byTestId(tree, "settings-broken-requested")), /a person at Chanlytics will repair/);
 });
 
 test("REGRESSION (S19): the AI memory pane points at Business by name -- it said 'Open Workspace'", () => {
