@@ -123,7 +123,11 @@ export function eligibleForPlaybook(
       return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS)) && !r.booked;
     });
     pool.sort((a, b) => (p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0)));
-    return pool.slice(0, Math.max(1, p.cap_per_run));
+    // The cap is a fatigue limit for offers; a reminder is owed to everyone
+    // with a visit. Capped, the twenty-sixth appointment of a busy day got no
+    // reminder at all -- not deferred, dropped, since the run is once a day.
+    // The number's own daily limit still applies, in run-playbook, and says so.
+    return pool;
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS;
@@ -243,11 +247,34 @@ export function visitFactsFor(
   trigger: string,
   visit: Pick<VisitDto, "start" | "title" | "all_day"> | null,
   tz: string,
+  /** When the words will be read: the send's moment. Absent, they are read now, as the run assumes. */
+  sendAt?: Date,
 ): { visit_when: string; visit_service: string } | null {
   const t = triggerOf(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
-    visit_when: trigger === "visit_tomorrow" ? `tomorrow at ${visitStartTime(visit, tz)}` : "yesterday",
+    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
     visit_service: visit.title.trim() || "your appointment",
   };
+}
+
+/**
+ * "tomorrow", "today", "yesterday", or the day's name: the visit's day as it
+ * stands from the moment the words are read. A run asked for at eleven at
+ * night goes at nine the next morning, and "tomorrow at 2:00 PM" said then is
+ * the wrong day; the send's moment is what the words must be relative to.
+ */
+export function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt: Date | undefined, assumed: string): string {
+  if (!sendAt) return assumed;
+  const visitDay = localDate(tz, new Date(visit.start));
+  const sendDay = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS);
+  if (delta === 1) return "tomorrow";
+  if (delta === 0) return "today";
+  if (delta === -1) return "yesterday";
+  try {
+    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+  } catch {
+    return delta > 0 ? "soon" : "recently";
+  }
 }

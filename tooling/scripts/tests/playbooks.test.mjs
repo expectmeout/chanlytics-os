@@ -15,6 +15,7 @@ import {
   eligibleForPlaybook, localDate, localHour, nextRunLabel, planRun, runDueNow, scheduleLine, toBroadcastVM, triggerOf,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
+import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -29,6 +30,31 @@ const person = (id, over = {}) => ({
 });
 const base = { trigger: "quiet_30", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
 const noTouch = { byThis: new Map(), byAny: new Map() };
+
+test("a reminder is owed to everyone with a visit tomorrow: the cap is a fatigue limit for offers and does not apply; the list is in visit order", () => {
+  const TZ = "America/New_York";
+  const tomorrow = tzDate(TZ, new Date(NOW + DAY));
+  const rows = ["a", "b", "c", "d"].map((id, i) =>
+    person(id, { calendarTz: TZ, nextVisitDate: tomorrow, nextVisitMs: NOW + DAY + (4 - i) * 3_600_000, booked: true }));
+  const visit = { trigger: "visit_tomorrow", cap_per_run: 1, gap_days: 90, cadence_days: 30 };
+  assert.deepEqual(eligibleForPlaybook(rows, visit, noTouch, NOW).map((r) => r.id), ["d", "c", "b", "a"], "all four, earliest visit first, whatever the cap says");
+  const heard = { byThis: new Map([["a", NOW - 2 * DAY]]), byAny: new Map([["a", NOW - 2 * DAY], ["b", NOW - 1 * DAY]]) };
+  assert.equal(eligibleForPlaybook(rows, visit, heard, NOW).length, 4, "nor the gap, nor the week's breath");
+});
+
+test("the reminder's words are relative to the moment it goes: tomorrow, today, or the day's name", () => {
+  const TZ = "America/New_York";
+  const visit = { start: "2026-09-07T18:00:00Z", title: "Balayage", all_day: false }; // Sep 7, 2:00 PM in New York
+  const sep6 = new Date("2026-09-06T15:00:00Z");
+  const sep7 = new Date("2026-09-07T13:00:00Z"); // nine in the morning, the moment a night's run-now goes
+  const sep5 = new Date("2026-09-05T15:00:00Z");
+  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, sep6), { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" });
+  assert.deepEqual(visitFacts("visit_tomorrow", visit, TZ, sep7), { visit_when: "today at 2:00 PM", visit_service: "Balayage" }, "moved to nine the next morning, the visit is today");
+  assert.equal(visitFacts("visit_tomorrow", visit, TZ, sep5).visit_when, "on Monday at 2:00 PM", "further off, the day's name");
+  assert.equal(visitFacts("visit_tomorrow", visit, TZ).visit_when, "tomorrow at 2:00 PM", "without a moment, as the run assumes");
+  assert.equal(visitFacts("visited", visit, TZ, new Date("2026-09-08T15:00:00Z")).visit_when, "yesterday");
+  assert.equal(visitFacts("visited", visit, TZ, new Date("2026-09-09T15:00:00Z")).visit_when, "on Monday", "a thank-you moved a day still names the day");
+});
 
 test("six triggers: four lists and cadences, two the calendar makes possible, each under one of the three autonomy rows", () => {
   assert.deepEqual(PLAYBOOK_TRIGGERS.map((t) => t.id), ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited"]);
