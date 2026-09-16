@@ -10,6 +10,15 @@
 
 const { useState: useCvtState } = React;
 
+// The call is offered once. On a thread the receptionist could not finish by phone, the line under the conversation
+// dials and claims it in one press: "I'll call them" only claimed it, and the reply box carried a second Call back
+// that only dialled, under a banner telling you to call them back, under a sentence telling you the same. Anywhere
+// else on such a thread the reply box carries the call, and for a caller who opted out -- whose reply box offers
+// nothing to send -- the header does.
+const ixDockDials = (t) => !!(t && t.real && t.phone && t.primaryChannel === "phone"
+  && t.state === "escalated" && !t.takenOver && !t.claimedByOther
+  && (!window.canDo || window.canDo("approve")));
+
 const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, onArchive = null, planParam = 0, onPlanParam = () => {}, notice = null }) => {
   // Archive asks first: it closes the customer's request. Above the early return, so the hooks keep their order.
   const [askArchive, setAskArchive] = useCvtState(false);
@@ -172,12 +181,19 @@ const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onW
         </div>
         {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
         <div className="ix-take-actions">
-          <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
-            {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
-          </button>
+          {ixDockDials(thread) ? (
+            <a className="btn btn-primary btn-sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
+              <Icon name="phone" size={12} /> Call back
+            </a>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
+              {thread.real ? (thread.primaryChannel === "phone" ? "Call back" : "I'll answer this") : "I'll take this one"}
+            </button>
+          )}
+          {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
           {thread.real && thread.escalationId && (
-            <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve", "hand a conversation back")}>
-              Nothing needed — hand it back to the receptionist
+            <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} aria-label="Nothing needed — hand it back to the receptionist" {...window.gate("approve", "hand a conversation back")}>
+              Hand back
             </button>
           )}
         </div>
@@ -304,7 +320,7 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
             ))}
           </div>
         )}
-        {thread.real && thread.phone && thread.primaryChannel === "phone" && thread.optedOut && (
+        {thread.real && thread.phone && thread.primaryChannel === "phone" && thread.optedOut && !ixDockDials(thread) && (
           <a className="btn btn-ghost btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
             <Icon name="phone" size={12} /> Call back
           </a>
@@ -776,6 +792,19 @@ const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOv
 // whole Inbox pane rather than offering the one send that would work.
 // Named after what it SENDS, not after the mechanism: the operator should know
 // what lands on their customer's phone before they click.
+// An explanation one tap away, never in the way (the house rule): which templates cannot go to this person, and why,
+// was a sentence of its own under the reply box -- thirty-one words to say that nothing could be sent.
+const IxWhy = ({ said, testid = null }) => {
+  const [open, setOpen] = useCvtState(false);
+  return (
+    <>
+      {" "}
+      <button type="button" className="ix-why" aria-expanded={open} onClick={() => setOpen(!open)}>Why?</button>
+      {open && <span className="ix-why-said" data-testid={testid || undefined}>{said}</span>}
+    </>
+  );
+};
+
 const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread = null }) => {
   const [sending, setSending] = useCvtState(false);
   // The workspace's OWN approved templates, published by the seam. The button
@@ -825,8 +854,8 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread 
   }
   if (real && choice && choice.sendable.length === 0) {
     return (
-      <span className="ix-tpl-none" data-testid="ix-tpl-hidden">
-        None of your approved templates can go to {thread.who}. {choice.hidden}
+      <span className="ix-tpl-none">
+        No approved message can go to {thread.who} yet.{choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
       </span>
     );
   }
@@ -862,7 +891,7 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread 
         <Icon name="send" size={12} />{" "}
         {sending ? "Sending…" : chosen && list.length > 1 ? "Send template" : chosenTitle ? `Send “${chosenTitle}”` : "Send booking link"}
       </button>
-      {choice && choice.hidden ? <span className="ix-tpl-hidden" data-testid="ix-tpl-hidden">{choice.hidden}</span> : null}
+      {choice && choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
     </>
   );
 };
@@ -965,17 +994,12 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
   if (thread.real && thread.hasChat === false) {
     return (
       <div className="ix-composer">
-        <div className="ix-composer-banner">
-          <Icon name="phone" size={11} />
-          <span>They have only phoned — there is no WhatsApp thread yet. Call them back, or start one with an approved message.</span>
-        </div>
+        {/* The header names the channel and the number, and the line above says they phoned: what is left is what can
+            be sent. A caller with no WhatsApp thread has no free-form reply, so the verbs are the call -- where the
+            line above does not already carry it -- and the approved message that starts a thread. */}
         <div className="ix-composer-foot">
-          <div className="ix-composer-channel">
-            <Icon name="phone" size={12} />
-            <span>Phone · {thread.phoneDisplay || thread.phone || thread.who}</span>
-          </div>
           <div className="ix-composer-actions">
-            {thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back"><Icon name="phone" size={12} /> Call back</a>}
+            {!ixDockDials(thread) && thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back"><Icon name="phone" size={12} /> Call back</a>}
             <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>

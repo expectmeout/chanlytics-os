@@ -130,18 +130,27 @@ test("REGRESSION: a real thread's header names its channel once and keeps Snooze
   assert.ok(!textOf(asleep).includes("Wakes"));
 });
 
-test("a caller with no WhatsApp thread has one Call back, in the reply box -- the header had it too -- and one who opted out keeps it in the header, where the box offers nothing", () => {
-  const caller = (contact = rosa) => chat({ last_wa_inbound_at: null, last_message_at: ago(30), contact, messages: [call("k1", 30)] });
+test("a caller with no WhatsApp thread has one Call back: on the line that needs you it dials and claims the thread, and otherwise the reply box carries it -- it was in two places at once, saying two different things", () => {
+  const caller = (contact = rosa, over = {}) => chat({ last_wa_inbound_at: null, last_message_at: ago(30), contact, messages: [call("k1", 30)], ...over });
   const callback = { id: "e2", reason: "callback", details: "Call Rosa back about the bridal trial", state: "open", created_at: ago(29) };
   const vm = vmOf(caller(), callback);
   assert.deepEqual([vm.primaryChannel, vm.hasChat, vm.optedOut], ["phone", false, false]);
-  const pane = paneOf(vm);
-  assert.equal(dials(pane).length, 1, "REGRESSION: Call back in the header and in the reply box");
-  assert.ok(find(find(pane, hasClass("ix-composer")), byTestId("ix-call-back")), "in the reply box");
 
-  const out = paneOf(vmOf(caller(person("p1", "Rosa Díaz", { consent: "opted_out" })), callback));
+  const needsYou = paneOf(vm);
+  assert.equal(dials(needsYou).length, 1, "REGRESSION: one by the decision and one in the reply box");
+  const dialer = find(find(needsYou, byTestId("ix-th-status")), byTestId("ix-call-back"));
+  assert.ok(dialer && String(dialer.props.href).startsWith("tel:"), "the line's own primary action dials");
+  assert.equal(find(find(needsYou, hasClass("ix-composer")), byTestId("ix-call-back")), undefined, "and the reply box does not say it again");
+
+  // Nobody is waiting on you: the line above has no call, so the reply box keeps it.
+  const quiet = paneOf(vmOf(caller(rosa, { state: "open" })));
+  assert.equal(dials(quiet).length, 1);
+  assert.ok(find(find(quiet, hasClass("ix-composer")), byTestId("ix-call-back")), "in the reply box");
+
+  // Opted out: their reply box offers nothing to send, so the header carries the call.
+  const out = paneOf(vmOf(caller(person("p1", "Rosa Díaz", { consent: "opted_out" }), { state: "open" })));
   assert.equal(dials(out).length, 1, "an opted-out caller can still be called back");
-  assert.ok(find(headOf(out), byTestId("ix-call-back")), "from the header, since their reply box offers nothing to send");
+  assert.ok(find(headOf(out), byTestId("ix-call-back")), "from the header");
 });
 
 test("on a phone, Back is the arrow alone: the top bar says Inbox over it, and '← Inbox' said it again", () => {

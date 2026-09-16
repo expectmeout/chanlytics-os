@@ -1594,6 +1594,19 @@ button.ix-policy.pill-warn{border:1px solid transparent}
 /* The composer's honest state when a workspace has no approved template.
    Outside the 24-hour window WhatsApp delivers nothing else, so the operator
    needs to see that the gap is at Meta rather than on this screen. */
+/* An explanation one tap away: the counts of what cannot be sent, and why, took a sentence of their own. */
+.ix-why {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: var(--ink-dim);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+.ix-why:hover { color: var(--ink); }
+.ix-why-said { display: block; margin-top: 4px; color: var(--ink-dim); }
 .ix-tpl-none {
   font-size: 12px;
   color: var(--ink-dim);
