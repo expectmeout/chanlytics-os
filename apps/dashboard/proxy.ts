@@ -82,7 +82,7 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 308);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const moved = canonicalRedirect(request);
   if (moved) return moved;
   // One nonce per request, on the request so Next attaches it to the inline

@@ -186,7 +186,7 @@ test("nothing outside the runner calls activateOverride directly", () => {
     assert.match(wrapper, /isRetryableAuthError\(authErr\)/);
     const predicate = readCode("apps/dashboard/src/server/auth-errors.ts");
     assert.match(predicate, /AuthRetryableFetchError|err\.status >= 500/);
-    const middleware = readCode("apps/dashboard/middleware.ts");
+    const middleware = readCode("apps/dashboard/proxy.ts");
     assert.match(middleware, /isRetryableAuthError\(authErr\)/, "the gate must not answer 401 for an outage");
     assert.match(middleware, /status: 503/);
   });

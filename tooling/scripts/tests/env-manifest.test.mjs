@@ -41,7 +41,7 @@ const MANIFESTS = [
     // src/legacy is the ported mockup and reads no env. middleware.ts sits at
     // the app root and was not scanned at all — the one file every request
     // passes through, reading env to decide the address and the session.
-    sources: ["apps/dashboard/app", "apps/dashboard/src/server", "apps/dashboard/src/lib", "apps/dashboard/src/legacy-bridge", "apps/dashboard/middleware.ts"],
+    sources: ["apps/dashboard/app", "apps/dashboard/src/server", "apps/dashboard/src/lib", "apps/dashboard/src/legacy-bridge", "apps/dashboard/proxy.ts"],
   },
 ];
 
