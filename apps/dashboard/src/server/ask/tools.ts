@@ -12,6 +12,7 @@ import {
   PERSON_STATE_LABELS,
   REPORT_RANGES,
   ago,
+  clockStamp,
   emptyReadSet,
   messageText,
   parseTenantConfig,
@@ -275,7 +276,7 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
   const filter = str(input.filter) || "recent";
   const { convs, escalations } = await loadConversations(t);
   const byConv = new Map(escalations.map((e) => [e.conversation_id, e]));
-  const vms = convs.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.now));
+  const vms = convs.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
   const picked = vms.filter((v) => {
     switch (filter) {
       case "needs_you": return v.needsYou;
@@ -330,11 +331,10 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     id: m.id, direction: m.direction as MessageDto["direction"], sender: m.sender as MessageDto["sender"], type: m.type, body: m.body,
     media: null, meta: m.meta as MessageDto["meta"], status: m.status, created_at: m.created_at, channel_ts: m.channel_ts,
   })), t.ctx.userId);
-  const vm = toInboxThreadVM(dto, (esc as EscalationDto | null) ?? null, t.now);
+  const vm = toInboxThreadVM(dto, (esc as EscalationDto | null) ?? null, t.timezone, t.now);
   t.read.thread.add(id);
   t.read.conversation.add(id);
   if (dto.contact.id) t.read.person.add(dto.contact.id);
-  const fmt = new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   return {
     conversation_id: id,
     route: `inbox/th-${id}`,
@@ -348,7 +348,8 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     messages: dto.messages.slice(-cap).map((m) => {
       const why = replyWhy(m.meta as Record<string, unknown> | null);
       return {
-        at: fmt.format(new Date(m.created_at)),
+        // By the business's clock, as the pages say it: the time today, the date and the time before.
+        at: clockStamp(Date.parse(m.created_at), t.timezone, t.now.getTime()),
         from: m.direction === "inbound" ? "customer" : m.sender === "ai" ? "receptionist" : "you",
         text: messageText(m).slice(0, 600),
         status: m.status ?? null,
@@ -360,14 +361,15 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
   };
 }
 
-function personLine(r: PersonRowDto, nowMs: number) {
+function personLine(r: PersonRowDto, tz: string, nowMs: number) {
   const stateKey = r.dnc ? "opted_out" : r.needs_human ? "needs_you" : "active";
   return {
     contact_id: r.id,
     route: `clients/${r.id}`,
     name: personName(r),
     state: PERSON_STATE_LABELS[stateKey as keyof typeof PERSON_STATE_LABELS] ?? stateKey,
-    last_contact: r.last_message_at ? ago(nowMs - Date.parse(r.last_message_at), nowMs) : r.last_call_at ? ago(nowMs - Date.parse(r.last_call_at), nowMs) : "never",
+    // The moment, not the time since it: handed the gap, ago read it as a moment in January 1970.
+    last_contact: r.last_message_at ? ago(Date.parse(r.last_message_at), tz, nowMs) : r.last_call_at ? ago(Date.parse(r.last_call_at), tz, nowMs) : "never",
     last_message: r.last_inbound_text ? r.last_inbound_text.slice(0, 120) : null,
     conversation_id: r.latest_conversation_id,
     channels: r.channels ?? [],
@@ -387,10 +389,10 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
   // With their appointments, so "who asked but never booked?" and "who is
   // booked this week?" are answered from the calendar, not guessed.
   const { people: rows, calendar } = await withVisits(t.ctx, t.tenantId, await listPeople(t.ctx, t.tenantId), t.now);
-  if (list?.needsCalendar && calendar.state !== "ok") return { error: "that list needs the calendar connected under Settings › Workspace", people: [] };
+  if (list?.needsCalendar && calendar.state !== "ok") return { error: "that list needs the calendar connected under Settings › Business", people: [] };
   const digits = q.replace(/\D/g, "");
   const hits = rows.filter((r) => {
-    if (list && !list.test(toPersonRowVM(r, t.now))) return false;
+    if (list && !list.test(toPersonRowVM(r, t.timezone, t.now))) return false;
     if (!q) return true;
     const name = personName(r).toLowerCase();
     if (name.includes(q)) return true;
@@ -403,7 +405,7 @@ async function searchPeople(t: ToolContext, input: Record<string, unknown>): Pro
     t.read.person.add(r.id);
     if (r.latest_conversation_id) t.read.thread.add(r.latest_conversation_id);
   }
-  return { query: q, list: list?.id ?? null, matches: hits.length, people: picked.map((r) => personLine(r, t.now.getTime())) };
+  return { query: q, list: list?.id ?? null, matches: hits.length, people: picked.map((r) => personLine(r, t.timezone, t.now.getTime())) };
 }
 
 async function getPerson(t: ToolContext, input: Record<string, unknown>): Promise<unknown> {
@@ -446,7 +448,7 @@ async function getPerson(t: ToolContext, input: Record<string, unknown>): Promis
     receptionist_mode: personPol.data?.mode ?? null,
     workspace_reply_mode: wsPol.data?.mode ?? null,
   };
-  const vm = toPersonVM(detail, t.now);
+  const vm = toPersonVM(detail, t.timezone, t.now);
   t.read.person.add(id);
   for (const c of detail.conversations) { t.read.thread.add(c.id); t.read.conversation.add(c.id); }
   for (const c of detail.calls) t.read.call.add(c.id);
@@ -472,7 +474,7 @@ async function listCalls(t: ToolContext, input: Record<string, unknown>): Promis
   const { timezone } = await tenantFacts(t.ctx.supabase, t.tenantId);
   const calls = await loadCalls(t);
   const today = dayKey(t.now.toISOString(), timezone);
-  const vms = calls.map((c) => toCallVM(c, t.now));
+  const vms = calls.map((c) => toCallVM(c, timezone, t.now));
   const abandoned = new Set(calls.filter(abandonedCall).map((c) => c.id));
   const picked = vms.filter((v, i) => {
     const c = calls[i];
@@ -508,7 +510,7 @@ async function getCall(t: ToolContext, input: Record<string, unknown>): Promise<
   const { data, error } = await t.ctx.supabase.from("calls").select(CALL_COLUMNS).eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return { error: "no such call in this workspace" };
-  const v = toCallVM(toCallDto(data), t.now);
+  const v = toCallVM(toCallDto(data), t.timezone, t.now);
   t.read.call.add(id);
   if (v.clientId) t.read.person.add(v.clientId);
   return {
@@ -623,7 +625,7 @@ async function listAudiences(t: ToolContext): Promise<unknown> {
     t.ctx.supabase.from("templates").select("id, name, language, category, variables, body_preview").eq("tenant_id", t.tenantId).eq("channel", "whatsapp").eq("meta_status", "approved").order("name"),
     t.ctx.supabase.from("tenant_channels").select("number_e164, config").eq("tenant_id", t.tenantId).eq("kind", "whatsapp").eq("status", "active").limit(1).maybeSingle(),
   ]);
-  const rows = people.map((r) => toPersonRowVM(r, t.now));
+  const rows = people.map((r) => toPersonRowVM(r, t.timezone, t.now));
   const byList = new Map<string, Set<string>>();
   for (const m of members.data ?? []) {
     const s = byList.get(m.segment_id) ?? new Set<string>();
@@ -684,7 +686,7 @@ async function listPlaybooksTool(t: ToolContext): Promise<unknown> {
   const modeOf = (cls: string) => modes.get(cls) ?? "ask";
   // With their appointments: the visit triggers count from the calendar.
   const withV = await withVisits(t.ctx, t.tenantId, people, t.now);
-  const vm = withV.people.map((r) => toPersonRowVM(r, t.now));
+  const vm = withV.people.map((r) => toPersonRowVM(r, t.timezone, t.now));
   const untouched = { byThis: new Map<string, number>(), byAny: new Map<string, number>() };
   const pool = (trigger: string) =>
     eligibleForPlaybook(vm, { trigger: trigger as (typeof PLAYBOOK_TRIGGERS)[number]["id"], cap_per_run: 100_000, gap_days: 0, cadence_days: 0 }, untouched, t.now.getTime()).length;

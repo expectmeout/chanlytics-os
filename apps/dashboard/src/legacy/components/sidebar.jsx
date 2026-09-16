@@ -63,7 +63,10 @@ const sbOverlay = (a) => {
 const sbNeedsCount = () => {
   const threads = ((window.INBOX_DATA || {}).THREADS) || [];
   return threads.filter(t => {
-    if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false; // real escalations count too
+    // A real thread counts when it needs you, the badge's rule (needsYou): this counted a teammate's thread (I2).
+    // The Inbox owns that rule (ixWaitsOnYou), so a reply about to send counts in both places, or in neither.
+    if (t.real) return window.ixWaitsOnYou ? window.ixWaitsOnYou(t) : !!t.needsYou;
+    if (t.state !== "needs" && !(t.state === "escalated" && !t.takenOver)) return false;
     const rec = window.IX_STORE && window.IX_STORE.get(t.id);
     return !(rec && (rec.kind === "decided" || rec.kind === "snoozed"));
   }).length;
@@ -300,42 +303,6 @@ const UserMenu = ({ who, themePref, onTheme, onNavigate, close, flash }) => {
   );
 };
 
-// The one line the shell owes the person: a newer build (refresh fixes
-// everything), or surfaces that stopped refreshing. Read from the shell's
-// status (legacy-bridge/shell.ts), which used to be the floating pill.
-const SbStatus = ({ collapsed }) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("shell:status", bump);
-    window.addEventListener("surface:billing", bump);
-    return () => { window.removeEventListener("shell:status", bump); window.removeEventListener("surface:billing", bump); };
-  }, []);
-  // The pause rides with the billing surface: the webhook writes the row, the surface repaints, the foot says so.
-  const B = window.__BILLING_ACCOUNT;
-  const paused = !!(B && window.__billing && window.__billing.vm(B.dto).paused);
-  const line = window.__chrome ? window.__chrome.statusLine({ ...(window.__SHELL_STATUS || { stale: false, degraded: [] }), paused }) : null;
-  if (!line) return null;
-  if (line.action === "billing") {
-    return (
-      <button type="button" className="sb-attn sb-attn-act" onClick={() => window.CHANLY && window.CHANLY.nav("admin/billing")} data-tip={collapsed ? `${line.text} — open Billing` : undefined} data-tip-side="right" data-testid="sb-status">
-        <Icon name="money" size={12} /><span>{line.text}</span><span className="sb-attn-cta">Billing</span>
-      </button>
-    );
-  }
-  if (line.action === "reload") {
-    return (
-      <button type="button" className="sb-attn sb-attn-act" onClick={() => window.location.reload()} data-tip={collapsed ? `${line.text} — refresh` : undefined} data-tip-side="right" data-testid="sb-status">
-        <Icon name="refresh" size={12} /><span>{line.text}</span><span className="sb-attn-cta">Refresh</span>
-      </button>
-    );
-  }
-  return (
-    <div className="sb-attn" data-tip={collapsed ? line.text : undefined} data-tip-side="right" data-testid="sb-status">
-      <Icon name="alert" size={12} /><span>{line.text}</span>
-    </div>
-  );
-};
-
 const Sidebar = ({
   active = "home",
   onNavigate = () => {},
@@ -529,9 +496,8 @@ const Sidebar = ({
         </button>
       </div>}
 
-      {/* The foot: the shell's status, the rail toggle, the account. */}
+      {/* The foot: the rail toggle and the account. The shell's status is the line under the top bar (topbar.jsx). */}
       <div className="sidebar-foot">
-        <SbStatus collapsed={collapsed} />
         <button
           type="button"
           className="sb-collapse"
@@ -574,3 +540,5 @@ const Sidebar = ({
 
 window.Sidebar = Sidebar;
 window.ACTIVE_AGENTS_DEFAULT = ACTIVE_AGENTS_DEFAULT;
+// Published for inbox-counts.test.mjs, which counts the sidebar's first number on its own.
+window.sbNeedsCount = sbNeedsCount;

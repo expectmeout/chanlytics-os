@@ -96,9 +96,14 @@ export interface TodayFactVM {
 
 export interface TodaySentenceVM {
   text: string;
+  /** The day's traffic, which the recap's one line already says. The page prints the line and skips these; Ask still
+   *  reads every sentence. */
+  traffic?: true;
   /** True for the one line that must never read as calm: a reply that
    *  failed to deliver. */
   warn?: boolean;
+  /** The record the sentence is about, when the read holds it: the thread of the newest reply that failed. */
+  to?: string;
 }
 
 /**
@@ -142,6 +147,8 @@ export interface TodayVM {
   windowClosing: { label: string; hint: string; rows: Array<{ id: string; text: string; to: string }> } | null;
   recap: {
     label: string;
+    /** The day's numbers in one sentence. They were six stat cards over two sentences that said them again. */
+    line: string;
     sentences: TodaySentenceVM[];
     facts: TodayFactVM[];
     receipts: Array<{ at: string; text: string; to: string }>;
@@ -183,6 +190,35 @@ export function tzClock(iso: string | null | undefined, tz: string, now: Date): 
   if (day === key(now)) return t;
   if (day === key(new Date(now.getTime() + 86_400_000))) return `tomorrow ${t}`;
   try { return `${new Intl.DateTimeFormat("en-US", { weekday: "short", timeZone: tz }).format(new Date(iso))} ${t}`; } catch { return t; }
+}
+
+/**
+ * When a wait began, said with its day, in the workspace's zone: "8:00 AM"
+ * today, "yesterday 8:00 AM", "Fri 8:00 AM" inside a week, "Aug 29, 8:00 AM"
+ * beyond it. A bare time on a wait from an earlier day read as last night:
+ * Today said "waiting since 6:51 PM" of a customer who had waited eight days.
+ */
+function tzSince(iso: string | null | undefined, tz: string, now: Date): string | null {
+  const t = tzTime(iso, tz);
+  if (!iso || !t) return t;
+  const dayNumber = (d: Date): number => {
+    try {
+      const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d).split("-").map(Number);
+      return Date.UTC(parts[0] ?? 1970, (parts[1] ?? 1) - 1, parts[2] ?? 1) / 86_400_000;
+    } catch {
+      return Math.floor(d.getTime() / 86_400_000);
+    }
+  };
+  const days = dayNumber(now) - dayNumber(new Date(iso));
+  if (days <= 0) return t;
+  if (days === 1) return `yesterday ${t}`;
+  try {
+    const within: Intl.DateTimeFormatOptions = days < 7 ? { weekday: "short", timeZone: tz } : { month: "short", day: "numeric", timeZone: tz };
+    const day = new Intl.DateTimeFormat("en-US", within).format(new Date(iso));
+    return days < 7 ? `${day} ${t}` : `${day}, ${t}`;
+  } catch {
+    return t;
+  }
 }
 
 function tzTime(iso: string | null | undefined, tz: string): string | null {
@@ -366,6 +402,22 @@ export function toTodayVM(
     { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
   ];
   const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
+  // The day's traffic as one sentence, for the line under the work. The hero said these numbers three times: a strip
+  // of stat cards, two of the sentences beneath it, and the arc's own ratio.
+  const trafficParts: string[] = [];
+  if (p.messages_in > 0) {
+    trafficParts.push(
+      `${p.messages_in} message${p.messages_in === 1 ? "" : "s"} in, ${p.answered_by_ai} answered by the receptionist${
+        p.median_reply_seconds_ai === null ? "" : `, typically in ${secondsPhrase(p.median_reply_seconds_ai)}`
+      }`,
+    );
+  }
+  if (p.calls) {
+    trafficParts.push(
+      `${p.calls} call${p.calls === 1 ? "" : "s"}${callMinutes ? `, ${callMinutes} minute${callMinutes === 1 ? "" : "s"}` : ""}`,
+    );
+  }
+  const trafficLine = trafficParts.length ? `${trafficParts.join(". ")}.` : "Nothing has come in yet today.";
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (isQuiet) {
@@ -402,7 +454,7 @@ export function toTodayVM(
       },
       needsYou: null,
       windowClosing: null,
-      recap: { label: "Today so far", sentences: [], facts, receipts: [] },
+      recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
       pulse: null,
       calls: null,
       callsRead,
@@ -434,7 +486,7 @@ export function toTodayVM(
   }
 
   /* ---- headline ladder: first match wins ---- */
-  const oldest = tzTime(live.oldest_open_escalation_at, tz);
+  const oldest = tzSince(live.oldest_open_escalation_at, tz, now);
   let headline: string;
   let detail: string | null = null;
   let tone: "needs" | "calm" | "alert" = "calm";
@@ -496,6 +548,7 @@ export function toTodayVM(
           ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
           : ""
       }.`,
+      traffic: true,
     });
   }
   if (p.calls && !headlineCoversTraffic) {
@@ -503,6 +556,7 @@ export function toTodayVM(
       text: `${p.calls} caller${p.calls === 1 ? "" : "s"} reached the phone line${
         callMinutes ? ` — ${callMinutes} minute${callMinutes === 1 ? "" : "s"} total` : ""
       }.`,
+      traffic: true,
     });
   }
   if (p.messages_out_you) {
@@ -513,9 +567,19 @@ export function toTodayVM(
   // "handled everything" while a message died in transit would be a lie of
   // omission.
   if (p.send_failures) {
+    // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
+    // opened the Inbox list, where the owner had to go looking.
+    const lastFailed = conversations
+      .flatMap((c) =>
+        c.messages
+          .filter((x) => x.direction === "outbound" && x.status === "failed" && x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs)
+          .map((x) => ({ conv: c, at: x.created_at })),
+      )
+      .sort((a, b) => b.at.localeCompare(a.at))[0];
     sentences.push({
       text: `${p.send_failures} repl${p.send_failures === 1 ? "y" : "ies"} failed to deliver — the customer got no answer.`,
       warn: true,
+      ...(lastFailed ? { to: `inbox/th-${lastFailed.conv.id}` } : {}),
     });
   }
 
@@ -553,7 +617,7 @@ export function toTodayVM(
   const callRows: TodayCallRowVM[] = callsInWindow
     // A dial that never connected is not a call, so it is not a call worth an ear.
     .filter((c) => c.status !== "not_connected")
-    .map((c) => ({ c, vm: toCallVM(c, now) }))
+    .map((c) => ({ c, vm: toCallVM(c, tz, now) }))
     .filter(
       ({ c, vm }) =>
         vm.live ||
@@ -612,13 +676,13 @@ export function toTodayVM(
   for (const e of openEsc) {
     const conv = byConv.get(e.conversation_id);
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
-    const since = tzTime(e.created_at, tz) ?? "";
+    const since = tzSince(e.created_at, tz, now) ?? "";
     const warn = waitedMs > 30 * 60000;
     if (e.reason === "callback") {
       // The phone receptionist could not finish it: the to-do it left is the
       // sentence, the call itself is where the verb goes, Done resolves it.
       const call = callByConv.get(e.conversation_id) ?? null;
-      const who = conv ? contactName(conv) : call ? toCallVM(call, now).who : "Unknown caller";
+      const who = conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : "Unknown caller";
       queueAll.push({
         id: `q-${e.id}`, kind: "callback", who, initials: initialsOf(who), channel: "Phone",
         when: `waited ${formatWaited(waitedMs)}`,
@@ -713,7 +777,7 @@ export function toTodayVM(
           rows: closingRows,
         }
       : null,
-    recap: { label: "Today so far", sentences, facts, receipts },
+    recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
     pulse,
     callsRead,
     calls: p.calls
@@ -887,11 +951,24 @@ export function todayDayFacts(cal: CalendarLike | null, agg: { booked: number; r
     const n = today.blocks.length + today.allDay.length;
     const hint = today.closed.yes
       ? `closed today${today.closed.note ? ` · ${today.closed.note}` : ""}`
-      : cal.stats.next !== "—" ? `next opening ${cal.stats.next}` : undefined;
+      : cal.stats.next !== "—" ? `next open time ${cal.stats.next}` : undefined;
     out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
   }
   if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
   return out;
+}
+
+/** The day's own numbers as one sentence, beside the recap's: they were stat cards in the hero, over the work. */
+export function todayDayLine(cal: CalendarLike | null, agg: { booked: number; reachedWeek: number } | null): string | null {
+  const facts = todayDayFacts(cal, agg);
+  if (!facts.length) return null;
+  const said = facts.map((f) => {
+    const what = f.label === "Appointments today"
+      ? `${f.value} appointment${f.value === "1" ? "" : "s"} today`
+      : `${f.value} booked ahead`;
+    return f.hint ? `${what}, ${f.hint}` : what;
+  });
+  return `${said.join(". ")}.`;
 }
 
 /* ------------------------- the period, the journey, away ------------------ */
@@ -933,8 +1010,8 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
   const sent = find("sent");
   const yes = find("optins");
   const offers = r.campaigns.empty || !sent || sent.value === "0"
-    ? "No offers went out."
-    : `${sent.value} offer message${sent.value === "1" ? "" : "s"} sent · ${yes ? yes.value : "0"} said yes`;
+    ? "No campaign message went out."
+    : `${sent.value} campaign message${sent.value === "1" ? "" : "s"} sent · ${yes ? yes.value : "0"} said yes`;
   const b = r.booking;
   const booking = !b.present
     ? { text: b.sub, to: "calendar" }

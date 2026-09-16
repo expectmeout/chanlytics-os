@@ -45,17 +45,22 @@ test("hotkeys and typing: ⌘1 to ⌘9 for the first nine workspaces; a field be
 });
 
 test("the shell's one line: a newer build outranks stale surfaces, and nothing is nothing", () => {
+  // Every state's words, and the order between them, run in shell-status.test.mjs.
   assert.equal(shellStatusLine(null), null);
   assert.equal(shellStatusLine({ stale: false, degraded: [] }), null);
-  assert.deepEqual(shellStatusLine({ stale: true, degraded: ["Inbox"] }), { text: "A newer version is ready", action: "reload" });
-  assert.deepEqual(shellStatusLine({ stale: false, degraded: ["Inbox", "Calendar"] }), { text: "Inbox, Calendar not refreshing", action: null });
+  assert.equal(shellStatusLine({ stale: true, degraded: ["Inbox"] }).text, "A newer version is ready");
+  assert.equal(shellStatusLine({ stale: true, degraded: ["Inbox"] }).action, "reload");
+  assert.equal(shellStatusLine({ stale: false, degraded: ["Inbox", "Calendar"] }).text, "Inbox and Calendar stopped refreshing");
+  assert.equal(shellStatusLine({ stale: false, degraded: ["Inbox", "Calendar"] }).action, "retry", "and offers the read again");
 });
 
 test("the shortcuts sheet lists what the app answers to, grouped in order, and nothing the app does not do", () => {
   const groups = shortcutGroups(SHORTCUTS);
-  assert.deepEqual(groups.map((g) => g.group), ["Everywhere", "Lists", "Inbox"]);
+  assert.deepEqual(groups.map((g) => g.group), ["Everywhere", "People", "Inbox"]);
   const does = SHORTCUTS.map((s) => s.does);
-  for (const d of ["Ask Chanlytics", "Collapse or expand the sidebar", "This sheet", "Search the page", "Next and previous item", "Approve the draft", "Send"]) assert.ok(does.includes(d), d);
+  for (const d of ["Ask Chanlytics", "Collapse or expand the sidebar", "This sheet", "Search People", "Next and previous conversation", "Approve the draft", "Send"]) assert.ok(does.includes(d), d);
+  const where = (keys) => (SHORTCUTS.find((s) => s.keys.join(" ") === keys) || {}).group;
+  assert.deepEqual([where("/"), where("J K")], ["People", "Inbox"], "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People and J/K walk the Inbox");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('e.key === "k"') && shell.includes('e.key === "b"'), "⌘K and ⌘B are real");
   assert.ok(shell.includes("if (n >= 1 && n <= 9)"), "⌘1–9 are real");
@@ -65,7 +70,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
 test("the wiring: the pill is retired, the shell bridge carries its two actions and its status, the page has the menus, the rail and the sheet", () => {
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(!app.includes("bridge-pill") && !app.includes("pill-signout"), "no floating pill");
-  assert.ok(app.includes("installShell();") && app.includes("publishShellStatus({ stale: staleRef.current, degraded });"));
+  assert.ok(app.includes("installShell();") && app.includes("publishShellStatus(shellStatusOf(getSurfaceStatuses(), getConnection(), staleRef.current, SURFACE_LABELS));"));
   assert.ok(app.includes("const theme = resolveTheme(prefs.theme, systemDark);") && app.includes('document.documentElement.setAttribute("data-theme", theme);'), "the page paints the resolved theme");
   assert.ok(app.includes("sidebar: isSidebarPref(p.sidebar) ? p.sidebar : PREF_DEFAULTS.sidebar"), "the rail is a device preference");
   assert.ok(!readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"), "the pill's styles are gone");
@@ -87,7 +92,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
 
   const sidebar = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
   for (const pin of [
-    "const WorkspaceMenu = ", "const UserMenu = ", "const SbStatus = ", "const useSbMenu = ",
+    "const WorkspaceMenu = ", "const UserMenu = ", "const useSbMenu = ",
     'className="more-menu sb-menu"', 'testid="sb-account-menu"', 'testid="sb-workspace-menu"',
     "window.__shell.signOut();", "window.__shell.switchWorkspace(w.id)", "window.__identity.words(me)",
     'data-tip={collapsed ? (badge ? `${item.label} · ${badge}` : item.label) : undefined}',
@@ -101,7 +106,7 @@ test("the wiring: the pill is retired, the shell bridge carries its two actions 
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/components/shortcuts.jsx";'));
 
   const css = readRaw("apps/dashboard/src/legacy/styles/components.css");
-  for (const pin of [".sidebar.collapsed .nav-item { justify-content: center;", ".sb-menu { position: fixed;", ".sb-theme-seg {", ".sb-attn {", ".sb-sheet {"]) assert.ok(css.includes(pin), pin);
+  for (const pin of [".sidebar.collapsed .nav-item { justify-content: center;", ".sb-menu { position: fixed;", ".sb-theme-seg {", ".sb-sheet {"]) assert.ok(css.includes(pin), pin);
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/mobile.css").includes(".side-wrap .sidebar.collapsed { width: min(300px, 84vw); }"), "the drawer is never a rail");
 });
 
@@ -120,7 +125,8 @@ test("navigating INSIDE a surface does not tear the surface down", () => {
   // Opt-IN, and only for a surface that follows its param. Getting this list
   // wrong in the other direction shows the wrong entity, so the default has to
   // be the safe one.
-  assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox"\]\);/);
+  assert.match(shell, /const PARAM_FOLLOWED_AS_PROP = new Set\(\["admin", "inbox", "broadcasts"\]\);/);
+  // Broadcasts follows its run and its list as props: drawn in runs-honest.test.mjs, its mount key in shell-status.test.mjs.
   const settings = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(settings.includes("const active = SET_TAB(tab);"), "Settings derives its tab every render");
   const inbox = readCode("apps/dashboard/src/legacy/pages/inbox.jsx");

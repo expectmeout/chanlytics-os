@@ -14,7 +14,7 @@
  */
 import { clockLabel, coversSpan, frameOf, monthLabelOf, shiftKey, shiftMonth, spanForView, windowFor, type CalendarView } from "@chanlytics/contracts";
 import { api } from "./api";
-import { calendarOverride, getCalendarSpan, setCalendarSpan } from "./surface-data";
+import { calendarOverride, getCalendarSpan, setCalendarFresh, setCalendarSpan } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 
 /** Load `days` days starting on `from` (a day key); a null `from` is the window around today. */
@@ -40,18 +40,43 @@ export async function ensure(view: CalendarView, anchor: string): Promise<boolea
   return goTo(w.from, w.days);
 }
 
+/**
+ * Leaving the Calendar: the loaded window goes back to the weeks around today.
+ * Today's day, its next open time and its facts read this same surface, so a
+ * board left on another month took them with it until a reload (C1). Reads
+ * only when the window had moved, and says whether it had.
+ */
+export async function home(): Promise<boolean> {
+  if (getCalendarSpan().from === null) return false;
+  await goTo(null);
+  return true;
+}
+
 /** What a feed holds, or the refusal's words. A read: nothing refreshes. Never throws. */
 export async function previewFeed(url: string) {
   return api()("POST calendar/preview", { body: { url } });
 }
 
-/** Read the loaded window again: the board keeps itself current while it is open, so the now line, the next opening and the windows follow the clock. */
-export async function refresh(): Promise<void> {
+/**
+ * Read the loaded window again: the board keeps itself current while it is open, so the now line, the next open time
+ * and the windows follow the clock. `fresh` is the owner's Refresh (C2): the route reads the calendar itself rather
+ * than its few minutes' cache. Says whether a read landed, so the board can say so when none did.
+ */
+export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean> {
+  const stamp = () => (window as unknown as { __CALENDAR?: { fetchedAt?: number } }).__CALENDAR?.fetchedAt;
+  const before = stamp();
+  setCalendarFresh(!!opts.fresh);
   api().forget();
-  await refreshSurfaces([calendarOverride]);
+  try {
+    await refreshSurfaces([calendarOverride]);
+  } finally {
+    // A read that never ran must not leave the next ordinary one asking for fresh.
+    setCalendarFresh(false);
+  }
+  return stamp() !== before;
 }
 
-export const calendar = { goTo, ensure, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };
+export const calendar = { goTo, ensure, home, previewFeed, refresh, spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel };
 
 declare global {
   interface Window {

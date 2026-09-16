@@ -10,6 +10,7 @@
 import type { ActivityPageDto, PersonRowDto } from "@chanlytics/contracts";
 import { api } from "./api";
 import type { ApiResult } from "../client/api";
+import { workspaceZone } from "./zone";
 
 export interface ActivityFilters {
   person?: string;
@@ -19,8 +20,16 @@ export interface ActivityFilters {
 }
 
 export const activity = {
-  list: (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> =>
-    api()("GET activity", { query: { ...(f.person ? { person: f.person } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.day ? { day: f.day } : {}), ...(f.offset ? { offset: f.offset } : {}) } }),
+  // The rows say their times by the business's clock (window.__clock), so its zone is known before they
+  // land: a link straight to this page can bring the log before the workspace read. A zone that cannot be
+  // read leaves the log readable.
+  list: async (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> => {
+    const [r] = await Promise.all([
+      api()("GET activity", { query: { ...(f.person ? { person: f.person } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.day ? { day: f.day } : {}), ...(f.offset ? { offset: f.offset } : {}) } }),
+      workspaceZone().catch(() => null),
+    ]);
+    return r;
+  },
   /** Up to ten people matching a name or a number, to filter by one of them. */
   people: async (q: string): Promise<{ id: string; name: string; phone: string | null }[]> => {
     const r = await api()("GET contacts", { query: { q } });

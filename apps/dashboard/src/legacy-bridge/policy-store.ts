@@ -109,7 +109,7 @@ interface SeedStore {
 interface PolicyWindow {
   POLICY?: SeedStore;
   __POLICIES?: PoliciesSurface | null;
-  __setPolicy?: (cls: string, mode: string, replyDelayMs?: number, minConfidence?: number, maxTokensDay?: number) => Promise<unknown>;
+  __setPolicy?: (cls: string, mode: string) => Promise<unknown>;
 }
 
 /**
@@ -130,8 +130,10 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
       return uiRows(s ?? EMPTY);
     },
     forPerm: seed?.forPerm ?? { booking: "book", money: "money", discount: "money", winback: "reengage", scope: "faq" },
+    // By the row's id (book) or by its class (booking): a playbook's chip names the class it runs under.
     row(id: string): unknown {
-      return (this.ROWS as { id: string }[]).find((r) => r.id === id) ?? null;
+      const rows = this.ROWS as { id: string; cls?: string }[];
+      return rows.find((r) => r.id === id) ?? rows.find((r) => r.cls === id) ?? null;
     },
     modeOf(id: string): string | null {
       const s = surface();

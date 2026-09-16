@@ -58,11 +58,10 @@ test("the runs and the composed prompt cannot disagree — same source", () => {
 
 test("the Settings card no longer keeps its own copy of the loop", () => {
   const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes("window.__hoursRuns(hours)"), "it asks for the shared runs");
+  assert.ok(pane.includes("window.__hoursLines(hours)"), "it asks for the shared lines, which collapse the same runs");
   assert.ok(
     !pane.includes("spans[j + 1].text === spans[i].text"),
     "the duplicated collapse loop must be gone",
   );
-  // The wording stays local — that part was never the problem.
-  assert.ok(pane.includes("DAY_LABEL_SHORT"), "short day names are the card's own choice");
+  // The words are the Calendar's too: one clock for the card and the board (C3), rendered in settings-words.test.mjs.
 });

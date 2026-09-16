@@ -160,15 +160,21 @@ const SetRow = ({ label, hint, children }) => {
   );
 };
 
-const SetSeg = ({ value, options, onChange, ...rest }) => (
+const SetSeg = ({ value, options, onChange, ...rest }) => {
   // role=group so the label SetRow supplies has something to name; the buttons
-  // inside stay plain buttons, which is what they already were.
-  <div className="cl-tabs" role="group" {...rest}>
-    {options.map(o => (
-      <button key={o} className={`cl-tab ${value === o ? "active" : ""}`} onClick={() => onChange(o)}>{o}</button>
-    ))}
-  </div>
-);
+  // inside stay plain buttons, which is what they already were. `gate` is
+  // window.gate(...)'s props, on every option -- a dial a role may not turn says
+  // why when pressed, where it used to take the press and show the server's
+  // refusal -- and it stays off the group, which gets everything else it is given.
+  const { gate = null, ...group } = rest;
+  return (
+    <div className="cl-tabs" role="group" {...group}>
+      {options.map(o => (
+        <button key={o} className={`cl-tab ${value === o ? "active" : ""}`} onClick={() => onChange(o)} {...(gate || {})}>{o}</button>
+      ))}
+    </div>
+  );
+};
 
 // Veto window — the third autonomy mode (ask-first < veto < auto); ST_STORE-backed
 const VetoModeRow = () => {
@@ -285,6 +291,14 @@ const YourName = ({ flash, ...rest }) => {
  * whether it is theirs.
  */
 /**
+ * A number as people write it, "+1 (305) 555-0100", the way Setup and Connections show one (contracts
+ * formatPhoneDisplay, published by the bridge). Business showed the line it answers and the transfer number in the
+ * E.164 they are stored as (the wiring audit's L7). Only E.164 is rewritten: anything else is shown as it was written,
+ * which for the number it gives out is what the receptionist says.
+ */
+const phoneShown = (v) => (v && window.__phoneDisplay && /^\+[1-9][0-9]{6,14}$/.test(v) ? window.__phoneDisplay(v) : v);
+
+/**
  * A fact, with where it came from.
  *
  * The Business card was eight rows of identical text, and three of them were
@@ -295,16 +309,16 @@ const YourName = ({ flash, ...rest }) => {
  * nothing. A source beside the value is the smallest honest fix, and the link
  * says who to go to when it is wrong.
  */
-const FactRow = ({ label, fact, to, toLabel, empty = "—" }) => {
+const FactRow = ({ label, fact, to, toLabel, empty = "—", show = (v) => v }) => {
   if (!fact) return null;
   const words = (window.__FACT_WORDS || {})[fact.source] || "";
   return (
     <div className="cl-prof-attr" data-testid={`fact-${label.toLowerCase().replace(/[^a-z]+/g, "-")}`}>
       <span className="cl-prof-attr-key">{label}</span>
       <span className="cl-prof-attr-val set-fact">
-        <span className={fact.value ? "" : "set-fact-empty"}>{fact.value || empty}</span>
+        <span className={fact.value ? "" : "set-fact-empty"}>{fact.value ? show(fact.value) : empty}</span>
         {fact.value && fact.source !== "typed" && <span className="set-fact-src">{words}</span>}
-        {fact.disputed && <span className="set-fact-src disputed" title={`The system has ${fact.disputed.value}`}>doesn&rsquo;t match</span>}
+        {fact.disputed && <span className="set-fact-src disputed" title={`The system has ${show(fact.disputed.value)}`}>doesn&rsquo;t match</span>}
         {to && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(to)}>{toLabel} <Icon name="arrow-right" size={10} /></button>}
       </span>
     </div>
@@ -386,6 +400,7 @@ function useFieldSave(flash) {
 const PublishedNumberRow = ({ fact, flash }) => {
   const line = ((window.__FACTS || {}).facts || {}).voice_line || null;
   const voiceLine = (line && line.value) || "";
+  const lineShown = phoneShown(voiceLine);
   const handoff = (((window.__FACTS || {}).facts || {}).handoff_number || {}).value || null;
   const stored = ((window.__SETTINGS || {}).config || {}).brain || {};
   const [editing, setEditing] = React.useState(false);
@@ -396,8 +411,8 @@ const PublishedNumberRow = ({ fact, flash }) => {
   const commit = () => {
     const value = own ? "" : typed.trim();
     const bad = value && window.__whyNotAPhone ? window.__whyNotAPhone(value) : null;
-    if (bad) { flash({ msg: <>{bad}</> }); return; }
-    if (!value && !voiceLine) { flash({ msg: <>There is no line yet, so the receptionist needs a number to give out.</> }); return; }
+    if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
+    if (!value && !voiceLine) { flash({ tone: "warn", msg: <>There is no line yet, so the receptionist needs a number to give out.</> }); return; }
     save(
       (brain) => { if (value) brain.phone_display = value; else delete brain.phone_display; return brain; },
       value ? <>Customers are told to call <b className="tabular">{value}</b> now.</> : <>Customers are told to call your line.</>,
@@ -424,21 +439,21 @@ const PublishedNumberRow = ({ fact, flash }) => {
         {voiceLine && (
           <div className="cl-tabs" role="radiogroup" aria-label="The number to tell customers to call">
             <button type="button" role="radio" aria-checked={own} className={`cl-tab ${own ? "active" : ""}`} onClick={() => setOwn(true)} data-testid="set-pub-line">Your line</button>
-            <button type="button" role="radio" aria-checked={!own} className={`cl-tab ${!own ? "active" : ""}`} onClick={() => { setOwn(false); setTyped(typed || voiceLine); }} data-testid="set-pub-other">A different number</button>
+            <button type="button" role="radio" aria-checked={!own} className={`cl-tab ${!own ? "active" : ""}`} onClick={() => { setOwn(false); setTyped(typed || lineShown); }} data-testid="set-pub-other">A different number</button>
           </div>
         )}
         {!own || !voiceLine ? (
-          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={voiceLine || "+1 646 932 5775"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
+          <input className="set-input" value={typed} onChange={(e) => setTyped(e.target.value)} placeholder={lineShown || "+1 646 932 5775"} inputMode="tel" autoComplete="tel" aria-label="The number to publish" data-testid="set-pub-input" />
         ) : null}
         <div className="set-ident-note">
           {own && voiceLine
-            ? <><b className="tabular">{voiceLine}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
+            ? <><b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number changes nothing to keep in step.</>
             : window.__samePhone && window.__samePhone(typed, voiceLine)
               ? <>That is your line. Choose <b>Your line</b> and it stays right when the number changes.</>
               : handoff && window.__samePhone && window.__samePhone(typed, handoff)
-                ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{voiceLine}</b>.</>
+                ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
                 : voiceLine
-                  ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{voiceLine}</b>.</>
+                  ? <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>
                   : <>The receptionist has no line of its own yet, so this is the number it gives out.</>}
         </div>
         <div className="set-row-actions">
@@ -455,11 +470,12 @@ const HandoffRow = ({ fact, flash }) => {
   const voiceLine = ((((window.__FACTS || {}).facts || {}).voice_line) || {}).value || "";
   const stored = (((window.__SETTINGS || {}).config || {}).brain || {}).profile || {};
   const [editing, setEditing] = React.useState(false);
-  const [typed, setTyped] = React.useState(stored.handoff_number || "");
+  // Shown, and changed from, the way the row writes it: the check and the stored form both read "+1 (786) 555-0182".
+  const [typed, setTyped] = React.useState(phoneShown(stored.handoff_number) || "");
   const [busy, save] = useFieldSave(flash);
   const commit = () => {
     const bad = window.__whyNotAHandoff ? window.__whyNotAHandoff(typed, voiceLine) : null;
-    if (bad) { flash({ msg: <>{bad}</> }); return; }
+    if (bad) { flash({ tone: "warn", msg: <>{bad}</> }); return; }
     const value = window.__handoffE164 ? window.__handoffE164(typed) : (typed.trim() || null);
     save(
       (brain, profile) => {
@@ -467,7 +483,7 @@ const HandoffRow = ({ fact, flash }) => {
         brain.profile = profile;
         return brain;
       },
-      value ? <>Callers who insist on a person reach <b className="tabular">{value}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
+      value ? <>Callers who insist on a person reach <b className="tabular">{phoneShown(value)}</b>.</> : <>The receptionist takes a message instead of transferring.</>,
       () => setEditing(false),
     );
   };
@@ -476,8 +492,8 @@ const HandoffRow = ({ fact, flash }) => {
       <div className="cl-prof-attr" data-testid="fact-transfers-a-caller-to">
         <span className="cl-prof-attr-key">Transfers a caller to</span>
         <span className="cl-prof-attr-val set-fact">
-          <span className={fact && fact.value ? "" : "set-fact-empty"}>{(fact && fact.value) || "Takes a message instead"}</span>
-          <button className="cl-bucket-link" onClick={() => { setTyped(stored.handoff_number || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
+          <span className={fact && fact.value ? "" : "set-fact-empty"}>{fact && fact.value ? phoneShown(fact.value) : "Takes a message instead"}</span>
+          <button className="cl-bucket-link" onClick={() => { setTyped(phoneShown(stored.handoff_number) || ""); setEditing(true); }} {...window.gate("settings")} data-testid="set-handoff-change">Change</button>
         </span>
       </div>
     );
@@ -575,11 +591,13 @@ const PaneProfile = ({ flash }) => {
           </SetRow>
         )}
       </section>
+      {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
+          /auth/signout revokes them all (S20). */}
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">This device</span></div>
-        <SetRow label="Sign out" hint="Ends your session everywhere, on every device — what someone who has lost a laptop expects">
+        <div className="fl-card-head"><span className="fl-card-title">Signing out</span></div>
+        <SetRow label="Sign out everywhere" hint="Ends your session on every device at once, this one included — what someone who has lost a laptop expects">
           <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
-            <Icon name="logout" size={12} /> Sign out
+            <Icon name="logout" size={12} /> Sign out everywhere
           </button>
         </SetRow>
       </section>
@@ -597,8 +615,12 @@ const TeamSection = ({ flash }) => {
   const [, setTick] = useSetState(0);
   useSetEffect(() => {
     const bump = () => setTick(n => n + 1);
+    // team:changed is the mockup's roster. The real one arrives with the settings surface, read again after every
+    // invite, role change and removal and by a failed read's Retry -- which this card never heard, so the roster on
+    // screen stayed as it was under a toast saying it had changed (D7, S11).
     window.addEventListener("team:changed", bump);
-    return () => window.removeEventListener("team:changed", bump);
+    window.addEventListener("surface:settings", bump);
+    return () => { window.removeEventListener("team:changed", bump); window.removeEventListener("surface:settings", bump); };
   }, []);
   const [inviting, setInviting] = useSetState(false);
   const [email, setEmail] = useSetState("");
@@ -669,10 +691,11 @@ const TeamSection = ({ flash }) => {
     ? serverRole === "owner"
     : (S.me() && S.me().role === "owner");
   const previewing = !!S.viewAsRole;
-  // Seats are a billing concept and billing is not wired. On real data the
-  // count is the members we actually have; the plan limit is not invented.
+  // Billing has no seats. On real data the count is the members we actually
+  // have, and a limit is only the mockup's: a real roster carried
+  // `seatsLeft = 1`, a number made up to keep Invite on the card (S20).
   const seatsUsed = Array.isArray(realTeam) ? realTeam.length : S.seatsUsed();
-  const seatsLeft = Array.isArray(realTeam) ? 1 : S.seatsIncluded - seatsUsed;
+  const seatsFull = !Array.isArray(realTeam) && seatsUsed >= S.seatsIncluded;
 
   // On a REAL roster every write goes to the server, and the card shows what
   // the server says afterwards.
@@ -697,10 +720,10 @@ const TeamSection = ({ flash }) => {
 
   const invite = async () => {
     const mail = email.trim().toLowerCase();
-    if (!ST_EMAIL_RE.test(mail)) { flash({ msg: <>That doesn't look like an email — check the address</> }); return; }
-    if (team.some(m => m.email.toLowerCase() === mail)) { flash({ msg: <><b>{mail}</b> is already on the team</> }); return; }
+    if (!ST_EMAIL_RE.test(mail)) { flash({ tone: "warn", msg: <>That doesn't look like an email — check the address</> }); return; }
+    if (team.some(m => m.email.toLowerCase() === mail)) { flash({ tone: "warn", msg: <><b>{mail}</b> is already on the team</> }); return; }
     if (!realRoster) {
-      if (seatsLeft <= 0) { flash({ msg: <>No seats left — remove someone or upgrade the plan</> }); return; }
+      if (seatsFull) { flash({ tone: "warn", msg: <>No seats left — remove someone or upgrade the plan</> }); return; }
       const id = "u-" + mail.split("@")[0].replace(/[^a-z0-9]/g, "");
       const name = mail.split("@")[0].replace(/[._]+/g, " ").replace(/\b\w/g, c => c.toUpperCase());
       S.addMember({ id, name, email: mail, role: inviteRole, status: "invited" });
@@ -730,7 +753,7 @@ const TeamSection = ({ flash }) => {
   const changeRole = async (m, role) => {
     if (m.role === role) return;
     if (!realRoster) {
-      if (m.role === "owner" && role !== "owner" && S.ownerCount() <= 1) { flash({ msg: <>Promote another owner first — a workspace needs one</> }); return; }
+      if (m.role === "owner" && role !== "owner" && S.ownerCount() <= 1) { flash({ tone: "warn", msg: <>Promote another owner first — a workspace needs one</> }); return; }
       const prev = m.role;
       S.setRole(m.id, role);
       flash({ msg: <><b>{m.name.split(" ")[0]}</b> is now {ST_ROLE_META[role].label}</>, undo: () => S.setRole(m.id, prev) });
@@ -747,7 +770,7 @@ const TeamSection = ({ flash }) => {
 
   const remove = async (m) => {
     if (!realRoster) {
-      if (m.role === "owner" && S.ownerCount() <= 1) { flash({ msg: <>Can't remove the only owner</> }); return; }
+      if (m.role === "owner" && S.ownerCount() <= 1) { flash({ tone: "warn", msg: <>Can't remove the only owner</> }); return; }
       const snap = { ...m };
       S.removeMember(m.id);
       setArmRemove(null);
@@ -777,8 +800,10 @@ const TeamSection = ({ flash }) => {
               ? `${seatsUsed} ${seatsUsed === 1 ? "person" : "people"}`
               : `${seatsUsed} of ${S.seatsIncluded} seats`}
         </span>
-        {!teamUnavailable && canManage && (seatsLeft > 0
-          ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)}><Icon name="plus" size={12} /> Invite</button>
+        {/* Invite is the card's act, so a role that may not invite sees it gated,
+            saying why when pressed, instead of a card with no act at all. */}
+        {!teamUnavailable && (!seatsFull
+          ? !inviting && <button className="btn btn-sm" onClick={() => setInviting(true)} {...window.gate("team", "invite a teammate")}><Icon name="plus" size={12} /> Invite</button>
           : <button className="btn btn-sm" disabled title="No seats left — remove someone or upgrade">Seats full</button>
         )}
       </div>
@@ -869,7 +894,7 @@ const TeamSection = ({ flash }) => {
       </div>
 
       {!canManage && (
-        <div className="set-team-gated"><Icon name="shield" size={11} /> {ST_ROLE_META[myRole].label}s can view the team but can't change it — ask an owner.</div>
+        <div className="set-team-gated" data-testid="team-gated"><Icon name="shield" size={11} /> {window.gateTitle("team", "change the team")}</div>
       )}
     </section>
   );
@@ -890,19 +915,12 @@ const DAY_LABEL_SHORT = { mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "
  * to be a hand-copied second implementation under a comment promising it
  * matched the prompt. Two copies of "which days share the same hours" is how
  * the card and the receptionist start disagreeing, on the one screen an owner
- * glances at to check. Only the wording is ours: short day names here, full
- * ones in the prompt.
+ * glances at to check. The words are the Calendar's too (C3): the same runs in
+ * the board's clock, so this card and the Calendar's bar say one thing.
  */
 const hoursSummary = (hours) => {
-  if (!hours || !window.__hoursRuns) return null;
-  return window.__hoursRuns(hours)
-    .map((r) => {
-      const label = r.from === r.to
-        ? DAY_LABEL_SHORT[r.from]
-        : DAY_LABEL_SHORT[r.from] + "–" + DAY_LABEL_SHORT[r.to];
-      return label + " " + r.text;
-    })
-    .join(" · ");
+  if (!hours || !window.__hoursLines) return null;
+  return window.__hoursLines(hours).join(" · ") || null;
 };
 
 /**
@@ -943,6 +961,14 @@ const SetSectionHead = ({ title, hint }) => (
   </div>
 );
 
+// The three messages sent in the business's name when the receptionist cannot answer (S5), in the order an owner meets
+// them, each with when it goes out -- the edge's own conditions (whatsapp/inbound.ts), in an owner's words.
+const FALLBACK_ROWS = [
+  { key: "error", label: "If it can't write a reply", when: "The AI service failed or couldn't finish an answer. The conversation then waits for you." },
+  { key: "non_text", label: "If it gets something it can't read", when: "A voice note, a sticker, or a photo it can't look at. It then stays out of that conversation and asks for you." },
+  { key: "greeting", label: "If replies can't be written at all", when: "Only while Chanlytics' AI connection is down. Each conversation then waits for you." },
+];
+
 const BusinessEditor = ({ settings, onDone, flash }) => {
   const brain = (settings.config && settings.config.brain) || {};
   const p0 = brain.profile || {};
@@ -962,6 +988,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // field rather than trusting whatever was typed to be the same number.
   const RF = ((window.__FACTS || {}).facts) || {};
   const voiceLine = (RF.voice_line && RF.voice_line.value) || null;
+  const lineShown = phoneShown(voiceLine);
   const handoffLine = (RF.handoff_number && RF.handoff_number.value) || null;
   const [bookingLink, setBookingLink] = useSetState(brain.booking_link || "");
   const [address, setAddress] = useSetState(p0.address || "");
@@ -977,6 +1004,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   const [bufferMin, setBufferMin] = useSetState(br0.buffer_min !== undefined ? String(br0.buffer_min) : "");
   const [daysAhead, setDaysAhead] = useSetState(br0.max_days_ahead !== undefined ? String(br0.max_days_ahead) : "");
   const [partyMax, setPartyMax] = useSetState(br0.party_max !== undefined ? String(br0.party_max) : "");
+  const [slotMin, setSlotMin] = useSetState(br0.slot_min !== undefined ? String(br0.slot_min) : "");
   const [consultFirst, setConsultFirst] = useSetState((br0.consult_first || []).join("\n"));
   const [bookingNotes, setBookingNotes] = useSetState((br0.notes || []).join("\n"));
   const cal0 = (settings.config && settings.config.calendar) || {};
@@ -990,7 +1018,16 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   // Pre-filled with the workspace's existing instructions the first time this
   // is opened, so nothing a business already told its receptionist quietly
   // disappears the moment it fills in a form. Visible, and theirs to trim.
-  const [extra, setExtra] = useSetState(p0.extra_instructions || brain.system_prompt || "");
+  // Chosen in contracts (S4): the owner's own words, or the prompt from before
+  // this form, carried and said so below -- never the product's opening lines,
+  // which no owner wrote and which opened here as if one had.
+  const draft0 = window.__instructionsDraft(brain);
+  const [extra, setExtra] = useSetState(draft0.text);
+  // The three messages sent in the business's name when the receptionist cannot answer (S5): shown, and the owner's to
+  // change. They name the details that are filled as each one goes out (contracts fallbackMessages); a new workspace
+  // starts from the product's wording, which names them rather than copying them in.
+  const [fallbacks, setFallbacks] = useSetState(() => ({ ...(brain.fallbacks || window.__fallbackDefaults) }));
+  const setFallback = (k, v) => { setFallbacks((f) => ({ ...f, [k]: v })); clearProblem(`fallback-${k}`); };
   const [hours, setHours] = useSetState(() => {
     const h = {};
     SET_DAYS.forEach(([d]) => {
@@ -1019,6 +1056,30 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     no_health_advice: (p0.guardrails || {}).no_health_advice === true,
   }));
   const [saving, setSaving] = useSetState(false);
+  // What each field needs, under the field it belongs to (S22). Every check in `save` fills it at once, and a field
+  // clears its own sentence when it changes; the toast only counts them.
+  const [problems, setProblems] = useSetState({});
+  const clearProblem = (k) => setProblems((p) => (p[k] ? { ...p, [k]: undefined } : p));
+  const problemProps = (k) => (problems[k] ? { "aria-invalid": true, "aria-describedby": `biz-${k}-problem` } : {});
+  const problemLine = (k) => (problems[k] ? <window.FieldError id={`biz-${k}-problem`} message={problems[k]} testid={`biz-${k}-problem`} /> : null);
+  // Unsaved changes, against what the form opened with. Cancel, another Settings tab and closing the page each ask
+  // before they throw them away (S22); all three did it silently.
+  const [armCancel, setArmCancel] = useSetState(false);
+  const draft = JSON.stringify([bizName, phoneDisplay, bookingLink, address, tone, langs, escalate, website, notes, leadHours, bufferMin, daysAhead, partyMax, slotMin, consultFirst, bookingNotes, icalUrl, vision, extra, fallbacks, hours, services, closures, guards]);
+  const opened = React.useRef(draft);
+  const dirty = draft !== opened.current;
+  const dirtyNow = React.useRef(dirty);
+  dirtyNow.current = dirty;
+  useSetEffect(() => {
+    window.__settingsUnsaved = () => dirtyNow.current;
+    return () => { delete window.__settingsUnsaved; };
+  }, []);
+  useSetEffect(() => {
+    if (!dirty) return undefined;
+    const hold = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", hold);
+    return () => window.removeEventListener("beforeunload", hold);
+  }, [dirty]);
 
   const setDay = (d, patch) => setHours((h) => ({ ...h, [d]: { ...h[d], ...patch } }));
   const setShift = (d, n, k, v) =>
@@ -1065,6 +1126,23 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     flash({
       msg: <>Removed {gone.date ? <b>{gone.date}</b> : "the closure"}{gone.note ? ` — ${gone.note}` : ""}</>,
       undo: () => setClosures((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
+    });
+  };
+  // A service and a note are words somebody typed, the same as a closure, and each went with one press and no Undo (S18).
+  const removeService = (i) => {
+    const gone = services[i];
+    setServices((l) => l.filter((_, j) => j !== i));
+    flash({
+      msg: <>Removed {gone.name ? <b>{gone.name}</b> : "a service"}</>,
+      undo: () => setServices((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
+    });
+  };
+  const removeNote = (i) => {
+    const gone = notes[i];
+    setNotes((l) => l.filter((_, j) => j !== i));
+    flash({
+      msg: <>Removed {gone.title ? <b>{gone.title}</b> : "a note"}</>,
+      undo: () => setNotes((l) => [...l.slice(0, i), gone, ...l.slice(i)]),
     });
   };
   // Today in the BUSINESS's zone, not the browser's. An owner working from
@@ -1143,6 +1221,8 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // Any field added to the profile later — by a newer editor, by a script,
     // by the API — now survives an owner opening this form and pressing Save.
     const profile = { ...p0 };
+    // Every problem at once, each said under its own field (S22).
+    const found = {};
     // Only send what was filled in. An empty string is not a fact, and storing
     // it would have the composed prompt state an address of nothing — so an
     // emptied field DELETES its key rather than storing "".
@@ -1153,6 +1233,19 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     const esc = escalate.split("\n").map((x) => x.trim()).filter(Boolean);
     put("escalate_when", esc.length ? esc : undefined);
     put("extra_instructions", extra.trim() || undefined);
+    // As much as the receptionist takes, said under the box before a round trip (S4): the server's refusal named no field.
+    if (extra.trim().length > window.__instructionsMax) {
+      found.extra = <>At most {window.__instructionsMax.toLocaleString("en-US")} characters — this is {extra.trim().length.toLocaleString("en-US")}.</>;
+    }
+    // Each message says under itself what stops it (S5): nothing to send, more than a message holds, or a name that
+    // nothing fills in and a customer would read as written.
+    FALLBACK_ROWS.forEach(({ key }) => {
+      const t = fallbacks[key].trim();
+      const unknown = window.__unknownDetails(t);
+      if (!t) found[`fallback-${key}`] = <>Write this message, or use the default wording.</>;
+      else if (t.length > 2000) found[`fallback-${key}`] = <>At most 2,000 characters — this is {t.length.toLocaleString("en-US")}.</>;
+      else if (unknown.length) found[`fallback-${key}`] = <>Only {"{business}"}, {"{booking link}"} and {"{phone}"} are filled in — {unknown[0]} would be sent as written.</>;
+    });
     // handoff_number is deliberately NOT written here. It is edited in the row
     // that states it, on the Business card, and `profile` starts from what is
     // stored -- so not touching the key preserves it. Its two refusals (the
@@ -1160,32 +1253,42 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // contracts/phone.ts, beside the row that now enforces them.
     const site = website.trim();
     if (site && !/^https?:\/\/.+\..+/.test(site)) {
-      flash({ msg: <>The website needs to be a full web address, starting with https://</> });
-      return;
+      found.website = <>The website needs to be a full web address, starting with https://</>;
     }
     put("website", site || undefined);
     const noteRows = notes
       .map((n) => ({ title: (n.title || "").trim(), text: (n.text || "").trim() }))
       .filter((n) => n.title || n.text);
-    if (noteRows.some((n) => !n.title || !n.text)) {
-      flash({ msg: <>Each note needs both a title and the text to say.</> });
-      return;
-    }
+    notes.forEach((n, i) => {
+      const title = (n.title || "").trim();
+      const text = (n.text || "").trim();
+      if ((title || text) && (!title || !text)) found[`note-${i}`] = <>Each note needs both a title and the text to say.</>;
+    });
     put("notes", noteRows.length ? noteRows : undefined);
     // Booking rules: a blank field is "no rule", never zero.
     const num = (v, lo, hi) => { const n = parseInt(String(v).trim(), 10); return Number.isFinite(n) && n >= lo && n <= hi ? n : undefined; };
-    const rules = {};
+    // Start from the stored rules the form does not edit (settingsRulesKept):
+    // a rebuild from {} deleted the slot length on every save.
+    const rules = settingsRulesKept(p0.booking_rules);
+    // A number outside what a rule allows is said under its box; it used to be dropped without a word (S22).
+    const outside = (v, lo, hi) => String(v).trim() !== "" && num(v, lo, hi) === undefined;
+    if (outside(leadHours, 0, 168)) found.lead = <>Least notice is 0 to 168 hours; leave it empty for no rule.</>;
+    if (outside(slotMin, 15, 240)) found.slot = <>A slot is 15 to 240 minutes; leave it empty for the calendar&rsquo;s 30.</>;
+    if (outside(bufferMin, 0, 120)) found.buffer = <>The gap is 0 to 120 minutes; leave it empty for none.</>;
+    if (outside(daysAhead, 1, 90)) found.ahead = <>Times are offered 1 to 90 days ahead; leave it empty for no rule.</>;
+    if (outside(partyMax, 1, 20)) found.party = <>A booking is for 1 to 20 people; leave it empty for no rule.</>;
     const lead = num(leadHours, 0, 168); if (lead !== undefined) rules.lead_hours = lead;
     const buf = num(bufferMin, 0, 120); if (buf !== undefined) rules.buffer_min = buf;
     const ahead = num(daysAhead, 1, 90); if (ahead !== undefined) rules.max_days_ahead = ahead;
     const party = num(partyMax, 1, 20); if (party !== undefined) rules.party_max = party;
+    // The slot length has a field of its own now (S2): 15 to 240 minutes, as the schema allows; blank is the calendar's default.
+    const slotLen = num(slotMin, 15, 240); if (slotLen !== undefined) rules.slot_min = slotLen;
     const cf = consultFirst.split("\n").map((x) => x.trim()).filter(Boolean); if (cf.length) rules.consult_first = cf;
     const bn = bookingNotes.split("\n").map((x) => x.trim()).filter(Boolean); if (bn.length) rules.notes = bn;
     put("booking_rules", Object.keys(rules).length ? rules : undefined);
     const feed = icalUrl.trim();
     if (feed && !/^(https?|webcal):\/\/\S+$/i.test(feed)) {
-      flash({ msg: <>The calendar feed needs to be a full address, starting with https:// or webcal://</> });
-      return;
+      found.feed = <>The calendar feed needs to be a full address, starting with https:// or webcal://</>;
     }
     const hrs = {};
     SET_DAYS.forEach(([d]) => {
@@ -1244,21 +1347,23 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
     // An empty published number is now the RIGHT answer, not a missing one: it
     // resolves to the line the receptionist answers. Only a workspace with no
     // line at all and nothing typed has nothing to give a customer.
-    const missing = !name ? "a business name" : (!phone && !voiceLine) ? "a phone number" : !link ? "a booking link" : "";
-    if (missing) {
-      flash({ msg: <>The receptionist needs {missing} before it can answer anyone.</> });
-      return;
-    }
+    // Each empty one is said under its own box: the name, the number, the link.
+    const needs = (missing) => <>The receptionist needs {missing} before it can answer anyone.</>;
+    if (!name) found.name = needs("a business name");
+    if (!phone && !voiceLine) found.phone = needs("a phone number");
+    if (!link) found.link = needs("a booking link");
     const badPhone = phone && window.__whyNotAPhone ? window.__whyNotAPhone(phone) : null;
-    if (badPhone) {
-      flash({ msg: <>{badPhone}</> });
-      return;
-    }
+    if (badPhone) found.phone = <>{badPhone}</>;
     if (!/^https?:\/\/.+\..+/.test(link)) {
-      flash({ msg: <>That booking link needs to be a full web address, starting with https://</> });
+      if (link) found.link = <>That booking link needs to be a full web address, starting with https://</>;
+    }
+    const count = Object.keys(found).length;
+    setProblems(found);
+    if (count) {
+      flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> });
       return;
     }
-    const defaults = window.__receptionistDefaults(name, phone || voiceLine || "", link);
+    const defaults = window.__receptionistDefaults(name);
 
     const next = {
       ...settings.config,
@@ -1268,14 +1373,17 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         // undefined, not "": absent is the schema's way of saying "use the line".
         phone_display: phone || undefined,
         booking_link: link,
-        // Only invented when there is nothing there. An existing workspace keeps
-        // every word it already had — these are the fields a customer actually
-        // reads when the model is unreachable, and overwriting them because
-        // somebody opened a form would be replacing their words with ours.
-        //
-        // Built in contracts, beside the schema they have to satisfy.
-        system_prompt: brain.system_prompt || defaults.system_prompt,
-        fallbacks: brain.fallbacks || defaults.fallbacks,
+        // The product's own opening lines, on every save (S4). The box above showed
+        // the prompt written before this form, and what the owner kept of it is
+        // now their instructions; left here as well it was stored twice, and an
+        // emptied box carried it straight back. Built in contracts, under the name
+        // the business has now.
+        system_prompt: defaults.system_prompt,
+        // The three messages as the form holds them (S5). An existing workspace's
+        // open with its own words, never replaced because somebody opened a form;
+        // a new one's with the product's wording, which names the details so they
+        // are filled as each goes out.
+        fallbacks: { greeting: fallbacks.greeting.trim(), error: fallbacks.error.trim(), non_text: fallbacks.non_text.trim() },
         profile,
       },
       // A top-level section, read by the edge; an emptied field removes it.
@@ -1326,11 +1434,13 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             <input
               className="set-input"
               value={bizName}
-              onChange={(e) => setBizName(e.target.value)}
+              onChange={(e) => { setBizName(e.target.value); clearProblem("name"); }}
               placeholder="The name customers know you by"
               aria-label="Business name"
+              {...problemProps("name")}
             />
           </label>
+          {problemLine("name")}
         {/* Only while CREATING. Afterwards this number is edited in the
             row that states it, on the Business card -- the same fact in one
             place instead of a form field and a read-only row five rows
@@ -1346,7 +1456,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                     <button type="button" role="radio" aria-checked={!phoneDisplay} className={`cl-tab ${!phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay("")} data-testid="set-pub-line">
                       Your line
                     </button>
-                    <button type="button" role="radio" aria-checked={!!phoneDisplay} className={`cl-tab ${phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay(phoneDisplay || voiceLine)} data-testid="set-pub-other">
+                    <button type="button" role="radio" aria-checked={!!phoneDisplay} className={`cl-tab ${phoneDisplay ? "active" : ""}`} onClick={() => setPhoneDisplay(phoneDisplay || lineShown)} data-testid="set-pub-other">
                       A different number
                     </button>
                   </div>
@@ -1355,24 +1465,26 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                       <input
                         className="set-input"
                         value={phoneDisplay}
-                        onChange={(e) => setPhoneDisplay(e.target.value)}
-                        placeholder={voiceLine}
+                        onChange={(e) => { setPhoneDisplay(e.target.value); clearProblem("phone"); }}
+                        placeholder={lineShown}
                         inputMode="tel"
                         autoComplete="tel"
                         aria-label="The number to publish instead"
                         data-testid="set-pub-input"
+                        {...problemProps("phone")}
                       />
+                      {problemLine("phone")}
                       <div className="set-ident-note">
                         {window.__samePhone && window.__samePhone(phoneDisplay, voiceLine)
                           ? <>That is your line. Leave it on <b>Your line</b> and it stays right when the number changes.</>
                           : handoffLine && window.__samePhone && window.__samePhone(phoneDisplay, handoffLine)
-                            ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{voiceLine}</b>.</>
-                            : <>Customers who ring this will not reach your receptionist on <b className="tabular">{voiceLine}</b>.</>}
+                            ? <>This is the number the receptionist <b>transfers</b> to, so customers who ring it reach a person directly and never the receptionist answering on <b className="tabular">{lineShown}</b>.</>
+                            : <>Customers who ring this will not reach your receptionist on <b className="tabular">{lineShown}</b>.</>}
                       </div>
                     </>
                   ) : (
                     <div className="set-ident-note" data-testid="set-pub-note">
-                      <b className="tabular">{voiceLine}</b> — the line your receptionist answers. It follows the line, so changing your number here changes nothing to keep in step.
+                      <b className="tabular">{lineShown}</b> — the line your receptionist answers. It follows the line, so changing your number here changes nothing to keep in step.
                     </div>
                   )}
                 </>
@@ -1381,13 +1493,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                   <input
                     className="set-input"
                     value={phoneDisplay}
-                    onChange={(e) => setPhoneDisplay(e.target.value)}
+                    onChange={(e) => { setPhoneDisplay(e.target.value); clearProblem("phone"); }}
                     placeholder="(555) 010-1234"
                     inputMode="tel"
                     autoComplete="tel"
                     aria-label="The number to tell customers to call"
                     data-testid="set-pub-input"
+                    {...problemProps("phone")}
                   />
+                  {problemLine("phone")}
                   <div className="set-ident-note">No phone line yet, so this is the only number the receptionist can give. It answers on WhatsApp; the number you type here is somewhere a person picks up.</div>
                 </>
               )}
@@ -1399,13 +1513,15 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             <input
               className="set-input"
               value={bookingLink}
-              onChange={(e) => setBookingLink(e.target.value)}
+              onChange={(e) => { setBookingLink(e.target.value); clearProblem("link"); }}
               placeholder="https://your-booking-page.com"
               inputMode="url"
               autoComplete="url"
               aria-label="Booking link"
+              {...problemProps("link")}
             />
           </label>
+          {problemLine("link")}
         </div>
         {/* Said once, plainly, rather than discovered by a customer. */}
         <div className="set-sec-note">
@@ -1429,12 +1545,14 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <input
           className="set-input"
           value={website}
-          onChange={(e) => setWebsite(e.target.value)}
+          onChange={(e) => { setWebsite(e.target.value); clearProblem("website"); }}
           placeholder="https://example.com"
           inputMode="url"
           autoComplete="url"
           aria-label="Website"
+          {...problemProps("website")}
         />
+        {problemLine("website")}
       </div>
       </div>
       <div className="set-group">
@@ -1555,12 +1673,14 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <input
           className="set-input"
           value={icalUrl}
-          onChange={(e) => setIcalUrl(e.target.value)}
+          onChange={(e) => { setIcalUrl(e.target.value); clearProblem("feed"); }}
           placeholder="https://calendar.google.com/calendar/ical/…/private-…/basic.ics"
           inputMode="url"
           autoComplete="off"
           aria-label="Calendar feed address"
+          {...problemProps("feed")}
         />
+        {problemLine("feed")}
         <div className="set-sec-note">
           The private iCal address of the calendar your appointments land in (Google, Apple or Outlook — Booksy, Calendly and the rest sync into one).
           It is only ever read. Nothing is booked from here; the booking link does that, whichever tool is behind it.
@@ -1573,7 +1693,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
             const r = await window.__calendar.previewFeed(icalUrl.trim());
             setCalChecking(false);
             setCalCheck(r.ok ? { ok: true, ...r.data } : { ok: false, message: r.message });
-          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the link"}</button>
+          }} data-testid="cal-check">{calChecking ? "Reading…" : "Check the address"}</button>
           {calCheck && (
             <span className={`set-row-hint ${calCheck.ok ? "" : "warn"}`} data-testid="cal-check-result">
               {calCheck.ok
@@ -1581,7 +1701,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
                 : calCheck.message}
             </span>
           )}
-          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open the calendar</button>}
+          {cal0.ical_url && <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("calendar")}>Open Calendar</button>}
         </div>
       </div>
       </div>
@@ -1602,7 +1722,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
               <span className="set-svc-unit">min</span>
             </span>
             <input className="set-input" value={sv.price_note || ""} placeholder="quoted at consult" aria-label="Price note" onChange={(e) => setSvc(i, "price_note", e.target.value)} />
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => setServices((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${sv.name || "service"}`} onClick={() => removeService(i)}><Icon name="x" size={12} /></button>
           </div>
         ))}
         <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
@@ -1610,10 +1730,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-sec">
         <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
         <div className="set-br-grid">
-          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => setLeadHours(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => setBufferMin(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => setDaysAhead(e.target.value.replace(/[^0-9]/g, ""))} /></label>
-          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => setPartyMax(e.target.value.replace(/[^0-9]/g, ""))} /></label>
+          <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => { setLeadHours(e.target.value.replace(/[^0-9]/g, "")); clearProblem("lead"); }} {...problemProps("lead")} />{problemLine("lead")}</label>
+          <label className="set-br-field"><span className="set-br-label">Slot length (minutes)</span><input className="set-input" inputMode="numeric" value={slotMin} placeholder="30" aria-label="Slot length in minutes" onChange={(e) => { setSlotMin(e.target.value.replace(/[^0-9]/g, "")); clearProblem("slot"); }} {...problemProps("slot")} />{problemLine("slot")}</label>
+          <label className="set-br-field"><span className="set-br-label">Gap between appointments (minutes)</span><input className="set-input" inputMode="numeric" value={bufferMin} placeholder="0" aria-label="Gap between appointments in minutes" onChange={(e) => { setBufferMin(e.target.value.replace(/[^0-9]/g, "")); clearProblem("buffer"); }} {...problemProps("buffer")} />{problemLine("buffer")}</label>
+          <label className="set-br-field"><span className="set-br-label">Offer times up to (days ahead)</span><input className="set-input" inputMode="numeric" value={daysAhead} placeholder="14" aria-label="Days ahead" onChange={(e) => { setDaysAhead(e.target.value.replace(/[^0-9]/g, "")); clearProblem("ahead"); }} {...problemProps("ahead")} />{problemLine("ahead")}</label>
+          <label className="set-br-field"><span className="set-br-label">Most people per booking</span><input className="set-input" inputMode="numeric" value={partyMax} placeholder="4" aria-label="Most people per booking" onChange={(e) => { setPartyMax(e.target.value.replace(/[^0-9]/g, "")); clearProblem("party"); }} {...problemProps("party")} />{problemLine("party")}</label>
         </div>
         <textarea className="set-input set-textarea" rows={2} value={consultFirst} onChange={(e) => setConsultFirst(e.target.value)} placeholder={"Color correction\nExtensions"} aria-label="Services that need a consultation first" />
         <div className="set-sec-note">Services that need a consultation before they can be booked, one per line.</div>
@@ -1712,9 +1833,10 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
         {notes.map((n, i) => (
           <div key={i} className="set-note-row">
-            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => setNote(i, "title", e.target.value)} />
-            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => setNote(i, "text", e.target.value)} />
-            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => setNotes((l) => l.filter((_, j) => j !== i))}><Icon name="x" size={12} /></button>
+            <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => { setNote(i, "title", e.target.value); clearProblem(`note-${i}`); }} {...problemProps(`note-${i}`)} />
+            <textarea className="set-input set-textarea" rows={2} value={n.text || ""} placeholder="Gift cards are sold at the front desk, any amount — ask for the owner." aria-label="Note text" onChange={(e) => { setNote(i, "text", e.target.value); clearProblem(`note-${i}`); }} {...problemProps(`note-${i}`)} />
+            <button type="button" className="btn btn-ghost btn-icon btn-sm" aria-label={`Remove ${n.title || "note"}`} onClick={() => removeNote(i)}><Icon name="x" size={12} /></button>
+            {problemLine(`note-${i}`)}
           </div>
         ))}
         {notes.length < 10 && (
@@ -1722,13 +1844,66 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         )}
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Anything else it should know" hint="Optional — written in your own words" />
-        <textarea className="set-input set-textarea" rows={4} value={extra} onChange={(e) => setExtra(e.target.value)} placeholder="Parking is behind the building. We do not take walk-ins after 5pm." aria-label="Extra instructions" />
+        <SetSectionHead title="Anything else it should know" hint={draft0.carried ? "Optional" : "Optional — written in your own words"} />
+        {/* Text nobody here wrote sat under "written in your own words" (S4): say where it came from, and which wins. */}
+        {draft0.carried && (
+          <span className="set-sec-hint" data-testid="biz-extra-carried">Carried over from the instructions your receptionist followed before this form. Trim what the fields above now cover — where the two disagree about the address, hours or services, the fields win.</span>
+        )}
+        <textarea
+          className="set-input set-textarea"
+          rows={Math.min(14, Math.max(4, Math.ceil(extra.length / 90)))}
+          value={extra}
+          onChange={(e) => { setExtra(e.target.value); clearProblem("extra"); }}
+          placeholder="Parking is behind the building. We do not take walk-ins after 5pm."
+          aria-label="Extra instructions"
+          {...problemProps("extra")}
+        />
+        {extra.trim().length > window.__instructionsMax * 0.8 && !problems.extra && (
+          <span className="set-sec-hint tabular" data-testid="biz-extra-count">{extra.trim().length.toLocaleString("en-US")} of {window.__instructionsMax.toLocaleString("en-US")} characters</span>
+        )}
+        {problemLine("extra")}
+      </div>
+      <div className="set-sec" data-testid="biz-fallbacks">
+        <SetSectionHead title="When it can't answer" hint="Sent in your name. {business}, {booking link} and {phone} are filled in as each goes out" />
+        <div className="set-fallbacks">
+          {FALLBACK_ROWS.map(({ key, label, when }) => {
+            const text = fallbacks[key];
+            const k = `fallback-${key}`;
+            // What a customer would read with the form as it is typed -- the name, the link and the number not saved yet
+            // -- shown only when the message names a detail, since one that names none reads as written.
+            const reads = /\{/.test(text)
+              ? window.__fallbackMessages({ business_name: bizName.trim() || "your business", booking_link: bookingLink.trim(), phone_display: phoneDisplay.trim() || undefined, fallbacks: { ...fallbacks } }, { channels: voiceLine ? [{ kind: "voice", number_e164: voiceLine, status: "active" }] : [] })[key]
+              : null;
+            // A link or a number written out stays as written when the details change; a name follows them.
+            const link = bookingLink.trim();
+            const written = link && text.includes(link) ? "link" : /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/.test(text) ? "number" : null;
+            return (
+              <div className="set-fallback" key={key}>
+                <span className="set-fallback-label">{label}</span>
+                <span className="set-sec-hint">{when}</span>
+                <textarea className="set-input set-textarea" rows={3} value={text} onChange={(e) => setFallback(key, e.target.value)} aria-label={label} {...problemProps(k)} />
+                {problemLine(k)}
+                {reads && !problems[k] && <span className="set-fallback-reads" data-testid={`biz-fallback-${key}-preview`}>A customer reads: {reads}</span>}
+                {written && (
+                  <span className="set-sec-hint" data-testid={`biz-fallback-${key}-written`}>
+                    {written === "link" ? <>Your booking link is written out here — {"{booking link}"} keeps it current.</> : <>A number is written out here — {"{phone}"} gives the one you publish.</>}
+                  </span>
+                )}
+                {text !== window.__fallbackDefaults[key] && (
+                  <button type="button" className="btn btn-ghost btn-sm set-fallback-default" onClick={() => setFallback(key, window.__fallbackDefaults[key])} data-testid={`biz-fallback-${key}-default`}>Use the default wording</button>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </div>
       </div>
+      {armCancel && (
+        <Confirm question="Discard your changes?" detail="Nothing you changed here has been saved." yes="Yes, discard" no="Keep editing" danger onYes={onDone} onNo={() => setArmCancel(false)} testid="biz-cancel" />
+      )}
       <div className="set-editor-foot">
         <span className="set-editor-note">Saved changes reach the receptionist within a minute. A call already in progress finishes on the old details.</span>
-        <button type="button" className="btn btn-ghost btn-sm" onClick={onDone} disabled={saving}>Cancel</button>
+        <button type="button" className="btn btn-ghost btn-sm" onClick={() => (dirty ? setArmCancel(true) : onDone())} disabled={saving}>Cancel</button>
         <button type="button" className="btn btn-primary btn-sm" onClick={save} disabled={saving} {...window.gate("settings")}>
           {saving ? "Saving" : "Save"}
         </button>
@@ -1748,7 +1923,9 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
  * button: it is a request answered by a person, as the same page says.
  */
 const WorkspaceData = () => {
-  const can = !!(window.__href && (!window.canDo || window.canDo("export")));
+  // Offered to every role and gated for the ones that may not take it (the one gate). The link was absent for them,
+  // under a sentence of the card's own.
+  const href = window.__href ? window.__href("GET export") : null;
   return (
     <section className="fl-card set-card" data-testid="set-data">
       <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep" />
@@ -1756,9 +1933,9 @@ const WorkspaceData = () => {
         <div className="cl-prof-attr">
           <span className="cl-prof-attr-key">Download everything</span>
           <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-            {can
-              ? <a className="btn btn-ghost btn-sm" href={window.__href("GET export")} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file"><Icon name="external" size={12} /> Download (JSON)</a>
-              : <span className="set-team-mail">Only an owner can download the workspace's data.</span>}
+            {href && (
+              <a className="btn btn-ghost btn-sm" href={href} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file" {...window.gate("export", "download the workspace's data")}><Icon name="external" size={12} /> Download (JSON)</a>
+            )}
             <span className="set-team-mail">People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.</span>
           </span>
         </div>
@@ -1773,6 +1950,15 @@ const WorkspaceData = () => {
 
 const PaneWorkspace = ({ flash }) => {
   const [editing, setEditing] = useSetState(false);
+  // Drawn again whenever the settings surface is read again: after a save, a conflict's re-read, a Retry. Only
+  // Autonomy and Notifications listened, so this card kept the values from before a save until something else
+  // happened to repaint it (D7).
+  const [, setTick] = useSetState(0);
+  useSetEffect(() => {
+    const bump = () => setTick((n) => n + 1);
+    window.addEventListener("surface:settings", bump);
+    return () => window.removeEventListener("surface:settings", bump);
+  }, []);
   const settings = window.__SETTINGS || null;
   const S = (settings && settings.config && settings.config.brain) || null;
   const ws = (window.__WORKSPACES || []).find((t) => t.id === window.__ACTIVE_WORKSPACE) || null;
@@ -1810,7 +1996,7 @@ const PaneWorkspace = ({ flash }) => {
       <>
         <section className="fl-card set-card">
           <div className="fl-card-head"><span className="fl-card-title">Business</span></div>
-          <FailedRead kind="card" title="This workspace's settings can't be read" body="Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it." testid="settings-broken">
+          <FailedRead kind="card" title={window.__brokenConfigWords.title} body={window.__brokenConfigWords.body} testid="settings-broken">
             <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
           </FailedRead>
         </section>
@@ -1846,7 +2032,12 @@ const PaneWorkspace = ({ flash }) => {
             : <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({ mode: "compose", prompt: "Update our business details: " })}><Icon name="edit" size={11} /> Edit</button>}
       </div>
       {unconfigured ? (
-        <EmptyState kind="card" glyph="agents" title="This workspace has no receptionist yet" body="Nothing has been set up for it — no business name, no phone line, no booking link. Until it has those, there is nothing here to show you and nothing answering your customers." action={{ label: "Set up the receptionist", onClick: () => setEditing(true), gate: window.gate("settings") }} />
+        <>
+          <EmptyState kind="card" glyph="agents" title="This workspace has no receptionist yet" body="Nothing has been set up for it — no business name, no phone line, no booking link — so nothing is answering your customers yet." action={{ label: "Set up the receptionist", onClick: () => setEditing(true), gate: window.gate("settings") }} />
+          {/* The timezone is the workspace's, not the receptionist's: it decides what "today" means on every page from
+              the first day, and it could not be reached until a receptionist existed (S13). */}
+          <div className="cl-prof-attr-list"><TimezoneRow flash={flash} /></div>
+        </>
       ) : (
       <div className="cl-prof-attr-list">
         {real
@@ -1876,7 +2067,7 @@ const PaneWorkspace = ({ flash }) => {
             and from the card that reads them. */}
         {real ? (
           <>
-            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" />
+            <FactRow label="Answers on" fact={F.voice_line} to="admin/integrations" toLabel="Connections" empty="No phone line yet" show={phoneShown} />
             <PublishedNumberRow fact={F.phone_display} flash={flash} />
             <HandoffRow fact={F.handoff_number} flash={flash} />
           </>
@@ -1901,7 +2092,7 @@ const PaneWorkspace = ({ flash }) => {
           the form exists; the first thing an owner needs is to be told there
           is something to fill in, and given the button. */}
       {real && !profile && (
-        <EmptyState kind="card" glyph="edit" title="Tell the receptionist about your business" body="Your hours, services and address are still written inside the assistant's instructions, as prose. Fill them in as fields and the WhatsApp receptionist answers from them within a minute — and the phone agent reads the same ones, once it has been pointed at them." action={{ label: "Add your business details", onClick: () => setEditing(true), gate: window.gate("autonomy") }} />
+        <EmptyState kind="card" glyph="edit" title="Tell the receptionist about your business" body="Your hours, services and address are still written inside the assistant's instructions, as prose. Fill them in as fields and the WhatsApp receptionist answers from them within a minute — and the phone agent reads the same ones, once it has been pointed at them." action={{ label: "Add your business details", onClick: () => setEditing(true), gate: window.gate("settings") }} />
       )}
     </section>
     {real && <PromptPreview />}
@@ -2100,6 +2291,12 @@ const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];
 // the day and each new message lands in Needs you, as at the reply cap.
 // The route and the edge already honoured it; this is its handle.
 const AUT_BUDGET = [["Off", 0], ["100k", 100000], ["250k", 250000], ["500k", 500000], ["1M", 1000000]];
+// The two hard limits that are the owner's to set (S6): automatic replies to one person in 24 hours before the
+// receptionist stops and asks, and the hours it stays out of a conversation once a person steps in. Steps inside what
+// the route accepts (1 to 200, 1 to 168); a value stored off these steps shows as a step of its own, never as a wrong one.
+const AUT_CAP = [["10", 10], ["20", 20], ["40", 40], ["100", 100]];
+const AUT_PAUSE = [["1h", 1], ["4h", 4], ["12h", 12], ["24h", 24], ["3d", 72]];
+const withStep = (steps, value, label) => (steps.some((s) => s[1] === value) ? steps : [...steps, [label, value]].sort((a, b) => a[1] - b[1]));
 const AUT_MODE_HINT = {
   Auto: "sends right away",
   Veto: "writes the reply, waits, then sends unless you stop it",
@@ -2129,19 +2326,26 @@ const PaneAutonomyReal = ({ flash }) => {
   const limits = (reply && reply.limits) || {};
   const delayMs = Number(limits.reply_delay_ms) || 30000;
   const delayLabel = (AUT_DELAYS.find((d) => d[1] === delayMs) || [`${Math.round(delayMs / 1000)}s`])[0];
-  const maxDay = Number(limits.max_replies_day) || 20;
-  const pauseH = Number(limits.pause_hours) || 24;
+  // The hard limits in contracts' words, which say each default (hardLimitsWords, through the bridge), and the value
+  // each of the owner's two dials shows: the stored one, or the default.
+  const hard = window.__hardLimits(limits);
+  const capSteps = withStep(AUT_CAP, hard.cap, String(hard.cap));
+  const pauseSteps = withStep(AUT_PAUSE, hard.hours, `${hard.hours}h`);
+  const capLabel = capSteps.find((s) => s[1] === hard.cap)[0];
+  const pauseLabel = pauseSteps.find((s) => s[1] === hard.hours)[0];
   const minConf = Number(limits.min_confidence) || 0;
   const confLabel = (AUT_CONF.find((c) => c[1] === minConf) || [`${Math.round(minConf * 100)}%`])[0];
   const budget = Number(limits.max_llm_tokens_day) || 0;
   const budgetLabel = (AUT_BUDGET.find((b) => b[1] === budget) || [`${Math.round(budget / 1000)}k`])[0];
 
-  const put = async (r, mode, replyDelayMs, minConfidence, maxTokensDay) => {
+  // One dial at a time, and never the mode with it (the bridge's PolicyDials).
+  const put = async (r, mode, dials = {}) => {
     if (!window.__setPolicy) return;
     setBusy(r.cls);
-    const res = await window.__setPolicy(r.cls, mode, replyDelayMs, minConfidence, maxTokensDay);
+    const res = await window.__setPolicy(r.cls, mode, dials);
     setBusy(null);
     if (!res.ok) { flash({ tone: "danger", msg: <><b>Not changed</b> — {res.message}</> }); return; }
+    const { replyDelayMs, minConfidence, maxTokensDay, maxRepliesDay, pauseHours } = dials;
     flash({
       msg: replyDelayMs !== undefined
         ? <><b>Hold window</b> → {(AUT_DELAYS.find((d) => d[1] === replyDelayMs) || [`${replyDelayMs / 1000}s`])[0]} — from the next reply</>
@@ -2149,7 +2353,11 @@ const PaneAutonomyReal = ({ flash }) => {
           ? <><b>Confidence dial</b> → {(AUT_CONF.find((c) => c[1] === minConfidence) || [`${Math.round(minConfidence * 100)}%`])[0]} — from the next reply</>
           : maxTokensDay !== undefined
             ? <><b>Day's model budget</b> → {(AUT_BUDGET.find((b) => b[1] === maxTokensDay) || [`${Math.round(maxTokensDay / 1000)}k`])[0]} — from the next reply</>
-            : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
+            : maxRepliesDay !== undefined
+              ? <><b>Reply cap</b> → {maxRepliesDay} automatic replies to one person in 24 hours — from the next reply</>
+              : pauseHours !== undefined
+                ? <><b>Stays out after a person steps in</b> → {(AUT_PAUSE.find((p) => p[1] === pauseHours) || [`${pauseHours}h`])[0]} — from the next time someone steps in</>
+                : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
     });
   };
 
@@ -2200,35 +2408,55 @@ const PaneAutonomyReal = ({ flash }) => {
         </div>
         <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox. A booking link a caller asks for on the phone is texted right away — there is nothing to hold.">
           <SetSeg
+            gate={window.gate("autonomy")}
             value={delayLabel}
             options={AUT_DELAYS.map((d) => d[0])}
-            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, d[1]); }}
+            onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, { replyDelayMs: d[1] }); }}
           />
         </SetRow>
         <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything, and so does a reply with no confidence on record.">
           <SetSeg
+            gate={window.gate("autonomy")}
             value={confLabel}
             options={AUT_CONF.map((c) => c[0])}
-            onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, undefined, c[1]); }}
+            onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, { minConfidence: c[1] }); }}
           />
         </SetRow>
         <SetRow label="Day's model budget" hint="Model tokens the receptionist may use in a rolling 24 hours, in and out. Over it, it stops answering for the day and each new message lands in Needs you. Off is no budget.">
           <SetSeg
+            gate={window.gate("autonomy")}
             value={budgetLabel}
             options={AUT_BUDGET.map((b) => b[0])}
-            onChange={(v) => { const b = AUT_BUDGET.find((x) => x[0] === v); if (b && reply) put(reply, undefined, undefined, undefined, b[1]); }}
+            onChange={(v) => { const b = AUT_BUDGET.find((x) => x[0] === v); if (b && reply) put(reply, undefined, { maxTokensDay: b[1] }); }}
           />
         </SetRow>
       </section>
 
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">The first two never change. The last two are this workspace's own values</span></div>
+        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">{hard.sub}</span></div>
         <ul className="st-bullets">
           <li><Icon name="check" size={11} /><span>Never messages a customer who asked to stop</span></li>
           <li><Icon name="check" size={11} /><span>Refunds, rates and negotiation always go to you — locked in the database</span></li>
-          <li><Icon name="check" size={11} /><span>Stops after {maxDay} automatic replies to one person in a day and asks for you</span></li>
-          <li><Icon name="check" size={11} /><span>Stays paused for {pauseH} hours after you take over a thread</span></li>
         </ul>
+        {/* The last two were Chanlytics' and could not be changed here (S6): the owner's dials now, through the same door as the three above. */}
+        <SetRow label="Replies to one person in 24 hours" hint={hard.replies}>
+          <SetSeg
+            gate={window.gate("autonomy")}
+            value={capLabel}
+            options={capSteps.map((s) => s[0])}
+            onChange={(v) => { const s = capSteps.find((x) => x[0] === v); if (s && reply) put(reply, undefined, { maxRepliesDay: s[1] }); }}
+            data-testid="aut-reply-cap"
+          />
+        </SetRow>
+        <SetRow label="Stays out after a person steps in" hint={hard.pause}>
+          <SetSeg
+            gate={window.gate("autonomy")}
+            value={pauseLabel}
+            options={pauseSteps.map((s) => s[0])}
+            onChange={(v) => { const s = pauseSteps.find((x) => x[0] === v); if (s && reply) put(reply, undefined, { pauseHours: s[1] }); }}
+            data-testid="aut-pause"
+          />
+        </SetRow>
       </section>
     </>
   );
@@ -2427,14 +2655,18 @@ const PaneNotificationsReal = ({ flash }) => {
   const cfg = (settings && settings.config) || {};
   const notif = cfg.notifications || {};
   const emails = Array.isArray(notif.escalation_emails) ? notif.escalation_emails : [];
-  const isOwner = !!(window.__ME && window.__ME.role === "owner");
+  // Who may change who is alerted: the one gate, in contracts' words. It asked
+  // `__ME.role`, blind to an owner's View-as preview, and put the reason in a
+  // title on disabled controls that no keyboard or finger reaches.
+  const may = window.canDo("settings");
+  const gated = window.gate("settings", "change who is alerted");
   // A save here writes the WHOLE config it read. When the config could not be
   // read, what it read is {} — and saving would replace the broken row with
   // one holding nothing but these addresses.
   const broken = !!(settings && settings.broken);
   const lockTitle = broken
     ? "This workspace's settings can't be read — Chanlytics has to repair them before anything here can change"
-    : isOwner ? undefined : "Only an owner can change who is alerted";
+    : undefined;
 
   const save = (nextEmails, msg, undo = null) => {
     if (!window.__saveSettings || !settings) return;
@@ -2445,9 +2677,9 @@ const PaneNotificationsReal = ({ flash }) => {
   };
   const add = () => {
     const v = email.trim().toLowerCase();
-    if (!ST_EMAIL_RE.test(v)) { flash({ msg: <>That doesn't look like an email address.</> }); return; }
+    if (!ST_EMAIL_RE.test(v)) { flash({ tone: "warn", msg: <>That doesn't look like an email address.</> }); return; }
     if (emails.includes(v)) { setEmail(""); return; }
-    if (emails.length >= 10) { flash({ msg: <>Up to ten addresses can be alerted.</> }); return; }
+    if (emails.length >= 10) { flash({ tone: "warn", msg: <>Up to ten addresses can be alerted.</> }); return; }
     setEmail("");
     save([...emails, v], <><b>{v}</b> will be alerted from the next escalation</>);
   };
@@ -2472,14 +2704,18 @@ const PaneNotificationsReal = ({ flash }) => {
         {emails.map((e) => (
           <div className="set-row" key={e}>
             <div className="set-row-info"><span className="set-row-label">{e}</span></div>
-            <button
-              className="btn btn-ghost btn-sm"
-              disabled={broken || !isOwner || busy || emails.length <= 1}
-              title={emails.length <= 1 ? "At least one address must stay — the receptionist has to be able to reach someone" : lockTitle}
-              onClick={() => remove(e)}
-            >
-              <Icon name="x" size={11} /> Remove
-            </button>
+            {/* Removing an address is an item's own act: out of sight for a role
+                that may not, and the card says why once, below. */}
+            {may && (
+              <button
+                className="btn btn-ghost btn-sm"
+                disabled={broken || busy || emails.length <= 1}
+                title={emails.length <= 1 ? "At least one address must stay — the receptionist has to be able to reach someone" : lockTitle}
+                onClick={() => remove(e)}
+              >
+                <Icon name="x" size={11} /> Remove
+              </button>
+            )}
           </div>
         ))}
         <div className="set-row">
@@ -2489,17 +2725,21 @@ const PaneNotificationsReal = ({ flash }) => {
               type="email"
               placeholder="owner@yourbusiness.com"
               value={email}
-              disabled={broken || !isOwner || busy}
+              disabled={broken || busy}
               title={lockTitle}
               onChange={(e) => setEmail(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && add()}
               aria-label="Add an address to alert"
+              {...gated}
             />
           </div>
-          <button className="btn btn-primary btn-sm" disabled={broken || !isOwner || busy || !email.trim()} title={lockTitle} onClick={add}>
+          <button className="btn btn-primary btn-sm" disabled={broken || busy || !email.trim()} title={lockTitle} onClick={add} {...gated}>
             {busy ? "Saving…" : "Add"}
           </button>
         </div>
+        {!may && (
+          <div className="set-row"><div className="set-row-info"><span className="set-row-hint" data-testid="notif-gated"><Icon name="shield" size={11} /> {window.gateTitle("settings", "change who is alerted")}</span></div></div>
+        )}
       </section>
 
       <section className="fl-card set-card" data-testid="notif-kinds">
@@ -2520,7 +2760,9 @@ const PaneNotificationsReal = ({ flash }) => {
       <section className="fl-card set-card">
         <div className="fl-card-head"><span className="fl-card-title">How</span></div>
         <ul className="st-bullets">
-          <li><Icon name="check" size={11} /><span>By email, the moment it happens. SMS and push notifications are not built.</span></li>
+          {/* The bell's device alerts are real (notifications.ts: a browser notification while the app is open in the
+              background), so "push notifications are not built" denied a switch one click away (S20). */}
+          <li><Icon name="check" size={11} /><span>By email, the moment it happens. While Chanlytics is open in your browser, that browser can alert you too when something needs you — switch alerts on from the bell. There are no text-message alerts.</span></li>
           <li><Icon name="check" size={11} /><span>Sent from {notif.from ? <b>{notif.from}</b> : "the Chanlytics alert address"}{notif.from ? "" : " until your own sending domain is verified"}.</span></li>
           <li><Icon name="check" size={11} /><span>No daily brief or weekly report goes out yet; Today is the brief.</span></li>
         </ul>
@@ -2668,8 +2910,8 @@ const SET_SOON = {
   memory: {
     title: "AI memory",
     chip: "Not built yet",
-    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Workspace: the business details, hours, services, notes and the extra instructions saved there.",
-    action: { label: "Open Workspace", tab: "workspace", icon: "home" },
+    body: "The receptionist does not learn rules on its own yet. Everything it knows comes from Business: the business details, hours, services, notes and the extra instructions saved there.",
+    action: { label: "Open Business", tab: "workspace", icon: "home" },
   },
 };
 
@@ -2691,6 +2933,13 @@ const PaneSoon = ({ which, onTab }) => {
 const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const active = SET_TAB(tab);
   const [toastNode, flash] = window.usePPToast();
+  // The tab asked for while a pane holds unsaved changes (the business editor registers __settingsUnsaved): the rail
+  // asks before the pane, and the changes with it, are replaced (S22).
+  const [leaving, setLeaving] = React.useState(null);
+  const go = (id) => {
+    if (id !== active.id && window.__settingsUnsaved && window.__settingsUnsaved()) { setLeaving(id); return; }
+    onTab(id);
+  };
   // Grouped, and derived rather than written twice: the rail can only ever
   // offer what SET_TABS holds, in the order it holds it.
   const groups = [...SET_TABS, ...(isPlatformAdmin() ? SET_TABS_PLATFORM : [])].reduce((acc, t) => {
@@ -2706,7 +2955,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           <React.Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map(t => (
-              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} onClick={() => onTab(t.id)}>
+              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => go(t.id)}>
                 <Icon name={t.icon} size={14} />
                 <span className="set-nav-label">{t.label}</span>
               </button>
@@ -2715,6 +2964,9 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
         ))}
       </aside>
       <div className="set-pane" key={active.id}>
+        {leaving && (
+          <Confirm question="Leave without saving?" detail="The changes in the business editor have not been saved." yes="Yes, leave" no="Stay" danger onYes={() => { const to = leaving; setLeaving(null); onTab(to); }} onNo={() => setLeaving(null)} testid="set-leave" />
+        )}
         {active.id === "profile" && <PaneProfile flash={flash} />}
         {active.id === "team" && <TeamSection flash={flash} />}
         {active.id === "setup" && window.PaneSetup && <window.PaneSetup />}
@@ -2735,7 +2987,19 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
 
 window.SettingsPage = SettingsPage;
 window.SET_TABS = SET_TABS;
-window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the shell names the crumb; the rail above decides who sees it
+window.SET_TABS_PLATFORM = SET_TABS_PLATFORM; // the rail above decides who sees it
+window.SET_TAB = SET_TAB; // the shell's crumb, and so the tab's name, names the pane by this same rule
 window.SetToggle = SetToggle; // consumed by calendar.jsx + reports.jsx (module-scope port fix)
 window.WorkspaceData = WorkspaceData; // rendered on its own by exports.test (the door the privacy page promises)
 window.TeamSection = TeamSection; // rendered on its own by confirm.test (the remove that used to fire from a menu item)
+
+// The booking-rule keys the Business editor edits, the slot length among them
+// since it has a field of its own (S2). Everything else stored under
+// booking_rules -- a rule added later -- is kept by a save rather than rebuilt
+// away: the editor used to start the rules from {} and deleted slot_min every
+// time an owner pressed Save.
+const SET_EDITED_RULES = ["lead_hours", "buffer_min", "max_days_ahead", "party_max", "slot_min", "consult_first", "notes"];
+function settingsRulesKept(saved) {
+  return Object.fromEntries(Object.entries(saved || {}).filter(([k]) => !SET_EDITED_RULES.includes(k)));
+}
+window.settingsRulesKept = settingsRulesKept; // run on its own by settings-save-keeps-rules.test

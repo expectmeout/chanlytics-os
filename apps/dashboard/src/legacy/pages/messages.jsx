@@ -26,9 +26,13 @@ const tplAgo = (iso) => {
 const tplTitle = (t) => (window.__starters ? window.__starters.title(t) : (t && t.name) || "");
 // Meta's own sample lives in every account and is nobody's message: never shown, whatever the sync keeps.
 const TPL_SAMPLES = new Set(["hello_world"]);
-// The words WhatsApp reviewed for each slot, so a synced template reads as a message and not as {{1}}.
-const tplExamples = (t) => (Array.isArray(t.variables) ? t.variables : []).map((x) => (x && typeof x === "object" && typeof x.example === "string" ? x.example : null));
-const tplRender = (body, examples) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => examples[Number(n) - 1] || m);
+// What this business says about itself, for the slots that name it. A preview puts its own name and
+// booking link there, and a blank for what it has not given -- never the sample filed with Meta (the
+// starters' "Luna Studio"). The rule and the slots are the contracts' (templatePreview, starterPreview).
+const tplOwn = () => {
+  const brain = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || {};
+  return { business_name: brain.business_name || null, booking_link: brain.booking_link || null };
+};
 
 const useMessages = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -42,7 +46,7 @@ const useMessages = () => {
 // One message: its title and purpose, the languages it exists in (or may be
 // added in), the bubble for the language in view, and — behind a menu — the
 // verbs for the template in view: rename, hide or show, delete.
-const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHide, onDelete }) => {
+const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, onRename, onHide, onDelete }) => {
   const present = g.rows.filter((r) => r.row);
   const [langId, setLangId] = React.useState(present[0] ? present[0].lang.id : (langs[0] ? langs[0].id : "en_US"));
   const [menu, setMenu] = React.useState(false);
@@ -52,9 +56,19 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
   const cur = g.rows.find((r) => r.lang.id === langId) || g.rows[0];
   const row = cur ? cur.row : null;
   const starterText = g.starter && S ? S.text(g.starter, langId) : null;
-  const body = row ? tplRender(row.body_preview, tplExamples(row)) : g.starter && S ? S.preview(g.starter, langId, bizName) : "";
+  const own = tplOwn();
+  const body = !S ? "" : row ? S.rowPreview(row, own) : g.starter ? S.preview(g.starter, langId, own.business_name, own.booking_link) : "";
   const footer = starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
+  // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
+  const pbRows = window.__PLAYBOOKS ? window.__PLAYBOOKS.rows || [] : null;
+  const users = row && pbRows ? pbRows.filter((p) => p.template_name === row.name && p.template_language === row.language) : [];
+  const sending = users.filter((p) => p.state === "running").map((p) => p.name);
+  const paused = users.filter((p) => p.state !== "running").map((p) => p.name);
+  const quoted = (names) => names.map((n) => `“${n}”`).join(", ");
+  const pausedWords = !pbRows ? " Chanlytics couldn't check which playbooks send it."
+    : paused.length === 1 ? ` ${quoted(paused)} is paused and sends it: if it resumes, its runs skip until it has another message.`
+    : paused.length > 1 ? ` ${quoted(paused)} are paused and send it: if they resume, their runs skip until they have another message.` : "";
   return (
     <article className={"msg-card" + (row && row.hidden_at ? " is-hidden" : "")} data-testid={g.starter ? "starter-row" : "custom-row"}>
       <div className="msg-card-head">
@@ -72,9 +86,7 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
             );
           }
           if (!g.starter) return null;
-          return canAct
-            ? <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add">Add {lang.label}</button>
-            : <span key={lang.id} className="msg-lang-missing">{lang.label} · not added</span>;
+          return <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>;
         })}
       </div>
       <window.WaBubble from={bizName || "Your business"} body={body} footer={footer} />
@@ -82,6 +94,8 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
         {row
           ? <span className="msg-card-meta">{row.name}{row.category ? ` · ${row.category}` : ""}{row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}{row.meta_status === "rejected" && row.rejected_reason ? ` · rejected: ${String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}` : ""}</span>
           : <span className="msg-card-meta">Not on WhatsApp in {cur ? cur.lang.label : "this language"} yet — the words WhatsApp would review</span>}
+        {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
+        {row && row.quality && <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />}
         <span className="msg-card-spacer" />
         {row && canAct && !menu && <button className="cl-bucket-link" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
       </div>
@@ -93,8 +107,15 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
               <button className="btn btn-sm btn-primary" disabled={busy} onClick={() => { onRename(row, draft); closeMenu(); }} data-testid="template-title-save">Save</button>
               <button className="cl-bucket-link" onClick={() => setRenaming(false)}>Cancel</button>
             </span>
+          ) : arm && sending.length > 0 ? (
+            // A running playbook still sends it: the route refuses the delete, so the question is not asked.
+            <div className="msg-delete-held" role="status" data-testid="template-delete-held">
+              <span>{S && S.stillSends ? S.stillSends(sending) : `${quoted(sending)} still sends this message.`}</span>
+              <button className="cl-bucket-link" onClick={() => { closeMenu(); window.CHANLY.nav("outbound"); }}>Open Playbooks</button>
+              <button className="cl-bucket-link" onClick={() => setArm(false)}>Keep it</button>
+            </div>
           ) : arm ? (
-            <Confirm question={`Delete “${tplTitle(row)}” in ${cur.lang.label}?`} detail="It leaves WhatsApp; sends that use it fail from now on." yes="Yes, delete" danger busy={busy} onYes={() => { closeMenu(); onDelete(row); }} onNo={() => setArm(false)} testid="template-delete" />
+            <Confirm question={`Delete “${tplTitle(row)}” in ${cur.lang.label}?`} detail={`It leaves WhatsApp; sends that use it fail from now on.${pausedWords}`} yes="Yes, delete" danger busy={busy} onYes={() => { closeMenu(); onDelete(row); }} onNo={() => setArm(false)} testid="template-delete" />
           ) : (
             <>
               <button className="cl-bucket-link" disabled={busy} onClick={() => { setDraft(row.title || ""); setRenaming(true); }} title="Call it something in your own words — WhatsApp keeps its name" data-testid="template-rename">Rename</button>
@@ -112,23 +133,23 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, S, onAdd, onRename, onHi
 const MessagesReal = () => {
   const templates = useMessages();
   const S = window.__starters;
-  const [busy, setBusy] = React.useState(false);
+  // Which act is under way, if any: every control waits for it, and only the one pressed says it is working. The ref
+  // holds the guard before the page has drawn the state.
+  const [doing, setDoing] = React.useState(null);
+  const doingRef = React.useRef(null);
+  const busy = doing !== null;
   const [composing, setComposing] = React.useState(false);
   const [showHidden, setShowHidden] = React.useState(false);
   const [toastNode, flash] = window.usePPToast();
-  React.useEffect(() => {
-    const open = () => setComposing(true);
-    window.addEventListener("messages:new", open);
-    return () => window.removeEventListener("messages:new", open);
-  }, []);
-  const canAct = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may add, change or remove a message: the role store's answer, View-as included.
+  const canAct = !!(window.canDo && window.canDo("approve"));
   const hasWhatsApp = (window.__CHANNELS || []).some((c) => c.kind === "whatsapp");
   const bizName = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain && window.__SETTINGS.config.brain.business_name) || null;
 
   if (templates === undefined) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Reading your messages…</div></div></div>
+        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div></div></div>
       </div>
     );
   }
@@ -167,22 +188,24 @@ const MessagesReal = () => {
   const pending = shown.filter((t) => t.meta_status === "pending").length;
   const lastSync = list.reduce((m, t) => (t.synced_at && (!m || t.synced_at > m) ? t.synced_at : m), null);
 
-  const run = async (fn, said) => {
-    if (!window.__templates || busy) return;
-    setBusy(true);
+  const run = async (what, fn, said) => {
+    if (!window.__templates || doingRef.current) return;
+    doingRef.current = what;
+    setDoing(what);
     const r = await fn();
-    setBusy(false);
+    doingRef.current = null;
+    setDoing(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? said(r) : <>{r.message}</> });
   };
   const rename = (t, draft) => {
     const title = draft.replace(/\s+/g, " ").trim() || null;
-    run(() => window.__templates.rename(t.id, title), () => (title ? <>Now called <b>{title}</b> — WhatsApp still knows it as {t.name}</> : <><b>{t.name}</b> goes by its name again</>));
+    run(`rename:${t.id}`, () => window.__templates.rename(t.id, title), () => (title ? <>Now called <b>{title}</b> — WhatsApp still knows it as {t.name}</> : <><b>{t.name}</b> goes by its name again</>));
   };
-  const toggleHidden = (t) => run(() => (t.hidden_at ? window.__templates.show(t.id) : window.__templates.hide(t.id)), () => <><b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</>);
-  const remove = (t) => run(() => window.__templates.remove(t.id), () => <><b>{tplTitle(t)}</b> deleted — sends that named it fail from now on</>);
-  const addStarters = (keys, languages) => run(() => window.__templates.addStarters({ ...(keys ? { keys } : {}), languages }), (r) => <>{window.starterWords ? window.starterWords(r.data) : "Added"}</>);
-  const sync = () => run(() => window.__syncTemplates(), (r) => <>{r.data.seen} template{r.data.seen === 1 ? "" : "s"} from WhatsApp — {r.data.approved} approved, {r.data.marketing} marketing</>);
-  const card = (g) => <MessageCard key={g.key} g={g} langs={langs} bizName={bizName} canAct={canAct && hasWhatsApp} busy={busy} S={S} onAdd={(gg, lang) => addStarters([gg.starter.key], [lang.id])} onRename={rename} onHide={toggleHidden} onDelete={remove} />;
+  const toggleHidden = (t) => run(`hide:${t.id}`, () => (t.hidden_at ? window.__templates.show(t.id) : window.__templates.hide(t.id)), () => <><b>{tplTitle(t)}</b> {t.hidden_at ? "is back in the composers" : "is out of the composers — still on file"}</>);
+  const remove = (t) => run(`delete:${t.id}`, () => window.__templates.remove(t.id), () => <><b>{tplTitle(t)}</b> deleted — sends that named it fail from now on</>);
+  const addStarters = (keys, languages) => run(`add:${keys ? keys.join(",") : "all"}:${languages.join(",")}`, () => window.__templates.addStarters({ ...(keys ? { keys } : {}), languages }), (r) => <>{window.starterWords ? window.starterWords(r.data) : "Added"}</>);
+  const sync = () => run("sync", () => window.__syncTemplates(), (r) => <>{r.data.seen} template{r.data.seen === 1 ? "" : "s"} from WhatsApp — {r.data.approved} approved, {r.data.marketing} marketing</>);
+  const card = (g) => <MessageCard key={g.key} g={g} langs={langs} bizName={bizName} canAct={canAct && hasWhatsApp} busy={busy} doing={doing} S={S} onAdd={(gg, lang) => addStarters([gg.starter.key], [lang.id])} onRename={rename} onHide={toggleHidden} onDelete={remove} />;
 
   return (
     <div className="reports" data-testid="messages-real">
@@ -202,16 +225,22 @@ const MessagesReal = () => {
 
       <div className="cl-controls">
         <div className="cl-controls-right">
-          {canAct && hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
-            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all">{busy ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
+          {/* The page's own acts stay where they are for every role and say who may
+              (window.gate); a message's rename, hide and delete stay with those who may. */}
+          {!canAct && hasWhatsApp && <span className="bc-excl-hint" data-testid="messages-role">{window.gateTitle("approve", "rename, hide or delete a message")}</span>}
+          {hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
+            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all" {...window.gate("approve", "add a starter message")}>{doing === `add:all:${m.lang.id}` ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
           ))}
-          {canAct && hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates">{busy ? "Syncing…" : "Sync from WhatsApp"}</button>}
-          {canAct && hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new"><Icon name="plus" size={12} /> New message</button>}
+          {hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates" {...window.gate("approve", "sync from WhatsApp")}>{doing === "sync" ? "Syncing…" : "Sync from WhatsApp"}</button>}
+          {hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a message")}><Icon name="plus" size={12} /> New message</button>}
         </div>
       </div>
 
       <div className="rp-body">
-        {!hasWhatsApp && (
+        {/* A failed read of the numbers is not "no number": say what could not be read. */}
+        {window.__CHANNELS === null ? (
+          <FailedRead kind="card" what="your WhatsApp number" body="What is on file is below; adding and syncing wait until the number can be read." surface="settings" testid="messages-channels-failed" />
+        ) : !hasWhatsApp && (
           <EmptyState kind="card" glyph="phone" title="Connect a WhatsApp number first" body="Messages belong to a number's account." action={{ label: "Open Connections", to: "admin/integrations" }} testid="messages-no-number" />
         )}
         {composing && window.TemplateComposer && (
@@ -249,7 +278,9 @@ const MessagesReal = () => {
   );
 };
 
-// The page is real on every workspace; the standalone mockup never routes here.
+// The page is real on every workspace. The standalone mockup routes here too —
+// Campaigns · Messages is a tab there — and has no templates to read, so the
+// waiting line above says which of the two is looking.
 const MessagesPage = () => <MessagesReal />;
 
 window.MessagesPage = MessagesPage;

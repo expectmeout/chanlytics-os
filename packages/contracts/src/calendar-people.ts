@@ -451,7 +451,7 @@ export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: numbe
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {
-  if (!dto || dto.calendar === "none") return { present: false, headline: "—", sub: "Connect your calendar under Settings › Workspace to see who booked.", pct: null, asked: 0, booked: 0 };
+  if (!dto || dto.calendar === "none") return { present: false, headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", pct: null, asked: 0, booked: 0 };
   if (dto.calendar === "unavailable") return { present: false, headline: "—", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
   if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
   const pct = Math.round((dto.booked / dto.asked) * 100);

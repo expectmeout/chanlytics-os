@@ -52,6 +52,6 @@ test.describe("Delete this person", () => {
     expect(seen[0].method).toBe("DELETE");
     expect(seen[0].url).toContain("workspace=");
     // Back on the list afterwards.
-    await expect(page.locator(".cl-page-title")).toHaveText("People");
+    await expect(page.getByTestId("people-standing")).toBeVisible();
   });
 });

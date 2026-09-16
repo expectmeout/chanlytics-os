@@ -35,7 +35,7 @@ function dto(id, over = {}) {
   };
 }
 const visit = (startIso, title, hours = 1) => ({ id: `v-${startIso}`, start: startIso, end: new Date(Date.parse(startIso) + hours * H).toISOString(), title, all_day: false, via: "phone" });
-const withVisits = (id, next, last, over = {}) => toPersonRowVM(dto(id, { visits: { timezone: TZ, source: "Google Calendar", state: "ok", next, last }, ...over }), NOW);
+const withVisits = (id, next, last, over = {}) => toPersonRowVM(dto(id, { visits: { timezone: TZ, source: "Google Calendar", state: "ok", next, last }, ...over }), TZ, NOW);
 const untouched = { byThis: new Map(), byAny: new Map() };
 
 test("six triggers: four lists and cadences, two the calendar makes possible, each under one of the three autonomy rows", () => {
@@ -59,7 +59,7 @@ test("a visit's day is the calendar's day: eleven at night tomorrow is still tom
   const p = { trigger: "visit_tomorrow", cap_per_run: 25, gap_days: 90, cadence_days: 30 };
   assert.deepEqual(eligibleForPlaybook([lateTomorrow, dayAfter, today, earlyTomorrow], p, untouched, nowMs).map((r) => r.id), ["d", "a"], "tomorrow's visits, earliest first");
   assert.deepEqual(eligibleForPlaybook([lateTomorrow, earlyTomorrow], { ...p, cap_per_run: 1 }, untouched, nowMs).map((r) => r.id), ["d"], "the cap");
-  const noCalendar = toPersonRowVM(dto("e"), NOW);
+  const noCalendar = toPersonRowVM(dto("e"), TZ, NOW);
   assert.deepEqual(eligibleForPlaybook([noCalendar], p, untouched, nowMs), [], "no calendar, nobody");
   const notYes = withVisits("f", visit("2026-09-07T15:00:00Z", "Cut"), null, { consent: "unknown" });
   assert.deepEqual(eligibleForPlaybook([notYes], p, untouched, nowMs), [], "a reminder is still a message: only to people who said yes");
@@ -128,7 +128,7 @@ test("the wiring: the CHECKs, the facts column, the runner attaching the calenda
   const mig = readRaw("supabase/migrations/00063_visit_playbooks.sql");
   assert.ok(mig.includes("'visit_tomorrow', 'visited'") && mig.includes("('reengage', 'campaign', 'booking')") && mig.includes("add column if not exists facts jsonb"));
   const runner = readCode("apps/edge/lib/playbooks.ts");
-  for (const s of ["feedItemsFor(tenantId, url, tz, now, daysAhead)", "visits.set(r.id, { timezone: tz, source: \"calendar\", state: \"ok\", next: toVisitDto(v.next), last: toVisitDto(v.last) })", "toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, now)"]) assert.ok(runner.includes(s), s);
+  for (const s of ["feedItemsFor(tenantId, url, tz, now, daysAhead)", "visits.set(r.id, { timezone: tz, source: \"calendar\", state: \"ok\", next: toVisitDto(v.next), last: toVisitDto(v.last) })", "toPersonRowVM({ ...r, visits: visits.get(r.id) ?? null }, tz, now)"]) assert.ok(runner.includes(s), s);
   const handler = readCode("packages/jobs/src/handlers.ts");
   assert.ok(handler.includes('.select("contact_id, facts")'), "the row's own words ride the batch; the slots are filled from them (run in core-broadcast.test.mjs)");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");

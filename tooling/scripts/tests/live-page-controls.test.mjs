@@ -12,6 +12,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { toLiveVM, frameWhisper, frameHandOver } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = Date.now();
 const iso = (msAgo) => new Date(NOW - msAgo).toISOString();
 const CALL = "call_abc123def456";
@@ -68,10 +71,11 @@ globalThis.React = {
   useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
 };
 globalThis.window = {
-  __LIVE: toLiveVM([call()], channels, new Date(NOW)),
+  __LIVE: toLiveVM([call()], channels, ZONE, new Date(NOW)),
   __FACTS: { facts: { handoff_number: { value: LINE } } },
-  __endCall: async (id) => { calls.end.push(id); return { ok: true, decision_id: "d1" }; },
-  __handOverCall: async (id) => { calls.hand.push(id); return { ok: true, decision_id: "d2", line: LINE }; },
+  // The client's answers: the route's body under data (client/api.ts). A flat fake hid that the toast read r.line.
+  __endCall: async (id) => { calls.end.push(id); return { ok: true, data: { ok: true, decision_id: "d1" } }; },
+  __handOverCall: async (id) => { calls.hand.push(id); return { ok: true, data: { ok: true, decision_id: "d2", line: LINE } }; },
   __whisperCall: async (id, text) => { calls.whisper.push([id, text]); return { ok: true }; },
   __refreshLive: () => { calls.refresh += 1; },
   usePPToast: () => [null, (m) => calls.flash.push(m)],
@@ -173,7 +177,7 @@ test("a workspace with no line is told the fix on the button itself, and the but
 test("a call that has ended offers no control, only its summary and the way to the transcript", () => {
   fresh();
   const was = globalThis.window.__LIVE;
-  globalThis.window.__LIVE = toLiveVM([call({ status: "ended", ended_at: iso(1_000), duration_ms: 89_000, disconnection_reason: "manual_stopped", summary: "Asked for a person." })], channels, new Date(NOW));
+  globalThis.window.__LIVE = toLiveVM([call({ status: "ended", ended_at: iso(1_000), duration_ms: 89_000, disconnection_reason: "manual_stopped", summary: "Asked for a person." })], channels, ZONE, new Date(NOW));
   try {
     const tree = mount();
     assert.equal(byTestId(tree, "live-controls"), null, "nothing to end or pass");

@@ -38,7 +38,7 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
   assert.ok(css.includes(".inbox.phone-thread .ix-list { display: none; }"));
   assert.ok(css.includes(".inbox.phone-thread .ix-thread-pane { display: flex; }"));
   assert.ok(css.includes(".conversations.phone-detail .cv-viewer { display: flex; }"));
-  assert.ok(css.includes(".lm-inject { position: sticky; bottom: 0;"), "the whisper stays at the thumb on Live");
+  assert.ok(css.includes(".lm-whisper .btn { min-height: 44px; }"), "the whisper's buttons take a thumb on Live, on the class the page draws");
 });
 
 test("the tab bar carries the real surfaces and the two counts that matter", () => {
@@ -55,10 +55,10 @@ test("the tab bar carries the real surfaces and the two counts that matter", () 
   assert.ok(css.includes("padding: 6px 4px calc(6px + env(safe-area-inset-bottom));"), "above the home bar");
   assert.ok(css.includes("min-height: 44px;"), "thumb-sized");
   assert.ok(css.includes("position: fixed;") && css.includes("left: 0; right: 0; bottom: 0;"), "fixed to the viewport: flowed, it lived below the fold");
-  // The status the bridge's floating pill used to carry lives in the
-  // sidebar's foot now (SbStatus); nothing fixed sits over the tab bar.
+  // The status the bridge's floating pill used to carry is the shell's one
+  // line under the top bar now, mounted in shell-status.test.mjs; nothing
+  // fixed sits over the tab bar.
   assert.ok(!readRaw("apps/dashboard/src/legacy-bridge/legacy.css").includes(".bridge-pill"), "the pill is gone");
-  assert.ok(readCode("apps/dashboard/src/legacy/components/sidebar.jsx").includes("const SbStatus = "));
 });
 
 test("the installable shell: a public manifest, real icons, full-screen on iOS, a worker that caches nothing", () => {

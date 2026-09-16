@@ -492,6 +492,17 @@ export function closedOn(closures: Closure[] | undefined, key: string): boolean 
 }
 
 /**
+ * An instant rounded up to the slot grid on the business's clock: :00 and :30 for half-hour slots, the quarter hour when
+ * a slot does not divide the hour. The first open time was now plus the least notice to the minute, "1:29 PM" (C5).
+ */
+function onTheGrid(tz: string, atMs: number, slotMin: number): number {
+  const grid = slotMin > 0 && 60 % slotMin === 0 ? slotMin : 15;
+  const c = clockInZone(tz, atMs);
+  const into = ((c.mm % grid) * 60 + c.ss) * 1000 + (((atMs % 1000) + 1000) % 1000);
+  return into === 0 ? atMs : atMs - into + grid * 60_000;
+}
+
+/**
  * The open windows, day by day: opening hours minus what is taken (each
  * taken block widened by the buffer), never earlier than now plus the lead
  * time, never shorter than one slot, never on a closed date.
@@ -501,7 +512,8 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
   const leadMs = rules.lead_hours * 3600_000;
   const bufferMs = rules.buffer_min * 60_000;
   const slotMs = rules.slot_min * 60_000;
-  const earliest = input.now.getTime() + leadMs;
+  // The first moment worth offering: now plus the least notice, up to the slot grid on the business's clock (C5).
+  const earliest = onTheGrid(input.tz, input.now.getTime() + leadMs, rules.slot_min);
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out: Opening[] = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
@@ -618,4 +630,62 @@ export function matchService<S extends ServiceLike>(services: readonly S[] | und
     if (score > bestScore) { best = s; bestScore = score; }
   }
   return best;
+}
+
+/** The booking rules as far as a consultation needs them. */
+export interface ConsultRules { consult_first?: readonly string[] }
+
+/**
+ * Whether a listed service needs a consultation before it can be booked, as Business lists them. Accents, case and the
+ * spaces around a name are not the name, as in matchService; the board matched them exactly, lower-cased.
+ */
+export function needsConsultation(name: string, rules: ConsultRules | null | undefined): boolean {
+  const n = foldName(name.trim());
+  return !!n && (rules?.consult_first ?? []).some((c) => foldName(String(c).trim()) === n);
+}
+
+/** What an asked-for service is offered as: itself, or a consultation first. */
+export interface ServiceOffer<S extends ServiceLike = ServiceLike> {
+  /** The listed service asked about. */
+  service: S;
+  /** Offered as a consultation, never as itself. */
+  consultation: boolean;
+  /** The listed service a consultation is, when the business lists one: the one sharing the service's words first. */
+  consultationService: S | null;
+  /** How long an open time has to be: the service's own length, a consultation's, or null for any open time. */
+  minMinutes: number | null;
+}
+
+/**
+ * The one rule for a service asked about, for the phone tool, the assistant and the board. A service that needs a
+ * consultation first is never offered itself: the consultation is, sized by the consultation the business lists
+ * ("Consultation", "Consulta"), or any open time when it lists none. All three sized a three-hour color correction by
+ * its own length while the prompt said a consultation comes first (C5b).
+ */
+export function offerFor<S extends ServiceLike>(services: readonly S[] | undefined, rules: ConsultRules | null | undefined, asked: unknown): ServiceOffer<S> | null {
+  const service = matchService(services, asked);
+  if (!service) return null;
+  if (!needsConsultation(service.name, rules)) return { service, consultation: false, consultationService: null, minMinutes: service.duration_min ?? null };
+  const own = wordsOf(foldName(service.name)).filter((w) => w.length >= 4);
+  let consultationService: S | null = null;
+  let best = -1;
+  for (const s of services ?? []) {
+    const n = foldName(s.name);
+    if (s === service || !n.includes("consult") || needsConsultation(s.name, rules)) continue;
+    const score = wordsOf(n).filter((w) => own.includes(w)).length;
+    if (score > best) { consultationService = s; best = score; }
+  }
+  return { service, consultation: true, consultationService, minMinutes: consultationService?.duration_min ?? null };
+}
+
+/**
+ * The words before the open times, the phone's and the assistant's alike: a service's length, or that it needs a
+ * consultation first and what is offered instead.
+ */
+export function offerLead(offer: ServiceOffer | null): string {
+  if (!offer) return "";
+  if (!offer.consultation) return offer.service.duration_min ? `For ${offer.service.name} (about ${offer.service.duration_min} minutes): ` : "";
+  const c = offer.consultationService;
+  const detail = [c && foldName(c.name.trim()) !== "consultation" ? c.name : "", offer.minMinutes ? `about ${offer.minMinutes} minutes` : ""].filter(Boolean).join(", ");
+  return `${offer.service.name} needs a consultation before it can be booked, so offer a consultation instead. For a consultation${detail ? ` (${detail})` : ""}: `;
 }

@@ -376,32 +376,15 @@ const rpTopRound = (x, y, w, h, r) => {
   return `M${x},${y + h} V${y + rr} Q${x},${y} ${x + rr},${y} H${x + w - rr} Q${x + w},${y} ${x + w},${y + rr} V${y + h} Z`;
 };
 
-const RpSpark = ({ points }) => {
-  if (!points || points.length < 2) return null;
-  const w = 88, h = 24, pad = 3;
-  const max = Math.max(1, ...points);
-  const step = (w - pad * 2) / (points.length - 1);
-  const xy = points.map((v, i) => [pad + i * step, pad + (h - pad * 2) * (1 - v / max)]);
-  const d = xy.map(([x, y], i) => `${i ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join(" ");
-  const last = xy[xy.length - 1];
-  return (
-    <svg className="rp2-spark" viewBox={`0 0 ${w} ${h}`} width={w} height={h} aria-hidden="true">
-      <path d={`${d} L${last[0].toFixed(1)},${h - pad} L${pad},${h - pad} Z`} className="rp2-spark-area" />
-      <path d={d} className="rp2-spark-line" />
-      <circle cx={last[0]} cy={last[1]} r="3" className="rp2-spark-end" />
-    </svg>
-  );
-};
-
+// A number, what it is, and one line of what it holds. It also drew a seven-point sparkline beside a number the chart
+// below plots properly, and a delta that claimed percentages on counts of two -- "+100% vs prior 7 days" is 2 to 4,
+// and "-100%" is a zero. The view model still carries both: Ask reads the change, and every chart draws the period
+// before as its own faint line.
 const RpTile = ({ t }) => (
   <div className="rp2-tile" data-tile={t.id}>
     <div className="rp2-tile-label" title={t.label}>{t.label}</div>
     <div className="rp2-tile-value">{t.value}</div>
     <div className="rp2-tile-meta" title={t.meta}>{t.meta}</div>
-    <div className="rp2-tile-foot">
-      <span className={`rp2-delta ${t.delta ? t.delta.tone : ""}`}>{t.delta ? t.delta.text : ""}</span>
-      <RpSpark points={t.spark} />
-    </div>
   </div>
 );
 
@@ -417,6 +400,25 @@ const RpTable = ({ columns, rows }) => (
   </div>
 );
 
+// A card's table as a CSV file: the columns and rows its Table view shows, nothing else, with a byte-order mark so
+// a spreadsheet reads it as UTF-8, as People's export does.
+const RP_BOM = String.fromCharCode(0xfeff);
+const rpCsv = (table) => {
+  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  return [table.columns, ...table.rows].map((r) => r.map(esc).join(",")).join("\r\n");
+};
+const rpSaveCsv = (title, table) => {
+  const blob = new Blob([RP_BOM + rpCsv(table)], { type: "text/csv;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${String(title).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+};
+
 const RpCard = ({ title, sub, testid, table, children, className = "" }) => {
   const [showTable, setShowTable] = useRpState(false);
   return (
@@ -429,25 +431,55 @@ const RpCard = ({ title, sub, testid, table, children, className = "" }) => {
             {showTable ? "Chart" : "Table"}
           </button>
         )}
+        {table && (
+          <button className="btn btn-ghost btn-sm rp2-toggle" onClick={() => rpSaveCsv(title, table)} aria-label={`Save “${title}” as a CSV file`} data-testid="card-csv">CSV</button>
+        )}
       </div>
       {showTable && table ? <RpTable columns={table.columns} rows={table.rows} /> : children}
     </section>
   );
 };
 
-const RpStacked = ({ points, max, days }) => {
+// One keyboard stop per chart. Focus lands on the latest day, the arrows move a day at a time, Home and End go to
+// the ends, and the day is said in a polite live region. A stop per day was up to 270 stops at 90 days, none named.
+const useRpTip = (n) => {
   const [tip, setTip] = useRpState(null);
+  const keys = {
+    tabIndex: 0,
+    onFocus: () => setTip((t) => (t === null ? n - 1 : t)),
+    onBlur: () => setTip(null),
+    onKeyDown: (e) => {
+      const at = tip === null ? n - 1 : tip;
+      const to = e.key === "ArrowRight" ? at + 1 : e.key === "ArrowLeft" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? n - 1 : null;
+      if (to === null) return;
+      e.preventDefault();
+      setTip(Math.max(0, Math.min(n - 1, to)));
+    },
+  };
+  return [tip, setTip, keys];
+};
+// The period before, as a faint line through the middle of each day's slot, over the days it has.
+const rpPriorPoints = (prior, slot, L, y) => (prior || []).map((v, i) => (v === null || v === undefined ? null : `${(L + i * slot + slot / 2).toFixed(1)},${y(v).toFixed(1)}`)).filter(Boolean).join(" ");
+const rpPriorMax = (prior) => Math.max(0, ...(prior || []).map((v) => v || 0));
+const rpCap = (s) => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+const RpStacked = ({ points, max, days, prior = null, priorLabel = "" }) => {
+  const [tip, setTip, keys] = useRpTip(points.length);
   const W = 1100, H = 200, L = 34, R = 8, T = 10, B = 26;
   const pw = W - L - R, ph = H - T - B;
-  const nice = rpNice(max);
+  const nice = rpNice(Math.max(max, rpPriorMax(prior)));
   const n = Math.max(1, points.length);
   const slot = pw / n;
   const bw = Math.min(24, Math.max(3, slot * 0.68));
   const y = (v) => T + ph * (1 - v / nice);
   const every = days <= 7 ? 1 : days <= 30 ? 5 : 15;
+  const priorPoints = rpPriorPoints(prior, slot, L, y);
+  const day = tip === null ? null : points[tip];
+  const was = tip === null || !prior ? null : prior[tip] ?? null;
+  const said = day ? `${day.label}: ${day.in} customer message${day.in === 1 ? "" : "s"}, ${day.ai} answered by the receptionist, ${day.you} by you, ${day.none} unanswered${was === null ? "" : `; ${was} on the matching day of ${priorLabel}`}` : "";
   return (
-    <div className="rp2-plot">
-      <svg viewBox={`0 0 ${W} ${H}`} className="rp2-svg" role="img" aria-label="Customer messages per day, split by who answered">
+    <div className="rp2-plot" {...keys} aria-label="Customer messages per day, split by who answered. The arrow keys read each day.">
+      <svg viewBox={`0 0 ${W} ${H}`} className="rp2-svg" aria-hidden="true">
         {[0, nice / 2, nice].map((t) => (
           <g key={t}>
             <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="rp2-grid" />
@@ -466,44 +498,49 @@ const RpStacked = ({ points, max, days }) => {
           });
           const last = rects[rects.length - 1];
           return (
-            <g key={p.day} className={tip && tip.i === i ? "rp2-col hot" : "rp2-col"}>
+            <g key={p.day} className={tip === i ? "rp2-col hot" : "rp2-col"}>
               {rects.map((r) => (r === last
                 ? <path key={r.k} d={rpTopRound(x, r.top, bw, r.h, 4)} className={`rp2-seg ${r.k}`} />
                 : <rect key={r.k} x={x} y={r.top} width={bw} height={r.h} className={`rp2-seg ${r.k}`} />))}
               {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 8} className="rp2-tick" textAnchor="middle">{p.label}</text>}
-              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit"
-                onMouseEnter={() => setTip({ i, p })} onFocus={() => setTip({ i, p })}
-                onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
+              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" onMouseEnter={() => setTip(i)} onMouseLeave={() => setTip(null)} />
             </g>
           );
         })}
+        {priorPoints && <polyline points={priorPoints} className="rp2-prior" />}
       </svg>
-      {tip && (
-        <div className="rp2-tip" style={{ left: `${((L + tip.i * slot + slot / 2) / W) * 100}%` }}>
-          <div className="rp2-tip-day">{tip.p.label}</div>
-          <div className="rp2-tip-row"><b>{tip.p.in}</b> customer message{tip.p.in === 1 ? "" : "s"}</div>
-          <div className="rp2-tip-row"><i className="rp2-key-line ai" /><b>{tip.p.ai}</b> answered by the receptionist</div>
-          <div className="rp2-tip-row"><i className="rp2-key-line you" /><b>{tip.p.you}</b> answered by you</div>
-          <div className="rp2-tip-row"><i className="rp2-key-line none" /><b>{tip.p.none}</b> unanswered</div>
+      {day && (
+        <div className="rp2-tip" style={{ left: `${((L + tip * slot + slot / 2) / W) * 100}%` }}>
+          <div className="rp2-tip-day">{day.label}</div>
+          <div className="rp2-tip-row"><b>{day.in}</b> customer message{day.in === 1 ? "" : "s"}</div>
+          <div className="rp2-tip-row"><i className="rp2-key-line ai" /><b>{day.ai}</b> answered by the receptionist</div>
+          <div className="rp2-tip-row"><i className="rp2-key-line you" /><b>{day.you}</b> answered by you</div>
+          <div className="rp2-tip-row"><i className="rp2-key-line none" /><b>{day.none}</b> unanswered</div>
+          {was !== null && <div className="rp2-tip-row"><i className="rp2-key-line prior" /><b>{was}</b> on the matching day of {priorLabel}</div>}
         </div>
       )}
+      <span className="rp2-live" aria-live="polite">{said}</span>
     </div>
   );
 };
 
-const RpColumns = ({ points, field, max, days, label }) => {
-  const [tip, setTip] = useRpState(null);
+const RpColumns = ({ points, field, max, days, label, prior = null, priorLabel = "" }) => {
+  const [tip, setTip, keys] = useRpTip(points.length);
   const W = 560, H = 150, L = 28, R = 6, T = 8, B = 22;
   const pw = W - L - R, ph = H - T - B;
-  const nice = rpNice(max);
+  const nice = rpNice(Math.max(max, rpPriorMax(prior)));
   const n = Math.max(1, points.length);
   const slot = pw / n;
   const bw = Math.min(24, Math.max(3, slot * 0.68));
   const y = (v) => T + ph * (1 - v / nice);
   const every = days <= 7 ? 1 : days <= 30 ? 5 : 15;
+  const priorPoints = rpPriorPoints(prior, slot, L, y);
+  const day = tip === null ? null : points[tip];
+  const was = tip === null || !prior ? null : prior[tip] ?? null;
+  const said = day ? `${day.label}: ${day[field]} ${label}${was === null ? "" : `; ${was} on the matching day of ${priorLabel}`}` : "";
   return (
-    <div className="rp2-plot small">
-      <svg viewBox={`0 0 ${W} ${H}`} className="rp2-svg" role="img" aria-label={`${label} per day`}>
+    <div className="rp2-plot small" {...keys} aria-label={`${rpCap(label)} per day. The arrow keys read each day.`}>
+      <svg viewBox={`0 0 ${W} ${H}`} className="rp2-svg" aria-hidden="true">
         {[0, nice / 2, nice].map((t) => (
           <g key={t}>
             <line x1={L} x2={W - R} y1={y(t)} y2={y(t)} className="rp2-grid" />
@@ -515,22 +552,24 @@ const RpColumns = ({ points, field, max, days, label }) => {
           const x = L + i * slot + (slot - bw) / 2;
           const h = ph * (v / nice);
           return (
-            <g key={p.day} className={tip && tip.i === i ? "rp2-col hot" : "rp2-col"}>
+            <g key={p.day} className={tip === i ? "rp2-col hot" : "rp2-col"}>
               {v > 0 && <path d={rpTopRound(x, y(0) - h, bw, h, 4)} className="rp2-seg ai" />}
               {i % every === 0 && <text x={L + i * slot + slot / 2} y={H - 6} className="rp2-tick" textAnchor="middle">{i === 0 || days <= 7 ? p.label : p.short}</text>}
-              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit"
-                onMouseEnter={() => setTip({ i, p, v })} onFocus={() => setTip({ i, p, v })}
-                onMouseLeave={() => setTip(null)} onBlur={() => setTip(null)} />
+              <rect x={L + i * slot} y={T} width={slot} height={ph} className="rp2-hit" onMouseEnter={() => setTip(i)} onMouseLeave={() => setTip(null)} />
             </g>
           );
         })}
+        {priorPoints && <polyline points={priorPoints} className="rp2-prior" />}
       </svg>
-      {tip && (
-        <div className="rp2-tip" style={{ left: `${((L + tip.i * slot + slot / 2) / W) * 100}%` }}>
-          <div className="rp2-tip-day">{tip.p.label}</div>
-          <div className="rp2-tip-row"><b>{tip.v}</b> {label}</div>
+      {day && (
+        <div className="rp2-tip" style={{ left: `${((L + tip * slot + slot / 2) / W) * 100}%` }}>
+          <div className="rp2-tip-day">{day.label}</div>
+          <div className="rp2-tip-row"><b>{day[field]}</b> {label}</div>
+          {was !== null && <div className="rp2-tip-row"><i className="rp2-key-line prior" /><b>{was}</b> on the matching day of {priorLabel}</div>}
         </div>
       )}
+      {priorPoints && <div className="rp2-legend"><span className="rp2-key"><i className="rp2-key-line prior" />{rpCap(priorLabel)}</span></div>}
+      <span className="rp2-live" aria-live="polite">{said}</span>
     </div>
   );
 };
@@ -603,7 +642,8 @@ const RpSources = ({ rows }) => {
           {rows.map((s) => (
             <tr key={s.id} data-testid="source-row">
               <td>
-                <span className="rp2-src-name">{s.name}</span>
+                {/* The row's own door: a playbook's card, or the broadcast's own page (broadcasts/run:<id>). */}
+                <button type="button" className="rp2-src-name rp2-src-open" onClick={() => window.CHANLY.nav(s.kind === "broadcast" ? `broadcasts/run:${s.id}` : `outbound/${s.id}`)} data-testid="source-open">{s.name}</button>
                 <span className="rp2-src-meta">{s.kindLabel}{s.kind === "playbook" ? ` · ${s.runs} run${s.runs === 1 ? "" : "s"}` : ""}{title(s) ? ` · ${title(s)}` : ""}</span>
               </td>
               <td className="num">{s.sent}</td>
@@ -745,13 +785,13 @@ const ReportsReal = () => {
   const [failed, setFailed] = useRpState(null);
   const fetchedAt = R ? R.fetchedAt : 0;
   React.useEffect(() => { setBusy(false); }, [fetchedAt]);
-  if (!R) return <FailedRead kind="page" what="your reports" surface="reports" />;
   const vm = R.vm;
   const cm = R.campaigns || null;
   const bk = R.booking || { present: false, headline: "—", sub: "", pct: null, asked: 0, booked: 0 };
   const [widest, widestLabel] = RP2_RANGES[RP2_RANGES.length - 1];
   const pick = async (days) => {
-    if (days === R.days || !window.__setReportDays) return;
+    // One period at a time: while one loads the tabs hold, rather than start a second load over the first.
+    if (busy || days === R.days || !window.__setReportDays) return;
     setBusy(true);
     setFailed(null);
     const ok = await window.__setReportDays(days);
@@ -762,44 +802,46 @@ const ReportsReal = () => {
   };
   return (
     <div className="reports" data-testid="reports-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Reports</div>
-          <div className="cl-page-sub" title={`Days follow ${vm.timezone}`}>What the receptionist handled and what the offers earned · {vm.since} – {vm.until}</div>
-        </div>
+      {/* One line above the numbers: the period, and the days it covers. The top bar says Reports, and a sub-headline
+          under that title said what the page is for -- 162px of a phone before a single number. */}
+      <div className="rp2-head">
         <div className="rp2-range cl-tabs" role="group" aria-label="Period">
           {RP2_RANGES.map(([d, l]) => (
-            <button key={d} className={`cl-tab ${R.days === d ? "active" : ""}`} aria-pressed={R.days === d} onClick={() => pick(d)}>{l}</button>
+            <button key={d} className={`cl-tab ${R.days === d ? "active" : ""}`} aria-pressed={R.days === d} aria-disabled={busy} onClick={() => pick(d)}>{l}</button>
           ))}
         </div>
+        <span className="rp2-head-dates" title={`Days follow ${vm.timezone}`}>{vm.since} – {vm.until}</span>
         {failed && (
-          <div className="rp2-range-failed" role="status">
+          <span className="rp2-range-failed" role="status">
             Couldn't load {(RP2_RANGES.find(([d]) => d === failed) || [])[1]} — still showing {(RP2_RANGES.find(([d]) => d === R.days) || [])[1]}.
-          </div>
+          </span>
         )}
       </div>
 
       <div className={`rp-body rp2-body ${busy ? "rp2-loading" : ""}`} aria-busy={busy ? "true" : "false"}>
-        <RpSection label="The receptionist" meta={`last ${vm.rangeLabel}`} />
+        {/* The period is the control above, once. */}
+        <RpSection label="The receptionist" />
         <div className="rp2-tiles rp2-strip-reception">{vm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
 
         {vm.empty ? (
           <EmptyState kind="card" glyph="wave" title="Nothing came in" body={`Nobody wrote or called between ${vm.since} and ${vm.until}, so there is nothing to chart. The numbers above are real zeros.`} action={R.days !== widest ? { label: `Look at ${widestLabel}`, onClick: () => pick(widest) } : null} />
         ) : (
           <>
-            <RpCard title="Who answered, day by day" sub={`${vm.answered.totals.in} customer messages`} testid="chart-answered" table={vm.table} className="rp2-main">
+            {/* The strip above says how many messages came in; the legend below says who answered them. */}
+            <RpCard title="Who answered, day by day" testid="chart-answered" table={vm.table} className="rp2-main">
               <div className="rp2-legend">
                 <span className="rp2-key"><i className="rp2-swatch ai" />Receptionist <b>{vm.answered.totals.ai}</b></span>
                 <span className="rp2-key"><i className="rp2-swatch you" />You <b>{vm.answered.totals.you}</b></span>
                 <span className="rp2-key"><i className="rp2-swatch none" />Unanswered <b>{vm.answered.totals.none}</b></span>
+                {(vm.answered.prior || []).some((v) => v !== null) && <span className="rp2-key"><i className="rp2-swatch prior" />The {vm.rangeLabel} before</span>}
               </div>
               {vm.answered.totals.in
-                ? <RpStacked points={vm.answered.points} max={vm.answered.max} days={vm.days} />
+                ? <RpStacked points={vm.answered.points} max={vm.answered.max} days={vm.days} prior={vm.answered.prior} priorLabel={`the ${vm.rangeLabel} before`} />
                 : <EmptyState kind="line" title="No customer messages in this period — the receptionist had nothing to answer by text. Calls are below." />}
             </RpCard>
 
             <div className="rp2-row">
-              <RpCard title="Why the receptionist stopped" sub={vm.reasons.length ? `${vm.tiles[3].value} times` : ""} testid="chart-reasons"
+              <RpCard title="Why the receptionist stopped" testid="chart-reasons"
                 table={{ columns: ["Reason", "Times"], rows: vm.reasons.map((r) => [r.label, r.value]) }}>
                 <RpBars rows={vm.reasons} empty={vm.answered.totals.you === 0 && vm.answered.totals.none === 0
                   ? "It never stopped in this period — every message was answered without you."
@@ -813,7 +855,7 @@ const ReportsReal = () => {
           </>
         )}
 
-        <RpSection label="Campaigns" meta="what the offers earned" />
+        <RpSection label="Campaigns" meta="what your broadcasts and playbooks sent" />
         {cm ? (
           <>
             <div className="rp2-tiles rp2-strip-campaigns five" data-testid="campaign-tiles">{cm.tiles.map((t) => <RpTile key={t.id} t={t} />)}</div>
@@ -823,7 +865,7 @@ const ReportsReal = () => {
               <div className="rp2-row rp2-row-wide">
                 <RpCard title="Sent, day by day" sub={cm.totals.sent ? `${cm.totals.sent} messages · ${cm.totals.replied} wrote back` : "nothing sent"} testid="chart-campaigns" table={cm.table}>
                   {cm.totals.sent
-                    ? <RpColumns points={cm.points} field="sent" max={cm.max} days={vm.days} label="messages sent" />
+                    ? <RpColumns points={cm.points} field="sent" max={cm.max} days={vm.days} label="messages sent" prior={cm.prior} priorLabel={`the ${vm.rangeLabel} before`} />
                     : <EmptyState kind="line" title="No message went out in this period; the yeses and stops above are the people's own." />}
                 </RpCard>
                 <RpCard title="By playbook and broadcast" sub={cm.sources.length ? `${cm.sources.length} source${cm.sources.length === 1 ? "" : "s"} · shares of each one's own sent` : ""} testid="chart-sources"
@@ -843,21 +885,21 @@ const ReportsReal = () => {
           <>
             <RpSection label="Calls and people" />
             <div className="rp2-row rp2-row-three">
-              <RpCard title="Calls" sub={vm.calls.total ? `${vm.calls.total} calls · ${vm.calls.minutes} min · ${vm.calls.voicemail} to voicemail` : "no calls in this period"} testid="chart-calls"
+              <RpCard title="Calls" sub={vm.calls.total ? "" : "no calls in this period"} testid="chart-calls"
                 table={{ columns: ["Day", "Calls", "Seconds"], rows: vm.calls.points.map((p) => [p.label, p.calls, p.callSeconds]) }}>
                 {vm.calls.total ? (
                   <>
-                    <RpColumns points={vm.calls.points} field="calls" max={vm.calls.max} days={vm.days} label="calls" />
+                    <RpColumns points={vm.calls.points} field="calls" max={vm.calls.max} days={vm.days} label="calls" prior={vm.calls.prior} priorLabel={`the ${vm.rangeLabel} before`} />
                     {vm.calls.sentiments.length > 0 && (
                       <div className="rp2-foot">Caller mood, the voice provider's own read: {vm.calls.sentiments.map((x) => `${x.label} ${x.value}`).join(" · ")}</div>
                     )}
                   </>
                 ) : <EmptyState kind="line" title="Nobody phoned in this period." />}
               </RpCard>
-              <RpCard title="New people" sub={vm.people.total ? `${vm.people.total} first contacts, by evidence` : "nobody new"} testid="chart-people"
+              <RpCard title="New people" sub={vm.people.total ? "" : "nobody new"} testid="chart-people"
                 table={{ columns: ["Day", "New people"], rows: vm.people.points.map((p) => [p.label, p.newPeople]) }}>
                 {vm.people.total
-                  ? <RpColumns points={vm.people.points} field="newPeople" max={vm.people.max} days={vm.days} label="new people" />
+                  ? <RpColumns points={vm.people.points} field="newPeople" max={vm.people.max} days={vm.days} label="new people" prior={vm.people.prior} priorLabel={`the ${vm.rangeLabel} before`} />
                   : <EmptyState kind="line" title="Nobody new wrote or called in this period." />}
               </RpCard>
               <RpCard title="Asked → booked" sub={bk.present ? "the booking is the conversion" : "needs the calendar"} testid="chart-booking">
@@ -881,4 +923,4 @@ const ReportsPage = () => (window.__REPORTS === undefined ? <ReportsSeed /> : <R
 
 window.ReportsPage = ReportsPage;
 // Today draws the period with the same tile.
-Object.assign(window, { RpTile, RpSpark });
+Object.assign(window, { RpTile });

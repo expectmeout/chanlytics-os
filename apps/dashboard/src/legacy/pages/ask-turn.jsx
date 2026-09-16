@@ -18,7 +18,7 @@ const AskTools = ({ m, t, speech, flash }) => {
       setCopied(true);
       setTimeout(() => setCopied(false), 1500);
     } catch {
-      flash({ msg: <>{t.copy}: {t.unavailable}</> });
+      flash({ tone: "danger", msg: <>{t.copyFailed}</> });
     }
   };
   const speaking = speech.speakingId === m.id;
@@ -81,6 +81,10 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   const [state, setState] = useAtState(p.outcome ? p.outcome.state : "idle");
   const [receipt, setReceipt] = useAtState(p.outcome ? p.outcome.receipt : "");
   const [undoData, setUndoData] = useAtState(p.outcome ? p.outcome.undo || null : null);
+  // When the act happened: an undo is offered only while it is still true (contracts askUndoOpen).
+  const [doneAt, setDoneAt] = useAtState(p.outcome ? p.outcome.atMs || 0 : 0);
+  // Undoing a new playbook deletes it, so that undo asks first.
+  const [armUndo, setArmUndo] = useAtState(false);
   const [busy, setBusy] = useAtState(false);
   const [err, setErr] = useAtState("");
   const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
@@ -93,8 +97,9 @@ const AskCard = ({ p, messageId, t, onNav }) => {
     const r = await A.commit(p);
     setBusy(false);
     if (r.ok) {
-      setState("done"); setReceipt(r.receipt); setUndoData(r.undo || null);
-      record({ state: "done", receipt: r.receipt, atMs: Date.now(), undo: r.undo || null });
+      const at = Date.now();
+      setState("done"); setReceipt(r.receipt); setUndoData(r.undo || null); setDoneAt(at);
+      record({ state: "done", receipt: r.receipt, atMs: at, undo: r.undo || null });
     } else {
       setState("failed"); setErr(r.message);
       record({ state: "failed", receipt: r.message, atMs: Date.now(), undo: null });
@@ -104,11 +109,16 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   const undo = async () => {
     if (busy || !A) return;
     setBusy(true);
-    const r = await A.undo(p, { state: "done", receipt, atMs: 0, undo: undoData });
+    const r = await A.undo(p, { state: "done", receipt, atMs: doneAt, undo: undoData });
     setBusy(false);
+    setArmUndo(false);
     if (r.ok) { setState("undone"); setReceipt(r.receipt); setUndoData(null); record({ state: "undone", receipt: r.receipt, atMs: Date.now(), undo: null }); }
     else setErr(r.message);
   };
+  // Offered only while it is still true: a reply until its cancel window closes,
+  // settings while nobody has saved since, anything else for ten minutes.
+  const settingsVersion = window.__SETTINGS && typeof window.__SETTINGS.version === "number" ? window.__SETTINGS.version : null;
+  const undoOpen = state === "done" && !!undoData && !!p.undo && !!(A && A.undoOpen && A.undoOpen(p.kind, undoData, doneAt, Date.now(), settingsVersion));
   const KIND = { reply: t.kReply, steer: t.kSteer, thread_verb: t.kInbox, person_mode: t.kPerson, policy: t.kAutonomy, settings: t.kSettings, whisper: t.kWhisper, invite: t.kTeam, broadcast: t.kBroadcast, playbook: t.kPlaybook };
   const ICON = { reply: "chat", steer: "chat", whisper: "phone", invite: "users", policy: "shield", settings: "settings", person_mode: "settings", thread_verb: "inbox", broadcast: "wave", playbook: "bolt" };
   const openRoute = p.kind === "settings" ? "admin/workspace" : p.kind === "policy" ? "admin/autonomy" : p.kind === "person_mode" ? `clients/${pl.contact_id}` : p.kind === "broadcast" ? "broadcasts" : p.kind === "playbook" ? "outbound" : `inbox/th-${pl.conversation_id}`;
@@ -135,7 +145,8 @@ const AskCard = ({ p, messageId, t, onNav }) => {
         <div className="ask-card-receipt">
           <Icon name={state === "done" ? "check" : state === "failed" ? "alert" : "x"} size={11} className={state === "done" ? "ok" : ""} />
           <span>{state === "failed" ? err || receipt : state === "dismissed" ? t.notNow : receipt}</span>
-          {state === "done" && undoData && p.undo && <button className="btn btn-ghost btn-sm ask-card-undo" onClick={undo} disabled={busy}>{p.undo}</button>}
+          {undoOpen && !armUndo && <button className="btn btn-ghost btn-sm ask-card-undo" onClick={p.kind === "playbook" ? () => setArmUndo(true) : undo} disabled={busy}>{p.undo}</button>}
+          {undoOpen && armUndo && <window.Confirm question={`${p.undo}?`} detail="The playbook and its schedule go; runs already sent keep their numbers in Broadcasts." yes="Yes, delete it" danger busy={busy} onYes={undo} onNo={() => setArmUndo(false)} testid="ask-card-undo" />}
           {state === "failed" && <button className="btn btn-ghost btn-sm ask-card-undo" onClick={() => { setState("idle"); setErr(""); }}>{t.tryAgain}</button>}
         </div>
       )}
@@ -146,15 +157,21 @@ const AskCard = ({ p, messageId, t, onNav }) => {
 
 // The turn: text (with a cursor while it streams), the unverified mark, the
 // cards, the links, the toolbar, and — when it is the latest — what next.
-const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash }) => {
+const AskTurn = ({ m, latest, streaming, t, lang, onFollow, onNav, speech, flash, onRetry }) => {
   const A = window.__ask;
   const shape = streaming || !A ? { open: null, citations: [], followups: [] } : A.shape(m, lang);
-  const at = m.atMs ? new Date(m.atMs).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : "";
+  const at = m.atMs ? window.__clock.stamp(m.atMs) : "";
   return (
     <div className={`ask-msg ai ${m.failed ? "failed" : ""} ${latest ? "latest" : ""}`} data-testid="ask-turn">
       <span className="ask-msg-avatar" title={at}><Icon name="sparkle" size={11} /></span>
       <div className="ask-msg-body">
         <p className="ask-msg-text" aria-live="polite">{m.text}{streaming ? <span className="ask-cursor" /> : null}</p>
+        {/* A failed answer can be asked again, from the latest turn only: an older failure is history. */}
+        {!streaming && m.failed && latest && onRetry && (
+          <div className="ask-msg-links">
+            <button type="button" className="ask-action-chip" onClick={onRetry} data-testid="ask-retry"><Icon name="refresh" size={11} /> {t.tryAgain}</button>
+          </div>
+        )}
         {!streaming && m.ungrounded && <div className="ask-unverified"><Icon name="alert" size={11} /> {t.unverified}</div>}
         {!streaming && m.proposals && m.proposals.length ? m.proposals.map((p) => <AskCard key={p.id} p={p} messageId={m.id} t={t} onNav={onNav} />) : null}
         {!streaming && <AskLinks shape={shape} t={t} onNav={onNav} />}

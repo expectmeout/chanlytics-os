@@ -311,10 +311,20 @@ export type BookingRules = z.infer<typeof BookingRulesSchema>;
 /** E.164: a plus, then 7–15 digits, no leading zero. */
 export const E164 = /^\+[1-9]\d{6,14}$/;
 
+/**
+ * The most either set of the receptionist's instructions holds: the prompt a
+ * workspace wrote before it had fields, and the owner's own instructions that
+ * prompt is carried into. One number, so a carried prompt always fits. The
+ * owner's held 8,000 characters against the prompt's 20,000, and a longer
+ * prompt failed every save of the form on a box nobody had touched (the
+ * wiring audit's S4).
+ */
+export const INSTRUCTIONS_MAX = 20_000;
+
 export const BusinessProfileSchema = z
   .object({
     address: z.string().max(300).optional(),
-    hours: z.record(z.enum(DAYS), HoursSchema).optional(),
+    hours: z.partialRecord(z.enum(DAYS), HoursSchema).optional(),
     /** Dates the business is shut regardless of the weekly grid. */
     closures: z.array(ClosureSchema).optional(),
     services: z.array(ServiceSchema).max(60).optional(),
@@ -338,8 +348,11 @@ export const BusinessProfileSchema = z
      * The escape hatch that keeps this model honest — without it, structuring
      * the facts would mean losing whatever did not fit, and the first migration
      * would be a downgrade.
+     *
+     * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
+     * the form carries that prompt into it.
      */
-    extra_instructions: z.string().max(8000).optional(),
+    extra_instructions: z.string().max(INSTRUCTIONS_MAX).optional(),
   })
   .strict();
 
@@ -373,7 +386,7 @@ export const BrainConfigSchema = z
     booking_link: z.string().url().max(500),
     /** The complete system prompt the model receives — the "AI memory" pane's
      *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-    system_prompt: z.string().min(40).max(20000),
+    system_prompt: z.string().min(40).max(INSTRUCTIONS_MAX),
     /**
      * The business's facts, as fields.
      *
@@ -414,24 +427,59 @@ export type BrainConfig = z.infer<typeof BrainConfigSchema>;
  * composed from the profile; a baseline that repeated them would be a second
  * copy of every one, free to go stale the moment the owner edits a field.
  */
-export function newReceptionistDefaults(
-  businessName: string,
-  phoneDisplay: string,
-  bookingLink: string,
-): Pick<BrainConfig, "system_prompt" | "fallbacks"> {
+export function newReceptionistDefaults(businessName: string): Pick<BrainConfig, "system_prompt" | "fallbacks"> {
   return {
-    system_prompt:
-      `You are the assistant for ${businessName}, answering inbound customer messages. ` +
-      "You are warm, concise and professional — a great front-desk person, in text form. " +
-      "If you do not know something, say so plainly and offer to have a person follow up.",
-    // What a customer reads when the model cannot be reached. Built from what
-    // the owner just typed, so they are the business's own details.
-    fallbacks: {
-      greeting: `Hi! Thanks for reaching out to ${businessName}.\n\nBook anytime: ${bookingLink}\n\nOr reply here with any question.`,
-      error: `Thanks for reaching out to ${businessName}! Book anytime: ${bookingLink} — or a member of our team will reply here soon.`,
-      non_text: `Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at ${phoneDisplay}.`,
-    },
+    system_prompt: baselinePrompt(businessName),
+    // What a customer reads when the model cannot be reached: the product's
+    // wording, naming the business's details rather than copying them, so they
+    // are filled as each message goes out and follow the details from then on
+    // (fallbackMessages, S5). Copied, a workspace set up before its line existed
+    // told customers "call us at .", and a new booking link never reached them.
+    fallbacks: { ...FALLBACK_DEFAULTS },
   };
+}
+
+/*
+ * The product's own opening lines, apart from any business's words.
+ *
+ * Every workspace the form sets up gets them as its system_prompt, and a
+ * profile carries that prompt as instructions until the owner writes their
+ * own (resolveSystemPrompt). The form showed them in the owner's box as if the
+ * owner had written them, and a save copied them in (S4) -- so they are
+ * recognised by their shape, whatever business name they were written with.
+ */
+const BASELINE_OPENING = "You are the assistant for ";
+const BASELINE_CLOSING =
+  ", answering inbound customer messages. " +
+  "You are warm, concise and professional — a great front-desk person, in text form. " +
+  "If you do not know something, say so plainly and offer to have a person follow up.";
+
+function baselinePrompt(businessName: string): string {
+  return `${BASELINE_OPENING}${businessName}${BASELINE_CLOSING}`;
+}
+
+function isBaselinePrompt(text: string): boolean {
+  return text.startsWith(BASELINE_OPENING) && text.endsWith(BASELINE_CLOSING);
+}
+
+/**
+ * What the Business form's instructions box opens with (S4).
+ *
+ * The owner's own instructions when they have written some. Otherwise the
+ * prompt a profile carries in their place, shown so nothing the receptionist
+ * follows is out of sight and marked `carried` so the form can say where it
+ * came from -- unless it is the product's baseline, which no owner wrote. A
+ * save then keeps what the box holds as the owner's and puts the baseline back
+ * as the prompt: the text is stored once, and an emptied box stays empty
+ * instead of filling itself again from the copy left behind.
+ */
+export function instructionsDraft(
+  brain: { system_prompt?: string | null; profile?: { extra_instructions?: string | null } | null } | null | undefined,
+): { text: string; carried: boolean } {
+  const own = brain?.profile?.extra_instructions ?? "";
+  if (own.trim()) return { text: own, carried: false };
+  const prompt = brain?.system_prompt ?? "";
+  return prompt.trim() && !isBaselinePrompt(prompt) ? { text: prompt, carried: true } : { text: "", carried: false };
 }
 
 export const NotificationsConfigSchema = z
@@ -1217,4 +1265,75 @@ export function resolveSystemPrompt(
     ? profile
     : { ...profile, extra_instructions: brain.system_prompt };
   return composeSystemPrompt(resolved, carried, channel, tz, now, policy);
+}
+
+/** The details a message sent in the business's name may name, as the owner writes them. */
+export const FALLBACK_DETAILS = ["business", "booking link", "phone"] as const;
+export type FallbackDetail = (typeof FALLBACK_DETAILS)[number];
+
+/**
+ * The product's own wording for the three messages, naming the details rather
+ * than copying them, so they follow the business's details from the first day
+ * and a customer is never sent "call us at ." before a line exists.
+ */
+export const FALLBACK_DEFAULTS: BrainConfig["fallbacks"] = {
+  greeting: "Hi! Thanks for reaching out to {business}.\n\nBook anytime: {booking link}\n\nOr reply here with any question.",
+  error: "Thanks for reaching out to {business}! Book anytime: {booking link} — or a member of our team will reply here soon.",
+  non_text: "Thanks for your message! A member of our team will take a look and reply here soon. For anything urgent, call us at {phone}.",
+};
+
+const DETAIL = /\{\s*(business|booking\s+link|phone)\s*\}/gi;
+const namesADetail = (text: string) => /\{\s*(business|booking\s+link|phone)\s*\}/i.test(text);
+const detailOf = (raw: string) => raw.toLowerCase().replace(/\s+/g, " ") as FallbackDetail;
+
+function fillDetails(text: string, values: Record<FallbackDetail, string | null>): string {
+  if (!namesADetail(text)) return text;
+  return text
+    .split("\n")
+    .map((line) => {
+      if (!namesADetail(line)) return line;
+      // Sentence by sentence, so a detail the workspace lacks takes only its own sentence with it.
+      return line
+        .split(/(?<=[.!?])\s+/)
+        .filter((s) => [...s.matchAll(DETAIL)].every((m) => values[detailOf(m[1])]))
+        .map((s) => s.replace(DETAIL, (_, name: string) => values[detailOf(name)] as string))
+        .join(" ");
+    })
+    .join("\n")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
+/**
+ * The three messages sent in the business's name when the receptionist cannot
+ * answer, with its details as they are now (the wiring audit's S5).
+ *
+ * They were written once, from what the form held that day, with the number
+ * and the booking link baked in, and nothing wrote them again: a changed link
+ * or a new line left customers the old one. A message may now name
+ * {business}, {booking link} and {phone}, filled here as it goes out from the
+ * facts the prompt speaks (resolveFacts): the number is the one the owner
+ * typed or the line the receptionist answers, formatted for a person. A
+ * sentence naming a detail the workspace does not have is left out rather
+ * than sent with a hole in it; a message naming none goes out exactly as
+ * written; one that would leave nothing says the default instead.
+ */
+export function fallbackMessages(brain: BrainConfig, known?: KnownFacts | null): BrainConfig["fallbacks"] {
+  const facts = resolveFacts(brain, known);
+  const values: Record<FallbackDetail, string | null> = {
+    business: facts.business_name.value ?? brain.business_name,
+    "booking link": facts.booking_link.value ?? brain.booking_link,
+    phone: facts.phone_display.value,
+  };
+  const say = (kind: keyof BrainConfig["fallbacks"]) => fillDetails(brain.fallbacks[kind], values) || fillDetails(FALLBACK_DEFAULTS[kind], values);
+  return { greeting: say("greeting"), error: say("error"), non_text: say("non_text") };
+}
+
+/**
+ * The names in a message that nothing fills in -- "{bookinglink}", "{phone
+ * number}" -- which a customer would read exactly as written. The Business
+ * form says so under the message before it is saved (S5).
+ */
+export function unknownDetails(text: string): string[] {
+  return [...text.matchAll(/\{[^{}\n]{1,40}\}/g)].map((m) => m[0]).filter((name) => !namesADetail(name));
 }

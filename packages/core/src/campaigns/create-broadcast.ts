@@ -48,7 +48,7 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   if (kind === "list" && (!audienceId || !PEOPLE_LISTS.some((l) => l.id === audienceId))) throw new AppError("validation", "Pick a list.");
 
   // 1–2. The template, as Meta holds it; the values, as Meta will accept them.
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: false });
 
   // 3. When, as asked: an instant with its offset. A date alone would be read
   // as midnight UTC -- the evening before, in this hemisphere -- and a
@@ -97,11 +97,13 @@ export async function createBroadcast(ports: CreateBroadcastPorts, cmd: CreateBr
   // own clock: a time outside it -- asked for, or "now" at eleven at night --
   // moves to nine the next morning, and the receipt says so. The ceiling is
   // judged on the moment it really goes, not the one asked for.
-  const open = nextOpenMoment(await ports.timezone(), when);
+  const tz = await ports.timezone();
+  const open = nextOpenMoment(tz, when);
   const movedFrom = open.moved ? when.toISOString() : null;
   when = open.at;
   if (when.getTime() > now.getTime() + BROADCAST_SCHEDULE_MAX_DAYS * 86_400_000) throw new AppError("validation", `Schedule within ${BROADCAST_SCHEDULE_MAX_DAYS} days.`);
-  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, now, tpl.title);
+  // Named for the business's day, not the server's (UTC on Vercel).
+  const name = typeof body?.name === "string" && body.name.trim() ? body.name.trim().slice(0, BROADCAST_NAME_MAX) : broadcastName(tpl.name, tz, now, tpl.title);
   const audience: Audience = { kind: kind as AudienceKind, id: audienceId, label };
 
   // 5. The rows, then the job, then the ledger.

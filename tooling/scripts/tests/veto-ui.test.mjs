@@ -18,6 +18,9 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { toInboxThreadVM, isHeldDraft, draftSendsAtMs } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.join(here, "../../..");
 const read = (p) => fs.readFileSync(path.join(ROOT, p), "utf8").split("\r\n").join("\n");
@@ -60,7 +63,7 @@ test("a draft with no recorded delay is due immediately, never never", () => {
 test("a held draft surfaces in the mockup's own veto shape", () => {
   const vm = toInboxThreadVM(
     conv([msg({ id: "m9", status: "queued", meta: { delay_ms: 30_000 }, body: "We open at 9." })]),
-    null, NOW,
+    null, ZONE, NOW,
   );
   assert.ok(vm.veto, "the VetoBar and Composer both key on thread.veto");
   assert.equal(vm.veto.draft, "We open at 9.");
@@ -70,7 +73,7 @@ test("a held draft surfaces in the mockup's own veto shape", () => {
 });
 
 test("no held draft means no veto controls at all", () => {
-  const vm = toInboxThreadVM(conv([msg({ status: "sent" })]), null, NOW);
+  const vm = toInboxThreadVM(conv([msg({ status: "sent" })]), null, ZONE, NOW);
   assert.equal(vm.heldDraft, null);
   assert.equal(vm.veto, undefined, "an absent draft must not render a countdown");
 });
@@ -82,13 +85,13 @@ test("the newest draft is the one offered", () => {
       msg({ id: "old", status: "queued", body: "first" }),
       msg({ id: "new", status: "queued", body: "second" }),
     ]),
-    null, NOW,
+    null, ZONE, NOW,
   );
   assert.equal(vm.heldDraft.messageId, "new");
 });
 
 test("the draft bubble is marked pending, not shown as sent", () => {
-  const vm = toInboxThreadVM(conv([msg({ status: "queued", meta: { delay_ms: 15_000 } })]), null, NOW);
+  const vm = toInboxThreadVM(conv([msg({ status: "queued", meta: { delay_ms: 15_000 } })]), null, ZONE, NOW);
   const bubble = vm.timeline.find((e) => e.type === "msg");
   assert.equal(bubble.pending, true);
   assert.ok(bubble.sendsAtMs > 0);

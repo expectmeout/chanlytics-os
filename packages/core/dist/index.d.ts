@@ -317,6 +317,9 @@ interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
+    /** The names on file, for a template that opens with their first name. */
+    display_name?: string | null;
+    wa_profile_name?: string | null;
 }
 interface QueuedReply {
     tenant_id: string;
@@ -715,8 +718,18 @@ type RunBy = {
     kind: "user";
     userId: string;
 };
-type RunOutcome = {
-    outcome: "sent" | "held";
+type RunOutcome = 
+/** Sent: when it really goes, and the moment asked for when the hours moved it to nine (else null). */
+{
+    outcome: "sent";
+    broadcast_id: string;
+    eligible: number;
+    mode: string;
+    state: string;
+    scheduled_for: string;
+    moved_from: string | null;
+} | {
+    outcome: "held";
     broadcast_id: string;
     eligible: number;
     mode: string;
@@ -861,6 +874,7 @@ declare function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookCommand): 
 declare function templateValues(ports: TemplateValuesPorts, cmd: {
     templateId: string;
     params: unknown;
+    visits: boolean;
 }): Promise<{
     template: TemplateRow;
     specs: ParamSpec[];

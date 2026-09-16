@@ -293,7 +293,7 @@ test("REGRESSION: a team we could not READ is not a team of four strangers", () 
   assert.ok(settings.includes("{!teamUnavailable && team.map("), "the seeded roster must not render");
   assert.ok(settings.includes('what="your team"'), "and it must say what happened, through the one FailedRead");
   assert.ok(
-    settings.includes("!teamUnavailable && canManage"),
+    settings.includes("{!teamUnavailable && (!seatsFull"),
     "no Invite button over a roster we could not read",
   );
 });

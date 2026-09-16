@@ -202,6 +202,25 @@ test("the autonomy matrix: the workspace's own rows, read by every member; chang
   assert.ok(ev.every((e) => e.subject_type === "workspace" && e.subject_id === B && !("limits" in e.data)));
 });
 
+test("REGRESSION (S6): the reply cap and the pause are the owner's to set, through the same door as the other dials -- the route read neither", async () => {
+  const tables = { memberships: both("viewer", "operator"), policies: [policy(B, "reply", "auto", { reply_delay_ms: 15000 }), policy(B, "booking", "auto")] };
+  const cap = await policies.PUT.run(send("PUT", { class: "reply", maxRepliesDay: 40 }, inB), ctxFor(tables));
+  assert.deepEqual([cap.policy.mode, cap.policy.limits.max_replies_day, cap.policy.limits.reply_delay_ms], ["auto", 40, 15000], "REGRESSION: the cap was not set; the mode and the delay are kept");
+  const pause = await policies.PUT.run(send("PUT", { class: "reply", pauseHours: 4 }, inB), ctxFor(tables));
+  assert.deepEqual([pause.policy.limits.pause_hours, pause.policy.limits.max_replies_day], [4, 40], "the pause set, the cap kept");
+  for (const bad of [0, 2.5, 201, "many"]) {
+    await refused(policies.PUT.run(send("PUT", { class: "reply", maxRepliesDay: bad }, inB), ctxFor(tables)), "validation", 400, "The reply cap is a whole number from 1 to 200.");
+  }
+  for (const bad of [0, 1.5, 169]) {
+    await refused(policies.PUT.run(send("PUT", { class: "reply", pauseHours: bad }, inB), ctxFor(tables)), "validation", 400, "The pause is a whole number of hours from 1 to 168.");
+  }
+  await refused(policies.PUT.run(send("PUT", { class: "booking", maxRepliesDay: 40 }, inB), ctxFor(tables)), "validation", 400, "The reply cap only applies to the reply policy.");
+  await refused(policies.PUT.run(send("PUT", { class: "booking", pauseHours: 4 }, inB), ctxFor(tables)), "validation", 400, "The pause only applies to the reply policy.");
+  await refused(policies.PUT.run(send("PUT", { class: "reply", pauseHours: 4 }, inA), ctxFor(tables)), "forbidden", 403);
+  const ev = tables.events.filter((e) => e.kind === "policy.changed");
+  assert.deepEqual(ev.map((e) => e.data.fields), [["max_replies_day"], ["pause_hours"]], "each change names the key it moved, never the value");
+});
+
 test("the business record: read by every member, nothing on file is null not a blank form; written by the owner, refused in the owner's words before anything leaves for the carriers", async () => {
   const tables = { memberships: both("operator", "owner"), business_records: [] };
   assert.deepEqual(await record.GET.run(get(inA), ctxFor(tables)), { record: null, path: null, problems: {} });

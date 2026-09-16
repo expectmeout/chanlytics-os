@@ -16,6 +16,9 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const DAY = 86_400_000;
 const NOW = Date.parse("2026-09-06T15:00:00Z");
 const person = (id, over = {}) => ({
@@ -91,7 +94,7 @@ test("when a run is due: the hour the owner picked, by the business's clock, onc
 
 test("a run that waits for a person is open, never sent by the job, approved through its own door, skipped through cancel", () => {
   assert.ok(BROADCAST_STATES.includes("pending_approval"));
-  const vm = toBroadcastVM({ id: "b", name: "n", template_id: "t", template_name: "x", template_language: "en", params: [], audience: { kind: "playbook", id: "p", label: "Win-back" }, state: "pending_approval", scheduled_for: "2026-09-06T15:00:00Z", started_at: null, finished_at: null, recipient_count: 3, failure: null, created_at: "2026-09-06T15:00:00Z", playbook_id: "p", run_for: "2026-09-06", counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } });
+  const vm = toBroadcastVM({ id: "b", name: "n", template_id: "t", template_name: "x", template_language: "en", params: [], audience: { kind: "playbook", id: "p", label: "Win-back" }, state: "pending_approval", scheduled_for: "2026-09-06T15:00:00Z", started_at: null, finished_at: null, recipient_count: 3, failure: null, created_at: "2026-09-06T15:00:00Z", playbook_id: "p", run_for: "2026-09-06", counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } }, ZONE);
   assert.equal(vm.open, true);
   assert.equal(vm.stateLabel, "Needs you");
   const h = readCode("packages/core/src/messages/broadcast.ts");

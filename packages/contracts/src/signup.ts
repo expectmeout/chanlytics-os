@@ -128,11 +128,17 @@ export const SIGNUP_WORDS = {
   waitlistLead: "We are onboarding businesses in small groups, so every new workspace gets set up properly. Leave your details and we will send you an invite.",
   waitlistSent: (email: string) => `You are on the list. We will write to ${email} when there is room — usually within a week.`,
   waitlistCta: "Join the list",
+  /** Under the business's name on the first-workspace screen: the list writes to the address the person signed in with. */
+  waitlistWriteTo: (email: string) => `We will write to ${email} when there is room.`,
+  /** The list answered, but not with a place on it. */
+  waitlistNotJoined: "You are not on the list yet. Refresh this page and try again.",
+  /** No answer came back at all: said the same on the sign-up page and the first-workspace screen. */
+  unreachable: "Could not reach Chanlytics just now. Try again.",
   codeWrong: "That invite code is not right.",
   crossSite: "That request did not come from this site.",
   haveOne: "Already have a workspace?",
   newHere: "New to Chanlytics?",
-  clock: (tz: string) => `Your clock: ${tz}, read from this device. Change it later in Settings › Workspace.`,
+  clock: (tz: string) => `Your clock: ${tz}, read from this device. Change it later in Settings › Business.`,
   /* ------------------------------------------------------------ google
    * The provider's own words for its button, and ours for what follows it. */
   google: "Continue with Google",

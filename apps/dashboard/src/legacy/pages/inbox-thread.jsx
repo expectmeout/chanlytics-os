@@ -1,4 +1,4 @@
-/* global React, Icon, ConfidenceDots, TlMedia, EmptyState */
+/* global React, Icon, ConfidenceDots, TlMedia, EmptyState, FailedRead, Confirm */
 // Inbox Thread Pane — perfectionist refinement.
 // New structure:
 //   1. Header (compact — name, channels, actions)
@@ -10,118 +10,68 @@
 
 const { useState: useCvtState } = React;
 
-const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, planParam = 0, onPlanParam = () => {}, notice = null }) => {
+// The call is offered once. On a thread the receptionist could not finish by phone, the line under the conversation
+// dials and claims it in one press: "I'll call them" only claimed it, and the reply box carried a second Call back
+// that only dialled, under a banner telling you to call them back, under a sentence telling you the same. Anywhere
+// else on such a thread the reply box carries the call, and for a caller who opted out -- whose reply box offers
+// nothing to send -- the header does.
+const ixDockDials = (t) => !!(t && t.real && t.phone && t.primaryChannel === "phone"
+  && t.state === "escalated" && !t.takenOver && !t.claimedByOther
+  && (!window.canDo || window.canDo("approve")));
+
+const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPaused = false, onVetoAct = () => {}, onVerdict = () => {}, stale = null, onReconcile = () => {}, onDismissStale = () => {}, onOpenClient = () => {}, onDecide = () => {}, onSnooze = () => {}, onSend = () => {}, onTakeOver = () => {}, onWake = () => {}, onHandBack = () => {}, onMarkUnread = () => {}, onArchive = null, planParam = 0, onPlanParam = () => {}, notice = null }) => {
+  // Archive asks first: it closes the customer's request. Above the early return, so the hooks keep their order.
+  const [askArchive, setAskArchive] = useCvtState(false);
+  // A real thread opens at its newest message and stays with it as messages arrive, unless you have scrolled up to
+  // read: it opened at the oldest, and on a phone the words you were answering were two scrolls down. Above the early
+  // return, so the hooks keep their order.
+  const scrollRef = React.useRef(null);
+  const stuckRef = React.useRef(true);
+  const real = !!(thread && thread.real);
+  const entries = thread && thread.timeline ? thread.timeline.length : 0;
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!real || !el) return undefined;
+    const toEnd = () => { if (stuckRef.current) el.scrollTop = el.scrollHeight; };
+    const onScroll = () => { stuckRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < 40; };
+    toEnd();
+    el.addEventListener("scroll", onScroll, { passive: true });
+    // Shown (a phone opens the pane after it mounts) or grown (a photo lands): back to the end, if you were there.
+    const seen = typeof ResizeObserver === "function" ? new ResizeObserver(toEnd) : null;
+    if (seen) { seen.observe(el); if (el.lastElementChild) seen.observe(el.lastElementChild); }
+    return () => { el.removeEventListener("scroll", onScroll); if (seen) seen.disconnect(); };
+  }, [real]);
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (real && el && stuckRef.current) el.scrollTop = el.scrollHeight;
+  }, [real, entries]);
   if (!thread) return <InboxEmpty />;
 
   const decided = !!thread.resolution;
+  const statusProps = { thread, decided, stale, onReconcile, onDismissStale, onWake, onTakeOver, onDecide, onHandBack, veto, vetoPaused, onVetoAct };
 
   return (
     <div className="ix-thread-pane">
-      <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} />
+      <ThreadHeader thread={thread} channelLabels={channelLabels} onOpenClient={onOpenClient} onSnooze={onSnooze} onMarkUnread={onMarkUnread} onBack={onBack} onArchive={thread.real && onArchive ? () => setAskArchive(true) : null} />
+      {askArchive && thread.real && onArchive && (
+        <Confirm
+          block
+          question={`Archive ${thread.who}'s conversation?`}
+          detail="It leaves the Inbox and their request is closed. If they write again, it comes back."
+          yes="Yes, archive"
+          no="Not now"
+          onYes={() => { setAskArchive(false); onArchive(thread.id); }}
+          onNo={() => setAskArchive(false)}
+          testid="ix-archive"
+        />
+      )}
       <ContextStrip thread={thread} />
       {notice && <div className="ix-notice" role="status">{notice}</div>}
 
-      <div className="ix-th-scroll">
-        {stale && (
-          <div className="ix-stale">
-            <span className="ix-stale-dot" />
-            <div className="ix-stale-body">
-              <div className="ix-stale-title">{stale.update.by} {stale.update.note} while you were reading</div>
-              <div className="ix-stale-sub">Your view is {stale.update.append.filter(e => e.type === "msg").length} message behind — nothing was changed for you.</div>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={onReconcile}><Icon name="refresh" size={12} /> Refresh</button>
-            <button className="btn btn-ghost btn-icon btn-sm" onClick={onDismissStale} aria-label="Dismiss"><Icon name="x" size={12} /></button>
-          </div>
-        )}
-        {decided && (
-          <div className={`ix-resolved ${thread.resolution.declined ? "declined" : ""}`}>
-            <Icon name={thread.resolution.declined ? "x" : "check"} size={13} />
-            <span>You chose <b>“{thread.resolution.action}”</b> at {thread.resolution.at} — {thread.real ? <>{thread.agent.name} is back on this thread.</> : thread.resolution.declined ? <>{thread.agent.name} is handling the fallback{thread.approval && thread.approval.fallback ? `: ${thread.approval.fallback}` : ""}.</> : <>{thread.agent.name} is executing the next steps.</>}</span>
-            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("conversations")}>
-              Transcript <Icon name="arrow-right" size={10} />
-            </button>
-          </div>
-        )}
-
-        {thread.state === "snoozed" && (
-          <div className="ix-resolved">
-            <Icon name="clock" size={13} />
-            {/* "Nothing happens until then" was false on a real thread: snooze
-                deliberately does NOT mute the receptionist, so it keeps
-                answering, and a new message from the customer reopens the
-                conversation. Say what a snooze actually is — hidden, not
-                paused — and, when the customer asked for a person, say that
-                the request is still standing rather than letting the operator
-                believe it was dealt with. */}
-            <span>
-              Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>.
-              {thread.real
-                ? " Hidden from your queue; the receptionist still answers, and a new message brings it back."
-                : " Nothing happens until then."}
-              {thread.real && thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}
-            </span>
-            <button className="cl-bucket-link" onClick={() => onWake(thread.id)}>
-              Wake now <Icon name="arrow-right" size={10} />
-            </button>
-          </div>
-        )}
-
-        {thread.state === "escalated" && !thread.takenOver && (
-          <div className="ix-take">
-            <Icon name="flag" size={13} />
-            <div className="ix-take-body">
-              <div className="ix-take-title">
-                {thread.real ? <>Needs you{thread.waited ? ` · waited ${thread.waited}` : ""}</> : "Escalated — needs a human voice"}
-              </div>
-              {/* The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
-                  a held message was not "already answered", and a call back is not a reply. */}
-              <div className="ix-take-sub">{thread.real
-                ? <>{thread.summary}</>
-                : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
-            </div>
-            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve")}>
-              {thread.real ? (thread.primaryChannel === "phone" ? "I'll call them" : "I'll answer this") : "I'll take this one"}
-            </button>
-            {thread.real && thread.escalationId && (
-              <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} {...window.gate("approve")}>
-                Nothing needed — hand it back to the receptionist
-              </button>
-            )}
-          </div>
-        )}
-        {thread.real && thread.state === "done" && !thread.resolution && (
-          <div className="ix-resolved">
-            <Icon name="check" size={13} />
-            <span>Answered by the receptionist — no one asked for you.</span>
-          </div>
-        )}
-        {thread.takenOver && (
-          <div className="ix-resolved">
-            <Icon name="users" size={13} />
-            <span>You own this thread — agents are standing down. Reply below in your own voice.</span>
-            <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)}>
-              Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
-            </button>
-          </div>
-        )}
-
+      <div className="ix-th-scroll" ref={scrollRef}>
+        {!thread.real && <ThreadStatus {...statusProps} />}
         {thread.verdict && !decided && (
           <VerdictCard thread={thread} onVerdict={onVerdict} />
-        )}
-
-        {/* The same trap the composer already documents: in the mockup "done"
-            means decided, nothing left to do. On a REAL thread "handled" is the
-            normal resting state — the receptionist answered and nothing
-            escalated — which is exactly the state a held draft sits in. Gating
-            the VetoBar on state !== "done" hid the controls in the common case
-            and left the draft unstoppable from the UI. */}
-        {thread.veto && !decided && (thread.real || thread.state !== "done") && (
-          <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
-        )}
-        {/* The text whisper: only on a real draft that is still counting down.
-            A held (manual) draft has Edit; a seeded one has no edge to ask. */}
-        {thread.veto && !decided && thread.real && veto != null && thread.veto.messageId && (
-          <SteerBox messageId={thread.veto.messageId} />
         )}
 
         {thread.approval && !decided && (
@@ -131,11 +81,21 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
         <NarrativeSummary thread={thread} />
 
         <div className="ix-timeline">
-          {thread.timeline.map((entry, i) => (
-            <TimelineEntry key={i} entry={entry} thread={thread} channelLabels={channelLabels} />
-          ))}
+          {thread.timeline.map((entry, i) => {
+            // A real thread says a bubble's time once for a run of messages from one side in the same minute, and who
+            // sent ours and what became of it on the run's last: every bubble had "WhatsApp · 4:24 PM" over it and
+            // "by WhatsApp Receptionist · Read" under it, 79–127px apiece on a phone.
+            const run = (a, b) => !!a && !!b && a.type === "msg" && b.type === "msg" && a.from === b.from && a.at === b.at && a.channel === b.channel && (a.agentName || "") === (b.agentName || "") && !!a.byYou === !!b.byYou;
+            const lines = thread.real && entry.type === "msg" ? { meta: !run(thread.timeline[i - 1], entry), by: !run(entry, thread.timeline[i + 1]) } : null;
+            return <TimelineEntry key={i} entry={entry} thread={thread} channelLabels={channelLabels} lines={lines} />;
+          })}
         </div>
       </div>
+      {thread.real && (
+        <div className="ix-th-status" data-testid="ix-th-status">
+          <ThreadStatus {...statusProps} />
+        </div>
+      )}
 
       {thread.approval?.suggestedReply && !decided && (
         <Composer key={planParam} thread={thread} reply={(thread.approval.plan && thread.approval.plan.param) ? (((thread.approval.plan.param.options || [])[planParam] || {}).reply || thread.approval.suggestedReply) : thread.approval.suggestedReply} hasApproval onSend={onSend} />
@@ -154,18 +114,169 @@ const InboxThread = ({ thread, onBack = null, channelLabels, veto = null, vetoPa
   );
 };
 
+// =============== THE THREAD'S STATUS — what it needs from you, one state at a time ===============
+// On a real thread it sits under the conversation, by the reply box (InboxThread). Over the timeline it was a stack
+// of cards that took a phone's first screen -- Rosa's banner was 262px and her first message started at 427px -- and
+// scrolled away with the words. A seeded thread keeps its cards over its story.
+const ThreadStatus = ({ thread, decided, stale, onReconcile, onDismissStale, onWake, onTakeOver, onDecide, onHandBack, veto, vetoPaused, onVetoAct }) => (
+  <>
+    {stale && (
+      <div className="ix-stale">
+        <span className="ix-stale-dot" />
+        <div className="ix-stale-body">
+          <div className="ix-stale-title">{stale.update.by} {stale.update.note} while you were reading</div>
+          <div className="ix-stale-sub">Your view is {stale.update.append.filter(e => e.type === "msg").length} message behind — nothing was changed for you.</div>
+        </div>
+        <button className="btn btn-primary btn-sm" onClick={onReconcile}><Icon name="refresh" size={12} /> Refresh</button>
+        <button className="btn btn-ghost btn-icon btn-sm" onClick={onDismissStale} aria-label="Dismiss"><Icon name="x" size={12} /></button>
+      </div>
+    )}
+    {decided && (
+      <div className={`ix-resolved ${thread.resolution.declined ? "declined" : ""}`}>
+        <Icon name={thread.resolution.declined ? "x" : "check"} size={13} />
+        <span>You chose <b>“{thread.resolution.action}”</b> at {thread.resolution.at} — {thread.real ? <>{thread.agent.name} is back on this thread.</> : thread.resolution.declined ? <>{thread.agent.name} is handling the fallback{thread.approval && thread.approval.fallback ? `: ${thread.approval.fallback}` : ""}.</> : <>{thread.agent.name} is executing the next steps.</>}</span>
+        <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("conversations")}>
+          Transcript <Icon name="arrow-right" size={10} />
+        </button>
+      </div>
+    )}
+
+    {thread.state === "snoozed" && (
+      <div className="ix-resolved">
+        <Icon name="clock" size={13} />
+        {/* "Nothing happens until then" was false on a real thread: snooze
+            deliberately does NOT mute the receptionist, so it keeps
+            answering, and a new message from the customer reopens the
+            conversation. Say what a snooze actually is — hidden, not
+            paused — and, when the customer asked for a person, say that
+            the request is still standing rather than letting the operator
+            believe it was dealt with. */}
+        <span>
+          Snoozed — back <b>{thread.wake || "tomorrow 10:00"}</b>.
+          {thread.real
+            ? " Hidden from your queue; the receptionist still answers, and a new message brings it back."
+            : " Nothing happens until then."}
+          {thread.real && thread.escalationId ? " They asked for a person — that's still waiting for you." : ""}
+        </span>
+        <button className="cl-bucket-link" onClick={() => onWake(thread.id)} {...window.gate("approve", "wake a conversation")}>
+          Wake now <Icon name="arrow-right" size={10} />
+        </button>
+      </div>
+    )}
+
+    {thread.state === "escalated" && !thread.takenOver && !thread.claimedByOther && (
+      <div className="ix-take">
+        {thread.real ? <span className="ix-status-dot" aria-hidden="true" /> : <Icon name="flag" size={13} />}
+        <div className="ix-take-body">
+          <div className="ix-take-title">
+            {thread.real ? <>Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? " late" : ""}`}>{` · waited ${thread.waited}`}</span> : ""}</> : "Escalated — needs a human voice"}
+          </div>
+          {/* The reason's own sentence (ESCALATION_SUMMARIES), never one line for every reason:
+              a held message was not "already answered", and a call back is not a reply. */}
+          <div className="ix-take-sub">{thread.real
+            ? <>{thread.summary}</>
+            : <>{thread.agent.name} stopped drafting. HR-sensitive threads never get suggested replies.</>}</div>
+          {/* What they asked, beside the decision: their last message, or what the call left behind. */}
+          {thread.real && thread.ask && <IxAsk ask={thread.ask} />}
+        </div>
+        {/* The buttons beneath the words, wrapping: they shared the words' row, and at 1024 the words were 0px wide (I3). */}
+        <div className="ix-take-actions">
+          {ixDockDials(thread) ? (
+            <a className="btn btn-primary btn-sm" href={`tel:${thread.phone}`} onClick={() => onTakeOver(thread.id)} data-testid="ix-call-back">
+              <Icon name="phone" size={12} /> Call back
+            </a>
+          ) : (
+            <button className="btn btn-primary btn-sm" onClick={() => onTakeOver(thread.id)} {...window.gate("approve", "take over a conversation")}>
+              {thread.real ? (thread.primaryChannel === "phone" ? "Call back" : "I'll answer this") : "I'll take this one"}
+            </button>
+          )}
+          {/* Two words on the screen, the whole sentence for a screen reader: it was a sentence wearing a button. */}
+          {thread.real && thread.escalationId && (
+            <button className="btn btn-ghost btn-sm" onClick={() => onDecide(thread.id, "__HANDBACK__")} aria-label="Nothing needed — hand it back to the receptionist" {...window.gate("approve", "hand a conversation back")}>
+              Hand back
+            </button>
+          )}
+        </div>
+      </div>
+    )}
+    {/* A teammate has it. Nothing to take and nothing to hand back: pressing
+        "I'll answer this" took it from them without a word, and the hand-back
+        resolved their request. A reply still claims it, so that is said first. */}
+    {thread.real && thread.claimedByOther && (
+      <div className="ix-resolved" data-testid="ix-theirs">
+        <Icon name="users" size={13} />
+        <span><b>{window.ixAnswerer ? window.ixAnswerer(thread) : "A teammate"}</b> is answering this{thread.waited ? ` · waited ${thread.waited}` : ""}. The receptionist stays quiet until they hand it back. If you reply, the thread becomes yours.</span>
+      </div>
+    )}
+    {thread.real && thread.state === "done" && !thread.resolution && (thread.archived ? (
+      <div className="ix-resolved" data-testid="ix-archived">
+        <Icon name="check" size={13} />
+        <span>Archived — their request is closed. If they write again, it comes back.</span>
+      </div>
+    // A draft still waiting to go out is the thread's state, said by its bar: "They wrote last — no reply yet"
+    // sat over "Auto-sends in 72s", one saying nothing was coming and the other that it was about to.
+    ) : thread.lastWord && !thread.veto ? (
+      // Who had the last word, and whether a reply didn't send (the view model's lastWord). Every quiet thread
+      // read "Answered by the receptionist — no one asked for you", over a reply that never left (I1).
+      <div className={`ix-resolved${thread.lastWord.tone === "ok" ? "" : ` ${thread.lastWord.tone}`}`} data-testid="ix-last-word">
+        <Icon name={thread.lastWord.tone === "ok" ? "check" : thread.lastWord.tone === "plain" ? "chat" : "flag"} size={13} />
+        <span>{thread.lastWord.text}</span>
+      </div>
+    ) : null)}
+    {thread.takenOver && (
+      <div className="ix-resolved ix-owned">
+        <Icon name="users" size={13} />
+        <div className="ix-take-body">
+          {/* On a real thread the reason it was flagged is said here, once: "Where this stands" said it below (I1). */}
+          <span>{thread.real
+            ? <>You own this thread — the receptionist stays quiet while you have it.{thread.escalationId && thread.summary ? <> {thread.summary}</> : null}</>
+            : "You own this thread — agents are standing down. Reply below in your own voice."}</span>
+          {/* What they asked, where you answer it: it was only in the timeline (I3). */}
+          {thread.real && thread.ask ? <IxAsk ask={thread.ask} /> : null}
+        </div>
+        <button className="cl-bucket-link" onClick={() => onHandBack(thread.id)} {...window.gate("approve", "hand a conversation back")}>
+          Hand back to {thread.agent.name} <Icon name="arrow-right" size={10} />
+        </button>
+      </div>
+    )}
+    {/* The same trap the composer already documents: in the mockup "done"
+        means decided, nothing left to do. On a REAL thread "handled" is the
+        normal resting state — the receptionist answered and nothing
+        escalated — which is exactly the state a held draft sits in. Gating
+        the VetoBar on state !== "done" hid the controls in the common case
+        and left the draft unstoppable from the UI. */}
+    {thread.veto && !decided && (thread.real || thread.state !== "done") && (
+      <VetoBar thread={thread} remaining={veto} paused={vetoPaused} onAct={onVetoAct} onTakeOver={onTakeOver} />
+    )}
+    {/* The text whisper: only on a real draft that is still counting down.
+        A held (manual) draft has Edit; a seeded one has no edge to ask. */}
+    {thread.veto && !decided && thread.real && veto != null && thread.veto.messageId && (
+      <SteerBox messageId={thread.veto.messageId} />
+    )}
+  </>
+);
+
+// The customer's own words beside a decision about them: what they last wrote, or what the call left.
+const IxAsk = ({ ask }) => (
+  <div className="ix-take-ask" data-testid="ix-take-ask">
+    <span className="ix-take-ask-label">{ask.label}</span>
+    <span className="ix-take-ask-text">{ask.quoted ? `“${ask.text}”` : ask.text}</span>
+  </div>
+);
+
 // =============== HEADER ===============
-const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null }) => {
+const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
   const snoozed = thread.state === "snoozed";
 
   return (
     <header className="ix-th-head">
       <div className="ix-th-head-main">
-        {/* Phone only (mobile.css): the list and the thread take turns. */}
+        {/* Phone only (mobile.css): the list and the thread take turns. The arrow alone: the top bar says Inbox over it,
+            and "← Inbox" said it again. */}
         {onBack && (
           <button type="button" className="btn btn-ghost btn-sm ix-back" onClick={onBack} aria-label="Back to the list" data-testid="ix-back">
-            <span aria-hidden="true">&larr;</span> Inbox
+            <span aria-hidden="true">&larr;</span>
           </button>
         )}
         <div className="ix-th-avatar" data-priority={thread.priority}>{thread.avatar}</div>
@@ -191,30 +302,28 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           <div className="ix-th-meta">{thread.whoMeta}</div>
         </div>
       </div>
-      <div className="ix-th-channels-meta">
-        {thread.channels.map((c) => (
-          <span
-            key={c}
-            className={`ix-channel-chip ${c === thread.primaryChannel ? "primary" : ""}`}
-          >
-            <Icon name={channelIcon(c)} size={11} />
-            {channelLabels[c]}
-          </span>
-        ))}
-      </div>
       <div className="ix-th-actions">
-        {thread.real && thread.phone && thread.primaryChannel === "phone" && (
+        {/* The header says each thing once. A real thread's line under the name names its channel ("WhatsApp · +1 …"),
+            and a chip said it again; a seeded thread's line is about the client, so its chips stay. Snooze and the
+            profile are in the menu, where they were already. A caller with no WhatsApp thread has Call back in the
+            reply box, unless they opted out and the box offers nothing: then it is here. */}
+        {!thread.real && (
+          <div className="ix-th-channels-meta">
+            {thread.channels.map((c) => (
+              <span
+                key={c}
+                className={`ix-channel-chip ${c === thread.primaryChannel ? "primary" : ""}`}
+              >
+                <Icon name={channelIcon(c)} size={11} />
+                {channelLabels[c]}
+              </span>
+            ))}
+          </div>
+        )}
+        {thread.real && thread.phone && thread.primaryChannel === "phone" && thread.optedOut && !ixDockDials(thread) && (
           <a className="btn btn-ghost btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back">
             <Icon name="phone" size={12} /> Call back
           </a>
-        )}
-        <button className="btn btn-ghost btn-sm" onClick={() => onSnooze(thread.id)} disabled={snoozed} {...window.gate("approve")}>
-          <Icon name={snoozed ? "check" : "clock"} size={12} /> {snoozed ? `Wakes ${thread.wake || "tomorrow"}` : "Snooze"}
-        </button>
-        {thread.clientId && (
-          <button className="btn btn-ghost btn-sm" onClick={() => onOpenClient(thread.clientId)} title="Open their profile">
-            <Icon name="users" size={12} /> Open profile
-          </button>
         )}
         <MoreMenu btnClass="btn btn-icon btn-sm" items={[
           { header: "Conversation" },
@@ -227,7 +336,10 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
           // happen. The real way to stop the receptionist for one person is
           // the mode on their profile, so that is where a real session goes.
           ...(window.__DEMO_MODE ? [{ label: "Mark as unread", icon: "inbox", onClick: () => onMarkUnread(thread.id) }] : []),
-          { label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id) },
+          // A snoozed thread wakes from its status line ("Wake now"); the header's Snooze button read "Wakes …", disabled.
+          ...(snoozed ? [] : [{ label: "Snooze", icon: "clock", onClick: () => onSnooze(thread.id), gate: window.gate("approve", "snooze a conversation") }]),
+          // Archive, for the thread in front of you: it lived only in the bulk bar, behind a checkbox a phone never shows.
+          ...(onArchive && !thread.archived ? [{ label: "Archive", icon: "check", onClick: onArchive, gate: window.gate("approve", "archive a conversation") }] : []),
           ...(window.__DEMO_MODE
             ? [{ divider: true }, { label: "Block sender", icon: "x", danger: true, onClick: () => window.askAbout({ mode: "compose", prompt: "Block this sender because " }) }]
             : thread.clientId
@@ -239,7 +351,9 @@ const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze
   );
 };
 
-// =============== CONTEXT STRIP — micro-facts under header ===============
+// =============== CONTEXT STRIP — a seeded thread's micro-facts under the header ===============
+// A real thread has none: each fact was said again by its status line and its reply box, and "Paused — you have it"
+// sat over a thread nobody had taken.
 const ContextStrip = ({ thread }) => {
   if (!thread.contextStrip || thread.contextStrip.length === 0) return null;
   return (
@@ -264,7 +378,8 @@ const ContextStrip = ({ thread }) => {
 
 // =============== NARRATIVE SUMMARY ===============
 const NarrativeSummary = ({ thread }) => {
-  if (!thread.summary) return null;
+  // A real thread's banner says its one sentence; this said it again below it (I1). The mockup keeps its story.
+  if (!thread.summary || thread.real) return null;
   return (
     <div className="ix-summary">
       <span className="ix-summary-eyebrow">{thread.real ? "Where this stands" : "The story so far"}</span>
@@ -471,7 +586,7 @@ const ConfidenceMeter = ({ level }) => {
 };
 
 // =============== TIMELINE ENTRY ===============
-const TimelineEntry = ({ entry, thread, channelLabels }) => {
+const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
 
   if (entry.type === "agent-thinking" || entry.type === "agent-decision") {
@@ -508,21 +623,30 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
   // ordinary agent bubble it reads as already-sent, and an operator would
   // either ignore it or apologise for something that never went out.
   const held = !!entry.pending;
+  // As Conversations draws them: a call note is a note, not words the receptionist sent, and words that never
+  // left are dashed. The receptionist's failed reply was drawn as a sent bubble (I1).
+  const note = !!thread.real && entry.channel === "phone";
+  const undelivered = !isClient && !held && entry.reachedCustomer === false;
+  // A real thread on one channel says the time alone: the channel is in the header, and it was over every bubble.
+  const named = !thread.real || note || (thread.channels || []).length > 1;
   return (
-    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}`}>
+    <div className={`tl-msg ${isClient ? "client" : "agent"}${held ? " held" : ""}${note ? " note" : ""}${undelivered ? " undelivered" : ""}`}>
       <div className="tl-msg-bubble">
-        <div className="tl-msg-meta">
-          <Icon name={channelIcon(entry.channel)} size={10} />
-          <span>{channelLabels[entry.channel]}</span>
-          <span className="tl-msg-time tabular">{entry.at}</span>
-        </div>
+        {(!lines || lines.meta) && (
+          <div className="tl-msg-meta">
+            {named && <Icon name={channelIcon(entry.channel)} size={10} />}
+            {named && <span>{note ? "Phone · call note" : channelLabels[entry.channel]}</span>}
+            <span className="tl-msg-time tabular">{entry.at}</span>
+          </div>
+        )}
         <div className="tl-msg-body">{entry.body}</div>
         {entry.media && <TlMedia media={entry.media} />}
-        {!isClient && (
+        {/* What became of words that did not reach them is said on their own bubble, whatever follows. */}
+        {!isClient && (!lines || lines.by || held || entry.reachedCustomer === false) && (
           <div className="tl-msg-by">
             {entry.byYou ? (
               <span>
-                by {entry.via ? (entry.via.kind === "playbook" ? `the ${entry.via.name} playbook` : `a broadcast (${entry.via.name})`) : "you"} · {entry.at}
+                by {entry.byWords || (entry.via ? (entry.via.kind === "playbook" ? `the ${entry.via.name} playbook` : `a broadcast (${entry.via.name})`) : "you")} · {entry.at}
                 {/* One vocabulary, computed in the viewmodel. This ternary was
                     the only place these words existed, so the Conversations
                     pane — which shows the same messages — said nothing at all
@@ -544,6 +668,8 @@ const TimelineEntry = ({ entry, thread, channelLabels }) => {
                     · {entry.why.summary}
                   </span>
                 )}
+                {/* What became of it, as the team's bubbles say: "Didn't send", "Canceled before sending", "Read". */}
+                {!held && entry.statusLabel ? <span> · {entry.statusLabel}</span> : null}
                 {held && <span className="tl-held-tag">Not sent yet</span>}
               </>
             )}
@@ -632,11 +758,13 @@ const SteerBox = ({ messageId }) => {
 const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOver = () => {} }) => (
   <div className={`ix-veto ${remaining == null ? "held" : paused ? "paused" : remaining <= 10 ? "urgent" : ""}`}>
     <span className="ix-veto-dot"></span>
-    <span className="ix-veto-msg" data-tip="This draft sends itself at zero — Edit, Hold, or typing a reply cancels it">
+    <span className="ix-veto-msg" role="timer" data-tip={thread.real ? "This draft sends itself at zero. Hold stops it, and so does starting to type a reply." : "This draft sends itself at zero — Edit, Hold, or typing a reply cancels it"}>
       {remaining != null
-        ? (paused ? <>Paused at <b>{remaining}s</b> — you're away</> : <><b>Auto-sends in {remaining}s</b></>)
+        ? (paused ? <>Paused at <b>{remaining}s</b> — you're away</> : thread.real && remaining === 0 ? <b>Sending now…</b> : <><b>Auto-sends in {remaining}s</b></>)
         : <>Held — manual send</>}
     </span>
+    {/* What a screen reader hears: the hold and the send, not a number every second (I3). */}
+    <span className="ix-veto-said" role="status">{remaining == null ? "Held — this draft will not send." : thread.real && remaining === 0 && !paused ? "Sending now." : ""}</span>
     {thread.veto.policyClass && <PolicyChip cls={thread.veto.policyClass} />}
     {thread.veto.why && (
       <span className="ix-veto-why" title={thread.veto.why.reason || ""}>
@@ -664,19 +792,42 @@ const VetoBar = ({ thread, remaining, paused = false, onAct = () => {}, onTakeOv
 // whole Inbox pane rather than offering the one send that would work.
 // Named after what it SENDS, not after the mechanism: the operator should know
 // what lands on their customer's phone before they click.
-const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
+// An explanation one tap away, never in the way (the house rule): which templates cannot go to this person, and why,
+// was a sentence of its own under the reply box -- thirty-one words to say that nothing could be sent.
+const IxWhy = ({ said, testid = null }) => {
+  const [open, setOpen] = useCvtState(false);
+  return (
+    <>
+      {" "}
+      <button type="button" className="ix-why" aria-expanded={open} onClick={() => setOpen(!open)}>Why?</button>
+      {open && <span className="ix-why-said" data-testid={testid || undefined}>{said}</span>}
+    </>
+  );
+};
+
+const TemplateSendButton = ({ onSend = () => {}, threadId, real = false, thread = null }) => {
   const [sending, setSending] = useCvtState(false);
   // The workspace's OWN approved templates, published by the seam. The button
   // used to name one by a hardcoded literal — booking_link_v1/en_US — which is
   // right for exactly one workspace and a guaranteed failure for every other,
   // including every newly created one, which has no template row at all.
-  const templates = Array.isArray(window.__TEMPLATES) ? window.__TEMPLATES : null;
+  // undefined: still being read. null: the read failed (surface-data.ts), which is not "none approved".
+  const readTemplates = window.__TEMPLATES;
+  const templates = Array.isArray(readTemplates) ? readTemplates : null;
   const [picked, setPicked] = useCvtState(0);
 
   // On a seeded thread there is nothing to look up and nothing to send; keep
   // the mockup's own affordance.
-  const list = real ? templates : null;
-  const chosen = list ? list[Math.min(picked, list.length - 1)] : null;
+  // The templates this person can be sent, in the owner's words, and why the rest are not offered: the composer
+  // offered every approved one, and the reply route refuses a promotion to someone who has not said yes to offers
+  // and a template with values the Inbox does not fill (I4).
+  const choice = real && templates && thread && window.__inboxTemplates
+    ? window.__inboxTemplates(templates, { who: thread.who, offersOk: !!thread.offersOk })
+    : null;
+  const list = real ? (choice ? choice.sendable.map((s) => s.template) : templates) : null;
+  const chosenAt = list && list.length ? Math.min(picked, list.length - 1) : -1;
+  const chosen = chosenAt >= 0 ? list[chosenAt] : null;
+  const chosenTitle = choice && chosenAt >= 0 ? choice.sendable[chosenAt].title : null;
 
   const fire = () => {
     if (sending || !window.canDo("approve")) return;
@@ -691,10 +842,20 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
   // Nothing approved yet. Say so, rather than offering a send that cannot
   // happen: outside the window this is the only thing WhatsApp will deliver,
   // so an operator needs to know the gap is at Meta and not on this screen.
-  if (real && list && list.length === 0) {
+  if (real && templates && templates.length === 0) {
     return (
       <span className="ix-tpl-none">
         No approved template yet — outside the 24-hour window WhatsApp delivers nothing else.
+      </span>
+    );
+  }
+  if (real && readTemplates === null) {
+    return <FailedRead kind="line" title="Couldn't read your approved templates" body="Outside the 24-hour window only an approved template sends, so none can be offered until they're read." surface="inbox" testid="ix-tpl-failed" />;
+  }
+  if (real && choice && choice.sendable.length === 0) {
+    return (
+      <span className="ix-tpl-none">
+        No approved message can go to {thread.who} yet.{choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
       </span>
     );
   }
@@ -711,8 +872,8 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
           onChange={(e) => setPicked(Number(e.target.value))}
           aria-label="Which approved template to send"
         >
-          {list.map((t, i) => (
-            <option key={t.id} value={i}>{t.name} · {t.language}</option>
+          {(choice ? choice.sendable : list.map((t) => ({ template: t, label: `${t.name} · ${t.language}` }))).map((s, i) => (
+            <option key={s.template.id} value={i}>{s.label}</option>
           ))}
         </select>
       )}
@@ -722,14 +883,15 @@ const TemplateSendButton = ({ onSend = () => {}, threadId, real = false }) => {
         disabled={sending}
         title={
           chosen
-            ? `Sends your approved template "${chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
+            ? `Sends your approved template "${chosenTitle || chosen.name}" — the only message WhatsApp delivers outside the 24-hour window`
             : "Sends your approved booking-link template — the only message WhatsApp delivers outside the 24-hour window"
         }
         {...window.gate("approve")}
       >
         <Icon name="send" size={12} />{" "}
-        {sending ? "Sending…" : chosen && list.length > 1 ? "Send template" : "Send booking link"}
+        {sending ? "Sending…" : chosen && list.length > 1 ? "Send template" : chosenTitle ? `Send “${chosenTitle}”` : "Send booking link"}
       </button>
+      {choice && choice.hidden ? <IxWhy said={choice.hidden} testid="ix-tpl-hidden" /> : null}
     </>
   );
 };
@@ -804,6 +966,14 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); };
   }, [text]);
 
+  // The field grows with what is in it, up to its cap: typed, carried in from a profile, or a draft filled in.
+  React.useEffect(() => {
+    const el = taRef.current;
+    if (!thread.real || !el || !el.style) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }, [text, thread.real]);
+
   // Checked BEFORE the window branch: an opt-out is stronger than a closed
   // 24h window, where an approved template still gets through. Here nothing
   // does, so the composer offers no send at all rather than a button whose
@@ -824,18 +994,13 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
   if (thread.real && thread.hasChat === false) {
     return (
       <div className="ix-composer">
-        <div className="ix-composer-banner">
-          <Icon name="phone" size={11} />
-          <span>They have only phoned — there is no WhatsApp thread yet. Call them back, or start one with an approved message.</span>
-        </div>
+        {/* The header names the channel and the number, and the line above says they phoned: what is left is what can
+            be sent. A caller with no WhatsApp thread has no free-form reply, so the verbs are the call -- where the
+            line above does not already carry it -- and the approved message that starts a thread. */}
         <div className="ix-composer-foot">
-          <div className="ix-composer-channel">
-            <Icon name="phone" size={12} />
-            <span>PHONE · {thread.phone || thread.who}</span>
-          </div>
           <div className="ix-composer-actions">
-            {thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`}><Icon name="phone" size={12} /> Call back</a>}
-            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} />
+            {!ixDockDials(thread) && thread.phone && <a className="btn btn-sm" href={`tel:${thread.phone}`} data-testid="ix-call-back"><Icon name="phone" size={12} /> Call back</a>}
+            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>
       </div>
@@ -852,12 +1017,38 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
         <div className="ix-composer-foot">
           <div className="ix-composer-channel">
             <Icon name="chat" size={12} />
-            <span>WHATSAPP · to {thread.who}</span>
+            <span>WhatsApp · to {thread.who}</span>
           </div>
           <div className="ix-composer-actions">
-            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} />
+            <TemplateSendButton onSend={onSend} threadId={thread.id} real={!!thread.real} thread={thread} />
           </div>
         </div>
+      </div>
+    );
+  }
+
+  // A real thread's reply box is one line that grows, with Send beside it: it was a three-line field over a line
+  // saying the channel and the name the header already shows, 185px of a phone. The field names the channel.
+  if (thread.real) {
+    return (
+      <div className="ix-composer ix-composer-row">
+        <textarea
+          ref={taRef}
+          className="ix-composer-text"
+          value={text}
+          onChange={(e) => { setText(e.target.value); if (onType) onType(); }}
+          placeholder={`${thread.primaryChannel === "sms" ? "Text" : "WhatsApp"} to ${thread.who}…`}
+          aria-label={`Reply to ${thread.who}`}
+          rows={1}
+        />
+        <button
+          className="btn btn-primary ix-composer-send"
+          disabled={!text.trim() || sending}
+          onClick={doSend}
+          {...window.gate("approve")}
+        >
+          {sending ? "Sending…" : isApproveAndSend ? "Approve & send" : "Send"} <span className="kbd kbd-on-dark">⌘↵</span>
+        </button>
       </div>
     );
   }
@@ -884,12 +1075,15 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
       <div className="ix-composer-foot">
         <div className="ix-composer-channel">
           <Icon name={thread.primaryChannel === "phone" ? "phone" : thread.primaryChannel === "mail" ? "mail" : "chat"} size={12} />
-          <span>{thread.real ? "WhatsApp" : (thread.primaryChannel?.toUpperCase() || "SMS")} · to {thread.who}</span>
+          <span>{thread.real ? (thread.primaryChannel === "sms" ? "Text" : "WhatsApp") : (thread.primaryChannel?.toUpperCase() || "SMS")} · to {thread.who}</span>
         </div>
         <div className="ix-composer-actions">
-          <button className="btn btn-ghost btn-sm" onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }} disabled={saved}>
-            {saved ? "Draft saved ✓" : "Save draft"}
-          </button>
+          {/* The mockup's Save draft kept nothing: a real thread keeps no drafts, so it offers none. */}
+          {!thread.real && (
+            <button className="btn btn-ghost btn-sm" onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 1600); }} disabled={saved}>
+              {saved ? "Draft saved ✓" : "Save draft"}
+            </button>
+          )}
           <button
             className="btn btn-primary btn-sm"
             disabled={!text.trim() || sending}
@@ -911,3 +1105,5 @@ const InboxEmpty = () => (
 
 window.InboxThread = InboxThread;
 window.InboxEmpty = InboxEmpty;
+// Published for the-pages-say-only-what-is-true.test.mjs, which draws the composer on its own.
+window.InboxComposer = Composer;

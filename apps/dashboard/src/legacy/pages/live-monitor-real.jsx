@@ -38,19 +38,44 @@ const LrPill = ({ c }) => {
   return <StatePill kind="call" value={value} title={c.stale ? "Marked live by the phone provider, but silent past the heartbeat. Checked within five minutes." : null} />;
 };
 
-const LrRow = ({ c, active, elapsed, onSelect }) => (
-  <tr className={active ? "active" : ""} onClick={() => onSelect(c.callId)} data-testid={c.live ? "live-row" : "recent-row"}>
-    <td className="num dim">{c.startedLabel}</td>
-    <td className="num">{c.live ? lrClock(elapsed) : (c.duration || "—")}</td>
-    <td>
-      <span className="lm-from">
-        <span className="agent-avatar" style={{ width: 16, height: 16, fontSize: 8.5 }}>P</span>
-        {c.who}
-      </span>
-    </td>
-    <td className="shrink"><LrPill c={c} /></td>
-  </tr>
-);
+// A row takes the keyboard: Tab reaches it, Enter or Space opens it, and the arrows open and focus the call
+// beside it, across both tables (`order` is every call's id as the list draws them). It took a click and
+// nothing else. The avatar is the caller's own initials; it was a "P" on every row.
+const LrRow = ({ c, active, elapsed, onSelect, order = [] }) => {
+  const onKey = (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(c.callId); return; }
+    const step = e.key === "ArrowDown" ? 1 : e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = order[order.indexOf(c.callId) + step];
+    if (!next) return;
+    onSelect(next);
+    const list = e.currentTarget.closest ? e.currentTarget.closest(".lm-list") : null;
+    const row = list ? list.querySelector(`[data-call-id="${next}"]`) : null;
+    if (row) row.focus();
+  };
+  return (
+    <tr
+      className={active ? "active" : ""}
+      onClick={() => onSelect(c.callId)}
+      onKeyDown={onKey}
+      tabIndex={0}
+      aria-current={active ? "true" : undefined}
+      data-call-id={c.callId}
+      data-testid={c.live ? "live-row" : "recent-row"}
+    >
+      <td className="num dim">{c.startedLabel}</td>
+      <td className="num">{c.live ? lrClock(elapsed) : (c.duration || "—")}</td>
+      <td>
+        <span className="lm-from">
+          <span className="agent-avatar" style={{ width: 16, height: 16, fontSize: 8.5 }}>{c.initials}</span>
+          {c.who}
+        </span>
+      </td>
+      <td className="shrink"><LrPill c={c} /></td>
+    </tr>
+  );
+};
 
 const LrLineNote = ({ line, lineRead = true }) => {
   // The channels read failed: the line's state is unknown, not absent.
@@ -64,39 +89,42 @@ const LrLineNote = ({ line, lineRead = true }) => {
   );
 };
 
-const LrList = ({ live, recent, line, lineRead = true, activeId, elapsedOf, onSelect }) => (
-  <aside className="lm-list">
-    <div className="lm-list-head">
-      <span className="lm-list-label"><span className="live-dot" style={{ width: 6, height: 6, ...(live.length ? {} : { opacity: 0.35, animation: "none" }) }} /> Right now</span>
-      <span className="lm-list-count tabular">{live.length} {live.length === 1 ? "call" : "calls"}</span>
-    </div>
-    {live.length ? (
-      <table className="tbl lm-tbl">
-        <thead><tr><th>Started</th><th>Elapsed</th><th>From</th><th></th></tr></thead>
-        <tbody>
-          {live.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={elapsedOf(c)} onSelect={onSelect} />)}
-        </tbody>
-      </table>
-    ) : (
-      <LrLineNote line={line} lineRead={lineRead} />
-    )}
-    <div className="lm-list-head lm-section-head">
-      <span className="lm-list-label">Recent</span>
-      <span className="lm-list-count tabular">{recent.length ? `last ${recent.length}` : "none yet"}</span>
-    </div>
-    {recent.length > 0 && (
-      <table className="tbl lm-tbl">
-        <thead><tr><th>When</th><th>Length</th><th>From</th><th></th></tr></thead>
-        <tbody>
-          {recent.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={0} onSelect={onSelect} />)}
-        </tbody>
-      </table>
-    )}
-    <div className="lm-list-foot">
-      Every call is also a row in <button className="lm-link" onClick={() => window.CHANLY.nav("conversations/phone")}>Conversations</button>, with its transcript and recording.
-    </div>
-  </aside>
-);
+const LrList = ({ live, recent, line, lineRead = true, activeId, elapsedOf, onSelect }) => {
+  const order = [...live, ...recent].map((c) => c.callId);
+  return (
+    <aside className="lm-list">
+      <div className="lm-list-head">
+        <span className="lm-list-label"><span className="live-dot" style={{ width: 6, height: 6, ...(live.length ? {} : { opacity: 0.35, animation: "none" }) }} /> Right now</span>
+        <span className="lm-list-count tabular">{live.length} {live.length === 1 ? "call" : "calls"}</span>
+      </div>
+      {live.length ? (
+        <table className="tbl lm-tbl">
+          <thead><tr><th>Started</th><th>Elapsed</th><th>From</th><th></th></tr></thead>
+          <tbody>
+            {live.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={elapsedOf(c)} onSelect={onSelect} order={order} />)}
+          </tbody>
+        </table>
+      ) : (
+        <LrLineNote line={line} lineRead={lineRead} />
+      )}
+      <div className="lm-list-head lm-section-head">
+        <span className="lm-list-label">Recent</span>
+        <span className="lm-list-count tabular">{recent.length ? `last ${recent.length}` : "none yet"}</span>
+      </div>
+      {recent.length > 0 && (
+        <table className="tbl lm-tbl">
+          <thead><tr><th>When</th><th>Length</th><th>From</th><th></th></tr></thead>
+          <tbody>
+            {recent.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={0} onSelect={onSelect} order={order} />)}
+          </tbody>
+        </table>
+      )}
+      <div className="lm-list-foot">
+        Every call is also a row in <button className="lm-link" onClick={() => window.CHANLY.nav("conversations/phone")}>Conversations</button>, with its transcript and recording.
+      </div>
+    </aside>
+  );
+};
 
 const LrTranscript = ({ c }) => {
   const scrollRef = useLrRef(null);
@@ -296,12 +324,17 @@ const LrControls = ({ c }) => {
   const [toastNode, flash] = window.usePPToast();
   const facts = (window.__FACTS && window.__FACTS.facts) || {};
   const line = (facts.handoff_number && facts.handoff_number.value) || null;
+  // Only a line Settings has been read to lack disables the button. Before that read it said to add a line
+  // the workspace may well have; the server knows the line, and refuses plainly without one.
+  const noLine = !!(window.__FACTS && window.__FACTS.facts) && !line;
   const handOver = async () => {
     if (busy || !window.__handOverCall) return;
     setBusy("hand");
     const r = await window.__handOverCall(c.callId);
     setBusy(null);
-    if (r.ok) flash({ msg: <>Asked the receptionist to pass the call to {r.line || line || "the business's line"} — it should ring in a moment</> });
+    // The line the server rang: the client nests the route's answer under data, so r.line was never there.
+    const rang = (r.ok && r.data && r.data.line) || line;
+    if (r.ok) flash({ msg: <>Asked the receptionist to pass the call to {rang || "the business's line"} — it should ring in a moment</> });
     else flash({ tone: "danger", msg: <>Not passed — {r.message}</> });
   };
   const end = async () => {
@@ -318,8 +351,8 @@ const LrControls = ({ c }) => {
       <button
         className="btn btn-sm"
         onClick={handOver}
-        disabled={!!busy || !line}
-        title={line ? `Rings ${line}, the business's own line` : "Add the business's own line under Settings to pass calls to it"}
+        disabled={!!busy || noLine}
+        title={line ? `Rings ${line}, the business's own line` : noLine ? "Add the business's own line under Settings to pass calls to it" : "Rings the business's own line, from Settings"}
         data-testid="live-hand-over"
         {...window.gate("approve")}
       >
@@ -337,17 +370,28 @@ const LrControls = ({ c }) => {
   );
 };
 
-const LrPanel = ({ c, elapsed }) => {
+// A link to a call that isn't among these: said in the panel, with the door to its transcript.
+const LrMissing = ({ notice }) => (
+  <div className="lm-banner" role="status" data-testid="live-missing">
+    {notice.words} <button className="lm-link" onClick={notice.open}>Open it in Conversations</button>
+  </div>
+);
+
+const LrPanel = ({ c, elapsed, nowMs = Date.now(), notice = null }) => {
   if (!c) {
     return (
       <div className="lm-panel">
+        {notice && <LrMissing notice={notice} />}
         <EmptyState kind="card" glyph="phone" title="No calls on this line yet" body="When a customer calls, the call appears here while it is happening." />
       </div>
     );
   }
   const open = () => window.CHANLY.nav(`conversations/${c.cvId}`);
+  // A call gone quiet says when it was last heard from; the checking banner below comes minutes later.
+  const quietS = c.live && c.heartbeatAtMs ? Math.floor((nowMs - c.heartbeatAtMs) / 1000) : 0;
   return (
     <div className="lm-panel" key={c.callId}>
+      {notice && <LrMissing notice={notice} />}
       <header className="lm-head">
         <div className="lm-head-titles">
           <div className="lm-head-name">
@@ -362,10 +406,11 @@ const LrPanel = ({ c, elapsed }) => {
             <span className="cv-dot" />
             <span className="tabular">
               {c.live
-                ? `Started ${c.startedLabel} · ${lrClock(elapsed)}`
+                ? `Started ${c.startedLabel} · ${lrClock(elapsed)}${quietS >= 15 ? ` · last heard ${quietS} s ago` : ""}`
                 : c.missed
                   ? `${c.startedLabel} · never connected`
-                  : `${c.startedLabel}${c.duration ? ` · ${c.duration}` : ""}`}
+                  // The length in words: "Sep 6 · 3:10" read as a date and a time.
+                  : `${c.startedLabel}${c.lengthWords ? ` · ${c.lengthWords}` : ""}`}
             </span>
           </div>
         </div>
@@ -373,7 +418,7 @@ const LrPanel = ({ c, elapsed }) => {
           {c.live && <LrControls c={c} />}
           {c.clientId && (
             <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.client(c.clientId))}>
-              <Icon name="users" size={12} /> Open client
+              <Icon name="users" size={12} /> Open profile
             </button>
           )}
         </div>
@@ -399,17 +444,27 @@ const LrPanel = ({ c, elapsed }) => {
         )
       ) : (
         <div className="lm-summary" data-testid="live-summary">
+          {/* What the caller wanted leads, in the analysis's words, as Conversations does; the phone
+              provider's summary is the fallback. */}
           <div className="lm-summary-title">
             {c.missed
               ? "The call never connected."
-              : c.summaryState === "ready"
-                ? c.summary
-                : c.summaryState === "pending"
-                  ? "Summary on its way from the voice provider."
-                  : "No summary from the voice provider for this call."}
+              : c.wanted
+                ? c.wanted
+                : c.summaryState === "ready"
+                  ? c.summary
+                  : c.summaryState === "pending"
+                    ? "Summary on its way from the voice provider."
+                    : "No summary from the voice provider for this call."}
           </div>
+          {!c.missed && (c.outcomeWords || c.followUp) && (
+            <div className="lm-summary-next">
+              {c.outcomeWords && <span>{c.outcomeWords}</span>}
+              {c.followUp && <span>To do: {c.followUp}</span>}
+            </div>
+          )}
           <div className="lm-summary-meta">
-            <span>{c.direction === "inbound" ? "Inbound" : "Outbound"}{c.duration ? ` · ${c.duration}` : ""}</span>
+            <span>{c.direction === "inbound" ? "Inbound" : "Outbound"}{c.lengthWords ? ` · ${c.lengthWords}` : ""}</span>
             {c.endedHow && <span>Ended: {c.endedHow}</span>}
             {c.sentiment && <span>Caller mood: {c.sentiment} — the voice provider's own read</span>}
             {!c.missed && <span>{lrRecordingLine(c)}</span>}
@@ -444,10 +499,11 @@ const LrPanel = ({ c, elapsed }) => {
   );
 };
 
-const LiveMonitorReal = () => {
+const LiveMonitorReal = ({ initialCallId = null }) => {
   const L = useLiveSurface();
   const [nowMs, setNowMs] = useLrState(Date.now());
-  const [activeId, setActiveId] = useLrState(null);
+  // live/<callId> opens the call a door names (Today's, a bell's) rather than the one on the line.
+  const [activeId, setActiveId] = useLrState(initialCallId);
   const hasLive = !!(L && L.now.length);
 
   // One clock, only while a call is up.
@@ -477,6 +533,12 @@ const LiveMonitorReal = () => {
   const all = [...live, ...recent];
   const active = all.find((c) => c.callId === activeId) || live[0] || recent[0] || null;
   const line = L.line;
+  const notice = initialCallId && activeId === initialCallId && !all.some((c) => c.callId === initialCallId)
+    ? {
+        words: `That call isn't among the ${all.length} shown here — it may have ended a while ago.`,
+        open: () => window.CHANLY.nav(`conversations/cv-${initialCallId}`),
+      }
+    : null;
 
   return (
     <div className="live-monitor" data-testid="live-real">
@@ -492,7 +554,7 @@ const LiveMonitorReal = () => {
           <StatCell
             label="Your line"
             value={line && line.number ? line.number : "—"}
-            meta={line ? (line.on ? "on — the receptionist picks up" : "switched off") : "no phone line yet"}
+            meta={line ? (line.on ? "on — the receptionist picks up" : "switched off") : L.lineRead === false ? "couldn't read the line" : "no phone line yet"}
           />
           <StatCell label="Last call" value={recent[0] ? recent[0].startedLabel : "—"} meta={recent[0] ? recent[0].who : "none yet"} />
         </StatStrip>
@@ -500,7 +562,7 @@ const LiveMonitorReal = () => {
 
       <div className="lm-body">
         <LrList live={live} recent={recent} line={line} lineRead={L.lineRead !== false} activeId={active ? active.callId : null} elapsedOf={elapsedOf} onSelect={setActiveId} />
-        <LrPanel c={active} elapsed={active ? elapsedOf(active) : 0} />
+        <LrPanel c={active} elapsed={active ? elapsedOf(active) : 0} nowMs={nowMs} notice={notice} />
       </div>
     </div>
   );
@@ -508,4 +570,4 @@ const LiveMonitorReal = () => {
 
 // The route renders the real page whenever the bridge has written __LIVE; the
 // mockup's console only in a session that never will (the standalone demo).
-window.LiveMonitorPage = () => (window.__LIVE === undefined ? <LiveMonitorSeed /> : <LiveMonitorReal />);
+window.LiveMonitorPage = (props) => (window.__LIVE === undefined ? <LiveMonitorSeed /> : <LiveMonitorReal {...props} />);

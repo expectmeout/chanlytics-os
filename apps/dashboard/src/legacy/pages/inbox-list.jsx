@@ -1,4 +1,4 @@
-/* global React, Icon, EmptyState, FailedRead */
+/* global React, Icon, EmptyState, FailedRead, Confirm */
 // Inbox List Rail — perfectionist refinement.
 // Improvements:
 //   - Search input at the top
@@ -7,6 +7,17 @@
 //   - Drop "NEEDS YOU" pill in the needs bucket (it's redundant)
 //   - Saved views are collapsed by default behind a single chip-row toggle
 //   - Bulk actions stay; checkbox visible on hover only
+//   - The rows are a listbox: Tab reaches the open one, arrows and J/K open the row on screen,
+//     Enter opens, Space picks it for a bulk act
+
+// Who has a thread a teammate is answering: named from the team the Settings
+// surface reads (memberWords), or "A teammate" when the roster is unread or they
+// are no longer on it -- a name is never invented.
+const ixAnswerer = (t) => {
+  const m = t && t.assigneeUserId && Array.isArray(window.__TEAM) ? window.__TEAM.find((x) => x.userId === t.assigneeUserId) : null;
+  if (!m) return "A teammate";
+  return window.__identity ? window.__identity.member({ email: m.email, display_name: m.displayName || null }).name : (m.displayName || m.email || "A teammate");
+};
 
 const InboxList = ({
   threads,
@@ -25,11 +36,18 @@ const InboxList = ({
   onBulkApprove = () => {},
   onBulkSnooze = () => {},
   onBulkArchive = () => {},
+  /** The bulk act running on real threads, "snooze" or "archive", for the bar to say so. */
+  bulkBusy = null,
   stake = null,
   density = "medium",
+  /** Seconds until a thread's own reply goes out, or null: the row says them where its time would be. */
+  sendingIn = () => null,
 }) => {
   const [query, setQuery] = React.useState("");
   const [showViews, setShowViews] = React.useState(false);
+  // Archiving real threads cannot be undone, so the bar asks first; a cleared selection drops the question.
+  const [askArchive, setAskArchive] = React.useState(false);
+  React.useEffect(() => { if (!selected.length) setAskArchive(false); }, [selected.length]);
 
   const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
 
@@ -42,6 +60,8 @@ const InboxList = ({
       t.who.toLowerCase().includes(q) ||
       t.subject.toLowerCase().includes(q) ||
       t.preview.toLowerCase().includes(q) ||
+      // What they asked, which a row where a person is needed shows in place of the last message.
+      (t.ask && t.ask.text ? t.ask.text.toLowerCase().includes(q) : false) ||
       t.tags.some((tag) => tag.toLowerCase().includes(q))
     );
   }
@@ -58,16 +78,54 @@ const InboxList = ({
   const multipleAgents = new Set(threads.map((x) => x.agent && x.agent.name)).size > 1;
   const anySelected = selected.length > 0;
   const inNeedsBucket = activeBucket === "needs";
+  // The server has no unarchive: a real pick asks first, where the demo's Undo is the mockup's.
+  const pickedReal = allThreads.some((t) => t.real && selected.includes(t.id));
+  const pickedOne = selected.length === 1 ? (allThreads.find((t) => t.id === selected[0]) || {}) : null;
+  const archiveQuestion = pickedOne
+    ? `Archive ${pickedOne.who ? `${pickedOne.who}'s` : "this"} conversation?`
+    : `Archive ${selected.length} conversations?`;
+  const pressArchive = () => (pickedReal ? setAskArchive(true) : onBulkArchive());
+  // The list's head is a line of its own only when it says what the chips and the rows don't: what a search found,
+  // what a saved view holds, or what is picked. It said the chip's number again, "3 need you · 1 being answered"
+  // under Needs you 3 and over rows whose pills say whose, and once "3 threads" under a chip counting 1 (I2).
+  const searching = !!query.trim();
+  const headed = anySelected || searching || !!activeView;
+
+  // The rows are a listbox with one tab stop: the open thread's row, or the first when none of these is
+  // open. Arrows, J/K, Home and End open and focus the row on screen -- the page's own J/K walks its
+  // bucket, not the rows a search shows. Enter opens; Space picks the row for a bulk act.
+  const tabStopId = visible.some((t) => t.id === activeThreadId) ? activeThreadId : (visible[0] || {}).id;
+  const onRowKey = (e, i) => {
+    if (e.metaKey || e.ctrlKey || e.altKey || (e.target && e.target.tagName === "INPUT")) return;
+    const t = visible[i];
+    if (e.key === "Enter") { e.preventDefault(); onSelectThread(t.id); return; }
+    if (e.key === " ") { e.preventDefault(); onToggleSelect(t.id); return; }
+    const to = e.key === "ArrowDown" || e.key === "j" ? i + 1
+      : e.key === "ArrowUp" || e.key === "k" ? i - 1
+        : e.key === "Home" ? 0
+          : e.key === "End" ? visible.length - 1
+            : null;
+    if (to === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const next = visible[Math.max(0, Math.min(visible.length - 1, to))];
+    if (!next || next.id === t.id) return;
+    onSelectThread(next.id);
+    const row = e.currentTarget.parentNode && e.currentTarget.parentNode.querySelector(`[data-thread-id="${next.id}"]`);
+    if (row) row.focus();
+  };
 
   return (
     <div className={`ix-list ${density}`}>
-      {/* Buckets */}
-      <div className="ix-buckets">
+      {/* Buckets. A real workspace has three, and they sit in one row of words: as a grid of two they took two rows
+          with the third alone on the second, and on a phone "Needs you" wrapped to two lines. */}
+      <div className={`ix-buckets ${buckets.length <= 3 ? "one-row" : ""}`}>
         {buckets.map((b) => (
           <button
             key={b.id}
             className={`ix-bucket ${activeBucket === b.id ? "active" : ""} ${b.accent ? "accent" : ""}`}
             onClick={() => onBucketChange(b.id)}
+            aria-pressed={activeBucket === b.id}
             title={b.hint}
           >
             <Icon name={b.icon} size={13} />
@@ -77,18 +135,33 @@ const InboxList = ({
         ))}
       </div>
 
-      {/* Search + saved-views toggle row */}
+      {/* Search + saved-views toggle row. The select-all box leads it, over the rows' own boxes: it sat on the list's
+          head, a 38px line of its own beside a count the chip already said. */}
       <div className="ix-search-row">
+        {visible.length > 0 && (
+          <label className="ix-checkall" title={allSelected ? "Clear the selection" : `Select all ${visible.length}`}>
+            <input
+              type="checkbox"
+              checked={allSelected}
+              aria-label={allSelected ? "Clear the selection" : `Select all ${visible.length} conversation${visible.length === 1 ? "" : "s"}`}
+              onChange={() => {
+                if (allSelected) onClearSelection();
+                else visible.forEach((t) => !selected.includes(t.id) && onToggleSelect(t.id));
+              }}
+            />
+          </label>
+        )}
         <div className="ix-search-wrap">
           <Icon name="search" size={12} />
           <input
             className="ix-search-input"
-            placeholder="Search threads, clients, tags…"
+            placeholder={allThreads.some((t) => t.real) ? "Search by name or message…" : "Search threads, clients, tags…"}
+            aria-label="Search conversations"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
           {query && (
-            <button className="ix-search-clear" onClick={() => setQuery("")}>
+            <button type="button" className="ix-search-clear" onClick={() => setQuery("")} aria-label="Clear search">
               <Icon name="x" size={11} />
             </button>
           )}
@@ -130,7 +203,8 @@ const InboxList = ({
         </div>
       )}
 
-      {/* List header */}
+      {/* The list's head: what is picked, what a search found, or what a saved view holds -- never the chip's count again. */}
+      {headed && (
       <div className="ix-list-head">
         {anySelected ? (
           <div className="ix-bulk">
@@ -139,33 +213,38 @@ const InboxList = ({
               {threads.some((t) => t.approval) && (
                 <button className="btn btn-sm btn-primary" onClick={onBulkApprove} title="Approves selected approvals with ≥80% confidence" {...window.gate("approve")}>Approve all safe</button>
               )}
-              <button className="btn btn-sm btn-ghost" onClick={onBulkSnooze} {...window.gate("approve")}>Snooze</button>
-              <button className="btn btn-sm btn-ghost" onClick={onBulkArchive} {...window.gate("approve")}>Archive</button>
+              <button className="btn btn-sm btn-ghost" onClick={onBulkSnooze} aria-busy={bulkBusy === "snooze" || undefined} {...window.gate("approve")}>{bulkBusy === "snooze" ? "Snoozing…" : "Snooze"}</button>
+              <button className="btn btn-sm btn-ghost" onClick={pressArchive} aria-busy={bulkBusy === "archive" || undefined} {...window.gate("approve")}>{bulkBusy === "archive" ? "Archiving…" : "Archive"}</button>
               <button className="btn btn-sm btn-ghost" onClick={onClearSelection}>Clear</button>
             </div>
           </div>
         ) : (
-          <>
-            <label className="ix-checkall">
-              <input
-                type="checkbox"
-                checked={allSelected}
-                onChange={() => {
-                  if (allSelected) onClearSelection();
-                  else visible.forEach((t) => !selected.includes(t.id) && onToggleSelect(t.id));
-                }}
-              />
-              <span className="ix-list-count tabular">
-                {visible.length} {query.trim() ? (visible.length === 1 ? "match" : "matches") : activeView ? (visible.length === 1 ? "thread in view" : "threads in view") : inNeedsBucket ? "decisions" : "threads"}
-              </span>
-              {query && (
-                <span className="ix-search-hint">in "{query}"</span>
-              )}
-            </label>
-
-          </>
+          <span className="ix-list-said">
+            <span className="ix-list-count tabular">
+              {visible.length} {searching ? (visible.length === 1 ? "match" : "matches") : (visible.length === 1 ? "thread in view" : "threads in view")}
+            </span>
+            {searching && <span className="ix-search-hint">in "{query}"</span>}
+          </span>
         )}
       </div>
+      )}
+
+      {anySelected && askArchive && (
+        <Confirm
+          block
+          question={archiveQuestion}
+          detail={pickedOne
+            ? "It leaves the Inbox and their request is closed. If they write again, it comes back."
+            : "They leave the Inbox and each request is closed. If they write again, they come back."}
+          yes={pickedOne ? "Yes, archive" : `Yes, archive ${selected.length}`}
+          no="Not now"
+          busy={bulkBusy === "archive"}
+          busyLabel="Archiving…"
+          onYes={() => Promise.resolve(onBulkArchive()).finally(() => setAskArchive(false))}
+          onNo={() => setAskArchive(false)}
+          testid="ix-bulk-archive"
+        />
+      )}
 
       {/* Threads */}
       <div className="ix-threads">
@@ -213,85 +292,121 @@ const InboxList = ({
             />
           );
         })()}
-        {visible.map((t) => {
-          const isActive = activeThreadId === t.id;
-          const isSelected = selected.includes(t.id);
-          // Pills hide in the needs bucket (redundant there) but ALWAYS show on
-          // cross-bucket search results so actionable rows stay distinguishable
-          const searching = !!query.trim();
-          // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
-          // pill and the wait chip used to look for "needs", a state no real thread
-          // has, so no real thread ever showed how long it had waited.
-          const showStatePill = (searching || !inNeedsBucket) && t.state === "escalated";
-          return (
-            <div
-              key={t.id}
-              className={`ix-thread ${isActive ? "active" : ""} ${isSelected ? "selected" : ""} ${t.unread ? "unread" : ""} pri-${t.priority?.toLowerCase()}`}
-              onClick={() => onSelectThread(t.id)}
-            >
-              <input
-                type="checkbox"
-                className="ix-thread-check"
-                checked={isSelected}
-                onChange={(e) => { e.stopPropagation(); onToggleSelect(t.id); }}
-                onClick={(e) => e.stopPropagation()}
-              />
+        {visible.length > 0 && (
+          <div className="ix-thread-rows" role="listbox" aria-label="Conversations" aria-multiselectable="true">
+            {visible.map((t, i) => {
+              const isActive = activeThreadId === t.id;
+              const isSelected = selected.includes(t.id);
+              // Pills hide in the needs bucket (redundant there) but ALWAYS show on
+              // cross-bucket search results so actionable rows stay distinguishable
+              // A real thread's states are escalated | snoozed | done (viewmodels.ts). The
+              // pill and the wait chip used to look for "needs", a state no real thread
+              // has, so no real thread ever showed how long it had waited.
+              // Needs you only on a thread that does -- never one you or a teammate have -- and not again in the bucket
+              // that already says it: the check looked for the mockup's "needs", which no real thread is in (I2).
+              const inItsBucket = inNeedsBucket || (t.real && activeBucket === "escalated");
+              const showStatePill = (searching || !inItsBucket) && t.state === "escalated" && (t.real ? t.needsYou : !t.claimedByOther);
+              // What they asked, where a person is needed: their last words, or what the call left behind. The row showed
+              // the last message there, often the receptionist's holding reply. Anywhere else, the last thing that happened.
+              const words = t.real && t.ask && t.ask.text ? t.ask.text : t.preview;
+              // The seconds before a reply of its own goes out: the row's one time while they run.
+              const sending = t.real ? sendingIn(t.id) : null;
+              const footed = multipleAgents || t.confidence > 0 || (t.tags || []).length > 0 || t.value > 0;
+              return (
+                <div
+                  key={t.id}
+                  className={`ix-thread ${isActive ? "active" : ""} ${isSelected ? "selected" : ""} ${t.unread ? "unread" : ""} pri-${t.priority?.toLowerCase()}`}
+                  role="option"
+                  aria-selected={isSelected}
+                  aria-current={isActive ? "true" : undefined}
+                  tabIndex={t.id === tabStopId ? 0 : -1}
+                  data-thread-id={t.id}
+                  onClick={() => onSelectThread(t.id)}
+                  onKeyDown={(e) => onRowKey(e, i)}
+                >
+                  {/* The mouse's box: the row itself says selected, and Space picks it. */}
+                  <input
+                    type="checkbox"
+                    className="ix-thread-check"
+                    checked={isSelected}
+                    tabIndex={-1}
+                    aria-hidden="true"
+                    onChange={(e) => { e.stopPropagation(); onToggleSelect(t.id); }}
+                    onClick={(e) => e.stopPropagation()}
+                  />
 
-              <div className="ix-thread-avatar" data-priority={t.priority}>
-                {t.avatar}
-              </div>
+                  <div className="ix-thread-avatar" data-priority={t.priority}>
+                    {t.avatar}
+                  </div>
 
-              <div className="ix-thread-body">
-                <div className="ix-thread-line1">
-                  <span className="ix-thread-who">{t.who}</span>
-                  {t.pinned && <Icon name="pin" size={10} />}
-                  <div className="ix-thread-meta">
-                    {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
-                    {t.state === "escalated" && t.waitingMin > 0 && (
-                      <span className={`ix-wait tabular ${t.waitingMin > 30 ? "warn" : ""}`}>waiting {t.waitingMin}m</span>
+                  <div className="ix-thread-body">
+                    <div className="ix-thread-line1">
+                      <span className="ix-thread-who">{t.who}</span>
+                      {t.pinned && <Icon name="pin" size={10} />}
+                      <div className="ix-thread-meta">
+                        {showStatePill && <StatePill kind="thread" value="escalated" className="ix-state-pill" testid="thread-state" />}
+                        {/* A teammate has it: say whose, never Needs you. */}
+                        {t.real && t.claimedByOther && <StatePill kind="thread" value="theirs" label={`${ixAnswerer(t)} has it`} className="ix-state-pill ix-name-pill" testid="thread-theirs" />}
+                        {/* A thread you have is yours to answer, not waiting on you (I2). */}
+                        {t.real && t.takenOver && <StatePill kind="thread" value="yours" label="You have it" className="ix-state-pill" testid="thread-yours" />}
+                        {/* A Handled thread whose last reply didn't send says so here, not only in the pane (I1's lastWord). */}
+                        {t.real && t.state === "done" && t.lastWord && t.lastWord.short && <StatePill kind="tone" value={t.lastWord.tone} label={t.lastWord.short} className="ix-state-pill" testid="thread-last-word" />}
+                        {/* One time on a row: how long they have waited, in the one family (8d, 3h, 40m) and amber only
+                            when it is waiting on you; when a snoozed thread wakes; or else when it last moved. A waiting
+                            row said "waiting 12m" beside "5:51 PM". */}
+                        {sending != null ? (
+                          <span className="ix-wait ix-sending tabular"><span className="ix-veto-dot" aria-hidden="true" /> sending in {sending}s</span>
+                        ) : t.state === "escalated" && t.waitingMin > 0 ? (
+                          <span className={`ix-wait tabular ${t.waitingMin > 30 && (t.real ? t.needsYou : !t.claimedByOther) ? "warn" : ""}`}>waiting {t.waited || `${t.waitingMin}m`}</span>
+                        ) : t.state === "snoozed" && t.wake ? (
+                          <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
+                        ) : (
+                          <span className="ix-thread-time tabular">{t.lastAt}</span>
+                        )}
+                      </div>
+                    </div>
+                    {t.subject && <div className="ix-thread-subject">{t.subject}</div>}
+                    {t.resolution && (
+                      <div className={`ix-thread-resolution ${t.resolution.declined ? "declined" : ""}`}>
+                        <Icon name={t.resolution.declined ? "x" : "check"} size={10} />
+                        You: {t.resolution.action} · {t.resolution.at}
+                      </div>
                     )}
-                    {t.state === "snoozed" && t.wake && (
-                      <span className="ix-wait tabular"><Icon name="clock" size={9} /> {t.wake}</span>
+                    {words && (
+                    <div className="ix-thread-line3">
+                      <div className="ix-thread-channels">
+                        {t.channels.map((c) => (
+                          <Icon key={c} name={channelIcon(c)} size={11} />
+                        ))}
+                      </div>
+                      <span className="ix-thread-preview">{words}</span>
+                    </div>
                     )}
-                    <span className="ix-thread-time tabular">{t.lastAt}</span>
+                    {footed && (
+                    <div className="ix-thread-foot">
+                      {multipleAgents && (
+                      <span className="ix-thread-agent">
+                        <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{t.agent.glyph}</span>
+                        <span>{t.agent.name}</span>
+                      </span>
+                      )}
+                      {t.confidence > 0 && (
+                        <span className="ix-thread-conf">
+                          <ConfidenceDots level={t.confidence} />
+                        </span>
+                      )}
+                      {t.tags.slice(0, 2).map((tag) => (
+                        <span key={tag} className="ix-tag">{tag}</span>
+                      ))}
+                      {t.value > 0 && <span className="ix-thread-value tabular">${t.value.toLocaleString()} LTV</span>}
+                    </div>
+                    )}
                   </div>
                 </div>
-                <div className="ix-thread-subject">{t.subject}</div>
-                {t.resolution && (
-                  <div className={`ix-thread-resolution ${t.resolution.declined ? "declined" : ""}`}>
-                    <Icon name={t.resolution.declined ? "x" : "check"} size={10} />
-                    You: {t.resolution.action} · {t.resolution.at}
-                  </div>
-                )}
-                <div className="ix-thread-line3">
-                  <div className="ix-thread-channels">
-                    {t.channels.map((c) => (
-                      <Icon key={c} name={channelIcon(c)} size={11} />
-                    ))}
-                  </div>
-                  <span className="ix-thread-preview">{t.preview}</span>
-                </div>
-                <div className="ix-thread-foot">
-                  {multipleAgents && (
-                  <span className="ix-thread-agent">
-                    <span className="agent-avatar" style={{ width: 14, height: 14, fontSize: 8 }}>{t.agent.glyph}</span>
-                    <span>{t.agent.name}</span>
-                  </span>
-                  )}
-                  {t.confidence > 0 && (
-                    <span className="ix-thread-conf">
-                      <ConfidenceDots level={t.confidence} />
-                    </span>
-                  )}
-                  {t.tags.slice(0, 2).map((tag) => (
-                    <span key={tag} className="ix-tag">{tag}</span>
-                  ))}
-                  {t.value > 0 && <span className="ix-thread-value tabular">${t.value.toLocaleString()} LTV</span>}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+              );
+            })}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -308,4 +423,5 @@ const ConfidenceDots = ({ level }) => {
 };
 
 window.InboxList = InboxList;
+window.ixAnswerer = ixAnswerer;
 window.ConfidenceDots = ConfidenceDots;

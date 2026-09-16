@@ -1,6 +1,7 @@
-import { CONSENT_SOURCES, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, TIMELINE_FILTERS, filterTimeline, mayReceive, offersYesRefusal, toPersonVM, verbalOptInScript, type PersonVM, type SendPurpose } from "@chanlytics/contracts";
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
+import { workspaceZone } from "./zone";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -16,8 +17,9 @@ import { ApiError, type ApiResult } from "../client/api";
  * a session expiry has already signed the tab out by the time this throws.
  */
 export async function personDetail(id: string): Promise<PersonVM | null> {
-  const r = await api()("GET contacts/[id]", { params: { id } });
-  if (r.ok) return toPersonVM(r.data.person);
+  // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
+  const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
+  if (r.ok) return toPersonVM(r.data.person, tz);
   if (r.status === 404) return null;
   throw new ApiError(r.code, r.status, r.message);
 }
@@ -175,6 +177,7 @@ declare global {
     __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonMarketingConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __consentSources?: readonly { id: string; label: string }[];
+    __timeline?: { filters: typeof TIMELINE_FILTERS; filter: typeof filterTimeline };
     /** The broadcast's own "may this person be reached", for pages that count people. */
     __mayReceive?: typeof mayReceive;
     /** The ways a yes to OFFERS may be recorded: in writing only (00100). A no keeps every source. */
@@ -214,6 +217,8 @@ export function installPeopleCourier(): void {
   window.__setPersonMarketingConsent = setPersonMarketingConsent;
   window.__setPersonMarketingConsentMany = setPersonMarketingConsentMany;
   window.__consentSources = CONSENT_SOURCES;
+  // The timeline's filters and the rule that applies them: a profile narrows by the kinds contracts names.
+  window.__timeline = { filters: TIMELINE_FILTERS, filter: filterTimeline };
   // The rule, not a copy of it: the Lists page counts who a broadcast reaches, and
   // it was spelling that by hand -- without the phone the route requires.
   window.__mayReceive = mayReceive;

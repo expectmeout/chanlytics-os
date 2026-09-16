@@ -215,11 +215,11 @@ export function emptyReadSet(): AskReadSet {
 
 /** The pages a citation or a navigate target may point at without a read. */
 export const ASK_PAGE_ROUTES = [
-  "today", "inbox", "clients", "conversations", "live", "reports",
-  "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations",
+  "today", "inbox", "clients", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports",
+  "admin/setup", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile",
 ] as const;
 
-const PAGE_PREFIX = /^(today|inbox|clients|conversations|live|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
+const PAGE_PREFIX = /^(today|inbox|clients|segments|conversations|live|calendar|outbound|broadcasts|messages|reports|admin)(\/[A-Za-z0-9:_-]+)?$/;
 
 /**
  * Drop every citation that names a row the tools did not return this turn.
@@ -412,11 +412,34 @@ export interface AskProposalOutcome {
   undo?: Record<string, unknown> | null;
 }
 
+/** How long a committed card's undo stays open, for every verb whose route sets no window of its own. */
+export const ASK_UNDO_MS = 10 * 60_000;
+
+/**
+ * Whether a committed card's undo is still true to offer.
+ *
+ * A reply's undo cancels the send, so it lives exactly as long as the send's own
+ * cancel window. A settings undo writes the whole earlier config, so it is safe
+ * only while nobody has saved since -- the version the card wrote is still the
+ * version loaded. Everything else reverses cleanly for a while, then not.
+ * An undo used to be offered forever, and to survive reopening a thread days later.
+ */
+export function askUndoOpen(kind: string, undo: Record<string, unknown> | null | undefined, atMs: number, nowMs: number, settingsVersion: number | null): boolean {
+  if (!undo) return false;
+  if (kind === "reply") {
+    const until = typeof undo.cancelable_until === "string" ? Date.parse(undo.cancelable_until) : NaN;
+    return Number.isFinite(until) && nowMs < until;
+  }
+  if (nowMs - atMs > ASK_UNDO_MS) return false;
+  if (kind === "settings") return typeof undo.version_after === "number" && settingsVersion === undo.version_after;
+  return true;
+}
+
 export const AskProposalOutcomeSchema = z.object({
   state: z.enum(["done", "dismissed", "failed", "undone"]),
   receipt: z.string().max(300).catch(""),
   atMs: z.number().catch(0),
-  undo: z.record(z.unknown()).nullable().optional(),
+  undo: z.record(z.string(), z.unknown()).nullable().optional(),
 });
 
 export interface AskMessageVM {
@@ -487,15 +510,29 @@ export interface JumpEntry {
   sub?: string;
 }
 
-/** The pages a real workspace has. Nothing here is seeded or demo-only. */
+/**
+ * The pages a real workspace has. Nothing here is seeded or demo-only. The list stopped at the pages that were real
+ * before the Calendar, Lists, Campaigns, Setup, Billing and Activity shipped, so ⌘K "calendar" offered only to ask
+ * about it (the wiring audit's N18).
+ */
 export const ASK_PAGES: JumpEntry[] = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
+  // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People" },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
+  { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
+  { label: "Playbooks", to: "outbound", kind: "page", sub: "campaigns that run on their own" },
+  { label: "Broadcasts", to: "broadcasts", kind: "page", sub: "one message to the people who said yes" },
+  { label: "Messages", to: "messages", kind: "page", sub: "what the receptionist and the campaigns send" },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
+  { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
+  { label: "Billing", to: "admin/billing", kind: "page" },
+  { label: "Activity", to: "admin/activity", kind: "page", sub: "who did what, for owners" },
+  { label: "Profile", to: "admin/profile", kind: "page", sub: "your name and how you sign in" },
   { label: "Autonomy", to: "admin/autonomy", kind: "page", sub: "what the receptionist may do alone" },
   { label: "Team", to: "admin/team", kind: "page", sub: "members and invitations" },
   { label: "Notifications", to: "admin/notifications", kind: "page" },

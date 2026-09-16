@@ -21,38 +21,21 @@ const RunsDone = ({ nav }) => {
   // What went out today — a playbook's run or a broadcast — with what it has
   // earned so far. The runs that wait for a word, and the ones under a Stop,
   // are rows of the queue (dashboard-a-command.jsx).
-  const dayStart = new Date();
-  dayStart.setHours(0, 0, 0, 0);
-  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && Date.parse(r.started_at) >= dayStart.getTime()).slice(0, 2);
-  const timeOf = (iso) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  // Today, and the time it went, are the business's (window.__clock), not the browser's.
+  const C = window.__clock;
+  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && C.dayKey(Date.parse(r.started_at)) === C.dayKey(Date.now())).slice(0, 2);
+  const timeOf = (iso) => C.time(Date.parse(iso));
   return done.map((r) => (
     <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
       <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
       <span className="brief-beat-text">
         <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"} at {timeOf(r.started_at)} — {r.counts.sent} sent{r.counts.replied ? `, ${r.counts.replied} replied` : ""}{r.state === "sending" ? " · still sending" : ""}
       </span>
-      <button className="brief-chip" onClick={() => nav("broadcasts")}>Open <Icon name="arrow-right" size={10} /></button>
+      <button className="brief-chip" onClick={() => nav(`broadcasts/run:${r.id}`)}>Open <Icon name="arrow-right" size={10} /></button>
     </div>
   ));
 };
 
-// The day's facts beside the recap's — appointments today, what is booked
-// ahead — from the calendar and People surfaces the page already holds
-// (contracts/today.ts todayDayFacts, published by the bridge). The day
-// itself is the module beside the queue (dashboard-a-day.jsx).
-const DayFacts = () => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    const names = ["surface:calendar", "surface:people"];
-    names.forEach((n) => window.addEventListener(n, bump));
-    return () => names.forEach((n) => window.removeEventListener(n, bump));
-  }, []);
-  const C = window.__CALENDAR;
-  const P = window.__PEOPLE;
-  if (!window.__today) return null;
-  const facts = window.__today.facts(C ? C.vm : null, P ? P.aggregates : null);
-  return facts.map((f, i) => <StatCell key={`day-${i}`} label={f.label} value={f.value} valueSize={22} meta={f.hint} />);
-};
 
 // Setup's one line while something on the Setup page is open — the count and
 // the next verb, from the Setup surface (contracts/setup.ts). Rows the owner
@@ -104,104 +87,96 @@ const HeroBrief = () => {
     window.addEventListener("surface:today", bump);
     return () => window.removeEventListener("surface:today", bump);
   }, []);
-  return window.TODAY_DATA ? <HeroBriefReal vm={window.TODAY_DATA} /> : <HeroBriefSeed />;
+  return window.TODAY_DATA ? <TodayStanding vm={window.TODAY_DATA} /> : <HeroBriefSeed />;
 };
 
-const HeroBriefReal = ({ vm }) => {
-  // The rows — who needs you, a caller to call back, a closing window, a call
-  // worth an ear, a call in progress — are the queue's (dashboard-a-command.jsx).
-  // The hero keeps what the queue cannot say: the day in sentences.
-  const { standing, needsYou, recap, pulse, quiet } = vm;
-  const [toastNode] = window.usePPToast();
+// The day so far, UNDER the work it explains: its numbers in one sentence, then the lines that are not numbers --
+// what Setup still wants, a review that landed, a reply that never reached anyone, what ran, what you sent.
+const TodayRecap = () => {
+  const [, force] = React.useState(0);
+  React.useEffect(() => {
+    const bump = () => force((n) => n + 1);
+    const names = ["surface:today", "surface:calendar", "surface:people"];
+    names.forEach((n) => window.addEventListener(n, bump));
+    return () => names.forEach((n) => window.removeEventListener(n, bump));
+  }, []);
+  return window.TODAY_DATA ? <TodayRecapReal vm={window.TODAY_DATA} /> : null;
+};
+
+const TodayRecapReal = ({ vm }) => {
+  const { recap, quiet } = vm;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
-  const up = standing.chips.filter((c) => c.ok).length;
-  const total = standing.chips.length;
-  const waiting = needsYou ? needsYou.count : 0;
-
+  const C = window.__CALENDAR;
+  const P = window.__PEOPLE;
+  // The day's own numbers (appointments, booked ahead) join the traffic's, in the same sentence.
+  const dayLine = window.__today && window.__today.dayLine ? window.__today.dayLine(C ? C.vm : null, P ? P.aggregates : null) : null;
+  const said = [recap ? recap.line : "", dayLine].filter(Boolean).join(" ");
   return (
-    <header className="brief">
-      <div className="brief-meta">
-        <span className="brief-eyebrow">{standing.eyebrow}</span>
-        <span className="brief-eyebrow-sep">·</span>
-        <span className="brief-eyebrow">
-          <span className="live-dot" style={up < total ? { background: "var(--danger)" } : undefined} /> {total > 0 ? `${up} of ${total} ${total === 1 ? "line" : "lines"} connected` : "no channels connected yet"}
-        </span>
-        <div className="brief-meta-spacer" />
+    <section className="tsec today-recap" data-testid="today-recap">
+      <div className="tsec-head">
+        <span className="tsec-title">{recap ? recap.label : "Today so far"}</span>
+        <button className="btn btn-ghost btn-sm" onClick={() => nav("reports")}>Open Reports <Icon name="arrow-right" size={11} /></button>
       </div>
-
-      <div className="brief-body">
-        <div className="brief-narrative">
-          <h1 className="brief-headline">
-            <span className="brief-greeting">{standing.greeting}</span>{" "}
-            <span className="brief-sub" style={standing.alert ? { color: "var(--danger)" } : undefined}>
-              {standing.alert || standing.headline}
-            </span>
-          </h1>
-          <div className="brief-beats">
-            {standing.detail && !standing.alert && (
-              <div className="brief-beat">
-                <span className="brief-beat-dot" />
-                <span className="brief-beat-text">{standing.detail}</span>
-              </div>
-            )}
-            <SetupLine nav={nav} />
-            <ReviewLine nav={nav} />
-            {quiet && (
-              <div className="brief-beat">
-                <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
-                <span className="brief-beat-text">{quiet.sub}</span>
-              </div>
-            )}
-            {/* Narrative the headline doesn't carry — crucially the one line
-                that must never be silent: a reply that failed to deliver. It
-                was computed by the VM from day one and never rendered, so a
-                dead send was invisible on the very surface built to say
-                "everything is fine". */}
-            {(recap ? recap.sentences : []).map((sn, i) => (
-              <div key={`sn-${i}`} className="brief-beat">
-                <span className="brief-beat-dot" style={sn.warn ? { background: "var(--danger)" } : undefined} />
-                <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger)" } : undefined}>{sn.text}</span>
-                {sn.warn && (
-                  <button className="brief-chip" onClick={() => nav("inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
-                )}
-              </div>
-            ))}
-            <RunsDone nav={nav} />
-            {vm.callsRead === false && <FailedRead kind="line" what="the phone line's calls" body="The day's other numbers are current." surface="today" testid="brief-calls-failed" />}
-            {(recap ? recap.receipts.slice(0, 1) : []).map((r, i) => (
-              <div key={i} className="brief-beat">
-                <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
-                <span className="brief-beat-text">{r.at} — {r.text}</span>
-                <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
-              </div>
-            ))}
-            <button className="brief-forecast brief-inbox-link" onClick={() => nav("inbox")}>
-              <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : "var(--ok)" }} />
-              <span>{waiting > 0 ? `${waiting} need you` : "Queue clear — nothing needs you"}</span>
-              <Icon name="arrow-right" size={11} style={{ color: "var(--ink-faint)" }} />
-            </button>
-          </div>
-        </div>
-
-        {pulse && (
-          <div className="brief-pulse">
-            <PulseArc
-              pct={Math.min(100, Math.round((pulse.num / pulse.den) * 100))}
-              value={String(pulse.num)}
-              target={`${pulse.den} message${pulse.den === 1 ? "" : "s"}`}
-              suffix="answered"
-            />
+      {said && <p className="today-recap-line" data-testid="today-recap-line">{said}</p>}
+      <div className="brief-beats today-recap-beats">
+        {quiet && (
+          <div className="brief-beat">
+            <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+            <span className="brief-beat-text">{quiet.sub}</span>
+            {quiet.launchpad && <button className="brief-chip" onClick={() => nav(quiet.launchpad.to)}>{quiet.launchpad.label}</button>}
           </div>
         )}
-      </div>
-
-      <StatStrip>
-        {(recap ? recap.facts : []).map((f, i) => (
-          <StatCell key={i} label={f.label} value={f.value} valueSize={22} meta={f.hint} />
+        {/* The quiet day's proof: which lines are on, from the read. */}
+        {quiet && vm.standing.chips.length > 0 && (
+          <div className="brief-beat" data-testid="brief-quiet-proof">
+            <span className="brief-beat-dot" />
+            <span className="brief-beat-text">
+              {quiet.proof.filter((pr) => pr.label !== "Checked").map((pr) => `${pr.label}: ${pr.value}`).join(" · ")}
+            </span>
+          </div>
+        )}
+        <SetupLine nav={nav} />
+        <ReviewLine nav={nav} />
+        {/* Everything the sentence above does not carry -- crucially a reply that failed to deliver. */}
+        {(recap ? recap.sentences : []).filter((sn) => !sn.traffic).map((sn, i) => (
+          <div key={`sn-${i}`} className="brief-beat">
+            <span className="brief-beat-dot" style={sn.warn ? { background: "var(--danger)" } : undefined} />
+            <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger)" } : undefined}>{sn.text}</span>
+            {sn.warn && (
+              <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
+            )}
+          </div>
         ))}
-        <DayFacts />
-      </StatStrip>
-      {toastNode}
+        <RunsDone nav={nav} />
+        {vm.callsRead === false && <FailedRead kind="line" what="the phone line's calls" body="The day's other numbers are current." surface="today" testid="brief-calls-failed" />}
+        {(recap ? recap.receipts : []).map((r, i) => (
+          <div key={i} className="brief-beat" data-testid="brief-receipt">
+            <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+            <span className="brief-beat-text">{r.at} — {r.text}</span>
+            <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+};
+
+// The standing line: the day and the time the business keeps, and whether its lines are up. One line, above the work.
+// It was a hero -- a greeting, a headline the queue below says again, four sentences, a chip repeating the queue's
+// count, an arc and six stat cards -- and on a phone the first thing that needed a person started 679px down.
+const TodayStanding = ({ vm }) => {
+  const { standing } = vm;
+  const up = standing.chips.filter((c) => c.ok).length;
+  const total = standing.chips.length;
+  return (
+    <header className="today-standing" data-testid="today-standing">
+      <span>{standing.eyebrow}</span>
+      <span className="today-standing-lines">
+        <span className="live-dot" style={up < total ? { background: "var(--danger)" } : undefined} />
+        {total > 0 ? `${up} of ${total} ${total === 1 ? "line" : "lines"} connected` : "no channels connected yet"}
+      </span>
+      {/* A line that is down is the one thing here that cannot wait for the recap under the work. */}
+      {standing.alert && <span className="today-standing-alert">{standing.alert}</span>}
     </header>
   );
 };
@@ -365,4 +340,4 @@ const BriefBeats = ({ forecast, waiting }) => {
   );
 };
 
-window.HeroBrief = HeroBrief;
+Object.assign(window, { HeroBrief, TodayRecap });

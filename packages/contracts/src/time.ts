@@ -64,3 +64,12 @@ export function agoWords(atMs: number, nowMs: number, opts: { dateAfterMs?: numb
   const u = spanUnits(gap);
   return u.unit === "s" ? "just now" : `${u.n}${u.unit} ago`;
 }
+
+/**
+ * "New York" from "America/New_York" — the part a person recognises. Here, with nothing to import, so the Calendar's
+ * view model can name a zone without taking the sign-up schema into every package that bundles it (C3).
+ */
+export function timezoneCity(tz: string): string {
+  const tail = tz.split("/").pop() || tz;
+  return tail.replace(/_/g, " ");
+}

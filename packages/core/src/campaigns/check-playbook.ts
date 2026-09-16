@@ -35,7 +35,7 @@ export async function checkPlaybook(ports: TemplateValuesPorts, body: Record<str
   const trig = typeof body?.trigger === "string" ? triggerOf(body.trigger) : null;
   if (!trig) throw new AppError("validation", "Pick what starts it: win-back, welcome, save our number, the month's offer, a visit tomorrow, or a visit yesterday.");
   const templateId = typeof body?.template_id === "string" ? body.template_id : "";
-  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params });
+  const { template: tpl, specs } = await templateValues(ports, { templateId, params: body?.params, visits: trig.kind === "visit" });
   return {
     // A name when none was given: the trigger's alone when it sends its own starter, else with the template's title.
     name: name || (starterForTrigger(trig.id)?.name === tpl.name ? trig.label : `${trig.label} · ${templateTitle(tpl.name, tpl.title)}`).slice(0, PLAYBOOK_NAME_MAX),

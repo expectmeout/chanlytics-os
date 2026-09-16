@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { setupSteps, forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay } from "@chanlytics/contracts";
+import { setupSteps, forwardingCodes, forwardingTestOpen, CARRIERS, FORWARDING_MODES, CARRIER_WORDS, MODE_WORDS, formatPhoneDisplay, roleGate } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-11T12:00:00Z");
 const ago = (h) => new Date(NOW - h * 3600_000).toISOString();
@@ -138,8 +138,35 @@ test("the page: the row's Activate reaches the bridge with the capability's name
   assert.equal(calls.nav.length, 0, "and nothing navigated away");
 });
 
-test("the page: a row that dials is not itself a dial, an activated row offers Switch off and it reaches the bridge", async () => {
+test("REGRESSION (S15): an operator sees Activate gated before the press, with the reason -- they pressed it and were told after, in a toast", async () => {
+  const before = { activate: calls.activate.length, flash: calls.flash.length, nav: calls.nav.length };
+  Object.assign(globalThis.window, { ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" }, __roleGate: roleGate });
+  try {
+    const tree = mount();
+    let row = null;
+    walk(tree, (n) => { if (!row && n.props?.cta?.label === "Activate") row = n.props; });
+    assert.ok(row, "a row offers Activate");
+    assert.ok(row.cta.gate, "REGRESSION: the verb was offered as if it would work");
+    assert.equal(row.cta.gate["data-tip"], "Only an owner can activate a capability.");
+    assert.equal(row.onOpen, undefined, "the row is not a way around its own gated button");
+    // Pressed as the page draws it: the gate spread after the verb.
+    const drawn = { onClick: row.cta.onClick, ...row.cta.gate };
+    await drawn.onClick({ preventDefault() {}, stopPropagation() {}, currentTarget: {} });
+    // And the verb itself, reached any other way: it does nothing, and says nothing after the fact.
+    await row.cta.onClick();
+    await tick();
+    assert.equal(calls.activate.length, before.activate, "nothing reached the bridge");
+    assert.equal(calls.flash.length, before.flash, "REGRESSION: 'Only an owner can activate a capability.' arrived as a toast after the press");
+    assert.equal(calls.nav.length, before.nav);
+  } finally {
+    delete globalThis.window.ST_STORE;
+    delete globalThis.window.__roleGate;
+  }
+});
+
+test("the page: a row that dials is not itself a dial; an activated row offers to withdraw the activation, it reaches the bridge, and the words never claim the receptionist stops", async () => {
   const before = calls.deactivate.length;
+  const flashed = calls.flash.length;
   globalThis.window.__SETUP = { dto, role: "owner", vm: setupSteps({ ...dto, activations: [{ capability: "voice", activated_at: ago(1), activated_by: "u1", deactivated_at: null }], later: [] }, NOW), fetchedAt: NOW };
   const tree = mount();
   let row = null;
@@ -147,9 +174,12 @@ test("the page: a row that dials is not itself a dial, an activated row offers S
   assert.ok(row, "the receptionist row");
   assert.equal(row.cta.label, "Call it");
   assert.equal(row.onOpen, undefined, "the row itself does not dial; only its button does");
-  assert.equal(row.also.label, "Switch off");
+  assert.equal(row.also.label, "Withdraw activation", "REGRESSION: 'Switch off' promised the receptionist would stop, and an activation gates nothing at runtime");
   await row.also.onClick();
   assert.deepEqual(calls.deactivate.slice(before), ["voice"]);
+  const said = String(calls.flash[flashed].msg.props.children.join(""));
+  assert.ok(!said.includes("Switched off"), said);
+  assert.ok(said.startsWith("Activation withdrawn"), said);
   let nav = null;
   walk(tree, (n) => { if (!nav && n.props?.testid === "setup-row-team") nav = n.props; });
   assert.equal(typeof nav.onOpen, "function", "a row that navigates is a click target");
@@ -254,4 +284,99 @@ test("the page: the finder asks Google with the facts on record on arrival, and 
   assert.ok(place, "what Google found");
   await byTestId(tree, "setup-place-link").props.onClick();
   assert.deepEqual(calls.link, ["ChIJ-harbor"]);
+});
+
+/* ---- a verb on its way, the page's own checks, and the area code's Enter ---- */
+
+test("REGRESSION (S23): a row's verb cannot be pressed twice while it is on its way -- a double press sent it twice", async () => {
+  fresh();
+  globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  let release = null;
+  const sent = [];
+  const was = globalThis.window.__setup.activate;
+  globalThis.window.__setup.activate = (kind) => { sent.push(kind); return new Promise((r) => { release = () => r({ ok: true, message: "" }); }); };
+  try {
+    let tree = mount();
+    const row = () => { let r = null; walk(tree, (n) => { if (!r && n.props?.testid === "setup-row-receptionist") r = n.props; }); return r; };
+    assert.equal(row().cta.label, "Activate");
+    const first = row().cta.onClick();
+    tree = mount();
+    assert.equal(row().cta.busy, true, "REGRESSION: the row's button stayed pressable while its verb was on its way");
+    await row().cta.onClick();
+    assert.deepEqual(sent, ["voice"], "REGRESSION: a second press sent it again");
+    release();
+    await first;
+    tree = mount();
+    assert.ok(!row().cta.busy, "and the button is back once it lands");
+  } finally {
+    globalThis.window.__setup.activate = was;
+  }
+});
+
+test("REGRESSION (S16): Setup's own checks wear their tones -- a refused area code and an empty search wore the green check", async () => {
+  fresh();
+  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  let tree = mount();
+  let lineRow = null;
+  walk(tree, (n) => { if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props; });
+  await lineRow.cta.onClick();
+  tree = mount();
+  byTestId(tree, "setup-area").props.onChange({ target: { value: "30" } });
+  tree = mount();
+  const before = calls.flash.length;
+  await byTestId(tree, "setup-find").props.onClick();
+  assert.match(String(calls.flash[before]?.msg?.props?.children), /Three digits/);
+  assert.equal(calls.flash[before].tone, "warn", "REGRESSION: 'Three digits, like 305.' wore the green check");
+  const search = globalThis.window.__setup.lines.search;
+  globalThis.window.__setup.lines.search = async (area) => { calls.search.push(area); return { ok: true, numbers: [] }; };
+  try {
+    byTestId(tree, "setup-area").props.onChange({ target: { value: "999" } });
+    tree = mount();
+    await byTestId(tree, "setup-find").props.onClick();
+    const said = calls.flash.at(-1);
+    assert.match(String(said.msg.props.children.join("")), /Nothing free in 999/);
+    assert.equal(said.tone, "info", "REGRESSION: a search that found nothing wore the green check of success");
+  } finally {
+    globalThis.window.__setup.lines.search = search;
+  }
+});
+
+test("a retry says it is under way in the info tone, not with the green check of a line that answers", async () => {
+  fresh();
+  const retryVm = { ...vm, next: null, rows: [{ id: "line", icon: "phone", title: "Your line", sentence: "Setting up stopped.", stateWords: "Stopped", details: [], state: "attention", required: true, later: false, verb: { label: "Retry", to: "verb:retry-line:l1" }, undo: null }] };
+  globalThis.window.__SETUP = { dto, role: "owner", vm: retryVm, fetchedAt: NOW };
+  try {
+    const tree = mount();
+    let row = null;
+    walk(tree, (n) => { if (!row && n.props?.testid === "setup-row-line") row = n.props; });
+    const before = calls.flash.length;
+    await row.cta.onClick();
+    assert.match(String(calls.flash[before].msg.props.children), /Retrying/);
+    assert.equal(calls.flash[before].tone, "info", "REGRESSION: 'Retrying' wore the green check before anything answered");
+  } finally {
+    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  }
+});
+
+test("REGRESSION (the gate): Enter in the area code is the gated button's press, not a way around it -- it searched for a role that may not", async () => {
+  fresh();
+  globalThis.window.__SETUP = { dto: noLine, role: "owner", vm: setupSteps({ ...noLine, later: [] }, NOW), fetchedAt: NOW };
+  let tree = mount();
+  let lineRow = null;
+  walk(tree, (n) => { if (!lineRow && n.props?.testid === "setup-row-line") lineRow = n.props; });
+  await lineRow.cta.onClick();
+  Object.assign(globalThis.window, { ST_STORE: { can: (a) => a === "approve" || a === "autonomy", myRole: () => "operator" }, __roleGate: roleGate });
+  const searched = calls.search.length;
+  try {
+    tree = mount();
+    byTestId(tree, "setup-area").props.onChange({ target: { value: "305" } });
+    tree = mount();
+    byTestId(tree, "setup-area").props.onKeyDown({ key: "Enter" });
+    await tick();
+    assert.equal(calls.search.length, searched, "REGRESSION: Enter searched past the gated Find numbers");
+  } finally {
+    delete globalThis.window.ST_STORE;
+    delete globalThis.window.__roleGate;
+    globalThis.window.__SETUP = { dto, role: "owner", vm, fetchedAt: NOW };
+  }
 });

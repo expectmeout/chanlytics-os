@@ -15,6 +15,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { toConversationVM, toInboxThreadVM, toCallVM, toPersonRowVM, toPersonVM, personStateFor } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { groupMessages } = await import(pathToFileURL(path.join(here, "../../../apps/dashboard/src/server/dto.ts")).href);
 
@@ -43,17 +46,17 @@ const conv = (messages, over = {}) => ({
 const msg = (over) => ({ id: "m", direction: "inbound", sender: "customer", type: "text", body: "hola", media: null, meta: null, status: "received", created_at: ago(H), channel_ts: ago(H), ...over });
 
 test("a call note knows it is one, and a person known by number keeps their whole number", () => {
-  const vm = toConversationVM(conv([msg({ id: "m1" }), msg({ id: "n", direction: "inbound", sender: "system", type: "call_summary", body: "Inbound call · 1 min — booked." })]), NOW);
+  const vm = toConversationVM(conv([msg({ id: "m1" }), msg({ id: "n", direction: "inbound", sender: "system", type: "call_summary", body: "Inbound call · 1 min — booked." })]), ZONE, NOW);
   assert.deepEqual(vm.messages.map((m) => m.channel), ["whatsapp", "phone"], "the viewer drew the note as a WhatsApp bubble");
   assert.equal(vm.whoShort, "+1 (917) 574-6416", "REGRESSION: 'Latest from +1'");
-  const named = toConversationVM(conv([msg({})], { contact: { id: "k1", display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175746416", consent: null, dnc: false } }), NOW);
+  const named = toConversationVM(conv([msg({})], { contact: { id: "k1", display_name: "Daniela Ruiz", wa_profile_name: null, phone_e164: "+19175746416", consent: null, dnc: false } }), ZONE, NOW);
   assert.equal(named.whoShort, "Daniela");
   const call = toCallVM({
     id: "k1", retell_call_id: "r1", direction: "inbound", call_type: null, status: "ended", from_e164: "+19175746416", from_raw: null, to_e164: null,
     started_at: ago(H), ended_at: null, duration_ms: 1000, disconnection_reason: null, sentiment: null, call_successful: null, in_voicemail: null,
     summary: null, transcript_object: null, recording: null, conversation_id: null, contact_id: null, message_id: null,
     contact: { display_name: "+1 (917) 574-6416", wa_profile_name: null, phone_e164: "+19175746416" },
-  }, NOW);
+  }, ZONE, NOW);
   assert.equal(call.whoShort, "+1 (917) 574-6416");
 });
 
@@ -62,10 +65,10 @@ test("a preview is the last thing that actually happened, never a cancelled or q
     msg({ id: "m1", body: "how much is a haircut?" }),
     msg({ id: "d1", direction: "outbound", sender: "ai", status: "canceled", body: "DRAFT that never left", created_at: ago(H / 2), channel_ts: null }),
   ];
-  const vm = toConversationVM(conv(messages), NOW);
+  const vm = toConversationVM(conv(messages), ZONE, NOW);
   assert.equal(vm.outcome, "open", "REGRESSION: a cancelled draft made the thread read 'handled'");
   assert.match(vm.snippet, /how much is a haircut/);
-  const inbox = toInboxThreadVM(conv(messages), null, NOW);
+  const inbox = toInboxThreadVM(conv(messages), null, ZONE, NOW);
   assert.doesNotMatch(inbox.preview, /DRAFT/);
 });
 
@@ -81,10 +84,10 @@ const row = (over = {}) => ({
 });
 
 test("People says 'Held for you' for a person the receptionist was told to stay away from", () => {
-  assert.equal(toPersonRowVM(row(), NOW).receptionist.label, "Answering");
-  assert.equal(toPersonRowVM(row({ effective_reply_mode: "never" }), NOW).receptionist.label, "Held for you, set to Never", "REGRESSION: 'Answering' beside 'Receptionist for Dani: Never'");
-  assert.equal(toPersonRowVM(row({ effective_reply_mode: "ask" }), NOW).receptionist.label, "Held for you, set to Ask");
-  assert.equal(toPersonRowVM(row({ effective_reply_mode: "veto" }), NOW).receptionist.label, "Answering", "veto is the receptionist answering, on a delay");
+  assert.equal(toPersonRowVM(row(), ZONE, NOW).receptionist.label, "Answering");
+  assert.equal(toPersonRowVM(row({ effective_reply_mode: "never" }), ZONE, NOW).receptionist.label, "Held for you, set to Never", "REGRESSION: 'Answering' beside 'Receptionist for Dani: Never'");
+  assert.equal(toPersonRowVM(row({ effective_reply_mode: "ask" }), ZONE, NOW).receptionist.label, "Held for you, set to Ask me first");
+  assert.equal(toPersonRowVM(row({ effective_reply_mode: "veto" }), ZONE, NOW).receptionist.label, "Answering", "veto is the receptionist answering, on a delay");
 });
 
 test("Needs you follows the Inbox's rule: a thread someone took over, or snoozed, is not waiting on a person", () => {
@@ -93,7 +96,7 @@ test("Needs you follows the Inbox's rule: a thread someone took over, or snoozed
   assert.equal(personStateFor(row({ needs_human: true }), nowMs), "needs_you");
   assert.equal(personStateFor(row({ needs_human: true, latest_assignee_user_id: "u1" }), nowMs), "waiting_on_you", "REGRESSION: a taken-over thread still counted under Needs you");
   assert.equal(personStateFor(row({ open_escalation_reason: "human_token", latest_state: "snoozed", latest_snooze_until: ago(-H) }), nowMs), "active");
-  assert.equal(toPersonRowVM(row({ open_escalation_reason: "human_token", latest_assignee_user_id: "u1" }), NOW).receptionist.label, "Paused, a person owns the thread");
+  assert.equal(toPersonRowVM(row({ open_escalation_reason: "human_token", latest_assignee_user_id: "u1" }), ZONE, NOW).receptionist.label, "Paused, a person owns the thread");
 });
 
 test("the profile does not count a dial that never connected, and names it", () => {
@@ -107,7 +110,7 @@ test("the profile does not count a dial that never connected, and names it", () 
     calls: [call("a"), call("b", { status: "not_connected", duration_ms: null, summary: null, started_at: ago(H) })],
     receptionist_mode: null, workspace_reply_mode: "auto",
   };
-  const vm = toPersonVM(detail, NOW);
+  const vm = toPersonVM(detail, ZONE, NOW);
   const calls = vm.facts.find((f) => f.label === "Calls");
   assert.equal(calls.value, 1, "REGRESSION: the list said 1 call, the profile said 2");
   const missed = vm.timeline.find((t) => t.who === "Missed call");
@@ -117,12 +120,12 @@ test("the profile does not count a dial that never connected, and names it", () 
 
 test("the profile's Right now agrees with the mode two inches away", () => {
   const detail = { row: row(), identities: [], conversations: [], escalations: [], decisions: [], calls: [], receptionist_mode: "never", workspace_reply_mode: "auto" };
-  const vm = toPersonVM(detail, NOW);
+  const vm = toPersonVM(detail, ZONE, NOW);
   assert.equal(vm.rightNow.title, "Held for you, set to Never");
   assert.match(vm.rightNow.detail, /come straight to you/);
-  const ws = toPersonVM({ ...detail, receptionist_mode: null, workspace_reply_mode: "ask" }, NOW);
-  assert.equal(ws.rightNow.title, "Held for you, set to Ask");
-  assert.match(ws.rightNow.detail, /workspace reply setting/);
+  const ws = toPersonVM({ ...detail, receptionist_mode: null, workspace_reply_mode: "ask" }, ZONE, NOW);
+  assert.equal(ws.rightNow.title, "Held for you, set to Ask me first");
+  assert.match(ws.rightNow.detail, /for the workspace/);
 });
 
 test("the API attaches the mode in force, and an erasure scrubs the jobs that carried the number", () => {

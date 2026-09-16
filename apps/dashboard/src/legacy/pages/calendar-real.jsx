@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, EmptyState */
+/* global React, Icon, EmptyState, FailedRead, StatePill */
 // Calendar, real: the owner's calendar as the receptionist reads it.
 //
 // One loaded window of days, four views sliced from it. The page keeps two
@@ -31,15 +31,61 @@ const CR_REFRESH_MS = 5 * 60 * 1000;
 // one implementation for the page, the surface and the tests.
 const crTyping = () => { const el = document.activeElement; return !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable); };
 
+// Where ‹ › and ← → take the board, one rule per view: a day in Day view, a
+// week in Week view, fourteen days in Agenda, a month in Month. Day view used
+// to fall through to the week branch and jump seven days.
+const crStep = (view, anchor, n, cal) =>
+  view === "month" ? cal.shiftMonth(anchor, n)
+  : view === "agenda" ? cal.shiftKey(anchor, 14 * n)
+  : view === "day" ? cal.shiftKey(anchor, n)
+  : cal.shiftKey(anchor, 7 * n);
+window.crStep = crStep;
+
+// A phone opens on the agenda: a week grid is four times a phone's width.
+const crPhone = () => !!(window.matchMedia && window.matchMedia("(max-width: 720px)").matches);
+
+// Tab and Shift+Tab walk an open appointment's own controls and wrap round:
+// focus never leaves the dialog for the board behind it.
+const CR_FOCUSABLE = 'button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const crTrapTab = (e, box) => {
+  if (!box || !box.querySelectorAll) return;
+  const els = Array.from(box.querySelectorAll(CR_FOCUSABLE));
+  if (!els.length) { e.preventDefault(); return; }
+  const first = els[0];
+  const last = els[els.length - 1];
+  const at = document.activeElement;
+  if (e.shiftKey && (at === first || at === box)) { e.preventDefault(); last.focus(); }
+  else if (!e.shiftKey && at === last) { e.preventDefault(); first.focus(); }
+};
+window.crTrapTab = crTrapTab;
+
+// The range opens the browser's own date picker: a click on a date field only focuses its first number. A touch
+// opens the picker by itself, and a browser that will not open it still takes a typed date.
+const crOpenPicker = (e) => {
+  const el = e.currentTarget;
+  if (!el || typeof el.showPicker !== "function") return;
+  if (e.type === "click" && window.matchMedia && !window.matchMedia("(pointer: fine)").matches) return;
+  try { el.showPicker(); } catch { /* not allowed here; the field still takes a typed date */ }
+};
+
+// One of the counts over the board: what it counts, the number, and what the number means or why there is none.
+const CrCount = ({ label, value, meta, tip, "data-testid": testid }) => (
+  <span className="cal-count" data-testid={testid}>
+    <span className="cal-count-label" data-tip={tip || undefined}>{label}</span>
+    <span className="cal-count-value tabular">{value}</span>
+    {meta && <span className="cal-count-meta">{meta}</span>}
+  </span>
+);
+
 // One taken block from the feed. Neutral, never an agent's colour: the
 // calendar did not say who booked it, only that the time is taken.
-const CrBlock = ({ b, hours, onOpen, wide }) => {
+const CrBlock = ({ b, hours, onOpen, wide, dayLong }) => {
   const y = (Math.max(hours.start, b.t) - hours.start) * CR_HOUR_PX;
   const h = Math.max(22, (Math.min(hours.end, b.t + b.dur / 60) - Math.max(hours.start, b.t)) * CR_HOUR_PX - 2);
   // Overlapping blocks take lanes side by side; a block alone keeps the column.
   const laned = b.lanes > 1 ? { left: `calc(4px + ${b.lane} * (100% - 8px) / ${b.lanes})`, width: `calc((100% - 8px) / ${b.lanes} - 2px)`, right: "auto" } : {};
   return (
-    <button className="cal-appt feed" style={{ top: y, height: h, ...laned }} onClick={() => onOpen(b)} title={`${b.title} · ${b.time}`} data-testid="cal-block" data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}>
+    <button className="cal-appt feed" style={{ top: y, height: h, ...laned }} onClick={() => onOpen(b)} title={`${b.title} · ${b.time}`} aria-label={`${b.title}, ${b.time}, ${dayLong}`} data-testid="cal-block" data-lane={b.lanes > 1 ? `${b.lane + 1}/${b.lanes}` : undefined}>
       <span className="cal-appt-line1"><span className="cal-appt-who">{b.title}</span></span>
       <span className="cal-appt-service">{b.time}{wide && b.person ? ` · ${b.person.name}` : ""}</span>
     </button>
@@ -64,6 +110,15 @@ const CrWindow = ({ w, hours }) => {
 // board, and every hour by the sweep — and a person nobody wants is deleted
 // from their profile.
 const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
+  // A dialog: focus goes into it as it opens and back to what opened it as it
+  // closes, Tab stays inside, and Escape (the page's key handler) closes it.
+  // It was a borrowed modal with none of that, over a board the arrows moved.
+  const boxRef = React.useRef(null);
+  React.useEffect(() => {
+    const opener = document.activeElement;
+    if (boxRef.current) boxRef.current.focus();
+    return () => { if (opener && typeof opener.focus === "function" && opener.isConnected !== false) opener.focus(); };
+  }, []);
   const contacts = b.contacts || { phones: [], emails: [] };
   const e164 = contacts.e164 || [];
   const found = [...contacts.phones, ...contacts.emails];
@@ -77,9 +132,9 @@ const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
   };
   return (
     <div className="ask-overlay" onClick={onClose}>
-      <div className="ask-modal cal-ev" onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
+      <div ref={boxRef} className="ask-modal cal-ev" role="dialog" aria-modal="true" aria-labelledby="cal-panel-title" tabIndex={-1} onKeyDown={(e) => { if (e.key === "Tab") crTrapTab(e, boxRef.current); }} onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
         <section className="st-modal-section">
-          <div className="st-modal-name">{b.title}</div>
+          <div className="st-modal-name" id="cal-panel-title">{b.title}</div>
           <div className="cal-ev-cancel-hint" style={{ marginTop: 4 }}>{day.long} · {b.time}</div>
           {b.person ? (
             <div className="cal-ev-who" data-testid="cal-panel-person">
@@ -135,13 +190,21 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
       <div className={`cal-grid ${wide ? "cal-grid-day" : ""}`}>
         <div className="cal-corner" />
         {frames.map((d) => (
-          <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""} ${!wide ? "clickable" : ""}`} title={!wide ? `Open ${d.dow} in Day view` : undefined} onClick={() => { if (!wide) onDay(d.key); }} data-testid="cal-dayhead">
-            <span className="cal-dow">{d.dow}</span>
-            <span className="cal-date tabular">{d.date}</span>
+          <div key={d.key} className={`cal-dayhead ${d.today ? "today" : ""}`} data-testid="cal-dayhead">
+            {/* The day's name opens it in Day view from a keyboard too (C4): the head was a clickable div no Tab reached,
+                named only in a title. */}
+            {wide ? (
+              <><span className="cal-dow">{d.dow}</span><span className="cal-date tabular">{d.date}</span></>
+            ) : (
+              <button type="button" className="cal-dayhead-open" onClick={() => onDay(d.key)} aria-label={`Open ${d.long} in Day view`} aria-current={d.today ? "date" : undefined} data-testid="cal-dayhead-open">
+                <span className="cal-dow">{d.dow}</span>
+                <span className="cal-date tabular">{d.date}</span>
+              </button>
+            )}
             {d.today && <span className="cal-today-chip">Today</span>}
             {d.closed.yes && <span className="cal-closed-chip" title={d.closed.note || ""}>Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>}
             {d.allDay.map((b) => (
-              <button key={b.id} className="cal-allday" onClick={() => onOpen(b)} title={b.title}>{b.title}</button>
+              <button key={b.id} className="cal-allday" onClick={() => onOpen(b)} title={b.title} aria-label={`${b.title}, all day, ${d.long}`}>{b.title}</button>
             ))}
           </div>
         ))}
@@ -151,14 +214,14 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
           ))}
         </div>
         {frames.map((d) => (
-          <div key={d.key} className={`cal-col ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""}`} style={{ height: gridH }} data-testid="cal-col">
+          <div key={d.key} className={`cal-col ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} style={{ height: gridH }} data-testid="cal-col">
             {d.bands.map((b, i) => (
               <div key={i} className={`cal-unavail ${b.from <= hours.start && b.to >= hours.end ? "full" : ""}`} style={{ top: (b.from - hours.start) * CR_HOUR_PX, height: (b.to - b.from) * CR_HOUR_PX }}>
                 {b.label && <span>{b.label}</span>}
               </div>
             ))}
             {d.windows.filter(fit).map((w, i) => <CrWindow key={i} w={w} hours={hours} />)}
-            {d.blocks.map((b) => <CrBlock key={b.id} b={b} hours={hours} onOpen={onOpen} wide={wide} />)}
+            {d.blocks.map((b) => <CrBlock key={b.id} b={b} hours={hours} onOpen={onOpen} wide={wide} dayLong={d.long} />)}
             {d.today && now !== null && now >= hours.start && now <= hours.end && (
               <div className="cal-nowline" style={{ top: (now - hours.start) * CR_HOUR_PX }}><span className="cal-nowdot" /></div>
             )}
@@ -169,8 +232,19 @@ const CrBoard = ({ frames, hours, now, wide, fit, onDay, onOpen }) => {
   );
 };
 
+// What a month day holds, said with its date (C4): a screen reader heard "8", "1 taken", "1 open" and no day. The words
+// the cell draws, in its order.
+const crCellLabel = (d, taken, open, feedOk) => {
+  const held = d.closed.yes ? `closed${d.closed.note ? ` · ${d.closed.note}` : ""}`
+    : d.unread ? "couldn't read"
+    : d.loading ? "reading"
+    : !feedOk ? ""
+    : [taken > 0 ? `${taken} taken` : "", open > 0 && !d.past ? `${open} open` : ""].filter(Boolean).join(", ") || "nothing on the calendar";
+  return held ? `${d.long}: ${held}` : d.long;
+};
+
 // The month: six weeks of counts. A day says how much is taken and how
-// many windows are open; closed days say why. Click a day to see it.
+// many open times it has; closed days say why. Click a day to see it.
 const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
   const rows = [];
   for (let i = 0; i < frames.length; i += 7) rows.push(frames.slice(i, i + 7));
@@ -184,10 +258,12 @@ const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
             const open = d.windows.filter(fit).length;
             const inMonth = d.key.slice(0, 7) === monthKey;
             return (
-              <button key={d.key} className={`cal-month-cell ${inMonth ? "" : "muted"} ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.closed.yes ? "closed" : ""} ${d.loading ? "loading" : ""}`} onClick={() => onDay(d.key)} title={d.long} data-testid="cal-month-cell">
+              <button key={d.key} className={`cal-month-cell ${inMonth ? "" : "muted"} ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.closed.yes ? "closed" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} onClick={() => onDay(d.key)} title={d.long} aria-label={crCellLabel(d, taken, open, feedOk)} aria-current={d.today ? "date" : undefined} data-testid="cal-month-cell">
                 <span className="cal-month-num tabular">{d.dayNum}</span>
                 {d.closed.yes && <span className="cal-month-closed">{d.closed.note ? `Closed · ${d.closed.note}` : "Closed"}</span>}
-                {!d.closed.yes && !d.loading && feedOk && (
+                {d.unread && <span className="cal-month-none">couldn't read</span>}
+                {d.loading && <span className="cal-month-none">reading…</span>}
+                {!d.closed.yes && !d.loading && !d.unread && feedOk && (
                   <span className="cal-month-counts">
                     {taken > 0 && <span className="cal-month-taken">{taken} taken</span>}
                     {open > 0 && !d.past && <span className="cal-month-open">{open} open</span>}
@@ -206,13 +282,13 @@ const CrMonth = ({ frames, monthKey, feedOk, fit, onDay }) => {
 
 // The agenda: days as a list — what is taken, then what the receptionist
 // would offer — the way a phone-first owner reads a day.
-const CrAgenda = ({ frames, feedOk, fit, service, onOpen }) => (
+const CrAgenda = ({ frames, feedOk, fit, service, offer, onOpen }) => (
   <div className="cal-agenda" data-testid="cal-agenda">
     {frames.map((d) => {
       const windows = d.windows.filter(fit);
       const items = [...d.allDay, ...d.blocks];
       return (
-        <div key={d.key} className={`cal-agenda-day ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""}`} data-testid="cal-agenda-day">
+        <div key={d.key} className={`cal-agenda-day ${d.today ? "today" : ""} ${d.past ? "past" : ""} ${d.loading ? "loading" : ""} ${d.unread ? "unread" : ""}`} data-testid="cal-agenda-day">
           <div className="cal-agenda-head">
             <span className="cal-dow">{d.dow}</span>
             <span className="cal-date tabular">{d.date}</span>
@@ -230,11 +306,16 @@ const CrAgenda = ({ frames, feedOk, fit, service, onOpen }) => (
               ))}
             </div>
           )}
-          {!d.loading && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
-          {!d.loading && !d.closed.yes && feedOk && !d.past && (
+          {d.loading && <span className="cal-agenda-none">Reading this day…</span>}
+          {d.unread && <span className="cal-agenda-none">Couldn't read this day.</span>}
+          {!d.loading && !d.unread && !d.closed.yes && feedOk && items.length === 0 && <EmptyState kind="line" title="Nothing on the calendar." />}
+          {!d.loading && !d.unread && !d.closed.yes && feedOk && !d.past && (
             <div className="cal-agenda-open">
-              <span className="cal-agenda-open-label">Open{service ? ` for ${service.name}` : ""}:</span>
-              {windows.length ? windows.map((w) => <span key={w.label} className="cal-agenda-window">{w.label}</span>) : <span className="cal-agenda-none">{service && service.consultFirst ? "the receptionist books a consultation for this, not the service" : "nothing the receptionist would offer"}</span>}
+              <span className="cal-agenda-open-label">Open{service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}:</span>
+              {/* Past the last day it offers, a free day read as a day with nothing to offer (C1). */}
+              {d.beyondOffer
+                ? <span className="cal-agenda-none">not offered yet — it offers times up to {offer.days} days ahead</span>
+                : windows.length ? windows.map((w) => <span key={w.label} className="cal-agenda-window">{w.label}</span>) : <span className="cal-agenda-none">{service && service.consultFirst ? "the receptionist offers a consultation for this, not the service" : "nothing the receptionist would offer"}</span>}
             </div>
           )}
         </div>
@@ -243,59 +324,89 @@ const CrAgenda = ({ frames, feedOk, fit, service, onOpen }) => (
   </div>
 );
 
-const CalendarReal = () => {
+const CalendarReal = ({ initialDay = null }) => {
   const C = useCalendar();
-  const [view, setView] = React.useState("week");
-  const [anchorKey, setAnchorKey] = React.useState(null);
+  // A link can name a day (calendar/<YYYY-MM-DD>), which opens in Day view; a phone opens on the agenda.
+  const [view, setView] = React.useState(() => (initialDay ? "day" : crPhone() ? "agenda" : "week"));
+  const [anchorKey, setAnchorKey] = React.useState(initialDay);
   const [openId, setOpenId] = React.useState(null);
   const [pending, setPending] = React.useState(false);
+  // The span a read failed for: while it is the one on screen, its days say so, with a Retry.
+  const [failedSpan, setFailedSpan] = React.useState(null);
   const [serviceName, setServiceName] = React.useState("");
+  // The owner's Refresh on its way (C2): its button says so, and a second press waits for it.
+  const [refreshing, setRefreshing] = React.useState(false);
+  // The hours, the booking rules and the calendar's source wait under the board until asked for.
+  const [aboutOpen, setAboutOpen] = React.useState(false);
   const [toastNode, flash] = window.usePPToast();
   const vm = C ? C.vm : null;
   const cal = window.__calendar;
   const anchor = anchorKey || (vm ? vm.today : null);
+
+  // A second door to a day while the page is open moves it there.
+  React.useEffect(() => {
+    if (initialDay) { setAnchorKey(initialDay); setView("day"); }
+  }, [initialDay]);
 
   // What the view needs, from the anchor alone; whether the window has it.
   const span = vm && cal ? cal.spanFor(view, anchor) : null;
   const covered = !!(vm && cal && span && cal.covers(vm.days, span.from, span.days));
 
   // Read only when the window does not cover the view. The frames below
-  // already have their shape, so nothing jumps when the read lands.
+  // already have their shape, so nothing jumps when the read lands. A read
+  // that fails names its span, and those days say so with a Retry; a toast
+  // said it once and faded, over days still dimmed as if loading.
+  const spanKey = span ? `${span.from}+${span.days}` : null;
+  const readSeq = React.useRef(0);
+  const read = () => {
+    const mine = ++readSeq.current;
+    const land = (ok) => {
+      if (mine !== readSeq.current) return;
+      setPending(false);
+      setFailedSpan(ok ? null : spanKey);
+    };
+    setPending(true);
+    cal.ensure(view, anchor).then((ok) => { land(ok); }, () => land(false));
+  };
   React.useEffect(() => {
     if (!vm || !cal) return undefined;
     if (covered) { setPending(false); return undefined; }
-    let on = true;
-    setPending(true);
-    cal.ensure(view, anchor).then((ok) => {
-      if (!on) return;
-      setPending(false);
-      if (!ok) flash({ tone: "danger", msg: <>Those days could not be read right now.</> });
-    });
-    return () => { on = false; };
+    read();
+    return () => { readSeq.current += 1; };
   }, [view, anchor, covered]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The board keeps itself current while it is open: every five minutes, in
   // a visible tab, the loaded window is read again, so the now line, the
-  // next opening and the windows follow the clock.
+  // next open time and the open times follow the clock.
   React.useEffect(() => {
     if (!cal || !cal.refresh) return undefined;
     const id = setInterval(() => { if (document.visibilityState === "visible") cal.refresh(); }, CR_REFRESH_MS);
     return () => clearInterval(id);
   }, [cal]);
 
-  // ← → move, T is today — unless the person is typing.
+  // ← → move, T is today — unless the person is typing, or an appointment is
+  // open: the board holds still behind the dialog, and Escape closes it. One
+  // listener for the page's life, reading what the latest render left in
+  // `keys`; it was added and removed again on every render.
+  const keys = React.useRef(null);
   React.useEffect(() => {
     const onKey = (e) => {
-      if (!vm || e.metaKey || e.ctrlKey || e.altKey || crTyping()) return;
-      if (e.key === "ArrowLeft") { e.preventDefault(); move(-1); }
-      else if (e.key === "ArrowRight") { e.preventDefault(); move(1); }
-      else if (e.key === "t" || e.key === "T") { e.preventDefault(); setAnchorKey(null); }
+      const k = keys.current;
+      if (!k || e.metaKey || e.ctrlKey || e.altKey || crTyping()) return;
+      if (k.open) { if (e.key === "Escape") { e.preventDefault(); k.close(); } return; }
+      if (e.key === "ArrowLeft") { e.preventDefault(); k.move(-1); }
+      else if (e.key === "ArrowRight") { e.preventDefault(); k.move(1); }
+      else if (e.key === "t" || e.key === "T") { e.preventDefault(); k.today(); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, []);
 
-  if (!vm || !cal) return null;
+  // Leaving the page takes the loaded weeks back to today's: Today's day and its next open time read the same
+  // surface, and a board left on another month took them with it (C1).
+  React.useEffect(() => () => { if (window.__calendar && window.__calendar.home) window.__calendar.home(); }, []);
+
+  if (!vm || !cal) { keys.current = null; return null; }
 
   const byKey = new Map(vm.days.map((d) => [d.key, d]));
   const frames = [];
@@ -303,91 +414,103 @@ const CalendarReal = () => {
     const k = cal.shiftKey(span.from, i);
     frames.push(byKey.get(k) || { ...cal.frameOf(k, vm.today), loading: true, closed: { yes: false, note: null }, bands: [], blocks: [], allDay: [], windows: [] });
   }
+  // Days a failed read left out are not loading: they could not be read.
+  const unread = !covered && !pending && failedSpan === spanKey;
+  if (unread) for (const f of frames) if (f.loading) { f.loading = false; f.unread = true; }
   const shown = view === "day" ? frames.filter((f) => f.key === anchor) : frames;
   const feedOk = vm.feed.state === "ok";
   const service = vm.services.find((s) => s.name === serviceName) || null;
-  const fit = (w) => !service || !service.duration || w.dur >= service.duration;
+  // The phone tool's and the assistant's rule (offerFor): a service's own length, or a consultation's when it needs one first (C5b).
+  const fit = (w) => !service || !service.offerMinutes || w.dur >= service.offerMinutes;
   const monthKey = view === "month" ? anchor.slice(0, 7) : null;
 
-  const move = (n) => {
-    if (view === "month") setAnchorKey(cal.shiftMonth(anchor, n));
-    else if (view === "agenda") setAnchorKey(cal.shiftKey(anchor, 14 * n));
-    else setAnchorKey(cal.shiftKey(anchor, 7 * n));
-  };
+  const move = (n) => setAnchorKey(crStep(view, anchor, n, cal));
   const copyLink = async () => {
     try { await navigator.clipboard.writeText(vm.bookingLink); flash({ msg: <>Booking link copied.</> }); }
     catch { flash({ tone: "warn", msg: <>Could not copy — the link is {vm.bookingLink}</> }); }
   };
   const openDay = (key) => { setAnchorKey(key); setView("day"); };
+  // The owner's Refresh (C2): the calendar itself, now, and what came of it, in the words the read found -- the board
+  // read itself every five minutes and offered no way to ask sooner. One read at a time.
+  const refreshNow = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    let landed = false;
+    try { landed = await cal.refresh({ fresh: true }); } catch { landed = false; } finally { setRefreshing(false); }
+    const f = window.__CALENDAR && window.__CALENDAR.vm ? window.__CALENDAR.vm.feed : null;
+    if (!landed || !f) { flash({ tone: "warn", msg: <>Couldn't reach Chanlytics — the board is as it was.</> }); return; }
+    if (f.state === "ok" && !f.stale) { flash({ msg: <>Read your calendar just now.</> }); return; }
+    const why = f.problem ? ` ${f.problem}` : "";
+    flash({ tone: "warn", msg: f.state === "ok" ? <>Couldn't refresh your calendar — showing the last good read.{why}</> : <>Still couldn't read your calendar.{why}</> });
+  };
   const first = frames[0];
   const last = frames[frames.length - 1];
   const label = view === "day" && shown[0] ? `${shown[0].dow} · ${shown[0].date}` : view === "month" ? cal.monthLabel(anchor) : `${first.date} – ${last.key.slice(0, 7) === first.key.slice(0, 7) ? last.date.replace(/^[A-Za-z]+ /, "") : last.date}`;
-  const statLabel = view === "day" && shown[0] ? shown[0].dow : view === "month" ? "This month" : view === "agenda" ? "Next 14 days" : "This week";
+  const onToday = view === "month" ? anchor.slice(0, 7) === vm.today.slice(0, 7) : view === "week" ? shown.some((d) => d.today) : anchor === vm.today;
+  // The strip names the days it counts: "This week" only of this week.
+  const statLabel = view === "day" && shown[0] ? (shown[0].today ? "Today" : `${shown[0].dow} · ${shown[0].date}`)
+    : view === "month" ? (onToday ? "This month" : cal.monthLabel(anchor))
+    : view === "agenda" ? (onToday ? "Next 14 days" : `14 days from ${first.date}`)
+    : onToday ? "This week" : `Week of ${first.date}`;
   const scope = view === "month" ? frames.filter((f) => f.key.slice(0, 7) === monthKey) : shown;
+  // A count over days that could not be read is not a count, and neither is one over days still on their way (C1).
+  const scopeUnread = scope.some((d) => d.unread);
+  const scopeLoading = scope.some((d) => d.loading);
+  // Open times exist only from now through the last day the receptionist offers; a scope wholly outside that says why.
+  const openMeta = scopeUnread ? "couldn't read those days"
+    : scopeLoading ? "reading those days"
+    : scope.every((d) => d.past) ? "these days have passed"
+    : scope.every((d) => d.past || d.beyondOffer) ? `it offers times up to ${vm.offer.days} days ahead`
+    : null;
   const statEvents = scope.reduce((a, d) => a + d.blocks.length + d.allDay.length, 0);
   const statWindows = scope.reduce((a, d) => a + d.windows.filter(fit).length, 0);
   const openBlock = openId ? vm.days.flatMap((d) => [...d.blocks, ...d.allDay].map((b) => ({ b, d }))).find((x) => x.b.id === openId) : null;
-  const onToday = view === "month" ? anchor.slice(0, 7) === vm.today.slice(0, 7) : view === "week" ? shown.some((d) => d.today) : anchor === vm.today;
+  keys.current = { open: !!openBlock, move, today: () => setAnchorKey(null), close: () => setOpenId(null) };
 
   return (
     <div className="calendar" data-testid="calendar-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Calendar</div>
-          <div className="cl-page-sub">Your calendar as the receptionist reads it — what is taken, when you are open, and the times it would offer a caller. Booking happens through your link, whichever tool is behind it.</div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label={statLabel} value={statEvents} meta={vm.feed.present ? "on your calendar" : "no calendar connected"} />
-          <StatCell label="Open windows" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={feedOk ? statWindows : "—"} meta={feedOk ? (service ? `that fit ${service.name}` : "it would offer these") : "needs the calendar"} />
-          <StatCell label="Next opening" value={feedOk ? vm.stats.next : "—"} meta={feedOk ? vm.rules.replace(/^Offers times /, "") : "needs the calendar"} />
-        </StatStrip>
-      </div>
-
-      <div className="cl-controls">
-        <div className="cal-weeklabel">
-          <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous (←)" aria-label="Previous" onClick={() => move(-1)} data-testid="cal-prev">‹</button>
-          <span className="cal-week-range" data-testid="cal-range">{label}</span>
-          <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next (→)" aria-label="Next" onClick={() => move(1)} data-testid="cal-next">›</button>
-          <button className="btn btn-ghost btn-sm cal-today-btn" title="Today (T)" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
-          <input className="cal-jump" type="date" aria-label="Go to a date" value={anchor} onChange={(e) => { if (e.target.value) setAnchorKey(e.target.value); }} data-testid="cal-jump" />
-          <div className="cl-tabs">
-            {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} aria-pressed={view === id} onClick={() => setView(id)} data-testid={`cal-view-${id}`}>{l}</button>)}
+      {/* The calendar first: one bar of controls and one line of counts over the board, and the hours, the booking rules,
+          the calendar's source and Refresh one tap away under it. A title the top bar already says, a paragraph, three
+          stat cards and five rows of controls came first, and on a phone the first day sat below the fold. */}
+      <div className="cal-head">
+        <div className="cal-bar" data-testid="cal-bar">
+          <div className="cal-when">
+            <div className="cal-steps">
+              <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Previous (←)" aria-label="Previous" onClick={() => move(-1)} data-testid="cal-prev"><Icon name="chevron" size={14} className="cal-flip" /></button>
+              <button className="btn btn-ghost btn-sm cal-today-btn" title="Today (T)" onClick={() => setAnchorKey(null)} disabled={onToday} data-testid="cal-today">Today</button>
+              <button className="btn btn-ghost btn-icon btn-sm cal-nav" title="Next (→)" aria-label="Next" onClick={() => move(1)} data-testid="cal-next"><Icon name="chevron" size={14} /></button>
+            </div>
+            {/* The range says which days are on screen, and opens a date picker: the date field was a control of its own. */}
+            <label className="cal-title" title="Go to a date">
+              <span className="cal-title-range" aria-live="polite" data-testid="cal-range">{label}</span>
+              <Icon name="chevron-down" size={12} />
+              <input className="cal-jump" type="date" aria-label="Go to a date" value={anchor} onChange={(e) => { if (e.target.value) setAnchorKey(e.target.value); }} onClick={crOpenPicker} onKeyDown={(e) => { if (e.key === "Enter") crOpenPicker(e); }} data-testid="cal-jump" />
+            </label>
+          </div>
+          <div className="cal-tools">
+            {vm.services.length > 0 && (
+              <select className="tpl-select cal-service" value={serviceName} onChange={(e) => setServiceName(e.target.value)} aria-label="Open times that fit a service" data-testid="cal-service">
+                <option value="">Any service</option>
+                {vm.services.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
+              </select>
+            )}
+            <div className="cl-tabs cal-views" role="group" aria-label="View">
+              {CR_VIEWS.map(([id, l]) => <button key={id} className={`cl-tab ${view === id ? "active" : ""}`} aria-pressed={view === id} onClick={() => setView(id)} data-testid={`cal-view-${id}`}>{l}</button>)}
+            </div>
           </div>
         </div>
-        <div className="cl-controls-right">
-          {vm.services.length > 0 && (
-            <select className="tpl-select cal-service" value={serviceName} onChange={(e) => setServiceName(e.target.value)} aria-label="Windows that fit a service" data-testid="cal-service">
-              <option value="">Any service</option>
-              {vm.services.map((s) => <option key={s.name} value={s.name}>{s.label}</option>)}
-            </select>
-          )}
-          <span className={`cal-feed-chip ${vm.feed.state}`} data-testid="cal-feed">
-            <span className="cal-sync-dot" />
-            {vm.feed.line}
-          </span>
-        </div>
-      </div>
-
-      <div className="cal-rules" data-testid="cal-rules">
-        <span className="cal-rules-group">
-          <span className="cal-rules-label">Hours</span>
-          {vm.hoursLines.length ? vm.hoursLines.join(" · ") : "not set yet"}
-        </span>
-        <span className="cal-rules-group">
-          <span className="cal-rules-label">Closed</span>
-          {vm.closuresAhead.length ? vm.closuresAhead.map((c) => `${c.label}${c.note ? ` ${c.note}` : ""}`).join(" · ") : "no closures ahead"}
-        </span>
-        <span className="cal-rules-group">
-          <span className="cal-rules-label">Rules</span>
-          {vm.rules.replace(/^Offers times /, "")}
-        </span>
-        <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Edit in Settings <Icon name="arrow-right" size={10} /></button>
-        {vm.bookingLink && <button className="cl-bucket-link" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link">Copy the booking link</button>}
+        <p className="cal-counts" data-testid="cal-counts">
+          <CrCount label={statLabel} value={!feedOk || scopeUnread || scopeLoading ? "—" : statEvents} meta={!vm.feed.present ? "no calendar connected" : !feedOk ? "could not be read" : scopeUnread ? "couldn't read those days" : scopeLoading ? "reading those days" : "on your calendar"} data-testid="cal-count-taken" />
+          {/* A calendar that can't be read leaves one count and why. Its card over the board says the rest: two more
+              dashes said "needs the calendar" under it. */}
+          {feedOk && <CrCount label="Open times" tip="Times the receptionist would offer, after your hours, closures, booking rules and what is taken" value={openMeta ? "—" : statWindows} meta={openMeta || (service ? (service.consultFirst ? "for a consultation" : `that fit ${service.name}`) : null)} data-testid="cal-count-open" />}
+          {feedOk && <CrCount label="Next open time" value={vm.stats.next} meta={vm.ruleParts[0]} data-testid="cal-count-next" />}
+        </p>
       </div>
       {service && service.consultFirst && (
         <div className="cal-feed-card" data-testid="cal-consult-note">
           <Icon name="shield" size={14} />
-          <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and sends the booking link.</span>
+          <span><b>{service.name} needs a consultation first.</b> The receptionist does not offer times for it; it offers the consultation and sends the booking link. The open times here are for a consultation{service.offerMinutes ? `, about ${service.offerMinutes} minutes` : ""}.</span>
         </div>
       )}
       {vm.feed.state !== "ok" && (
@@ -395,34 +518,108 @@ const CalendarReal = () => {
           <Icon name="calendar" size={14} />
           {vm.feed.state === "none" ? (
             <span>
-              <b>No calendar connected.</b> Paste the private iCal address of the calendar your appointments land in — Google, Apple or Outlook; Booksy, Calendly and the rest sync into one — under Settings › Workspace.
+              <b>No calendar connected.</b> Paste the private iCal address of the calendar your appointments land in — Google, Apple or Outlook; Booksy, Calendly and the rest sync into one — under Settings › Business.
               Until then the receptionist sends the booking link but never names an open time, and this board shows only your hours and closures.
             </span>
           ) : (
-            <span><b>Your calendar could not be read.</b> {vm.feed.problem || "The address is saved; check it in Settings › Workspace if this keeps happening."}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
+            <span><b>Your calendar could not be read.</b> {vm.feed.problem || "The address is saved; check it in Settings › Business if this keeps happening."}{vm.feed.problem ? " Until it reads, the receptionist sends the booking link but never names an open time." : ""}</span>
           )}
-          <button className="btn btn-primary btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>{vm.feed.state === "none" ? "Connect" : "Check the address"}</button>
+          {/* A calendar that can't be read: its only way back was Settings (C2). */}
+          {vm.feed.state === "unavailable" && (
+            <button type="button" className="btn btn-sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-retry">{refreshing ? "Retrying…" : "Retry"}</button>
+          )}
+          <button className="btn btn-primary btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>{vm.feed.state === "none" ? "Paste the address" : "Check the address"}</button>
         </div>
       )}
       {vm.feed.state === "ok" && vm.feed.stale && (
         <div className="cal-feed-card" data-testid="cal-feed-stale">
           <Icon name="calendar" size={14} />
           <span><b>Showing the last good read.</b> {vm.feed.problem || "The calendar could not be refreshed."} The receptionist is using this read too; it tries again every few minutes.</span>
+          <button type="button" className="btn btn-sm" onClick={refreshNow} disabled={refreshing} data-testid="cal-feed-stale-retry">{refreshing ? "Retrying…" : "Retry"}</button>
           <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Check the address</button>
         </div>
+      )}
+      {feedOk && vm.feed.notes.map((n) => (
+        <div key={n.id} className={`cal-feed-card cal-feed-note ${n.id}`} data-testid={`cal-feed-note-${n.id}`}>
+          <Icon name={n.id === "repeats" ? "alert" : "calendar"} size={14} />
+          <span><b>{n.title}</b> {n.body}</span>
+        </div>
+      ))}
+      {!covered && failedSpan === spanKey && (
+        <FailedRead kind="line" what="those days" body="What was already on screen is still current, and the receptionist reads your calendar on its own." onRetry={read} busy={pending} className="cal-failed" testid="cal-failed" />
+      )}
+      {/* A read on its way says so in words; the board only dimmed (C2). */}
+      {pending && (
+        <div className="cal-reading" role="status" data-testid="cal-reading">Reading those days…</div>
       )}
 
       <div key={view} className={`cal-body ${pending ? "is-loading" : ""}`} aria-busy={pending ? "true" : "false"} data-testid="cal-body">
         {view === "month" && <CrMonth frames={frames} monthKey={monthKey} feedOk={feedOk} fit={fit} onDay={openDay} />}
-        {view === "agenda" && <CrAgenda frames={frames} feedOk={feedOk} fit={fit} service={service} onOpen={(b) => setOpenId(b.id)} />}
+        {view === "agenda" && <CrAgenda frames={frames} feedOk={feedOk} fit={fit} service={service} offer={vm.offer} onOpen={(b) => setOpenId(b.id)} />}
         {(view === "week" || view === "day") && <CrBoard frames={shown} hours={vm.hours} now={vm.now} wide={view === "day"} fit={fit} onDay={openDay} onOpen={(b) => setOpenId(b.id)} />}
       </div>
 
-      <div className="cal-legend" data-testid="cal-legend">
-        <span><i className="cal-legend-swatch taken" /> Taken, from your calendar</span>
-        <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? ` for ${service.name}` : ""}</span>
-        <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
-        <span className="cal-legend-rules">← → move · T today · times in {vm.timezone}</span>
+      <div className="cal-foot">
+        <div className="cal-foot-row">
+          <div className="cal-legend" data-testid="cal-legend">
+            <span><i className="cal-legend-swatch taken" /> Taken, from your calendar</span>
+            <span><i className="cal-legend-swatch open" /> Open — the receptionist would offer it{service ? (service.consultFirst ? " for a consultation" : ` for ${service.name}`) : ""}, through {vm.offer.label}</span>
+            <span><i className="cal-legend-swatch closed" /> Outside your hours, or closed</span>
+            <span className="cal-legend-rules"><span className="cal-keys">← → move · T today · </span>times are {vm.zoneCity} time</span>
+          </div>
+          <button type="button" className="btn btn-ghost btn-sm cal-about-toggle" aria-expanded={aboutOpen} aria-controls="cal-about" onClick={() => setAboutOpen((v) => !v)} data-testid="cal-about-toggle">
+            Hours and rules <Icon name="chevron-down" size={12} />
+          </button>
+        </div>
+        {/* The hours and the rules were a card over the board, and the calendar's pill and Refresh sat among the controls:
+            they are one tap away here. A calendar that can't be read still says so over the board, with its Retry. */}
+        <div className="cal-about" id="cal-about" hidden={!aboutOpen} data-testid="cal-about">
+          <div className="cal-rules" data-testid="cal-rules">
+            <span className="cal-rules-group">
+              <span className="cal-rules-label">Hours</span>
+              <span className="cal-rules-value">{vm.hoursLines.length ? vm.hoursLines.join(" · ") : "not set yet"}</span>
+            </span>
+            <span className="cal-rules-group">
+              <span className="cal-rules-label">Closed</span>
+              <span className="cal-rules-value">
+                {vm.closuresAhead.length ? vm.closuresAhead.map((c) => `${c.label}${c.note ? ` (${c.note})` : ""}`).join(" · ") : "no closures ahead"}
+                {vm.closuresMore > 0 ? ` · +${vm.closuresMore} more` : ""}
+              </span>
+            </span>
+            <span className="cal-rules-group">
+              <span className="cal-rules-label">Booking</span>
+              <span className="cal-rule-parts cal-rules-value">{vm.ruleParts.map((p) => <span key={p} className="cal-rule" data-testid="cal-rule">{p}</span>)}</span>
+            </span>
+            {/* Which services wait for a consultation was said only inside the service picker (C1). */}
+            {vm.consultFirst.length > 0 && (
+              <span className="cal-rules-group" data-testid="cal-rules-consult">
+                <span className="cal-rules-label">Consultation first</span>
+                <span className="cal-rules-value">{vm.consultFirst.join(" · ")}</span>
+              </span>
+            )}
+            <span className="cal-rules-group">
+              <span className="cal-rules-label">Calendar</span>
+              <span className="cal-rules-value cal-rules-feed">
+                {/* The state in the pill Connections and Setup use, and only the details beside it (C3): a coloured dot said
+                    it here, in no word those pages use. */}
+                <span className="cal-feed-chip" data-testid="cal-feed">
+                  <StatePill kind="calendar" value={vm.feed.health} testid="cal-feed-state" />
+                  {vm.feed.detail && <span className="cal-feed-detail">{vm.feed.detail}</span>}
+                </span>
+                {vm.feed.present && (
+                  <button type="button" className="btn btn-ghost btn-sm cal-refresh" onClick={refreshNow} disabled={refreshing} aria-busy={refreshing ? "true" : "false"} data-testid="cal-refresh">
+                    {refreshing ? "Reading your calendar…" : "Refresh"}
+                  </button>
+                )}
+              </span>
+            </span>
+            <span className="cal-rules-links">
+              <span className="cal-about-note">Booking happens through your booking link, whichever tool is behind it.</span>
+              {vm.bookingLink && <button className="cl-bucket-link" title={vm.bookingLink} onClick={copyLink} data-testid="cal-copy-link">Copy the booking link</button>}
+              <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(window.CHANLY.R.admin("workspace"))}>Edit in Settings › Business <Icon name="arrow-right" size={10} /></button>
+            </span>
+          </div>
+        </div>
       </div>
 
       {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} bookingLink={vm.bookingLink} onCopyLink={copyLink} onClose={() => setOpenId(null)} />}

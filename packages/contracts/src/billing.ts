@@ -43,6 +43,11 @@ export interface BillingPriceDto {
 export interface BillingDto {
   /** Whether this deployment can charge at all: the key, the price and the webhook secret are on the edge. */
   ready: boolean;
+  /**
+   * Which of Stripe's two worlds the edge's key opens: true live; false test, where only Stripe's test cards work and no
+   * money moves; null when the edge did not say. Billing and Setup say test mode from it (the wiring audit's S9).
+   */
+  livemode: boolean | null;
   account: BillingAccountDto | null;
   price: BillingPriceDto | null;
   trial_days: number;
@@ -262,6 +267,13 @@ export function priceWords(p: BillingPriceDto | null | undefined): string {
   return `${amount} ${per}`;
 }
 
+/**
+ * Said wherever a card is while Stripe runs on its test keys (the wiring audit's S9). Production ran them while Billing
+ * said "Card on file" and Setup "The card on file is charged when the trial ends", and nothing said that a real card is
+ * refused and no money moves. Setup lists it as a detail; the pane ends it with a full stop.
+ */
+export const BILLING_TEST_MODE_CLAUSE = "Billing is in test mode, so only Stripe's test cards work and no real money moves";
+
 export interface BillingVM {
   mode: BillingMode;
   status: BillingStatus;
@@ -277,6 +289,8 @@ export interface BillingVM {
   /** What an owner may do from here. */
   actions: { checkout: boolean; portal: boolean; resume: boolean };
   paused: boolean;
+  /** For a workspace that pays by card on Stripe's test keys, the sentence saying so; null when live or not said. */
+  testMode: string | null;
 }
 
 export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
@@ -284,10 +298,11 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
   const plan = priceWords(dto.price) ? `${dto.price?.product_name ? `${dto.price.product_name} · ` : ""}${priceWords(dto.price)}` : "";
   const card = a?.card_brand && a.card_last4 ? `${a.card_brand.charAt(0).toUpperCase()}${a.card_brand.slice(1)} ending ${a.card_last4}` : null;
   if (!a || a.mode === "direct") {
-    return { mode: "direct", status: a?.status ?? "active", headline: "Direct arrangement", detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.", tone: "", plan, card: null, actions: { checkout: false, portal: false, resume: false }, paused: false };
+    return { mode: "direct", status: a?.status ?? "active", headline: "Direct arrangement", detail: "This workspace runs on an arrangement made with Chanlytics; nothing on this screen charges anything.", tone: "", plan, card: null, actions: { checkout: false, portal: false, resume: false }, paused: false, testMode: null };
   }
   const s = a.status;
-  const base = { mode: "stripe" as const, status: s, plan, card };
+  // On test keys, said in every state: each of them talks about a card or a charge.
+  const base = { mode: "stripe" as const, status: s, plan, card, testMode: dto.livemode === false ? `${BILLING_TEST_MODE_CLAUSE}.` : null };
   switch (s) {
     case "none":
       return { ...base, headline: "No subscription yet", detail: dto.ready ? trialOffer(dto.trial_days) : "Billing is not available on this deployment yet.", tone: "warn", actions: { checkout: dto.ready, portal: false, resume: false }, paused: false };
@@ -314,9 +329,33 @@ export function toBillingVM(dto: BillingDto, nowMs = Date.now()): BillingVM {
   }
 }
 
+/**
+ * What a billing state means for the receptionist, for the pill beside the headline. The pill printed Stripe's own
+ * word for the state ("trialing", "past due") next to a headline that already said it in ours (the wiring audit's
+ * S20). What the headline does not say is whether the receptionist is answering, and that is receptionistOn's.
+ */
+export function billingPill(vm: Pick<BillingVM, "status">): { words: string; tone: "ok" | "danger" } {
+  return receptionistOn(vm.status) ? { words: "Receptionist answering", tone: "ok" } : { words: "Receptionist paused", tone: "danger" };
+}
+
+/** An invoice's status in an owner's words. A word Stripe adds later is shown as Stripe says it; none, as a dash. */
+export const INVOICE_STATUS_WORDS: Record<string, string> = {
+  draft: "Draft",
+  open: "Not paid yet",
+  paid: "Paid",
+  uncollectible: "Could not be collected",
+  void: "Cancelled",
+};
+export function invoiceStatusWords(status: string | null | undefined): string {
+  if (!status) return "—";
+  return Object.prototype.hasOwnProperty.call(INVOICE_STATUS_WORDS, status) ? INVOICE_STATUS_WORDS[status] as string : status;
+}
+
 /** The Setup row's facts: enough to say the state and the one next step. */
 export interface SetupBillingFacts {
   ready: boolean;
+  /** Which of Stripe's worlds the key opens, as BillingDto carries it: false says test mode on the row. */
+  livemode: boolean | null;
   mode: BillingMode;
   status: BillingStatus;
   trial_end: string | null;

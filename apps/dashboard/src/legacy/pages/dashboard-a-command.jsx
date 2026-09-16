@@ -65,7 +65,8 @@ const LiveRail = ({ nav }) => {
           <b>{c.who}</b> is on the line · {tqClock(elapsed)}
           {last ? <span className="tq-live-last"> · {last.speaker === "client" ? c.whoShort : "Receptionist"}: &ldquo;{last.text.slice(0, 90)}&rdquo;</span> : null}
         </span>
-        <button className="cl-attn-cta primary" onClick={() => nav("live")}>Open Live</button>
+        {/* The call's own door (live/<callId>): Live's list opens on the oldest call, which may not be this one. */}
+        <button className="cl-attn-cta primary" onClick={() => nav(`live/${c.callId}`)}>Open Live</button>
       </div>
     );
   });
@@ -84,15 +85,18 @@ const runRows = (nav, flash) => {
     if (!can || !window.__broadcasts) return;
     const res = await window.__broadcasts.cancel(r.id);
     if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : { msg: <>{res.message}</> });
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped — nothing sends</> } : window.refusalToast(res, "Not stopped"));
   };
   const approve = async (r) => {
     if (!can || !window.__broadcasts) return;
     const res = await window.__broadcasts.approve(r.id);
     if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
     const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
-    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, sending now</> } : { msg: <>{res.message}</> });
+    // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
+    const when = res.ok && window.bcWhenWords ? window.bcWhenWords(res.data) : "sending now";
+    flash(res.ok ? { msg: <><b>{r.audience.label}</b> approved — {n} {n === 1 ? "person" : "people"}, {when}</> } : window.refusalToast(res, "Not approved"));
   };
+  // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
   return [
     ...waiting.map((r) => (
       <window.AttnRow
@@ -104,9 +108,9 @@ const runRows = (nav, flash) => {
         sentence={`${people(r)} · nothing sends until you say so`}
         status={["Waiting for your approval"]}
         tone="escalated"
-        cta={{ label: "Approve", kind: "primary", onClick: () => approve(r) }}
-        also={{ label: "Open Playbooks", onClick: () => nav("outbound") }}
-        onOpen={() => nav("outbound")}
+        cta={{ label: "Approve", kind: "primary", onClick: () => approve(r), gate: window.gate("approve", "approve a run") }}
+        also={{ label: "See who's on it", onClick: () => nav(`broadcasts/run:${r.id}`) }}
+        onOpen={() => nav(`broadcasts/run:${r.id}`)}
         testid="brief-run-row"
       />
     )),
@@ -120,9 +124,9 @@ const runRows = (nav, flash) => {
         sentence={`${people(r)} · stop it if you'd rather not`}
         status={["Scheduled", `sends ${r.when}`]}
         tone="warn"
-        cta={{ label: "Open", kind: "primary", onClick: () => nav("broadcasts") }}
-        also={{ label: "Stop", onClick: () => stop(r), gate: window.gate("approve") }}
-        onOpen={() => nav("broadcasts")}
+        cta={{ label: "Open", kind: "primary", onClick: () => nav(`broadcasts/run:${r.id}`) }}
+        also={{ label: "Stop", onClick: () => stop(r), gate: window.gate("approve", "stop a run") }}
+        onOpen={() => nav(`broadcasts/run:${r.id}`)}
         testid="brief-run-soon"
       />
     )),
@@ -141,7 +145,7 @@ const TodayQueue = ({ vm }) => {
     );
     ppFlash(res.ok
       ? { msg: which === "snooze" ? <><b>{r.who}</b> snoozed — hidden until they wake or reply</> : <><b>{r.who}</b> — done, the receptionist has the thread back</> }
-      : { msg: <>Couldn&rsquo;t {which === "snooze" ? "snooze" : "resolve"} — {res.message}</> });
+      : window.refusalToast(res, which === "snooze" ? "Not snoozed" : "Not resolved"));
   };
   const rows = vm.queue.rows;
   const runs = runRows(nav, ppFlash);
@@ -152,7 +156,7 @@ const TodayQueue = ({ vm }) => {
         <span className="tq-title">Your queue</span>
         <span className={`tq-count tabular ${total ? "" : "calm"}`}>{total}</span>
         <span className="tq-sub">
-          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || "nothing needs you"}
+          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || (vm.standing.alert || vm.standing.chips.length === 0 ? "nothing in the queue" : "nothing needs you")}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>
@@ -170,14 +174,19 @@ const TodayQueue = ({ vm }) => {
             status={r.status}
             tone={r.tone}
             cta={{ label: r.cta.label, kind: "primary", onClick: () => nav(r.cta.to) }}
-            also={r.also ? { label: r.also.label, onClick: () => verb(r, r.also.verb), gate: window.gate("approve"), testid: `queue-${r.also.verb}` } : null}
+            also={r.also ? { label: r.also.label, onClick: () => verb(r, r.also.verb), gate: window.gate("approve", r.also.verb === "snooze" ? "snooze a conversation" : "resolve a conversation"), testid: `queue-${r.also.verb}` } : null}
             onOpen={() => nav(r.cta.to)}
             testid={`queue-${r.kind}`}
           />
         ))}
         {runs}
-        {total === 0 && (
-          <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
+        {total === 0 && (vm.standing.alert
+          // A dark line: an empty queue is not "the receptionist is answering".
+          ? <EmptyState kind="line" glyph="alert" tone="warn" title="Nothing in the queue — new messages go unanswered until the line is back." testid="today-queue-empty-down" />
+          : vm.standing.chips.length === 0
+            // No line at all: nothing can come in, so nobody is answering. The door to Setup is the brief's one line.
+            ? <EmptyState kind="line" glyph="phone" title="Nothing in the queue — nothing can come in until a line is connected." testid="today-queue-empty-unconnected" />
+            : <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
         )}
       </div>
       {vm.queue.more > 0 && (

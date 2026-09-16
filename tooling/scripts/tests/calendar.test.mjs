@@ -52,6 +52,8 @@ function dto(over = {}) {
     closures: [{ date: "2026-09-12", note: "Wedding" }],
     rules: { lead_hours: 2, buffer_min: 15, max_days_ahead: 14 },
     booking_link: "https://booksy.com/melanys",
+    // The receptionist's next open time from now, which the route works out from every day it offers.
+    next_opening: { start: "2026-09-08T19:30:00.000Z", end: "2026-09-08T22:00:00.000Z" },
     days,
     ...over,
   };
@@ -85,7 +87,7 @@ test("the week as the page draws it: hours with air, bands where closed, blocks 
   assert.deepEqual(sun.closed, { yes: true, note: null });
   assert.deepEqual(vm.stats, { events: 2, windows: 2, next: "today 3:30 PM" });
   assert.equal(vm.feed.line, "From your calendar · read 2m ago · 4 events");
-  assert.equal(vm.rules, "Offers times at least 2h ahead · 15 min between appointments · up to 14 days out · 30-min slots");
+  assert.equal(vm.rules, "Offers times with at least 2h notice · 15 min between appointments · up to 14 days ahead · 30-min slots");
   assert.equal(vm.bookingLink, "https://booksy.com/melanys");
 });
 
@@ -115,18 +117,18 @@ test("day keys, the words, and the zone", () => {
   assert.equal(zoneMidnight(TZ, "2026-09-08"), Date.parse("2026-09-08T04:00:00.000Z"));
   assert.equal(zoneMidnight(TZ, "2026-01-08"), Date.parse("2026-01-08T05:00:00.000Z"), "winter offset");
   assert.equal(readAgoLabel("2026-09-08T15:59:30.000Z", new Date("2026-09-08T16:00:00.000Z")), "just now");
-  assert.equal(rulesLine(null), "Offers times at least 2h ahead · up to 14 days out · 30-min slots");
+  assert.equal(rulesLine(null), "Offers times with at least 2h notice · up to 14 days ahead · 30-min slots");
 });
 
 test("the doors and the page: read-only, the feed's address never in the browser, a feed checked before it is saved, the registry flipped", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("const feed = await loadFeed(tenantId, url);"), "the same cache the assistant's openings use");
+  assert.ok(svc.includes("const feed = await loadFeed(tenantId, url, { fresh });"), "the same cache the assistant's openings use");
   assert.ok(svc.includes("freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now })"), "the windows are the receptionist's own");
   assert.ok(svc.includes("person: matchPerson(it, people),") && svc.includes("contacts: { phones: c.phones, emails: c.emails },"), "who it is for — by a phone in the event first, then a whole name");
   assert.ok(!/ical_url[^\n]*\n[^\n]*return \{/.test(svc), "the address is read, never returned");
   assert.ok(svc.includes('throw new AppError("validation", feedProblemWords("not_ical")'), "a preview reaches only the public internet and only iCal, by the rule and the words every fetch and the save share");
   const r = readCode("apps/dashboard/app/api/v1/calendar/route.ts");
-  assert.ok(r.includes('rate: "aggregate",') && r.includes("calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct })"), "one read; an owner's adds the people it sees");
+  assert.ok(r.includes('rate: "aggregate",') && r.includes("calendarWeek(ctx, member.tenantId, { from, days }, new Date(), { canAct, fresh })"), "one read; an owner's adds the people it sees");
   const pv = readCode("apps/dashboard/app/api/v1/calendar/preview/route.ts");
   assert.ok(pv.includes('role: "operator",') && pv.includes("previewFeed(url, timezone)"));
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
@@ -145,9 +147,9 @@ test("the words from Settings on the board: hours as runs, closures ahead, servi
   const { monthSpan, monthLabelOf, shiftMonth, hoursLines } = await import("@chanlytics/contracts");
   const now = new Date("2026-09-08T16:00:00.000Z");
   const vm = toCalendarVM(dto({ services: [{ name: "Balayage", duration_min: 90, consult_first: false }, { name: "Color correction", duration_min: null, consult_first: true }] }), now);
-  assert.deepEqual(vm.hoursLines, ["Mon–Tue 09:00–18:00", "Wed 09:00–13:00 and 15:00–19:00 (closed 13:00–15:00)", "Thu–Fri 09:00–18:00", "Sat 10:00–16:00", "Sun closed"], "the same runs Settings and the prompt use");
+  assert.deepEqual(vm.hoursLines, ["Mon–Tue 9 AM – 6 PM", "Wed 9 AM – 1 PM and 3 – 7 PM", "Thu–Fri 9 AM – 6 PM", "Sat 10 AM – 4 PM", "Sun closed"], "the same runs Settings and the prompt use");
   assert.deepEqual(vm.closuresAhead, [{ key: "2026-09-12", label: "Sep 12", note: "Wedding" }]);
-  assert.deepEqual(vm.services.map((s) => s.label), ["Balayage · 90 min", "Color correction · consult first"]);
+  assert.deepEqual(vm.services.map((s) => s.label), ["Balayage · 90 min", "Color correction · consultation first"]);
   assert.equal(vm.monthLabel, "September 2026");
   assert.deepEqual(monthSpan("2026-09-17"), { from: "2026-08-31", days: 42 }, "six weeks from the Monday on or before the first");
   assert.equal(shiftMonth("2026-09-17", 1), "2026-10-01");
@@ -162,13 +164,13 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   const page = readCode("apps/dashboard/src/legacy/pages/calendar-real.jsx");
   for (const id of ["cal-month", "cal-month-cell", "cal-agenda", "cal-agenda-day", "cal-jump", "cal-service", "cal-rules", "cal-consult-note"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('data-testid={`cal-view-${id}`}') && page.includes('["month", "Month"], ["agenda", "Agenda"]'), "four views, one tab each");
-  assert.ok(page.includes("const fit = (w) => !service || !service.duration || w.dur >= service.duration;"), "the same rule the assistant applies for a service");
-  assert.ok(page.includes('if (view === "month") setAnchorKey(cal.shiftMonth(anchor, n));') && page.includes('else if (view === "agenda") setAnchorKey(cal.shiftKey(anchor, 14 * n));'), "a month moves by a month, the agenda by two weeks, by contracts' arithmetic through the bridge");
+  assert.ok(page.includes("const fit = (w) => !service || !service.offerMinutes || w.dur >= service.offerMinutes;"), "the same rule the assistant applies for a service");
+  assert.ok(page.includes('view === "month" ? cal.shiftMonth(anchor, n)') && page.includes('view === "agenda" ? cal.shiftKey(anchor, 14 * n)'), "a month moves by a month, the agenda by two weeks, by contracts' arithmetic through the bridge (crStep, run by the-pages-say-only-what-is-true.test.mjs)");
   assert.ok(!/const cr(Shift|MonthLabel|ShiftMonth|Hour) = /.test(page), "the page keeps no copy of the date arithmetic");
   for (const id of ["cal-panel-copy-link", "cal-panel-text-link", "cal-copy-link"]) assert.ok(page.includes(`data-testid="${id}"`), id);
   assert.ok(page.includes('value={anchor}') && page.includes("CR_REFRESH_MS"), "the date picker follows the anchor; the board reads itself again while open");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: (profile?.booking_rules?.consult_first ?? []).some("), "the services as Settings keeps them");
+  assert.ok(svc.includes("const MAX_DAYS = 63;") && svc.includes("consult_first: needsConsultation(s.name, profile?.booking_rules),"), "the services as Settings keeps them");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
   assert.ok(sd.includes("days: String(w.days)") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
   assert.deepEqual((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar", "setup"], "hours, closures, rules and services saved in Settings reach the board, and Setup");
@@ -213,9 +215,9 @@ test("the page keeps a view and a day, derives the rest, and reads only when the
   const bridge = readCode("apps/dashboard/src/legacy-bridge/calendar.ts");
   assert.ok(bridge.includes("export async function ensure(view: CalendarView, anchor: string)") && bridge.includes("if (coversSpan(have, need.from, need.days)) return true;"));
   assert.ok(bridge.includes("spanFor: spanForView, windowFor, covers: coversSpan, frameOf, shiftKey, shiftMonth, monthLabel: monthLabelOf, clockLabel"), "the arithmetic reaches the page, all of it");
-  assert.ok(bridge.includes("export async function refresh(): Promise<void>"), "and a refresh the board can call");
+  assert.ok(bridge.includes("export async function refresh(opts: { fresh?: boolean } = {}): Promise<boolean>"), "and a refresh the board can call, fresh on request, saying whether a read landed");
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("const w = from ? { from, days } : windowFor(localDayKey());"), "the first read is the window around today");
+  assert.ok(sd.includes("const w = from ? { from, days } : windowFor(zoneDayKey(Date.now(), await workspaceZone()));"), "the first read is the window around the business's today");
   assert.ok(readCode("apps/dashboard/src/server/calendar.ts").includes("const MAX_DAYS = 63;"));
   const css = readCode("apps/dashboard/src/legacy/styles/calendar.css");
   assert.ok(css.includes("@keyframes cal-in") && css.includes("prefers-reduced-motion"), "a quiet arrival, none for those who asked for none");

@@ -215,6 +215,37 @@ export const REPLY_DELAY_MIN_MS = 5_000;
 export const REPLY_DELAY_MAX_MS = 600_000;
 
 /**
+ * The two limits a workspace is seeded with and Autonomy states: automatic
+ * replies to one person in a day, and the hours a person's reply keeps the
+ * receptionist off a thread. The runtime keeps its own copies (the edge's
+ * MAX_REPLIES_PER_DAY and PAUSE_MS, the dashboard server's PAUSE_MS), and a test
+ * holds the edge's equal to these.
+ */
+export const REPLY_CAP_DEFAULT = 20;
+export const PAUSE_HOURS_DEFAULT = 24;
+
+/**
+ * The hard limits in an owner's words (the wiring audit's S6). The card called
+ * the last two "this workspace's own values", then limits Chanlytics set that
+ * nothing on the page could change; they are the owner's two dials now. Each
+ * says what it does and what its default is, and the value a dial shows is the
+ * stored one, or the default when nothing is stored.
+ */
+export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours?: unknown } | null | undefined): { sub: string; replies: string; pause: string; cap: number; hours: number } {
+  const stored = (v: unknown): number | null => {
+    const n = Number(v);
+    return v !== undefined && v !== null && v !== "" && Number.isFinite(n) && n > 0 ? n : null;
+  };
+  return {
+    sub: "The first two never change; the last two are yours to set",
+    replies: `Automatic replies to one person in 24 hours before the receptionist stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
+    pause: `How long the receptionist stays out of a conversation once a person steps in — Take over, a reply from the Inbox or from the WhatsApp Business app — or once it hands one to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
+    hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT,
+  };
+}
+
+/**
  * The wait for THIS reply, in ms. Zero means send now.
  *
  * Clamped rather than trusted: `limits` is tenant-editable JSON, and a typo of

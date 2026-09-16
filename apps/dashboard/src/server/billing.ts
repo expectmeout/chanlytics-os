@@ -41,11 +41,13 @@ export async function edgeBilling(body: Record<string, unknown>, timeoutMs = 20_
 
 export interface BillingReadiness {
   ready: boolean;
+  /** Which of Stripe's worlds the edge's key opens (BillingDto's livemode); null when the edge did not say or could not be read. */
+  livemode: boolean | null;
   price: BillingPriceDto | null;
   trial_days: number;
 }
 
-const NOT_READY: BillingReadiness = { ready: false, price: null, trial_days: 14 };
+const NOT_READY: BillingReadiness = { ready: false, livemode: null, price: null, trial_days: 14 };
 let readyCache: { at: number; value: BillingReadiness } | null = null;
 const READY_TTL_MS = 5 * 60_000;
 
@@ -61,7 +63,7 @@ export async function billingReadiness(now = Date.now()): Promise<BillingReadine
   const b = a.body ?? {};
   const price = b.price && typeof b.price === "object" ? (b.price as BillingPriceDto) : null;
   const value: BillingReadiness = a.status === 200 && b.ok === true
-    ? { ready: b.ready === true, price, trial_days: typeof b.trial_days === "number" ? b.trial_days : 14 }
+    ? { ready: b.ready === true, livemode: typeof b.livemode === "boolean" ? b.livemode : null, price, trial_days: typeof b.trial_days === "number" ? b.trial_days : 14 }
     : NOT_READY;
   readyCache = { at: now, value };
   return value;

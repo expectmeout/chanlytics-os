@@ -24,7 +24,8 @@ const usePlaybooks = () => {
 // Stable empties, so a workspace without templates or triggers does not
 // re-run the effects on every render.
 const PB_NONE = [];
-const PB_HOURS = Array.from({ length: 12 }, (_, i) => 9 + i);
+// The hours a run may start at: the sending hours the clock publishes (contracts SENDING_HOURS_WORDS).
+const pbHours = () => { const h = window.__clock && window.__clock.hours; return h ? Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i) : []; };
 const PB_FILTERS = [
   { id: "all", label: "All" },
   { id: "running", label: "Running" },
@@ -42,6 +43,20 @@ const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : S
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
 const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
+// What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
+const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
+const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
+// A card's message: its template among the approved, with the playbook's own values in the slots; null when it is not among them.
+const pbMessage = (p, templates, businessName) => {
+  const t = templates.find((x) => x.id === p.template_id) || null;
+  if (!t) return null;
+  const values = (p.params || PB_NONE).map((s) => (s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? "")));
+  return { template: t, words: pbRender(t.body_preview, values) };
+};
+// When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
+// What a reply is, in the one window's words (contracts REPLY_WINDOW_WORDS, on the surface).
+const pbReplyTip = () => { const w = window.__PLAYBOOKS && window.__PLAYBOOKS.replyWindow; return w ? `Threads that heard from the customer ${w} of a run` : "Threads that heard from the customer after a run"; };
+const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.bcWhenWords(d) : window.__clock && window.__clock.hours ? `on its way — sends go out ${window.__clock.hours.between} by your clock` : "on its way");
 
 // The composer: a new playbook, or one being changed. Checked here the way
 // the route checks it — a template chosen, every slot filled — so an
@@ -52,7 +67,8 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const templatesRead = data.templates !== null;
   const templates = React.useMemo(() => (data.templates || PB_NONE).slice().sort(pbOrder), [data.templates]);
   const triggers = data.triggers || PB_NONE;
-  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link", visit_when: "Their visit's time", visit_service: "Their visit's service" };
+  // What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS); a visit's are offered for a visit trigger only (below).
+  const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
   const [trigger, setTrigger] = React.useState(editing ? editing.trigger : (triggers[0] ? triggers[0].id : "quiet_30"));
   const [tplId, setTplId] = React.useState(() => {
     if (editing) return editing.template_id;
@@ -73,7 +89,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const [error, setError] = React.useState(null);
   const [picked, setPicked] = React.useState(!!editing);
   const [adding, setAdding] = React.useState(false);
-  const canEdit = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  const canEdit = !!(window.canDo && window.canDo("approve"));
   React.useEffect(() => {
     if (!templates.some((t) => t.id === tplId) && templates[0]) setTplId(templates[0].id);
   }, [templates, tplId]);
@@ -104,8 +120,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : PB_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const textOf = (i) => ((typed[tplId] || [])[i] || "");
-  const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
-  const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
+  const exampleOf = (kind) => pbExample(kind, data.businessName);
   const labels = tpl && window.__starters ? window.__starters.slotLabels(tpl) : vars.map((v, i) => v.label || `Value ${v.position || i + 1}`);
   const filled = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i) : exampleOf(srcOf(i))));
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (textOf(i).trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
@@ -143,7 +158,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       </div>
       {trig && (
         <div className="cl-prof-aut-hint" data-testid="pb-trigger-hint">
-          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"}{trig.kind !== "visit" && trig.held > 0 ? ` · ${trig.held} more heard from you this week and wait` : ""} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Workspace" : ""}
+          {trig.hint} · {pbPeople(trig.candidates)} {trig.kind === "visit" ? "with a recorded yes on that day right now" : "on that list said yes right now"}{trig.kind !== "visit" && trig.held > 0 ? ` · ${trig.held} more heard from you this week and wait` : ""} · runs under “{pbRowLabel(trig.cls)}” in Settings › Autonomy{trig.kind === "visit" ? " · one message per visit" : ""}{trig.kind === "visit" && data.calendar !== "ok" ? " · needs the calendar connected in Settings › Business" : ""}
         </div>
       )}
       <div className="bc-row">
@@ -151,7 +166,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
           {!templatesRead && <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />}
           {templatesRead && templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one on Broadcasts, or in WhatsApp Manager and sync it under Campaigns › Messages.</span>
+            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one, or sync yours from WhatsApp Manager, in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Messages</button>.</span>
           )}
           {templates.map((t) => (
             <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
@@ -205,7 +220,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
           <label className="bc-var-label">
             At <select className="tpl-select" value={hour} onChange={(e) => setHour(Number(e.target.value))} data-testid="pb-hour">
-              {PB_HOURS.map((h) => <option key={h} value={h}>{pbHour(h)}</option>)}
+              {pbHours().map((h) => <option key={h} value={h}>{pbHour(h)}</option>)}
             </select> {data.timezone}
           </label>
           <label className="bc-var-label">
@@ -243,14 +258,22 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
 // One playbook: what starts it, what it sends, its clock, its mode, what its
 // runs earned, and the verbs. A run that waits for a person is approved or
 // skipped right here — the same doors as on Today and Broadcasts.
-const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
+const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
   const [busy, setBusy] = React.useState(false);
   const [sure, setSure] = React.useState(false);
+  // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
+  const [skipSure, setSkipSure] = React.useState(false);
+  const [wordsOpen, setWordsOpen] = React.useState(false);
   const V = window.__playbooks;
   const waiting = p.totals.waiting;
   const status = pbStatus(p);
   const trig = (window.__PLAYBOOKS && window.__PLAYBOOKS.triggers || PB_NONE).find((t) => t.id === p.trigger) || null;
-  const listRoute = trig && trig.list ? `segments/${trig.list}` : "segments/opted_in";
+  // The trigger's list, on People (a smart list's own view); `segments/<id>` would land there too, one hop later.
+  const listRoute = trig && trig.list ? `clients/seg:${trig.list}` : "clients/seg:opted_in";
+  // What its runs send. Templates that could not be read are said once, over the cards; one not among the approved, here.
+  const surface = window.__PLAYBOOKS || {};
+  const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;
+  const templateGone = Array.isArray(surface.templates) && !message;
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
@@ -264,19 +287,23 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
   );
   const runNow = () => act(
     () => V.runNow(p.id),
-    (d) => (d.outcome === "sent" ? <><b>{p.name}</b> — {pbPeople(d.eligible)}, sending now</>
+    (d) => (d.outcome === "sent" ? <><b>{p.name}</b> — {pbPeople(d.eligible)}, {pbSentWhen(d)}</>
       : d.outcome === "held" ? <><b>{p.name}</b> — {pbPeople(d.eligible)} waiting for your approval</>
       : <><b>{p.name}</b> — nobody new to send to right now</>),
   );
-  const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, sending now</>);
-  const skip = () => act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
+  // The server may move the run to nine o'clock: the receipt says when it really goes (broadcasts-real.jsx bcWhenWords).
+  const approve = () => act(() => V.approveRun(waiting.id), (d) => <><b>{p.name}</b> approved — {pbPeople(d.recipient_count || waiting.recipient_count)}, {window.bcWhenWords ? window.bcWhenWords(d) : "sending now"}</>);
+  const skip = () => {
+    setSkipSure(false);
+    return act(() => V.skipRun(waiting.id), () => <><b>{p.name}</b> — this run skipped, nothing sent</>);
+  };
   const remove = () => {
     setSure(false);
     act(() => V.remove(p.id), () => <><b>{p.name}</b> deleted — its runs stay in Broadcasts with their numbers</>);
   };
 
   return (
-    <section className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}`} data-testid="pb-card" data-state={status}>
+    <section id={`pb-${p.id}`} className={`fl-card ob-card ${status === "approval" ? "is-approval" : ""}${focus ? " is-focus" : ""}`} data-testid="pb-card" data-state={status}>
       <div className="ob-head">
         <div className="ob-titles">
           <span className="ob-name">{p.name}</span>
@@ -303,6 +330,18 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
         <span className="ob-note">next run {p.next}{p.last_run_for ? ` · last ran ${p.last_run_for}` : " · has not run yet"}</span>
       </div>
 
+      {message && (
+        <div className="ob-words" data-testid="pb-words">
+          {wordsOpen && window.WaBubble
+            ? <window.WaBubble from={surface.businessName} body={message.words} footer={pbFooter(message.template)} />
+            : <span className="ob-words-line">“{message.words}”</span>}
+          <button className="cl-bucket-link" aria-expanded={wordsOpen} onClick={() => setWordsOpen((o) => !o)} data-testid="pb-words-toggle">{wordsOpen ? "Show less" : "Show the whole message"}</button>
+        </div>
+      )}
+      {templateGone && (
+        <div className="bc-excl-hint" data-testid="pb-template-gone">Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the playbook sends another.</div>
+      )}
+
       {p.totals.runs > 0 && (
         <div className="ob-results" data-testid="pb-results">
           <span className="ob-stat"><strong className="tabular">{p.totals.runs}</strong> {p.totals.runs === 1 ? "run" : "runs"}</span>
@@ -311,7 +350,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           <span className="fl-head-dot" />
           <span className="ob-stat" data-tip="WhatsApp's own receipts"><strong className="tabular">{p.totals.delivered}</strong> delivered</span>
           <span className="fl-head-dot" />
-          <span className="ob-stat" data-tip="Threads that heard from the customer after a run"><strong className="tabular">{p.totals.replied}</strong> replied</span>
+          <span className="ob-stat" data-tip={pbReplyTip()}><strong className="tabular">{p.totals.replied}</strong> replied</span>
           {p.totals.held > 0 && <><span className="fl-head-dot" /><span className="ob-stat"><strong className="tabular">{p.totals.held}</strong> held back</span></>}
         </div>
       )}
@@ -319,36 +358,40 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
           summed over -- every run, not the recent fifty broadcasts of any kind. */}
       {p.totals.history && p.totals.history.length > 0 && (
         <div className="ob-history" data-testid="pb-history">
+          {/* Each run opens as itself on Broadcasts (broadcasts/run:<id>), read by its id however old it is. */}
           {p.totals.history.map((h) => (
-            <div key={h.id} className="cl-prof-aut-hint ob-history-row">
+            <button key={h.id} type="button" className="cl-prof-aut-hint ob-history-row" onClick={() => window.CHANLY.nav(`broadcasts/run:${h.id}`)} data-testid="pb-run-open">
               <span className="tabular">{h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : "")}</span>
               {" · "}{h.state === "sent" ? <>{h.sent} sent{h.held > 0 ? `, ${h.held} held` : ""}{h.replied > 0 ? `, ${h.replied} replied` : ""}</>
                 : h.state === "pending_approval" ? `waiting for you · ${h.recipient_count} people`
                 : h.state === "sending" ? `sending · ${h.sent} so far`
                 : h.state === "scheduled" ? `scheduled · ${h.recipient_count} people`
                 : h.state}
-            </div>
+              <Icon name="arrow-right" size={10} />
+            </button>
           ))}
+          {p.totals.runs > p.totals.history.length && <span className="ob-history-more" data-testid="pb-history-more">The newest {p.totals.history.length} of {p.totals.runs} runs</span>}
         </div>
       )}
 
       <div className="ob-actions">
-        {waiting && canAct && (
-          <>
-            <button className="btn btn-primary btn-sm" disabled={busy} onClick={approve} data-testid="pb-approve">
-              <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
-            </button>
-            <button className="btn btn-sm" disabled={busy} onClick={skip} data-testid="pb-skip">Skip this run</button>
-          </>
+        {/* The run's Approve is where it always is for every role, and says who may; Skip stays with those who may. */}
+        {waiting && !skipSure && (
+          <button className="btn btn-primary btn-sm" disabled={busy} onClick={approve} data-testid="pb-approve" {...(canAct || !window.gate ? {} : window.gate("approve", "approve a run"))}>
+            <Icon name="check" size={12} /> Approve · {pbPeople(waiting.recipient_count)}
+          </button>
         )}
-        {waiting && !canAct && <span className="ob-note">{pbPeople(waiting.recipient_count)} waiting for an owner or operator</span>}
+        {waiting && canAct && !skipSure && <button className="btn btn-sm" disabled={busy} onClick={() => setSkipSure(true)} data-testid="pb-skip">Skip this run</button>}
+        {waiting && canAct && skipSure && (
+          <Confirm question={`Skip this run of ${p.name}?`} detail="Nothing sends, and the run closes." yes="Yes, skip it" danger busy={busy} onYes={skip} onNo={() => setSkipSure(false)} testid="pb-skip" />
+        )}
         {canAct && (
           <button className="btn btn-sm" disabled={busy} onClick={toggle} data-testid="pb-pause">
             <Icon name={p.state === "paused" ? "play" : "pause"} size={12} /> {p.state === "paused" ? "Resume" : "Pause"}
           </button>
         )}
         {canAct && p.state === "running" && !waiting && (
-          <button className="btn btn-sm" disabled={busy} onClick={runNow} data-tip="Runs it now, at your request — sends unless its class is set to Never; outside nine to twenty it goes at nine" data-testid="pb-run-now">
+          <button className="btn btn-sm" disabled={busy} onClick={runNow} data-tip={window.__clock && window.__clock.hours ? `Runs it now, at your request — sends unless its class is set to Never; outside ${window.__clock.hours.range} it goes at ${window.__clock.hours.first}` : "Runs it now, at your request — sends unless its class is set to Never"} data-testid="pb-run-now">
             <Icon name="bolt" size={12} /> Run now
           </button>
         )}
@@ -359,16 +402,16 @@ const PlaybookCard = ({ p, canAct, onEdit, flash }) => {
         {canAct && sure && (
           <Confirm question={`Delete ${p.name}?`} detail="Its runs stay in Broadcasts with their numbers." yes="Yes, delete" danger busy={busy} onYes={remove} onNo={() => setSure(false)} testid="pb-delete" />
         )}
-        <button className="btn btn-ghost btn-sm" onClick={() => window.CHANLY.nav("broadcasts")}>Its runs in Broadcasts <Icon name="arrow-right" size={10} /></button>
       </div>
     </section>
   );
 };
 
-const PlaybooksReal = () => {
+const PlaybooksReal = ({ initialPlaybook = null }) => {
   const data = usePlaybooks();
   const [toastNode, flash] = window.usePPToast();
-  const canAct = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may start, change or run a playbook: the role store's answer, View-as included.
+  const canAct = !!(window.canDo && window.canDo("approve"));
   const [filter, setFilter] = React.useState("all");
   const [composing, setComposing] = React.useState(false);
   const [editing, setEditing] = React.useState(null);
@@ -377,6 +420,13 @@ const PlaybooksReal = () => {
     window.addEventListener("playbooks:new", open);
     return () => window.removeEventListener("playbooks:new", open);
   }, []);
+  // A link to one playbook lands on its card: marked, and brought into view when it is out of it.
+  React.useEffect(() => {
+    const el = initialPlaybook && typeof document !== "undefined" && document.getElementById ? document.getElementById(`pb-${initialPlaybook}`) : null;
+    if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
+    const at = el.getBoundingClientRect();
+    if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
+  }, [initialPlaybook]);
 
   const rows = data.rows || PB_NONE;
   const visible = filter === "all" ? rows : rows.filter((p) => pbStatus(p) === filter);
@@ -398,7 +448,7 @@ const PlaybooksReal = () => {
         <StatStrip className="cl-head-stats">
           <StatCell label="Running" value={running} meta={waiting ? `${waiting} waiting on you` : "on your clock"} />
           <StatCell label="Sent" value={sent} meta="by every run so far" />
-          <StatCell label="Replies" tip="Threads that heard from the customer after a run" value={replied} meta="answered in the Inbox" />
+          <StatCell label="Replies" tip={pbReplyTip()} value={replied} meta="answered in the Inbox" />
         </StatStrip>
       </div>
 
@@ -416,6 +466,12 @@ const PlaybooksReal = () => {
       </div>
 
       <div className="rp-body">
+        {initialPlaybook && !rows.some((p) => p.id === initialPlaybook) && (
+          <EmptyState kind="line" title="That playbook isn't here any more." body="Its runs stay in Broadcasts, with their numbers." testid="pb-gone" />
+        )}
+        {rows.length > 0 && data.templates === null && !(composing || editing) && (
+          <FailedRead kind="line" what="your templates" body="The cards show what they send once they read. Everything else here is current." surface="playbooks" testid="pb-cards-templates-failed" />
+        )}
         {(composing || editing) && (
           <PlaybookComposer
             key={editing ? editing.id : "new"}
@@ -429,7 +485,7 @@ const PlaybooksReal = () => {
           />
         )}
         {visible.map((p) => (
-          <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} onEdit={(x) => { setComposing(false); setEditing(x); }} />
+          <PlaybookCard key={p.id} p={p} canAct={canAct} flash={flash} focus={p.id === initialPlaybook} onEdit={(x) => { setComposing(false); setEditing(x); }} />
         ))}
         {rows.length === 0 && !composing && (
           <EmptyState
@@ -437,16 +493,14 @@ const PlaybooksReal = () => {
             glyph="bolt"
             title="No playbook yet"
             body="Win-back for anyone quiet 30 days, welcome for anyone new this week, save our number for anyone who only ever phoned, or the month's offer for everyone who said yes."
-            action={canAct ? { label: "New playbook", onClick: () => window.dispatchEvent(new CustomEvent("playbooks:new")) } : null}
+            action={{ label: "New playbook", onClick: () => window.dispatchEvent(new CustomEvent("playbooks:new")), gate: window.gate ? window.gate("approve", "start a playbook") : null }}
             testid="pb-empty"
-          >
-            {!canAct && <div className="empty-body">An owner or operator can start one.</div>}
-          </EmptyState>
+          />
         )}
         {rows.length > 0 && visible.length === 0 && (
           <EmptyState kind="line" title={filter === "approval" ? "No run is waiting on you." : `Nothing ${filter}.`} />
         )}
-        {!canAct && rows.length > 0 && <div className="bc-excl-hint">Only an owner or operator can start, change or run a playbook.</div>}
+        {!canAct && rows.length > 0 && <div className="bc-excl-hint" data-testid="pb-role">{window.gateTitle("approve", "pause, run, change or delete a playbook")}</div>}
       </div>
 
       {toastNode}

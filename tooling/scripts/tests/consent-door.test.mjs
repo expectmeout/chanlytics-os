@@ -12,6 +12,9 @@ import assert from "node:assert/strict";
 import { CONSENT_RESET_SOURCE, CONSENT_SOURCES, DECISION_VERBS, PEOPLE_LISTS, consentSourceLabel, OFFERS_YES_SOURCES, offersYesRefusal, verbalOptInScript } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 test("the door: owner or operator, the three columns together, the ingest's own event, nothing for anon", () => {
   const m = readRaw("supabase/migrations/00043_consent_door.sql");
   assert.ok(m.includes("create or replace function public.set_contact_consent("));
@@ -143,14 +146,19 @@ test("the page: TWO asks, each asking how before it writes, a STOP is not undone
 // `undefined`. So the globals are stable indirections and only what they DELEGATE to
 // is swapped per mount.
 let HOOKS = null;
+// A5: the ask's refusal is drawn by the shared FieldError (data-bits.jsx, run for real in
+// refusals-on-the-page.test.mjs). This harness never runs a component's function, so it draws
+// that one hook-free component the way the component draws: the sentence as text, announced,
+// under its testid -- and nothing without a sentence.
+const FieldError = ({ message, testid }) => (message ? { type: "span", props: { className: "field-error", role: "alert", "data-testid": testid ?? undefined, children: [message] } } : null);
 globalThis.React = {
   Fragment: "Fragment",
-  createElement: (type, p, ...kids) => ({ type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
+  createElement: (type, p, ...kids) => (type === FieldError ? FieldError({ ...(p || {}) }) : { type, props: { ...(p || {}), children: kids.flat(Infinity) } }),
   useState: (init) => HOOKS.useState(init),
   useEffect: (fn) => HOOKS.useEffect(fn),
   useMemo: (fn) => HOOKS.useMemo(fn),
 };
-globalThis.window = { __ME: { role: "operator" } };
+globalThis.window = { __ME: { role: "operator" }, FieldError };
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 const Ask = globalThis.window.ConsentAsk;
 assert.equal(typeof Ask, "function", "the ask is published, or nothing below tests anything");
@@ -297,7 +305,7 @@ async function renderLoadedProfile(extra = {}) {
     last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null, last_call_at: null, last_inbound_call_at: null, call_count: 0, call_seconds: 0,
     first_contact_at: null, earliest_row_at: null, has_backfill: false, has_chat: false, queued_reply_at: null,
   };
-  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...extra }, new Date("2026-09-10T12:00:00.000Z"));
+  const vm = toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto", ...extra }, ZONE, new Date("2026-09-10T12:00:00.000Z"));
   // What the shell provides around a page: the real-workspace flag, who is signed in,
   // the sources, the loader, the toast, and the few components other files define.
   Object.assign(globalThis.window, {

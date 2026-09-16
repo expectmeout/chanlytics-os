@@ -9,6 +9,6 @@ export const POST = write({
   scope: conversationScope,
   role: "operator",
   rate: "thread_state",
-  input: z.object({ until: z.string({ required_error: NEEDS_UNTIL, invalid_type_error: NEEDS_UNTIL }) }),
+  input: z.object({ until: z.string({ error: NEEDS_UNTIL }) }),
   handle: ({ ctx, row: conv, input }) => snooze(threadPorts(ctx), { conv, until: input.until }),
 });

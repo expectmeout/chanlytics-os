@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES } from "@chanlytics/contracts";
+import { consentPageMetadata, consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES } from "@chanlytics/contracts";
 import { consentPageFor } from "@/server/consent-page";
 
 /**
@@ -25,7 +25,12 @@ import { consentPageFor } from "@/server/consent-page";
  * the page. Not indexed — it is for the people given the link, not for a
  * search result competing with the business's own site.
  */
-export const metadata: Metadata = { robots: { index: false, follow: false } };
+// Named for the business the customer is agreeing to hear from, in the page's own heading, or Not found when no
+// workspace answers to the slug (the wiring audit's N14 and N21). Never indexed; the rule is contracts'.
+export async function generateMetadata({ params }: { params: Promise<{ slug: string }> }): Promise<Metadata> {
+  const { slug } = await params;
+  return consentPageMetadata(await consentPageFor(slug));
+}
 export const dynamic = "force-dynamic";
 
 export default async function ConsentPage({ params }: { params: Promise<{ slug: string }> }) {

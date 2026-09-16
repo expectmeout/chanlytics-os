@@ -4,14 +4,15 @@ import { billingFor, billingReadiness } from "@/server/billing";
 
 /**
  * GET /api/v1/billing — the workspace's billing row as a member may read it
- * (RLS), whether this deployment can charge, and the plan as Stripe states
- * it. The page draws its buttons from the session's own role (canDo).
+ * (RLS), whether this deployment can charge and on which of Stripe's keys,
+ * live or test, and the plan as Stripe states it. The page draws its buttons
+ * from the session's own role (canDo).
  */
 export const GET = read({
   scope: workspace,
   handle: async ({ ctx, member }) => {
     const [account, ready] = await Promise.all([billingFor(ctx.supabase, member.tenantId), billingReadiness()]);
-    const billing: BillingDto = { ready: ready.ready, account, price: ready.price, trial_days: ready.trial_days };
+    const billing: BillingDto = { ready: ready.ready, livemode: ready.livemode, account, price: ready.price, trial_days: ready.trial_days };
     return { billing };
   },
 });

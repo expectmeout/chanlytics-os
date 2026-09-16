@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, TEMPLATE_TITLE_MAX } from "@chanlytics/contracts";
+import { AppError, TEMPLATE_TITLE_MAX, playbooksStillSending } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { templateScope } from "@/server/verbs";
 import { deleteTemplate } from "@/server/service";
@@ -71,6 +71,17 @@ export const DELETE = write({
       .in("state", ["scheduled", "sending"]);
     if (bErr) throw new Error(bErr.message);
     if (count) throw new AppError("conflict", "A broadcast is still using this template. Cancel it first.", 409);
+    // A running playbook that sends it would skip every run from now on: named, so the owner can pause it or give
+    // it another message first. A paused one runs nothing, and the page names it before the delete.
+    const { data: running, error: pErr } = await ctx.supabase
+      .from("playbooks")
+      .select("name")
+      .eq("tenant_id", tpl.tenant_id)
+      .eq("template_name", tpl.name)
+      .eq("template_language", tpl.language)
+      .eq("state", "running");
+    if (pErr) throw new Error(pErr.message);
+    if (running?.length) throw new AppError("conflict", playbooksStillSending(running.map((p) => String(p.name))), 409);
 
     const r = await deleteTemplate(tpl.tenant_id, id);
     if (!r.ok) {

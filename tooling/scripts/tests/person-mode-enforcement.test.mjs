@@ -30,7 +30,7 @@ const steps = readCode("apps/edge/lib/whatsapp/steps.ts");
 test("WhatsApp: the person's mode is looked up before the first branch that can speak", () => {
   const lookup = wa.indexOf("personMode = await ports.leads.personReplyMode(");
   const nonText = wa.indexOf('n.type !== "text" || !n.body');
-  const ack = wa.indexOf("fallbacks.non_text");
+  const ack = wa.indexOf("fallbacks!.non_text");
   assert.ok(lookup > 0 && nonText > 0 && ack > 0, "all three landmarks exist");
   assert.ok(lookup < nonText, "REGRESSION: the lookup sat below the non-text branch, so a Never person who sent a photo got a canned text");
   assert.ok(lookup < ack);
@@ -71,7 +71,7 @@ test("the reason exists everywhere a reason is read", () => {
 });
 
 test("the escalation upsert reports how it landed", () => {
-  const jobs = readCode("packages/jobs/src/handlers.ts");
+  const jobs = readCode("packages/jobs/src/escalate.ts");
   assert.ok(jobs.includes('export type EscalationOutcome = "opened" | "refreshed" | "failed";'));
   assert.ok(jobs.includes('return "refreshed";'));
 });

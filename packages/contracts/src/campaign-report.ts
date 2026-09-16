@@ -1,5 +1,5 @@
 /**
- * Reports › Campaigns — what the offers earned, as facts.
+ * Reports › Campaigns — what the campaigns sent and what came of it, as facts.
  *
  * Messages sent by broadcasts and playbook runs, WhatsApp's own delivered
  * and read receipts, who wrote back afterwards, and the people who said
@@ -8,7 +8,8 @@
  * shares are counts over counts; nothing is scored or estimated. Colors are
  * the page's.
  */
-import { REPORT_RANGES, dayDate, deltaOf, fmtDay, pointsDelta, type ReportTileVM } from "./reports";
+import { REPLY_WINDOW_WORDS } from "./broadcasts";
+import { REPORT_RANGES, dayDate, deltaOf, fmtDay, pointsDelta, priorOf, type ReportTileVM } from "./reports";
 import { templateTitle } from "./template-library";
 
 export interface CampaignDayDto {
@@ -95,6 +96,8 @@ export interface CampaignReportVM {
   /** Nothing went out and nobody answered about offers: no send, no yes, no stop. */
   empty: boolean;
   max: number;
+  /** Messages sent the period before, day for day beside this one's (null where there is no such day). */
+  prior: (number | null)[];
   table: { columns: string[]; rows: (string | number)[][] };
 }
 
@@ -175,7 +178,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       id: "replied",
       label: "Replied",
       value: pct(tot.replied, tot.sent) === null ? "—" : `${pct(tot.replied, tot.sent)}%`,
-      meta: tot.sent ? `${tot.replied} wrote back within 3 days` : "nothing sent",
+      meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
       delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
       spark: points.map((p) => p.replied),
     },
@@ -205,6 +208,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     sources,
     empty: tot.sent === 0 && tot.optIns === 0 && tot.optOuts === 0,
     max: Math.max(1, ...points.map((p) => p.sent)),
+    prior: priorOf(current.length, previous, (d) => d.sent),
     table: {
       columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts]),

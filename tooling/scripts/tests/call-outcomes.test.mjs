@@ -10,6 +10,9 @@ import { CALL_OUTCOMES, CALL_OUTCOME_WORDS, callOutcomeWords, tidyCallSummary, t
 import { normalizeCall, callSummaryLine, planAgentSettings, CALL_ANALYSIS_FIELDS, VOICE_WEBHOOK_EVENTS, getAgent } from "@chanlytics/channels";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const NOW = new Date("2026-09-06T16:00:00Z");
 const nowMs = NOW.getTime();
 const iso = (msAgo) => new Date(nowMs - msAgo).toISOString();
@@ -56,13 +59,13 @@ test("the call card: the request is the headline, the outcome, the to-do and the
     contact: { display_name: "Ana", wa_profile_name: null, phone_e164: "+13055550134" },
     wanted: "Asked for a gel manicure this Saturday around 10.", outcome: "booking_link_sent", follow_up: "Call back to confirm the slot.", caller_name: "Ana",
   };
-  const vm = toCallVM(dto, NOW);
+  const vm = toCallVM(dto, ZONE, NOW);
   assert.equal(vm.summary.headline, "Asked for a gel manicure this Saturday around 10.");
   assert.ok(vm.summary.bullets.includes("Booking link sent"));
   assert.ok(vm.summary.bullets.includes("To do: Call back to confirm the slot."));
   assert.ok(vm.summary.bullets.includes("Gave their name as Ana"));
   assert.match(vm.snippet, /Asked for a gel manicure this Saturday around 10\./);
-  const old = toCallVM({ ...dto, wanted: null, outcome: null, follow_up: null, caller_name: null }, NOW);
+  const old = toCallVM({ ...dto, wanted: null, outcome: null, follow_up: null, caller_name: null }, ZONE, NOW);
   assert.equal(old.summary.headline, "Called to inquire about a gel manicure.", "before the schema: the provider's first sentence, folded");
   assert.ok(!old.summary.bullets.some((b) => /^To do:|Gave their name|Booking link sent/.test(b)));
 });
@@ -74,9 +77,9 @@ test("the strip reads the same words: what they wanted from the people door, an 
     latest_assignee_user_id: null, latest_snooze_until: null, latest_wa_inbound_at: null, last_message_at: null, last_message_direction: null, last_message_sender: null, last_inbound_text: null, last_inbound_at: null,
     last_call_at: iso(2 * D), last_inbound_call_at: iso(2 * D), call_count: 1, call_seconds: 60, first_contact_at: iso(2 * D), earliest_row_at: iso(2 * D), has_backfill: false, has_chat: false, queued_reply_at: null, effective_reply_mode: "auto", visits: null,
   };
-  const folded = attentionRow(toPersonRowVM({ ...caller, last_inbound_call_summary: "The user called Melany's Beauty Salon to inquire about the opening hours for the next day." }, NOW), nowMs);
+  const folded = attentionRow(toPersonRowVM({ ...caller, last_inbound_call_summary: "The user called Melany's Beauty Salon to inquire about the opening hours for the next day." }, ZONE, NOW), ZONE, nowMs);
   assert.equal(folded.sentence, "Called to inquire about the opening hours for the next day.");
-  const wanted = attentionRow(toPersonRowVM({ ...caller, last_inbound_call_summary: "Wanted tomorrow's opening hours." }, NOW), nowMs);
+  const wanted = attentionRow(toPersonRowVM({ ...caller, last_inbound_call_summary: "Wanted tomorrow's opening hours." }, ZONE, NOW), ZONE, nowMs);
   assert.equal(wanted.sentence, "Wanted tomorrow's opening hours.");
 });
 
@@ -148,5 +151,5 @@ test("a caller who needs a call back lands on Needs you: the reason exists every
   assert.ok(readRaw("supabase/migrations/00062_callback_reason.sql").includes("'callback'"), "and the CHECK admits it");
   assert.ok(readCode("packages/contracts/src/people.ts").includes('callback: "needs a call back",'), "the strip's words");
   const vm = readCode("packages/contracts/src/viewmodels.ts");
-  assert.ok(vm.includes('callback: "Needs a call back — the phone receptionist could not finish it",') && vm.includes("callback: \"They phoned, and the receptionist could not finish it."), "the Inbox's label and the operator's first sentence");
+  assert.ok(vm.includes('callback: "Needs a call back — the phone receptionist could not finish it",') && vm.includes("callback: \"They phoned and the receptionist couldn't finish it.\","), "the Inbox's label and the operator's first sentence");
 });

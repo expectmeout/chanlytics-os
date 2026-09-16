@@ -41,6 +41,7 @@
 import { OFFERS_OPT_IN_PHRASES, optInLink } from "./enums";
 import { formatPhoneDisplay } from "./phone";
 import type { SendPurpose } from "./consent";
+import { notFoundPageMetadata, type PublicPageMetadata } from "./chrome";
 
 export interface ConsentPageFacts {
   businessName: string;
@@ -340,4 +341,19 @@ export function consentFormVM(f: Pick<ConsentPageFacts, "businessName" | "slug" 
     links: policyLinks(f),
     office: `For ${name}: record each signed box on the customer's profile, under its own answer, as “Sign-up form”, and keep this sheet. Recorded on __________ by __________`,
   };
+}
+
+/**
+ * What `/yes/<slug>`'s tab says: the page's own heading, or Not found when no workspace answers to the slug, which is
+ * when the page shows Not found. Never indexed: the page is for the people given the link (the wiring audit's N21).
+ */
+export function consentPageMetadata(f: ConsentPageFacts | null): PublicPageMetadata {
+  return f ? { title: consentPageVM(f).title, robots: { index: false, follow: false } } : notFoundPageMetadata();
+}
+
+/** The paper form's tab: the sheet it is, for the business it asks for, or Not found. Never indexed. */
+export function consentFormMetadata(
+  f: (Pick<ConsentPageFacts, "businessName" | "slug" | "businessPage"> & { whatsappE164?: string | null }) | null,
+): PublicPageMetadata {
+  return f ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
 }

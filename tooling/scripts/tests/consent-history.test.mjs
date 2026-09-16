@@ -16,6 +16,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { consentChangeOf, consentChangeWords, toPersonVM, CONSENT_RESET_SOURCE } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
 process.env.SUPABASE_SERVICE_ROLE_KEY ??= "test-only";
 
@@ -61,14 +64,14 @@ test("the person VM puts every change on the timeline, newest first, beside what
   const vm = toPersonVM({
     row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto",
     consent_history: [change({ id: "ev-2", at: "2026-09-03T10:00:00Z", purpose: "marketing", source: "form", channel: null, words: null, note: "slip 12" }), change()],
-  }, new Date("2026-09-10T12:00:00Z"));
+  }, ZONE, new Date("2026-09-10T12:00:00Z"));
   const consent = vm.timeline.filter((i) => i.kind === "consent");
   assert.deepEqual(consent.map((i) => [i.id, i.who, i.text, i.sub]), [
     ["c-ev-2", "Offers", "Said yes to offers and news", "Sign-up form, recorded by staff · slip 12"],
     ["c-ev-1", "Consent", "Said yes to messages about their visit", "In their own words by text: “START”"],
   ]);
   assert.ok(consent.every((i) => typeof i.day === "string" && typeof i.time === "string"), "stamped like every other item");
-  assert.deepEqual(toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto" }).timeline.filter((i) => i.kind === "consent"), [], "a profile without the field draws nothing new");
+  assert.deepEqual(toPersonVM({ row, identities: [], conversations: [], calls: [], escalations: [], decisions: [], receptionist_mode: null, workspace_reply_mode: "auto" }, ZONE).timeline.filter((i) => i.kind === "consent"), [], "a profile without the field draws nothing new");
 });
 
 /* ------------------------------------------------------------ the batch doors, run */

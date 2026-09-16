@@ -17,7 +17,16 @@
  *     so no pause, snooze or send sweep selects it;
  *   - the call is ended, with no recording and no thread for the call sweep to
  *     write a note into;
- *   - the config has no calendar and no notification addresses;
+ *   - the config has no calendar, and one notification address: Resend's test
+ *     inbox, delivered@resend.dev, which Resend documents as an address that
+ *     simulates a delivery, so what is sent to it reaches nobody. It is there
+ *     because e2e/thread.spec.ts sends a reply this channel cannot carry: the
+ *     failure opens an escalation and alerts the owner, and for a workspace with
+ *     no address chooseAddressing (apps/edge/lib/notify.ts) answers `redacted`,
+ *     which mails the platform's own mailbox -- a real person -- every night,
+ *     and the deadman pages the platform if the escalation outlives two hours.
+ *     With an address on file both go to the workspace's own, and this one
+ *     delivers nowhere;
  *   - and there is no job, escalation, line, playbook, broadcast or Google row.
  *
  * It refuses an owner or teammate address outside example.com, so it can never
@@ -49,6 +58,13 @@ export const PEOPLE = [
   { phone: "+12125550143", name: "Robin Example", waProfile: "Robin", identity: { channel: "whatsapp", external_id: "12125550143" } },
   { phone: "+12125550144", name: "Casey Example", waProfile: null, identity: { channel: "voice", external_id: "+12125550144" } },
 ];
+/**
+ * Where the workspace's alerts go: Resend's test inbox, which simulates a
+ * delivery and reaches nobody (resend.com/docs/dashboard/emails/send-test-emails).
+ * No `from` of its own, so the alert leaves from the platform's verified sender.
+ * The header says why there is an address at all.
+ */
+export const ALERT_INBOX = "delivered@resend.dev";
 /** The name workspace-create.spec.ts gives the workspaces it makes and deletes. */
 const PROBE_PREFIX = "E2E probe";
 /** What provision_tenant gives a new workspace (00073), so a run starts from it. */
@@ -69,9 +85,9 @@ export function workspaceConfig() {
     business_name: NAME,
     phone_display: BUSINESS_PHONE_DISPLAY,
     booking_link: BOOKING_LINK,
-    ...newReceptionistDefaults(NAME, BUSINESS_PHONE_DISPLAY, BOOKING_LINK),
+    ...newReceptionistDefaults(NAME),
   };
-  const parsed = TenantConfigWriteSchema.safeParse({ brain });
+  const parsed = TenantConfigWriteSchema.safeParse({ brain, notifications: { escalation_emails: [ALERT_INBOX] } });
   if (!parsed.success) {
     throw new Error(`the seeded config would not save: ${parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ")}`);
   }
@@ -329,7 +345,11 @@ export async function verify(db, T, ownerId) {
   if (call?.status !== "ended" || call?.conversation_id !== null || call?.recording !== null || !(call?.transcript_object?.length > 0)) problems.push("the call is not an ended call with a transcript and no thread");
   const cfg = await read("the config", db.from("tenant_config").select("config").eq("tenant_id", T).maybeSingle());
   if (!TenantConfigWriteSchema.safeParse(cfg?.config ?? null).success) problems.push("the config would not save");
-  if (cfg?.config?.calendar || cfg?.config?.notifications) problems.push("the config has a calendar or notification addresses");
+  if (cfg?.config?.calendar) problems.push("the config has a calendar");
+  const alerts = cfg?.config?.notifications;
+  if (!alerts || Object.keys(alerts).length !== 1 || alerts.escalation_emails?.length !== 1 || alerts.escalation_emails[0] !== ALERT_INBOX) {
+    problems.push(`the config's alerts go somewhere other than the test inbox, ${ALERT_INBOX}`);
+  }
   return problems;
 }
 

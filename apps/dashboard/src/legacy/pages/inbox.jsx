@@ -1,6 +1,6 @@
-/* global React, InboxList, InboxThread, InboxAgentRail */
+/* global React, InboxList, InboxThread, InboxAgentRail, EmptyState */
 // Inbox — composition layer + decide engine.
-// Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px).
+// Three columns: list rail (320px) | thread pane (flex) | agent context rail (300px, the mockup's: a seeded thread only).
 // Decisions are REAL here: approve/decline/snooze move threads, append timeline
 // events, update counts (sidebar badge syncs via "inbox:counts"), offer undo,
 // and auto-advance to the next decision. Keyboard: A approve · D decline · E edit.
@@ -15,6 +15,104 @@ const IX_VIEW_FILTERS = {
   "new-leads": (t) => /lead/i.test(t.whoMeta),
 };
 
+// Hold every draft still counting down. A real draft is a send job on the
+// server, so holding it is the withdraw the single Hold makes
+// (window.__cancelSend), once per draft. Every countdown stops at once; a
+// draft the server refused -- it may already have gone out -- is released and
+// named, never shown as held.
+// A draft's own record in the veto store: a hold belongs to the draft it held. Kept against the thread, the next
+// draft on that thread read "Held — manual send" while the server sent it (I3). A seeded draft keeps the thread's.
+const ixDraftKey = (t) => (t.real && t.veto && t.veto.messageId ? `draft:${t.veto.messageId}` : t.id);
+const ixHeld = (state, t) => !!(state[ixDraftKey(t)] || {}).held;
+
+// A reply counting down to auto-send waits on you for those seconds: you can still stop it, and after them it is in
+// your name. ONE rule for the Needs you chip, the bucket a row sits in, the order it sits in, this page's count and
+// the sidebar badge, so no two of them can say different numbers. Such a thread sat in Handled with nothing on its
+// row, and the countdown showed only in the pane you had to open first.
+const ixSending = (t, nowMs = Date.now()) => !!(t && t.real && t.veto && t.veto.endsAtMs > nowMs
+  && !ixHeld(((window.VW_STORE || {}).state) || {}, t));
+// The bucket a thread belongs to: its own state, unless a reply of its own is on its way out.
+const ixBucketOf = (t, nowMs = Date.now()) => (ixSending(t, nowMs) ? "escalated" : t && t.state);
+// What waits on you now: a real thread nobody has taken, or a reply about to send. A seeded thread keeps the
+// mockup's rule, since "needs" is a state no real thread holds.
+const ixWaitsOnYou = (t, nowMs = Date.now()) => (t && t.real
+  ? !!t.needsYou || ixSending(t, nowMs)
+  : !!t && (t.state === "needs" || (t.state === "escalated" && !t.takenOver)));
+// The order a bucket stands in: a reply about to send first, then what needs you, then the threads you have, then a
+// teammate's, each group in the server's order. A teammate's thread sat above the one waiting on you (I2).
+const ixRank = (t) => (ixSending(t) ? -1 : t && t.real && t.state === "escalated" ? (t.needsYou ? 0 : t.takenOver ? 1 : 2) : 0);
+
+// Past a real draft's deadline the only honest move is to go and look -- and to look again while the draft is still
+// there: the job fires on a ten-second tick, and one read at zero left "Auto-sends in 0s" until something else moved (I3).
+const IX_READ_AGAIN_MS = 5000;
+const IX_READ_AGAIN_TRIES = 6;
+const ixReadAgain = (st, nowMs) => {
+  if ((st.tries || 0) >= IX_READ_AGAIN_TRIES || (st.lastTry != null && nowMs - st.lastTry < IX_READ_AGAIN_MS)) return false;
+  st.tries = (st.tries || 0) + 1;
+  st.lastTry = nowMs;
+  return true;
+};
+
+const ixHoldAll = async (drafts, { state, cancelSend }) => {
+  for (const t of drafts) state[ixDraftKey(t)] = { ...(state[ixDraftKey(t)] || {}), held: true };
+  const real = drafts.filter((t) => t.real && t.veto && t.veto.messageId);
+  const answers = await Promise.all(real.map((t) => (cancelSend
+    ? cancelSend(t.veto.messageId)
+    : Promise.resolve({ ok: false, message: "The Inbox could not reach the server." }))));
+  const refused = [];
+  answers.forEach((r, i) => {
+    if (r && r.ok) return;
+    const t = real[i];
+    state[ixDraftKey(t)] = { ...(state[ixDraftKey(t)] || {}), held: false };
+    refused.push({ id: t.id, who: t.who, message: (r && r.message) || null });
+  });
+  return { held: drafts.length - refused.length, refused };
+};
+
+// The thread a route names. The id is passed on even when the Inbox has not
+// loaded that thread: dropping it opened the first thread in the list --
+// another customer's -- in silence, where the Inbox knows to say it is missing.
+const ixRouteThread = (param, threads) => {
+  const id = typeof param === "string" && param ? param : null;
+  const found = id ? (threads || []).find((t) => t.id === id) : null;
+  return { id, who: found ? found.who : null };
+};
+
+// What changed on the open thread between two reads, in the words the pane shows. The Inbox is
+// read again whenever anything moves, and each read used to repaint the open thread in silence.
+const IX_BUCKET_WORDS = { escalated: "Needs you", done: "Handled", snoozed: "Snoozed" };
+const ixRepaintNotice = (before, after, answerer = null) => {
+  if (!before || !after || before.id !== after.id) return null;
+  if (!before.claimedByOther && after.claimedByOther) return `${answerer || "A teammate"} took this conversation`;
+  if (before.state !== after.state || !!before.archived !== !!after.archived) {
+    if (after.archived) return "Archived";
+    if (after.state === "snoozed") return after.wake ? `Snoozed until ${after.wake}` : "Snoozed";
+    if (before.state === "snoozed" && after.state === "escalated") return "Back in Needs you";
+    return `Moved to ${IX_BUCKET_WORDS[after.state] || after.state}`;
+  }
+  const was = (before.timeline || []).length;
+  const now = (after.timeline || []).length;
+  if (now > was && (after.lastAtMs || 0) > (before.lastAtMs || 0)) {
+    const last = after.timeline[now - 1];
+    if (last && last.from === "client") return `${after.who} wrote again`;
+    return last && last.byYou ? "Someone on the team replied" : "The receptionist replied";
+  }
+  return null;
+};
+
+// The people a bulk act could not act on, named beside the server's sentence: grouped by the sentence,
+// so twenty refused for one reason read as one line, with no more than three names in it.
+const ixNames = (whos) => (whos.length > 3
+  ? `${whos.slice(0, 2).join(", ")} and ${whos.length - 2} more`
+  : whos.length > 1 ? `${whos.slice(0, -1).join(", ")} and ${whos[whos.length - 1]}` : whos[0] || "");
+const ixRefusedWords = (refused) => {
+  const by = new Map();
+  for (const r of refused) by.set(r.message, [...(by.get(r.message) || []), r.thread.who]);
+  return [...by].map(([message, whos]) => `${ixNames(whos)}: ${message}`).join(" ");
+};
+
+Object.assign(window, { ixHoldAll, ixHeld, ixSending, ixBucketOf, ixWaitsOnYou, ixRank, ixReadAgain, ixRouteThread, ixRepaintNotice, ixRefusedWords });
+
 const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => {}, initialThreadId = null }) => {
   const { INBOX_BUCKETS, INBOX_VIEWS, THREADS, CHANNEL_LABELS, INBOX_BASELINE } = window.INBOX_DATA;
 
@@ -25,29 +123,48 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (d.kind === "snoozed") return { ...t, state: "snoozed", wake: d.wake, unread: false };
     return { ...t, state: "done", unread: false, resolution: d };
   }));
+  // The bucket a thread is IN, never the state it holds: one whose own reply is on its way out is in Needs you.
   const firstBucketWithThreads = (list) => {
     for (const s of ["escalated", "needs", "snoozed", "done"]) {
-      if (list.some((x) => x.state === s)) return s;
+      if (list.some((x) => ixBucketOf(x) === s)) return s;
     }
     return "escalated";
   };
   const [activeBucket, setActiveBucket] = React.useState(() => {
     const t = initialThreadId && THREADS.find((x) => x.id === initialThreadId);
-    return t ? t.state : firstBucketWithThreads(THREADS);
+    return t ? ixBucketOf(t) : firstBucketWithThreads(THREADS);
   });
   const [activeThreadId, setActiveThreadId] = React.useState(
-    initialThreadId || (THREADS.find((x) => x.state === "needs") || THREADS[0] || {}).id || null,
+    // The bucket's first row opens first, in the list's own order (ixRank): a reply about to send, then a thread that
+    // needs you. A teammate's thread opened in its place (I2).
+    initialThreadId
+      || (THREADS.find((x) => ixSending(x)) || THREADS.find((x) => x.state === "needs" || (x.real && x.needsYou)) || THREADS[0] || {}).id
+      || null,
   );
   const [selected, setSelected] = React.useState([]);
+  // A bulk act on real threads while it runs: the bar says so, and a second press asks nothing.
+  const [bulkBusy, setBulkBusy] = React.useState(null); // "snooze" | "archive" | "wake"
+  const bulkRunRef = React.useRef(false);
   // On a phone the list and the thread take turns on the screen: a tap opens
   // the thread, Back returns to the list. A deep link opens straight onto the
   // thread. Desktop ignores the flag (mobile.css owns the breakpoint).
   const [phoneThreadOpen, setPhoneThreadOpen] = React.useState(!!initialThreadId);
   const [activeView, setActiveView] = React.useState(null);
   const [stale, setStale] = React.useState(null); // { threadId, update } — concurrent change waiting to merge
+  // A real re-read that changes or moves the open thread: what happened, said on the pane, and the
+  // thread kept on screen though its bucket no longer lists it -- never another customer's in its place.
+  const [repaint, setRepaint] = React.useState(null); // { threadId, words }
+  const [keepOpenId, setKeepOpenId] = React.useState(null);
+  const shownRef = React.useRef(null);
+  // Your own verbs in flight: the re-read each one makes is not news for the pane (its toast says it).
+  const ownVerbsRef = React.useRef(0);
   const firedRef = React.useRef({});
   const [toastNode, ppFlash] = window.usePPToast();
   const [planParams, setPlanParams] = React.useState({}); // per-thread plan-param pick — lifted so hotkey A and the button write the same record
+
+  // The thread the route names, as of this render, for the re-read below: its listener is bound once.
+  const routeThreadRef = React.useRef(initialThreadId);
+  routeThreadRef.current = initialThreadId;
 
   // Deep-link follows later navigations too
   React.useEffect(() => {
@@ -59,10 +176,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // Real threads carry the answer (viewmodel `needsYou`) rather than having it
   // re-derived here — this count drives the sidebar badge, and Today used to
   // dispatch a DIFFERENT number over the top of it. Seeded mockup threads keep
-  // the demo rule, since "needs" is a state real threads can never hold.
-  const needsCount = threads.filter(
-    (t) => (t.real ? t.needsYou : t.state === "needs" || (t.state === "escalated" && !t.takenOver)),
-  ).length;
+  // the demo rule, since "needs" is a state real threads can never hold. A reply
+  // about to send waits on you too, by the one rule above (ixWaitsOnYou).
+  const needsCount = threads.filter((t) => ixWaitsOnYou(t)).length;
 
   // SurfaceData seam: a real-data swap replaces window.INBOX_DATA.THREADS —
   // reseed local state (real threads never live in IX_STORE).
@@ -75,10 +191,20 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     }));
     const onSwap = () => {
       const list = (window.INBOX_DATA || {}).THREADS || [];
+      // The thread on screen, before and after this read: say what changed, and keep it open.
+      const shown = shownRef.current;
+      const next = shown && shown.real ? list.find((x) => x.id === shown.id) : null;
+      if (next) {
+        const words = ixRepaintNotice(shown, next, window.ixAnswerer ? window.ixAnswerer(next) : null);
+        if (words && ownVerbsRef.current === 0) setRepaint({ threadId: shown.id, words });
+        setKeepOpenId(shown.id);
+      }
       reseed();
       if (!list.length) return;
       setActiveBucket((b) => (list.some((x) => x.state === b) ? b : firstBucketWithThreads(list)));
-      setActiveThreadId((id) => (list.some((x) => x.id === id) ? id : null));
+      // A thread the route still names stays selected though the list does not hold it: the pane keeps
+      // saying it is missing, where clearing it let the refresh open the first thread in its place.
+      setActiveThreadId((id) => (list.some((x) => x.id === id) || (id !== null && id === routeThreadRef.current) ? id : null));
     };
     window.addEventListener("surface:inbox", onSwap);
     return () => window.removeEventListener("surface:inbox", onSwap);
@@ -88,7 +214,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   // reseed repaints. No local mutation, no IX_STORE — the server owns state.
   const realVerb = (t, verb, payload, okMsg, undoable) => {
     if (!window.__inboxVerb) return Promise.resolve(false);
-    return window.__inboxVerb(t, verb, payload).then((r) => {
+    ownVerbsRef.current += 1;
+    return window.__inboxVerb(t, verb, payload).finally(() => { ownVerbsRef.current -= 1; }).then((r) => {
       if (!r.ok) { ppFlash({ tone: "danger", msg: <>{r.message}</> }); return false; }
       const mid = undoable && r.data && r.data.message_id;
       // The receipt says exactly how long the send can still be stopped; the
@@ -154,7 +281,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   const mutate = (id, fn) => setThreads((ts) => ts.map((t) => (t.id === id ? fn(t) : t)));
 
   // Opening a thread clears its unread dot; Mark as unread sets it back (one honest meaning of "unread").
-  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); mutate(id, (x) => (x.unread ? { ...x, unread: false } : x)); };
+  // On a real thread the dot means it needs you (the view model's needsYou), so opening it changes nothing: it
+  // cleared, and the next read lit it again (I2). A seeded thread's dot is its unread one.
+  const selectThread = (id) => { setActiveThreadId(id); setPhoneThreadOpen(true); setKeepOpenId(null); setRepaint(null); mutate(id, (x) => (x.unread && !x.real ? { ...x, unread: false } : x)); };
   const markUnread = (id) => { mutate(id, (x) => ({ ...x, unread: true })); ppFlash({ msg: <><b>Marked unread</b> — bumped to the top of your list</> }); };
 
   // ---- Verdict gate: the ONE post-meeting human decision (closed set) ----
@@ -238,7 +367,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
    */
   const realVetoAct = (t, act) => {
     if (!window.canDo("approve")) return;
-    const st = VW.state[t.id] || (VW.state[t.id] = {});
+    const heldKey = ixDraftKey(t);
+    const st = VW.state[heldKey] || (VW.state[heldKey] = {});
     if (act === "edit") {
       window.setTimeout(() => window.dispatchEvent(new CustomEvent("inbox:focus-composer")), 60);
       return;
@@ -264,8 +394,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     const t = threads.find((x) => x.id === id);
     if (t && t.real) {
       if (!t.veto) return null;
-      const st = VW.state[id];
-      if (st && st.held) return null;                    // withdrawn — no countdown
+      if (ixHeld(VW.state, t)) return null;              // withdrawn, by the draft's own record — no countdown
       return Math.max(0, Math.ceil((t.veto.endsAtMs - Date.now()) / 1000));
     }
     return window.VW_UTIL.remaining(id);
@@ -289,9 +418,9 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       // At zero the only honest move is to re-read what actually happened.
       if (t.real) {
         if (!t.veto || Date.now() < t.veto.endsAtMs) return;
-        const st = VW.state[t.id] || (VW.state[t.id] = {});
-        if (st.reconciled) return;
-        st.reconciled = true;
+        const readKey = ixDraftKey(t);
+        const st = VW.state[readKey] || (VW.state[readKey] = {});
+        if (st.held || !ixReadAgain(st, Date.now())) return;
         if (window.__refreshInbox) window.__refreshInbox();
         return;
       }
@@ -319,12 +448,13 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   }, [vetoTick]);
 
   const decide = (id, action, meta = {}) => {
+    // The role first, for a real thread too: its hand-back used to skip this check and reach the server.
+    if (!window.canDo("approve")) return;
     const tReal = threads.find((x) => x.id === id);
     if (tReal && tReal.real) {
       if (action === "__HANDBACK__") realVerb(tReal, "hand-back", undefined, "cleared — the receptionist is answering again");
       return;
     }
-    if (!window.canDo("approve")) return;
     const t = threads.find((x) => x.id === id);
     if (!t) return;
     const prev = { id, state: t.state, timeline: t.timeline, resolution: t.resolution, unread: t.unread };
@@ -479,7 +609,54 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
       : `${safe.length} approved \u00b7 ${picks.length - safe.length} need${picks.length - safe.length === 1 ? "s" : ""} individual review`);
     setSelected([]);
   };
+  // A bulk act on real threads is one act. Each thread went through the single verb: a toast apiece on a
+  // stack that keeps three, a re-read of three surfaces apiece, no count, no busy state and no Undo (the
+  // wiring audit's A19). Now one ask per thread through the bulk courier and one re-read at its end, one
+  // toast with the count and each refusal named, and the refused left selected to try again.
+  const runBulk = async (picks, verb) => {
+    if (bulkRunRef.current || !window.__inboxBulk) return null;
+    bulkRunRef.current = true;
+    setBulkBusy(verb);
+    ownVerbsRef.current += 1;
+    try {
+      return await window.__inboxBulk(picks, verb);
+    } finally {
+      ownVerbsRef.current -= 1;
+      bulkRunRef.current = false;
+      setBulkBusy(null);
+    }
+  };
+  const wakeAgain = async (snoozed) => {
+    const r = await runBulk(snoozed, "wake");
+    if (!r) return;
+    ppFlash(r.refused.length
+      ? { tone: "danger", msg: <><b>{r.done.length} of {snoozed.length}</b> woken — {ixRefusedWords(r.refused)}</> }
+      // A snooze lets go of whoever had the thread (core snooze clears the claim and the pause), so waking it
+      // brings it back to the Inbox, not back where it was (I2).
+      : { msg: <>Snooze undone — <b>{r.done.length}</b> back in the Inbox</> });
+  };
+  const bulkReal = async (verb) => {
+    if (!window.canDo("approve")) return;
+    const picks = selected.map((id) => threads.find((t) => t.id === id)).filter((t) => t && t.real);
+    const todo = picks.filter((t) => (verb === "snooze" ? t.state !== "snoozed" : !t.archived));
+    if (!todo.length) {
+      ppFlash({ tone: "info", msg: <>{verb === "snooze" ? "Those are snoozed already" : "Those are archived already"}</> });
+      return;
+    }
+    const r = await runBulk(todo, verb);
+    if (!r) return;
+    setSelected(r.refused.map((x) => x.thread.id));
+    const past = verb === "snooze" ? "snoozed" : "archived";
+    const undo = verb === "snooze" && r.done.length ? () => wakeAgain(r.done) : null;
+    if (r.refused.length) {
+      ppFlash({ tone: "danger", msg: <>{r.done.length ? <><b>{r.done.length} of {todo.length}</b> {past}</> : <>Nothing was {past}</>} — {ixRefusedWords(r.refused)}</>, undo });
+    } else {
+      ppFlash({ msg: verb === "snooze" ? <><b>{r.done.length}</b> snoozed until tomorrow 10:00</> : <><b>{r.done.length}</b> archived — if they write again, they come back</>, undo });
+    }
+  };
+  const isRealPick = () => selected.some((id) => (threads.find((t) => t.id === id) || {}).real);
   const bulkSnooze = () => {
+    if (isRealPick()) return bulkReal("snooze");
     const prevs = selected.map((id) => snooze(id, "tomorrow 10:00", { silent: true })).filter(Boolean);
     if (prevs.length) ppFlash({
       msg: <><b>{prevs.length}</b> snoozed · wake tomorrow 10:00</>,
@@ -491,6 +668,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     setSelected([]);
   };
   const bulkArchive = () => {
+    if (isRealPick()) return bulkReal("archive");
     const prevs = selected.map((id) => archiveThread(id, { silent: true })).filter(Boolean);
     if (prevs.length) ppFlash({
       msg: <><b>{prevs.length}</b> archived</>,
@@ -503,16 +681,26 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
 
   const viewFilter = activeView ? IX_VIEW_FILTERS[activeView] : null;
-  const visible = viewFilter
+  // The bucket's rows, in the one order (ixRank): a reply about to send, then what needs you, then the threads you
+  // have, then a teammate's. A thread whose own reply is on its way out stands in Needs you while it counts down.
+  const visible = (viewFilter
     ? threads.filter(viewFilter)
-    : threads.filter((t) => activeBucket === "all" || t.state === activeBucket);
+    : threads.filter((t) => activeBucket === "all" || ixBucketOf(t) === activeBucket)
+  ).sort((a, b) => ixRank(a) - ixRank(b));
   // Scoped to the VISIBLE list: an id left over from another bucket used to
   // keep a customer (with a live Snooze button) on screen beside a list that
   // said "0 threads".
-  const activeThread = visible.find((t) => t.id === activeThreadId) || visible[0];
+  // A thread a re-read moved out of this bucket stays on screen (keepOpenId): the pane used to fall
+  // to the first thread in the list, another customer's, and a half-written reply went with it.
+  const activeThread = visible.find((t) => t.id === activeThreadId)
+    || (keepOpenId && keepOpenId === activeThreadId ? threads.find((t) => t.id === keepOpenId) : null)
+    || visible[0];
   // A deep link (People → "Open thread") to a thread outside the newest
-  // hundred must not open someone else's thread in silence.
-  const requestedMissing = !!initialThreadId && activeThreadId === initialThreadId && visible.length > 0 && !visible.some((t) => t.id === initialThreadId);
+  // hundred must not open someone else's thread in silence. Loaded is the test,
+  // not listed: a thread the Inbox holds in another bucket is not missing.
+  const requestedMissing = !!initialThreadId && activeThreadId === initialThreadId && visible.length > 0 && !threads.some((t) => t.id === initialThreadId);
+  // The thread on screen, for the next re-read to compare with; none while a link's notice stands.
+  shownRef.current = requestedMissing ? null : activeThread || null;
 
   // Keyboard: A approve recommended · D decline · E focus composer
   React.useEffect(() => {
@@ -544,6 +732,8 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     setActiveBucket(id);
     setActiveView(null);
     setSelected([]);
+    setKeepOpenId(null);
+    setRepaint(null);
     const stillVisible = activeThread && activeThread.state === id;
     if (!stillVisible) {
       const next = threads.find((t) => t.state === id);
@@ -558,9 +748,12 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
   };
 
   // Live bucket counts (done keeps its archive baseline of 48 resolved this week)
+  // The Needs you chip counts what needs you, the badge's number (needsCount): it counted every flagged thread, yours
+  // and a teammate's too, and a thread you have just answered stays flagged for the whole pause (I2). A reply about
+  // to send counts here and sits in this bucket, by that same rule, and leaves Handled while it counts down.
   const bucketsWithCounts = INBOX_BUCKETS.map((b) => ({
     ...b,
-    count: threads.filter((t) => t.state === b.id).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
+    count: threads.filter((t) => (t.real && b.id === "escalated" ? ixWaitsOnYou(t) : ixBucketOf(t) === b.id)).length + (b.id === "done" ? ((INBOX_BASELINE || {}).doneThisWeek ?? 48) : 0),
   }));
   const viewsWithCounts = INBOX_VIEWS.map((v) => ({
     ...v,
@@ -575,8 +768,14 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     oldest: needsThreads.reduce((a, t) => Math.max(a, t.waitingMin || 0), 0),
   };
 
+  // The agent rail is the mockup's, drawn for a seeded thread only. On a real one it invented the
+  // receptionist -- an autonomy line and a voice nobody set, an Ask box answering with canned text, a
+  // menu to a page this release hides (D11; the wiring audit's A3 and A17) -- and with no thread to show
+  // it kept an empty column.
+  const railThread = showAgentRail && !requestedMissing && activeThread && !activeThread.real ? activeThread : null;
+
   return (
-    <div className={`inbox ${showAgentRail ? "with-rail" : ""} ${phoneThreadOpen ? "phone-thread" : ""}`}>
+    <div className={`inbox ${railThread ? "with-rail" : ""} ${phoneThreadOpen ? "phone-thread" : ""}`}>
       <InboxList
         threads={visible}
         allThreads={threads}
@@ -594,49 +793,76 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
         onBulkApprove={bulkApproveSafe}
         onBulkSnooze={bulkSnooze}
         onBulkArchive={bulkArchive}
+        bulkBusy={bulkBusy}
         stake={stake}
         density={density}
+        sendingIn={vetoRemaining}
       />
-      <InboxThread
-        key={activeThread?.id}
-        thread={activeThread}
-        onBack={() => setPhoneThreadOpen(false)}
-        notice={requestedMissing ? "That conversation isn't among the newest shown here — open the person in People to find it." : null}
-        channelLabels={CHANNEL_LABELS}
-        stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
-        onReconcile={reconcile}
-        onDismissStale={() => setStale(null)}
-        onOpenClient={onOpenClient}
-        onDecide={decide}
-        onVerdict={verdictDecide}
-        veto={activeThread ? vetoRemaining(activeThread.id) : null}
-        vetoPaused={!!(window.PR_STORE && window.PR_STORE.away)}
-        onVetoAct={vetoAct}
-        onSnooze={snooze}
-        onSend={sendReply}
-        onTakeOver={takeOver}
-        onWake={wake}
-        onHandBack={handBack}
-        onMarkUnread={markUnread}
-        planParam={planParams[activeThread?.id] || 0}
-        onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
-      />
-      {showAgentRail && <InboxAgentRail thread={activeThread} />}
+      {requestedMissing ? (
+        // A link to a thread outside the loaded list: say so in the pane, and
+        // open nobody else's conversation in its place.
+        <EmptyState
+          kind="page"
+          glyph="inbox"
+          title="That conversation isn't among the newest shown here"
+          body="The Inbox loads the newest threads first. Open the person in People to find this one — no other conversation opens in its place."
+          action={{ label: "Open People", to: "clients" }}
+          also={{ label: "Show the Inbox", onClick: () => { setActiveThreadId(null); setPhoneThreadOpen(false); } }}
+          testid="inbox-missing-thread"
+        />
+      ) : (
+        <InboxThread
+          key={activeThread?.id}
+          thread={activeThread}
+          onBack={() => setPhoneThreadOpen(false)}
+          channelLabels={CHANNEL_LABELS}
+          stale={stale && activeThread && stale.threadId === activeThread.id ? stale : null}
+          onReconcile={reconcile}
+          onDismissStale={() => setStale(null)}
+          onOpenClient={onOpenClient}
+          onDecide={decide}
+          onVerdict={verdictDecide}
+          veto={activeThread ? vetoRemaining(activeThread.id) : null}
+          vetoPaused={!!(window.PR_STORE && window.PR_STORE.away)}
+          onVetoAct={vetoAct}
+          onSnooze={snooze}
+          onSend={sendReply}
+          onTakeOver={takeOver}
+          onWake={wake}
+          onHandBack={handBack}
+          onMarkUnread={markUnread}
+          onArchive={archiveThread}
+          notice={repaint && activeThread && repaint.threadId === activeThread.id ? repaint.words : null}
+          planParam={planParams[activeThread?.id] || 0}
+          onPlanParam={(i) => activeThread && setPlanParams((m) => ({ ...m, [activeThread.id]: i }))}
+        />
+      )}
+      {railThread && <InboxAgentRail thread={railThread} />}
 
       {(() => {
         const vetoLive = threads.filter((t) => t.veto && vetoRemaining(t.id) != null);
         if (vetoLive.length < 2) return null;
-        const soonest = [...vetoLive].sort((a, b) => vetoRemaining(a.id) - vetoRemaining(b.id))[0];
+
+        // The same withdraw the single Hold makes, per draft (ixHoldAll): the
+        // countdowns stop at once, and a draft the server refused is named.
+        const holdAll = async () => {
+          if (!window.canDo("approve")) return;
+          const pending = window.ixHoldAll(vetoLive, { state: VW.state, cancelSend: window.__cancelSend });
+          setVetoTick((n) => n + 1);
+          const r = await pending;
+          setVetoTick((n) => n + 1);
+          ppFlash(r.refused.length
+            ? { tone: "danger", msg: <><b>{r.held} of {vetoLive.length} drafts</b> held — {r.refused.map((x) => x.who).join(", ")} may already have gone out</> }
+            : { msg: <><b>{r.held} drafts</b> held — nothing sends until you act</> });
+        };
         return (
           <div className="ix-sending-strip">
             <span className="ix-veto-dot"></span>
-            {window.PR_STORE && window.PR_STORE.away ? <span><b>{vetoLive.length} drafts</b> paused — you're away</span> : <span><b>{vetoLive.length} drafts</b> sending — soonest {vetoRemaining(soonest.id)}s</span>}
-            <button className="btn btn-ghost btn-sm" onClick={() => selectThread(soonest.id)}>Review</button>
-            <button className="btn btn-sm" onClick={() => {
-              vetoLive.forEach((t) => { VW.state[t.id] = { held: true }; });
-              setVetoTick((n) => n + 1);
-              ppFlash({ msg: <><b>{vetoLive.length} drafts</b> held — manual send</> });
-            }}>Hold all</button>
+            {/* Which threads they are, and how long each has, is on their own rows now, at the top of Needs you: this
+                strip is here for the one act that spans them. It said the soonest seconds and offered a Review that
+                opened the row above it. */}
+            {window.PR_STORE && window.PR_STORE.away ? <span><b>{vetoLive.length} drafts</b> paused — you're away</span> : <span><b>{vetoLive.length} drafts</b> about to send</span>}
+            <button className="btn btn-sm" onClick={holdAll} {...window.gate("approve")}>Hold all</button>
           </div>
         );
       })()}

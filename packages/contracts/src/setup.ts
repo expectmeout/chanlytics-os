@@ -15,11 +15,12 @@
 import type { SchemaSet } from "./schema-sets";
 import { lineCredentialFailure, LINE_CREDENTIALS_SENTENCE } from "./line-failure";
 import { formatPhoneDisplay } from "./phone";
+import { CALENDAR_FEED_WORDS } from "./calendar";
 import type { FactConflict } from "./facts";
 import { agoWords, spanLabel } from "./time";
 import { CARRIER_WORDS, MODE_WORDS, forwardingTestOpen, type Carrier, type ForwardingMode } from "./forwarding";
 import { listingLine, type SetupGoogleFacts } from "./google";
-import { dayWords, trialWords, maySpend, billingDoorOpen, type SetupBillingFacts } from "./billing";
+import { dayWords, trialWords, maySpend, billingDoorOpen, BILLING_TEST_MODE_CLAUSE, type SetupBillingFacts } from "./billing";
 import { SOLE_PROP_LIMITS } from "./registration-path";
 import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "./capabilities";
 
@@ -294,12 +295,35 @@ export const MOCK_TEXTING_SENTENCE =
   "Texting is filed against a test registry, so nothing is delivered — a person at Chanlytics is filing it with the carriers for real.";
 
 /**
- * Takes only the three fields it reads. The back office renders the same
+ * Texting on a line that answers calls with nothing filed waits on the owner's
+ * business record. Setup said "Texting is not available yet… this page will say
+ * when" beside Connections' "waits on you" (the wiring audit's S7). Connections
+ * says the sentence on the row that holds the form; Setup's clause adds where.
+ */
+export const TEXTING_NEEDS_RECORD_SENTENCE = "Texting needs your business on record for the carriers — two minutes, once.";
+export const TEXTING_NEEDS_RECORD_CLAUSE = "Texting needs your business on record for the carriers — two minutes, once, on Connections.";
+
+/**
+ * A broken configuration, said once. Setup sent the owner to "Open Workspace to
+ * repair them" while the Business pane said the form is closed and Chanlytics
+ * repairs it (S8). Only Chanlytics can, and both pages now say so: the pane
+ * from `title` and `body` (published by the bridge), Setup's row from `clause`.
+ */
+export const BROKEN_CONFIG_WORDS = {
+  title: "This workspace's settings can't be read",
+  body: "Something saved in this workspace's configuration no longer passes the checks the receptionist runs before it answers, so the receptionist is silent and this form is closed — saving from here would replace what is still there. Chanlytics has to repair it.",
+  clause: "Your business settings could not be read, so the receptionist is silent until Chanlytics repairs them. Business lists what is wrong.",
+} as const;
+
+/**
+ * Takes only the fields it reads. The back office renders the same
  * sentence for another workspace's line, and it has the registration facts
  * without the rest of a LineDto -- a synthetic one filled with plausible
- * blanks would be a second answer waiting to drift from this one.
+ * blanks would be a second answer waiting to drift from this one. The voice
+ * state is optional for the same reason: the back office asks only about the
+ * states an owner acts on, and a line with nothing filed is not one of them.
  */
-export function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_sole_prop"> | null | undefined): { sentence: string; done: boolean } {
+export function textingWords(l: (Pick<LineDto, "sms_state" | "reg_mock" | "reg_sole_prop"> & { voice_state?: LineDto["voice_state"] }) | null | undefined): { sentence: string; done: boolean } {
   if (!l) return { sentence: "Texting is not available yet.", done: false };
   // reg_mock alone, not reg_mock && registered: the flag is only ever set by a
   // filing that WAS made against the test registry, so a mock brand still
@@ -307,6 +331,10 @@ export function textingWords(l: Pick<LineDto, "sms_state" | "reg_mock" | "reg_so
   // and `registered` is derived from the brand and campaign SIDs, which the
   // dashboard's side of the line mapper deliberately never selects.
   if (l.reg_mock) return { sentence: MOCK_TEXTING_SENTENCE, done: false };
+  // A line that answers calls has everything a text needs but the carriers'
+  // permission, which starts with the owner's business record: Connections'
+  // texting row offers the form for exactly this state (smsStateRow).
+  if (l.voice_state === "answering" && (!l.sms_state || l.sms_state === "none")) return { sentence: TEXTING_NEEDS_RECORD_CLAUSE, done: false };
   switch (l.sms_state) {
     // Working, and on the narrow registration: the ceiling belongs in the same
     // sentence as the good news, because the moment it bites is a broadcast
@@ -374,18 +402,20 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   // the desk. A direct arrangement has no row; a closed door draws nothing.
   if (billingDoorOpen(i.billing)) {
     const b = i.billing;
+    // On Stripe's test keys, said before anything the row says about a card or a charge (the wiring audit's S9).
+    const testMode = b.livemode === false ? [BILLING_TEST_MODE_CLAUSE] : [];
     if (b.status === "trialing" && (b.cancel_at || b.cancel_at_period_end)) {
-      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`, details: ["Nothing is charged; undo the cancellation from Billing before then to keep it"], verb: { label: "Open Billing", to: "admin/billing" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial, cancelled: the receptionist answers until ${dayWords(b.cancel_at ?? b.trial_end) || "the trial ends"}, then stops.`, details: [...testMode, "Nothing is charged; undo the cancellation from Billing before then to keep it"], verb: { label: "Open Billing", to: "admin/billing" } });
     } else if (b.status === "trialing") {
-      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`, details: ["The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"], verb: { label: "Open Billing", to: "admin/billing" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: `On trial: ${trialWords(b.trial_end, nowMs) || "the card is on file"}.`, details: [...testMode, "The card on file is charged when the trial ends; cancel from Billing before then if you'd rather not"], verb: { label: "Open Billing", to: "admin/billing" } });
     } else if (b.status === "active" || b.status === "incomplete") {
-      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: b.status === "active" ? `Subscribed · next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout — this page updates by itself.", details: [], verb: { label: "Open Billing", to: "admin/billing" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "ready", required: true, sentence: b.status === "active" ? `Subscribed · next invoice ${dayWords(b.current_period_end) || "on the renewal date"}.` : "Finishing checkout — this page updates by itself.", details: [...testMode], verb: { label: "Open Billing", to: "admin/billing" } });
     } else if (b.status === "past_due") {
-      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "The last payment failed. Update the card to keep the receptionist answering.", details: ["Stripe retries for a few days, then pauses the subscription"], verb: { label: "Update the card", to: "verb:billing-portal" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "The last payment failed. Update the card to keep the receptionist answering.", details: [...testMode, "Stripe retries for a few days, then pauses the subscription"], verb: { label: "Update the card", to: "verb:billing-portal" } });
     } else if (b.status === "paused" || b.status === "unpaid") {
-      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.", details: [b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"], verb: { label: "Resume in Billing", to: "admin/billing" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "waiting_you", required: true, sentence: "Your receptionist is paused: messages land in the Inbox, nothing is answered.", details: [...testMode, b.status === "paused" ? "The trial ended without a card on file" : "Payment could not be collected"], verb: { label: "Resume in Billing", to: "admin/billing" } });
     } else {
-      row({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: b.trial_days > 0 ? `Start the ${b.trial_days}-day trial with a card — nothing is charged until it ends.` : "Subscribe with a card — the first charge is today.", details: b.trial_days > 0 ? ["Cancel any time from Billing", "The receptionist answers through the trial"] : ["Cancel any time from Billing"], verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" } });
+      row({ id: "billing", icon: "money", title: "Billing", state: "not_started", required: true, sentence: b.trial_days > 0 ? `Start the ${b.trial_days}-day trial with a card — nothing is charged until it ends.` : "Subscribe with a card — the first charge is today.", details: [...testMode, ...(b.trial_days > 0 ? ["Cancel any time from Billing", "The receptionist answers through the trial"] : ["Cancel any time from Billing"])], verb: { label: b.trial_days > 0 ? "Start the trial" : "Subscribe", to: "verb:billing-checkout" } });
     }
   }
 
@@ -395,16 +425,16 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     const missing = [!b.name ? "a name" : "", !b.hours ? "hours" : "", b.services === 0 ? "services" : ""].filter(Boolean);
     const serious = (i.conflicts ?? []).find((k) => k.severity === "serious") ?? null;
     if (b.broken) {
-      row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: "Your settings could not be read. Open Workspace to repair them before anything else.", details: [], verb: { label: "Open Workspace", to: "admin/workspace" } });
+      row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: "Open Business", to: "admin/workspace" } });
     } else if (serious) {
       // Filled in, and wrong in a way a customer feels. The sentence is the
       // resolver's, because it is the one that knows WHY the two disagree.
       row({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: serious.sentence, details: [`${b.name} · hours set · ${plural(b.services, "service")} on record`], verb: { label: "Fix it in Business", to: serious.to } });
     } else if (missing.length === 0) {
-      row({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} · hours set · ${plural(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link — the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Workspace", to: "admin/workspace" } });
+      row({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} · hours set · ${plural(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link — the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Business", to: "admin/workspace" } });
     } else {
       const none = missing.length === 3;
-      row({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Workspace" : "Finish in Workspace", to: "admin/workspace" } });
+      row({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" } });
     }
   }
 
@@ -423,7 +453,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
   const texting = textingWords(ownLine);
   const lineNum = ownLine?.e164 ? display(ownLine.e164) ?? ownLine.e164 : "your number";
   if (voiceReady) {
-    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Connections", to: "admin/integrations" } });
+    row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "ready", required: !answering, sentence: `Calls are answered on ${voiceNum}. ${texting.sentence}`, details: [ownLine?.voice_state === "answering" ? "Your own number through Chanlytics" : "", ownLine || texting.done ? "" : "Texting arrives with lines that register with the carriers; this page will say when"].filter(Boolean), verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (voice.present) {
     row({ id: "line", icon: "phone", title: "A line for calls and texts", state: "waiting_you", required: !answering, sentence: `Your line ${voice.number ? `${voiceNum} ` : ""}is switched off — the receptionist is not answering it.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else if (ownLine && lineStuckProvisioning(ownLine, nowMs)) {
@@ -489,7 +519,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     if (!i.business.name || !i.business.hours) {
       row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: `Picking up on ${voiceNum}, but it has no facts to answer with yet.`, details: ["Callers are told someone will confirm and are offered to leave a message", "Fill in your name, hours and services and it answers properly from the next call"], verb: { label: "Add your facts", to: "admin/workspace" } });
     } else {
-      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null, undo: cap.live ? { label: "Switch off", to: "verb:deactivate:voice" } : null });
+      row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "ready", required: !answering, sentence: `Answering on ${voiceNum}.`, details: [handoffNum ? `Transfers to ${handoffNum} when a caller insists on a person` : "No hand-off number yet — callers who insist on a person are told someone will call back", last, activationWords(cap, nowMs)], verb: cap.tested && !cap.live ? { label: "Activate", to: "verb:activate:voice" } : voice.number ? { label: "Call it", to: `tel:${voice.number}` } : null, undo: cap.live ? { label: "Withdraw activation", to: "verb:deactivate:voice" } : null });
     }
   } else if (voice.present) {
     row({ id: "receptionist", icon: "headphones", title: "Phone receptionist", state: "waiting_you", required: !answering, sentence: "Switched off with the line.", details: [], verb: null });
@@ -532,7 +562,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : "",
     ].filter(Boolean);
     if (!metaWaits) details.push(activationWords(cap, nowMs));
-    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : undefined, required: !answering, sentence: metaWaits ? `Connected on ${waNum} — your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" }, undo: cap.live && !metaWaits ? { label: "Switch off", to: "verb:deactivate:whatsapp" } : null });
+    row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: metaWaits ? "waiting_them" : "ready", stateWords: metaWaits ? "Waiting on Meta" : undefined, required: !answering, sentence: metaWaits ? `Connected on ${waNum} — your first messages are with Meta for approval.` : `Connected on ${waNum}.`, details, verb: cap.tested && !cap.live && !metaWaits ? { label: "Activate", to: "verb:activate:whatsapp" } : t.startersApproved < 5 && !metaWaits ? { label: "Add the starters", to: "outbound" } : { label: "Open the Inbox", to: "inbox" }, undo: cap.live && !metaWaits ? { label: "Withdraw activation", to: "verb:deactivate:whatsapp" } : null });
   } else if (wa.present) {
     row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: `${waNum ?? "Your number"} is connected but switched off.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else {
@@ -541,10 +571,10 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
 
   // 6. Calendar — what is taken, so the receptionist offers real times.
   row(i.calendar.state === "ok"
-    ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: "Readable — the receptionist offers times from it.", details: [], verb: { label: "Open Calendar", to: "calendar" } }
+    ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: `${CALENDAR_FEED_WORDS.ok} — the receptionist offers times from it.`, details: [], verb: { label: "Open Calendar", to: "calendar" } }
     : i.calendar.state === "unavailable"
-      ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Workspace.`, details: [], verb: { label: "Check the feed", to: "admin/workspace" } }
-      : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the feed", to: "admin/workspace" } });
+      ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings › Business.`, details: [], verb: { label: "Check the address", to: "admin/workspace" } }
+      : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the address", to: "admin/workspace" } });
 
   // 7. Team and alerts — someone else who answers, and where alerts go.
   {
@@ -591,7 +621,7 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     } else if (g) {
       row({ id: "google", icon: "star", title, state: "ready", required: false, sentence: `${listingLine(g)}.`, details: [g.checked_at ? `Checked ${agoWords(Date.parse(g.checked_at), nowMs)}` : "Not read yet", reach], verb: { label: "Open Reports", to: "reports" } });
     } else if (i.google.places !== false) {
-      row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Workspace for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
+      row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Find your business on Google so new reviews reach you here.", details: [i.business.address ? "Uses the name and address on record" : "Add your address in Settings › Business for a surer match"], verb: { label: "Find it", to: "verb:google-find" } });
     } else {
       // Only the profile door is open here: the listing arrives with the connection.
       row({ id: "google", icon: "star", title, state: "not_started", required: false, sentence: "Connect your Google Business Profile so every review reaches you here.", details: ["Sign in to Google once, on Connections"], verb: { label: "Connect", to: "admin/integrations" } });

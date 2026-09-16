@@ -98,14 +98,41 @@ test("outside the window: only an approved template goes, a promotion needs a ye
   const bare = fakes({ templateFacts: null });
   await refused(replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["A", "B"] } } })), "validation", /no template facts/);
   assert.deepEqual(bare.ops(), [], "the client's params are never a fallback: the browser does not choose the link that lands on a phone");
-  const three = fakes({ template: { ...approved, variables: ["1", "2", "3"] } });
-  await refused(replyToConversation(three.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /takes 3 values/);
-  assert.deepEqual(three.ops(), [], "a template the Inbox cannot fill is refused here, not by Meta fifteen seconds after 'queued'");
-  const two = fakes({ template: { ...approved, variables: ["1", "2"] } });
+  const typed = fakes({ template: { ...approved, variables: [{ label: "Business name", position: 1 }, { label: "Offer", position: 2 }] } });
+  await refused(replyToConversation(typed.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /needs words for “Offer”/);
+  assert.deepEqual(typed.ops(), [], "a template with words to write is refused here, not by Meta fifteen seconds after 'queued'");
+  const two = fakes({ template: { ...approved, variables: [{ label: "Business name", position: 1 }, { label: "Booking link", position: 2 }] } });
   assert.equal((await replyToConversation(two.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } }))).status, "queued");
   const none = fakes({ templateFacts: null });
   await refused(replyToConversation(none.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /no template facts/);
   assert.deepEqual(none.ops(), []);
+});
+
+test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and the assistant fill them -- the workspace's starters open with the customer's first name; one with words to write is refused in its own label", async () => {
+  const closed = conv({ last_wa_inbound_at: iso(NOW - 30 * HOUR), display_name: "Rosa Díaz", wa_profile_name: null });
+  // The shape the salon's starters have on the row: "Value n" labels, the examples Meta read.
+  const welcome = {
+    name: "welcome_new", language: "en_US", body_preview: "Hi {{1}}, welcome to {{2}}! Book whenever you're ready: {{3}}", meta_status: "approved", category: "utility",
+    variables: [{ label: "Value 1", example: "Dani", position: 1 }, { label: "Value 2", example: "Luna Studio", position: 2 }, { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 }],
+  };
+  const { ports, log } = fakes({ template: welcome });
+  const r = await replyToConversation(ports, cmd({ conv: closed, body: { template: { name: "welcome_new", language: "en_US" } } }));
+  assert.equal(r.status, "queued", "REGRESSION: 'This template takes 3 values; the Inbox fills two' turned away the workspace's own starter");
+  assert.deepEqual(log.find((l) => l[0] === "schedule")[3].template.params, ["Rosa", "Melany's", "book.example/m"], "the first name, the business, the link: the starter's own slots");
+  assert.equal(log.find((l) => l[0] === "queue")[1].body, "Hi Rosa, welcome to Melany's! Book whenever you're ready: book.example/m");
+
+  const nameless = fakes({ template: welcome });
+  await replyToConversation(nameless.ports, cmd({ conv: { ...closed, display_name: null, wa_profile_name: null }, body: { template: { name: "welcome_new", language: "en_US" } } }));
+  assert.equal(nameless.log.find((l) => l[0] === "schedule")[3].template.params[0], "there", "no name on file reads 'Hi there', as a broadcast does");
+
+  const note = { ...welcome, name: "quick_note", body_preview: "Hi {{1}}, a quick note from {{2}}: {{3}}", variables: [welcome.variables[0], welcome.variables[1], { label: "Value 3", example: "we're open late on Thursdays this month.", position: 3 }] };
+  const q = fakes({ template: note });
+  await refused(replyToConversation(q.ports, cmd({ conv: closed, body: { template: { name: "quick_note", language: "en_US" } } })), "validation", /needs words for “The note”, which the Inbox does not ask for/);
+  assert.deepEqual(q.ops(), [], "nothing is queued for a template the Inbox cannot fill");
+
+  const hello = fakes({ template: { name: "hello_world", language: "en_US", body_preview: "Hello World", meta_status: "approved", category: "utility", variables: [] } });
+  assert.equal((await replyToConversation(hello.ports, cmd({ conv: closed, body: { template: { name: "hello_world", language: "en_US" } } }))).status, "queued", "REGRESSION: a template with nothing to fill read 'takes 0 values'");
+  assert.deepEqual(hello.log.find((l) => l[0] === "schedule")[3].template.params, []);
 });
 
 test("a claim that changed no row releases the pause it mirrored and is a 409; nothing was queued", async () => {

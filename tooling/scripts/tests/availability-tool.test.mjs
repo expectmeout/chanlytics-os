@@ -15,11 +15,13 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseIcs, filterOpenings, freeWindows, localToUtcMs, composeSystemPrompt, matchService } from "@chanlytics/contracts";
+// The one rule for a service that needs a consultation first, for the phone, the assistant and the board (C5b).
+const { offerFor, offerLead, needsConsultation } = await import("@chanlytics/contracts");
 import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels";
 import { readCode } from "./_source.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { spoken } = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
+const { spoken, availabilityAnswer } = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
 
 const TZ = "America/New_York";
 const ny = (y, m, d, hh, mm = 0) => localToUtcMs(TZ, y, m, d, hh, mm);
@@ -112,9 +114,58 @@ test("the tool speaks one paragraph, names the service's length, and matches a s
   assert.equal(matchService(salon, "unas")?.name, "Uñas de gel", "and without the tilde, the way a caller's words can arrive");
   assert.equal(matchService(salon, "depilacion de cejas")?.name, "Depilación de cejas", "accents are not the name");
   assert.equal(matchService(salon, "pedicure"), null);
-  const text = spoken("Open times (from the calendar):\n- Wednesday, September 9: 10:00 AM – 11:00 AM\n- Friday, September 11: 9:30 AM – 12:00 PM\nOffer up to three.", services[0]);
+  const text = spoken("Open times (from the calendar):\n- Wednesday, September 9: 10:00 AM – 11:00 AM\n- Friday, September 11: 9:30 AM – 12:00 PM\nOffer up to three.", offerFor(services, null, "balayage"));
   assert.equal(text, "For Balayage (about 180 minutes): Open times (from the calendar): Wednesday, September 9: 10:00 AM – 11:00 AM Friday, September 11: 9:30 AM – 12:00 PM Offer up to three.");
   assert.ok(!spoken("x", null).startsWith("For "), "no length known, no preface");
+});
+
+test("REGRESSION (C5b): a service that needs a consultation first is offered as a consultation, one rule for the phone, the assistant and the board -- each sized a three-hour color correction by its own length while the prompt said a consultation comes first", () => {
+  const rules = { consult_first: ["Color Correction "] };
+  const services = [{ name: "Color correction", duration_min: 180 }, { name: "Balayage", duration_min: 90 }, { name: "Consultation", duration_min: 30 }];
+  const cc = offerFor(services, rules, "a color correction");
+  assert.equal(cc.service.name, "Color correction");
+  assert.equal(cc.consultation, true);
+  assert.equal(cc.consultationService?.name, "Consultation");
+  assert.equal(cc.minMinutes, 30, "REGRESSION: sized by its own 180 minutes");
+  assert.equal(offerLead(cc), "Color correction needs a consultation before it can be booked, so offer a consultation instead. For a consultation (about 30 minutes): ");
+  const bal = offerFor(services, rules, "balayage");
+  assert.deepEqual([bal.consultation, bal.consultationService, bal.minMinutes], [false, null, 90]);
+  assert.equal(offerLead(bal), "For Balayage (about 90 minutes): ", "a service booked as itself reads as it did");
+  // A consultation of the service's own kind is the one offered, and named when it is more than "Consultation".
+  const kind = offerFor([...services, { name: "Color consultation", duration_min: 15 }], rules, "color correction");
+  assert.equal(kind.consultationService?.name, "Color consultation");
+  assert.equal(offerLead(kind), "Color correction needs a consultation before it can be booked, so offer a consultation instead. For a consultation (Color consultation, about 15 minutes): ");
+  // None listed: any open time will do, and the words still offer a consultation.
+  const bare = offerFor([{ name: "Extensions", duration_min: 240 }], { consult_first: ["extensions"] }, "extensions");
+  assert.deepEqual([bare.consultation, bare.consultationService, bare.minMinutes], [true, null, null]);
+  assert.equal(offerLead(bare), "Extensions needs a consultation before it can be booked, so offer a consultation instead. For a consultation: ");
+  // A consultation that itself needs one is never the one offered.
+  assert.equal(offerFor([{ name: "Color correction", duration_min: 180 }, { name: "Consulta", duration_min: 20 }], { consult_first: ["Color correction", "Consulta"] }, "color correction").consultationService, null);
+  // Accents, case and spaces are not the name, in Spanish as in English.
+  assert.equal(needsConsultation("Coloración", { consult_first: [" coloracion"] }), true);
+  assert.equal(offerFor([{ name: "Coloración", duration_min: 150 }, { name: "Consulta", duration_min: 20 }], { consult_first: ["coloracion"] }, "coloración").consultationService?.name, "Consulta");
+  assert.equal(needsConsultation("Balayage", rules), false);
+  assert.equal(needsConsultation("Balayage", null), false);
+  assert.equal(offerFor(services, rules, "massage"), null);
+  assert.equal(offerLead(null), "");
+  // The phone speaks it in one paragraph, the consultation first.
+  const block = ["Open times (from the calendar):", "- Wednesday, September 9: 10:00 AM – 11:00 AM", "Offer up to three."].join(String.fromCharCode(10));
+  assert.equal(spoken(block, cc), "Color correction needs a consultation before it can be booked, so offer a consultation instead. For a consultation (about 30 minutes): Open times (from the calendar): Wednesday, September 9: 10:00 AM – 11:00 AM Offer up to three.");
+});
+
+test("REGRESSION (C5b): the phone tool answers a consultation-first service with a consultation's open times -- it spoke the service's own length, or that nothing was open", () => {
+  const now = new Date(ny(2026, 9, 9, 8));
+  const openings = freeWindows({ hours: { wed: { open: "09:00", close: "18:00" } }, tz: TZ, busy: [{ start: ny(2026, 9, 9, 9), end: ny(2026, 9, 9, 12) }], rules: { lead_hours: 0, max_days_ahead: 1 }, now });
+  const data = { openings, tz: TZ, daysAhead: 14 };
+  const profile = { services: [{ name: "Color correction", duration_min: 400 }, { name: "Consultation", duration_min: 30 }], booking_rules: { consult_first: ["Color correction"] } };
+  const said = availabilityAnswer(data, profile, { day: "2026-09-09", service: "color correction" });
+  assert.equal(said.offer?.consultation, true);
+  assert.equal(said.days, 1, "REGRESSION: a 400-minute filter left nothing open");
+  assert.match(said.result, /^Color correction needs a consultation before it can be booked, so offer a consultation instead\. For a consultation \(about 30 minutes\): Open times \(from the calendar/);
+  assert.match(said.result, /12:00 PM – 6:00 PM/);
+  const asItself = availabilityAnswer(data, { ...profile, booking_rules: {} }, { day: "2026-09-09", service: "color correction" });
+  assert.equal(asItself.days, 0, "booked as itself, a 400-minute service fits nothing that afternoon");
+  assert.match(asItself.result, /^For Color correction \(about 400 minutes\): Open times \(from the calendar\): nothing is open/);
 });
 
 test("the shell carries the tool beside the booking link, the edge guards it, and the phone prompt names it", () => {
@@ -127,7 +178,7 @@ test("the shell carries the tool beside the booking link, the edge guards it, an
   assert.equal(availabilityUrl("https://preview.example/api/retell-fn"), "https://preview.example/api/retell-availability");
   const edge = readCode("apps/edge/api/retell-availability.ts");
   assert.ok(edge.includes('request.headers.get("x-fn-secret") !== process.env.RETELL_FN_SECRET'));
-  assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: service?.duration_min ?? null })"));
+  assert.ok(edge.includes("filterOpenings(data.openings, { day, minMinutes: offer?.minMinutes ?? null })"));
   assert.ok(edge.includes("return json(200, { result: CANNOT_SEE })"), "a refusal is a sentence the agent speaks, never an error status");
   const brain = { business_name: "S", phone_display: "(646) 932-5775", booking_link: "https://booksy.com/x", system_prompt: "x".repeat(50), fallbacks: { greeting: "g", error: "e", non_text: "n" } };
   const voice = composeSystemPrompt(brain, { hours: { mon: { open: "09:00", close: "17:00" } } }, "voice");

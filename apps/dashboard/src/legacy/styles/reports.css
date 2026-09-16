@@ -194,35 +194,19 @@
   --rp-r1: #136b94; --rp-r2: #0e84b7; --rp-r3: #369dd1; --rp-r4: #67b5e1; --rp-r5: #98cceb;
 }
 
-.rp2-range { margin-left: auto; }
+/* One line above the numbers: the period, and the days it covers. */
+.rp2-head { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 2px 0 10px; }
+.rp2-head-dates { margin-left: auto; font-size: 11.5px; color: var(--ink-dim); }
+/* On a phone the dates wrap under the tabs and read from the left, not pinned to the screen's edge. */
+@media (max-width: 640px) { .rp2-head-dates { margin-left: 0; } }
 .rp2-body { gap: 14px; }
 .rp2-loading { opacity: 0.6; transition: opacity 0.2s; }
 
 /* Tiles */
-.rp2-tiles { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
 @media (max-width: 760px) { .rp2-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-.rp2-tile {
-  background: var(--bg-raised);
-  border: 1px solid var(--line);
-  border-radius: var(--radius-lg);
-  padding: 12px 14px 10px;
-  display: flex; flex-direction: column; gap: 4px;
-  min-width: 0;
-}
-.rp2-tile-label { font-size: 10.5px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink-dim); font-weight: 500; }
-.rp2-tile-value { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; color: var(--ink); line-height: 1.1; }
-.rp2-tile-meta { font-size: 11.5px; color: var(--ink-dim); line-height: 1.4; }
-.rp2-tile-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 4px; min-height: 32px; }
-.rp2-delta { font-size: 11px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
-.rp2-delta.pos { color: var(--ok); }
-.rp2-delta.neg { color: var(--danger); }
-.rp2-spark { flex: none; }
-.rp2-spark-line { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
-.rp2-spark-area { fill: var(--ink-faint); opacity: 0.12; }
-.rp2-spark-end { fill: var(--accent); stroke: var(--bg-raised); stroke-width: 2; }
 
 /* Cards */
-.rp2-card { position: relative; display: flex; flex-direction: column; gap: 10px; }
+.rp2-card { position: relative; display: flex; flex-direction: column; }
 .rp2-card .fl-card-head { align-items: center; }
 .rp2-toggle { margin-left: auto; }
 .rp2-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
@@ -258,6 +242,14 @@
 .rp2-tip-row { display: flex; align-items: center; gap: 6px; }
 .rp2-tip-row b { color: var(--ink); font-weight: 600; min-width: 18px; text-align: right; }
 .rp2-key-line { width: 10px; height: 2px; display: inline-block; border-radius: 1px; }
+/* The period before, a faint dashed line over this one; a chart the keyboard reads, and the words it reads aloud. */
+.rp2-prior { fill: none; stroke: var(--ink-faint); stroke-width: 1.5; stroke-dasharray: 4 3; vector-effect: non-scaling-stroke; }
+.rp2-swatch.prior, .rp2-key-line.prior { background: none; border-top: 1.5px dashed var(--ink-faint); height: 0; border-radius: 0; }
+.rp2-plot:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: var(--radius-sm); }
+.rp2-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+/* A source row's name opens the playbook or the broadcast it names. */
+.rp2-src-open { text-align: left; cursor: pointer; }
+.rp2-src-open:hover, .rp2-src-open:focus-visible { text-decoration: underline; text-underline-offset: 2px; }
 
 /* Horizontal bars (nominal: one hue) */
 .rp2-bars { display: flex; flex-direction: column; gap: 8px; }
@@ -292,7 +284,7 @@
 .rp2-table td.num { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
 
 /* a period that did not load: say so under the control */
-.rp2-range-failed { font-size: 12px; color: var(--warn); margin-top: 6px; }
+.rp2-range-failed { font-size: 12px; color: var(--warn); }
 
 /* ---- Reports, denser: sections, one strip of indicators, tables with shares ---- */
 /* A section is one line of small capitals and a hairline, like the rails elsewhere. */
@@ -305,11 +297,9 @@
 .rp2-tiles.five { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .rp2-tile { display: flex; flex-direction: column; gap: 2px; padding: 11px 14px 9px; border: none; border-right: 1px solid var(--line); border-radius: 0; background: transparent; min-width: 0; box-shadow: none; }
 .rp2-tile:last-child { border-right: none; }
-.rp2-tile-label { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-faint); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp2-tile-label { font-family: var(--font-mono); text-transform: uppercase; color: var(--ink-faint); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rp2-tile-value { font-size: 21px; font-weight: 500; letter-spacing: -0.015em; color: var(--ink); line-height: 1.15; font-variant-numeric: tabular-nums; }
-.rp2-tile-meta { font-size: 11px; color: var(--ink-dim); line-height: 1.35; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.rp2-tile-foot { display: flex; align-items: flex-end; justify-content: space-between; gap: 8px; margin-top: 3px; min-height: 24px; }
-.rp2-delta { font-size: 10.5px; white-space: normal; line-height: 1.25; min-width: 0; }
+.rp2-tile-meta { font-size: 11px; color: var(--ink-dim); line-height: 1.35; text-overflow: ellipsis; }
 .rp2-tiles.four { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 @media (max-width: 1100px) {
   .rp2-tiles, .rp2-tiles.five, .rp2-tiles.four { grid-template-columns: repeat(3, minmax(0, 1fr)); }

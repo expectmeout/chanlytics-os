@@ -15,10 +15,11 @@ import { numberHealth } from "./broadcasts";
 import { channelFor, type ChannelVM } from "./channels";
 import type { GoogleListingDto, GoogleConnectionDto, GoogleAudience } from "./google";
 import type { LineDto } from "./setup";
-import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE } from "./setup";
+import { LINE_STEP_WORDS, textingWords, SOLE_PROP_CEILING_SENTENCE, TEXTING_NEEDS_RECORD_SENTENCE } from "./setup";
 import { agoWords } from "./time";
 import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
+import { CALENDAR_FEED_WORDS } from "./calendar";
 
 export type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
 export const CONNECTION_KINDS: readonly ConnectionKind[] = ["whatsapp", "phone", "sms", "google_profile", "google_listing", "calendar", "instagram", "email", "deposits"];
@@ -106,7 +107,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
   // do about it was invisible.
   const ready = line?.voice_state === "answering";
   if (ready && (!line?.sms_state || line.sms_state === "none")) {
-    return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+    return { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: TEXTING_NEEDS_RECORD_SENTENCE, verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
   }
 
   // A filing made against the carriers' TEST registry, before any of the real
@@ -141,7 +142,7 @@ export function smsStateRow(line: LineDto | null, nowMs: number): Draft {
       // and the form it points at cannot fix the workspace's name.
       return line?.last_error
         ? { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: line.last_error, verb: { label: "Open the record", to: "verb:business-record", who: "owner" }, body: "business_record" }
-        : { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: "Texting needs your business on record for the carriers — two minutes, once.", verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
+        : { ...base, state: "waiting_you", stateWords: "Waiting on you", sentence: TEXTING_NEEDS_RECORD_SENTENCE, verb: { label: "Fill it in", to: "verb:business-record", who: "owner" }, body: "business_record" };
     case "otp_waiting":
       // REPLY to it, not type it. The carriers text the owner's own mobile and
       // the reply must come from that handset -- there is no code to bring back
@@ -255,11 +256,11 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
   // The calendar: the feed the receptionist reads today.
   const cal = i.calendar?.state ?? "none";
   if (cal === "ok") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: "Readable", sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "connected", stateWords: CALENDAR_FEED_WORDS.ok, sentence: "The receptionist offers times from it. Two-way sync with Google Calendar comes later.", verb: { label: "Open Calendar", to: "calendar", who: "operator" } }));
   } else if (cal === "unavailable") {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: "Could not be read", sentence: "Your calendar could not be read. Check the address in Workspace.", verb: { label: "Check the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: "iCal feed", state: "attention", stateWords: CALENDAR_FEED_WORDS.unavailable, sentence: "Your calendar could not be read. Check the address in Settings › Business.", verb: { label: "Check the address", to: "admin/workspace", who: "owner" } }));
   } else {
-    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: "Not connected", sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the feed", to: "admin/workspace", who: "owner" } }));
+    out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: CALENDAR_FEED_WORDS.none, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the address", to: "admin/workspace", who: "owner" } }));
   }
 
   out.push(row({ kind: "instagram", icon: "instagram", title: "Instagram", detail: null, state: "later", stateWords: "Later", sentence: "Direct messages, answered by the receptionist like WhatsApp.", verb: null }));

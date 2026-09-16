@@ -12,7 +12,7 @@ export default function TermsPage() {
   return (
     <main className="legal">
       <h1>Terms of service</h1>
-      <p className="legal-meta">Chanlytics OS · last updated September 7, 2026</p>
+      <p className="legal-meta">Chanlytics OS · last updated September 14, 2026</p>
 
       <p>These terms are the agreement between Chanlytics ("we", "us") and the business that opens a workspace in Chanlytics OS ("you"). Opening a workspace, or using one you were invited to, means you agree to them.</p>
 
@@ -22,7 +22,7 @@ export default function TermsPage() {
       <h2>Your account</h2>
       <ul>
         <li>You must be able to act for the business you sign up. You are responsible for who you invite and for what they do in the workspace.</li>
-        <li>Sign-in is with your Google account or by a code sent to your email; keep that inbox and that account secure.</li>
+        <li>Sign-in is with your password, your Google account, or a code sent to your email when you need a way back in; keep your password, that inbox and that account secure.</li>
         <li>The facts you give the receptionist — hours, prices, services, policies — are yours to keep true. The receptionist answers with them as they are.</li>
       </ul>
 
@@ -69,7 +69,7 @@ export default function TermsPage() {
       <h2>Contact</h2>
       <p>Questions about these terms go to <a href="mailto:hi@chanlytics.com">hi@chanlytics.com</a>.</p>
 
-      <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
+      <p className="legal-foot">Chanlytics OS · <a href="/privacy">Privacy policy</a> · <a href="/login">Sign in</a> · <a href="https://www.chanlytics.com" target="_blank" rel="noreferrer">chanlytics.com</a></p>
     </main>
   );
 }

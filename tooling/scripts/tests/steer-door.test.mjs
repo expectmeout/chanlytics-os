@@ -122,7 +122,7 @@ const BRAIN = {
   business_name: "Harbor Moving",
   booking_link: "https://book.example/harbor",
   system_prompt: "Answer as the front desk of Harbor Moving: brief and warm, and never guess a price.",
-  fallbacks: { greeting: "g", error: "Sorry, something went wrong on our side. A person will follow up shortly.", non_text: "n" },
+  fallbacks: { greeting: "g", error: "Sorry, something went wrong on our side. A person will call you back from {phone}.", non_text: "n" },
 };
 /**
  * The same brain with a profile, so the prompt is COMPOSED -- and states the
@@ -321,7 +321,7 @@ test("the rewrite: the brain is handed the thread without the held draft, the cu
   assert.equal(q.system, resolveSystemPrompt(parsed(PROFILED), "whatsapp", TZ, new Date(), { booking: { mode: "ask", limits: {} } }, known), "the workspace's composed prompt, byte for byte");
   assert.ok(q.system.includes("- Booking: when someone wants to book, reschedule or cancel, do not send the booking link."), "the Autonomy rows reach the rewrite's prompt");
   assert.ok(q.system.includes(`Phone: ${formatPhoneDisplay(VOICE_LINE)}`), "what the platform knows -- the line it provisioned -- is spoken, formatted for a person");
-  assert.equal(q.fallback, PROFILED.fallbacks.error);
+  assert.equal(q.fallback, `Sorry, something went wrong on our side. A person will call you back from ${formatPhoneDisplay(VOICE_LINE)}.`, "the holding message, with the line as it is now (S5)");
   assert.equal(q.leadNote, "Name on record: Rosa. Returning contact. Last in touch today.", "who the customer is");
   assert.ok(q.nowNote.includes(`(${TZ})`), "the clock, in the business's zone");
   assert.ok(q.nowNote.includes(`The business is CLOSED today \u2014 ${SHUT_TODAY}`), "and the workspace's closures ride with it: the last block the model reads is the one that settles a shut day against a weekly grid that says open");

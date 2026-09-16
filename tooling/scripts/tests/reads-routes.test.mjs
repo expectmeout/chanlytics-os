@@ -34,8 +34,8 @@ async function refused(p, code, status) {
   await assert.rejects(p, (e) => { assert.equal(e.code, code, e.message); if (status) assert.equal(e.status, status); return true; });
 }
 
-test("the fourteen declare a read of the workspace, and the one that hands over everyone is owner-only", async () => {
-  for (const rel of ["billing", "broadcasts/[id]", "calls/[id]/export", "channels", "channels/whatsapp/signup", "consent/qr", "contacts/export", "conversations", "conversations/[id]/export", "google", "lines", "messages/[id]/media", "setup", "notifications"]) {
+test("the thirteen declare a read of the workspace, and the one that hands over everyone is owner-only", async () => {
+  for (const rel of ["billing", "broadcasts/[id]", "calls/[id]/export", "channels", "channels/whatsapp/signup", "consent/qr", "contacts/export", "conversations", "conversations/[id]/export", "google", "messages/[id]/media", "setup", "notifications"]) {
     const mod = await import(at(`apps/dashboard/app/api/v1/${rel}/route.ts`));
     assert.equal(mod.GET.policy.kind, "read", rel);
     assert.equal(mod.GET.policy.scope, "workspace", rel);

@@ -56,8 +56,11 @@ const StatCell = ({ label, value, valueSize, meta, metaTone = "", spark, tip, ch
 );
 
 // ---- MoreMenu — shared 3-dot popover -----------------------------------
-// items: [{ label, icon, onClick, danger, meta } | { divider:true } | { header:"…" }]
+// items: [{ label, icon, onClick, danger, meta, gate } | { divider:true } | { header:"…" }]
 // Renders its own trigger button; closes on backdrop, Escape, or item click.
+// `gated` (a sentence) keeps the whole menu shut and says why; an item's `gate`
+// is window.gate(...)'s props, spread after its click, so a refused item stays in
+// the menu, says why when pressed, and leaves the menu open.
 const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnClass = "btn btn-ghost btn-icon btn-sm", label = null, gated = null }) => {
   const [open, setOpen] = React.useState(false);
   const wrapRef = React.useRef(null);
@@ -80,12 +83,11 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
     <div className="more-wrap" ref={wrapRef}>
       <button
         className={btnClass}
-        title={gated || title}
-        disabled={!!gated}
-        data-gated={gated ? "" : undefined}
+        title={title}
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
+        {...(gated ? gatedProps(gated) : {})}
       >
         {label ? <>{label} <Icon name="chevron-down" size={10} /></> : <Icon name="more" size={size} />}
       </button>
@@ -97,7 +99,7 @@ const MoreMenu = ({ items = [], align = "right", size = 13, title = "More", btnC
               if (it.divider) return <div key={i} className="more-divider" />;
               if (it.header) return <div key={i} className="more-header">{it.header}</div>;
               return (
-                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role="menuitem" onClick={() => run(it)}>
+                <button key={i} className={`more-item ${it.danger ? "danger" : ""}`} role="menuitem" onClick={() => run(it)} {...(it.gate || {})}>
                   {it.icon && <Icon name={it.icon} size={13} />}
                   <span className="more-item-label">{it.label}</span>
                   {it.meta && <span className="more-item-meta">{it.meta}</span>}
@@ -225,17 +227,44 @@ const useHotkey = (matcher, handler) => {
 window.useHotkey = useHotkey;
 
 // ---- Role gating (ST_STORE.can · CLAUDE.md UI patterns) ------------------
-// gate(action) spreads onto a committing control's opening tag AFTER onClick:
-// allowed -> {}, denied -> disabled + reason tooltip + onClick stripped.
-// Engine fns double-guard with canDo(action) so hotkeys/bulk paths respect roles.
-const GATE_VERB = { approve: "approve or send", autonomy: "change agent autonomy", disconnect: "disconnect", billing: "change billing", team: "manage the team", settings: "change the business details", export: "export the customer list" };
+// gate(action, doing?) spreads onto a committing control's opening tag AFTER its
+// handlers. Allowed -> {}. Denied -> the control stays on the page and in the tab
+// order, says why on hover, on focus and when pressed, and does nothing. It used
+// to return `disabled` and a `title`: a disabled button takes no focus and fires
+// no hover, so the reason reached no keyboard, no finger and most pointers (A7).
+// The words are contracts' (refusal.ts roleGate, through the bridge): the same no
+// the server's refusal gives after a press. `doing` names what this control does
+// where the permission's own words would mislead -- snoozing is an `approve` act.
+// Engine fns double-guard with canDo(action) so hotkeys and bulk paths respect roles.
 const canDo = (a) => !window.ST_STORE || window.ST_STORE.can(a);
-const gateTitle = (a) => {
-  const r = window.ST_STORE ? window.ST_STORE.myRole() : "owner";
-  return r.charAt(0).toUpperCase() + r.slice(1) + " role can't " + (GATE_VERB[a] || a) + " — ask an owner";
+const gateTitle = (a, doing) => {
+  const said = window.__roleGate ? window.__roleGate(window.ST_STORE ? window.ST_STORE.myRole() : "viewer", a, doing) : null;
+  return said ? said.reason : "Your role can't do this.";
 };
-const gate = (a) => canDo(a) ? {} : { disabled: true, onClick: undefined, title: gateTitle(a), "data-gated": "" };
-Object.assign(window, { canDo, gateTitle, gate });
+// A control that refuses: focusable, described, and inert. Every handler that would
+// act is replaced -- the click; Enter and Space, which would also reach a row's own
+// key handler; a hold's pointer and key-up events -- and pressing it shows the
+// reason at the control, which is how a finger gets to read it.
+const gatedProps = (reason) => {
+  const refuse = (e) => { e.preventDefault(); e.stopPropagation(); if (window.__tip) window.__tip.show(e.currentTarget); };
+  return {
+    disabled: false,
+    title: undefined,
+    "aria-disabled": true,
+    "aria-description": reason,
+    "data-tip": reason,
+    "data-gated": "",
+    onClick: refuse,
+    onKeyDown: (e) => { if (e.key === "Enter" || e.key === " ") refuse(e); },
+    onKeyUp: undefined,
+    onPointerDown: undefined,
+    onPointerUp: undefined,
+    onPointerLeave: undefined,
+    onPointerCancel: undefined,
+  };
+};
+const gate = (a, doing) => (canDo(a) ? {} : gatedProps(gateTitle(a, doing)));
+Object.assign(window, { canDo, gateTitle, gate, gatedProps });
 
 // ---- Attachments in a thread (real sessions) ---------------------------
 // The bytes live in a private bucket; the route answers with a five-minute
@@ -272,10 +301,11 @@ window.PR_STORE = window.PR_STORE || {
   setAway(v) { this.away = v; this._emit(); },
   setTransfers(v) { this.transfers = v; this._emit(); },
 };
+// Presence refuses the way a role does: the same props, the same reachable reason.
 window.transferGate = () => {
   const P = window.PR_STORE;
-  if (P && P.away) return { disabled: true, onClick: undefined, title: "You're Away — agents use the holding line + async approval", "data-gated": "" };
-  if (P && !P.transfers) return { disabled: true, onClick: undefined, title: "Transfers off — callers get the holding line", "data-gated": "" };
+  if (P && P.away) return gatedProps("You're Away — agents use the holding line + async approval");
+  if (P && !P.transfers) return gatedProps("Transfers off — callers get the holding line");
   return {};
 };
 
@@ -305,8 +335,11 @@ const PolicyChip = ({ cls, className = "" }) => {
   }, []);
   const r = cls && window.POLICY.row(cls);
   if (!r) return null;
+  // TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real
+  // workspace has its policies loaded (__POLICIES is set, or null when the read
+  // failed) and no such figures, so its chip names the policy instead.
   return (
-    <button className={`pill ${r.locked ? "pill-warn" : ""} pol-chip ${className}`} data-tip={(() => { const t = window.TRUST && window.TRUST.cls(r.id); return t ? `${r.chip} · ${window.POLICY.modeOf(r.id)} — ${t.sent.toLocaleString()} auto-sent · ${window.TRUST.rate(t)}% edited (30d)` : "Workspace policy — Settings · Autonomy"; })()} onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.admin("autonomy")); }}>
+    <button className={`pill ${r.locked ? "pill-warn" : ""} pol-chip ${className}`} data-tip={(() => { const t = window.__POLICIES === undefined && window.TRUST && window.TRUST.cls(r.id); return t ? `${r.chip} · ${window.POLICY.modeOf(r.id)} — ${t.sent.toLocaleString()} auto-sent · ${window.TRUST.rate(t)}% edited (30d)` : "Workspace policy — Settings · Autonomy"; })()} onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.admin("autonomy")); }}>
       {r.locked ? <>Owner-only · {r.chip}</> : <>{r.chip} · {window.POLICY.modeOf(r.id)}</>}
     </button>
   );
@@ -469,7 +502,34 @@ const FailedRead = ({ kind = "card", what = "this", why = null, title = null, bo
     </div>
   );
 };
-Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead });
+// ---- FieldError — the one way a field says what is wrong with it -------------
+// Six forms coloured their own hint red inline, one had a class of its own, and
+// none was announced. One sentence under the box it belongs to, read out as it
+// appears, with the id the box names:
+//   <input aria-invalid={error ? true : undefined} aria-describedby={error ? "list-name-error" : undefined} />
+//   <FieldError id="list-name-error" message={error} />
+const FieldError = ({ id = null, message = null, testid = null }) => {
+  if (!message) return null;
+  return (
+    <span className="field-error" id={id || undefined} role="alert" data-testid={testid || undefined}>
+      <Icon name="alert" size={11} />
+      <span className="field-error-words">{message}</span>
+    </span>
+  );
+};
+
+// ---- refusalToast — a refusal, as a toast ------------------------------------
+// The client names every refusal (contracts refusalOf): a title for the kind of
+// no, and the sentence in the owner's words. The page says what did not happen
+// ("Not stopped") and the refusal says why; with no words of the page's own,
+// the refusal's title leads. Always the danger tone: nothing happened.
+//   flash(res.ok ? { msg: <>Stopped</> } : window.refusalToast(res, "Not stopped"))
+const refusalToast = (r, what = null) => {
+  const lead = what || (r && r.title) || null;
+  const why = (r && r.message) || "That didn't go through.";
+  return { tone: "danger", msg: lead ? <><b>{lead}</b> — {why}</> : <>{why}</> };
+};
+Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead, FieldError, refusalToast });
 
 // ---- Tip — one styled tooltip for every [data-tip] element (hover + keyboard focus) ----
 (() => {
@@ -522,5 +582,8 @@ Object.assign(window, { PolicyChip, StatePill, Confirm, EmptyState, FailedRead }
   window.addEventListener("scroll", hide, true);
   window.addEventListener("resize", hide);
   window.addEventListener("keydown", (e) => { if (e.key === "Escape") hide(); });
+  // A pressed gate shows its reason at once, at the control: a tap has no hover,
+  // and the press's own mousedown has just hidden whatever the hover began.
+  window.__tip = { show: (t) => { if (!t || !t.getAttribute || !t.getAttribute("data-tip")) return; cur = t; clearTimeout(showT); clearTimeout(hideT); place(t); } };
   window.__uiTip = true;
 })();

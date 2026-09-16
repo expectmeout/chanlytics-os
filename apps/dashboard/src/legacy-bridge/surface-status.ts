@@ -62,3 +62,33 @@ export function onSurfaceStatusChange(fn: () => void): () => void {
   listeners.add(fn);
   return () => listeners.delete(fn);
 }
+
+/**
+ * Whether this device can reach the workspace, and whether the live feed that
+ * keeps the surfaces current is up. Kept beside the surfaces' own status, and
+ * heard through the same listeners, because the shell reads them together: a
+ * surface can be live by its last read on a device that has since gone offline.
+ */
+export interface Connection {
+  offline: boolean;
+  realtimeDown: boolean;
+}
+
+const connection: Connection = { offline: false, realtimeDown: false };
+
+/** Record what changed: the listeners hear it once, and not at all when nothing did. */
+export function setConnection(next: Partial<Connection>): void {
+  let changed = false;
+  for (const k of ["offline", "realtimeDown"] as const) {
+    const v = next[k];
+    if (v !== undefined && v !== connection[k]) {
+      connection[k] = v;
+      changed = true;
+    }
+  }
+  if (changed) listeners.forEach((l) => l());
+}
+
+export function getConnection(): Connection {
+  return { ...connection };
+}

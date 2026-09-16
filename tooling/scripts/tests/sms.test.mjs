@@ -202,12 +202,6 @@ test("the wiring: proven before trusted, held before spoken, the channel on ever
   // text — were never asked of it.
   assert.ok(persist.includes('purpose: SendPurpose = "conversational"'), "and names the purpose the caller gave it, a reply by default");
   assert.ok(readCode("packages/db/src/repositories/ingest.ts").includes('channel: p.channel ?? "whatsapp",'), "an outbound row says its wire");
-  // The job's wires are bound by the edge where the credentials are, and a
-  // missing one is a refusal at the door (deliver.test.mjs runs that door;
-  // jobs-tick-door.test.mjs runs the heartbeat sending a job on its
-  // workspace's own texting line).
-  const door = readCode("packages/core/src/deliver.ts");
-  assert.ok(door.includes('send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }'), "no line = a loud failure at the door, never the other wire");
   const reply = readCode("packages/core/src/conversations/reply.ts");
   // The channel and the window are rules that return values now (replyChannelOf
   // in verbs, replyWindow in contracts), and reply-window.test.mjs runs both.

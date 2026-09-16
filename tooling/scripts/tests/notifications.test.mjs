@@ -41,7 +41,7 @@ test("the feed: who needs you, a draft still waiting, a missed call today, an op
   assert.equal(items[1].title, "Dani needs you");
   assert.equal(items[1].to, "inbox/t1");
   assert.equal(items[2].to, "conversations/cv-k1");
-  assert.equal(items[3].to, "admin/workspace");
+  assert.equal(items[3].to, "admin/team", "an invitation opens the Team pane, where invitations have lived since Team split from Workspace");
   assert.deepEqual(buildNotificationFeed({ now: NOW }), []);
 });
 

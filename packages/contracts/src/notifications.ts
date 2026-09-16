@@ -135,7 +135,9 @@ export function buildNotificationFeed(input: FeedInput): NotificationItem[] {
       at: Number.isNaN(at) ? now : at,
       title: `Invitation pending · ${i.email}`,
       message: "They have not accepted yet.",
-      to: "admin/workspace",
+      // Invitations live on the Team pane since Team split from Workspace;
+      // the row's own button says "Team", so its door must open Team.
+      to: "admin/team",
       icon: "users",
       tone: "",
       action: "Team",
@@ -226,7 +228,7 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
 const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^admin\/setup/, "Open Setup"],
   [/^admin\/integrations/, "Open Connections"],
-  [/^admin\/workspace/, "Open Workspace"],
+  [/^admin\/workspace/, "Open Business"],
   [/^admin\/notifications/, "Open Notifications"],
   [/^admin\/billing/, "Open Billing"],
   [/^inbox/, "Open the Inbox"],

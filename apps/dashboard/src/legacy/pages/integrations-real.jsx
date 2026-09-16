@@ -12,10 +12,12 @@
 
 const VERB_TESTID = { "verb:google-check": "google-check", "verb:google-connect": "google-connect", "verb:google-disconnect": "google-disconnect", "verb:whatsapp-connect": "connect-whatsapp-btn", messages: "channel-messages" };
 const mayPress = (verb) => !!verb && !!window.canDo && (verb.who === "owner" ? window.canDo("team") : window.canDo("approve"));
+// What a connection's verb does, for the gate's sentence (contracts refusal.ts roleGate).
+const VERB_DOING = { "verb:google-check": "read Google again", "verb:google-connect": "connect Google", "verb:google-disconnect": "disconnect Google", "verb:whatsapp-connect": "connect WhatsApp", "verb:business-record": "fill in the business record" };
 
 // The connected account's locations, for the owner to choose among when
 // Google returned more than one on Maps.
-const GoogleChoose = ({ busy, setBusy, flash }) => {
+const GoogleChoose = ({ busy, setBusy, flash, onDisconnect }) => {
   const [places, setPlaces] = React.useState(null);
   React.useEffect(() => {
     if (!window.__google) return undefined;
@@ -31,13 +33,7 @@ const GoogleChoose = ({ busy, setBusy, flash }) => {
     setBusy(false);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{p.title}</b> is your listing on Google{r.read ? " — every review is on Reports now" : " — the reviews follow within the hour"}.</> : <>{r.message}</> });
   };
-  const disconnect = async () => {
-    if (!window.__google || busy) return;
-    setBusy(true);
-    const r = await window.__google.disconnect();
-    setBusy(false);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>Google is disconnected. The public listing stays; replies and the full history do not.</> : <>{r.message}</> });
-  };
+
   return (
     <div className="set-row set-row-stack" data-testid="google-choose">
       <div className="set-row-info">
@@ -52,12 +48,13 @@ const GoogleChoose = ({ busy, setBusy, flash }) => {
                 <span className="setup-place-name">{p.title}</span>
                 <span className="setup-place-where">{p.address || "no address on Google"}{p.account_title ? ` · ${p.account_title}` : ""}</span>
               </span>
-              {owner && <button className="btn btn-primary btn-sm" onClick={() => choose(p)} disabled={busy} data-testid="google-place-choose">This is it</button>}
+              <button className="btn btn-primary btn-sm" onClick={() => choose(p)} disabled={busy} data-testid="google-place-choose" {...window.gate("team", "choose the listing")}>This is it</button>
             </div>
           ))}
         </div>
       )}
-      {owner && <button className="cl-bucket-link" onClick={disconnect} disabled={busy} data-testid="google-choose-disconnect">Disconnect instead</button>}
+      {/* It asks first, through the row's own Confirm, as the row's Disconnect does. It disconnected at once (S17). */}
+      {owner && <button className="cl-bucket-link" onClick={onDisconnect} disabled={busy} data-testid="google-choose-disconnect">Disconnect instead</button>}
     </div>
   );
 };
@@ -83,9 +80,11 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
       {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
         <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>
       )}
-      {mayPress(r.verb) && !armed && (
+      {/* A verb the role may not press stays on the row and says why (window.gate);
+          it used to be hidden, with no word. A page to open is anyone's to open. */}
+      {r.verb && !armed && (
         r.verb.to.startsWith("verb:")
-          ? <button className={`btn btn-sm${primary ? " btn-primary" : ""}`} onClick={() => run(r)} disabled={busy} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`}>{busy && r.verb.to === "verb:google-check" ? "Reading…" : r.verb.label}</button>
+          ? <button className={`btn btn-sm${primary ? " btn-primary" : ""}`} onClick={() => run(r)} disabled={busy} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} {...(mayPress(r.verb) || !window.gate ? {} : window.gate(r.verb.who === "owner" ? "team" : "approve", VERB_DOING[r.verb.to]))}>{busy && r.verb.to === "verb:google-check" ? "Reading…" : r.verb.label}</button>
           : <button className={primary ? "btn btn-sm btn-primary" : "cl-bucket-link"} onClick={() => window.CHANLY.nav(r.verb.to)} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} title={r.kind === "whatsapp" ? "What the receptionist and your campaigns send on this number" : undefined}>{r.verb.label}</button>
       )}
     </div>
@@ -178,9 +177,9 @@ const PaneIntegrationsReal = () => {
     const res = what === "remove" ? await window.__google.unlink() : await window.__google.disconnect();
     setBusy(false);
     setArm(null);
-    flash({ msg: res.ok
-      ? (what === "remove" ? <>The listing is off the record, with what was read from it{G && G.dto.connection ? " — and the Business Profile is disconnected" : ""}.</> : <>Google is disconnected. The public listing stays; replies and the full history do not.</>)
-      : <>{res.message}</> });
+    flash(res.ok
+      ? { msg: what === "remove" ? <>The listing is off the record, with what was read from it{G && G.dto.connection ? " — and the Business Profile is disconnected" : ""}.</> : <>Google is disconnected. The public listing stays; replies and the full history do not.</> }
+      : window.refusalToast(res, what === "remove" ? "Listing not removed" : "Google not disconnected"));
   };
 
   const W = window.__connections.groupWords;
@@ -205,7 +204,7 @@ const PaneIntegrationsReal = () => {
           {list.map((r) => (
             <React.Fragment key={r.kind}>
               <ConnectionRow r={r} run={run} busy={busy} arm={arm} setArm={setArm} confirm={confirm} />
-              {r.body === "google_choose" && <GoogleChoose busy={busy} setBusy={setBusy} flash={flash} />}
+              {r.body === "google_choose" && <GoogleChoose busy={busy} setBusy={setBusy} flash={flash} onDisconnect={() => setArm({ kind: r.kind, what: "disconnect" })} />}
               {r.body === "business_record" && <window.BusinessRecordForm line={ownLine} flash={flash} />}
             </React.Fragment>
           ))}

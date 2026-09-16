@@ -29,23 +29,33 @@ const BusinessRecordForm = ({ line, flash }) => {
   const [problems, setProblems] = React.useState({});
   const [busy, setBusy] = React.useState(false);
   const [arm, setArm] = React.useState(false);
+  // A read that failed is its own state -- never an empty record, and never the
+  // one-time question asked over a record that may well be on file.
+  const [readFailed, setReadFailed] = React.useState(null);
   const owner = window.canDo ? window.canDo("team") : false;
+
+  const load = (isOn = () => true) => API.read().then((r) => {
+    if (!isOn()) return;
+    if (!r.ok) { setReadFailed(r.message || "The record could not be read."); return; }
+    setReadFailed(null);
+    // No website is guessed. Left empty, the filing names the page this
+    // product publishes for the workspace (/b/<slug>), as the field's hint
+    // says. The guess this replaced was saved as the website and filed with
+    // the carriers: the opt-in page, of whichever workspace sorted first.
+    setRecord(r.record ?? API.empty({ email: window.__ME?.email ?? "" }));
+    setPath(r.path ?? null);
+    setProblems(r.problems || {});
+  });
 
   React.useEffect(() => {
     let on = true;
-    API.read().then((r) => {
-      if (!on) return;
-      // No website is guessed. Left empty, the filing names the page this
-      // product publishes for the workspace (/b/<slug>), as the field's hint
-      // says. The guess this replaced was saved as the website and filed with
-      // the carriers: the opt-in page, of whichever workspace sorted first.
-      setRecord(r.record ?? API.empty({ email: window.__ME?.email ?? "" }));
-      setPath(r.path ?? null);
-      setProblems(r.problems || {});
-    });
+    load(() => on);
     return () => { on = false; };
-  }, [API]);
+  }, [API]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  if (!record && readFailed) {
+    return <window.FailedRead kind="line" what="the business on record" why={readFailed} body="Nothing was changed. Retry reads it again." onRetry={() => { setReadFailed(null); load(); }} testid="business-record-failed" />;
+  }
   if (!record) return <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading what is on record…</span></div></div>;
 
   // A registration already with the carriers. It cannot be withdrawn, so the
@@ -61,20 +71,27 @@ const BusinessRecordForm = ({ line, flash }) => {
   // check on a box this path does not render.
   const choose = (p) => { setRecord((r) => API.forPath(r, p)); setProblems({}); setPath(p); setAsking(false); };
   const save = async () => {
+    if (!owner) return;
     const found = API.problems(record, path);
     setProblems(found);
-    if (Object.keys(found).length) { flash({ msg: <>{Object.values(found)[0]}</> }); return; }
+    // Each box says what it needs; the toast only counts them.
+    const count = Object.keys(found).length;
+    if (count) { flash({ tone: "warn", msg: <>Not saved — {count === 1 ? "1 field needs" : `${count} fields need`} a look.</> }); return; }
     setBusy(true);
     const r = await API.save(record, path);
     setBusy(false);
-    flash({ tone: "danger", msg: <>{r.message}</> });
+    // A saved record is good news, in the ok tone: it used to arrive as a red
+    // toast. A refusal marks every field the route named, under its box.
+    if (!r.ok) { setProblems(r.problems || {}); flash(window.refusalToast(r, "Not saved")); return; }
+    flash({ msg: <>{r.message}</> });
   };
   const file = async () => {
+    if (!owner) return;
     setBusy(true);
     const r = await API.register(line.id);
     setBusy(false);
     setArm(false);
-    flash({ tone: "danger", msg: <>{r.message}</> });
+    flash(r.ok ? { msg: <>{r.message}</> } : window.refusalToast(r, "Not filed"));
   };
 
   const head = (
@@ -150,33 +167,40 @@ const BusinessRecordForm = ({ line, flash }) => {
               <span className="biz-group-sub">{words[g].sub}</span>
             </div>
             <div className="biz-fields">
-              {mine.map((f) => (
-                <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
-                  <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
-                  {f.options ? (
-                    <select className="biz-input" value={record[f.name] ?? ""} disabled={!owner || busy} onChange={(e) => set(f.name, e.target.value)}>
-                      {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
-                    </select>
-                  ) : (
-                    <input
-                      className={`biz-input${problems[f.name] ? " biz-bad" : ""}`}
-                      value={record[f.name] ?? ""}
-                      placeholder={f.placeholder || ""}
-                      disabled={!owner || busy}
-                      onChange={(e) => set(f.name, e.target.value)}
-                    />
-                  )}
-                  {problems[f.name] ? <span className="biz-problem">{problems[f.name]}</span> : f.hint ? <span className="biz-hint">{f.hint}</span> : null}
-                </label>
-              ))}
+              {mine.map((f) => {
+                const problem = problems[f.name] || null;
+                const problemId = `biz-${f.name}-problem`;
+                return (
+                  <label className="biz-field" key={f.name} data-testid={`biz-${f.name}`}>
+                    <span className="biz-label">{f.label}{f.required ? "" : <span className="dim"> · optional</span>}</span>
+                    {f.options ? (
+                      <select className={`biz-input${problem ? " biz-bad" : ""}`} value={record[f.name] ?? ""} disabled={!owner || busy} aria-invalid={problem ? true : undefined} aria-describedby={problem ? problemId : undefined} onChange={(e) => set(f.name, e.target.value)}>
+                        {f.options.map((o) => <option key={o} value={o}>{API.optionWords(o)}</option>)}
+                      </select>
+                    ) : (
+                      <input
+                        className={`biz-input${problem ? " biz-bad" : ""}`}
+                        value={record[f.name] ?? ""}
+                        placeholder={f.placeholder || ""}
+                        disabled={!owner || busy}
+                        aria-invalid={problem ? true : undefined}
+                        aria-describedby={problem ? problemId : undefined}
+                        onChange={(e) => set(f.name, e.target.value)}
+                      />
+                    )}
+                    {problem ? <window.FieldError id={problemId} message={problem} testid={problemId} /> : f.hint ? <span className="biz-hint">{f.hint}</span> : null}
+                  </label>
+                );
+              })}
             </div>
           </div>
         );
       })}
 
-      {owner ? (
+      {/* Save and File are the form's acts: a role that may not press them sees them gated, saying why, and the form
+          says why once below. They were hidden under a sentence of the form's own (the one gate). */}
         <div className="bc-chips">
-          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="biz-save">{busy ? "Saving…" : "Save"}</button>
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="biz-save" {...window.gate("team", "fill in the business record")}>{busy ? "Saving…" : "Save"}</button>
           {/*
             Not on a line the carriers SENT BACK. Resubmitting one is support's action
             (gate 6), so this button could only be refused there -- a dead button on the
@@ -184,7 +208,7 @@ const BusinessRecordForm = ({ line, flash }) => {
             Saving their corrections is still theirs, and is what unblocks it.
           */}
           {ready && line && !arm && line.sms_state !== "rejected" && (
-            <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="biz-file">File with the carriers</button>
+            <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="biz-file" {...window.gate("team", "file with the carriers")}>File with the carriers</button>
           )}
           {line && line.sms_state === "rejected" && (
             <span className="set-row-hint" data-testid="biz-rejected">Save your corrections here — Chanlytics sends the registration back to the carriers for you, at no cost.</span>
@@ -193,9 +217,7 @@ const BusinessRecordForm = ({ line, flash }) => {
             <Confirm question="File with the carriers?" detail={API.costWords[path]} yes="Yes, file it" no="Not yet" busy={busy} onYes={file} onNo={() => setArm(false)} testid="biz-file" />
           )}
         </div>
-      ) : (
-        <span className="set-row-hint">An owner fills this in.</span>
-      )}
+      {!owner && <span className="set-row-hint">{window.gateTitle("team", "fill in the business record")}</span>}
     </div>
   );
 };

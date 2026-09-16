@@ -17,7 +17,8 @@
 import { injectedTurn } from "./whisper";
 import { CALL_HEARTBEAT_MS, isLiveCall } from "./policy";
 import { formatPhoneDisplay } from "./phone";
-import { DISCONNECTION_LABELS, initialsOf, shortTime, type CallDto } from "./viewmodels";
+import { DISCONNECTION_LABELS, initialsOf, shortTime, spokenDuration, type CallDto } from "./viewmodels";
+import { callOutcomeWords } from "./call-words";
 import type { ChannelDto } from "./channels";
 
 /** A live call whose heartbeat is older than this is "still marked live · checking". */
@@ -75,6 +76,16 @@ export interface LiveCallVM {
   /** Why the call ended, in the owner's words. */
   endedHow: string | null;
   recordingState: "ready" | "pending" | "failed" | "purged" | "none";
+  /** What the caller wanted, in the post-call analysis's plain words; null while live or without an analysis. */
+  wanted: string | null;
+  /** How it ended, in the owner's words (callOutcomeWords); null without an analysis outcome. */
+  outcomeWords: string | null;
+  /** What to do next, from the analysis. */
+  followUp: string | null;
+  /** The name the caller gave. */
+  callerName: string | null;
+  /** "3 min 10 sec" once the call has ended: a length in words, so it never reads as a time beside a date. */
+  lengthWords: string | null;
   transcript: LiveTurnVM[];
 }
 
@@ -127,7 +138,7 @@ function turnsOf(dto: CallDto): LiveTurnVM[] {
     });
 }
 
-export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
+export function toLiveCallVM(dto: CallDto, tz: string, now = new Date()): LiveCallVM {
   const nowMs = now.getTime();
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
@@ -189,7 +200,7 @@ export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
     checkingWhy,
     startedAtMs,
     heartbeatAtMs,
-    startedLabel: shortTime(dto.started_at, now),
+    startedLabel: shortTime(dto.started_at, tz, now),
     duration: live || missed || !dto.duration_ms ? null : mmss(dto.duration_ms),
     summaryState,
     summary,
@@ -198,12 +209,18 @@ export function toLiveCallVM(dto: CallDto, now = new Date()): LiveCallVM {
       ? (DISCONNECTION_LABELS[dto.disconnection_reason] ?? dto.disconnection_reason.replace(/_/g, " "))
       : null,
     recordingState,
+    // The analysis's words, as toCallVM reads them; none while the call is still on the line.
+    wanted: live ? null : dto.wanted?.trim() || null,
+    outcomeWords: live ? null : callOutcomeWords(dto.outcome),
+    followUp: live ? null : dto.follow_up?.trim() || null,
+    callerName: dto.caller_name?.trim() || null,
+    lengthWords: live || missed || !dto.duration_ms ? null : spokenDuration(dto.duration_ms),
     transcript: turnsOf(dto),
   };
 }
 
-export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now = new Date()): LiveVM {
-  const vms = calls.map((c) => toLiveCallVM(c, now));
+export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, tz: string, now = new Date()): LiveVM {
+  const vms = calls.map((c) => toLiveCallVM(c, tz, now));
   const nowList = vms
     .filter((c) => c.live)
     .sort((a, b) => (a.startedAtMs ?? 0) - (b.startedAtMs ?? 0));
@@ -217,7 +234,7 @@ export function toLiveVM(calls: CallDto[], channels: ChannelDto[] | null, now = 
     ? {
         number: formatPhoneDisplay(voice.number_e164),
         on: voice.status === "active",
-        lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, now) : null,
+        lastCallLabel: voice.last_inbound_at ? shortTime(voice.last_inbound_at, tz, now) : null,
       }
     : null;
 

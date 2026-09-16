@@ -34,13 +34,16 @@ test("the phone receptionist's whole prompt while paused: a message and a call b
   assert.ok(pausedVoiceFacts(null).includes("for this business."));
 });
 
-test("the sidebar's one line: a pause outranks a newer build, and points at Billing", () => {
-  assert.deepEqual(shellStatusLine({ stale: true, degraded: ["Inbox"], paused: true }), { text: "Your receptionist is paused", action: "billing" });
+test("the shell's one line: a pause outranks a newer build, and points at Billing", () => {
+  const paused = shellStatusLine({ stale: true, degraded: ["Inbox"], paused: true });
+  assert.equal(paused.text, "Your receptionist is paused");
+  assert.equal(paused.action, "billing");
+  assert.equal(paused.detail, "New messages still land in the Inbox, for you to answer.", "and what it means while it lasts");
   assert.deepEqual(shellStatusLine({ stale: false, degraded: [], paused: false }), null);
-  assert.deepEqual(shellStatusLine({ stale: true, degraded: [] }), { text: "A newer version is ready", action: "reload" }, "without the flag, nothing changes");
+  assert.equal(shellStatusLine({ stale: true, degraded: [] }).action, "reload", "without the flag, nothing changes");
 });
 
-test("the wiring: the runtime reads the switch, every path honours it, the foot says so", () => {
+test("the wiring: the runtime reads the switch, every path honours it, the shell says so", () => {
   const rt = readCode("apps/edge/lib/tenant-runtime.ts");
   assert.ok(rt.includes('db.from("tenants").select("name, timezone, status")') && rt.includes('paused: tzQ.data?.status === "paused",') && rt.includes("paused: false,"), "one read, the same query the clock uses");
   const inbound = readCode("apps/edge/lib/whatsapp/inbound.ts");
@@ -55,6 +58,6 @@ test("the wiring: the runtime reads the switch, every path honours it, the foot 
   // before the wire: run in retell-fn-door.test.mjs.
   // The phone's pause script replaces the prompt, never adds to it, and the
   // calendar is not read for it: run in call-start.test.mjs.
-  const side = readCode("apps/dashboard/src/legacy/components/sidebar.jsx");
-  assert.ok(side.includes("window.__billing.vm(B.dto).paused") && side.includes('line.action === "billing"') && side.includes('window.CHANLY.nav("admin/billing")'));
+  // The line under the top bar reads the pause from the billing surface and
+  // opens Billing: mounted in shell-status.test.mjs.
 });

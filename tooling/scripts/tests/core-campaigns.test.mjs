@@ -9,6 +9,9 @@ import assert from "node:assert/strict";
 import { BROADCAST_MAX_RECIPIENTS, EVERYONE_LABEL, broadcastName, emptyAudienceRefusal, numberHealth, paramLabel, starterForTrigger, templateTitle } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 const { createBroadcast } = await importSrc("packages/core/src/campaigns/create-broadcast.ts");
 const { approveRun } = await importSrc("packages/core/src/campaigns/approve.ts");
 const { cancelBroadcast } = await importSrc("packages/core/src/campaigns/cancel.ts");
@@ -80,6 +83,9 @@ test("a broadcast is refused in the person's words, in order, before anything is
   await refused(make(fakes({ template: template({ variables: ["1"] }) }), { template_id: T1, params: [{ kind: "moon_phase" }], audience: everyone }), "validation", 400, "Each value is typed text");
   await refused(make(fakes({ template: template({ variables: ["1"] }) }), { template_id: T1, params: ["line\nbreak"], audience: everyone }), "validation", 400, "without line breaks or tabs");
   await refused(make(fakes({ template: template({ variables: ["1"] }), bookingLink: null }), { template_id: T1, params: ["@booking_link"], audience: everyone }), "conflict", 409, "This message takes the booking link, and none is on file.");
+  // REGRESSION (C6): a one-off broadcast has no visit, so a visit's slot left every person held back as a missing value and the broadcast read as sent.
+  await refused(make(fakes({ template: template({ variables: ["1"] }) }), { template_id: T1, params: ["@visit_when"], audience: everyone }), "validation", 400, "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.");
+  await refused(make(fakes({ template: template({ variables: ["1"] }) }), { template_id: T1, params: [{ kind: "visit_service" }], audience: everyone }), "validation", 400, "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.");
   assert.deepEqual(f.ops(), [], "nothing enrolled, nothing scheduled, nothing on the ledger");
 });
 
@@ -132,7 +138,7 @@ test("when, and what it is called: not a time, past the window, a past time is n
   const past = fakes();
   const r1 = await make(past, { template_id: T1, audience: everyone, scheduled_for: new Date(NOW.getTime() - D).toISOString() });
   assert.equal(r1.scheduled_for, NOW.toISOString(), "a past time is now");
-  assert.equal(r1.name, broadcastName("month_offer", NOW, null), "the template and the day");
+  assert.equal(r1.name, broadcastName("month_offer", ZONE, NOW, null), "the template and the day");
   const later = new Date(NOW.getTime() + 2 * D);
   const future = fakes();
   const r2 = await make(future, { template_id: T1, audience: everyone, scheduled_for: later.toISOString(), name: "  Spring offer  " });
@@ -146,7 +152,7 @@ test("the rows, then the job, then the ledger: the row as the person composed it
   const f = fakes({ template: template({ variables: ["1", "2"], title: "Monthly offer" }) });
   const r = await make(f, { template_id: T1, params: ["@first_name", "  20% off  "], audience: everyone });
   const specs = [{ kind: "first_name" }, { kind: "text", value: "20% off" }];
-  const name = broadcastName("month_offer", NOW, "Monthly offer");
+  const name = broadcastName("month_offer", ZONE, NOW, "Monthly offer");
   assert.deepEqual(f.ops(), ["create", "enrol", "schedule", "record"]);
   assert.deepEqual(f.of("create")[0][1], {
     name, template_id: T1, template_name: "month_offer", template_language: "en_US", params: specs, audience: { kind: "everyone", id: null, label: EVERYONE_LABEL },
@@ -253,6 +259,12 @@ test("the playbook's check: the trigger first, then the template through the one
   await refused(checkPlaybook(fakes().ports, { trigger: "quiet_30", template_id: "nope" }), "validation", 400, "Pick a template.");
   await refused(checkPlaybook(fakes({ template: template({ meta_status: "rejected" }) }).ports, { trigger: "quiet_30", template_id: T1 }), "conflict", 409, "not approved by WhatsApp");
   await refused(checkPlaybook(fakes({ template: template({ variables: ["1"] }), bookingLink: null }).ports, { trigger: "quiet_30", template_id: T1, params: ["@booking_link"] }), "conflict", 409, "This message takes the booking link, and none is on file.");
+  // REGRESSION (C6): only a visit playbook has a visit to name; a win-back's visit slot reached nobody.
+  await refused(checkPlaybook(fakes({ template: template({ variables: ["1"] }) }).ports, { trigger: "quiet_30", template_id: T1, params: ["@visit_service"] }), "validation", 400, "Only a visit reminder or an after-the-visit playbook can fill in a visit's time or service.");
+  for (const trigger of ["visit_tomorrow", "visited"]) {
+    const visit = await checkPlaybook(fakes({ template: template({ variables: ["1", "2"] }) }).ports, { trigger, template_id: T1, params: ["@visit_when", "@visit_service"] });
+    assert.deepEqual(visit.params, [{ kind: "visit_when" }, { kind: "visit_service" }], `${trigger} fills a visit's words`);
+  }
   const starter = starterForTrigger("quiet_30").name;
   const own = await checkPlaybook(fakes({ template: template({ name: starter }) }).ports, { trigger: "quiet_30", template_id: T1, params: [] });
   assert.deepEqual(own, { name: "Win-back", trigger: "quiet_30", template_id: T1, template_name: starter, template_language: "en_US", params: [], policy_class: "reengage", run_hour: 10, cap_per_run: 25, gap_days: 90, cadence_days: 30 }, "its own starter: the trigger's name alone, and the defaults");

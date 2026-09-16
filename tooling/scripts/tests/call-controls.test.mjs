@@ -30,6 +30,9 @@ import {
   DECISION_VERBS,
 } from "@chanlytics/contracts";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 // The doors read both from the environment; each test file is its own process.
 process.env.EDGE_CALL_SECRET = "edge-secret-for-this-file";
 process.env.RETELL_API_KEY = "retell-key-for-this-file";
@@ -151,7 +154,7 @@ test("the Live transcript: a whisper is the owner's, a correction or a hand-over
     created_at: new Date(NOW.getTime() - 90_000).toISOString(), updated_at: new Date(NOW.getTime() - 5_000).toISOString(),
     contact: { display_name: "Rosa", wa_profile_name: null, phone_e164: "+16465550123" },
   };
-  const vm = toLiveCallVM(dto, NOW);
+  const vm = toLiveCallVM(dto, ZONE, NOW);
   assert.deepEqual(vm.transcript.map((t) => [t.speaker, t.text]), [
     ["agent", "Thank you for calling Harbor Moving!"],
     ["whisper", "offer the 3pm slot"],

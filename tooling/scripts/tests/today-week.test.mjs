@@ -16,13 +16,13 @@ const reports = (over = {}) => ({
   ...over,
 });
 
-test("the period keeps Reports' own tiles and range, and says what the offers earned and who booked", () => {
+test("the period keeps Reports' own tiles and range, and says what the campaigns sent and who booked -- a visit reminder is no offer", () => {
   const vm = todayWeek(reports());
   assert.equal(vm.label, "Last 7 days");
   assert.equal(vm.sub, "Aug 31 – Sep 6 · against the 7 days before");
   assert.deepEqual(vm.tiles.map((t) => t.id), ["in", "ai"], "the tiles are Reports' tiles, untouched");
   assert.deepEqual(vm.lines, [
-    { id: "campaigns", text: "8 offer messages sent · 2 said yes", to: "reports" },
+    { id: "campaigns", text: "8 campaign messages sent · 2 said yes", to: "reports" },
     { id: "booking", text: "Asked → booked: 3 of 12 booked · 25%", to: "reports" },
   ]);
   assert.equal(todayWeek(null), null);
@@ -31,13 +31,13 @@ test("the period keeps Reports' own tiles and range, and says what the offers ea
 test("nothing sent, nobody asked, no calendar: each line says so and leads where the fix is", () => {
   const quiet = todayWeek(reports({ campaigns: { tiles: [tile("sent", "Messages sent", "0")], empty: true }, booking: { present: true, headline: "Nobody asked", sub: "nobody wrote or called in the last 7 days", pct: null } }));
   assert.deepEqual(quiet.lines, [
-    { id: "campaigns", text: "No offers went out.", to: "reports" },
+    { id: "campaigns", text: "No campaign message went out.", to: "reports" },
     { id: "booking", text: "Nobody wrote or called, so there was nothing to book.", to: "reports" },
   ]);
   const one = todayWeek(reports({ campaigns: { tiles: [tile("sent", "Messages sent", "1")], empty: false } }));
-  assert.equal(one.lines[0].text, "1 offer message sent · 0 said yes");
-  const noCal = todayWeek(reports({ booking: { present: false, headline: "—", sub: "Connect your calendar under Settings › Workspace to see who booked.", pct: null } }));
-  assert.deepEqual(noCal.lines[1], { id: "booking", text: "Connect your calendar under Settings › Workspace to see who booked.", to: "calendar" });
+  assert.equal(one.lines[0].text, "1 campaign message sent · 0 said yes");
+  const noCal = todayWeek(reports({ booking: { present: false, headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", pct: null } }));
+  assert.deepEqual(noCal.lines[1], { id: "booking", text: "Connect your calendar under Settings › Business to see who booked.", to: "calendar" });
 });
 
 test("the journey: People's journey lists with their counts, a row to the list, the step where it has one; the calendar's absence said once", () => {
@@ -70,14 +70,14 @@ test("while you were away: the bell's unread rows, newest first as the bell orde
 });
 
 test("the wiring: the bridge publishes the three, Reports lends its tile, the page composes below the core in order", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, week: todayWeek, journey: todayJourney, away: todayAway };"));
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes("Object.assign(window, { RpTile, RpSpark });"), "the tile is shared, not copied");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes("Object.assign(window, { RpTile });"), "the tile is shared, not copied");
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-week.jsx");
   for (const s of ['data-testid="today-week"', "window.__today.week(R)", 'className="rp2-tiles"', 'data-testid={`today-week-${l.id}`}', 'data-testid="today-journey"', "window.__today.journey(P)", 'data-testid="today-journey-row"', 'data-testid="today-away"', "window.__today.away(rows, 5)", "api.read(n.id); twNav(to);", "api.seenAll()", "api.dismiss(n.id)", "return api.onChange(refresh);"]) assert.ok(page.includes(s), s);
   assert.ok(page.includes("!window.__DEMO_MODE && window.__notifs ? window.__notifs : null"), "the same bell the topbar reads, never in a demo");
   const dash = readCode("apps/dashboard/src/legacy/pages/dashboard-a.jsx");
-  const order = ["<AgentCommand />", "<TodayDay />", "<TodayWeek />", "<TodayAway />", "<TodayJourney />"].map((s) => dash.indexOf(s));
-  assert.ok(order.every((i) => i >= 0) && order.every((i, k) => k === 0 || i > order[k - 1]), "queue, day, the period, away, journey");
+  const order = ["<AgentCommand />", "<TodayDay />", "<TodayRecap />", "<TodayWeek />", "<TodayAway />", "<TodayJourney />"].map((s) => dash.indexOf(s));
+  assert.ok(order.every((i) => i >= 0) && order.every((i, k) => k === 0 || i > order[k - 1]), "queue, day, the day so far, the period, away, journey");
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   assert.ok(manifest.indexOf('"@/legacy/pages/dashboard-a-week.jsx"') < manifest.indexOf('"@/legacy/pages/dashboard-a.jsx"'));
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");

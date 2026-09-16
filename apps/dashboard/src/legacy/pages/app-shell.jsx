@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, CLIENTS, FailedRead */
+/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, ShellStatusBar, CLIENTS, FailedRead */
 // Chanlytics — App Shell
 // The live product frame: hash routing, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -17,7 +17,7 @@ const { useState: useShellState, useEffect: useShellEffect, useCallback: useShel
 const routeReady = (page, param) => !window.__surfaceGate || window.__surfaceGate(page, param);
 
 /** Surfaces whose own route param is a prop they follow, not a new identity. */
-const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox"]);
+const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
@@ -271,7 +271,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       T = T.filter((t) => t.real);
     }
     const D = (window.IX_STORE || {}).decisions || {};
-    return T.filter((t) => (t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length;
+    // A real thread carries the answer (the view model's needsYou), the rule the
+    // Inbox counts by: a thread a teammate or you have is not waiting on you.
+    return T.filter((t) => (t.real ? t.needsYou : t.state === "needs" || (t.state === "escalated" && !t.takenOver)) && !D[t.id]).length;
   });
 
   // Live Inbox badge — decisions made in the Inbox update the sidebar count
@@ -300,6 +302,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     window.addEventListener("hashchange", onHash);
     return () => window.removeEventListener("hashchange", onHash);
   }, []);
+  // A list's own route (`segments/<id>`) is People with that list picked on a real workspace; the address says so.
+  // Replaced, not pushed, so Back leaves People rather than bouncing through the old route.
+  useShellEffect(() => {
+    if (route.page !== "segments" || !window.__PEOPLE || !window.__listRoute) return;
+    window.location.replace("#/" + window.__listRoute(route.param));
+  }, [route.page, route.param]);
 
   useShellEffect(() => {
     const handler = (e) => {
@@ -350,12 +358,23 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   }, [navOpen]);
 
   // Route → view config
-  const { page, param } = route;
+  // soon/<surface> was the landing for a page not built yet, and an old link, a bookmark or a bell row can still name
+  // one that has since shipped. The registry decides what it opens, like every other route: a page it lists as real
+  // opens, a demo page keeps its landing, and a name it does not know is not found (the wiring audit's N16:
+  // #/soon/calendar said the Calendar was not in this release). The standalone mockup has no registry and keeps every
+  // landing.
+  const soonState = route.page === "soon" && route.param && window.__surfaceState
+    ? (window.__surfaceState(route.param) || "unknown")
+    : null;
+  const { page, param } = soonState === "real" ? { page: route.param, param: null } : route;
   let content, crumbs, activeNav, pane = false, primaryAction = null;
 
   if (page === "inbox") {
-    const threadParam = param && (window.INBOX_DATA?.THREADS || []).some(t => t.id === param) ? param : null;
-    const threadWho = threadParam && ((window.INBOX_DATA?.THREADS || []).find(t => t.id === threadParam) || {}).who;
+    // The id is passed on even when that thread is not loaded: the Inbox says
+    // it is missing, rather than opening the first thread in its place.
+    const routed = window.ixRouteThread ? window.ixRouteThread(param, window.INBOX_DATA?.THREADS) : { id: param || null, who: null };
+    const threadParam = routed.id;
+    const threadWho = routed.who;
     activeNav = "inbox";
     crumbs = threadWho ? [{ label: "Inbox", to: "inbox" }, threadWho] : ["Inbox"];
     pane = true;
@@ -374,11 +393,12 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const segId = kind === "seg" ? param.slice(4) : null;
     const savedId = kind === "list" ? param.slice(5) : null;
     const stateId = kind === "state" ? param.slice(6) : null;
-    const segMeta = segId && (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
+    // A real workspace's lists by their own names; the demo's segments only in the demo.
+    const segMeta = segId && !window.__PEOPLE && (window.CLIENT_SEGMENTS || []).find(s => s.id === segId);
     const surfaceList = segId && window.__PEOPLE && (window.__PEOPLE.lists || []).find(l => l.id === segId);
     const savedMeta = savedId && window.__PEOPLE && (window.__PEOPLE.saved || []).find(l => l.id === savedId);
     activeNav = "clients";
-    crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : "Segment"];
+    crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : window.__PEOPLE ? "List" : "Segment"];
     pane = true;
     content = <ClientsA initialSegment={segId} initialSaved={savedId} initialState={stateId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
@@ -420,27 +440,38 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     );
     content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
+  } else if (page === "segments" && window.__PEOPLE) {
+    // Lists is a view of People on a real workspace: the list's own route lands on People with that list picked
+    // (the People page's rule, window.__listRoute), so Playbooks' list, an answer's jump and a kept address still
+    // arrive. Drawn here as that view, and the address is replaced (the effect above) so Back leaves People.
+    const to = window.__listRoute ? window.__listRoute(param) : "clients";
+    const kind = to.startsWith("clients/") ? to.slice(8, to.indexOf(":")) : null;
+    const listId = kind ? to.slice(to.indexOf(":") + 1) : null;
+    const surfaceList = kind === "seg" ? (window.__PEOPLE.lists || []).find((l) => l.id === listId) : null;
+    const savedMeta = kind === "list" ? (window.__PEOPLE.saved || []).find((s) => s.id === listId) : null;
+    activeNav = "clients";
+    crumbs = surfaceList || savedMeta ? [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : savedMeta.name] : ["People"];
+    pane = true;
+    content = <ClientsA initialSegment={kind === "seg" ? listId : null} initialSaved={kind === "list" ? listId : null} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "segments") {
-    // A real workspace's list by its own name; the seeded page keeps its segments.
-    const real = !!window.__PEOPLE;
-    const savedMeta = real && param ? ((window.__PEOPLE.saved || []).find((s) => s.id === param) || (window.__PEOPLE.lists || []).find((l) => l.id === param)) : null;
-    const segMeta = !real && param ? (window.CLIENT_SEGMENTS || []).find(s => s.id === param) : null;
-    const name = savedMeta ? (savedMeta.name || savedMeta.label) : segMeta ? segMeta.label : null;
+    // The seeded page keeps the demo's segments.
+    const segMeta = param ? (window.CLIENT_SEGMENTS || []).find(s => s.id === param) : null;
     activeNav = "segments";
-    crumbs = name ? ["People", { label: real ? "Lists" : "Segments", to: "segments" }, name] : ["People", real ? "Lists" : "Segments"];
+    crumbs = segMeta ? ["People", { label: "Segments", to: "segments" }, segMeta.label] : ["People", "Segments"];
     pane = true;
     primaryAction = (
       <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("segments:new"))}>
-        <Icon name="plus" size={12} /> {real ? "New list" : "New segment"}
+        <Icon name="plus" size={12} /> New segment
       </button>
     );
     content = <SegmentsPage initialId={param} />;
   } else if (page === "admin") {
-    // The back office's tab is not in SET_TABS, and is only found for the
-    // people it exists for -- the same rule SET_TAB applies inside the shell, so
-    // the crumb and the pane cannot say different things about one route.
-    const tabMeta = (window.SET_TABS || []).find(t => t.id === param)
-      || ((window.__ME && window.__ME.platform_admin) ? (window.SET_TABS_PLATFORM || []).find(t => t.id === param) : null);
+    // The crumb names the pane Settings opens, by the rule Settings itself
+    // uses (SET_TAB), so the two cannot say different things about one route:
+    // the bare route opens Business, a retired route answers under its own
+    // name, and the back office is found only for the people it exists for --
+    // anyone else lands on Profile, and so does the crumb.
+    const tabMeta = window.SET_TAB ? window.SET_TAB(param || "workspace") : null;
     activeNav = "admin";
     crumbs = tabMeta ? [{ label: "Settings", to: "admin" }, tabMeta.label] : ["Settings"];
     pane = true;
@@ -456,31 +487,44 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     pane = true;
     content = <ReportsPage />;
   } else if (page === "calendar") {
-    const apptWho = param && param.startsWith("a-") && (((window.CALENDAR_DATA || {}).CAL_WEEK || []).flatMap(d => d.appts).find(a => a.id === param) || {}).who;
+    // The demo names its seeded appointment; a real calendar is never named from the seeds.
+    const apptWho = !window.__CALENDAR && param && param.startsWith("a-") && (((window.CALENDAR_DATA || {}).CAL_WEEK || []).flatMap(d => d.appts).find(a => a.id === param) || {}).who;
     activeNav = "calendar";
     crumbs = apptWho ? [{ label: "Calendar", to: "calendar" }, apptWho] : ["Calendar"];
     pane = true;
     // A real workspace books through its own link, whichever tool is behind
-    // it; the seeded page keeps the demo's Ask detour.
+    // it, and offers nothing until the Calendar has loaded: the demo's Ask
+    // detour opened Ask over the skeleton or the failure pane (N10). The
+    // seeded page keeps it.
     primaryAction = window.__CALENDAR ? (window.__CALENDAR.vm.bookingLink ? (
       <a className="btn btn-primary btn-sm" href={window.__CALENDAR.vm.bookingLink} target="_blank" rel="noreferrer" data-testid="cal-booking-link">
         <Icon name="calendar" size={12} /> Booking link
       </a>
-    ) : null) : (
+    ) : null) : window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> Book
       </button>
-    );
-    content = <CalendarPage initialApptId={param && param.startsWith("a-") ? param : null} />;
+    ) : null;
+    // calendar/<YYYY-MM-DD> is a door to a day: the page opens it in Day view. The crumbs stay "Calendar",
+    // because the page moves on from the day it opened on.
+    content = <CalendarPage initialApptId={param && param.startsWith("a-") ? param : null} initialDay={param && /^\d{4}-\d{2}-\d{2}$/.test(param) ? param : null} />;
   } else if (page === "live") {
     activeNav = "live";
-    crumbs = [{ label: "Conversations", to: "conversations" }, "Live"];
+    // live/<callId>: the call a door names, opened on Live and named in the crumbs. The route had no place
+    // for an id, so a door could only open the list.
+    const liveCall = param ? [...(((window.__LIVE || {}).now) || []), ...(((window.__LIVE || {}).recent) || [])].find((c) => c.callId === param) : null;
+    crumbs = liveCall
+      ? [{ label: "Conversations", to: "conversations" }, { label: "Live", to: "live" }, liveCall.who]
+      : [{ label: "Conversations", to: "conversations" }, "Live"];
     pane = true;
-    content = <LiveMonitorPage />;
+    content = <LiveMonitorPage initialCallId={param || null} />;
   } else if (page === "conversations") {
-    const isCvId = param && param.startsWith("cv-");
+    // Only the three channels are filters; anything else is a row's id, a chat's (its conversation's)
+    // or a call's (cv-). The shell passed cv- ids alone, so a profile linking a chat opened the first
+    // conversation in the list.
     const chLabel = { phone: "Calls", chats: "Chats", mail: "Email" }[param];
-    const cvWho = param && param.startsWith("cv-") && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS || []).find(c => c.id === param) || {}).who;
+    const isCvId = !!param && !chLabel;
+    const cvWho = isCvId && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS || []).find(c => c.id === param) || {}).who;
     activeNav = { phone: "calls", chats: "chats", mail: "email" }[param] || "conversations";
     crumbs = cvWho ? [{ label: "Conversations", to: "conversations" }, cvWho] : chLabel ? [{ label: "Conversations", to: "conversations" }, chLabel] : ["Conversations"];
     pane = true;
@@ -512,21 +556,26 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     );
     content = <AgentFleetPage id={param} onSelect={(id) => navigate(`fleet/${id}`)} />;
   } else if (page === "outbound") {
+    // outbound/<id> opens Playbooks on one playbook's card -- a source row on
+    // Reports links here -- named once the playbooks hold it.
+    const pbOpen = param && window.__PLAYBOOKS ? (window.__PLAYBOOKS.rows || []).find(p => p.id === param) : null;
     activeNav = "outbound";
-    crumbs = ["Campaigns", "Playbooks"];
+    crumbs = param ? ["Campaigns", { label: "Playbooks", to: "outbound" }, pbOpen ? pbOpen.name : "Playbook"] : ["Campaigns", "Playbooks"];
     pane = true;
-    // A real workspace's button opens the composer on the page; the seeded
-    // page keeps the demo's Ask detour.
+    // A real workspace's button opens the composer on the page, once the
+    // playbooks have loaded; until then there is nothing to press, where the
+    // demo's Ask detour opened Ask over the skeleton or the failure pane
+    // (N10). The seeded page keeps it.
     primaryAction = window.__PLAYBOOKS ? (
-      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve")}>
+      <button className="btn btn-primary btn-sm" onClick={() => window.dispatchEvent(new CustomEvent("playbooks:new"))} data-testid="pb-new" {...window.gate("approve", "start a playbook")}>
         <Icon name="plus" size={12} /> New playbook
       </button>
-    ) : (
+    ) : window.__DEMO_MODE ? (
       <button className="btn btn-primary btn-sm" onClick={openAsk}>
         <Icon name="plus" size={12} /> New campaign
       </button>
-    );
-    content = <OutboundPage />;
+    ) : null;
+    content = <OutboundPage initialPlaybook={param} />;
   } else if (page === "messages") {
     activeNav = "messages";
     crumbs = ["Campaigns", "Messages"];
@@ -537,10 +586,21 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     crumbs = ["Campaigns", "Content"];
     content = <ContentPage />;
   } else if (page === "broadcasts") {
-    const bcSeg = param && (window.CLIENT_SEGMENTS || []).find(s => s.id === param);
+    // broadcasts/run:<id> opens one broadcast -- a playbook's run, from its
+    // card or Today -- named for it once the list holds it. Any other param is
+    // the audience the composer opens on: a real workspace names it by the
+    // page's own rule (a list or a kept list with this id) and its own label;
+    // the demo, its seeded segment.
+    const bcRunId = param && param.startsWith("run:") ? param.slice(4) : null;
+    const bcAudience = bcRunId ? null : param;
+    const bcRun = bcRunId && window.__BROADCASTS ? (window.__BROADCASTS.rows || []).find(r => r.id === bcRunId) : null;
+    const bcSeg = bcAudience && (window.__BROADCASTS
+      ? (window.__BROADCASTS.audiences || []).find(a => (a.kind === "saved" || a.kind === "list") && a.id === bcAudience)
+      : (window.CLIENT_SEGMENTS || []).find(s => s.id === bcAudience));
     activeNav = "broadcasts";
-    crumbs = bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"];
-    content = <BroadcastsPage initialSegment={param} />;
+    crumbs = bcRunId ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcRun ? bcRun.name : "Broadcast"]
+      : bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"];
+    content = <BroadcastsPage initialSegment={bcAudience} initialRun={bcRunId} />;
   } else if (page === "studio") {
     activeNav = "studio";
     crumbs = ["Agents", "Studio"];
@@ -550,6 +610,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "store";
     crumbs = ["Agents", "Store"];
     content = <AgentStore />;
+  } else if (page === "soon" && param && soonState === "unknown") {
+    activeNav = "home";
+    crumbs = ["Not found"];
+    content = <NotFound raw={`soon/${param}`} onNavigate={navigate} />;
   } else if (page === "soon" && param) {
     activeNav = param;
     crumbs = [SOON_META[param]?.title || param];
@@ -599,6 +663,24 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   useShellEffect(() => {
     if (retiredTo) window.location.hash = "/" + retiredTo;
   }, [retiredTo]);
+  // A soon/ link to a page that has shipped: the address becomes the page's own, in place, so Back does not land on
+  // the old link again.
+  useShellEffect(() => {
+    if (soonState === "real") window.location.replace("#/" + route.param);
+  }, [soonState, route.param]);
+
+  // The tab says where this is, most particular first, and counts what needs
+  // you (contracts chrome.ts pageTitle): named from the crumbs the top bar
+  // draws, after the honesty gate has had its say, so the two cannot differ.
+  const tabTitle = window.__chrome && window.__chrome.title ? window.__chrome.title(crumbs, inboxNeeds) : null;
+  // Kept, not only written: the layout's own title can land after this, and a page loaded cold went
+  // back to "Chanlytics OS" until something it counted changed (shell.ts keepTitle).
+  useShellEffect(() => {
+    if (!tabTitle) return undefined;
+    if (window.__shell && window.__shell.keepTitle) return window.__shell.keepTitle(tabTitle);
+    document.title = tabTitle;
+    return undefined;
+  }, [tabTitle]);
 
   // The gate is asked per PANE, so this key must carry the param.
   const routeKey = `${page}/${param || ""}`;
@@ -685,11 +767,13 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <Topbar
           crumbs={crumbs}
           theme={theme}
+          themePref={themePref}
           onTheme={onTheme}
           onAsk={openAsk}
           onMenu={() => setNavOpen(true)}
           right={primaryAction}
         />
+        <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
         <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>
           <ShellErrorBoundary>

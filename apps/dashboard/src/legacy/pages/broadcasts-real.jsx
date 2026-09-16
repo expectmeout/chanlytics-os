@@ -30,6 +30,12 @@ const bcOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) :
 // What a broadcast opens on: the quick note when the workspace holds it, else the first.
 const bcDefault = (list) => ((window.__starters ? window.__starters.defaultFor(list, null) : list[0]) || null);
 const bcFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
+// What fills a slot on a broadcast: the composers' words (contracts PARAM_SOURCE_LABELS) less a visit's time and
+// service, which only a visit playbook's run carries for each person.
+const bcSources = () => Object.fromEntries(Object.entries((window.__starters && window.__starters.sources) || { text: "Type it" }).filter(([k]) => !k.startsWith("visit_")));
+// What is still to come, by state -- "1 sending · 2 scheduled · 1 waiting for you" -- where "N queued" counted runs waiting for a person.
+const BC_OPEN_WORDS = [["sending", "sending"], ["scheduled", "scheduled"], ["pending_approval", "waiting for you"]];
+const bcOpenWords = (open) => BC_OPEN_WORDS.map(([state, words]) => [open.filter((r) => r.state === state).length, words]).filter(([n]) => n > 0).map(([n, words]) => `${n} ${words}`).join(" · ") || "nothing to come";
 // Stable empties, so a workspace without lists or templates does not re-run
 // the effects on every render.
 const BC_NONE = [];
@@ -38,13 +44,10 @@ const BC_NONE = [];
 // or read), who was held back and why, who it could not reach. Fetched when
 // a row is opened; every line is a recipient row.
 const BC_STATUS_WORDS = { sent: "sent", delivered: "delivered", read: "read", failed: "not delivered", queued: "sending", canceled: "canceled" };
-// A clock for a recipient's line: "10:32", or "Sep 12 10:32" when it was not today.
+// A clock for a recipient's line, the business's (window.__clock): "10:32 AM", or "Sep 12 · 10:32 AM" before today.
 const bcClock = (iso) => {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  const sameDay = d.toDateString() === new Date().toDateString();
-  return sameDay ? d.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }) : d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  const ms = iso ? Date.parse(iso) : NaN;
+  return Number.isNaN(ms) ? null : window.__clock.stamp(ms);
 };
 // What happened to one person, with the times WhatsApp's receipts gave (00111): "sent 10:31 · delivered 10:32 · read 10:40 · replied 10:52".
 const bcReceipt = (r) => {
@@ -61,17 +64,53 @@ const bcReceipt = (r) => {
   if (r.replied) parts.push(bcClock(r.replied_at) ? `replied ${bcClock(r.replied_at)}` : "replied");
   return parts.join(" · ");
 };
-const BroadcastDetail = ({ id, heldReasons, onClose }) => {
-  const [d, setD] = React.useState(undefined);
+// A broadcast that can still change: waiting for a person, scheduled, or sending.
+const BC_LIVE = new Set(["pending_approval", "scheduled", "sending"]);
+const BroadcastDetail = ({ id, heldReasons, onClose, solo = false }) => {
+  // The last answer, kept with the broadcast it answered for: a read of another id is not this one's.
+  const [answer, setAnswer] = React.useState(null);
+  const [asks, ask] = React.useReducer((n) => n + 1, 0);
+  const [retrying, setRetrying] = React.useState(false);
+  const mine = answer && answer.id === id ? answer : null;
+  const d = mine && mine.ok ? mine.data : null;
+  // While it can still change it is read again whenever the surface is -- which re-reads on every message, so
+  // the people fill in as a send goes out -- and not once it has finished.
+  const live = !!(d && BC_LIVE.has(d.broadcast.state));
+  React.useEffect(() => {
+    if (!live) return undefined;
+    window.addEventListener("surface:broadcasts", ask);
+    return () => window.removeEventListener("surface:broadcasts", ask);
+  }, [live]);
   React.useEffect(() => {
     let on = true;
-    setD(undefined);
     if (!window.__broadcasts) return undefined;
-    window.__broadcasts.detail(id).then((r) => { if (on) setD(r.ok ? r.data : null); });
+    window.__broadcasts.detail(id).then((r) => {
+      if (!on) return;
+      setRetrying(false);
+      // A re-read that fails keeps what the last one read. A link to a broadcast this workspace does not have (a 404,
+      // or an id that is not one) is gone, and a Retry could only fail again.
+      setAnswer((prev) => (!r.ok && prev && prev.id === id && prev.ok ? prev : { id, ok: r.ok, data: r.ok ? r.data : null, gone: !r.ok && (r.status === 404 || r.status === 400) }));
+    });
     return () => { on = false; };
-  }, [id]);
-  if (d === undefined) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Reading who got it…</span></div>;
-  if (!d) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Couldn't be read right now.</span></div>;
+  }, [id, asks]);
+  const close = <button className="cl-bucket-link" onClick={onClose} data-testid="bc-detail-close">Close</button>;
+  if (!mine) return <div className="bc-detail" data-testid="bc-detail"><span className="cl-prof-aut-hint">Reading who got it…</span></div>;
+  if (mine.gone) {
+    return (
+      <div className="bc-detail" data-testid="bc-detail">
+        <EmptyState kind="line" title="This broadcast isn't in this workspace." body="The link may be old, or from another workspace." testid="bc-detail-gone" />
+        {close}
+      </div>
+    );
+  }
+  if (!d) {
+    return (
+      <div className="bc-detail" data-testid="bc-detail">
+        <FailedRead kind="line" what="who got this broadcast" onRetry={() => { setRetrying(true); ask(); }} busy={retrying} testid="bc-detail-failed" />
+        {close}
+      </div>
+    );
+  }
   const got = d.recipients.filter((r) => r.state === "sent");
   const heldBack = d.recipients.filter((r) => r.state === "skipped");
   const rest = d.recipients.filter((r) => r.state === "failed" || r.state === "queued");
@@ -86,10 +125,13 @@ const BroadcastDetail = ({ id, heldReasons, onClose }) => {
     <div className="bc-detail" data-testid="bc-detail">
       <div className="ct-sec-head">
         <span className="ct-sec-title">{d.broadcast.name}</span>
-        <span className="ct-sec-meta">{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
-        <button className="cl-bucket-link" onClick={onClose}>Close</button>
+        {/* Opened on its own, no row above it says its state or when it went. */}
+        {solo && <StatePill kind="broadcast" value={d.broadcast.state} />}
+        <span className="ct-sec-meta">{solo && bcClock(d.broadcast.started_at || d.broadcast.scheduled_for) ? `${bcClock(d.broadcast.started_at || d.broadcast.scheduled_for)} · ` : ""}{d.broadcast.audience.label} · {d.recipients.length} enrolled · {bcTitle(d.broadcast.template_name)}</span>
+        {close}
       </div>
-      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.TC_SOURCES || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
+      {d.broadcast.state === "failed" && <div className="bc-excl-hint" data-testid="bc-detail-failure">It stopped: {window.__broadcasts.failureWords(d.broadcast.failure)}.</div>}
+      {d.broadcast.params.length > 0 && <div className="cl-prof-aut-hint">Values: {d.broadcast.params.map((p) => (p && p.kind && p.kind !== "text" ? ((window.__starters && window.__starters.sources || {})[p.kind] || p.kind).toLowerCase() : (p && p.value) || String(p))).join(" · ")}</div>}
       <div className="bc-detail-groups">
         <div className="bc-detail-group">
           <div className="cl-prof-rail-label">Got it · {got.length}</div>
@@ -126,19 +168,24 @@ const BC_STOP_WORDS = {
   scheduled: { verb: "Cancel", question: (row) => `Cancel ${row.name}?`, detail: "Nothing will send.", yes: "Yes, cancel it" },
 };
 const bcStopWords = (state) => BC_STOP_WORDS[state] || BC_STOP_WORDS.scheduled;
-const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approve, cancel }) => {
+const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approving = false, approve, cancel }) => {
   const stop = bcStopWords(row.state);
   return (
-    <div className="bc-sched" data-testid="bc-open">
+    <div className="bc-sched" id={`bc-run-${row.id}`} data-testid="bc-open">
       <div className="bc-sched-main">
         <span className="bc-sched-name"><button className="cl-bucket-link" onClick={onOpen} data-testid="bc-open-who">{row.name}</button></span>
         <span className="bc-sched-meta">
           {row.when} · {row.audience.label} · {row.recipient_count}
           {row.state === "sending" ? ` · ${row.counts.sent + row.counts.skipped + row.counts.failed} of ${row.recipient_count} done` : ""}
         </span>
+        {row.state === "sending" && (
+          <span className="ob-progress bc-progress" role="progressbar" aria-label={`${row.name}, sent so far`} aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round((row.progress || 0) * 100)}>
+            <span className="ob-progress-fill" style={{ width: `${Math.round((row.progress || 0) * 100)}%` }} />
+          </span>
+        )}
       </div>
       <StatePill kind="broadcast" value={row.state} label={row.stateLabel} />
-      {canSend && !armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" onClick={() => approve(row)} data-testid="bc-approve">Approve</button>}
+      {!armed && row.state === "pending_approval" && <button className="btn btn-primary btn-sm" disabled={approving} onClick={() => approve(row)} data-testid="bc-approve" {...(canSend || !window.gate ? {} : window.gate("approve", "approve a run"))}>{approving ? "Approving…" : "Approve"}</button>}
       {canSend && !armed && <button className="btn btn-sm danger" onClick={() => onArm(true)} data-testid="bc-stop">{stop.verb}</button>}
       {canSend && armed && (
         <Confirm question={stop.question(row)} detail={stop.detail} yes={stop.yes} danger busy={stopping} onYes={() => cancel(row)} onNo={() => onArm(false)} testid="bc-stop" />
@@ -148,10 +195,81 @@ const BroadcastOpenRow = ({ row, canSend, onOpen, armed, onArm, stopping, approv
 };
 window.BroadcastOpenRow = BroadcastOpenRow;
 
-const BroadcastsReal = ({ initialSegment = null }) => {
+// When a send really goes, in one sentence for every receipt that has one. The
+// server moves a send outside 9:00-20:59 by the business's clock to the next
+// nine o'clock (moved_from set); an approve or a send says so, rather than
+// "sending now" over a run that waits until morning.
+const bcWhenWords = (d) => {
+  const at = d && d.scheduled_for ? Date.parse(d.scheduled_for) : NaN;
+  const when = Number.isNaN(at) ? null : window.__clock.when(at);
+  if (d && d.moved_from && when) return `scheduled for ${when} — messages go out ${window.__clock.hours.between} by your clock`;
+  if (when && at - Date.now() > 60_000) return `scheduled for ${when}`;
+  return "sending now";
+};
+window.bcWhenWords = bcWhenWords;
+
+// The schedule box, by the business's clock (window.__clock): 22:30 in the box is half past ten where the
+// business is, whatever the device's zone. It holds the instant, so what is sent is what the note says, and
+// it stops at now and at the ceiling the route keeps.
+const BcWhenBox = ({ at, maxDays, onChange }) => {
+  const C = window.__clock;
+  const now = Date.now();
+  return (
+    <input
+      className="bc-subject"
+      type="datetime-local"
+      value={at === null ? "" : C.inputValue(at)}
+      min={C.inputValue(now)}
+      max={C.inputValue(now + maxDays * 86_400_000)}
+      onChange={(e) => onChange(C.fromInput(e.target.value))}
+      aria-label={`When, by ${C.city()} time`}
+      aria-describedby="bc-when-note"
+      data-testid="bc-when"
+    />
+  );
+};
+window.BcWhenBox = BcWhenBox;
+
+// What the box's time means before Schedule is pressed: when the send really goes, a time outside
+// 9:00-20:59 moved to the next nine o'clock as the route will move it, and a time that has passed or is
+// past the ceiling refused here rather than after the click.
+const bcWhenNote = (at, maxDays) => {
+  const C = window.__clock;
+  const city = C.city();
+  const now = Date.now();
+  if (at === null) return { ok: false, tone: "", words: `By ${city} time · within ${maxDays} days` };
+  if (at <= now) return { ok: false, tone: "warn", words: "That time has passed — pick a later one, or Send now" };
+  const open = C.nextOpen(at);
+  if (open.at > now + maxDays * 86_400_000) return { ok: false, tone: "warn", words: `Pick a time within ${maxDays} days` };
+  return open.moved
+    ? { ok: true, tone: "", words: `Goes out ${C.when(open.at)}, ${city} time — sends wait for ${C.hours.range}` }
+    : { ok: true, tone: "", words: `Goes out ${C.when(at)}, ${city} time` };
+};
+window.bcWhenNote = bcWhenNote;
+
+// The history's numbers -- sent, delivered, replies -- over the rows the route
+// returned. Past fifty broadcasts the route says older ones exist (more), and
+// the numbers say they are the latest fifty rather than reading as everything.
+const BcHistoryStats = ({ rows, more, replyWindow = null }) => {
+  const history = (rows || []).filter((r) => !r.open);
+  const messages = history.reduce((a, r) => a + r.counts.sent, 0);
+  const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
+  const scope = more ? " · latest 50 broadcasts" : "";
+  return (
+    <StatStrip>
+      <StatCell label="Sent" value={history.filter((r) => r.state === "sent").length} meta={`${messages.toLocaleString()} messages${scope}`} />
+      <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={messages ? `${Math.round((delivered / messages) * 100)}%` : "—"} meta={`from WhatsApp receipts${scope}`} />
+      <StatCell label="Replies" tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"} value={history.reduce((a, r) => a + r.counts.replied, 0)} meta={`answered in the Inbox${scope}`} accent />
+    </StatStrip>
+  );
+};
+window.BcHistoryStats = BcHistoryStats;
+
+const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
-  const canSend = !!(window.__ME && (window.__ME.role === "owner" || window.__ME.role === "operator"));
+  // Who may send, approve or stop: the role store's answer, View-as included.
+  const canSend = !!(window.canDo && window.canDo("approve"));
   const audiences = data.audiences || BC_NONE;
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
@@ -160,14 +278,34 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
   });
+  // The shell keeps this page mounted across its own links, so it follows them: a later link to a list picks that
+  // list, and a link to a run, which names no list, leaves the audience where it was. Only a new link moves it: the
+  // surface re-reading its audiences does not undo a choice made on the page.
+  const followed = React.useRef(initialSegment);
+  React.useEffect(() => {
+    if (followed.current === initialSegment) return;
+    followed.current = initialSegment;
+    const next = initialSegment && audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment);
+    if (next) setAud(bcKey(next));
+  }, [initialSegment, audiences]);
   const [tplId, setTplId] = React.useState(() => { const d = bcDefault(templates); return d ? d.id : ""; });
   const [params, setParams] = React.useState({});
   const [sources, setSources] = React.useState({});
   const [composing, setComposing] = React.useState(false);
   const [name, setName] = React.useState("");
-  const [when, setWhen] = React.useState("");
+  const [whenAt, setWhenAt] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
-  const [openId, setOpenId] = React.useState(null);
+  // The broadcast open on the page is the one its link names (broadcasts/run:<id>); pressing a row follows that link.
+  const openId = initialRun;
+  const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
+  // A link lands on its run: brought into view when it is out of it -- under the composer on a page just opened, or
+  // first on a page already scrolled past it. A row pressed in view stays where it is.
+  React.useEffect(() => {
+    const el = openId && typeof document !== "undefined" && document.getElementById ? document.getElementById(`bc-run-${openId}`) : null;
+    if (!el || !el.getBoundingClientRect || !el.scrollIntoView) return;
+    const at = el.getBoundingClientRect();
+    if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
+  }, [openId]);
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = React.useState(null);
   const [stopping, setStopping] = React.useState(null);
@@ -196,11 +334,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const numberOk = !!(number && number.present && number.health.canSend);
   const overLimit = !!(active && number && number.health.limitPerDay !== null && activeCount > number.health.limitPerDay);
   const vars = tpl && Array.isArray(tpl.variables) ? tpl.variables : [];
-  const SRC = window.TC_SOURCES || { text: "Type it", first_name: "Their first name", business_name: "The business name", booking_link: "The booking link" };
+  const SRC = bcSources();
   // A starter's slots come filled in; a template written elsewhere gets a
   // guess from its labels. A booking link the workspace has not set falls
   // back to typed text, so nothing is offered that cannot be sent.
-  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => (k === "booking_link" && !data.bookingLink ? "text" : k)) : BC_NONE;
+  const defaults = tpl && window.__starters ? window.__starters.slotKinds(tpl).map((k) => ((k === "booking_link" && !data.bookingLink) || k.startsWith("visit_") ? "text" : k)) : BC_NONE;
   const srcOf = (i) => ((sources[tplId] || defaults)[i] || "text");
   const exampleOf = (kind) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (data.businessName || "the business") : kind === "booking_link" ? "your booking link" : "");
   // Each slot's words: a starter's own, else the labels the row carries.
@@ -212,39 +350,33 @@ const BroadcastsReal = ({ initialSegment = null }) => {
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
   const preview = tpl ? bcRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
+  // A surface cached before the ceiling was published carries none; the route's is thirty days.
+  const maxDays = data.scheduleMaxDays || 30;
+  const whenNote = bcWhenNote(whenAt, maxDays);
 
   const rows = data.rows || [];
   const open = rows.filter((r) => r.open);
   const history = rows.filter((r) => !r.open);
-  const sentMessages = history.reduce((a, r) => a + r.counts.sent, 0);
-  const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
-  const stats = {
-    sent: history.filter((r) => r.state === "sent").length,
-    messages: sentMessages,
-    delivered: sentMessages ? `${Math.round((delivered / sentMessages) * 100)}%` : "—",
-    replies: history.reduce((a, r) => a + r.counts.replied, 0),
-  };
 
   const submit = async (scheduled) => {
-    if (!window.__broadcasts || !ready) return;
+    if (!window.__broadcasts || !ready || !canSend) return;
     setBusy(true);
     const r = await window.__broadcasts.send({
       template_id: tpl.id,
       params: specs,
       audience: { kind: active.kind, id: active.id },
-      scheduled_for: scheduled && when ? new Date(when).toISOString() : null,
+      scheduled_for: scheduled && whenAt !== null ? new Date(whenAt).toISOString() : null,
       name: name.trim() || null,
     });
     setBusy(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setName("");
-    setWhen("");
+    setWhenAt(null);
     const n = r.data.recipient_count;
-    // Outside nine to twenty by the business's clock, the send moved to the next
-    // nine o'clock, and the receipt says so: an owner scheduling at midnight is
-    // told when it really goes.
-    const moved = r.data.moved_from ? ` — moved to ${new Date(r.data.scheduled_for).toLocaleString([], { weekday: "short", hour: "numeric", minute: "2-digit" })}: messages go out between 9:00 and 20:59 by your clock` : "";
-    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {r.data.moved_from ? "scheduled" : scheduled && when ? "scheduled" : "sending now, 25 at a time"}{moved}</> });
+    // Outside nine to twenty by the business's clock the send moved to the next
+    // nine o'clock: the receipt says when it really goes (bcWhenWords).
+    const words = bcWhenWords(r.data);
+    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</> });
   };
   const addStarters = async () => {
     if (!window.__templates || !window.__templates.addStarters || addingStarters) return;
@@ -254,17 +386,25 @@ const BroadcastsReal = ({ initialSegment = null }) => {
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <>{window.starterWords ? window.starterWords(r.data) : "Added"}</> : <>{r.message}</> });
   };
   const cancel = async (row) => {
-    if (!window.__broadcasts || stopping) return;
+    if (!window.__broadcasts || stopping || !canSend) return;
     setStopping(row.id);
     const r = await window.__broadcasts.cancel(row.id);
     setStopping(null);
     setArmId(null);
     flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> {r.data.was === "sending" ? "stops after this batch" : r.data.was === "pending_approval" ? "skipped — nothing will send" : "canceled — nothing will send"}</> : <>{r.message}</> });
   };
+  // One approve at a time: a second press while the first is out would be refused by the server, so the button says
+  // it is approving instead, and the guard holds before the button has drawn that.
+  const approvingRef = React.useRef(null);
+  const [approving, setApproving] = React.useState(null);
   const approve = async (row) => {
-    if (!window.__broadcasts) return;
+    if (!window.__broadcasts || !canSend || approvingRef.current) return;
+    approvingRef.current = row.id;
+    setApproving(row.id);
     const r = await window.__broadcasts.approve(row.id);
-    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, sending now</> : <>{r.message}</> });
+    approvingRef.current = null;
+    setApproving(null);
+    flash({ tone: r.ok ? "ok" : "danger", msg: r.ok ? <><b>{row.name}</b> approved — {r.data.recipient_count} {r.data.recipient_count === 1 ? "person" : "people"}, {bcWhenWords(r.data)}</> : <>{r.message}</> });
   };
 
   return (
@@ -276,11 +416,14 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         </div>
       </header>
 
-      <StatStrip>
-        <StatCell label="Sent" value={stats.sent} meta={`${stats.messages.toLocaleString()} messages`} />
-        <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={stats.delivered} meta="from WhatsApp receipts" />
-        <StatCell label="Replies" tip="Threads that heard from the customer within 3 days of a broadcast" value={stats.replies} meta="answered in the Inbox" accent />
-      </StatStrip>
+      {/* A run the list does not hold -- older than its newest fifty -- opens here, first, where its link lands. */}
+      {openId && !rows.some((r) => r.id === openId) && (
+        <section className="ct-section bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
+          <BroadcastDetail id={openId} heldReasons={data.heldReasons} onClose={() => openRun(null)} solo />
+        </section>
+      )}
+
+      <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} />
 
       <section className="bc-composer" data-testid="bc-composer">
         <div className="ct-sec-head">
@@ -305,19 +448,19 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="bc-excl-hint" data-testid="bc-no-template">
                 {starterPending > 0
                   ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
-                  : "No approved template yet — add the starter set, write one here, or write one in WhatsApp Manager and sync it under Campaigns › Messages."}
+                  : <>No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="bc-no-template-open">Messages</button>.</>}
               </span>
             )}
-            {templatesRead && templates.length === 0 && canSend && starterPending === 0 && window.__templates && window.__templates.addStarters && (
-              <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters"><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
+            {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (
+              <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters" {...window.gate("approve", "add the starter set")}><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
             )}
             {templates.map((t) => (
               <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="bc-template">
                 {bcTitle(t.name)}<span className="bc-chip-count">{bcIsStarter(t.name) ? "starter" : (t.category || "")}</span>
               </button>
             ))}
-            {canSend && window.TemplateComposer && (
-              <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template"><Icon name="plus" size={10} /> New template</button>
+            {window.TemplateComposer && (
+              <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template" {...window.gate("approve", "write a template")}><Icon name="plus" size={10} /> New template</button>
             )}
           </div>
         </div>
@@ -360,7 +503,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
             {active
               ? `${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}” said yes${purpose === "marketing" ? " to offers" : " to messages"}`
               : "Pick who this goes to"}
-            {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire · sent 25 at a time
+            {" · "}people who asked to stop, have no number, or are mid-thread with a person are held back at the wire{data.chunk ? ` · sent ${data.chunk} at a time` : ""}
           </span>
         </div>
         {number && (
@@ -379,11 +522,13 @@ const BroadcastsReal = ({ initialSegment = null }) => {
         )}
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
-          <input className="bc-subject" type="datetime-local" value={when} onChange={(e) => setWhen(e.target.value)} data-testid="bc-when" />
-          <button className="btn btn-sm" disabled={!ready || !when || !canSend} onClick={() => submit(true)}>Schedule</button>
-          <button className="btn btn-primary btn-sm" disabled={!ready || !canSend} onClick={() => submit(false)} data-testid="bc-send">Send now</button>
+          <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
+          <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>
+          <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => submit(false)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>
         </div>
-        {!canSend && <div className="bc-excl-hint">Only an owner or operator can send.</div>}
+        <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
+        {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}
+        {!canSend && <div className="bc-excl-hint" data-testid="bc-role">{window.gateTitle("approve", "stop or cancel a broadcast")}</div>}
         {canSend && active && activeCount === 0 && (
           <div className="bc-excl-hint" data-testid="bc-nobody">
             {purpose === "marketing"
@@ -424,15 +569,15 @@ const BroadcastsReal = ({ initialSegment = null }) => {
       <section className="ct-section">
         <div className="ct-sec-head">
           <span className="ct-sec-title">Scheduled</span>
-          <span className="ct-sec-meta">{open.length} queued</span>
+          <span className="ct-sec-meta" data-testid="bc-open-meta">{bcOpenWords(open)}</span>
         </div>
         {open.length === 0 && (
           <EmptyState kind="line" title="Nothing queued." body="Pick a template above and choose a time, or send now." />
         )}
         {open.map((row) => (
           <React.Fragment key={row.id}>
-          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => setOpenId(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approve={approve} cancel={cancel} />
-          {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
+          <BroadcastOpenRow row={row} canSend={canSend} onOpen={() => openRun(openId === row.id ? null : row.id)} armed={armId === row.id} onArm={(on) => setArmId(on ? row.id : null)} stopping={stopping === row.id} approving={approving === row.id} approve={approve} cancel={cancel} />
+          {openId === row.id && <BroadcastDetail id={row.id} heldReasons={data.heldReasons} onClose={() => openRun(null)} />}
           </React.Fragment>
         ))}
       </section>
@@ -440,7 +585,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
       <section className="ct-section">
         <div className="ct-sec-head">
           <span className="ct-sec-title">History</span>
-          <span className="ct-sec-meta">{history.length} broadcasts</span>
+          <span className="ct-sec-meta" data-testid="bc-history-meta">{history.length} {history.length === 1 ? "broadcast" : "broadcasts"}{data.more ? " · older broadcasts aren't listed" : ""}</span>
         </div>
         <div className="bc-hist">
           <div className="bc-hist-row head">
@@ -449,11 +594,11 @@ const BroadcastsReal = ({ initialSegment = null }) => {
           {history.length === 0 && <EmptyState kind="line" title="No broadcast sent yet." />}
           {history.map((h) => (
             <React.Fragment key={h.id}>
-            <div className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0}
-              onClick={() => setOpenId(openId === h.id ? null : h.id)}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpenId(openId === h.id ? null : h.id); } }}>
+            <div id={`bc-run-${h.id}`} className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0} aria-expanded={openId === h.id}
+              onClick={() => openRun(openId === h.id ? null : h.id)}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRun(openId === h.id ? null : h.id); } }}>
               <span className="bc-hist-name">
-                {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}` : ""}</span>
+                {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}${h.failureLabel ? ` — ${h.failureLabel}` : ""}` : ""}</span>
               </span>
               <span className="bc-hist-seg">{h.audience.label}</span>
               <span className="num tabular">{h.counts.sent}{h.counts.skipped + h.counts.failed ? <span className="dim"> · {h.counts.skipped + h.counts.failed} held</span> : null}</span>
@@ -461,7 +606,7 @@ const BroadcastsReal = ({ initialSegment = null }) => {
               <span className="num tabular">{h.readPct === null ? "—" : `${h.readPct}%`}</span>
               <span className="num tabular">{h.counts.replied}</span>
             </div>
-            {openId === h.id && <BroadcastDetail id={h.id} heldReasons={data.heldReasons} onClose={() => setOpenId(null)} />}
+            {openId === h.id && <BroadcastDetail id={h.id} heldReasons={data.heldReasons} onClose={() => openRun(null)} />}
             </React.Fragment>
           ))}
         </div>

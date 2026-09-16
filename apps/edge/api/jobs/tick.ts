@@ -30,6 +30,20 @@ import {
 /** This many failures in one heartbeat are the platform's, not any owner's. */
 const MASS_FAILURE_PAGE = 10;
 
+/**
+ * The mass-failure page: the counts in words, and where to look first. It comes
+ * on top of the owners' own alerts, never instead of them.
+ */
+function massFailureBody(c: { claimed: number; done: number; failed: number; gaveUp: number }): string {
+  return (
+    `${c.failed + c.gaveUp} of the ${c.claimed} jobs this heartbeat claimed failed: ${c.failed} while running, ` +
+    `and ${c.gaveUp} given up because their last run never reported back. ${c.done} finished.\n\n` +
+    `Each one is a row in jobs with state 'failed', and each also alerted its own workspace's owner as usual. Newest first:\n\n` +
+    `  select kind, tenant_id, attempts, last_error, updated_at from jobs where state = 'failed' order by updated_at desc limit 20;\n\n` +
+    `The same last_error across several workspaces points to a shared cause: a provider's credentials, the database, or a deploy.\n`
+  );
+}
+
 export async function POST(request: Request): Promise<Response> {
   const L = logger({ sweep: "jobs" });
   const db = pg();
@@ -81,10 +95,12 @@ export async function POST(request: Request): Promise<Response> {
       { claimForMs: CLAIM_FOR_MS, yieldAtMs: YIELD_AT_MS, leaseSeconds: LEASE_SECONDS },
     );
     L.info("jobs_tick", { ...counts });
-    // Many failures in one heartbeat are the platform's, not any owner's:
-    // one page with the counts, rather than fifty owner emails.
+    // Many failures in one heartbeat are also the platform's condition: one page
+    // with the counts in words and where to look. Each failed job has already
+    // alerted its own workspace's owner (packages/jobs/src/tick.ts); the page is
+    // in addition to those, not instead of them.
     if (counts.failed + counts.gaveUp >= MASS_FAILURE_PAGE) {
-      await pageOperator({ db }, "jobs_mass_failure", `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`, JSON.stringify(counts));
+      await pageOperator({ db }, "jobs_mass_failure", `${counts.failed + counts.gaveUp} jobs failed in one heartbeat`, massFailureBody(counts));
     }
     return json(200, { ok: true, ...counts });
   } catch (e) {

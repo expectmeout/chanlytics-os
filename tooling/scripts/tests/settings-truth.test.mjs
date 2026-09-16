@@ -39,7 +39,7 @@ test("F32: a config the parser refuses is its own state, and no form can save ov
   assert.ok(pane.includes("const broken = !!(settings && settings.broken);"));
   assert.ok(pane.includes("This workspace's settings can't be read"));
   assert.ok(pane.indexOf("if (broken) {") < pane.indexOf("if (connected && editing) {"), "the broken branch wins over the editor");
-  assert.equal((pane.match(/disabled=\{broken \|\| !isOwner \|\| busy/g) ?? []).length, 3, "every notifications write is closed on a broken config");
+  assert.equal((pane.match(/disabled=\{broken \|\| busy/g) ?? []).length, 3, "every notifications write is closed on a broken config");
   // The parser really does tell the two apart.
   assert.equal(parseTenantConfigResult({}).ok, true, "an empty config is not broken");
   const bad = parseTenantConfigResult({ brain: { business_name: 42 } });
@@ -90,16 +90,16 @@ test("F50: gates match doors — the business form is owner-only like PUT /setti
   assert.equal(ROLE_PERMS.owner.settings, true);
   assert.equal(ROLE_PERMS.operator.settings, false, "PUT /settings is owner-only; an operator's form opened on the autonomy gate and was refused at Save");
   assert.equal(ROLE_PERMS.viewer.settings, false);
-  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 6, "Edit, Save, Set up, Change timezone, and the two numbers edited in their own rows — every one of them a PUT an operator is refused");
+  assert.equal((pane.match(/window\.gate\("settings"\)/g) ?? []).length, 7, "Edit, Save, Set up, Add your business details, Change timezone, and the two numbers edited in their own rows — every one of them a PUT an operator is refused");
   const editor = pane.slice(pane.indexOf("const BusinessEditor"), pane.indexOf("const PaneWorkspace"));
   assert.ok(!editor.includes('gate("autonomy")'), "the form no longer opens on a gate the door refuses");
   assert.ok(pane.includes('gate("autonomy")'), "the autonomy matrix keeps its own gate — PUT /policies is operator-or-owner");
   // Delay edits.
-  assert.ok(pane.includes("if (d && reply) put(reply, undefined, d[1]);"));
+  assert.ok(pane.includes("if (d && reply) put(reply, undefined, { replyDelayMs: d[1] });"));
   assert.ok(!pane.includes("reply.mode.toLowerCase()"), "REGRESSION: a stale page changing the hold window resent its remembered mode");
   const policies = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(policies.includes("mode = current.mode;"), "the row keeps the mode it has");
-  assert.ok(verbsBridge.includes("export async function setPolicy(cls: string, mode: string | undefined, replyDelayMs?: number, minConfidence?: number, maxTokensDay?: number)"));
+  assert.ok(verbsBridge.includes("export async function setPolicy(cls: string, mode: string | undefined, limits: PolicyDials = {})"));
   assert.ok(verbsBridge.includes("...(mode !== undefined ? { mode } : {})"));
   // Invites.
   assert.ok(pane.includes("...(pending && realRoster ? [] : ["), "an open invitation has no membership row to change the role on");

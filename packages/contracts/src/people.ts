@@ -1,4 +1,5 @@
 import { agoWords } from "./time";
+import { clockDate, clockDateYear, clockDayLabel, clockTime } from "./clock";
 import { standingOf, type StandingVerdict } from "./standing";
 /**
  * People — the relationship record for a business whose receptionist is an AI.
@@ -142,6 +143,12 @@ export interface PersonDetailDto {
 export type PersonMode = "auto" | "ask" | "never";
 export const PERSON_MODES: readonly PersonMode[] = ["auto", "ask", "never"];
 export const PERSON_MODE_LABELS: Record<PersonMode, string> = { auto: "Answer", ask: "Ask me first", never: "Never" };
+/**
+ * Every word for the receptionist's mode for one person, following the workspace included. The profile,
+ * the bulk menu, a pill and an Ask receipt all say these: the mode was worded four ways on one journey
+ * (Answer and Answer them, Never and Stay out, "Use the workspace setting" and "Follow the workspace").
+ */
+export const PERSON_MODE_WORDS: Record<PersonMode | "inherit", string> = { ...PERSON_MODE_LABELS, inherit: "Follow the workspace" };
 
 export function asPersonMode(s: string | null | undefined): PersonMode | null {
   return s && (PERSON_MODES as readonly string[]).includes(s) ? (s as PersonMode) : null;
@@ -211,29 +218,26 @@ export function reasonShort(reason: string | null | undefined): string {
 
 const ts = (iso: string | null | undefined): number | null => (iso ? new Date(iso).getTime() : null);
 
-const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-const DATE_YEAR_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric", year: "numeric" });
-const TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-
-/** "Jul 14", or "Jul 14, 2025" once it is not this year. */
-function fmtDate(ms: number, nowMs: number): string {
-  const d = new Date(ms);
-  return d.getFullYear() === new Date(nowMs).getFullYear() ? DATE_FMT.format(d) : DATE_YEAR_FMT.format(d);
+/**
+ * "Jul 14", or "Jul 14, 2025" once it is not this year, by the business's
+ * calendar (clock.ts). Every day and time on a person is said in the workspace's
+ * zone: these formatters had none, so the browser's zone decided which day a
+ * message was on (the 12 September audit's D5).
+ */
+function fmtDate(ms: number, tz: string, nowMs: number): string {
+  return clockDate(ms, tz, nowMs);
 }
 
-/** "2h ago" inside a week; the date beyond it. */
-/** "just now" · "5m ago" · "3h ago" · "2d ago", a date past a week — the one family (time.ts). */
-export function ago(ms: number, nowMs: number): string {
-  return agoWords(ms, nowMs, { dateAfterMs: WEEK_MS, date: (at) => fmtDate(at, nowMs) });
+/** "just now" · "5m ago" · "3h ago" · "2d ago", the business's date past a week — the one family (time.ts, clock.ts). */
+export function ago(ms: number, tz: string, nowMs: number): string {
+  return agoWords(ms, nowMs, { dateAfterMs: WEEK_MS, date: (at) => clockDate(at, tz, nowMs) });
 }
 
-function dayLabel(ms: number, nowMs: number): string {
-  const d = new Date(ms);
-  const now = new Date(nowMs);
-  const key = d.toDateString();
-  if (key === now.toDateString()) return `Today · ${DATE_FMT.format(d)}`;
-  if (key === new Date(nowMs - DAY_MS).toDateString()) return `Yesterday · ${DATE_FMT.format(d)}`;
-  return fmtDate(ms, nowMs);
+/** When they were last in contact, by message or by call, whichever is later. */
+function lastContactTs(r: PersonRowDto): number | null {
+  const m = ts(r.last_message_at);
+  const k = ts(r.last_call_at);
+  return m === null ? k : k === null ? m : Math.max(m, k);
 }
 
 function mmss(ms: number | null | undefined): string | undefined {
@@ -294,7 +298,7 @@ export function personStateFor(r: PersonRowDto, nowMs: number): PersonState {
   if (r.consent === "opted_out" || r.dnc) return "opted_out";
   const first = ts(r.first_contact_at);
   if (!r.has_backfill && first !== null && nowMs - first <= NEW_WINDOW_MS) return "new";
-  const last = lastContactOf(r, nowMs).ts;
+  const last = lastContactTs(r);
   if (last === null || nowMs - last > QUIET_AFTER_MS) return "quiet";
   return "active";
 }
@@ -310,12 +314,12 @@ export interface PersonLastContact {
   label: string;
 }
 
-function lastContactOf(r: PersonRowDto, nowMs: number): PersonLastContact {
+function lastContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonLastContact {
   const m = ts(r.last_message_at);
   const k = ts(r.last_call_at);
   if (m === null && k === null) return { ts: null, at: null, kind: null, who: null, label: "No contact recorded" };
   if (k !== null && (m === null || k > m)) {
-    return { ts: k, at: r.last_call_at, kind: "call", who: "they", label: `Phoned · ${ago(k, nowMs)}` };
+    return { ts: k, at: r.last_call_at, kind: "call", who: "they", label: `Phoned · ${ago(k, tz, nowMs)}` };
   }
   const who: PersonLastContact["who"] =
     r.last_message_direction === "inbound" ? "they"
@@ -324,7 +328,7 @@ function lastContactOf(r: PersonRowDto, nowMs: number): PersonLastContact {
     : "system";
   const verb =
     who === "they" ? "They wrote" : who === "you" ? "You replied" : who === "receptionist" ? "Receptionist replied" : "We sent";
-  return { ts: m as number, at: r.last_message_at, kind: "message", who, label: `${verb} · ${ago(m as number, nowMs)}` };
+  return { ts: m as number, at: r.last_message_at, kind: "message", who, label: `${verb} · ${ago(m as number, tz, nowMs)}` };
 }
 
 export interface PersonFirstContact {
@@ -337,12 +341,12 @@ export interface PersonFirstContact {
   evidence: boolean;
 }
 
-function firstContactOf(r: PersonRowDto, nowMs: number): PersonFirstContact {
+function firstContactOf(r: PersonRowDto, tz: string, nowMs: number): PersonFirstContact {
   const f = ts(r.first_contact_at);
-  if (f !== null) return { ts: f, label: fmtDate(f, nowMs), estimate: false, evidence: !r.has_backfill };
+  if (f !== null) return { ts: f, label: fmtDate(f, tz, nowMs), estimate: false, evidence: !r.has_backfill };
   const e = ts(r.earliest_row_at);
-  if (e !== null && r.has_backfill) return { ts: e, label: `Before ${fmtDate(e, nowMs)}`, estimate: true, evidence: false };
-  if (e !== null) return { ts: e, label: fmtDate(e, nowMs), estimate: false, evidence: !r.has_backfill };
+  if (e !== null && r.has_backfill) return { ts: e, label: `Before ${fmtDate(e, tz, nowMs)}`, estimate: true, evidence: false };
+  if (e !== null) return { ts: e, label: fmtDate(e, tz, nowMs), estimate: false, evidence: !r.has_backfill };
   return { ts: null, label: "—", estimate: true, evidence: false };
 }
 
@@ -365,6 +369,8 @@ export interface PersonConsent {
   marketingSource: string | null;
   /** One line for the person's profile: what they said about offers, and when. */
   marketingSub: string;
+  /** The offers answer in a word, as People's Offers column says it: Yes, No or Not asked. */
+  marketingLabel: string;
 }
 
 /**
@@ -413,17 +419,17 @@ export function consentSourceLabel(source: string | null | undefined): string | 
   return source === CONSENT_RESET_SOURCE ? null : source;
 }
 
-function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
+function consentOf(r: PersonRowDto, tz: string, nowMs: number): PersonConsent {
   const dnc = !!r.dnc;
   const state: PersonConsent["state"] =
     r.consent === "opted_out" || dnc ? "opted_out" : r.consent === "opted_in" ? "opted_in" : "unknown";
   const when = ts(r.consent_updated_at);
-  const date = when !== null ? fmtDate(when, nowMs) : "recorded";
+  const date = when !== null ? fmtDate(when, tz, nowMs) : "recorded";
   const how = consentSourceLabel(r.consent_source);
   const sub =
     state === "opted_out"
       ? (r.consent_source === "customer_message"
-          ? `STOP received${when !== null ? ` ${fmtDate(when, nowMs)}` : ""}`
+          ? `STOP received${when !== null ? ` ${fmtDate(when, tz, nowMs)}` : ""}`
           : `${how ? `${how} · ` : ""}${date}`)
     : state === "opted_in" ? `${how ? `${how} · ` : ""}${date}`
     : "no opt-in recorded";
@@ -438,7 +444,7 @@ function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
   const mWhen = ts(r.marketing_consent_updated_at ?? null);
   const mHow = consentSourceLabel(r.marketing_consent_source ?? null);
   const marketingSub =
-    marketing === "opted_in" ? `${mHow ? `${mHow} · ` : ""}${mWhen !== null ? fmtDate(mWhen, nowMs) : "recorded"}`
+    marketing === "opted_in" ? `${mHow ? `${mHow} · ` : ""}${mWhen !== null ? fmtDate(mWhen, tz, nowMs) : "recorded"}`
     : marketing === "opted_out" ? "no offers"
     : "never asked about offers";
   return {
@@ -449,6 +455,8 @@ function consentOf(r: PersonRowDto, nowMs: number): PersonConsent {
     marketing,
     marketingSource: r.marketing_consent_source ?? null,
     marketingSub,
+    // The offers answer in the words People's Offers column uses, so a list and the page agree.
+    marketingLabel: marketing === "opted_in" ? "Yes" : marketing === "opted_out" ? "No" : "Not asked",
   };
 }
 
@@ -502,7 +510,7 @@ export interface PersonReceptionist {
   label: string;
 }
 
-function receptionistOf(r: PersonRowDto, nowMs: number): PersonReceptionist {
+function receptionistOf(r: PersonRowDto, tz: string, nowMs: number): PersonReceptionist {
   // A thread a person owns is theirs, whatever flagged it — the Inbox says
   // "you have it" for the same row, and the two must not disagree.
   if (isOwned(r, nowMs)) return { tone: "paused", label: "Paused, a person owns the thread" };
@@ -511,12 +519,12 @@ function receptionistOf(r: PersonRowDto, nowMs: number): PersonReceptionist {
   if (r.queued_reply_at) return { tone: "queued", label: "Reply queued" };
   const snooze = ts(r.latest_snooze_until);
   if (r.latest_state === "snoozed" && snooze !== null && snooze > nowMs) {
-    return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, new Date(nowMs))}` };
+    return { tone: "snoozed", label: `Snoozed until ${shortTime(r.latest_snooze_until, tz, new Date(nowMs))}` };
   }
   if (r.consent === "opted_out" || r.dnc) return { tone: "silent", label: "Silent, they opted out" };
   // "Answering" was shown for a person the owner had set to Never.
-  if (r.effective_reply_mode === "never") return { tone: "paused", label: "Held for you, set to Never" };
-  if (r.effective_reply_mode === "ask") return { tone: "paused", label: "Held for you, set to Ask" };
+  if (r.effective_reply_mode === "never") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.never}` };
+  if (r.effective_reply_mode === "ask") return { tone: "paused", label: `Held for you, set to ${PERSON_MODE_WORDS.ask}` };
   return { tone: "answering", label: "Answering" };
 }
 
@@ -582,13 +590,13 @@ export interface PersonRowVM {
   calendarTz: string | null;
 }
 
-export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
+export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): PersonRowVM {
   const nowMs = now.getTime();
   const name = personName(r);
   const state = personStateFor(r, nowMs);
-  const last = lastContactOf(r, nowMs);
-  const first = firstContactOf(r, nowMs);
-  const consent = consentOf(r, nowMs);
+  const last = lastContactOf(r, tz, nowMs);
+  const first = firstContactOf(r, tz, nowMs);
+  const consent = consentOf(r, tz, nowMs);
   // Booked is a fact from the calendar, not a stage: an appointment ahead.
   // Asked-not-booked is the gap the owner can act on — they reached out
   // this month and the calendar has never had them.
@@ -606,7 +614,7 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     : state === "waiting_on_you" ? "you own the thread and they wrote last"
     : state === "opted_out" ? consent.sub
     : state === "new" ? `first contact ${first.label}`
-    : state === "quiet" ? (last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, nowMs)}`)
+    : state === "quiet" ? (last.ts === null ? "no contact recorded" : `last contact ${ago(last.ts, tz, nowMs)}`)
     : "";
   return {
     id: r.id,
@@ -622,7 +630,7 @@ export function toPersonRowVM(r: PersonRowDto, now = new Date()): PersonRowVM {
     stateLabel: PERSON_STATE_LABELS[state],
     stateDetail,
     lastContact: last,
-    receptionist: receptionistOf(r, nowMs),
+    receptionist: receptionistOf(r, tz, nowMs),
     firstContact: first,
     consent,
     quote: r.last_inbound_text?.trim() || null,
@@ -723,7 +731,10 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
   opted_in: { cta: "Get their yes to offers", to: "broadcasts", text: "They answer and hear about their own visits. Offers need a second, separate yes." },
-  offers_ok: { cta: "New broadcast", to: "broadcasts", broadcast: true },
+  // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer
+  // opens on Everyone, and the button says so in the composer's words (broadcasts.ts EVERYONE_LABEL). It said
+  // "New broadcast" here and "Use in a broadcast" on Lists, and opened an audience with another name.
+  offers_ok: { cta: "Broadcast to everyone who said yes", to: "broadcasts", broadcast: true },
 };
 
 /**
@@ -740,16 +751,29 @@ export function peopleListAction(id: string, members: PersonRowVM[]): PeopleList
   const step = LIST_STEPS[id];
   if (!step) return null;
   if (!step.broadcast) return { text: step.text ?? "", cta: step.cta, to: step.to, enabled: members.length > 0 };
+  return broadcastStep(step.cta, step.to, members);
+}
+
+/**
+ * A list kept by hand has one onward step: a broadcast to the people on it who said yes to offers. The same
+ * sentence and the same rule as a smart list's broadcast step, so the two kinds of list read alike on People,
+ * which is where both live now (the Lists page folded into it).
+ */
+export function savedListAction(id: string, members: PersonRowVM[]): PeopleListAction {
+  return broadcastStep("Use in a broadcast", `broadcasts/${id}`, members);
+}
+
+function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
     return {
       text: members.length
         ? "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts."
         : "Nobody here right now.",
-      cta: step.cta, to: step.to, enabled: false,
+      cta, to, enabled: false,
     };
   }
-  return { text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta: step.cta, to: step.to, enabled: true };
+  return { text: `${offersYes} of ${members.length} on this list said yes to offers — a broadcast reaches them.`, cta, to, enabled: true };
 }
 
 export interface PeopleAggregates {
@@ -839,10 +863,10 @@ function oneLine(text: string, max: number): string {
   return t.length > max ? `${t.slice(0, max - 1).trimEnd()}…` : t;
 }
 
-/** "2:14 PM" today; "Sep 4 2:14 PM" further back. */
-function clock(ms: number, nowMs: number): string {
-  const time = new Date(ms).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
-  return nowMs - ms < DAY_MS ? time : `${fmtDate(ms, nowMs)} ${time}`;
+/** "2:14 PM" inside a day; "Sep 4 2:14 PM" further back — by the business's clock. */
+function clock(ms: number, tz: string, nowMs: number): string {
+  const time = clockTime(ms, tz);
+  return nowMs - ms < DAY_MS ? time : `${fmtDate(ms, tz, nowMs)} ${time}`;
 }
 
 /**
@@ -853,10 +877,10 @@ function clock(ms: number, nowMs: number): string {
  * the one thing the state asks of you, and it exists only when that differs
  * from opening the profile, which the row itself does.
  */
-export function attentionRow(p: PersonRowVM, nowMs: number): AttentionRowVM {
+export function attentionRow(p: PersonRowVM, tz: string, nowMs: number): AttentionRowVM {
   const lc = p.lastContact;
   const channel: AttentionRowVM["channel"] = lc.kind === "call" ? "Phone" : lc.kind === "message" ? "WhatsApp" : null;
-  const when = lc.ts === null ? "no contact yet" : ago(lc.ts, nowMs);
+  const when = lc.ts === null ? "no contact yet" : ago(lc.ts, tz, nowMs);
   let sentence: string;
   let quoted = false;
   if (p.quote) { sentence = oneLine(p.quote, 160); quoted = true; }
@@ -870,7 +894,7 @@ export function attentionRow(p: PersonRowVM, nowMs: number): AttentionRowVM {
   if (p.state === "waiting_on_you") status = ["You own the thread", "they wrote last"];
   else if (r.tone === "answering") status = p.hasChat ? ["Receptionist", "answering on WhatsApp"] : ["Receptionist", "takes their calls"];
   else status = r.label.split(", ");
-  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, nowMs)}`];
+  if (p.state === "needs_you" && p.needsYouSinceMs !== null) status = [...status, `since ${clock(p.needsYouSinceMs, tz, nowMs)}`];
   const cta: AttentionRowVM["cta"] = !p.threadId
     ? null
     : p.state === "needs_you" || p.state === "waiting_on_you"
@@ -882,6 +906,25 @@ export function attentionRow(p: PersonRowVM, nowMs: number): AttentionRowVM {
 /* -------------------------------- profile -------------------------------- */
 
 export type TimelineKind = "customer" | "receptionist" | "you" | "system" | "call" | "escalation" | "decision" | "visit" | "consent";
+
+/**
+ * How a profile's timeline narrows: everything, or one kind of record. "Messages" is the thread itself --
+ * what was said, and the escalations and decisions in it; only "All" keeps the system lines.
+ */
+export type TimelineFilterId = "all" | "messages" | "calls" | "visits" | "consent";
+export const TIMELINE_FILTERS: readonly { id: TimelineFilterId; label: string; kinds: readonly TimelineKind[] | null }[] = [
+  { id: "all", label: "All", kinds: null },
+  { id: "messages", label: "Messages", kinds: ["customer", "receptionist", "you", "escalation", "decision"] },
+  { id: "calls", label: "Calls", kinds: ["call"] },
+  { id: "visits", label: "Visits", kinds: ["visit"] },
+  { id: "consent", label: "Consent", kinds: ["consent"] },
+];
+
+/** The items a filter shows, in the order they came; an unknown filter shows everything. */
+export function filterTimeline<T extends { kind: TimelineKind }>(items: readonly T[], id: string): T[] {
+  const kinds = TIMELINE_FILTERS.find((f) => f.id === id)?.kinds ?? null;
+  return kinds ? items.filter((i) => kinds.includes(i.kind)) : [...items];
+}
 
 /**
  * A consent change, in the words the timeline uses: what was answered, and
@@ -974,7 +1017,7 @@ function plural(n: number, one: string, many = `${one}s`): string {
   return `${n} ${n === 1 ? one : many}`;
 }
 
-export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
+export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): PersonVM {
   const nowMs = now.getTime();
   // The profile fetched this person's rows in full, so the arrays are the
   // ground truth here and the list row is the summary. Where they disagree
@@ -995,11 +1038,11 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     escalation_count: d.escalations.length || d.row.escalation_count,
     visits: d.visits ?? d.row.visits ?? null,
   };
-  const base = toPersonRowVM(row, now);
+  const base = toPersonRowVM(row, tz, now);
   // A person we know only by number has no first name to shorten to: "+1"
   // as a speaker label is nobody. Keep the whole formatted number.
   const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
-  const stamp = (t: number) => ({ time: TIME_FMT.format(new Date(t)), day: dayLabel(t, nowMs) });
+  const stamp = (t: number) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items: PersonTimelineItemVM[] = [];
   const convIds = new Set(d.conversations.map((c) => c.id));
 
@@ -1013,7 +1056,7 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
         m.sender === "customer" ? "customer" : m.sender === "human" ? "you" : m.sender === "ai" ? "receptionist" : "system";
       const who = kind === "customer" ? first : kind === "you" ? "You" : kind === "receptionist" ? "Receptionist" : "System";
       const sub = m.status === "failed" ? "Not delivered" : m.status === "queued" ? "Sending" : undefined;
-      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...(sub ? { sub } : {}) });
+      items.push({ id: `m-${m.id}`, ts: t, ...stamp(t), kind, who, text: messageText(m), ...(sub ? { sub } : {}), link: { label: "Open the thread", to: `inbox/th-${c.id}` } });
     }
   }
 
@@ -1047,7 +1090,9 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
       kind: "escalation",
       who: "Escalated",
       text: capitalize(reasonShort(e.reason)) || "The receptionist stopped",
-      sub: e.state === "resolved" ? "Resolved" : "Open",
+      // "Open" beside a row that opens something read as the verb; the state is what it says.
+      sub: e.state === "resolved" ? "Resolved" : "Still open",
+      link: { label: "Open the thread", to: `inbox/th-${e.conversation_id}` },
     });
   }
 
@@ -1083,6 +1128,7 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
         id: `v-${v.id}`, ts: t, ...stamp(t), kind: "visit", who: "Calendar",
         text: `${ahead ? "Booked" : "Visited"} · ${v.title}`,
         sub: `${visitTime(v, tz)} · from ${d.visits.source}${v.via === "name" ? " · matched by name" : ""}`,
+        link: { label: "Open the day", to: `calendar/${visitDateKey(v.start, tz)}` },
       });
     }
   }
@@ -1111,44 +1157,50 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
     }
   }
 
-  // Right now: what the receptionist is doing for this person.
+  // Right now: what the receptionist is doing for this person. The card names the receptionist and wears the
+  // standing's own word as a pill (tone.ts, the word the People row wears), so `detail` is one sentence: the
+  // reason and what happens next -- never the receptionist's name again, never the state a second time. Ask
+  // reads `title` and `detail` together (server/ask/tools.ts), so the title keeps the state for it.
   const threadTo = row.latest_conversation_id ? `inbox/th-${row.latest_conversation_id}` : null;
-  const openInbox = threadTo ? { label: "Open in Inbox", to: threadTo } : null;
+  // One door, one label: the header's "Open thread" and this card's "Open in Inbox" went to the same thread.
+  const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
   const r = row;
   let rightNow: PersonRightNow;
   if (r.open_escalation_reason) {
-    const since = r.open_escalation_since ? shortTime(r.open_escalation_since, now) : null;
+    const since = r.open_escalation_since ? shortTime(r.open_escalation_since, tz, now) : null;
     rightNow = {
       tone: "escalated",
       title: `Escalated · ${reasonShort(r.open_escalation_reason)}`,
-      detail: `${since ? `Since ${since} · ` : ""}the receptionist is paused on this thread until someone answers`,
-      cta: openInbox,
+      detail: `${capitalize(reasonShort(r.open_escalation_reason))}${since ? ` · since ${since}` : ""}. Paused until someone answers.`,
+      cta: openThread,
     };
   } else if (r.needs_human) {
-    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "The receptionist stopped and nobody has taken the thread yet", cta: openInbox };
+    rightNow = { tone: "escalated", title: "Waiting for a person", detail: "Stopped, and nobody has taken the thread yet.", cta: openThread };
   } else if (r.queued_reply_at) {
     const q = ts(r.queued_reply_at);
-    rightNow = { tone: "queued", title: "Reply sending", detail: `Queued ${q !== null ? ago(q, nowMs) : ""} · it can still be stopped from the Inbox`.replace("  ", " "), cta: openInbox };
+    rightNow = { tone: "queued", title: "Reply sending", detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`, cta: openThread };
   } else if (base.receptionist.tone === "snoozed") {
-    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, now)}`, cta: openInbox };
+    rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`, cta: openThread };
   } else if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "The receptionist will not answer until the thread is handed back", cta: openInbox };
+    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
   } else if (base.consent.state === "opted_out") {
-    rightNow = { tone: "silent", title: "Silent, they opted out", detail: base.consent.sub, cta: null };
+    // The consent ask on the rail carries the date and the words; here, only what it means for the thread.
+    rightNow = { tone: "silent", title: "Silent, they opted out", detail: "They said stop — nothing goes out to them until they ask again.", cta: null };
   } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
     // "Answering" sat two inches from "Receptionist for Dani: Never".
     const theirs = ["never", "ask"].includes(d.receptionist_mode ?? "");
     const mode = theirs ? d.receptionist_mode : d.workspace_reply_mode;
+    const word = PERSON_MODE_WORDS[mode === "never" ? "never" : "ask"];
     rightNow = {
       tone: "paused",
-      title: `Held for you, set to ${mode === "never" ? "Never" : "Ask"}`,
+      title: `Held for you, set to ${word}`,
       detail: theirs
-        ? "You set the receptionist to stay out of this person's thread — their messages come straight to you"
-        : "Your workspace reply setting holds every message for a person",
-      cta: openInbox,
+        ? `Set to ${word} for them — their messages come straight to you.`
+        : `Set to ${word} for the workspace — every message waits for a person.`,
+      cta: openThread,
     };
   } else {
-    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically", cta: base.threadId ? { label: "Open thread", to: `inbox/${base.threadId}` } : null };
+    rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically.", cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null };
   }
 
   // Facts strip.
@@ -1156,14 +1208,18 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
   const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
   const lc = base.lastContact;
   const lastMeta = lc.who === "they" ? (lc.kind === "call" ? "they phoned" : "they wrote") : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
-  const toneWord: Record<ReceptionistTone, string> = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Paused", silent: "Silent" };
+  // "Held for you" is the word the People row puts beside the state, for a thread a person owns or a mode that holds.
+  const toneWord: Record<ReceptionistTone, string> = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Held for you", silent: "Silent" };
+  // Under the word, what the label says after it ("set to Never", "a person owns the thread"), not the label again.
+  const receptionistMeta = (label: string) => (label.includes(", ") ? label.slice(label.indexOf(", ") + 2) : label.toLowerCase());
   const facts: PersonFact[] = [
     { label: "First contact", value: base.firstContact.label, meta: firstChannel },
-    { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, nowMs) : "—", meta: lastMeta },
+    { label: "Last contact", value: lc.ts !== null ? ago(lc.ts, tz, nowMs) : "—", meta: lastMeta },
     { label: "Conversations", value: base.threads, meta: base.escalations ? `${base.escalations} needed you` : "none needed you" },
     { label: "Calls", value: base.calls, meta: base.calls ? `${Math.max(1, Math.round(base.callSeconds / 60))} min total` : "no calls" },
-    { label: "Consent", value: base.consent.label, meta: base.consent.sub, tone: base.consent.state === "opted_out" ? "neg" : "" },
-    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : base.receptionist.label.toLowerCase() },
+    // Consent is the two asks on the rail, each with how it was given. A fact, an About row and a pill said it
+    // again, five times on one profile.
+    { label: "Receptionist", value: toneWord[base.receptionist.tone], meta: base.receptionist.tone === "escalated" ? "for you" : receptionistMeta(base.receptionist.label) },
   ];
 
   // About rail.
@@ -1173,11 +1229,10 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
   about.push({
     k: "First contact",
     v: base.firstContact.ts !== null
-      ? `${base.firstContact.estimate ? "Before " : ""}${DATE_YEAR_FMT.format(new Date(base.firstContact.ts))} · ${firstChannel}`
+      ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} · ${firstChannel}`
       : "—",
   });
   about.push({ k: "Channels", v: base.channels.map((c) => (c === "whatsapp" ? "WhatsApp" : "Phone")).join(" · ") || "—" });
-  about.push({ k: "Consent", v: `${base.consent.label} · ${base.consent.sub}` });
   if (base.hasChat) {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;
@@ -1201,7 +1256,7 @@ export function toPersonVM(d: PersonDetailDto, now = new Date()): PersonVM {
   }
   if (d.added) {
     const at = ts(d.added.at);
-    about.push({ k: "Added", v: `${at !== null ? DATE_YEAR_FMT.format(new Date(at)) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
+    about.push({ k: "Added", v: `${at !== null ? clockDateYear(at, tz) : "—"} · ${d.added.source === "calendar" ? `from your calendar${d.added.title ? ` (${d.added.title})` : ""}` : "by hand"}` });
   }
 
   return {

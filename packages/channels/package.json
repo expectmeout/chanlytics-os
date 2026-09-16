@@ -17,7 +17,8 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@chanlytics/contracts": "workspace:*"
+    "@chanlytics/contracts": "workspace:*",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "tsup": "^8.3.0",

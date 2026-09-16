@@ -12,6 +12,12 @@ updates:
       time: "09:00"
       timezone: "America/New_York"
     open-pull-requests-limit: 4
+    ignore:
+      # @types/node describes the Node the code runs on, and that is 22 (.nvmrc,
+      # CI and the engines field). A newer major would type APIs the runtime
+      # does not have, so it moves when the runtime does.
+      - dependency-name: "@types/node"
+        update-types: ["version-update:semver-major"]
     groups:
       minor-and-patch:
         update-types: ["minor", "patch"]

@@ -1,13 +1,16 @@
 /**
- * Where your attention matters, redrawn: one row per person with a sentence
- * that is always true, a state line in the mockup's grammar, and one button
- * only where the state asks something of you. The strip's height never
- * depends on what a tab holds.
+ * Where your attention matters: one row per person with a sentence that is
+ * always true, a state line in the mockup's grammar, and one button only where
+ * the state asks something of you. People draws these words on its own rows;
+ * Today's queue, Setup and the back office draw them as AttnRow.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { attentionRow, toPersonRowVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
 
 const S = 1000, M = 60 * S, H = 60 * M, D = 24 * H;
 const NOW = new Date("2026-09-06T16:00:00Z");
@@ -28,7 +31,7 @@ function dto(over = {}) {
     effective_reply_mode: "auto", visits: null, ...over,
   };
 }
-const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), NOW), nowMs);
+const rowOf = (over) => attentionRow(toPersonRowVM(dto(over), ZONE, NOW), ZONE, nowMs);
 
 test("their words come first, in quotes, with the channel and the moment beside the name", () => {
   const a = rowOf({});
@@ -47,9 +50,9 @@ test("needs you: the escalation's reason and its moment, and the one primary but
 });
 
 test("waiting on you: the state's own words, and the same primary button", () => {
-  const vm = toPersonRowVM(dto({ latest_assignee_user_id: "u1", latest_paused_until: new Date(nowMs + 20 * H).toISOString() }), NOW);
+  const vm = toPersonRowVM(dto({ latest_assignee_user_id: "u1", latest_paused_until: new Date(nowMs + 20 * H).toISOString() }), ZONE, NOW);
   assert.equal(vm.state, "waiting_on_you");
-  const a = attentionRow(vm, nowMs);
+  const a = attentionRow(vm, ZONE, nowMs);
   assert.deepEqual(a.status, ["You own the thread", "they wrote last"]);
   assert.equal(a.cta.label, "Open in Inbox");
 });
@@ -85,23 +88,23 @@ test("the calendar speaks when nothing else does: the next visit, else the last"
   assert.equal(summarised.sentence, "Wants to move Saturday.", "the call's words beat the calendar");
 });
 
-test("the wiring: the door carries the summary, the surface carries the rows, the page draws the mockup, the height is fixed", () => {
+test("the wiring: the door carries the summary, the surface carries the rows, and each row says its own words", () => {
   const mig = readRaw("supabase/migrations/00060_people_list_call_summary.sql");
   assert.ok(mig.includes("  last_inbound_call_summary text,") && mig.includes("    lks.summary,") && mig.includes("and k.direction = 'inbound'") && mig.includes("and k.summary is not null"));
   assert.ok(mig.includes("grant execute on function public.people_list(uuid, uuid) to authenticated, service_role;"), "the grants are re-stated after the drop");
   assert.ok(readCode("packages/contracts/src/people.ts").includes("callSummary: r.last_inbound_call_summary?.trim() || null,"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
-  assert.ok(sd.includes("attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, now.getTime())])),"), "computed once with the surface, like the recency cells");
+  assert.ok(sd.includes("attention: Object.fromEntries(rows.map((r) => [r.id, attentionRow(r, tz, now.getTime())])),"), "computed once with the surface");
+  // The strip that drew three of these rows above the table is gone: it showed
+  // the table's own first rows over again, with the same sentences. The row
+  // still speaks -- People reads the same attention row for its words.
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(page.includes('<PeopleTriage rows={rows} recency={people.recency} attention={people.attention}'), "the real page hands the rows to the strip");
-  assert.ok(!page.includes("remembered.showTriage") && !page.includes("Updated {fetched}"), "no header, no toggle, no clock on the real page: the strip is the hero, as drawn");
-  for (const s of ['data-testid="attention-strip"', 'className="cl-attn-list" key={active}', 'className="cl-attn-foot"', "plTabTone(t)", "<window.AttnRow", "Nobody here right now."]) assert.ok(page.includes(s), s);
+  assert.ok(page.includes("const said = attention && attention[p.id];"), "every row reads its own attention row");
+  assert.ok(page.includes('<div className="cl-row-words" title={words} data-testid="row-words">{words}</div>'), "and says their words on it");
   assert.ok(!page.includes("nothing written to quote"), "the confession is gone");
+  // Today's queue, Setup and the back office still draw AttnRow, so the row's
+  // own rules stay; only the strip's container, footer and empty state went.
   const css = readRaw("apps/dashboard/src/legacy/styles/clients.css");
-  assert.ok(css.includes(".cl-attn-list { min-height: calc(3 * var(--attn-row));") && css.includes(".cl-attn-empty { min-height: calc(3 * var(--attn-row));"), "three rows or nothing take the same room");
-  assert.ok(css.includes("height: var(--attn-row);") && css.includes("box-sizing: border-box;"), "a row's border lives inside its height");
-  assert.ok(css.includes(".cl-attn-foot { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 34px;"), "the footer is always there, at one height");
-  assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
   assert.ok(css.includes(".cl-attn-cta.primary { background: var(--accent); color: var(--accent-fg); }"), "the one primary button is the mockup's coral");
-  assert.ok(css.includes(".cl-attn { --attn-row: 68px; margin: 16px 28px 4px; }"), "inset like the search row and the table, never touching the rail");
+  assert.ok(css.includes("@media (prefers-reduced-motion: reduce) { .cl-attn-list { animation: none; } }"));
 });

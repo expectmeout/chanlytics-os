@@ -1,4 +1,5 @@
 import { waitedLabel } from "./time";
+import { clockShort, clockStamp } from "./clock";
 import { standingOf } from "./standing";
 /**
  * ThreadCard/ConversationVM viewmodels (Blueprint §7): pure mapping from API
@@ -59,6 +60,8 @@ export interface ConversationDto {
      *  and only 'opted_out'/dnc blocks — never the absence of a value. */
     consent?: string | null;
     dnc?: boolean | null;
+    /** Yes to OFFERS: a promotional template goes only to someone who said it (the reply route's rule). */
+    marketing_consent?: string | null;
   };
   messages: MessageDto[];
 }
@@ -82,6 +85,9 @@ export interface ConversationMessageVM {
   media?: MediaVM;
   /** Why the receptionist said it, when the row remembers. */
   why?: ReplyWhyVM;
+  /** Who sent it, for our messages: "the receptionist", "your team", "a broadcast (Spring offer)",
+   *  "the Win-back playbook" (messageAuthor). Absent for the customer's words and a call note. */
+  by?: string;
   /** "Canceled before sending", "Sending…" — absent when there is nothing to
    *  say, which for an ordinary sent message is the honest answer. */
   statusLabel?: string;
@@ -121,6 +127,10 @@ export interface ConversationVM {
   whoShort: string;
   initials: string;
   clientId: string | null;
+  /** The Inbox thread this chat is: `th-` and the conversation's id, the id the Inbox routes by. */
+  threadId: string;
+  /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
+  answeredBy: MessageAuthor["kind"] | null;
   channel: "whatsapp";
   agent: { glyph: string; name: string };
   at: string;
@@ -143,46 +153,30 @@ import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
 import { isOptedOutContact } from "./consent";
 import { replyWindow, isLiveCall } from "./policy";
-import { callOutcomeWords, tidyCallSummary } from "./call-words";
+import { callOutcomeOf, callOutcomeWords, tidyCallSummary } from "./call-words";
 import { RECORDING_PURGED_WORDS } from "./retention";
 
 const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
 
 /**
- * Hoisted formatters. `toLocaleTimeString`/`toLocaleDateString` construct a
- * fresh Intl.DateTimeFormat on EVERY call — measured at ~355ms per 4000
- * messages, 16× slower than reusing one. These mappers run twice per refresh
- * over every message in every conversation, on the main thread, so that cost
- * showed up as a visible freeze whenever a message arrived.
+ * A time in a thread or a call, by the business's clock (clock.ts). The two
+ * formatters here were built without a zone, so a message read in the browser's
+ * zone and "the same day" meant the browser's day: one call read as two times
+ * (the 12 September audit's D5). The formatters are built once per zone there,
+ * which keeps what these hoisted ones were for: these mappers run twice per
+ * refresh over every message, and constructing a formatter per call froze the
+ * page when a message arrived.
  */
-const TIME_FMT = new Intl.DateTimeFormat([], { hour: "numeric", minute: "2-digit" });
-const DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-
-/** `now.toDateString()` is itself not free, and it is constant for a whole
- *  mapping pass — memoise it per Date instance. */
-let sameDayKey: Date | null = null;
-let sameDayValue = "";
-function dayKey(now: Date): string {
-  if (sameDayKey !== now) {
-    sameDayKey = now;
-    sameDayValue = now.toDateString();
-  }
-  return sameDayValue;
-}
-
-export function shortTime(iso: string | null, now: Date): string {
-  if (!iso) return "";
-  const d = new Date(iso);
-  return d.toDateString() === dayKey(now) ? TIME_FMT.format(d) : DATE_FMT.format(d);
+export function shortTime(iso: string | null, tz: string, now: Date): string {
+  const ms = iso ? Date.parse(iso) : Number.NaN;
+  return Number.isFinite(ms) ? clockShort(ms, tz, now.getTime()) : "";
 }
 
 /** Transcript bubbles keep day context across multi-day threads. */
-function bubbleTime(iso: string, now: Date): string {
-  const d = new Date(iso);
-  const time = TIME_FMT.format(d);
-  if (d.toDateString() === dayKey(now)) return time;
-  return `${DATE_FMT.format(d)} · ${time}`;
+function bubbleTime(iso: string, tz: string, now: Date): string {
+  const ms = Date.parse(iso);
+  return Number.isFinite(ms) ? clockStamp(ms, tz, now.getTime()) : "";
 }
 
 /** The display name for a contact, without building a whole thread viewmodel
@@ -197,7 +191,7 @@ export function contactName(dto: ConversationDto): string {
 }
 
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" = "WhatsApp"): string {
+export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" | "Text" = "WhatsApp"): string {
   const phone = formatPhoneDisplay(dto.contact.phone_e164);
   return contactName(dto) === phone ? `${channel} · no name saved` : `${channel} · ${phone ?? "no phone"}`;
 }
@@ -357,7 +351,7 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
   opt_out: "They asked to stop receiving messages. Nothing was sent, and nothing may be.",
   state_unavailable: "The receptionist couldn't read this thread, so it stayed quiet. No reply went out.",
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent — they have been waiting since.",
-  callback: "They phoned, and the receptionist could not finish it. Call them back — the details say what they wanted.",
+  callback: "They phoned and the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
 };
@@ -380,11 +374,30 @@ export interface InboxThreadVM {
   /** The customer asked to stop receiving messages. Stronger than a closed
    *  24h window: an approved template can't reach them either. */
   optedOut: boolean;
+  /** They said yes to offers, so a promotional template may go to them: the composer offers only what can send (I4). */
+  offersOk: boolean;
   who: string;
   whoMeta: string;
   avatar: string;
   state: "escalated" | "snoozed" | "done";
   takenOver: boolean;
+  /** A teammate has this thread: the page names them and offers no take-over. */
+  claimedByOther: boolean;
+  /** Who has it, when someone does -- the page names them from the team. */
+  assigneeUserId: string | null;
+  /**
+   * The customer's own words beside the decision: what they last wrote, quoted,
+   * or what the call left behind for a call back. Null when nothing is being decided.
+   */
+  ask: { label: string; text: string; quoted: boolean } | null;
+  /** Archived: closed, not handled. The pane says so, and that a new message brings it back. */
+  archived: boolean;
+  /**
+   * A quiet thread's one line: who had the last word, in the words Conversations uses, and whether a reply
+   * didn't send. Null unless the thread is Handled and not archived. Every quiet thread read "Answered by the
+   * receptionist — no one asked for you", over a customer who wrote last and a reply that never left (I1).
+   */
+  lastWord: { text: string; tone: "ok" | "plain" | "warn" | "danger"; short: string | null } | null;
   /**
    * This thread is waiting on a human, and no human has it yet.
    *
@@ -418,18 +431,22 @@ export interface InboxThreadVM {
   veto?: { window: number; draft: string; endsAtMs: number; messageId: string; why?: ReplyWhyVM };
   /** The channels the thread has actually used: "whatsapp", "phone", or both. */
   channels: string[];
-  primaryChannel: "whatsapp" | "phone";
+  primaryChannel: "whatsapp" | "phone" | "sms";
   /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
   hasChat: boolean;
   /** The number to call back, E.164, when known. */
   phone: string | null;
+  /** That number as people read it, "+1 (917) 555-0106": the composer said "+19175550106" under a header that did not (I4). */
+  phoneDisplay: string | null;
   /** How long the request has waited, in the one family every surface reads ("57m", "2h"). */
   waited?: string;
-  agent: { name: string; glyph: string; autonomy: string; tone: string };
+  /** Who answers, by name and glyph -- and nothing it was never given: an autonomy line and a voice were written into every thread, and the rail said them. */
+  agent: { name: string; glyph: string };
+  /** Why a person is needed, as the list's row says it: the reason's label, or empty when nobody is. */
   subject: string;
+  /** The last thing that happened: the newest message that came in or reached them, never a draft. */
   preview: string;
   summary: string;
-  contextStrip: Array<{ label: string; value: string; warn?: boolean }>;
   lastAt: string;
   lastAtFull: string;
   /** Absolute times, epoch ms, for anything that must not drift with the
@@ -456,9 +473,15 @@ export interface InboxThreadVM {
         /** Why the receptionist said it, when the row remembers. */
         why?: ReplyWhyVM;
         byYou?: boolean;
+        /** Who sent it, when a person or a run did, in the words Conversations uses: "your team", "a broadcast (…)". */
+        byWords?: string;
         /** Sent by a broadcast, not typed: the name the owner gave it. */
         via?: { kind: "broadcast" | "playbook"; name: string };
         status?: string;
+        /** "Didn't send", "Canceled before sending", "Read" (messageStatusLabel). */
+        statusLabel?: string;
+        /** False when these words never reached the customer: the page dashes them, as Conversations does. */
+        reachedCustomer?: boolean;
         messageId?: string;
         /** Written but NOT sent — sitting out its veto window. */
         pending?: true;
@@ -484,7 +507,7 @@ export function threadStanding(
   dto: ConversationDto,
   escalation: EscalationDto | null,
   now = new Date(),
-): { state: InboxThreadVM["state"]; takenOver: boolean; needsYou: boolean } {
+): { state: InboxThreadVM["state"]; takenOver: boolean; needsYou: boolean; claimedByOther: boolean } {
   // One rule for the Inbox, People and Today (standing.ts). Snoozed wins over
   // escalated, and that ordering is the whole point.
   //
@@ -503,20 +526,20 @@ export function threadStanding(
     open_escalation: !!escalation,
   }, now.getTime());
   const state: InboxThreadVM["state"] = v.standing === "snoozed" ? "snoozed" : v.flagged ? "escalated" : "done";
-  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you" };
+  return { state, takenOver: v.takenOver, needsYou: v.standing === "needs_you", claimedByOther: v.claimedByOther };
 }
 
 export function toInboxThreadVM(
   dto: ConversationDto,
   escalation: EscalationDto | null,
+  /** The workspace's zone: every time in the thread is said by its clock. */
+  tz: string,
   now = new Date(),
 ): InboxThreadVM {
   const who = contactName(dto);
-  const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
-  const needsHuman = dto.state === "needs_human" || paused;
   // takenOver = a human claimed it (assignee set by take-over/reply) — the pane
   // then shows the owned-thread strip + hand-back instead of the take banner.
-  const { state, takenOver, needsYou } = threadStanding(dto, escalation, now);
+  const { state, takenOver, needsYou, claimedByOther } = threadStanding(dto, escalation, now);
   // The LAST held draft, not the first: if two ever coexist the newer one is
   // what the customer would receive, so it is the one to offer controls for.
   // Cancelling withdraws every queued AI row on the thread anyway.
@@ -527,7 +550,6 @@ export function toInboxThreadVM(
   const heldDraft = draftMsg
     ? { messageId: draftMsg.id, body: messageText(draftMsg), sendsAtMs: draftSendsAtMs(draftMsg) }
     : null;
-  const claimedByOther = !!dto.assignee_user_id && dto.assignee_is_me === false;
   const reasonLabel = escalation ? (ESCALATION_REASON_LABELS[escalation.reason] ?? escalation.reason) : null;
   const last = [...dto.messages].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
   const lastInbound = [...dto.messages].reverse().find((m) => m.sender === "customer");
@@ -542,8 +564,11 @@ export function toInboxThreadVM(
   // verbs, not a notice about a reply window that never opened.
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
-  const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? "whatsapp" : "phone";
-  const channels = [...(hasChat || !hasCalls ? ["whatsapp"] : []), ...(hasCalls ? ["phone"] : [])];
+  // The wire a reply goes out on, as the reply route picks it: where they last wrote. A text thread said WhatsApp,
+  // its window read closed, and its composer offered only templates, which the route refuses on a text (I5).
+  const chatChannel: "whatsapp" | "sms" = lastInbound?.channel === "sms" ? "sms" : "whatsapp";
+  const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
+  const channels = [...(hasChat || !hasCalls ? [chatChannel] : []), ...(hasCalls ? ["phone"] : [])];
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
@@ -552,8 +577,8 @@ export function toInboxThreadVM(
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
-      channel: onPhone ? "phone" : "whatsapp",
-      at: bubbleTime(messageAt(m), now),
+      channel: onPhone ? "phone" : m.channel === "sms" ? "sms" : "whatsapp",
+      at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...(media ? { media } : {}),
       ...(why ? { why } : {}),
@@ -565,6 +590,8 @@ export function toInboxThreadVM(
         ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph }
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
+      // The words Conversations says too (messageAuthor): a person's reply is the team's.
+      ...(m.sender === "human" && messageAuthor(m) ? { byWords: (messageAuthor(m) as MessageAuthor).words } : {}),
       ...(m.meta?.source === "broadcast"
         ? { via: m.meta.playbook_name
             ? { kind: "playbook" as const, name: String(m.meta.playbook_name) }
@@ -578,6 +605,8 @@ export function toInboxThreadVM(
             // the Conversations pane cannot describe the same message
             // differently — which is exactly what they were doing.
             ...(messageStatusLabel(m.status) ? { statusLabel: messageStatusLabel(m.status) } : {}),
+            // Whether the words left: the receptionist's failed reply was drawn as a sent bubble (I1).
+            reachedCustomer: reachedCustomer(m.status),
           }
         : {}),
       // A held draft is not a sent message and must not read as one.
@@ -590,8 +619,8 @@ export function toInboxThreadVM(
     const entry = {
       type: "event" as const,
       kind: "flag",
-      at: shortTime(escalation.created_at, now),
-      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${escalation.details.slice(0, 120)}”` : ""}`,
+      at: shortTime(escalation.created_at, tz, now),
+      body: `Flagged for a human — ${reasonLabel}${escalation.details ? ` · “${clipAtWord(escalation.details, 120)}”` : ""}`,
     };
     if (idx === -1) timeline.push(entry);
     else timeline.splice(idx, 0, entry);
@@ -601,6 +630,21 @@ export function toInboxThreadVM(
     ? Math.max(1, Math.round((now.getTime() - new Date(escalation.created_at).getTime()) / 60000))
     : undefined;
 
+  // The customer's own words where the decision is made. The reason's sentence
+  // says why a person is needed; this says what they asked: the last thing they
+  // wrote, which is what they are waiting on, or for a call back what the call
+  // left behind -- the details the call back's sentence promises.
+  const ask: InboxThreadVM["ask"] = !escalation
+    ? null
+    : escalation.reason === "callback"
+      ? (escalation.details?.trim() ? { label: "From the call", text: escalation.details.trim(), quoted: false } : null)
+      : lastInbound
+        ? { label: lastInbound.type === "text" ? "They wrote" : "They sent", text: messageText(lastInbound), quoted: lastInbound.type === "text" }
+        : null;
+
+  // A quiet thread's one line: who had the last word, and whether a reply didn't send (lastWordOf, I1).
+  const lastWord = state === "done" && dto.state !== "archived" ? lastWordOf(dto) : null;
+
   return {
     id: `th-${dto.id}`,
     real: true,
@@ -609,12 +653,18 @@ export function toInboxThreadVM(
     escalationId: escalation?.id ?? null,
     windowOpen: win,
     optedOut: isOptedOut(dto),
+    offersOk: dto.contact.marketing_consent === "opted_in",
     who,
-    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : "WhatsApp"),
+    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : primaryChannel === "sms" ? "Text" : "WhatsApp"),
     avatar: initialsOf(who),
     state,
     takenOver,
     needsYou,
+    claimedByOther,
+    assigneeUserId: dto.assignee_user_id ?? null,
+    ask,
+    archived: dto.state === "archived",
+    lastWord,
     heldDraft,
     ...(heldDraft
       ? {
@@ -631,50 +681,123 @@ export function toInboxThreadVM(
     primaryChannel,
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
+    phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
-    agent: { name: "WhatsApp Receptionist", glyph: "W", autonomy: "Pauses on handoff", tone: "Warm · bilingual (EN/ES)" },
-    subject:
-      (claimedByOther ? "A teammate is answering this" : null) ??
-      reasonLabel ??
-      (takenOver
-        ? "You're answering this one"
-        : lastInbound
-          ? messageText(lastInbound).slice(0, 80)
-          : last
-            // A contact who has only ever PHONED has no customer messages, but
-            // "No messages yet" reads as "nothing has happened" — their call
-            // note is the honest subject.
-            ? messageText(last).slice(0, 80)
-            : "No messages yet"),
+    agent: AGENT,
+    // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
+    // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
+    // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
+    // "You're answering this one" under "You have it", and a quiet thread's last words twice when they wrote last.
+    subject: reasonLabel ?? "",
+    // A contact who has only ever phoned has no message of their own: their call note is the last thing that happened.
     preview: last ? messageText(last).slice(0, 110) : "",
-    summary: escalation
+    // A thread a teammate has is theirs to answer: the reason's sentence ("they're
+    // waiting on you") would tell everyone else the opposite of what is true.
+    summary: claimedByOther
+      ? "A teammate is answering this. The receptionist stays quiet until they hand it back."
+      : escalation
       ? ESCALATION_SUMMARIES[escalation.reason] ?? `${reasonLabel}. Needs a human.`
       : takenOver
         ? "You're answering this one. The receptionist stays quiet until you hand it back."
-        : "The receptionist answered this on its own. Nothing is owed.",
-    contextStrip: [
-      ...(reasonLabel ? [{ label: "Why you", value: reasonLabel }] : []),
-      { label: "Waiting", value: waitingMin ? formatWaited(waitingMin * 60000) : "—", ...(waitingMin && waitingMin > 30 ? { warn: true } : {}) },
-      { label: "Receptionist", value: needsHuman ? (escalation?.reason === "callback" ? "Paused — call them back" : "Paused — you have it") : "Answering" },
-      hasChat
-        ? { label: "Reply window", value: win ? "Open — you can write freely" : "Closed — template only" }
-        : { label: "WhatsApp", value: "No thread yet — they have only phoned" },
-    ],
-    lastAt: shortTime(dto.last_message_at, now),
-    lastAtFull: shortTime(dto.last_message_at, now),
+        : lastWord
+          ? lastWord.text
+          : "The receptionist answered this on its own. Nothing is owed.",
+    lastAt: shortTime(dto.last_message_at, tz, now),
+    lastAtFull: shortTime(dto.last_message_at, tz, now),
     lastAtMs: dto.last_message_at ? new Date(dto.last_message_at).getTime() : 0,
     ...(escalation ? { escalatedAtMs: new Date(escalation.created_at).getTime() } : {}),
-    unread: state === "escalated" && !takenOver,
+    // The dot means a person is needed and nobody has it: needsYou, the one rule.
+    // "Escalated and not mine" lit it on a thread a teammate is answering too.
+    unread: needsYou,
     pinned: false,
     tags: [],
     priority: "P2",
     ...(waitingMin !== undefined ? { waitingMin } : {}),
-    ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, now) } : {}),
+    ...(state === "snoozed" && dto.snooze_until ? { wake: shortTime(dto.snooze_until, tz, now) } : {}),
     timeline,
   };
 }
 
-export function toConversationVM(dto: ConversationDto, now = new Date()): ConversationVM {
+export interface MessageAuthor {
+  kind: "receptionist" | "team" | "broadcast" | "playbook";
+  /** How a bubble names them: "the receptionist", "your team", "a broadcast (Spring offer)". */
+  words: string;
+}
+
+/**
+ * Who sent one of our messages, in the words the Inbox and Conversations both use.
+ *
+ * A person's reply is the team's: the row does not record which member sent
+ * it, and the Inbox said "by you" for all of them. A broadcast or a playbook
+ * run is named from the run. The customer's words and a call note have no
+ * author here.
+ */
+export function messageAuthor(m: MessageDto): MessageAuthor | null {
+  if (m.sender === "customer" || m.sender === "system" || m.type === "call_summary") return null;
+  if (m.meta?.source === "broadcast") {
+    return m.meta.playbook_name
+      ? { kind: "playbook", words: `the ${String(m.meta.playbook_name)} playbook` }
+      : { kind: "broadcast", words: m.meta.broadcast_name ? `a broadcast (${String(m.meta.broadcast_name)})` : "a broadcast" };
+  }
+  return m.sender === "ai" ? { kind: "receptionist", words: "the receptionist" } : { kind: "team", words: "your team" };
+}
+
+/** A chat row's second line: that a person has the thread, or who had the last word. */
+function lastWordLine(needsHuman: boolean, last: MessageDto | undefined, author: MessageAuthor | null): string {
+  if (needsHuman) return "Receptionist paused — a human has this thread";
+  if (!last) return "No messages yet";
+  if (last.direction === "inbound") return "They wrote last — no reply yet";
+  if (!author) return "Answered automatically";
+  if (author.kind === "receptionist") return "Answered by the receptionist";
+  if (author.kind === "team") return "Answered by your team";
+  return `Last message: ${author.words}`;
+}
+
+/**
+ * A quiet thread's one line in the Inbox: who had the last word, in Conversations' words (lastWordLine), and
+ * whether a later message of ours didn't send. Every quiet thread read "Answered by the receptionist — no one
+ * asked for you": over a customer who wrote last, and over a reply that never left (I1). A reply someone
+ * canceled is not a failure: the customer is simply waiting.
+ */
+function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]> {
+  const chat = dto.messages.filter((m) => m.type !== "call_summary");
+  // Back from the newest: our words that never left, down to the last thing that happened between them.
+  let at = chat.length - 1;
+  let failed: MessageDto | null = null;
+  for (; at >= 0; at--) {
+    const m = chat[at];
+    if (m.direction === "inbound" || reachedCustomer(m.status)) break;
+    if (!failed && m.status === "failed") failed = m;
+  }
+  const last = at >= 0 ? chat[at] : null;
+  const failedBy = failed ? (messageAuthor(failed)?.words ?? "us") : null;
+  if (!last) {
+    if (failedBy) return { text: `Nothing has reached them — the message from ${failedBy} didn't send.`, tone: "danger", short: "Didn't send" };
+    return dto.messages.some((m) => m.type === "call_summary")
+      ? { text: "The phone receptionist handled their call — no one asked for you.", tone: "ok", short: null }
+      : { text: "No messages yet.", tone: "plain", short: null };
+  }
+  if (last.direction === "inbound") {
+    return failedBy
+      ? { text: `They wrote last, and the reply from ${failedBy} didn't send — as far as they know, nobody answered.`, tone: "danger", short: "Didn't send" }
+      : { text: "They wrote last — no reply yet.", tone: "plain", short: null };
+  }
+  const said = lastWordLine(false, last, messageAuthor(last));
+  return failedBy
+    ? { text: `${said} — the last message from ${failedBy} didn't send.`, tone: "warn", short: "Didn't send" }
+    : { text: `${said} — no one asked for you.`, tone: "ok", short: null };
+}
+
+/** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
+function clipAtWord(text: string, max: number): string {
+  const t = text.trim();
+  if (t.length <= max) return t;
+  const cut = t.slice(0, max + 1);
+  const space = cut.lastIndexOf(" ");
+  return `${(space > max * 0.6 ? cut.slice(0, space) : t.slice(0, max)).replace(/[\s,;:—-]+$/u, "")}…`;
+}
+
+export function toConversationVM(dto: ConversationDto, tz: string, now = new Date()): ConversationVM {
   const who = contactName(dto);
   // A phone-like name is not split: "+1" is nobody's first name. The
   // viewer read "Latest from +1" for a person known only by number.
@@ -688,10 +811,11 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
     channel: m.type === "call_summary" ? "phone" : "whatsapp",
-    at: bubbleTime(messageAt(m), now),
+    at: bubbleTime(messageAt(m), tz, now),
     text: messageText(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
     ...(m.sender === "ai" && replyWhy(m.meta) ? { why: replyWhy(m.meta) as ReplyWhyVM } : {}),
+    ...(messageAuthor(m) ? { by: (messageAuthor(m) as MessageAuthor).words } : {}),
     // Only for OUR messages. A customer's inbound message has no send status,
     // and labelling it would be inventing one.
     ...(m.sender !== "customer"
@@ -713,6 +837,9 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
   // The last thing that actually happened between them: a queued or cancelled
   // draft is not the thread's last word, and previewing it read "handled".
   const last = [...chat].reverse().find((m) => m.direction === "inbound" || reachedCustomer(m.status));
+  // Who had that last word, when it was ours: the receptionist, the team, or a run. The row said
+  // "Answered by the receptionist" whoever answered, and when the customer had spoken last.
+  const lastAuthor = last && last.direction === "outbound" ? messageAuthor(last) : null;
   const paused = !!dto.paused_until && new Date(dto.paused_until) > now;
   const needsHuman = dto.state === "needs_human" || paused;
   // Honest pills: escalated when a human has it; open while the last word is
@@ -728,12 +855,15 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
     whoShort,
     initials: initialsOf(who),
     clientId: dto.contact.id || null,
+    // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
+    threadId: `th-${dto.id}`,
+    answeredBy: lastAuthor ? lastAuthor.kind : null,
     channel: "whatsapp",
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
-    at: shortTime(last ? messageAt(last) : dto.last_message_at, now),
+    at: shortTime(last ? messageAt(last) : dto.last_message_at, tz, now),
     outcome,
     snippet: last ? messageText(last).slice(0, 110) : "",
     hasChat: chat.length > 0,
@@ -743,8 +873,8 @@ export function toConversationVM(dto: ConversationDto, now = new Date()): Conver
       bullets: [
         `${chat.length} message${chat.length === 1 ? "" : "s"}${
           callNotes ? ` · ${callNotes} call${callNotes === 1 ? "" : "s"}` : ""
-        }${dto.messages[0] ? ` · started ${shortTime(messageAt(dto.messages[0]), now)}` : ""}`,
-        needsHuman ? "Receptionist paused — a human has this thread" : "Answered by the receptionist",
+        }${dto.messages[0] ? ` · started ${shortTime(messageAt(dto.messages[0]), tz, now)}` : ""}`,
+        lastWordLine(needsHuman, last, lastAuthor),
       ],
     },
     messages: msgs,
@@ -871,7 +1001,7 @@ export interface CallVM {
   ts: number;
   /** live: in progress under the heartbeat rule · missed: the dial never
    *  connected (Retell's not_connected) · handled: everything else. */
-  outcome: "live" | "handled" | "missed";
+  outcome: "live" | "handled" | "missed" | "callback" | "abandoned";
   live?: boolean;
   snippet: string;
   summary: { headline: string; bullets: string[] };
@@ -896,7 +1026,7 @@ export function spokenDuration(ms: number | null): string {
   return m ? `${m} min ${sec} sec` : `${sec} sec`;
 }
 
-export function toCallVM(dto: CallDto, now = new Date()): CallVM {
+export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const withheld = !dto.from_e164 && !dto.from_raw;
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
@@ -944,7 +1074,7 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
       "No recording for this call",
     );
   }
-  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s WhatsApp thread`);
+  if (dto.message_id && !withheld) bullets.push(`Noted on ${whoShort}'s thread in the Inbox`);
 
   const transcript = (dto.transcript_object ?? []).map((turn) => {
     const start = turn.start ?? turn.words?.[0]?.start;
@@ -972,10 +1102,10 @@ export function toCallVM(dto: CallDto, now = new Date()): CallVM {
     clientId: dto.contact_id,
     channel: "phone",
     agent: { glyph: "P", name: "Phone Receptionist" },
-    at: shortTime(dto.started_at, now),
+    at: shortTime(dto.started_at, tz, now),
     ts: dto.started_at ? new Date(dto.started_at).getTime() : 0,
     ...(dur ? { duration: dur } : {}),
-    outcome: live ? "live" : missed ? "missed" : "handled",
+    outcome: live ? "live" : missed ? "missed" : abandonedCall(dto) ? "abandoned" : callOutcomeOf(dto.outcome) === "callback_needed" ? "callback" : "handled",
     ...(live ? { live: true } : {}),
     snippet: withheld
       ? `${dto.direction === "inbound" ? "Inbound" : "Outbound"} call${dur ? ` · ${dur}` : ""} — caller ID withheld, so this call isn't linked to a customer.`

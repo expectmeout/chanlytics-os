@@ -29,7 +29,7 @@ test("Today draws the call in progress first, then the people who need you, the 
   const rail = queue.indexOf("<LiveRail nav={nav} />");
   const rows = queue.indexOf("{rows.map((r) => (");
   assert.ok(rail > 0 && rail < rows, "REGRESSION: a customer on the line was invisible on Today");
-  assert.ok(queue.includes('data-testid="brief-live-call"') && queue.includes('nav("live")'));
+  assert.ok(queue.includes('data-testid="brief-live-call"') && queue.includes("nav(`live/${c.callId}`)"), "the call's own door, not Live's list");
   const vm = readRaw("packages/contracts/src/today.ts");
   const esc = vm.indexOf("for (const e of openEsc) {");
   const win = vm.indexOf("for (const c of closingConvs) {");

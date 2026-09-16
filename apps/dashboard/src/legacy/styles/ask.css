@@ -70,6 +70,9 @@
 .cmd-row.now .cmd-row-ic { background: var(--warn-soft); color: var(--warn); }
 .cmd-row.act .cmd-row-kind { color: var(--accent); }
 
+/* ---- Deleting a conversation asks first, between the input and the rows ---- */
+.ask-real .ask-confirm { flex-shrink: 0; margin: 8px 16px 0; max-width: none; }
+
 /* ---- The rail beside a desktop conversation ---- */
 .ask-real .ask-single { display: contents; }
 .ask-real.ask-modal-threads .ask-main { height: 100%; }
@@ -83,12 +86,14 @@
 /* ---- A phone: the ✦, the sheet, the composer at the thumb ---- */
 .phone-ask { display: none; }
 @media (max-width: 720px) {
+  /* The ✦ sits in the tab bar's own row, at its right end, where the bar keeps a place for it (mobile.css). It floated
+     126px up, over whatever the page drew there: the agenda's open times, the legend. */
   .phone-ask {
     display: grid; place-items: center;
-    position: fixed; right: 14px; bottom: calc(126px + env(safe-area-inset-bottom));
-    width: 48px; height: 48px; border-radius: 50%; border: 0; cursor: pointer;
-    background: var(--accent); color: #fff; z-index: 121;
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+    position: fixed; right: 10px; bottom: calc(6px + env(safe-area-inset-bottom));
+    width: 44px; height: 44px; border-radius: 50%; border: 0; cursor: pointer;
+    background: var(--accent); color: var(--accent-fg); z-index: 121;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
   }
   .phone-ask:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
   .phone-ask:active { transform: scale(0.96); }

@@ -102,11 +102,16 @@
   /* Used ONLY for live/active agent state. Never decorative. */
   --accent: oklch(0.62 0.19 25);
   --accent-soft: oklch(0.62 0.19 25 / 0.12);
+  /* The words on an accent fill: badges, chips and buttons filled with the accent (4.0:1 on it). */
   --accent-fg: oklch(0.99 0 0);
+  --accent-ink: oklch(0.52 0.19 25);
 
   /* ---------- Semantic (status) ---------- */
   --ok: oklch(0.62 0.13 155);
   --ok-soft: oklch(0.62 0.13 155 / 0.12);
+  /* The colour as small text on the page. In light, --ok and --accent read 3.3:1 and 3.8:1 there; these read 4.5:1 or
+     more, on a tint too (the Calendar's open times and today, C4). Dark keeps its own, which already do. */
+  --ok-ink: oklch(0.51 0.13 155);
   --warn: oklch(0.74 0.14 75);
   --warn-soft: oklch(0.74 0.14 75 / 0.14);
   --danger: oklch(0.6 0.2 27);
@@ -172,6 +177,10 @@
   /* Slightly bumped accent in dark for legibility */
   --accent: oklch(0.7 0.18 28);
   --accent-soft: oklch(0.7 0.18 28 / 0.18);
+  /* The dark theme's accent is lighter, so its words are dark: white on it measures 2.9:1, these 6.7:1. */
+  --accent-fg: oklch(0.16 0.005 260);
+  --accent-ink: var(--accent);
+  --ok-ink: var(--ok);
 }
 
 /* ============================================================

@@ -37,7 +37,7 @@ export function feedProblemWords(reason: FeedFailure | null | undefined, status?
   switch (reason) {
     case "address": return "The calendar feed needs to be a full https:// or webcal:// address on the internet.";
     case "unreachable": return "The calendar could not be reached. Check the address and try again.";
-    case "http": return `The calendar answered ${status ?? "an error"}. It is usually the private iCal link, not the calendar's web page.`;
+    case "http": return `The calendar answered ${status ?? "an error"}. It is usually the private iCal address, not the calendar's web page.`;
     case "too_large": return "That feed is too large to read (over 2 MB).";
     case "not_ical": return "That address is not an iCal feed. In Google Calendar it is Settings › your calendar › Secret address in iCal format.";
     default: return null;

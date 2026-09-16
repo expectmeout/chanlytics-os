@@ -16,6 +16,9 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
+// The workspace's zone: every view model says its times by it (contracts clock.ts).
+const ZONE = "America/New_York";
+
 test("the JSON schema uses only what the API constrains: no ranges, no lengths, closed objects", () => {
   const s = JSON.stringify(BRAIN_OUTPUT_JSON_SCHEMA);
   for (const banned of ["minimum", "maximum", "minLength", "maxLength", "maxItems", "oneOf", '"null"']) {
@@ -79,7 +82,7 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
       msg({ id: "held", status: "queued", body: "held words", meta: { source: "low_confidence", delay_ms: 60000, ...meta, confidence: 0.41, reason: "Not sure the Saturday hours are current." }, created_at: "2026-09-05T14:59:30Z" }),
     ],
   };
-  const thread = toInboxThreadVM(dto, null, now);
+  const thread = toInboxThreadVM(dto, null, ZONE, now);
   const out = thread.timeline.find((e) => e.type === "msg" && e.messageId === "out");
   assert.equal(out.why.summary, "Hours · 88% sure");
   assert.deepEqual(out.why.facts, ["Sat 9:30–18:00"]);
@@ -88,7 +91,7 @@ test("the Inbox and the viewer carry the why; a held draft says why it waits", (
   assert.equal(thread.veto.why.heldFor, "low_confidence");
   assert.equal(thread.veto.why.confidence, 41);
   assert.equal(thread.veto.why.reason, "Not sure the Saturday hours are current.");
-  const conv = toConversationVM(dto, now);
+  const conv = toConversationVM(dto, ZONE, now);
   assert.equal(conv.messages.find((m) => m.text === "hi" && m.from === "agent").why.summary, "Hours · 88% sure");
 });
 
@@ -120,12 +123,12 @@ test("the dial reaches the policy row through the route and the pane", () => {
   const route = readCode("apps/dashboard/app/api/v1/policies/route.ts");
   assert.ok(route.includes("minConfidence?: number"));
   assert.ok(route.includes("limits.min_confidence = Math.round(c * 100) / 100;"));
-  assert.ok(route.includes('if (mode === "" && (body?.replyDelayMs !== undefined || body?.minConfidence !== undefined || body?.maxTokensDay !== undefined)) {'), "a dial edit carries no mode, like a delay edit");
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("...(minConfidence !== undefined ? { minConfidence } : {})"));
+  assert.ok(route.includes('if (mode === "" && dials.some((d) => d !== undefined)) {'), "a dial edit carries no mode, like a delay edit");
+  assert.ok(readCode("apps/dashboard/src/legacy-bridge/inbox-verbs.ts").includes("const dials = Object.fromEntries(Object.entries(limits).filter(([, v]) => v !== undefined));"));
   const pane = readRaw("apps/dashboard/src/legacy/pages/settings.jsx");
   assert.ok(pane.includes('const AUT_CONF = [["Off", 0], ["60%", 0.6], ["75%", 0.75], ["90%", 0.9]];'));
   assert.ok(pane.includes('label="Send on its own only when it\'s sure"'));
-  assert.ok(pane.includes("put(reply, undefined, undefined, c[1])"));
+  assert.ok(pane.includes("put(reply, undefined, { minConfidence: c[1] })"));
   const thread = readRaw("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(thread.includes("· {entry.why.summary}"));
   assert.ok(thread.includes('"Not sure enough to send alone · "'));

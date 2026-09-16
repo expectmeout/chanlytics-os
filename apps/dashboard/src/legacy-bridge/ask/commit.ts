@@ -19,7 +19,7 @@
  * The client is a parameter with the tab's own as the default, so a test
  * hands in one bound to a fake fetch and runs every branch for real.
  */
-import { ASK_THREAD_VERBS, applySettingsChange, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import { ASK_THREAD_VERBS, PERSON_MODE_WORDS, applySettingsChange, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
 import type { Api } from "../../client/api";
 import { apiFor } from "../api";
 import { viaAsk } from "./api";
@@ -86,7 +86,7 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
       const r = await viaAsk(client, "PUT contacts/[id]/receptionist", { params: { id: s(pl.contact_id) }, body: { mode: pl.mode as "auto" | "ask" | "never" | "inherit" } });
       if (!r.ok) return r;
       win.dispatchEvent(new CustomEvent("surface:clients"));
-      return { ok: true, receipt: `Receptionist for ${s(pl.who)}: ${s(pl.mode)}`, undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit", decision_id: decisionOf(r.data) } };
+      return { ok: true, receipt: `Receptionist for ${s(pl.who)}: ${PERSON_MODE_WORDS[s(pl.mode) as keyof typeof PERSON_MODE_WORDS] ?? s(pl.mode)}`, undo: { contact_id: pl.contact_id, mode: pl.previous ?? "inherit", decision_id: decisionOf(r.data) } };
     }
     case "policy": {
       const body: Record<string, unknown> = { class: pl.class };
@@ -104,7 +104,9 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
       const next = applySettingsChange(before as Parameters<typeof applySettingsChange>[0], pl.change as Parameters<typeof applySettingsChange>[1]);
       const r = await viaAsk(client, "PUT settings", { body: { config: next, version: st.version } });
       if (!r.ok) return r;
-      return { ok: true, receipt: p.summary, undo: { config: before } };
+      // The version this save wrote travels with the undo: restoring the whole
+      // earlier config is safe only while that is still the version loaded.
+      return { ok: true, receipt: p.summary, undo: { config: before, version_after: r.data.version } };
     }
     case "whisper": {
       const r = await viaAsk(client, "POST calls/[id]/whisper", { params: { id: s(pl.call_id) }, body: { text: s(pl.text), trigger: false } });
@@ -197,6 +199,9 @@ export async function undoProposal(win: Window, p: AskProposal, outcome: AskProp
     case "settings": {
       const st = (win as unknown as Loaded).__SETTINGS;
       if (!st || typeof st.version !== "number") return { ok: false, message: "Settings are not loaded yet." };
+      // The whole earlier config is written back only while nobody has saved
+      // since: the version this card's save wrote must still be the one loaded.
+      if (typeof u.version_after !== "number" || st.version !== u.version_after) return { ok: false, message: "Settings have changed since this card — change them in Settings." };
       const r = await viaAsk(client, "PUT settings", { body: { config: u.config, version: st.version } });
       if (!r.ok) return r;
       return { ok: true, receipt: "Previous settings are back", undo: null };

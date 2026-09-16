@@ -39,7 +39,6 @@ export const ROUTES = {
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
   "GET google/locations": { method: "GET", path: "/api/v1/google/locations" },
-  "GET lines": { method: "GET", path: "/api/v1/lines" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
@@ -167,7 +166,6 @@ export type Routes = {
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
   "GET google/locations": typeof import("../../app/api/v1/google/locations/route").GET;
-  "GET lines": typeof import("../../app/api/v1/lines/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;

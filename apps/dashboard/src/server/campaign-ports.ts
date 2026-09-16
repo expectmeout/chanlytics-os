@@ -71,12 +71,18 @@ function assemblePorts(ctx: RouteContext, tenantId: string): AssemblePorts {
 }
 
 export function createBroadcastPorts(ctx: RouteContext, tenantId: string): CreateBroadcastPorts {
+  // The workspace's facts, read once: the zone its people's rows are said in is the zone the send is timed by.
+  let facts: ReturnType<typeof tenantFacts> | null = null;
+  const zone = async () => (await (facts ??= tenantFacts(ctx.supabase, tenantId))).timezone;
   return {
     ...templateValuePorts(ctx, tenantId),
     ...assemblePorts(ctx, tenantId),
-    timezone: async () => (await tenantFacts(ctx.supabase, tenantId)).timezone,
+    timezone: zone,
     // Everyone, not one page of them: a broadcast may hold twice what people_list answers at once.
-    people: async (now) => (await withVisits(ctx, tenantId, await everyone(ctx, tenantId), now)).people.map((r) => toPersonRowVM(r, now)),
+    people: async (now) => {
+      const [rows, tz] = await Promise.all([everyone(ctx, tenantId), zone()]);
+      return (await withVisits(ctx, tenantId, rows, now)).people.map((r) => toPersonRowVM(r, tz, now));
+    },
     savedList: async (id) => {
       const { data: seg, error: sErr } = await ctx.supabase.from("segments").select("id, name").eq("id", id).eq("tenant_id", tenantId).maybeSingle();
       if (sErr) throw new Error(sErr.message);

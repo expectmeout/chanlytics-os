@@ -1,13 +1,16 @@
 /**
  * The shell on the classic pages: the two actions that used to live in the
  * floating pill — sign out and switching workspaces — the status the shell
- * alone knows (a newer build, surfaces that stopped refreshing), and the
- * chrome's words (contracts/chrome.ts) for the sidebar's menus and the
- * shortcuts sheet.
+ * alone knows (the connection, the live feed, a newer build, surfaces that
+ * stopped refreshing), and the chrome's words (contracts/chrome.ts) for the
+ * sidebar's menus, the shortcuts sheet, the line under the top bar and the
+ * tab's name.
  */
-import { THEME_OPTIONS, SHORTCUTS, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, type ShellStatus } from "@chanlytics/contracts";
+import { THEME_OPTIONS, SHORTCUTS, pageTitle, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, nextThemePref, themeButtonWords, type ShellStatus } from "@chanlytics/contracts";
 import { clearSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
+import { refreshAllSurfaces } from "./surface-runner";
+import type { Connection, SurfaceStatus } from "./surface-status";
 
 export interface ShellApi {
   /** End the session: the surface cache first, then the server, which redirects to sign-in. */
@@ -15,13 +18,23 @@ export interface ShellApi {
   switchWorkspace(id: string): void;
   /** Another workspace for this account: the create screen, then a switch to it. */
   createWorkspace(): void;
+  /** The line's Retry: every surface read again, through the running runner. */
+  retry(): Promise<void>;
+  /** Name the tab and keep the name; returns the stop, for when the name changes. */
+  keepTitle(title: string): () => void;
 }
 
 export interface ChromeWords {
   themes: typeof THEME_OPTIONS;
+  /** The theme preference a press of the top bar's button makes, through all three. */
+  nextTheme: typeof nextThemePref;
+  /** What that button shows and says. */
+  themeButton: typeof themeButtonWords;
   shortcuts: typeof SHORTCUTS;
   shortcutGroups: typeof shortcutGroups;
   statusLine: typeof shellStatusLine;
+  /** The tab's name: from the crumbs the shell draws, with what needs you counted. */
+  title: typeof pageTitle;
   workspaceHotkey: typeof workspaceHotkey;
   /** A toast's tone, icon, role and lifetime: decided in contracts, drawn by usePPToast. */
   toast: typeof toastShape;
@@ -71,12 +84,34 @@ export function installShell(win: Window = window): void {
     createWorkspace() {
       win.dispatchEvent(new CustomEvent("shell:create-workspace"));
     },
+    retry() {
+      return refreshAllSurfaces();
+    },
+    keepTitle(title) {
+      // The layout's own <title> can land after the shell has named the tab: on a page loaded cold it
+      // put "Chanlytics OS" back, and only a count that changed later (the Inbox's) wrote the name
+      // again. So the name is written, and written back whenever the head changes it.
+      const doc = win.document;
+      doc.title = title;
+      // A stand-in window (a test's) may have no observer or head; a browser has both.
+      const Watch = (win as { MutationObserver?: typeof MutationObserver }).MutationObserver;
+      const head = (doc as { head?: HTMLHeadElement | null }).head;
+      if (!Watch || !head) return () => {};
+      const watch = new Watch(() => {
+        if (doc.title !== title) doc.title = title;
+      });
+      watch.observe(head, { childList: true, subtree: true, characterData: true });
+      return () => watch.disconnect();
+    },
   };
   win.__chrome = {
     themes: THEME_OPTIONS,
+    nextTheme: nextThemePref,
+    themeButton: themeButtonWords,
     shortcuts: SHORTCUTS,
     shortcutGroups,
     statusLine: shellStatusLine,
+    title: pageTitle,
     workspaceHotkey,
     toast: toastShape,
     state: stateOf,
@@ -87,10 +122,28 @@ export function installShell(win: Window = window): void {
   };
 }
 
-/** What the sidebar's foot reads; dispatched whenever it changes. */
+/**
+ * What the shell tells the line: the surfaces that stopped refreshing, by
+ * their labels, and the connection. A surface that never loaded is not among
+ * them: its page says so itself ("Can't reach your workspace").
+ */
+export function shellStatusOf(
+  statuses: ReadonlyMap<string, SurfaceStatus>,
+  connection: Connection,
+  stale: boolean,
+  labels: Readonly<Record<string, string>>,
+): ShellStatus {
+  const degraded = Object.entries(labels)
+    .filter(([key]) => statuses.get(key) === "degraded")
+    .map(([, label]) => label);
+  return { stale, degraded, offline: connection.offline, disconnected: connection.realtimeDown };
+}
+
+/** What the line under the top bar reads; dispatched whenever any part of it changes. */
 export function publishShellStatus(status: ShellStatus, win: Window = window): void {
+  const said = (s: ShellStatus) => JSON.stringify([s.stale, s.degraded, !!s.offline, !!s.disconnected, !!s.paused]);
   const prev = win.__SHELL_STATUS;
-  if (prev && prev.stale === status.stale && prev.degraded.join("") === status.degraded.join("")) return;
+  if (prev && said(prev) === said(status)) return;
   win.__SHELL_STATUS = status;
   win.dispatchEvent(new CustomEvent("shell:status"));
 }

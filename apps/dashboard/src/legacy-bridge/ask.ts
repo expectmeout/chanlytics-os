@@ -8,7 +8,7 @@
  * reaches all of it through this one object and nothing else, so what a
  * palette may do is the list below.
  */
-import { PROPOSAL_GATE, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
+import { PROPOSAL_GATE, askUndoOpen, type AskProposal, type AskProposalOutcome } from "@chanlytics/contracts";
 import { askApi, type AskApiCalls, type SendEvent } from "./ask/api";
 import { apiFor } from "./api";
 import { commitProposal, editReply, undoProposal, type CommitResult } from "./ask/commit";
@@ -28,6 +28,8 @@ export type AskApi = ReturnType<typeof askPalette> &
     undo(p: AskProposal, outcome: AskProposalOutcome): Promise<CommitResult>;
     /** "Edit in the composer": open the thread with the words ready to change. */
     editReply(p: AskProposal): void;
+    /** Whether a committed card's undo is still true to offer: contracts' askUndoOpen. */
+    undoOpen: typeof askUndoOpen;
   };
 
 export function installAsk(win: Window = window, storage: Storage | null = safeStorage()): AskApi {
@@ -46,6 +48,7 @@ export function installAsk(win: Window = window, storage: Storage | null = safeS
     commit: (p) => commitProposal(win, p),
     undo: (p, o) => undoProposal(win, p, o),
     editReply: (p) => editReply(win, p),
+    undoOpen: askUndoOpen,
   };
   (win as unknown as { __ask?: AskApi; PROPOSAL_GATE?: typeof PROPOSAL_GATE }).__ask = ask;
   (win as unknown as { PROPOSAL_GATE?: typeof PROPOSAL_GATE }).PROPOSAL_GATE = PROPOSAL_GATE;

@@ -154,11 +154,20 @@ export async function recordOutbound(
     if (error.code === "23505") return null;
     throw new Error(`record_outbound: ${error.message}`);
   }
+  // A queued draft or a failed row has not gone out. The event that says a
+  // message did is the send moment first_replies reads (00035) and the line the
+  // owner's Activity shows as "A message went out", so it is written only for a
+  // row that was sent: a draft gets its one event from deliver() when it
+  // actually leaves, and a failure is message.send_failed there. The thread is
+  // stamped either way.
+  const status = p.status ?? "sent";
   await Promise.all([
     db.from("conversations")
       .update({ last_message_at: new Date().toISOString() })
       .eq("id", p.conversationId),
-    emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender }),
+    status === "sent"
+      ? emitEvent(db, p.tenantId, "message.sent", "message", "message", data.id, { sender: p.sender })
+      : Promise.resolve(),
   ]);
   return data.id;
 }
