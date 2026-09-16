@@ -41,6 +41,8 @@ export interface CspInputs {
   supabaseUrl?: string | null;
   /** A development server needs eval for React's fast refresh; production never does. */
   dev?: boolean;
+  /** Riding the report-only header: upgrade-insecure-requests is ignored there, and the browser says so on every page. */
+  reportOnly?: boolean;
 }
 
 const META = ["https://connect.facebook.net", "https://www.facebook.com", "https://web.facebook.com", "https://graph.facebook.com"];
@@ -75,7 +77,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
     ["frame-ancestors", ["'none'"]],
   ];
   const parts = directives.map(([name, values]) => `${name} ${values.join(" ")}`);
-  if (!o.dev) parts.push("upgrade-insecure-requests");
+  if (!o.dev && !o.reportOnly) parts.push("upgrade-insecure-requests");
   return parts.join("; ");
 }
 

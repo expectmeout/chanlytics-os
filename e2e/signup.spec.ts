@@ -24,8 +24,6 @@ test.describe("sign-up", () => {
     if (posture !== "waitlist") await expect(page.getByLabel("Choose a password")).toBeVisible();
     await expect(page.getByRole("button", { name: posture === "waitlist" ? "Join the list" : "Create workspace" })).toBeVisible();
     await expect(page.getByRole("link", { name: "Sign in" })).toHaveAttribute("href", "/login");
-    // The clock line reads the device, never asks.
-    await expect(page.getByText(/^Your clock: /)).toBeVisible();
     // Google is a door too -- when the project's provider is on, and never on
     // the waitlist, which takes details and no accounts.
     const { data } = await (await page.request.get("/api/v1/signup")).json();

@@ -26,6 +26,9 @@ test("script-src is the nonce and strict-dynamic, never unsafe-inline; productio
   assert.deepEqual(p["base-uri"], ["'self'"]);
   assert.deepEqual(p["form-action"], ["'self'"]);
   assert.ok("upgrade-insecure-requests" in p, "production upgrades");
+  const reporting = directives(contentSecurityPolicy({ nonce: "n", supabaseUrl: "https://x.supabase.co", reportOnly: true }));
+  assert.ok(!("upgrade-insecure-requests" in reporting), "not while it only reports: the browser ignores it there and says so on every page");
+  assert.ok("script-src" in reporting, "the rest of the policy rides unchanged");
   assert.deepEqual(p["default-src"], ["'self'"]);
 });
 

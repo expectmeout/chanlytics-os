@@ -247,7 +247,8 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
-      const row = queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name });
+      // The queue's rows carry no test id of their own: a row is the class the queue draws them with.
+      const row = queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name });
       await expect(row).toHaveCount(1);
       await expect(row).toContainText("a reply failed to send");
     });

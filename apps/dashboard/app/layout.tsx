@@ -3,6 +3,16 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
 /**
+ * Every page is rendered per request. The Content-Security-Policy carries a
+ * nonce the middleware mints, and Next attaches it to the scripts it emits
+ * only while rendering; a page prerendered at build time ships its scripts
+ * without one, and the nightly's first report-only run showed the login page
+ * doing exactly that (ten script tags, none nonced). At this traffic a
+ * request per page costs nothing; a policy that cannot hold costs the app.
+ */
+export const dynamic = "force-dynamic";
+
+/**
  * next/font self-hosts the files at build time: one origin instead of three,
  * no render-blocking third-party stylesheet before first paint, automatic
  * preload, and a size-adjusted fallback so the swap stops reflowing every
