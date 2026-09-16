@@ -149,7 +149,7 @@ const MessagesReal = () => {
   if (templates === undefined) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Reading your messages…</div></div></div>
+        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div></div></div>
       </div>
     );
   }
@@ -278,7 +278,9 @@ const MessagesReal = () => {
   );
 };
 
-// The page is real on every workspace; the standalone mockup never routes here.
+// The page is real on every workspace. The standalone mockup routes here too —
+// Campaigns · Messages is a tab there — and has no templates to read, so the
+// waiting line above says which of the two is looking.
 const MessagesPage = () => <MessagesReal />;
 
 window.MessagesPage = MessagesPage;
