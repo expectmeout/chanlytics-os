@@ -89,7 +89,12 @@ export async function middleware(request: NextRequest) {
   // scripts it renders, and on the response so the browser enforces -- for
   // now, reports -- the policy composed in src/csp.ts.
   const nonce = btoa(crypto.randomUUID());
-  const csp = contentSecurityPolicy({ nonce, supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL, dev: process.env.NODE_ENV !== "production" });
+  const csp = contentSecurityPolicy({
+    nonce,
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    dev: process.env.NODE_ENV !== "production",
+    reportOnly: CSP_HEADER === "content-security-policy-report-only",
+  });
   const requestHeaders = new Headers(request.headers);
   requestHeaders.set(CSP_HEADER, csp);
   const nextWithPolicy = () => {

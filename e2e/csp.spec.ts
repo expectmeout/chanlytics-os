@@ -16,7 +16,9 @@ const VIOLATION = /Content Security Policy|Report Only|Refused to (load|execute|
 
 async function violationsOn(page: Page, path: string, settle: () => Promise<void>): Promise<string[]> {
   const seen: string[] = [];
-  const onConsole = (m: { text(): string }) => { const t = m.text(); if (VIOLATION.test(t)) seen.push(`${path}: ${t.slice(0, 240)}`); };
+  // A directive the browser ignores in a report-only policy is a note about the header, not a page the policy would break.
+  const NOTE = /is ignored when delivered in a report-only policy/i;
+  const onConsole = (m: { text(): string }) => { const t = m.text(); if (VIOLATION.test(t) && !NOTE.test(t)) seen.push(`${path}: ${t.slice(0, 240)}`); };
   page.on("console", onConsole);
   await page.goto(path);
   await settle();
