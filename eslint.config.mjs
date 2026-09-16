@@ -126,7 +126,12 @@ export default [
     plugins: { ...TS_PLUGINS, "react-hooks": reactHooks },
     rules: {
       ...OUR_TS_RULES,
-      ...reactHooks.configs.recommended.rules,
+      // The two rules by name, not the plugin's `recommended`: from v7 that
+      // preset also carries the React Compiler's lints (set-state-in-effect,
+      // purity, refs, immutability), which read the ported mockup's patterns as
+      // errors. Adopting those is a decision about the mockup, not a bump.
+      "react-hooks/rules-of-hooks": "error",
+      "react-hooks/exhaustive-deps": "warn",
     },
   },
 
@@ -141,7 +146,7 @@ export default [
     },
     plugins: { "react-hooks": reactHooks },
     rules: {
-      ...reactHooks.configs.recommended.rules,
+      "react-hooks/rules-of-hooks": "error",
       // Every legacy file aliases the hooks (useShellState, useCvtState, …)
       // per the mockup's own convention, so the plugin must recognise them.
       "react-hooks/exhaustive-deps": [
