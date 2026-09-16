@@ -1,5 +1,6 @@
 /**
- * The deadman sweep: an escalation nobody picked up.
+ * The deadman sweep: an escalation nobody picked up, a message nobody
+ * answered, a reply nothing was sending.
  *
  * An escalation opens, the owner gets one email, and if that email is missed
  * the conversation sits open indefinitely with nothing to raise its hand. A
@@ -29,6 +30,9 @@ import { notify, reachesTenant } from "../../lib/notify.js";
 import { loadTenantNotifications } from "../../lib/tenant-runtime.js";
 import { logger, errField } from "../../lib/log.js";
 import { pageOperator } from "../../lib/page-operator.js";
+import { markProcessed } from "../../lib/workspace/db.js";
+import { upsertEscalation } from "../../lib/workspace/jobs.js";
+import { sweepUnfinished } from "../../lib/unfinished.js";
 
 export const config = { maxDuration: 60 };
 
@@ -56,13 +60,24 @@ export async function POST(request: Request): Promise<Response> {
   const denied = await authorizeCron(request, db, L);
   if (denied) return denied;
 
+  // A customer's message the handler never finished with, and a queued reply
+  // nothing is sending: accepted means recoverable, and until now neither had
+  // anything to raise its hand (lib/unfinished.ts). Asked first and on its
+  // own, so a failure there never costs the two-hour watchdog its tick.
+  let unfinished: Awaited<ReturnType<typeof sweepUnfinished>> = { unanswered: 0, orphaned: 0, told: 0 };
+  try {
+    unfinished = await sweepUnfinished({ db, L, upsertEscalation, markProcessed, notify, loadTenantNotifications, reachesTenant });
+  } catch (e) {
+    L.error("unfinished_sweep_failed", { error: errField(e) });
+  }
+
   const { data, error } = await db.rpc("deadman_candidates", { p_older_than: UNANSWERED_AFTER });
   if (error) {
     L.error("deadman_query_failed", { error: error.message });
     return json(500, { ok: false });
   }
   const candidates = (data ?? []) as unknown as Candidate[];
-  if (candidates.length === 0) return json(200, { ok: true, flagged: 0 });
+  if (candidates.length === 0) return json(200, { ok: true, flagged: 0, ...unfinished });
 
   // One addressing lookup per TENANT, not per escalation: a backlog is usually
   // one workspace having a bad morning.
@@ -146,6 +161,6 @@ export async function POST(request: Request): Promise<Response> {
     }
   }
 
-  L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length });
-  return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length });
+  L.info("deadman_swept", { candidates: candidates.length, flagged: alerted.length, ...unfinished });
+  return json(200, { ok: true, candidates: candidates.length, flagged: alerted.length, ...unfinished });
 }
