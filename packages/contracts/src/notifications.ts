@@ -184,7 +184,7 @@ export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draf
 /* ------------------------------------------------- rows the workspace keeps */
 
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"] as const;
+export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked"] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 
 export interface NotificationDto {
@@ -212,7 +212,21 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+  /** The NUMBER's own health: a rating flagged, a limit lowered, the account restricted. */
   number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  /**
+   * A template's news is not the number's news. Both arrive on the same
+   * webhook, and for a while both were kind "number" — so "Template … approved"
+   * was drawn with a shield, in warn amber, over a door to Connections: good
+   * news wearing a warning's colour and pointing at the wrong page. Since Today
+   * sorts warnings above everything else, it also outranked real news.
+   *
+   * Two kinds rather than one kind and a tone column, because which of the two
+   * a change is belongs to the change (waba-events.ts describeWabaChange), and
+   * how it should read belongs here. Never inferred from the title.
+   */
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
@@ -236,6 +250,7 @@ const ROUTE_VERBS: Array<[RegExp, string]> = [
   [/^live/, "Open Live"],
   [/^outbound/, "Open Playbooks"],
   [/^broadcasts/, "Open Broadcasts"],
+  [/^messages/, "Open Messages"],
   [/^calendar/, "Open Calendar"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],

@@ -14,7 +14,7 @@ import { mapCategory, mapStatus } from "./meta-templates.js";
 import type { Database, Json } from "./workspace/db.js";
 import { emitEvent } from "./workspace/db.js";
 import { notify, type NotifyTarget } from "./notify.js";
-import { parseTenantConfig, WABA_FIELDS as WABA_FIELD_LIST, type NotificationsConfig, type WabaEventKind } from "./workspace/contracts.js";
+import { parseTenantConfig, WABA_FIELDS as WABA_FIELD_LIST, type NotificationsConfig, type ServerNotificationKind, type WabaEventKind } from "./workspace/contracts.js";
 
 /** The workspace's escalation addresses, as the receptionist reads them. */
 export async function notificationsFor(db: SupabaseClient<Database>, tenantId: string): Promise<NotificationsConfig | null> {
@@ -48,43 +48,69 @@ async function routeByWaba(db: SupabaseClient<Database>, wabaId: string): Promis
   return data ? { tenantId: data.tenant_id, channelId: data.id, number: data.number_e164 } : null;
 }
 
-/** One line for the owner, per field; null when it is not worth a word. */
-export function describeWabaChange(c: WabaChange, number: string | null): { subject: string; body: string; alert: boolean } | null {
+/**
+ * One line for the owner, per field; null when it is not worth a word.
+ *
+ * It says WHICH kind of news it is, and where that news is read, because the
+ * change is the only thing that knows. Every alertable field used to be sent
+ * as kind "number" — the number's own kind — so a template approval reached
+ * the bell in a warning's colour, behind a shield, pointing at Connections.
+ */
+export interface WabaWords {
+  subject: string;
+  body: string;
+  alert: boolean;
+  /** The bell's kind; contracts/notifications.ts SERVER_LOOK draws it. */
+  kind: ServerNotificationKind;
+  /** Where this news is read. */
+  route: string;
+}
+
+/** The number's own health: Connections, under a shield. */
+const NUM = { kind: "number" as const, route: "admin/integrations" };
+/** A template can be sent now. */
+const READY = { kind: "template_ready" as const, route: "messages" };
+/** A template cannot be sent, or can no longer be sent freely. */
+const BLOCKED = { kind: "template_blocked" as const, route: "messages" };
+
+export function describeWabaChange(c: WabaChange, number: string | null): WabaWords | null {
   const v = c.value;
   const line = number ? `Your WhatsApp number ${number}` : "Your WhatsApp number";
   switch (c.field) {
     case "phone_number_quality_update": {
       const event = String(v.event ?? "");
       const limit = typeof v.current_limit === "string" ? v.current_limit : null;
-      if (event === "FLAGGED") return { subject: "WhatsApp quality rating flagged", body: `${line} has been flagged by WhatsApp. Customers may see delays. Keep replies to what they asked for; the rating recovers on its own when they stop reporting messages.`, alert: true };
-      if (event === "UNFLAGGED") return { subject: "WhatsApp quality rating back to normal", body: `${line} is no longer flagged.`, alert: false };
-      if (event === "DOWNGRADE") return { subject: "WhatsApp messaging limit lowered", body: `${line} can now start fewer new conversations a day${limit ? ` (${limit.replace(/^TIER_/, "tier ")})` : ""}. Replies to customers who write first are not affected.`, alert: true };
-      if (event === "UPGRADE") return { subject: "WhatsApp messaging limit raised", body: `${line} can start more new conversations a day${limit ? ` (${limit.replace(/^TIER_/, "tier ")})` : ""}.`, alert: false };
+      if (event === "FLAGGED") return { ...NUM, subject: "WhatsApp quality rating flagged", body: `${line} has been flagged by WhatsApp. Customers may see delays. Keep replies to what they asked for; the rating recovers on its own when they stop reporting messages.`, alert: true };
+      if (event === "UNFLAGGED") return { ...NUM, subject: "WhatsApp quality rating back to normal", body: `${line} is no longer flagged.`, alert: false };
+      if (event === "DOWNGRADE") return { ...NUM, subject: "WhatsApp messaging limit lowered", body: `${line} can now start fewer new conversations a day${limit ? ` (${limit.replace(/^TIER_/, "tier ")})` : ""}. Replies to customers who write first are not affected.`, alert: true };
+      if (event === "UPGRADE") return { ...NUM, subject: "WhatsApp messaging limit raised", body: `${line} can start more new conversations a day${limit ? ` (${limit.replace(/^TIER_/, "tier ")})` : ""}.`, alert: false };
       return null;
     }
     case "account_update": {
       const event = String(v.event ?? "");
-      if (event === "DISABLED_UPDATE" || event === "ACCOUNT_RESTRICTION" || event === "ACCOUNT_VIOLATION") return { subject: "WhatsApp account restricted", body: `WhatsApp reported ${event.toLowerCase().replace(/_/g, " ")} on the account behind ${line.toLowerCase()}. Messaging may stop until it is resolved in Meta Business Manager.`, alert: true };
-      if (event === "PARTNER_REMOVED") return { subject: "WhatsApp connection removed", body: `The business removed Chanlytics from the account behind ${line.toLowerCase()}. The receptionist can no longer answer on it until it is connected again.`, alert: true };
+      if (event === "DISABLED_UPDATE" || event === "ACCOUNT_RESTRICTION" || event === "ACCOUNT_VIOLATION") return { ...NUM, subject: "WhatsApp account restricted", body: `WhatsApp reported ${event.toLowerCase().replace(/_/g, " ")} on the account behind ${line.toLowerCase()}. Messaging may stop until it is resolved in Meta Business Manager.`, alert: true };
+      if (event === "PARTNER_REMOVED") return { ...NUM, subject: "WhatsApp connection removed", body: `The business removed Chanlytics from the account behind ${line.toLowerCase()}. The receptionist can no longer answer on it until it is connected again.`, alert: true };
       return null;
     }
     case "message_template_status_update": {
       const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
       const event = String(v.event ?? "");
-      if (event === "REJECTED") return { subject: `Template “${name}” rejected`, body: `WhatsApp rejected the template “${name}”${typeof v.reason === "string" && v.reason !== "NONE" ? ` (${v.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`, alert: true };
-      if (event === "PAUSED" || event === "DISABLED") return { subject: `Template “${name}” ${event.toLowerCase()}`, body: `WhatsApp ${event.toLowerCase()} the template “${name}”. Sends that use it will fail until it is restored.`, alert: true };
-      if (event === "APPROVED") return { subject: `Template “${name}” approved`, body: `WhatsApp approved the template “${name}”. It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`, alert: true };
+      if (event === "REJECTED") return { ...BLOCKED, subject: `Template “${name}” rejected`, body: `WhatsApp rejected the template “${name}”${typeof v.reason === "string" && v.reason !== "NONE" ? ` (${v.reason.toLowerCase().replace(/_/g, " ")})` : ""}. It cannot be sent until it is revised and approved.`, alert: true };
+      if (event === "PAUSED" || event === "DISABLED") return { ...BLOCKED, subject: `Template “${name}” ${event.toLowerCase()}`, body: `WhatsApp ${event.toLowerCase()} the template “${name}”. Sends that use it will fail until it is restored.`, alert: true };
+      if (event === "APPROVED") return { ...READY, subject: `Template “${name}” approved`, body: `WhatsApp approved the template “${name}”. It can be sent now — from a broadcast, or from the Inbox outside the 24-hour window.`, alert: true };
       return null;
     }
     case "template_category_update": {
       const name = typeof v.message_template_name === "string" ? v.message_template_name : "a template";
       const to = typeof v.new_category === "string" ? v.new_category.toLowerCase() : "another category";
-      return { subject: `Template “${name}” is now ${to}`, body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`, alert: to === "marketing" };
+      // Moved to marketing is a restriction, not a failure: it can still be
+      // sent, but only to a recorded yes. It reads with the ones it cannot.
+      return { ...(to === "marketing" ? BLOCKED : READY), subject: `Template “${name}” is now ${to}`, body: `Meta moved the template “${name}” to ${to}.${to === "marketing" ? " Sends that use it now need the customer's recorded yes." : ""}`, alert: to === "marketing" };
     }
     case "account_review_update": {
       const decision = String(v.decision ?? "");
-      if (decision === "REJECTED") return { subject: "WhatsApp account review rejected", body: `WhatsApp's review of the account behind ${line.toLowerCase()} was rejected. Messaging limits stay where they are until it is appealed.`, alert: true };
-      if (decision === "APPROVED") return { subject: "WhatsApp account review approved", body: `WhatsApp approved the account behind ${line.toLowerCase()}.`, alert: false };
+      if (decision === "REJECTED") return { ...NUM, subject: "WhatsApp account review rejected", body: `WhatsApp's review of the account behind ${line.toLowerCase()} was rejected. Messaging limits stay where they are until it is appealed.`, alert: true };
+      if (decision === "APPROVED") return { ...NUM, subject: "WhatsApp account review approved", body: `WhatsApp approved the account behind ${line.toLowerCase()}.`, alert: false };
       return null;
     }
     default:
@@ -144,6 +170,6 @@ export async function handleWabaChange(
   }
   if (!described || !described.alert) return "kept";
   const target: NotifyTarget = { tenantId: routed.tenantId, notifications: await loadNotifications(routed.tenantId), isEnvDefault: false };
-  await notify(target, { kind: "number", route: "admin/integrations", subject: described.subject, body: described.body });
+  await notify(target, { kind: described.kind, route: described.route, subject: described.subject, body: described.body });
   return "alerted";
 }

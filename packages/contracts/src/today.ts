@@ -1310,6 +1310,10 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   calendar_people: ["person added from your calendar", "people added from your calendar"],
   handoff: ["conversation needs you", "conversations need you"],
   playbook: ["playbook is ready", "playbooks are ready"],
+  // One sync can approve several at once, and several rejections read as one
+  // problem with the wording, not as five separate pieces of news.
+  template_ready: ["template is ready to send", "templates are ready to send"],
+  template_blocked: ["template cannot be sent", "templates cannot be sent"],
 };
 
 /** A warning outranks good news, whatever their clocks say. */

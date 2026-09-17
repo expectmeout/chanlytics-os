@@ -105,6 +105,24 @@ test("the account's own news: routed by WABA, kept as an event, alerted when it 
   assert.ok(rejected.subject.includes("appointment_reminder") && rejected.body.includes("invalid format"));
   assert.equal(mod.describeWabaChange({ field: "account_update", value: { event: "PARTNER_REMOVED" } }, null).alert, true);
   assert.equal(mod.describeWabaChange({ field: "phone_number_quality_update", value: { event: "SOMETHING_ELSE" } }, null), null);
+
+  // A template's news is not the number's news. Every alertable change used to
+  // be sent as kind "number" -- a shield, warn amber, a door to Connections --
+  // so "Template X approved" reached the bell as a warning about the phone
+  // line. The change says which kind it is, because it is the only thing that
+  // knows; the look follows in contracts, never from the title's spelling.
+  const kindOf = (field, value) => { const d = mod.describeWabaChange({ field, value }, null); return d && `${d.kind}@${d.route}`; };
+  assert.equal(kindOf("message_template_status_update", { event: "APPROVED", message_template_name: "save_our_number" }), "template_ready@messages");
+  assert.equal(kindOf("message_template_status_update", { event: "REJECTED", message_template_name: "x" }), "template_blocked@messages");
+  assert.equal(kindOf("message_template_status_update", { event: "PAUSED", message_template_name: "x" }), "template_blocked@messages");
+  assert.equal(kindOf("template_category_update", { message_template_name: "x", new_category: "MARKETING" }), "template_blocked@messages", "it can still be sent, but only to a recorded yes");
+  assert.equal(kindOf("template_category_update", { message_template_name: "x", new_category: "UTILITY" }), "template_ready@messages");
+  for (const [field, value] of [
+    ["phone_number_quality_update", { event: "FLAGGED" }],
+    ["phone_number_quality_update", { event: "DOWNGRADE" }],
+    ["account_update", { event: "PARTNER_REMOVED" }],
+    ["account_review_update", { decision: "REJECTED" }],
+  ]) assert.equal(kindOf(field, value), "number@admin/integrations", `${field} ${JSON.stringify(value)} is the NUMBER's own health`);
   // The webhook handling the account's fields by entry.id, before and instead
   // of routing by number, is run in whatsapp-door.test.mjs.
 });

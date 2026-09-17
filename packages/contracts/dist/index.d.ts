@@ -2008,7 +2008,7 @@ declare const SCHEMA_SETS: {
     readonly "messages.sender": readonly ["customer", "ai", "human", "system"];
     readonly "messages.status": readonly ["received", "queued", "sent", "delivered", "read", "failed", "canceled"];
     readonly "messages.type": readonly ["text", "template", "media", "call_summary", "note"];
-    readonly "notifications.kind": readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"];
+    readonly "notifications.kind": readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked"];
     readonly "playbooks.policy_class": readonly ["reengage", "campaign", "booking"];
     readonly "playbooks.state": readonly ["running", "paused"];
     readonly "playbooks.trigger": readonly ["quiet_30", "new_week", "phoned_only", "everyone_monthly", "visit_tomorrow", "visited"];
@@ -4745,7 +4745,7 @@ declare function agoLabel(atMs: number, now: number): string;
 /** The kinds a device is woken for; an invitation can wait for the bell. */
 declare const ALERT_KINDS: readonly NotificationKind[];
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"];
+declare const SERVER_NOTIFICATION_KINDS: readonly ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked"];
 type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
 interface NotificationDto {
     id: string;

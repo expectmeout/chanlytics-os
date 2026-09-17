@@ -4329,12 +4329,26 @@ function agoLabel(atMs, now) {
   return agoShort(atMs, now);
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
-var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked"];
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+  /** The NUMBER's own health: a rating flagged, a limit lowered, the account restricted. */
   number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  /**
+   * A template's news is not the number's news. Both arrive on the same
+   * webhook, and for a while both were kind "number" — so "Template … approved"
+   * was drawn with a shield, in warn amber, over a door to Connections: good
+   * news wearing a warning's colour and pointing at the wrong page. Since Today
+   * sorts warnings above everything else, it also outranked real news.
+   *
+   * Two kinds rather than one kind and a tone column, because which of the two
+   * a change is belongs to the change (waba-events.ts describeWabaChange), and
+   * how it should read belongs here. Never inferred from the title.
+   */
+  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
@@ -4356,6 +4370,7 @@ var ROUTE_VERBS = [
   [/^live/, "Open Live"],
   [/^outbound/, "Open Playbooks"],
   [/^broadcasts/, "Open Broadcasts"],
+  [/^messages/, "Open Messages"],
   [/^calendar/, "Open Calendar"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],
@@ -5063,7 +5078,11 @@ var AWAY_NOUN = {
   review: ["new rating on Google", "new ratings on Google"],
   calendar_people: ["person added from your calendar", "people added from your calendar"],
   handoff: ["conversation needs you", "conversations need you"],
-  playbook: ["playbook is ready", "playbooks are ready"]
+  playbook: ["playbook is ready", "playbooks are ready"],
+  // One sync can approve several at once, and several rejections read as one
+  // problem with the wording, not as five separate pieces of news.
+  template_ready: ["template is ready to send", "templates are ready to send"],
+  template_blocked: ["template cannot be sent", "templates cannot be sent"]
 };
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
@@ -9711,7 +9730,9 @@ var SCHEMA_SETS = {
     "calendar_people",
     "alert",
     "review",
-    "billing"
+    "billing",
+    "template_ready",
+    "template_blocked"
   ],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
