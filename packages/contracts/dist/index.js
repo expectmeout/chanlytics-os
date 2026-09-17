@@ -8685,6 +8685,58 @@ function activityWords(kind, payload) {
   }
   return bits.length ? `${base} \xB7 ${bits.join(" \xB7 ")}` : base;
 }
+var TONES = {
+  // danger -- it failed, it was refused, or something is gone
+  "message.send_failed": "danger",
+  "message.send_blocked": "danger",
+  "line.failed": "danger",
+  "line.texting_rejected": "danger",
+  "contact.erased": "danger",
+  "contact.blob_erased": "danger",
+  "ingest.unroutable": "danger",
+  "ingest.unreachable_sender": "danger",
+  erase: "danger",
+  decline: "danger",
+  remove_member: "danger",
+  // ok -- it completed, it connected, it is answering
+  "line.answering": "ok",
+  "line.texting_approved": "ok",
+  "line.forwarding_verified": "ok",
+  "voice.provisioned": "ok",
+  "google.linked": "ok",
+  "google.connected": "ok",
+  "broadcast.sent": "ok",
+  "billing.resumed": "ok",
+  "mailbox.created": "ok",
+  "workspace.created": "ok",
+  approve: "ok",
+  resolve: "ok",
+  connect_channel: "ok",
+  // warn -- somebody stopped something, or a rule was stepped around
+  "billing.paused": "warn",
+  "policy.veto_window_skipped": "warn",
+  "line.released": "warn",
+  "google.unlinked": "warn",
+  "google.disconnected": "warn",
+  "message.send_raced_cancel": "warn",
+  "ingest.allowlist_skip": "warn",
+  pause_agent: "warn",
+  pause_playbook: "warn",
+  cancel_send: "warn",
+  cancel_broadcast: "warn",
+  revoke_invite: "warn",
+  snooze: "warn",
+  // info -- it is on its way, or a person took it on
+  "message.received": "info",
+  "conversation.reopened": "info",
+  "line.texting_on": "info",
+  take_over: "info",
+  hand_back: "info",
+  reply: "info"
+};
+function activityTone(kind) {
+  return TONES[kind] ?? "plain";
+}
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
@@ -9246,7 +9298,7 @@ var SCHEMA_SETS = {
 };
 
 // src/tone.ts
-var TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
+var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
 var TONE_OF = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
@@ -9550,12 +9602,13 @@ export {
   TOAST_TONES,
   TOAST_UNDO_MS,
   TODAY_QUEUE_MAX,
-  TONES,
+  TONES2 as TONES,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WABA_FIELDS,
   WA_WINDOW_MS,
   abandonedCall,
+  activityTone,
   activityWords,
   addressAlreadyKnown,
   afterPersonRefused,

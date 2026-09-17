@@ -204,8 +204,10 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
   const [toastNode, flash] = window.usePPToast();
-  const [tenants, setTenants] = React.useState(null);
-  const [health, setHealth] = React.useState(null);
+  // The list this tab already holds, painted at once; `load` reads again behind it.
+  const held = P && P.peekList ? P.peekList() : null;
+  const [tenants, setTenants] = React.useState(held && held.ok ? held.tenants : null);
+  const [health, setHealth] = React.useState(held && held.ok ? held.health : null);
   const [problem, setProblem] = React.useState(null);
   const [find, setFind] = React.useState("");
   const [openId, setOpenId] = React.useState(null);
@@ -232,7 +234,10 @@ const PanePlatform = () => {
   React.useEffect(() => {
     if (!openId) { setDetail(null); setDetailProblem(null); return undefined; }
     let on = true;
-    setDetail(null);
+    // A row whose Open the pointer rested on is already read: it opens with no
+    // "Reading that workspace..." frame at all.
+    const ready = P.peekOne ? P.peekOne(openId) : null;
+    setDetail(ready && ready.ok ? ready.detail : null);
     setDetailProblem(null);
     Promise.resolve().then(() => P.one(openId)).then(
       (r) => { if (!on) return; if (r.ok && r.detail) setDetail(r.detail); else setDetailProblem(r.message || "Could not be read right now."); },
@@ -319,6 +324,7 @@ const PanePlatform = () => {
                 tone={v.tone}
                 cta={{ label: openId === r.tenantId ? "Close" : "Open", kind: "ghost", onClick: () => setOpenId(openId === r.tenantId ? null : r.tenantId) }}
                 onOpen={() => setOpenId(openId === r.tenantId ? null : r.tenantId)}
+                onHover={() => P.warmOne && P.warmOne(r.tenantId)}
                 testid={`platform-row-${r.slug}`}
                 ctaTestid={`platform-open-${r.slug}`}
               />

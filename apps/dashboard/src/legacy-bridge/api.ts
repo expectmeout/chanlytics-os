@@ -6,6 +6,7 @@
  * it names can import this client without a cycle.
  */
 import { createApi, unwrap, type Api, type ApiOptions, type RouteKey } from "../client/api";
+import { clearReadCaches } from "./read-cache";
 import { clearSurfaceCache } from "./surface-cache";
 import { getActiveWorkspace, rememberWorkspace, signInHref } from "./workspace";
 
@@ -23,6 +24,7 @@ const REBOOTED = "chanlytics.workspace.rebooted";
 function forgetWorkspaceAndReboot(win: Window): void {
   rememberWorkspace(null);
   clearSurfaceCache();
+  clearReadCaches();
   try {
     if (win.sessionStorage.getItem(REBOOTED)) {
       console.error("choose_workspace_after_reboot");
@@ -56,6 +58,7 @@ export function apiFor(win: Window): Api {
     workspace: getActiveWorkspace,
     onSignedOut: () => {
       clearSurfaceCache();
+      clearReadCaches();
       win.location.assign(signInHref(win.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
@@ -73,6 +76,7 @@ export function api(): Api {
       // not leave one workspace's messages for whoever signs in next. The
       // page's hash goes along, so signing in again lands where they were.
       clearSurfaceCache();
+      clearReadCaches();
       window.location.assign(signInHref(window.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),

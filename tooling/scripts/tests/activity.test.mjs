@@ -9,7 +9,7 @@ import { test, beforeEach } from "node:test";
 import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { activityWords, isActivityNoise, ACTIVITY_KINDS, DECISION_VERBS, DECISION_SUBJECTS, EVENT_KINDS } from "@chanlytics/contracts";
+import { activityWords, activityTone, isActivityNoise, ACTIVITY_KINDS, DECISION_VERBS, DECISION_SUBJECTS, EVENT_KINDS, TONES } from "@chanlytics/contracts";
 import { fakeDb } from "./_fake-db.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -46,6 +46,33 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(isActivityNoise("message.received"), false);
   assert.deepEqual(ACTIVITY_KINDS.slice(0, 3), ["approve", "edit", "decline"]);
   assert.ok(DECISION_VERBS.includes("export") && DECISION_SUBJECTS.includes("workspace"), "the ledger names an export of the workspace");
+});
+
+const TONED_KINDS = 43;
+test("the tone: said only where the product knows one, and never for a kind that does not exist", () => {
+  // A log where every line is the same grey is read rather than scanned, and
+  // the line an owner opens it to find is the one that went wrong.
+  assert.equal(activityTone("line.failed"), "danger");
+  assert.equal(activityTone("message.send_failed"), "danger");
+  assert.equal(activityTone("line.texting_rejected"), "danger");
+  assert.equal(activityTone("line.texting_approved"), "ok");
+  assert.equal(activityTone("approve"), "ok");
+  assert.equal(activityTone("pause_agent"), "warn");
+  assert.equal(activityTone("message.received"), "info");
+  assert.equal(activityTone("settings.changed"), "plain", "a kind whose reading is not in doubt either way stays quiet");
+  assert.equal(activityTone("something.new"), "plain", "and a kind nothing names is never coloured by guesswork");
+
+  // Names, not spellings: a rule that read words out of kinds would find a
+  // failure in "message.send_raced_cancel" and none in "line.texting_on".
+  assert.equal(activityTone("message.send_raced_cancel"), "warn");
+  assert.equal(activityTone("line.texting_on"), "info");
+
+  // A key in the map that is not a kind either ledger holds tones nothing, and
+  // the only symptom is a row that stays grey for ever. The count is the guard:
+  // it moves only when the map is deliberately changed.
+  const toned = [...DECISION_VERBS, ...EVENT_KINDS].filter((k) => activityTone(k) !== "plain");
+  assert.equal(toned.length, TONED_KINDS, "every key in the tone map is a kind a ledger can hold");
+  for (const k of ACTIVITY_KINDS) assert.ok(TONES.includes(activityTone(k)), `${k}: one of the product's six tones`);
 });
 
 const A = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";

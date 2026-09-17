@@ -105,7 +105,11 @@ const SET_TABS = [
   { id: "notifications", label: "Notifications", icon: "bell",     group: "Workspace" },
   { id: "billing",       label: "Billing",       icon: "money",    group: "Workspace" },
   // Both ledgers, readable by the owner: who did what, and what happened.
-  { id: "activity",      label: "Activity",      icon: "clock",    group: "Workspace" },
+  // A pane whose read is worth starting when the pointer or the keyboard
+  // reaches its tab: by the time the click lands, its rows are in hand. The
+  // reads share one request with the pane's own (client/api.ts) and no-op once
+  // the answer is cached, so this costs nothing a visit was not going to spend.
+  { id: "activity",      label: "Activity",      icon: "clock",    group: "Workspace", warm: () => window.__activity && window.__activity.warm && window.__activity.warm({}) },
 ];
 /** Routes that still answer but no longer earn a place in the rail. */
 const SET_TABS_UNLISTED = [{ id: "memory", label: "AI memory", icon: "sparkle" }];
@@ -119,7 +123,7 @@ const SET_TABS_UNLISTED = [{ id: "memory", label: "AI memory", icon: "sparkle" }
  * It is NOT the authorization -- every platform route asks the database again,
  * and both answer 404 to everyone else.
  */
-const SET_TABS_PLATFORM = [{ id: "platform", label: "Back office", icon: "monitor", group: "Chanlytics" }];
+const SET_TABS_PLATFORM = [{ id: "platform", label: "Back office", icon: "monitor", group: "Chanlytics", warm: () => window.__platform && window.__platform.warmList && window.__platform.warmList() }];
 const isPlatformAdmin = () => !!(window.__ME && window.__ME.platform_admin);
 const SET_TAB = (id) =>
   SET_TABS.find((t) => t.id === id)
@@ -3016,7 +3020,15 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           <React.Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map(t => (
-              <button key={t.id} ref={active.id === t.id ? setTabIntoView : undefined} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => go(t.id)}>
+              <button
+                key={t.id}
+                ref={active.id === t.id ? setTabIntoView : undefined}
+                className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`}
+                aria-current={active.id === t.id ? "page" : undefined}
+                onPointerEnter={t.warm}
+                onFocus={t.warm}
+                onClick={() => go(t.id)}
+              >
                 <Icon name={t.icon} size={14} />
                 <span className="set-nav-label">{t.label}</span>
               </button>
