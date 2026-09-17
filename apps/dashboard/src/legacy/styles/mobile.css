@@ -86,6 +86,8 @@
   .fleet-filter { overflow-x: auto; max-width: 100%; scrollbar-width: none; }
   .fleet-filter::-webkit-scrollbar { display: none; }
   .rp-body, .st-body { padding-left: 16px; padding-right: 16px; }
+  /* And the line above them, which is a child of the same full-bleed pane. */
+  .reports > .cm-standing { padding: 16px 16px 12px; }
   .cal-scroll { padding-bottom: 24px; }
   .cal-sync { padding: 8px 16px; flex-wrap: wrap; row-gap: 6px; }
   /* The Calendar on a narrow screen: one 16px gutter for the whole page (--cal-gutter, calendar.css), and the

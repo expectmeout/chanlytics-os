@@ -116,4 +116,36 @@ test.describe("Playbooks on a real workspace", () => {
     test.skip(gaps.length === 0, "this workspace's line has no separators");
     expect(new Set(gaps).size, `every gap around a dot is the same: ${JSON.stringify(gaps)}`).toBe(1);
   });
+
+  /**
+   * Three tabs of one nav item keep one page edge.
+   *
+   * `.bc-page` supplies its children's gutter; `.reports` is full-bleed by design
+   * and every direct child carries the pane's own (.cl-head, .cl-controls,
+   * .rp-body all do). The standing line replaced .cl-head on Playbooks and
+   * Messages and carried none, so on those two tabs it sat flush against the
+   * sidebar while everything below it was inset 28px -- and Broadcasts, whose
+   * line is inside .bc-page, was inset correctly. Geometry, so it is measured.
+   */
+  test("Campaigns: the standing line shares its page edge with the work below it", async ({ page }) => {
+    for (const [route, line] of [["outbound", "pb-standing"], ["broadcasts", "bc-standing"], ["messages", "messages-standing"]] as const) {
+      await page.goto(`/#/${route}`);
+      await page.waitForLoadState("networkidle");
+      const standing = page.getByTestId(line);
+      if ((await standing.count()) === 0) continue;
+      // The line's own ink, not its box: a box can be flush while padding insets the words.
+      const inkLeft = await standing.evaluate((el) => {
+        const lead = el.querySelector(".cm-standing-lead");
+        if (!lead?.firstChild) return null;
+        const r = document.createRange();
+        r.selectNodeContents(lead.firstChild);
+        return Math.round(r.getBoundingClientRect().left);
+      });
+      if (inkLeft === null) continue;
+      const below = page.locator(".rp-body > *, .bc-composer").first();
+      if ((await below.count()) === 0) continue;
+      const box = await below.boundingBox();
+      expect(box && Math.abs(Math.round(box.x) - inkLeft) <= 1, `${route}: the line starts at ${inkLeft} and the work below it at ${Math.round(box?.x ?? -1)}`).toBe(true);
+    }
+  });
 });

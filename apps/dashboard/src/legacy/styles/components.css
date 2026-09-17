@@ -1524,6 +1524,14 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    The sentences those headers carried are on the line's first phrase, one hover
    or tap away, and the numbers are in Reports > Campaigns where a chart is. */
 .cm-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 2px 0 12px; font-size: var(--text-sm); color: var(--ink-dim); }
+/* One gutter per pane, owned by the parent. `.bc-page` supplies its children's
+   (24px top, --gutter-page each side), but `.reports` is full-bleed by design and
+   every direct child carries the pane's own -- .cl-head, .cl-controls and
+   .rp-body all do. The standing line replaced .cl-head on Playbooks and Messages
+   and carried none, so the line sat flush against the sidebar with everything
+   below it inset 28px, and started 24px higher than the same line on Broadcasts.
+   Three tabs of one nav item, three different page edges. */
+.reports > .cm-standing { padding: 26px 28px 12px; }
 .cm-standing-lead { color: var(--ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
 .cm-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .cm-standing-dot { color: var(--ink-faint); }
