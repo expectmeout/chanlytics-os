@@ -571,14 +571,9 @@ const PaneProfile = ({ flash }) => {
     <>
       <section className="fl-card set-card" data-testid="set-profile">
         <div className="fl-card-head"><span className="fl-card-title">You</span></div>
-        <div className="set-me">
-          <div className="avatar set-me-avatar">{window.__identity ? window.__identity.initials(me.display_name, me.email) : "?"}</div>
-          <div className="set-me-who">
-            <div className="set-me-name">{words.name}</div>
-            <div className="set-me-mail">{words.email}</div>
-          </div>
-          {role && <RolePill role={me.role} />}
-        </div>
+        {/* The avatar, the name, the address and the role pill were a block above rows that
+            say the same four things -- and the sidebar's own footer says three of them a third
+            time. The rows carry them once, each with what it is for. */}
         <SetRow label="Your name" hint="How your team sees you — clear it and your email stands in">
           <YourName flash={flash} />
         </SetRow>
@@ -587,7 +582,7 @@ const PaneProfile = ({ flash }) => {
         </SetRow>
         {role && (
           <SetRow label={`Your role in ${(ws && ws.name) || "this workspace"}`} hint={role.can}>
-            <span className="set-me-static">{role.label}</span>
+            <RolePill role={me.role} />
           </SetRow>
         )}
       </section>
