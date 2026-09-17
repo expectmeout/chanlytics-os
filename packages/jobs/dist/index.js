@@ -10520,7 +10520,7 @@ async function ingestEmail(ports, cmd) {
   if (claim !== "auto_reply") {
     const flagged = await ports.escalate(mailbox.tenant_id, kept.conversation_id, "email_review", EMAIL_REVIEW_WORDS[claim]);
     if (flagged === "failed") throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
-    if (flagged === "opened") {
+    if (flagged === "opened" || flagged === "changed") {
       await ports.tell(mailbox.tenant_id, {
         conversationId: kept.conversation_id,
         from: address,
@@ -11653,7 +11653,13 @@ async function upsertEscalation(db, tenantId, conversationId, reason, details) {
   });
   if (!error) return "opened";
   if (error.code === "23505") {
-    const { error: refreshErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
+    const { data: replaced, error: changeErr } = await db.from("escalations").update({ details, reason }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open").neq("reason", reason).select("id");
+    if (changeErr) {
+      console.error("escalation_change_failed", changeErr.message);
+      return "failed";
+    }
+    if (replaced && replaced.length > 0) return "changed";
+    const { error: refreshErr } = await db.from("escalations").update({ details }).eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("state", "open");
     if (refreshErr) {
       console.error("escalation_refresh_failed", refreshErr.message);
       return "failed";
@@ -11927,6 +11933,7 @@ async function failJob(db, job, reason) {
 
 // src/settle.ts
 var NEVER_SENT = "the job that would have sent this never ran";
+var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
 function idFrom(payload, key) {
   if (typeof payload !== "object" || payload === null) return null;
@@ -11960,6 +11967,16 @@ async function settleJob(db, job, certain) {
     const flagged = !error && row?.conversation_id ? await upsertEscalation(db, job.tenant_id, row.conversation_id, "send_failed", `${row.sender === "ai" ? "The receptionist's reply" : "A reply"} never left: ${certain ? NEVER_SENT : MAY_HAVE_SENT}.`) : null;
     return [{ what: "message", changed: !!data?.length, ...flagged ? { flagged } : {}, ...error ? { error: error.message } : {} }];
   }
+  if (job.kind === "email_ingest") {
+    const receivedId = idFrom(job.payload, "received_id");
+    if (!receivedId) return [{ what: "email", changed: false, error: "no received_id on the job" }];
+    const { data, error } = await db.from("messages").select("conversation_id").eq("tenant_id", job.tenant_id).eq("channel", "email").eq("external_id", receivedId).maybeSingle();
+    if (error) return [{ what: "email", changed: false, error: error.message }];
+    const conversationId = data?.conversation_id ?? null;
+    if (!conversationId) return [{ what: "email", changed: false }];
+    const flagged = await upsertEscalation(db, job.tenant_id, conversationId, "email_review", EMAIL_UNFINISHED);
+    return [{ what: "email", changed: true, flagged }];
+  }
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");
     if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
@@ -11987,11 +12004,13 @@ function saySettled(results) {
   const lines = [];
   for (const r2 of results) {
     if (r2.error) {
-      lines.push(r2.what === "message" ? `The message it was sending could not be updated (${r2.error}), so it may still show as sending.` : `The broadcast could not be updated (${r2.error}), so it may still show as sending.`);
+      lines.push(r2.what === "message" ? `The message it was sending could not be updated (${r2.error}), so it may still show as sending.` : r2.what === "email" ? `The email it was taking in could not be flagged for a person (${r2.error}), so look for it in the Inbox.` : `The broadcast could not be updated (${r2.error}), so it may still show as sending.`);
     } else if (r2.resumed) {
       lines.push(`The broadcast carries on in a fresh run: ${r2.reached ?? 0} reached so far, ${r2.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`);
     } else if (r2.changed && r2.notResumed) {
       lines.push(`The broadcast could not be handed to a fresh run (${r2.notResumed}), so it has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`);
+    } else if (r2.changed && r2.what === "email") {
+      lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
     } else if (r2.changed) {
       lines.push(r2.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : `The broadcast has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`);
     }

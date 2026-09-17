@@ -115,6 +115,36 @@ test("a send job that died flags the thread for a person, as a failed delivery d
   assert.equal(escalations.length, 1, "a message that had already gone out is not a failure");
 });
 
+test("an email intake that died leaves the email flagged for a person, and says nothing about one it never stored", async () => {
+  // The deadman sweep used to cover this by accident and wrongly -- it claimed
+  // the row, called it a receptionist that never answered, and marked it
+  // handled, after which the retrying job read `processed` and stopped. It no
+  // longer touches email, so the intake owns its own failure: the thread it
+  // managed to store the email on is flagged the way a finished intake would
+  // have flagged it.
+  const messages = [
+    { id: "m1", tenant_id: A, conversation_id: uuid(3), channel: "email", external_id: "rcv_stored", status: "received" },
+  ];
+  const escalations = [];
+  const db = fakeDb({ messages, escalations });
+  const intake = (receivedId) => ({ id: `job-${receivedId}`, kind: "email_ingest", tenant_id: A, payload: { mailbox_id: "mb-1", received_id: receivedId } });
+
+  assert.deepEqual(await settleJob(db, intake("rcv_stored"), true), [{ what: "email", changed: true, flagged: "opened" }]);
+  assert.equal(escalations.length, 1);
+  assert.deepEqual([escalations[0].conversation_id, escalations[0].reason], [uuid(3), "email_review"]);
+  assert.match(escalations[0].details, /could not be taken in/);
+  assert.match(escalations[0].details, /reply from the Inbox/i, "what the person is to do, not who to blame");
+
+  // Died before it stored anything: there is no thread to flag, and the job's
+  // own alert is then the true and only signal. Inventing a hold here would
+  // mean inventing a conversation to hang it on.
+  assert.deepEqual(await settleJob(db, intake("rcv_never_stored"), true), [{ what: "email", changed: false }]);
+  assert.equal(escalations.length, 1, "nothing invented");
+
+  assert.deepEqual(await settleJob(db, { ...intake("x"), payload: { mailbox_id: "mb-1" } }, true),
+    [{ what: "email", changed: false, error: "no received_id on the job" }]);
+});
+
 /* ------------------------------- the bridge's read ------------------------------- */
 
 globalThis.window = {

@@ -59,8 +59,11 @@ export interface EmailIngestPorts {
   /** Our own email, coming back: a forward loop, or a copy. */
   ours(tenantId: string, rfcMessageId: string): Promise<boolean>;
   record(p: { tenantId: string; address: string; receivedId: string; body: string | null; channelTs: string | null; meta: Json }): Promise<{ message_id: string; conversation_id: string; is_new: boolean; processed: boolean }>;
-  /** Flag the thread for a person: a new hold, a refresh of the one already open, or a write that did not land. */
-  escalate(tenantId: string, conversationId: string, reason: "email_review", details: string): Promise<"opened" | "refreshed" | "failed">;
+  /**
+  * Flag the thread for a person: a new hold, one that now means something else,
+  * a refresh of the same one, or a write that did not land.
+  */
+  escalate(tenantId: string, conversationId: string, reason: "email_review", details: string): Promise<"opened" | "changed" | "refreshed" | "failed">;
   /** Tell the workspace's people, once per hold: the bell, and the mail their alerts go to. Never throws. */
   tell(tenantId: string, note: { conversationId: string; from: string; fromName: string | null; subject: string | null; preview: string | null; claim: EmailClaim }): Promise<void>;
   markProcessed(tenantId: string, messageId: string): Promise<void>;
@@ -125,8 +128,13 @@ export async function ingestEmail(ports: EmailIngestPorts, cmd: { payload: Recor
     // Kept and not flagged is an email nobody will be shown: the job fails and
     // the next try, finding the row unhandled, flags it.
     if (flagged === "failed") throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
-    // Once per hold, not once per email: a second email on a thread already waiting refreshes the flag quietly.
-    if (flagged === "opened") {
+    // Once per hold, not once per email: a second email on a thread already
+    // waiting for the same reason refreshes the flag quietly. But a thread
+    // waiting for something ELSE -- the carriers, an opt-out, a failed send --
+    // has just had that reason replaced by this one, and an email nobody is
+    // told about is an email nobody answers. A hold that now means something
+    // different is a different hold.
+    if (flagged === "opened" || flagged === "changed") {
       await ports.tell(mailbox.tenant_id, {
         conversationId: kept.conversation_id, from: address, fromName: email.from?.name ?? null,
         subject: email.subject, preview: bodyOf(email)?.slice(0, 280) ?? null, claim,

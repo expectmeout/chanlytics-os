@@ -4637,7 +4637,7 @@ async function ingestEmail(ports, cmd) {
   if (claim !== "auto_reply") {
     const flagged = await ports.escalate(mailbox.tenant_id, kept.conversation_id, "email_review", EMAIL_REVIEW_WORDS[claim]);
     if (flagged === "failed") throw new Error("email_ingest: the email was kept but the thread could not be flagged for a person");
-    if (flagged === "opened") {
+    if (flagged === "opened" || flagged === "changed") {
       await ports.tell(mailbox.tenant_id, {
         conversationId: kept.conversation_id,
         from: address,

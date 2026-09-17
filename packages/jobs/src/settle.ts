@@ -29,7 +29,7 @@ export interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 export interface Settled {
   /** The kind of row, in the words the product uses for it. */
-  what: "message" | "broadcast";
+  what: "message" | "broadcast" | "email";
   /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
@@ -58,6 +58,10 @@ export interface Settled {
  * sentence about their message.
  */
 const NEVER_SENT = "the job that would have sent this never ran";
+
+/** What the thread says when the intake died: the email is here, and it is a person’s. */
+const EMAIL_UNFINISHED =
+  "An email arrived and could not be taken in — the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 const MAY_HAVE_SENT = "the run that was sending this did not finish";
 
 function idFrom(payload: unknown, key: string): string | null {
@@ -145,6 +149,36 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     return [{ what: "message", changed: !!data?.length, ...(flagged ? { flagged } : {}), ...(error ? { error: error.message } : {}) }];
   }
 
+  if (job.kind === "email_ingest") {
+    // The intake owns this email's ending, so it owns the failure too.
+    //
+    // The deadman sweep used to cover this by accident, and wrongly: it claimed
+    // the row, called it a receptionist that never answered, and marked it
+    // handled. It no longer touches email (edge unfinished.ts), which would
+    // have left a dead intake with nothing but a job alert -- the customer's
+    // words sitting in a thread with no hold on it and nobody looking.
+    //
+    // What can be flagged is a thread, and there is one only if the intake got
+    // as far as storing the email. Dying before that leaves nothing to find,
+    // and the job's own alert is then the true and only signal.
+    const receivedId = idFrom(job.payload, "received_id");
+    if (!receivedId) return [{ what: "email", changed: false, error: "no received_id on the job" }];
+    const { data, error } = await db
+      .from("messages")
+      .select("conversation_id")
+      .eq("tenant_id", job.tenant_id)
+      .eq("channel", "email")
+      .eq("external_id", receivedId)
+      .maybeSingle();
+    if (error) return [{ what: "email", changed: false, error: error.message }];
+    const conversationId = (data as { conversation_id?: string | null } | null)?.conversation_id ?? null;
+    if (!conversationId) return [{ what: "email", changed: false }];
+    // The same hold the intake would have raised, in words that say what
+    // actually happened rather than blaming the receptionist for not answering.
+    const flagged = await upsertEscalation(db, job.tenant_id, conversationId, "email_review", EMAIL_UNFINISHED);
+    return [{ what: "email", changed: true, flagged }];
+  }
+
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");
     if (!broadcastId) return [{ what: "broadcast", changed: false, error: "no broadcast_id on the job" }];
@@ -225,7 +259,9 @@ export function saySettled(results: Settled[]): string | null {
     if (r.error) {
       lines.push(r.what === "message"
         ? `The message it was sending could not be updated (${r.error}), so it may still show as sending.`
-        : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
+        : r.what === "email"
+          ? `The email it was taking in could not be flagged for a person (${r.error}), so look for it in the Inbox.`
+          : `The broadcast could not be updated (${r.error}), so it may still show as sending.`);
     } else if (r.resumed) {
       // Whether this settlement handed it on or found a run already coming, the
       // owner's picture is the same: it is still going. What it does NOT say is
@@ -234,6 +270,8 @@ export function saySettled(results: Settled[]): string | null {
       lines.push(`The broadcast carries on in a fresh run: ${r.reached ?? 0} reached so far, ${r.remaining ?? 0} still to go. Anyone it already recorded as sent is skipped, not sent again.`);
     } else if (r.changed && r.notResumed) {
       lines.push(`The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
+    } else if (r.changed && r.what === "email") {
+      lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
     } else if (r.changed) {
       lines.push(r.what === "message"
         ? "The message has been marked failed, so it is no longer shown as on its way."

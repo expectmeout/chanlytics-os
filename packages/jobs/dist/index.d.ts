@@ -128,11 +128,26 @@ declare function cancelJobsFor(db: Db, tenantId: string, kind: JobKind, payloadK
  * apart from either. Here, rather than in handlers.ts, so that settling a job that died does not load the core.
  */
 
-/** How an escalation landed: a new open row, a refresh of the one already
- *  open on that thread, or nothing (the insert failed for another reason).
- *  Callers that alert a human use it to alert once per hold, not once per
- *  message. */
-type EscalationOutcome = "opened" | "refreshed" | "failed";
+/**
+ * How an escalation landed.
+ *
+ *   opened     a new open row: nobody was waiting on this thread before.
+ *   changed    a thread already waiting, for a DIFFERENT reason, which this
+ *              one has now replaced.
+ *   refreshed  the same reason saying itself again, with newer words.
+ *   failed     nothing was written.
+ *
+ * `changed` exists because a thread has exactly one open escalation, so a
+ * second reason overwrites the first -- and every caller that alerts only on
+ * `opened` therefore said NOTHING when the reason a person was needed for
+ * changed underneath them. An email arriving on a thread held for the carriers
+ * was the case that showed it, but it was never an email bug: it was true of
+ * every caller of this function.
+ *
+ * Callers that alert a human alert once per HOLD, not once per message -- and
+ * a hold that now means something else is a different hold.
+ */
+type EscalationOutcome = "opened" | "changed" | "refreshed" | "failed";
 declare function upsertEscalation(db: SupabaseClient<Database>, tenantId: string, conversationId: string, reason: string, details: string): Promise<EscalationOutcome>;
 
 /**
@@ -251,7 +266,7 @@ interface TerminalJob {
 /** One thing a job was in the middle of, and what became of it. */
 interface Settled {
     /** The kind of row, in the words the product uses for it. */
-    what: "message" | "broadcast";
+    what: "message" | "broadcast" | "email";
     /** True only when a row was found still in flight and moved: marked failed, or handed to a fresh run. */
     changed: boolean;
     /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */

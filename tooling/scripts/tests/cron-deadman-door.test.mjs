@@ -201,8 +201,11 @@ test("both in one tick: the reachable workspace is warned and stamped, the unrea
 /* ------------------------------------------------- the unfinished */
 
 const M = 60_000;
-const inbound = (id, over = {}) => ({ id, tenant_id: A, conversation_id: `cv-${id}`, direction: "inbound", sender: "customer", body: "are you open tomorrow?", status: "received", created_at: ago(5 * M), meta: {}, ...over });
-const outbound = (id, conversation_id, over = {}) => ({ id, tenant_id: A, conversation_id, direction: "outbound", sender: "ai", body: "Yes, from 9.", status: "sent", created_at: ago(4 * M), meta: {}, ...over });
+// The channel is load-bearing now: this sweep claims only the channels whose
+// intake runs inside the webhook, because a row a JOB is still working on is
+// in progress rather than abandoned (edge unfinished.ts INLINE_INTAKE).
+const inbound = (id, over = {}) => ({ id, tenant_id: A, conversation_id: `cv-${id}`, channel: "whatsapp", direction: "inbound", sender: "customer", body: "are you open tomorrow?", status: "received", created_at: ago(5 * M), meta: {}, ...over });
+const outbound = (id, conversation_id, over = {}) => ({ id, tenant_id: A, conversation_id, channel: "whatsapp", direction: "outbound", sender: "ai", body: "Yes, from 9.", status: "sent", created_at: ago(4 * M), meta: {}, ...over });
 
 test("a customer's message the handler never finished with: flagged for a person with the customer's words, the owner told, stamped handled so it is raised once; a fresh one is left for the handler", async () => {
   const w = world([], { messages: [inbound("m-old"), inbound("m-fresh", { created_at: ago(1 * M) })] });
@@ -280,4 +283,26 @@ test("candidates that cannot be read are a 500, and nothing is told", async () =
     assert.deepEqual(w.tables.notifications, []);
     assert.deepEqual(w.tables.operator_pages, []);
   } finally { line.restore(); }
+});
+
+test("REGRESSION: an email still being taken in is not this sweep's to claim", async () => {
+  // The sweep found any inbound customer message with no processed stamp after
+  // three minutes, whatever channel it came in on. Email's intake is a job with
+  // its own lease and its own retries, so a row it is still working on is in
+  // progress -- but the sweep would flag the thread "the receptionist never
+  // answered this" and mark the row handled, after which the retrying job read
+  // `processed` and stopped: no email_review, no mailbox stamp, and a customer
+  // answered by nobody. A watchdog may find abandoned work; it may not declare
+  // somebody else's finished.
+  const email = inbound("mail-1", { channel: "email", body: "can you quote a move?" });
+  const w = world([], { messages: [email] });
+  const line = wire();
+  try {
+    assert.deepEqual(await answer(await w.tick()), [200, { ok: true, flagged: 0, unanswered: 0, orphaned: 0, told: 0 }],
+      "nothing found, because nothing here was abandoned");
+    assert.deepEqual(w.tables.escalations, [], "no hold invented for work in flight");
+    assert.equal(email.meta.processed_at, undefined, "and the intake's own mark is left for the intake");
+  } finally {
+    line.restore();
+  }
 });
