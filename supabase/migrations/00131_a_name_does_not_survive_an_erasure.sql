@@ -1,4 +1,4 @@
--- 00130 · a name does not survive an erasure.
+-- 00131 · a name does not survive an erasure.
 --
 -- 00027 held events out of the erasure on a stated ground, and that ground is
 -- the comment beginning "events.data is deliberately NOT scrubbed": every key
