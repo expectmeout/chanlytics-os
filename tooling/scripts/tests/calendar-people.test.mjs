@@ -107,6 +107,72 @@ test("who it is for: a phone in the event beats the name; a guest's name matches
   assert.equal(matchPerson(f.items.find((i) => i.uid === "b4"), PEOPLE), null, "lunch is nobody's");
 });
 
+/**
+ * An appointment booked through Google: the customer is a guest, and the only
+ * thing the event says about them is their address. People holds an email
+ * since 00125, so that is enough to know whose appointment it is.
+ */
+const GUEST_ICS = [
+  "BEGIN:VCALENDAR",
+  "VERSION:2.0",
+  "BEGIN:VEVENT",
+  "UID:g1",
+  "SUMMARY:Colour touch-up",
+  "ATTENDEE;CN=Melany Owner:mailto:owner@salon.com",
+  "ATTENDEE:mailto:Sofia.Perez@Gmail.com",
+  "DTSTART;TZID=America/New_York:20260911T090000",
+  "DTEND;TZID=America/New_York:20260911T100000",
+  "END:VEVENT",
+  "BEGIN:VEVENT",
+  "UID:g2",
+  "SUMMARY:Blow-dry",
+  "DESCRIPTION:Phone: (305) 555-0134\nEmail: maria.lopez@gmail.com",
+  "DTSTART;TZID=America/New_York:20260912T090000",
+  "DTEND;TZID=America/New_York:20260912T100000",
+  "END:VEVENT",
+  "BEGIN:VEVENT",
+  "UID:g3",
+  "SUMMARY:Daniela Ruiz \u00b7 Colour",
+  "DTSTART;TZID=America/New_York:20260913T090000",
+  "DTEND;TZID=America/New_York:20260913T100000",
+  "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+
+const guestFeed = () => parseIcs(GUEST_ICS, TZ, { horizon: { from: NOW - 90 * 86_400_000, to: NOW + 60 * 86_400_000 } });
+
+const GUESTS = [
+  { id: "p-sofia", name: "Sofia Perez", phone: null, email: "sofia.perez@gmail.com" },
+  { id: "p-maria2", name: "Maria Lopez", phone: "+13055550134", email: "maria.lopez@gmail.com" },
+  { id: "p-daniela2", name: "Daniela Ruiz", phone: null, email: null },
+];
+
+test("an address is read after the number and before the name, so a customer booked through Google as a guest is still someone", async () => {
+  const { indexFeed, visitsIn, allVisitsIn } = await import("@chanlytics/contracts");
+  const g = guestFeed();
+  const at = (uid) => g.items.find((i) => i.uid === uid);
+  const [sofia, maria, daniela] = GUESTS;
+
+  assert.deepEqual(matchPerson(at("g1"), GUESTS), { id: "p-sofia", name: "Sofia Perez", via: "email" }, "a guest's address, in whatever case it was written");
+  assert.deepEqual(matchPerson(at("g2"), GUESTS), { id: "p-maria2", name: "Maria Lopez", via: "phone" }, "her number and her address both in the event: the number wins");
+  assert.deepEqual(matchPerson(at("g3"), GUESTS), { id: "p-daniela2", name: "Daniela Ruiz", via: "name" }, "a name-only match is what it always was");
+  assert.equal(matchPerson({ title: "Colour touch-up", description: null, location: null, attendees: [{ name: null, email: "someone@else.com" }] }, GUESTS), null, "an address nobody holds is nobody");
+
+  const index = indexFeed(g.items);
+  assert.deepEqual(index.byEmail.get("sofia.perez@gmail.com").map((i) => i.uid), ["g1"]);
+  assert.equal(index.byEmail.get("owner@salon.com").length, 1, "the owner's own address is indexed like any other; nobody in People holds it");
+
+  const v = visitsIn(index, sofia, NOW);
+  assert.equal(v.next?.title, "Colour touch-up");
+  assert.equal(v.next?.via, "email");
+  assert.equal(v.last, null);
+  assert.deepEqual(allVisitsIn(index, maria).map((x) => [x.title, x.via]), [["Blow-dry", "phone"]], "the number wins here too, and the visit is taken once");
+  assert.deepEqual(allVisitsIn(index, daniela).map((x) => [x.title, x.via]), [["Daniela Ruiz \u00b7 Colour", "name"]]);
+  assert.deepEqual(allVisitsIn(index, { id: "p-none", name: "", phone: null, email: null }), [], "a person with no address matches none of them");
+
+  assert.ok(!describeVisits(v, TZ, NOW).includes("Matched by name only"), "an address is exact: it needs no are-you-sure, no more than a number does");
+});
+
 test("their visits: the next one that has not ended, the latest one that has; the words by the business's clock", () => {
   const f = feed();
   const v = visitsOf(f.items, PEOPLE[0], NOW);
@@ -191,7 +257,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(route.includes("const visits = await personVisits(ctx, tenantId, personLike(row)).catch(") && route.includes("visits: visits ?? undefined,"), "never fatal to the profile");
   const edge = readCode("apps/edge/lib/availability.ts");
-  assert.ok(edge.includes("export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }") && edge.includes("return describeVisits(visitsOf(feed.items, { id: \"caller\", name: who.name ?? \"\", phone: who.phone }, now.getTime()), rt.timezone, now.getTime());"));
+  assert.ok(edge.includes("export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }") && edge.includes("return describeVisits(visitsOf(feed.items, { id: \"caller\", name: who.name ?? \"\", phone: who.phone, email: null }, now.getTime()), rt.timezone, now.getTime());"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") && wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"), "WhatsApp: with who they are");
   // Phone: the visits in the caller context, and a call for a switched-off
