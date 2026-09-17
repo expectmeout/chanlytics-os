@@ -1487,6 +1487,22 @@ function emailSubjectOf(m) {
   const email = m.meta?.email;
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
 }
+function emailLeftOutOf(meta) {
+  const email = meta?.email;
+  if (!email) return null;
+  const files = Array.isArray(email.attachments) ? email.attachments : [];
+  const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
+  const names = files.map((f) => f?.filename).filter((n) => typeof n === "string" && n.trim().length > 0);
+  const total = files.length + unnamed;
+  const said = [];
+  if (total) {
+    const rest = total - names.length;
+    const listed = names.length ? `: ${names.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
+    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
+  }
+  if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
+  return said.length ? said.join(" ") : null;
+}
 function isIdentifierName(name) {
   return /^[+\d(]/.test(name) || name.includes("@");
 }
@@ -1641,12 +1657,14 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     const media = mediaVM(m);
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
       // An email's subject line, above its words.
       ...subject ? { subject } : {},
+      ...leftOut ? { leftOut } : {},
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...media ? { media } : {},
@@ -9573,6 +9591,7 @@ export {
   durationLabel,
   eligibleFor,
   eligibleForPlaybook,
+  emailLeftOutOf,
   emailNotConfirmed,
   emptyAudienceRefusal,
   emptyBusinessRecord,

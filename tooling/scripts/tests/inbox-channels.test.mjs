@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toInboxThreadVM, contactMeta } from "@chanlytics/contracts";
+import { toInboxThreadVM, contactMeta, emailLeftOutOf } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
@@ -67,4 +67,19 @@ test("the wiring: the page branches on the channel and reads the reason's senten
   // The words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.
   assert.ok(pills.includes('<StatePill kind="thread" value="open" />') && pills.includes('<StatePill kind="thread" value="escalated" />') && !pills.includes("Customer's turn"));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('whatsapp: "WhatsApp", phone: "Phone"'), "the phone chip has a label");
+});
+
+test("an email says what it carried that the thread does not show: files by name and count, words past the bound; and nothing when it was kept whole", () => {
+  const file = (filename) => ({ filename, contentType: "application/pdf", size: 1000 });
+  const said = (email) => emailLeftOutOf({ email });
+  assert.equal(said({ subject: "Quote", attachments: [], more_attachments: 0, truncated: false }), null);
+  assert.equal(emailLeftOutOf(null), null);
+  assert.equal(emailLeftOutOf({ source: "broadcast" }), null, "a row that is not an email says nothing");
+  assert.equal(said({ attachments: [file("floorplan.pdf")] }), "1 attachment was not kept: floorplan.pdf.");
+  assert.equal(said({ attachments: [file("a.pdf"), file("b.jpg")], more_attachments: 3 }), "5 attachments were not kept: a.pdf, b.jpg and 3 more.", "the intake names five at most and counts the rest");
+  assert.equal(said({ attachments: [file(null), file("  ")] }), "2 attachments were not kept.", "a file with no name is still a file");
+  assert.equal(said({ attachments: [file("a.pdf"), file(null)] }), "2 attachments were not kept: a.pdf and 1 more.");
+  assert.equal(said({ attachments: [], truncated: true }), "This email was longer than Chanlytics keeps; the rest was left out.");
+  assert.equal(said({ attachments: [file("a.pdf")], truncated: true }), "1 attachment was not kept: a.pdf. This email was longer than Chanlytics keeps; the rest was left out.");
+  assert.equal(said({ attachments: "nonsense", more_attachments: -2, truncated: "yes" }), null, "meta is JSON: a shape that is not the intake's says nothing rather than something wrong");
 });

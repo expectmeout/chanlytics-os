@@ -228,6 +228,11 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
   const order = [];
   walk(emailBubble, (n) => { if (byTestId("tl-msg-subject")(n)) order.push("subject"); if (hasClass("tl-msg-body")(n)) order.push("body"); });
   assert.deepEqual(order, ["subject", "body"], "what it is about, then what it says");
+  assert.equal(find(emailBubble, byTestId("tl-msg-left-out")), undefined, "an email that was kept whole says nothing about it");
+  // An email's files are not kept: the bubble says which, or "see attached" reads as the whole of it.
+  const attached = { ...wrote("m10", "The floor plan is attached.", 10), channel: "email", meta: { email: { subject: "Floor plan", attachments: [{ filename: "floorplan.pdf", contentType: "application/pdf", size: 120000 }], more_attachments: 0, truncated: false } } };
+  const withFile = InboxThread({ thread: vmOf(chat({ contact: ana, last_wa_inbound_at: null, messages: [attached] })), channelLabels: { email: "Email" } });
+  assert.equal(textOf(find(withFile, byTestId("tl-msg-left-out"))).trim(), "1 attachment was not kept: floorplan.pdf.");
   // They wrote last by email, so that is where a reply goes, and the reply box says so: no window, no templates.
   const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
   assert.equal(box?.props.placeholder, `Email to ${vm.who}…`, "REGRESSION guard: every wire that was not a text was named WhatsApp");
