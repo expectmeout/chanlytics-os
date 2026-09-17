@@ -5774,6 +5774,24 @@ function templatePreviewValues(t, own = {}) {
 function templatePreview(t, own = {}) {
   return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
+function footerOf(components) {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c;
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+function templateFooter(t) {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
 var TEMPLATE_TITLE_MAX = 60;
 function templateTitle(name, title) {
   const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
@@ -9801,6 +9819,7 @@ export {
   fmtDay,
   fmtSeconds,
   followupsToShow,
+  footerOf,
   formatPhoneDisplay,
   formatWaited,
   forwardingCodes,
@@ -10028,6 +10047,7 @@ export {
   suggestLocalPart,
   telHref,
   templateComponents,
+  templateFooter,
   templateNameOk,
   templatePreview,
   templatePreviewValues,

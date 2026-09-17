@@ -334,6 +334,47 @@ export function templatePreview(t: { name: string; language?: string | null; bod
   return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
 
+/**
+ * The line under a message's words, from the components Meta holds.
+ *
+ * `templates.components` has carried Meta's own component array since 00045 --
+ * the sync writes `t.components` straight through (edge meta-templates.ts
+ * templateRow) and a template written here is submitted with the array
+ * `templateComponents` builds, FOOTER included. So the footer has been STORED
+ * all along and simply never read back: the three composers resolved one only
+ * through `starterByName`, i.e. only for the five starters whose footers are
+ * hard-coded below. A template a workspace wrote showed "Reply STOP to opt out"
+ * while it was being drafted and nowhere afterwards.
+ *
+ * This is the same shape the edge's `bodyOf` reads for the body.
+ */
+export function footerOf(components: unknown): string | null {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (!c || typeof c !== "object") continue;
+    const part = c as { type?: unknown; text?: unknown };
+    if (String(part.type ?? "").toUpperCase() !== "FOOTER") continue;
+    const text = typeof part.text === "string" ? part.text.trim() : "";
+    if (text) return text;
+  }
+  return null;
+}
+
+/**
+ * A row's footer: the one Meta holds, else the starter's own.
+ *
+ * The fallback matters for a workspace that added the starter set before the
+ * read existed -- its rows carry components, but a row written by hand or by an
+ * older webhook may not, and the library still knows what that message says.
+ */
+export function templateFooter(t: { name: string; language?: string | null; components?: unknown; footer?: string | null }): string | null {
+  if (typeof t.footer === "string" && t.footer.trim()) return t.footer.trim();
+  const stored = footerOf(t.components);
+  if (stored) return stored;
+  const s = starterByName(t.name);
+  return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
+}
+
 export const TEMPLATE_TITLE_MAX = 60;
 
 /**
