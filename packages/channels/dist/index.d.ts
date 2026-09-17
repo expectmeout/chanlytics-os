@@ -635,11 +635,16 @@ declare const VOICE_LLM_DEFAULTS: {
 };
 /**
  * The product's voice and the call's shape, pinned from the live line so a
- * second workspace sounds like the first. Retention is the product's 90
- * days; the pipeline copies audio into private storage within seconds.
+ * second workspace sounds like the first. The voice is Tamsin (MiniMax):
+ * Ruben chose it on the salon's line on 17 September 2026 (agent v6, then v7)
+ * after Andrea (ElevenLabs) had opened every call before that, and a new
+ * workspace should sound like the line customers already hear. The converger
+ * never touches an existing agent's voice, so this only reaches agents
+ * provisioned from now on. Retention is the product's 90 days; the pipeline
+ * copies audio into private storage within seconds.
  */
 declare const VOICE_AGENT_DEFAULTS: {
-    readonly voice_id: "11labs-Andrea";
+    readonly voice_id: "minimax-Tamsin";
     readonly language: readonly ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"];
     readonly end_call_after_silence_ms: 30000;
     readonly max_call_duration_ms: 3600000;
