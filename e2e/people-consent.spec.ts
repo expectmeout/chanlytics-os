@@ -100,4 +100,56 @@ test.describe("Consent for one person", () => {
     expect(seen[1].body).toEqual({ notes: "Sees Sofia. Prefers mornings." });
     await expect(page.getByText("Notes for the receptionist")).toBeVisible();
   });
+
+  /**
+   * The address, for real: this workspace is the nightly's own and its people
+   * are seeded (tooling/scripts/e2e-workspace.mjs resets `email` each run), so
+   * the door is walked end to end instead of intercepted. What is wrong with a
+   * typed address is said under the field and sends nothing; a good one goes
+   * through PUT details to set_person_email (00125), comes back in the door's
+   * own spelling, and an empty one clears it.
+   */
+  test("a person's email address is added, refused when it is not one, stored in one spelling, and cleared — through the real door", async ({ page }) => {
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const robin = page.locator(".cl-table tbody tr", { hasText: "Robin Example" });
+    test.skip((await robin.count()) === 0, "the seeded person is not in this workspace");
+    await robin.first().click();
+    await expect(page.locator(".cl-prof-name")).toBeVisible();
+
+    const row = page.getByTestId("person-email");
+    await expect(row).toBeVisible();
+    // A run that died half way leaves an address behind until the next seed: start from none.
+    if ((await page.getByTestId("person-email-edit").getAttribute("aria-label")) === "Change the email address") {
+      await page.getByTestId("person-email-edit").click();
+      await page.getByTestId("person-email-input").fill("");
+      await page.getByTestId("person-email-save").click();
+      await expect(page.getByTestId("person-email-edit")).toHaveAttribute("aria-label", "Add an email address");
+    }
+
+    const puts: string[] = [];
+    page.on("request", (r) => { if (r.method() === "PUT" && /\/api\/v1\/contacts\/[^/]+\/details/.test(r.url())) puts.push(r.postData() ?? ""); });
+
+    await page.getByTestId("person-email-edit").click();
+    const input = page.getByTestId("person-email-input");
+    await input.fill("robin.example.com");
+    await page.getByTestId("person-email-save").click();
+    await expect(page.getByTestId("person-email-problem")).toContainText("missing the @");
+    expect(puts, "a refusal under the field sends nothing").toHaveLength(0);
+
+    await input.fill("  Robin.E2E@Example.COM ");
+    await input.press("Enter");
+    await expect(row).toContainText("robin.e2e@example.com");
+    expect(JSON.parse(puts[0])).toEqual({ email: "Robin.E2E@Example.COM" });
+
+    // Still there on a cold load: it was stored, not drawn.
+    await page.reload();
+    await expect(page.getByTestId("person-email")).toContainText("robin.e2e@example.com");
+
+    await page.getByTestId("person-email-edit").click();
+    await page.getByTestId("person-email-input").fill("");
+    await page.getByTestId("person-email-save").click();
+    await expect(page.getByTestId("person-email-edit")).toHaveAttribute("aria-label", "Add an email address");
+    await expect(page.getByTestId("person-email")).not.toContainText("@");
+  });
 });

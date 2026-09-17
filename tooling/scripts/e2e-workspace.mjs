@@ -255,7 +255,7 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
     }
     const fields = {
       display_name: person.name, wa_profile_name: person.waProfile, consent: "unknown", consent_source: null, consent_updated_at: null,
-      dnc: false, notes: null, marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null,
+      dnc: false, notes: null, email: null, marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null,
       merged_into_contact_id: null,
     };
     if (row) must("resetting a person", await db.from("contacts").update(fields).eq("id", row.id));
