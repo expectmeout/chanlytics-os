@@ -139,7 +139,14 @@ test("rows written in the same instant survive the page edge: the cursor carries
   assert.equal(seen.size, 130, "and none of them read twice");
 });
 
-test("a cursor that is not one is refused, like every other filter", async () => {
+test("a cursor that is not one is refused, like every other filter -- but every spelling PostgREST uses for an instant is one", async () => {
   await assert.rejects(route.GET.run(get("&cursor=100"), ctxFor(tables(), rpcs)), (e) => e.code === "validation");
   await assert.rejects(route.GET.run(get("&cursor=2026-09-01T00:00:00Z"), ctxFor(tables(), rpcs)), (e) => e.code === "validation", "an instant with no row is half a cursor");
+  await assert.rejects(route.GET.run(get("&cursor=2026-09-01T00:00:00Z|x-nope"), ctxFor(tables(), rpcs)), (e) => e.code === "validation", "and a row from neither ledger is not one either");
+  // The zone suffix is PostgREST’s to spell, and a cursor the page was just
+  // handed must never come back refused.
+  for (const at of ["2026-09-11T14:00:00Z", "2026-09-11T14:00:00+00:00", "2026-09-11T14:00:00.123456+00:00", "2026-09-11T14:00:00"]) {
+    const r = await route.GET.run(get(`&cursor=${encodeURIComponent(`${at}|d-d1`)}`), ctxFor(tables(), rpcs));
+    assert.ok(Array.isArray(r.rows), `${at} is a cursor`);
+  }
 });
