@@ -33,7 +33,11 @@ const bcLangWords = (t) => (t && window.__starters && window.__starters.langWord
 const bcOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 // What a broadcast opens on: the quick note when the workspace holds it, else the first.
 const bcDefault = (list) => ((window.__starters ? window.__starters.defaultFor(list, null) : list[0]) || null);
-const bcFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
+// The line under the words: the one Meta holds for this row, else the starter's
+// own (contracts templateFooter). It resolved ONLY through the starter library
+// before, so a template a workspace wrote here showed its footer while it was
+// being drafted and never again -- on this page, on Playbooks, and on Messages.
+const bcFooter = (t) => (t && window.__starters && window.__starters.footer ? window.__starters.footer(t) : null);
 // What fills a slot on a broadcast: the composers' words (contracts PARAM_SOURCE_LABELS) less a visit's time and
 // service, which only a visit playbook's run carries for each person.
 const bcSources = () => Object.fromEntries(Object.entries((window.__starters && window.__starters.sources) || { text: "Type it" }).filter(([k]) => !k.startsWith("visit_")));

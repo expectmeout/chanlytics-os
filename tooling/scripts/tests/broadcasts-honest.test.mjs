@@ -649,3 +649,41 @@ test("A message says its state once, and a refusal is a line rather than a hover
   assert.ok(said.includes("abusive content"), said);
   assert.ok(said.includes("send it back"), "and what to do about it");
 });
+
+test("A template written here keeps its footer everywhere, not only while it is being drafted", () => {
+  // The components as the CREATE path files them with Meta, built by contracts --
+  // not a shape invented here.
+  const written = contracts.templateComponents({
+    name: "spring_offer", language: "en_US", category: "marketing",
+    body: "Hi {{1}}, 20% off any service this week.", footer: "Reply STOP to opt out", examples: ["Dani"],
+  });
+  // And as the SYNC stores them, which is Meta's own array.
+  const fromManager = [{ type: "BODY", text: "Hi {{1}}, your table is ready." }, { type: "FOOTER", text: "Not now? Reply STOP" }];
+
+  const mine = templateRow({ id: "t-mine", name: "spring_offer", purpose: "marketing", body_preview: "Hi {{1}}, 20% off any service this week.", variables: [{ position: 1, label: "First name", example: "Dani" }], footer: contracts.footerOf(written) });
+  const theirs = templateRow({ id: "t-theirs", name: "front_desk_note", source: "meta", purpose: "marketing", body_preview: "Hi {{1}}, your table is ready.", variables: [{ position: 1, label: "First name", example: "Dani" }], footer: contracts.footerOf(fromManager) });
+
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [mine, theirs], number: healthyNumber });
+  let tree = page({ initialSegment: null, initialRun: null });
+  assert.ok(textOf(byTestId(tree, "bc-preview")).includes("Reply STOP to opt out"), textOf(byTestId(tree, "bc-preview")));
+
+  // The other one, picked: a template synced from WhatsApp Manager keeps ITS words.
+  const chips = all(tree, (n) => n.props?.["data-testid"] === "bc-template");
+  press(chips[chips.length - 1]);
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(textOf(byTestId(tree, "bc-preview")).includes("Not now? Reply STOP"), textOf(byTestId(tree, "bc-preview")));
+
+  // On Messages too, where it said a starter's footer or nothing at all.
+  // Scoped to the workspace's OWN row: the starter cards on the same page draw the
+  // library's footer, so reading the whole section would pass either way.
+  const msgTree = messages({ __TEMPLATES_ALL: [mine] });
+  const own = byTestId(msgTree, "custom-row");
+  assert.ok(own, "the workspace's own message has a card");
+  assert.ok(textOf(own).includes("Reply STOP to opt out"), textOf(own));
+
+  // A row with no footer on file invents none -- and a STARTER still knows its own.
+  const bare = templateRow({ id: "t-bare", name: "front_desk_note", footer: null, body_preview: "No footer here." });
+  assert.equal(globalThis.window.__starters.footer(bare), null);
+  const s = globalThis.window.__starters.list[0];
+  assert.equal(globalThis.window.__starters.footer({ name: s.name, language: "es", footer: null }), s.texts.es.footer);
+});

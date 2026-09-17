@@ -58,10 +58,11 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
   // preview marks what varies per person, which a filled string cannot.
   const body = row ? row.body_preview || "" : starterText ? starterText.body : "";
   const values = !S ? null : row ? S.rowValues(row, own) : g.starter ? S.starterValues(g.starter, langId, own.business_name, own.booking_link) : null;
-  // A footer is a starter's: `public.templates` has no column for one, so a
-  // template written here or synced from WhatsApp Manager has none on file and
-  // the preview shows none rather than inventing the line.
-  const footer = starterText ? starterText.footer : null;
+  // The line under the words. `public.templates` does have one on file -- Meta's
+  // components, kept since 00045 -- and nothing read it, so this said a starter's
+  // footer and nothing else. A row the workspace wrote now shows its own; a
+  // starter not yet added shows the library's, which is what WhatsApp would see.
+  const footer = row && S ? S.footer(row) : starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
   const pbRows = window.__PLAYBOOKS ? window.__PLAYBOOKS.rows || [] : null;

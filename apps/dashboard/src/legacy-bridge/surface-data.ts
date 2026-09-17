@@ -223,6 +223,14 @@ export interface ApprovedTemplate {
   language: string;
   body_preview: string | null;
   variables: unknown;
+  /**
+   * The line under the words, as Meta holds it. The route reads it out of the
+   * row's `components` (00045) so the pages get a string rather than Meta's
+   * array; null when the template has no footer, or when a row written before
+   * the sync kept components has none on file -- `templateFooter` then falls
+   * back to the starter library, which knows its own five.
+   */
+  footer?: string | null;
 }
 
 /** Every template with its status, for Settings; the composer keeps ApprovedTemplate. */

@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, footerOf, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/service";
@@ -26,7 +26,14 @@ import { createTemplate } from "@/server/service";
  * Meta then says (pending, approved, rejected with a reason) is the row's
  * status, kept current by the webhook.
  */
-const COLUMNS = "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title";
+/**
+ * `components` is read but never returned: the row keeps Meta's whole component
+ * array (00045, written by the sync and by a create), and the one thing the
+ * pages want out of it is the footer -- the line under the words. Sending the
+ * array to the browser so three composers can each dig the same string out of it
+ * would put Meta's shape in a .jsx file, where the compiler cannot see it.
+ */
+const COLUMNS = "id, channel, name, language, body_preview, variables, category, meta_status, quality, rejected_reason, synced_at, source, hidden_at, title, components";
 
 const Query = z.object({
   /** `1` for Settings: every template with its status. */
@@ -44,7 +51,9 @@ export const GET = read({
     if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);
     const { data, error } = await q.order("name");
     if (error) throw new Error(error.message);
-    return { templates: data ?? [] };
+    // The footer as a line, and Meta's array left behind.
+    const templates = (data ?? []).map(({ components, ...t }) => ({ ...t, footer: footerOf(components) }));
+    return { templates };
   },
 });
 

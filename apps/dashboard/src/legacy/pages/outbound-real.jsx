@@ -43,7 +43,11 @@ const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(n
 // A language code as a person reads it; the code itself when the library is not read.
 const pbLangWords = (code) => (window.__starters && window.__starters.langWords ? window.__starters.langWords(code) : String(code || ""));
 const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
-const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
+// The line under the words: the one Meta holds for this row, else the starter's
+// own (contracts templateFooter). It resolved ONLY through the starter library
+// before, so a template a workspace wrote here showed its footer while it was
+// being drafted and never again -- on this page, on Playbooks, and on Messages.
+const pbFooter = (t) => (t && window.__starters && window.__starters.footer ? window.__starters.footer(t) : null);
 // What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
 const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
 const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
