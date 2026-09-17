@@ -82,12 +82,14 @@ const PaneActivity = () => {
   }
   return (
     <section className="fl-card set-card" data-testid="set-activity">
-      <div className="ct-sec-head">
-        <span className="ct-sec-title">Activity</span>
-        <span className="ct-sec-meta">What happened, and who did it · newest first</span>
+      <div className="fl-card-head">
+        <span className="fl-card-title">Activity</span>
+        <span className="fl-card-sub">What happened, and who did it · newest first</span>
       </div>
-      <div className="bc-row" style={{ flexWrap: "wrap", gap: 8 }}>
+      {/* The three filters are the settings input: they had no class, so they were the browser's own boxes. */}
+      <div className="set-filters">
         <input
+          className="set-input"
           list="act-kinds"
           placeholder="Any kind"
           aria-label="Kind of activity"
@@ -96,15 +98,14 @@ const PaneActivity = () => {
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); chooseKind(kindTyped); } }}
           onBlur={() => chooseKind(kindTyped)}
           data-testid="act-kind"
-          style={{ maxWidth: 220 }}
         />
         <datalist id="act-kinds">{st.kinds.map((k) => <option key={k} value={k} />)}</datalist>
-        <input type="date" aria-label="Day" value={day} onChange={(e) => setDay(e.target.value)} data-testid="act-day" />
+        <input className="set-input" type="date" aria-label="Day" value={day} onChange={(e) => setDay(e.target.value)} data-testid="act-day" />
         {person
           ? <span className="cl-seg-filter" data-testid="act-person"><Icon name="user" size={10} />{person.name}<button className="cl-seg-filter-x" aria-label={`Everyone, not only ${person.name}`} onClick={() => setPerson(null)}><Icon name="x" size={9} /></button></span>
           : (
-            <span style={{ position: "relative" }}>
-              <input placeholder="A person, by name or number" aria-label="A person, by name or number" value={personQ} onChange={(e) => setPersonQ(e.target.value)} data-testid="act-person-q" style={{ maxWidth: 240 }} />
+            <span className="set-filter-person">
+              <input className="set-input" placeholder="A person, by name or number" aria-label="A person, by name or number" value={personQ} onChange={(e) => setPersonQ(e.target.value)} data-testid="act-person-q" />
               {matches.length > 0 && (
                 <div className="cl-prof-autonomy" style={{ flexWrap: "wrap" }}>
                   {matches.map((m) => <button key={m.id} className="cl-prof-aut-seg" onClick={() => { setPerson(m); setPersonQ(""); setMatches([]); }}>{m.name}</button>)}
@@ -120,7 +121,7 @@ const PaneActivity = () => {
         {!st.loading && st.rows.length === 0 && !st.error && <EmptyState kind="line" title="Nothing here for that." action={kind || day || person ? { label: "Clear the filters", onClick: () => { setKind(""); setKindTyped(""); setDay(""); setPerson(null); } } : null} />}
       </div>
       {st.hasMore && <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.rows.length, true)} data-testid="act-more">{st.loading ? "Loading…" : "Show more"}</button>}
-      <div className="cl-prof-aut-hint">Model usage, webhook receipts and unplaced messages are kept but not listed here; name a kind to see them.</div>
+      <p className="set-card-foot">Model usage, webhook receipts and unplaced messages are kept but not listed here; name a kind to see them.</p>
     </section>
   );
 };

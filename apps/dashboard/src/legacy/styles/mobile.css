@@ -197,15 +197,28 @@
 
   /* ---------- Settings ---------- */
   .settings { grid-template-columns: 1fr; grid-template-rows: auto minmax(0, 1fr); }
-  .set-nav { flex-direction: row; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 6px 8px; }
+  /* The rail is one strip of tabs: no scrollbar drawn under it, and its two
+     groups are a hairline between Profile and the workspace's tabs rather than
+     two words in capitals scrolling by with them. The open tab is brought into
+     view by the page (settings.jsx): past Business it was off the screen. */
+  .set-nav { flex-direction: row; align-items: center; gap: 2px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 6px 12px; scrollbar-width: none; }
+  .set-nav::-webkit-scrollbar { display: none; }
   .set-nav .fl-roster-head { display: none; }
+  .set-nav-group { flex: 0 0 1px; align-self: stretch; width: 1px; margin: 10px 6px; padding: 0; overflow: hidden; font-size: 0; background: var(--line); }
+  .set-nav-group:first-of-type { display: none; }
   .set-nav-row { grid-template-columns: auto auto; white-space: nowrap; flex: 0 0 auto; }
-  .set-pane { padding: 16px 16px 32px; }
+  .set-pane { padding: 16px 16px 48px; gap: 16px; }
+  .settings .set-card { padding: 18px 18px 8px; }
   /* A card that scrolls sideways (below, for wide tables) gets min-height 0 in
      this bounded flex column and collapsed to its head with an inner scroll —
      every Settings card, on every phone. Cards keep their height; the pane scrolls. */
   .set-pane > * { flex: 0 0 auto; }
-  .set-row { flex-direction: column; align-items: flex-start; gap: 8px; }
+  /* A row keeps its control on the right while there is room for both (a
+     switch, a short button) and lets it take the next line when there is not (a
+     five-step dial). It used to stack every control under its words, so a
+     switch sat alone at the left edge under a paragraph. */
+  .set-row { flex-wrap: wrap; gap: 10px 16px; }
+  .set-row-info { flex: 1 1 200px; }
   /* A Setup row's sentence is the content: on a phone it wraps instead of ending in an ellipsis. */
   .setup-rows .cl-attn-sentence { white-space: normal; }
 

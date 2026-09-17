@@ -10,41 +10,58 @@
   grid-template-columns: var(--rail-nav) minmax(0, 1fr);
   min-width: 0;
   overflow: hidden;
+  /* The settings column's own scale, named once. Three sizes of type (a
+     section's title, a row's label, the sentence under it), one row height,
+     one leading tile. The panes had grown five kinds of row at 7, 8, 9, 10 and
+     12px of padding and seven sizes of type between 10 and 13px, which is what
+     "cluttered" was: nothing wrong with any one row, no two alike. */
+  --set-title: var(--text-md);
+  --set-label: var(--text-base);
+  --set-hint: var(--text-sm);
+  --set-row-y: 14px;
+  --set-lead: 36px;
+  --set-lead-gap: 14px;
 }
 
 .set-nav {
   display: flex;
   flex-direction: column;
-  gap: 1px;
+  gap: 2px;
   border-right: 1px solid var(--line);
   background: var(--bg-sunken);
-  padding: 8px;
+  padding: 12px 10px 24px;
   overflow-y: auto;
 }
+/* The top bar's crumb already says "Settings"; the rail does not say it again. */
+.set-nav .fl-roster-head { display: none; }
 .set-nav-row {
   grid-template-columns: 16px 1fr;
+  gap: 10px;
+  min-height: 34px;
+  padding: 0 10px;
 }
 .set-nav-row .icon { color: var(--ink-dim); }
 .set-nav-row.active .icon { color: var(--ink); }
-.set-nav-label { font-size: 12.5px; font-weight: 500; color: var(--ink); }
+.set-nav-label { font-size: var(--set-label); font-weight: 500; color: var(--ink-muted); }
+.set-nav-row:hover .set-nav-label, .set-nav-row.active .set-nav-label { color: var(--ink); }
 /* Two groups, because the rail holds two different things: you, and the
    workspace. Without them Profile read as one more workspace setting. */
 .set-nav-group {
-  padding: 12px 8px 4px;
-  font-size: 10px;
+  padding: 18px 10px 6px;
+  font-size: 10.5px;
   font-weight: 500;
-  letter-spacing: .06em;
+  letter-spacing: .07em;
   text-transform: uppercase;
   color: var(--ink-faint);
 }
-.set-nav-group:first-of-type { padding-top: 4px; }
+.set-nav-group:first-of-type { padding-top: 6px; }
 
 .set-pane {
   overflow-y: auto;
-  padding: 20px 28px 48px;
+  padding: 28px var(--gutter-page) 72px;
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 20px;
   animation: route-in 240ms var(--ease-out);
   scrollbar-width: thin;
   scrollbar-color: var(--line-strong) transparent;
@@ -55,27 +72,104 @@
    the Setup rows, which had no measure at all and so ran to the pane edge
    while the cards above and below them stopped at 720. Measured before
    changing it: not one Setup row's sentence or status line clips at this
-   width, so the extra space it was using was empty. */
+   width, so the extra space it was using was empty.
+   The column sits in the middle of the pane: held to the left, a wide monitor
+   put every section against the rail and left the other half of the screen
+   empty. Whatever a pane draws is a child of the pane, so the rule is the
+   pane's and no section can forget it. */
 .set-card, .setup-rows { max-width: var(--measure-prose); }
+.set-pane > * { width: 100%; max-width: var(--measure-prose); margin-inline: auto; flex: 0 0 auto; }
 
-/* Rows */
+/* A section: its title, and under it the one sentence that says what it is.
+   The sentence sat opposite the title, right-aligned, where a long one ran the
+   width of the card at 11px; an act the section offers (Invite, Edit) keeps the
+   right-hand side to itself. */
+.settings .set-card { padding: 20px 24px 10px; }
+.settings .fl-card-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 16px;
+  row-gap: 3px;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.settings .fl-card-title { grid-column: 1; font-size: var(--set-title); font-weight: 600; letter-spacing: -0.01em; }
+.settings .fl-card-sub { grid-column: 1; font-size: var(--set-hint); line-height: 1.45; color: var(--ink-dim); max-width: 64ch; text-wrap: pretty; }
+.settings .fl-card-head > :not(.fl-card-title):not(.fl-card-sub) { grid-column: 2; grid-row: 1 / span 2; justify-self: end; }
+
+/* Rows: what it is on the left, the control on the right, a hairline between
+   two rows and none under the section's head. */
 .set-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
-  padding: 12px 0;
+  gap: 24px;
+  padding: var(--set-row-y) 0;
   border-top: 1px solid var(--line);
 }
-.set-row:first-of-type { border-top: none; }
-.set-row-info { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.set-row-label { font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.set-row-hint { font-size: 10.5px; color: var(--ink-dim); font-style: italic; }
-.set-row-control { flex-shrink: 0; }
+.set-row:first-of-type,
+.fl-card-head + .set-row, .fl-card-head + .set-int-row, .fl-card-head + .set-team-row { border-top: none; }
+.set-row-info { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.set-row-label { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
+/* Upright, and a size a person reads: the sentence under a label is most of the
+   words on this surface, and it was 10.5px italic. */
+.set-row-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
+.set-row-control { flex-shrink: 0; display: flex; align-items: center; gap: 8px; }
+
+/* The controls a row carries, at the row's scale: the product's small button,
+   quiet link and pill are sized for a dense list, and looked lost at the end of
+   a row this tall. Scoped here so nothing outside Settings moves. */
+.settings .btn-sm { height: 30px; padding: 0 12px; font-size: var(--set-hint); border-radius: var(--radius-md); }
+.settings .btn-icon.btn-sm { width: 30px; padding: 0; }
+.settings .cl-bucket-link {
+  height: 30px;
+  padding: 0 8px;
+  border-radius: var(--radius-md);
+  font-size: var(--set-hint);
+  font-weight: 500;
+  color: var(--ink-muted);
+  text-decoration: none;
+  transition: background var(--duration-fast) var(--ease-out), color var(--duration-fast) var(--ease-out);
+}
+.settings .cl-bucket-link:hover { background: var(--bg-hover); color: var(--ink); }
+.settings .cl-bucket-link:focus-visible { outline: var(--focus-ring); outline-offset: 1px; }
+.settings .pill { height: 22px; padding: 0 9px; font-size: 11.5px; }
+.set-pane a:not([class]) { color: var(--ink); text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px; }
+.set-pane a:not([class]):hover { text-decoration-color: currentColor; }
+/* A state is a word, not something to press: on a phone the touch floor
+   (legacy-bridge/legacy.css) grew every pill to 36px, so "On" and "Paid" were
+   ovals taller than the text beside them. A pill that IS pressed is a button
+   and keeps the floor. */
+@media (pointer: coarse) {
+  html.legacy-on .settings span.pill { min-height: 0; padding-top: 0; padding-bottom: 0; }
+}
+
+/* Facts in two columns (the Business pane, the activity ledger): the name of a
+   fact, then the fact. The list is the person's page's, where the key is a word
+   or two at 100px; here the keys are phrases ("Tells customers to call") and
+   wrapped onto two lines, and the dashes between rows were the only dashed
+   rules on the surface. */
+.settings .cl-prof-attr { grid-template-columns: 176px minmax(0, 1fr); gap: 16px; padding: 11px 0; font-size: var(--set-label); line-height: 1.45; border-bottom: 1px solid var(--line); }
+.settings .cl-prof-attr:last-child { border-bottom: none; }
+.settings .cl-prof-attr-key { font-size: var(--set-hint); color: var(--ink-dim); padding-top: 1px; }
+@media (max-width: 640px) {
+  .settings .cl-prof-attr { grid-template-columns: 1fr; gap: 2px; }
+}
+/* A fact's own link ("Open") is part of its sentence, not a control at the end of a row. */
+.settings .cl-prof-attr .cl-bucket-link { height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
+.settings .cl-prof-aut-hint { margin-top: 0; font-size: var(--set-hint); font-style: normal; line-height: 1.5; }
+/* Filters over a list: the settings input, a row of them. */
+.set-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 12px; }
+.set-filters .set-input { width: auto; flex: 1 1 180px; max-width: 240px; }
+.set-filter-person { position: relative; display: flex; flex: 1 1 180px; max-width: 240px; }
+.set-filter-person .set-input { flex: 1 1 auto; max-width: none; }
+.set-filters + .cl-prof-attr-list { border-top: 1px solid var(--line); }
+.settings .st-bullets { margin: 4px 0 12px; gap: 9px; }
+.settings .st-bullets li { font-size: var(--set-label); }
 
 /* Switch */
 .set-switch {
-  width: 34px; height: 19px;
+  width: 36px; height: 20px;
   border-radius: 999px;
   background: var(--line-strong);
   border: none;
@@ -87,33 +181,87 @@
 .set-switch.on { background: var(--ok); }
 .set-knob {
   position: absolute;
-  top: 2.5px; left: 2.5px;
-  width: 14px; height: 14px;
+  top: 2px; left: 2px;
+  width: 16px; height: 16px;
   border-radius: 999px;
   background: white;
   box-shadow: 0 1px 2px oklch(0 0 0 / 0.25);
   transition: transform 160ms var(--ease-out);
 }
-.set-switch.on .set-knob { transform: translateX(15px); }
+.set-switch.on .set-knob { transform: translateX(16px); }
 
-/* Team / integrations rows */
+/* Team / connection rows: the same row with something in front of it. */
 .set-team-row, .set-int-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 10px 0;
+  gap: var(--set-lead-gap);
+  padding: var(--set-row-y) 0;
   border-top: 1px solid var(--line);
 }
 .set-team-row:first-of-type, .set-int-row:first-of-type { border-top: none; }
-.set-team-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
-.set-team-name { font-size: 12.5px; font-weight: 500; color: var(--ink); }
-.set-team-mail { font-size: 11px; color: var(--ink-dim); }
-.set-int-tile { width: 30px !important; height: 30px !important; border-radius: 8px !important; }
-/* On a phone a row's words keep the width; its pill and verbs take the next line, right-aligned. */
+.set-team-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+/* An address is one long word: it wraps inside its own column instead of running under the role beside it. */
+.set-team-name, .set-team-mail { overflow-wrap: anywhere; }
+.set-team-name { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
+/* What a row is called, then what it is attached to (a number, an address):
+   the second part is a detail and reads as one. `.dim` had no rule anywhere. */
+.set-team-name .dim { font-weight: 400; color: var(--ink-dim); }
+.set-team-mail { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* One tile for every connection. The ones that are NOT connected wore the
+   solid black tile and were the loudest thing on the page; what is connected
+   now has the ink, and what is not is quieter than it. */
+.set-int-tile { width: var(--set-lead) !important; height: var(--set-lead) !important; border-radius: 10px !important; }
+.settings .st-tile.set-int-tile { background: var(--bg-sunken); color: var(--ink-dim); border: 1px solid var(--line); }
+.settings .st-tile.set-int-tile.installed { color: var(--ink); }
+
+/* Connections: every row of a group shares the group's columns (the tile, the
+   words, the state, the acts), so the states line up under one another and so
+   do the acts, the way a table's do. Each row used to lay itself out alone, and
+   "On", "Watched" and "Readable" each sat wherever that row's buttons left it. */
+.set-conn {
+  display: grid;
+  grid-template-columns: var(--set-lead) minmax(0, 1fr) auto auto;
+  column-gap: var(--set-lead-gap);
+}
+.set-conn > * { grid-column: 1 / -1; }
+.set-conn > .set-int-row { display: grid; grid-template-columns: subgrid; align-items: center; }
+.set-conn > .set-int-row > .pill { justify-self: start; }
+.set-int-actions { display: flex; align-items: center; justify-content: flex-end; gap: 4px; }
+/* The group is called Later; its rows do not each say so again. */
+.set-conn > .set-int-row[data-state="later"] > .pill { display: none; }
+.set-conn > .set-int-row[data-state="later"] .set-team-name { color: var(--ink-muted); }
+/* What a row opens under itself (the locations to choose among, the business
+   record) starts where the row's words do. */
+.set-conn > .set-row-stack { padding-left: calc(var(--set-lead) + var(--set-lead-gap)); border-top: none; padding-top: 0; }
+/* A note about the group, after its rows. */
+.set-card-foot { margin: 0; padding: 14px max(0px, calc(100% - 68ch)) 10px 0; border-top: 1px solid var(--line); font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
+/* On a phone a row's words keep the width; its state and acts take the next line, under the words. */
 @media (max-width: 640px) {
-  .set-int-row { flex-wrap: wrap; }
-  .set-int-row > .set-team-body { flex: 1 1 calc(100% - 40px); }
-  .set-int-row > .pill { margin-left: auto; }
+  .set-conn { grid-template-columns: var(--set-lead) minmax(0, 1fr); }
+  .set-conn > .set-int-row { row-gap: 10px; align-items: start; }
+  .set-conn > .set-int-row > .pill { grid-column: 2; grid-row: 2; align-self: center; }
+  .set-conn > .set-int-row > .set-int-actions { grid-column: 2; grid-row: 2; justify-content: flex-end; }
+  .set-conn > .set-row-stack { padding-left: 0; }
+}
+
+/* A table of records (invoices): named columns, figures that line up. */
+.set-table { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto auto; column-gap: 24px; }
+.set-table > * { grid-column: 1 / -1; }
+.set-table-head, .set-table-row { display: grid; grid-template-columns: subgrid; align-items: center; }
+.set-table-head { padding: 6px 0 8px; font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
+.set-table-row { padding: 12px 0; border-top: 1px solid var(--line); font-size: var(--set-label); color: var(--ink); }
+.set-table-row .dim { color: var(--ink-dim); }
+.set-table-num { font-variant-numeric: tabular-nums; text-align: right; }
+.set-table-key { font-weight: 500; font-variant-numeric: tabular-nums; }
+@media (max-width: 640px) {
+  .set-table { grid-template-columns: minmax(0, 1fr) auto auto; column-gap: 12px; }
+  .set-table-head { display: none; }
+  .set-table-row { row-gap: 4px; }
+  .set-table-row > :nth-child(1) { grid-column: 1; grid-row: 1; }
+  .set-table-row > :nth-child(3) { grid-column: 2 / -1; grid-row: 1; }
+  .set-table-row > :nth-child(2) { grid-column: 1; grid-row: 2; font-size: var(--set-hint); }
+  .set-table-row > :nth-child(4) { grid-column: 2; grid-row: 2; justify-self: end; }
+  .set-table-row > :nth-child(5) { grid-column: 3; grid-row: 2; }
 }
 
 /* Memory */
@@ -174,44 +322,77 @@
 .set-spend-roi.ok { color: var(--ok); font-weight: 500; }
 
 /* ---------- Team & roles (audit U3) ---------- */
-.set-team-row { display: flex; align-items: center; gap: 11px; padding: 9px 0; border-top: 1px solid var(--line); }
-.set-team-row:first-of-type { border-top: 0; }
+/* A member's row is the settings row with an avatar in front (above); what is
+   its own is the avatar's size, the pending look, and the word "You". */
+.set-team-row .avatar { width: 32px; height: 32px; font-size: 12px; }
 .set-team-row.pending { opacity: 0.72; }
-.set-team-you { font-size: 9.5px; font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); border-radius: var(--radius-full); padding: 1px 6px; margin-left: 7px; }
-.set-team-spacer { width: 28px; flex: none; }
+.set-team-you { font-size: 10px; font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent); background: color-mix(in oklab, var(--accent) 12%, transparent); border-radius: var(--radius-full); padding: 1px 7px; margin-left: 8px; vertical-align: 1px; }
+.set-team-spacer { width: 30px; flex: none; }
 
-.set-viewas { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; margin-bottom: 4px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-md); }
-.set-viewas-label { font-size: var(--text-xs); color: var(--ink-dim); font-weight: var(--weight-medium); }
-.set-viewas-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--text-xs); color: var(--accent); }
+/* "View as" is a row of the card, not a box inside it. */
+.set-viewas { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; padding: 4px 0 var(--set-row-y); }
+.set-viewas-label { font-size: var(--set-hint); color: var(--ink-dim); font-weight: var(--weight-medium); }
+.set-viewas-note { display: inline-flex; align-items: center; gap: 5px; font-size: var(--set-hint); color: var(--accent); }
 
-.set-invite { display: flex; align-items: center; gap: 8px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.set-invite { display: flex; align-items: center; gap: 8px; padding: var(--set-row-y) 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
 .set-invite .sd-input { flex: 1; min-width: 180px; margin: 0; }
 
-.set-roles-legend { display: grid; gap: 7px; margin-top: 12px; padding-top: 12px; border-top: 1px solid var(--line); }
-.set-role-def { display: flex; align-items: baseline; gap: 10px; }
-.set-role-def .pill { flex: none; min-width: 68px; justify-content: center; }
-.set-role-can { font-size: var(--text-xs); color: var(--ink-dim); line-height: 1.5; }
+/* What each role may do: a word and its sentence, in two columns. */
+.set-roles-legend { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 10px 16px; align-items: baseline; margin-bottom: 12px; padding-top: 16px; border-top: 1px solid var(--line); }
+.set-role-def { display: grid; grid-template-columns: subgrid; grid-column: 1 / -1; align-items: baseline; }
+.set-role-def .pill { justify-self: start; }
+.set-role-can { font-size: var(--set-hint); color: var(--ink-dim); line-height: 1.5; }
 
-.set-team-gated { display: flex; align-items: center; gap: 7px; font-size: var(--text-xs); color: var(--ink-dim); margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--line); }
+.set-team-gated { display: flex; align-items: center; gap: 8px; font-size: var(--set-hint); color: var(--ink-dim); margin-bottom: 10px; padding-top: 12px; border-top: 1px solid var(--line); }
 .set-team-gated svg { color: var(--ink-faint); flex: none; }
 
 /* Policy matrix */
-.pol-table{width:100%;border-collapse:collapse;margin-top:4px}
-.pol-table th{font-family:var(--font-mono);font-size:10px;text-transform:uppercase;letter-spacing:.05em;color:var(--ink-dim);font-weight:500;text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+/* The column heads are words in the product's own face: they were 10px capitals
+   in the mono, which is a costume for "technical", not a reason. The rows take
+   the settings row's label and sentence. */
+.pol-table{width:100%;border-collapse:collapse;margin:4px 0 10px}
+.pol-table th{font-size:var(--text-xs);color:var(--ink-dim);font-weight:500;text-align:left;padding:6px 0 8px;border-bottom:1px solid var(--line)}
 .pol-table th.pol-mode{text-align:center;width:64px}
-.pol-table td{padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+.pol-table td{padding:13px 0;border-bottom:1px solid var(--line);vertical-align:middle}
+.pol-table td:first-child{padding-right:16px}
+.pol-table tr:last-child td{border-bottom:none}
 .pol-cell{text-align:center}
-.pol-label{display:block;font-size:12.5px;font-weight:500;color:var(--ink)}
-.pol-note{display:block;font-size:11px;color:var(--ink-dim)}
+.pol-label{display:block;font-size:var(--set-label);font-weight:500;line-height:1.35;color:var(--ink)}
+.pol-note{display:block;margin-top:3px;font-size:var(--set-hint);line-height:1.5;color:var(--ink-dim);max-width:58ch;text-wrap:pretty}
 .pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
 .pol-dot:hover{border-color:var(--accent)}
 .pol-dot.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
 .pol-locked .pol-dot.on{background:var(--ink-dim);border-color:var(--ink-dim)}
 .pol-locked .pol-dot{cursor:not-allowed}
 .pol-dash{color:var(--ink-faint)}
-tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)}
+/* The locked row is said by its words and its grey dot; the tinted band behind
+   it ran edge to edge inside a card whose other rows have no background. */
+tr.pol-locked .pol-label{color:var(--ink-muted)}
 
-.pol-evidence{display:block;font-size:10px;color:var(--ink-faint);margin-top:2px;font-variant-numeric:tabular-nums}
+/* On a phone the matrix is a list: each class of action, and under it its four
+   modes side by side, each named. As a table it was 520px wide inside a card that
+   scrolled sideways with nothing to say so: a phone showed the Auto column alone,
+   and a class set to Veto looked like a class with nothing set. */
+@media (max-width: 640px) {
+  .settings .pol-table { display: block; min-width: 0; }
+  .pol-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .pol-table tbody { display: block; }
+  .pol-table tr { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px 8px; padding: 16px 0; border-bottom: 1px solid var(--line); }
+  .pol-table tr:last-child { border-bottom: none; }
+  .pol-table td { display: block; padding: 0; border-bottom: none; }
+  .pol-table td:first-child { grid-column: 1 / -1; padding-right: 0; }
+  .pol-table td.pol-cell { display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .pol-cell::before { content: attr(data-mode); font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
+  .pol-cell .pol-dash { display: grid; place-items: center; height: 30px; }
+}
+/* A finger's dot: a circle, with the touch floor met by the space around it
+   rather than by stretching the dot into an oval 22 wide and 44 tall. */
+@media (pointer: coarse) {
+  html.legacy-on .settings .pol-dot { position: relative; width: 30px; height: 30px; min-height: 0; }
+  html.legacy-on .settings .pol-dot::after { content: ""; position: absolute; inset: -8px; }
+}
+
+.pol-evidence{display:block;font-size:var(--text-xs);color:var(--ink-faint);margin-top:3px;font-variant-numeric:tabular-nums}
 
 /* ============================ Business profile ============================
    The first real form in Settings. Every field here is something the
@@ -221,24 +402,27 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 
 .set-editor { max-width: var(--measure-prose); }
 
-.set-sec { padding: 16px 0; border-top: 1px solid var(--line); }
+.set-sec { padding: 20px 0; border-top: 1px solid var(--line); }
 .set-sec:first-of-type { border-top: none; padding-top: 8px; }
 
-.set-sec-head { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
-.set-sec-title { font-size: 12.5px; font-weight: 600; color: var(--ink); }
-.set-sec-hint { font-size: 11px; color: var(--ink-dim); }
+/* A section of the form: its name, and under it what it is for. They shared a
+   baseline, so a long "for" wrapped back under the name at a different size. */
+.set-sec-head { display: grid; gap: 3px; margin-bottom: 12px; }
+.set-sec-title { font-size: var(--set-label); font-weight: 600; color: var(--ink); }
+.set-sec-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
 /* When it can't answer (S5): each message with when it goes out, what a customer reads, and the default wording back. */
-.set-fallbacks { display: grid; gap: 16px; }
+.set-fallbacks { display: grid; gap: 18px; }
 .set-fallback { display: grid; gap: 6px; }
-.set-fallback-label { font-size: 12px; font-weight: 600; color: var(--ink); }
-.set-fallback-reads { font-size: 11.5px; line-height: 1.45; color: var(--ink-muted); background: var(--bg-sunken); border-radius: 6px; padding: 6px 9px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.set-fallback-label { font-size: var(--set-label); font-weight: 500; color: var(--ink); }
+.set-fallback-reads { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); background: var(--bg-sunken); border-radius: var(--radius-md); padding: 8px 10px; white-space: pre-wrap; overflow-wrap: anywhere; }
 .set-fallback-default { justify-self: start; }
 
 .set-input {
   width: 100%;
-  padding: 8px 10px;
+  min-height: 36px;
+  padding: 8px 11px;
   font: inherit;
-  font-size: 12.5px;
+  font-size: var(--set-label);
   color: var(--ink);
   background: var(--bg-sunken);
   border: 1px solid var(--line);
@@ -255,16 +439,16 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
    dead inputs. */
 .set-hours { display: flex; flex-direction: column; }
 .set-day {
-  display: flex; align-items: center; gap: 10px;
-  padding: 7px 0;
+  display: flex; align-items: center; gap: 12px;
+  padding: 9px 0;
   border-top: 1px solid var(--line);
 }
 .set-day:first-child { border-top: none; }
-.set-day-name { font-size: 12.5px; color: var(--ink); width: 78px; flex-shrink: 0; }
+.set-day-name { font-size: var(--set-label); color: var(--ink); width: 92px; flex-shrink: 0; }
 .set-day.closed .set-day-name { color: var(--ink-dim); }
 .set-input-time { width: 118px; flex: 0 0 auto; font-variant-numeric: tabular-nums; }
-.set-day-sep { font-size: 11px; color: var(--ink-dim); }
-.set-day-closed { font-size: 11px; color: var(--ink-faint); }
+.set-day-sep { font-size: var(--set-hint); color: var(--ink-dim); }
+.set-day-closed { font-size: var(--set-hint); color: var(--ink-faint); }
 .set-day-apply { display: inline-flex; gap: 10px; margin-left: auto; }
 
 /* Services — a header row so three bare inputs are not a guessing game. */
@@ -274,18 +458,18 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
   gap: 8px;
   align-items: center;
 }
-.set-svc-head { padding: 0 0 5px; font-size: 10.5px; color: var(--ink-dim); }
+.set-svc-head { padding: 0 0 6px; font-size: var(--text-xs); font-weight: 500; color: var(--ink-dim); }
 .set-svc-row { padding: 4px 0; }
 .set-svc-mins { display: flex; align-items: center; gap: 6px; }
 .set-svc-mins .set-input { text-align: right; }
-.set-svc-unit { font-size: 11px; color: var(--ink-dim); }
+.set-svc-unit { font-size: var(--set-hint); color: var(--ink-dim); }
 
 /* Languages — offered, not typed. A comma-separated box asks for a spelling
    and a separator, and gets two spellings of the same language. */
 .set-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .set-chip {
-  font: inherit; font-size: 11.5px;
-  padding: 5px 11px;
+  font: inherit; font-size: var(--set-hint);
+  padding: 6px 12px;
   border-radius: var(--radius-full);
   border: 1px solid var(--line);
   background: var(--bg-raised);
@@ -301,19 +485,19 @@ tr.pol-locked td{background:color-mix(in oklab,var(--bg-sunken) 55%,transparent)
 
 /* The rules use the same switch as everything else in Settings, with the
    consequence spelled out — an owner turning one off should see what changes. */
-.set-rule { display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-top: 1px solid var(--line); }
+.set-rule { display: flex; align-items: flex-start; gap: 12px; padding: 12px 0; border-top: 1px solid var(--line); }
 .set-rule:first-of-type { border-top: none; }
 .set-rule .set-switch { margin-top: 1px; flex-shrink: 0; }
-.set-rule-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
-.set-rule-label { font-size: 12.5px; color: var(--ink); }
-.set-rule-hint { font-size: 11px; color: var(--ink-dim); }
+.set-rule-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.set-rule-label { font-size: var(--set-label); font-weight: 500; line-height: 1.35; color: var(--ink); }
+.set-rule-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); max-width: 62ch; text-wrap: pretty; }
 
 .set-editor-foot {
   display: flex; align-items: center; gap: 8px;
   padding-top: 14px; margin-top: 4px;
   border-top: 1px solid var(--line);
 }
-.set-editor-note { font-size: 11px; color: var(--ink-dim); margin-right: auto; }
+.set-editor-note { font-size: var(--set-hint); color: var(--ink-dim); margin-right: auto; }
 
 @media (max-width: 640px) {
   .set-svc-head { display: none; }
