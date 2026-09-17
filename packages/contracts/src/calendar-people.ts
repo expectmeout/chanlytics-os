@@ -16,7 +16,7 @@
  * Pure. The dashboard's calendar, the person's profile, both receptionists
  * and the tests share it, so an appointment is the same person everywhere.
  */
-import { dayInZone, type FeedItem } from "./availability";
+import { dayInZone, dayPlusInZone, type FeedItem } from "./availability";
 import { formatPhoneDisplay, normalizePhone } from "./phone";
 
 export interface EventContacts {
@@ -260,7 +260,7 @@ const ms = (t: number | string): number => (typeof t === "number" ? t : Date.par
 export function visitDay(start: number | string, tz: string, nowMs: number): string {
   const key = dayInZone(tz, ms(start)).key;
   const today = dayInZone(tz, nowMs).key;
-  const tomorrow = dayInZone(tz, nowMs + 86_400_000).key;
+  const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
   if (key === today) return "Today";
   if (key === tomorrow) return "Tomorrow";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(new Date(ms(start)));

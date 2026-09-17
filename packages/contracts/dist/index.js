@@ -607,6 +607,16 @@ function dayInZone(tz, atMs) {
   const pad = (n) => String(n).padStart(2, "0");
   return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
 }
+var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
+var WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"];
+function dayPlusInZone(tz, atMs, days) {
+  const from = dayInZone(tz, atMs);
+  if (days === 0) return from;
+  const at2 = new Date((dayNumber(from.y, from.m, from.d) + days) * 864e5);
+  const pad = (n) => String(n).padStart(2, "0");
+  const y = at2.getUTCFullYear(), m = at2.getUTCMonth() + 1, d = at2.getUTCDate();
+  return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at2.getUTCDay()], y, m, d };
+}
 function unescapeText(v) {
   return v.replace(/\\([\\;,nN])/g, (_, c) => c === "n" || c === "N" ? "\n" : c).trim();
 }
@@ -726,7 +736,6 @@ function parseRule(value, fallbackTz) {
   }
   return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
 }
-var dayNumber = (y, m, d) => Math.floor(Date.UTC(y, m - 1, d) / 864e5);
 function occurrences(start, durMs, rule, exdates, horizon) {
   const out = [];
   const first = dayNumber(start.y, start.m, start.d);
@@ -935,8 +944,7 @@ function freeWindows(input) {
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const at2 = input.now.getTime() + offset * 864e5;
-    const day = dayInZone(input.tz, at2);
+    const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
     if (closedOn(input.closures, day.key)) continue;
     const ranges = dayIntervals(input.hours?.[day.weekday]);
     const windows = [];
@@ -957,7 +965,10 @@ function freeWindows(input) {
       out.push({
         key: day.key,
         weekday: day.weekday,
-        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at2)),
+        // Noon on that local day: an instant the day owns whichever way the
+        // clock moved, where midnight on a spring-forward day may not exist
+        // and 1 AM on an autumn one happens twice.
+        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
         windows
       });
     }
@@ -3022,7 +3033,7 @@ function toCalendarVM(dto, now = /* @__PURE__ */ new Date()) {
   const todayKey = dayInZone(tz, now.getTime()).key;
   const nowMs = now.getTime();
   const offerDays = { ...BOOKING_DEFAULTS, ...dto.rules ?? {} }.max_days_ahead;
-  const offerUntil = dayInZone(tz, nowMs + (offerDays - 1) * 864e5).key;
+  const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
   let start = 24;
   let end = 0;
   for (const h of Object.values(dto.hours ?? {})) {
@@ -3414,7 +3425,7 @@ var ms = (t) => typeof t === "number" ? t : Date.parse(t);
 function visitDay(start, tz, nowMs) {
   const key = dayInZone(tz, ms(start)).key;
   const today = dayInZone(tz, nowMs).key;
-  const tomorrow = dayInZone(tz, nowMs + 864e5).key;
+  const tomorrow = dayPlusInZone(tz, nowMs, 1).key;
   if (key === today) return "Today";
   if (key === tomorrow) return "Tomorrow";
   return new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", month: "short", day: "numeric" }).format(new Date(ms(start)));
@@ -5401,7 +5412,13 @@ function dayKey(atMs, tz) {
   }
 }
 function dayFromQuestion(q, now, tz) {
-  if (/\b(tomorrow|mañana)\b/i.test(q)) return dayKey(now + 864e5, tz);
+  if (/\b(tomorrow|mañana)\b/i.test(q)) {
+    try {
+      if (tz) return dayPlusInZone(tz, now, 1).key;
+    } catch {
+    }
+    return dayKey(now + 864e5, tz);
+  }
   if (/\b(today|hoy)\b/i.test(q)) return dayKey(now, tz);
   for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
   return null;
@@ -9785,6 +9802,7 @@ export {
   dayFromQuestion,
   dayInZone,
   dayIntervals,
+  dayPlusInZone,
   dayWords,
   dedupeFeed,
   defaultParamSpecs,
