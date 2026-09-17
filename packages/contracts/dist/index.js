@@ -261,6 +261,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -1295,6 +1297,12 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
 function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
   if (call.status !== "ongoing") return false;
@@ -1666,6 +1674,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     } : {},
     channels,
     primaryChannel,
+    replyVia: THREAD_CHANNEL_WORDS[primaryChannel],
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
@@ -6199,13 +6208,18 @@ function fieldsOf(details) {
   }
   return Object.keys(out).length ? out : null;
 }
+function confirmEmailToOf(details) {
+  const to = details && typeof details === "object" ? details.confirm_email_to : void 0;
+  return typeof to === "string" && to.trim() ? to.trim() : null;
+}
 function refusalOf(input) {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
   const fields = fieldsOf(input.details);
   const code2 = typeof input.code === "string" && input.code ? input.code : null;
-  const refusal = (c, title, message) => ({ code: c, status, title, message, retryAfterS, fields });
+  const confirmEmailTo = confirmEmailToOf(input.details);
+  const refusal = (c, title, message) => ({ code: c, status, title, message, retryAfterS, fields, ...confirmEmailTo ? { confirmEmailTo } : {} });
   if (!code2) {
     if (status === 0) return refusal("network", "No connection", input.write ? NETWORK_WRITE : NETWORK_READ);
     if (status >= 500) return refusal("internal", "No answer", input.write ? NO_ANSWER_WRITE : READ_AGAIN);
@@ -8379,6 +8393,7 @@ var WORDS = {
   "contact.named": "A person was named",
   "contact.noted": "A note was written",
   "contact.email_set": "A person's email address changed",
+  "contact.email_suppressed": "A person's email address stopped being sent to",
   "contact.erased": "A person was erased",
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -9319,6 +9334,8 @@ export {
   REPLY_DELAY_DEFAULT_MS,
   REPLY_DELAY_MAX_MS,
   REPLY_DELAY_MIN_MS,
+  REPLY_LIMITS,
+  REPLY_MAX_ANY,
   REPLY_WINDOW_HOURS,
   REPLY_WINDOW_MS,
   REPLY_WINDOW_WORDS,

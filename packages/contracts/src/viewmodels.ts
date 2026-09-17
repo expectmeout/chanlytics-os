@@ -461,6 +461,8 @@ export interface InboxThreadVM {
   /** The channels the thread has actually used: "whatsapp", "phone", or both. */
   channels: string[];
   primaryChannel: "whatsapp" | "phone" | "sms" | "email";
+  /** That channel in the words a reply box names it by: "WhatsApp", "Text", "Email". One map, so a new wire is one entry and not a ternary per screen. */
+  replyVia: string;
   /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
   hasChat: boolean;
   /** The number to call back, E.164, when known. */
@@ -716,6 +718,7 @@ export function toInboxThreadVM(
       : {}),
     channels,
     primaryChannel,
+    replyVia: THREAD_CHANNEL_WORDS[primaryChannel],
     hasChat,
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),

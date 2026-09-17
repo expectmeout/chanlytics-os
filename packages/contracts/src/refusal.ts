@@ -52,6 +52,13 @@ export interface Refusal {
   retryAfterS: number | null;
   /** A form's refusal: one sentence per field, by the field's name in the request. */
   fields: Readonly<Record<string, string>> | null;
+  /**
+   * A reply by email that waits on a yes: the address it will go to, which is
+   * not the one the person last wrote from (core reply.ts). The same request
+   * sent again with `email_to` set to this value is the yes. Present on that
+   * refusal and no other.
+   */
+  confirmEmailTo?: string;
 }
 
 const TITLES: ReadonlyMap<string, string> = new Map([
@@ -135,13 +142,20 @@ function fieldsOf(details: unknown): Readonly<Record<string, string>> | null {
   return Object.keys(out).length ? out : null;
 }
 
+/** The address a held email reply will go to, when that is what the server is asking about. */
+function confirmEmailToOf(details: unknown): string | null {
+  const to = details && typeof details === "object" ? (details as { confirm_email_to?: unknown }).confirm_email_to : undefined;
+  return typeof to === "string" && to.trim() ? to.trim() : null;
+}
+
 export function refusalOf(input: RefusalInput): Refusal {
   const status = Number.isFinite(input.status) ? input.status : 0;
   const said = typeof input.message === "string" ? input.message.trim() : "";
   const retryAfterS = retryAfterOf(input.details, input.retryAfter, input.nowMs ?? Date.now());
   const fields = fieldsOf(input.details);
   const code = typeof input.code === "string" && input.code ? input.code : null;
-  const refusal = (c: string, title: string, message: string): Refusal => ({ code: c, status, title, message, retryAfterS, fields });
+  const confirmEmailTo = confirmEmailToOf(input.details);
+  const refusal = (c: string, title: string, message: string): Refusal => ({ code: c, status, title, message, retryAfterS, fields, ...(confirmEmailTo ? { confirmEmailTo } : {}) });
 
   if (!code) {
     // Not an envelope: nothing answered, a gateway answered for us, or this page

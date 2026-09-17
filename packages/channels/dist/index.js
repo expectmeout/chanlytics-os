@@ -74,6 +74,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -226,6 +228,12 @@ var BrainOutputSchema = z2.object({
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 var CALL_OUTCOME_WORDS = {
@@ -2374,7 +2382,8 @@ function emailReceivedEventFrom(payload) {
   if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
   const id = p.data.email_id ?? p.data.id;
   if (typeof id !== "string" || !id) return null;
-  const recipients = [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
+  const envelope = addressesOf(p.data.received_for);
+  const recipients = envelope.length ? envelope : [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
   return { type: "email.received", receivedId: id, recipients: [...new Set(recipients)] };
 }
 function headersOf(v) {
@@ -2419,6 +2428,57 @@ function classifyReceived(e) {
   if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())) return "auto_reply";
   if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h) return "automated";
   return "person";
+}
+var RECEIPT_TYPES = /* @__PURE__ */ new Set(["sent", "delivered", "delivery_delayed", "bounced", "complained", "failed", "suppressed"]);
+var UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+function tagOf(tags, name) {
+  const v = Array.isArray(tags) ? tags.find((t) => t?.name === name)?.value : tags && typeof tags === "object" ? tags[name] : void 0;
+  return typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null;
+}
+function emailReceiptFrom(payload) {
+  const p = payload;
+  if (!p || typeof p.type !== "string" || !p.type.startsWith("email.") || !p.data || typeof p.data !== "object") return null;
+  const type = p.type.slice("email.".length);
+  if (!RECEIPT_TYPES.has(type)) return null;
+  const d = p.data;
+  if (typeof d.email_id !== "string" || !d.email_id) return null;
+  const str4 = (v) => typeof v === "string" && v.trim() ? v.trim() : null;
+  const said = d.bounce ?? d.failed ?? d.suppressed ?? {};
+  return {
+    type,
+    providerId: d.email_id,
+    rfcMessageId: messageIdHeader(str4(d.message_id)),
+    to: addressesOf(d.to),
+    messageId: tagOf(d.tags, "cl_message"),
+    tenantId: tagOf(d.tags, "cl_tenant"),
+    detail: { kind: str4(said.type) ?? str4(said.reason), subKind: str4(said.subType), message: str4(said.message) }
+  };
+}
+function emailReceiptEffect(r) {
+  const error = { provider: r.type, kind: r.detail.kind, sub_kind: r.detail.subKind, message: r.detail.message };
+  switch (r.type) {
+    case "delivered":
+      return { status: "delivered", error: null, suppress: null };
+    case "bounced":
+      return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
+    case "failed":
+      return { status: "failed", error, suppress: null };
+    case "suppressed":
+      return { status: "failed", error, suppress: "provider" };
+    case "complained":
+      return { status: null, error: null, suppress: "complaint" };
+    default:
+      return { status: null, error: null, suppress: null };
+  }
+}
+function sendsAs(mailbox, domain) {
+  return {
+    address: hostedAddress(mailbox.local_part, domain),
+    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t) => !!t).map((t) => replyRouteAddress(t, domain))
+  };
+}
+function requestLeavesAs(request, as) {
+  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }
 
 // src/email-text.ts
@@ -3597,6 +3657,8 @@ export {
   dryProvider,
   emailHtml,
   emailPlainText,
+  emailReceiptEffect,
+  emailReceiptFrom,
   emailReceivedEventFrom,
   encodeForm,
   evaluateRequest,
@@ -3666,6 +3728,7 @@ export {
   replyToReview,
   representativeAttributes,
   representativeEndUserRequest,
+  requestLeavesAs,
   resendWebhookSignature,
   retellImportBody,
   reviewBells,
@@ -3680,6 +3743,7 @@ export {
   sendEmail,
   sendTemplate,
   sendText,
+  sendsAs,
   signEdgeToken,
   signState,
   sipPassword,

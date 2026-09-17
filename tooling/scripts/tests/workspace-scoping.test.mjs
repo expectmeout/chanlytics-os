@@ -213,8 +213,10 @@ test("the cache is keyed on the ACTIVE workspace", () => {
   test("the reply body is validated at the door", () => {
     // The one route that reaches a real person took whatever the body held. An
     // over-length reply was stored, reported queued, and failed 15 seconds
-    // later as an escalation plus an alert email.
-    assert.match(replyRoute, /4096/);
+    // later as an escalation plus an alert email. Each wire's own limit is the
+    // verb's now, asked before anything is queued (core-reply.test.mjs runs a
+    // 4097-character WhatsApp reply); the door bounds what any wire could take.
+    assert.match(replyRoute, /REPLY_MAX_ANY/);
     assert.match(replyRoute, /input: ReplyBody/);
     assert.match(replyRoute, /\.strict\(\)/);
   });

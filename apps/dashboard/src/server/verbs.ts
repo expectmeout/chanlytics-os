@@ -4,7 +4,7 @@
  * so RLS is the enforcement (Blueprint §6). Jobs/Blob-mirror side effects go
  * through the server-only service module at the call sites.
  */
-import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
+import { AppError, isOptedOutContact, OPT_OUT_REFUSAL, writtenChannelOf, type DecisionVerb, type DecisionSubject } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { memberContext, requireRole, type RouteContext } from "./with-route";
 import { requireUuid } from "./request-guards";
@@ -48,6 +48,9 @@ export interface VerbConversation {
   dnc: boolean;
   /** The second answer: yes to OFFERS. A promotional template needs it. */
   marketing_consent: string | null;
+  /** The address on the person's page, and whether it has stopped being sent to: what a reply by email is addressed from. */
+  email: string | null;
+  email_suppressed_at: string | null;
 }
 
 export async function loadConversation(ctx: RouteContext, id: string): Promise<VerbConversation> {
@@ -58,7 +61,7 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
   const convId = requireUuid(id, "conversation");
   const { data, error } = await ctx.supabase
     .from("conversations")
-    .select("id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent)")
+    .select("id, tenant_id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contact_id, contacts (phone_e164, display_name, wa_profile_name, consent, dnc, marketing_consent, email, email_suppressed_at)")
     .eq("id", convId)
     .maybeSingle();
   if (error) throw new Error(error.message);
@@ -79,6 +82,8 @@ export async function loadConversation(ctx: RouteContext, id: string): Promise<V
     consent: data.contacts?.consent ?? null,
     dnc: data.contacts?.dnc ?? false,
     marketing_consent: data.contacts?.marketing_consent ?? null,
+    email: data.contacts?.email ?? null,
+    email_suppressed_at: data.contacts?.email_suppressed_at ?? null,
   };
 }
 
@@ -168,7 +173,7 @@ export const callScope = row((ctx, params) => loadCall(ctx, String(params.id ?? 
  * route sends on it and the assistant's reply card shows its window, so both
  * read it here.
  */
-export async function replyChannelOf(ctx: RouteContext, conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms"> {
+export async function replyChannelOf(ctx: RouteContext, conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email"> {
   const { data, error } = await ctx.supabase
     .from("messages")
     .select("channel")
@@ -179,7 +184,7 @@ export async function replyChannelOf(ctx: RouteContext, conv: { id: string; tena
     .limit(1)
     .maybeSingle();
   if (error) throw new Error(`reading the last inbound: ${error.message}`);
-  return data?.channel === "sms" ? "sms" : "whatsapp";
+  return writtenChannelOf(data?.channel);
 }
 
 /** The customer asked not to be contacted. The rule itself lives in

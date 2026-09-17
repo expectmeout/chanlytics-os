@@ -963,10 +963,14 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
       if (words) setText(words);
       if (taRef.current) taRef.current.focus();
     };
+    // A reply that waited on a yes (an email going to a different address than it came from) is sent from the
+    // toast, after this box was told to keep its words: it lets go of them when that send is accepted.
+    const onSent = (e) => { if (e && e.detail && e.detail.threadId === thread.id) setText(""); };
     window.addEventListener("keydown", onKey);
     window.addEventListener("inbox:focus-composer", onFocus);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); };
-  }, [text]);
+    window.addEventListener("inbox:reply-sent", onSent);
+    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("inbox:focus-composer", onFocus); window.removeEventListener("inbox:reply-sent", onSent); };
+  }, [text, thread.id]);
 
   // The field grows with what is in it, up to its cap: typed, carried in from a profile, or a draft filled in.
   React.useEffect(() => {
@@ -1039,7 +1043,7 @@ const Composer = ({ thread, reply, hasApproval, onType = null, onSend = () => {}
           className="ix-composer-text"
           value={text}
           onChange={(e) => { setText(e.target.value); if (onType) onType(); }}
-          placeholder={`${thread.primaryChannel === "sms" ? "Text" : "WhatsApp"} to ${thread.who}…`}
+          placeholder={`${thread.replyVia || "WhatsApp"} to ${thread.who}…`}
           aria-label={`Reply to ${thread.who}`}
           rows={1}
         />

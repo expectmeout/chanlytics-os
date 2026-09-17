@@ -16,7 +16,7 @@ export interface SendQueuedPorts {
    * read: a read that FAILED and a message that is genuinely gone are
    * different facts, and collapsing them is how a reply once vanished.
    */
-  queued(messageId: string): Promise<{ status: string; body: string | null; channel: string | null; sender: string | null } | null>;
+  queued(messageId: string): Promise<{ status: string; body: string | null; channel: string | null; sender: string | null; /** The frozen request, on an email's row. */ email?: Delivery["email"] | null } | null>;
   /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
   purposeOf(template: { name: string; language: string } | undefined): Promise<SendPurpose>;
   deliver: Door;

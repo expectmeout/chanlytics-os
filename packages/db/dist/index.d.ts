@@ -3352,6 +3352,18 @@ type Database = {
                 };
                 Returns: Json;
             };
+            stamp_email_sent: {
+                Args: {
+                    p_message_id: string;
+                    p_provider_id: string;
+                    p_rfc_message_id: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    conversation_id: string;
+                    status: string;
+                }[];
+            };
             sweep_health: {
                 Args: never;
                 Returns: {
@@ -3634,7 +3646,8 @@ opts?: {
 declare function emitEvent(db: Db$4, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /**
- * Email's rows: a workspace's mailbox, and taking a received email in.
+ * Email's rows: a workspace's mailbox, taking a received email in, the email a
+ * reply answers, and what became of one we sent.
  *
  * Taking an email in goes through `ingest_inbound`, the same atomic gate every
  * channel uses (one advisory lock per identity, one replay gate on the
@@ -3678,6 +3691,61 @@ declare function ingestInboundEmail(db: Db$3, p: IngestEmailParams): Promise<Ing
 /** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
 declare function sentEmailWithMessageId(db: Db$3, tenantId: string, rfcMessageId: string): Promise<boolean>;
 declare function stampMailboxReceived(db: Db$3, mailboxId: string, at: string): Promise<void>;
+/** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
+declare function mailboxOfTenant(db: Db$3, tenantId: string): Promise<MailboxRow | null>;
+/** The email a reply answers: what the thread stores of the person's latest one. */
+interface InboundEmailFacts {
+    messageId: string;
+    from: string | null;
+    rfcMessageId: string | null;
+    references: string[];
+    subject: string | null;
+}
+/**
+ * The person's latest email on one thread, read inside that workspace and that
+ * conversation and nowhere else: a reply cannot be threaded under another
+ * workspace's or another person's message, because no such row can be returned.
+ */
+declare function lastInboundEmail(db: Db$3, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
+/**
+ * A sent email learns the provider's id and the Message-ID it left with
+ * (00128, one statement, so it cannot overwrite a status stamp written beside
+ * it), and says where the row stands and which thread it is on. Null when this
+ * workspace has no such outbound email: a receipt for a row that is not there.
+ */
+declare function stampEmailSent(db: Db$3, p: {
+    tenantId: string;
+    messageId: string;
+    providerId: string;
+    rfcMessageId: string | null;
+}): Promise<{
+    status: string;
+    conversationId: string;
+} | null>;
+/**
+ * Move a sent email to what its receipt says. A move messages_guard refuses
+ * (backwards, or off a terminal state) is a receipt arriving out of order, and
+ * is let go the way recordStatusByExternalId lets it go; anything else throws.
+ */
+declare function recordEmailStatus(db: Db$3, p: {
+    tenantId: string;
+    messageId: string;
+    status: "delivered" | "failed";
+    error: Json | null;
+}): Promise<void>;
+/**
+ * The address a sent email went to stops being sent to. It is the person's
+ * address NOW that is stopped, and only when it is still the one that email
+ * went to: a corrected address is a different address (00126). The person's id
+ * when their row changed; null when it was already stopped, or no longer theirs.
+ */
+declare function suppressEmailOf(db: Db$3, p: {
+    tenantId: string;
+    messageId: string;
+    addresses: string[];
+    reason: "hard_bounce" | "complaint" | "provider";
+    at: string;
+}): Promise<string | null>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -3999,4 +4067,4 @@ onInsert: (row: {
     tenant_id: string;
 }, table: string, event?: string) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, linkCallMessage, listPolicies, mailboxById, mailboxFor, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampMailboxReceived, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listPolicies, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf };

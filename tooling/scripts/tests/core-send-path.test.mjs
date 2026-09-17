@@ -99,6 +99,32 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
   assert.deepEqual(refused.ops(), ["deliver"], "the row says why; nobody is paged or flagged for a refusal");
 });
 
+test("an email's queued row leaves as the request it was frozen with, to the address its job names; a job that names none fails loudly rather than guessing", async () => {
+  const request = { to: ["ana@example.com"], subject: "Re: Quote", idempotency_key: "m1" };
+  const row = { status: "queued", body: "We can do Saturday.", channel: "email", sender: "human", email: request };
+  const byEmail = (payload = {}) => ({ tenantId: "t1", payload: { message_id: "m1", conversation_id: "c1", to_email: "ana@example.com", body: "We can do Saturday.", ...payload } });
+  const { ports, log } = fakes({ queued: row });
+  await core.sendQueued(ports, byEmail());
+  assert.deepEqual(log[0][1], { tenantId: "t1", conversationId: "c1", contactId: null, to: "ana@example.com", channel: "email", sender: "human", purpose: "conversational", proactive: false, body: "We can do Saturday.", template: undefined, email: request, messageId: "m1" });
+
+  // A number on an email's job is not an address, and an address on a text's job is not a number.
+  const crossed = fakes({ queued: row });
+  await assert.rejects(core.sendQueued(crossed.ports, byEmail({ to_email: undefined, to_phone: "+13475550101" })), /goes out by email and the job names no address/);
+  const texted = fakes();
+  await assert.rejects(core.sendQueued(texted.ports, byEmail()), /goes out by whatsapp and the job names no number/);
+  assert.deepEqual([...crossed.ops(), ...texted.ops()], [], "nothing reached the door");
+
+  // A row with no sendable request still goes to the door, which fails it by name; the owner reads words, not "HTTP 0".
+  const bare = fakes({ queued: { ...row, email: null }, deliver: { outcome: "failed", reason: "provider", status: 0, errorBody: "no_frozen_request", messageId: "m1" } });
+  await core.sendQueued(bare.ports, byEmail());
+  assert.equal("email" in bare.log[0][1], false);
+  assert.deepEqual(bare.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (it never reached the provider)."]);
+  assert.match(bare.log[2][1], /Reply delivery failed: ana@example\.com/);
+  const unset = fakes({ queued: row, deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
+  await core.sendQueued(unset.ports, byEmail());
+  assert.equal(unset.log[1][3], "Dashboard reply could not be delivered (the email channel is not connected).");
+});
+
 test("the Blob erasure: every thread gone, then the ledger, then the payload scrubbed LAST; a thread that stayed fails the job with nothing scrubbed; a scrubbed payload is a finished job", async () => {
   const { ports, log, ops } = fakes();
   await core.eraseBlobThread(ports, { tenantId: "t1", jobId: "j1", payload: { contact_id: "k1", namespace: "ns", thread_ids: ["a", "b", ""] } });

@@ -1,4 +1,4 @@
-import { AppError, firstNameOf, inboxSlots, isOptedOutContact, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, replyWindow, resolveParams, slotToWrite } from "@chanlytics/contracts";
+import { AppError, firstNameOf, inboxSlots, isOptedOutContact, normalizeEmail, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, REPLY_LIMITS, replyWindow, resolveParams, slotToWrite } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
 
@@ -18,6 +18,12 @@ export const IDEMPOTENCY_WINDOW_MS = 30 * 1000;
 export interface ReplyBody {
   text?: string;
   template?: { name: string; language: string; params?: string[] };
+  /**
+   * Email only: the address the operator was shown and agreed to, when the
+   * address on the person's page is not the one they last wrote from. Agreed by
+   * value, so an address that changed again in between is asked about again.
+   */
+  email_to?: string;
 }
 /** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
 export interface ReplyReceipt { message_id: string; status: string; cancelable_until: string; window_open: boolean; withdrawn_drafts: number; decision_id?: string }
@@ -30,24 +36,59 @@ export interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e1
   /** The names on file, for a template that opens with their first name. */
   display_name?: string | null;
   wa_profile_name?: string | null;
+  /** The address on the person's page, and whether it has stopped being sent to (00125, 00126). */
+  email?: string | null;
+  email_suppressed_at?: string | null;
 }
 export interface QueuedReply {
   tenant_id: string;
   conversation_id: string;
   contact_id: string | null;
-  channel: "whatsapp" | "sms";
+  channel: "whatsapp" | "sms" | "email";
   sent_by: string;
   type: "template" | "text";
   body: string;
   template_name: string | null;
   template_vars: Json | null;
   content_hash: string;
+  /** An email's row is born with its id and its frozen request: the request is tagged with the id and sent under it. */
+  id?: string;
+  meta?: Json;
 }
-export type SendPayload = { message_id: string; conversation_id: string; to_phone: string } & ({ body: string } | { template: { name: string; language: string; params: string[] } });
+/** An address never travels in a field the send path reads as a phone number: an email's is `to_email`. */
+export type SendPayload = { message_id: string; conversation_id: string } & ({ to_phone: string } | { to_email: string }) & ({ body: string } | { template: { name: string; language: string; params: string[] } });
+
+/** The email a reply answers, as the thread stores it. */
+export interface EmailParentFacts {
+  /** The stored message. */
+  messageId: string;
+  /** The address it came from, as its header spelled it. */
+  from: string | null;
+  /** Its own Message-ID and the chain it carried, for threading in the customer's mail client. */
+  rfcMessageId: string | null;
+  references: string[];
+  subject: string | null;
+}
+
+/**
+ * Email's half of a reply. The verb decides who it goes to and whether a
+ * person must agree first; what it leaves AS is the adapter's, which knows the
+ * workspace's mailbox and the deployment's mail domain (channels
+ * buildEmailRequest, the one constructor of a request).
+ */
+export interface EmailReplyPorts {
+  /** The person's latest email on this thread; null when it holds none. Read inside this workspace and this conversation only. */
+  parent(conv: { id: string; tenant_id: string }): Promise<EmailParentFacts | null>;
+  /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
+  freeze(input: { tenantId: string; messageId: string; to: string; parent: EmailParentFacts; body: string }): Promise<{ request: Json; subject: string } | null>;
+  /** The row's id before the row exists. */
+  newId(): string;
+}
 
 export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
-  /** Where the person last wrote: a text has no 24-hour window and no templates. */
-  replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms">;
+  /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
+  replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email">;
+  email: EmailReplyPorts;
   /** The receipt stored under this caller's key, with when and for which intent it was stored. */
   priorReceipt(tenantId: string, key: string): Promise<{ response: ReplyReceipt; created_at: string; request_hash: string | null } | null>;
   /** The workspace's template by name and language, as Meta last told us about it; `variables` is one entry per slot, when the sync has filled it. */
@@ -70,6 +111,36 @@ export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "
 export interface ReplyCommand { conv: ReplyThread; userId: string; body: ReplyBody; idempotencyKey: string | null }
 
 /**
+ * What an email reply adds to the queued row. Everything here is decided
+ * before anything is claimed or written, so a refusal means nothing happened.
+ *
+ * The recipient is the address on the person's page, never the parent's
+ * headers: those are the sender's own words. When the two differ (the owner
+ * corrected the address since, or the person wrote from a second one) the
+ * operator is told where the reply will go and agrees to it by value, rather
+ * than the reply going somewhere they did not expect (the plan's §7).
+ */
+async function shapeEmailReply(ports: ReplyPorts, conv: ReplyThread, to: string, text: string, agreedTo: string | undefined): Promise<{ id: string; meta: Json }> {
+  if (conv.email_suppressed_at) {
+    throw new AppError("conflict", "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.");
+  }
+  const parent = await ports.email.parent(conv);
+  if (!parent) throw new AppError("conflict", "There is no email from this person on this thread to reply to.");
+  if (normalizeEmail(parent.from ?? "") !== to && agreedTo !== to) {
+    throw new AppError(
+      "conflict",
+      `Their last email came from ${parent.from ?? "an address that was not kept"}, and the address on their page is ${to}. This reply will go to ${to}.`,
+      409,
+      { confirm_email_to: to },
+    );
+  }
+  const id = ports.email.newId();
+  const frozen = await ports.email.freeze({ tenantId: conv.tenant_id, messageId: id, to, parent, body: text });
+  if (!frozen) throw new AppError("conflict", "This workspace has no email address to send from yet. Set one up in Settings › Channels first.");
+  return { id, meta: { email: { subject: frozen.subject, to: [to], parent_id: parent.messageId, in_reply_to: parent.rfcMessageId, request: frozen.request } } as Json };
+}
+
+/**
  * Human reply (§4/§6): honest by API shape. Inside the 24h window → freeform;
  * outside → approved template only. The send is NEVER synchronous: the row
  * sits status='queued' through a cancel window (the honest undo), then the
@@ -78,8 +149,6 @@ export interface ReplyCommand { conv: ReplyThread; userId: string; body: ReplyBo
  */
 export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand): Promise<ReplyReceipt> {
   const { conv, body } = cmd;
-  // Replies leave by WhatsApp or text, and both need a number. (The email wire is its own release: docs/plans/2026-09-17-email-channel.md.)
-  if (!conv.phone_e164) throw new AppError("conflict", "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
   // An opt-out binds the humans too — refuse BEFORE anything is queued, so the
   // operator is told rather than watching a message sit in "queued" and then
   // silently cancel itself when the job re-checks.
@@ -88,7 +157,15 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // The clock is the port's, for the window too: the wall clock closed a
   // window the test had frozen open, a day after the test was written.
   const now = ports.now();
+  // A reply goes back on the wire the person last wrote on, to the address that
+  // wire needs. It never crosses: an email that cannot be sent does not become a text.
   const channel = await ports.replyChannel(conv);
+  const to = channel === "email" ? conv.email ?? null : conv.phone_e164;
+  if (!to) {
+    throw new AppError("conflict", channel === "email"
+      ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first."
+      : "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
+  }
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
 
   // Idempotency: a replayed POST returns the original receipt, never a double
@@ -111,10 +188,12 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   let templateVars: Json | null = null;
   let templateName: string | null = null;
   let jobTemplate: { name: string; language: string; params: string[] } | undefined;
+  let email: { id: string; meta: Json } | null = null;
   if (window.open) {
     if (!body.text?.trim()) throw new AppError("validation", "Reply text is required.");
     messageBody = body.text.trim();
-    if (channel === "sms" && messageBody.length > 1600) throw new AppError("validation", "A text can be at most 1600 characters.");
+    if (messageBody.length > REPLY_LIMITS[channel].max) throw new AppError("validation", REPLY_LIMITS[channel].refusal);
+    if (channel === "email") email = await shapeEmailReply(ports, conv, to, messageBody, body.email_to);
   } else {
     if (!body.template?.name) throw new AppError("window_closed", "The 24-hour WhatsApp window is closed — replies must use an approved template.");
     const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
@@ -156,11 +235,15 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // "it failed" is the truth. Zero rows counts as failure for the same reason
   // it does everywhere else: a forbidden or mis-targeted UPDATE reports success.
   const pauseUntil = now + (await ports.pauseMs(conv.tenant_id));
-  await ports.pauseBot(conv.tenant_id, conv.phone_e164, pauseUntil);
+  // The mirror is keyed by the person's number, so it exists only for someone
+  // who has one; a person reached by email alone has no stored thread to pause
+  // (take-over and hand-back say the same).
+  const phone = conv.phone_e164;
+  if (phone) await ports.pauseBot(conv.tenant_id, phone, pauseUntil);
   if (!(await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString()))) {
     // The mirror already paused the receptionist; release it so the two stores
     // do not disagree about a thread nobody took (take-over does the same).
-    await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+    if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   // The operator is REPLACING the receptionist's held reply, not queueing
@@ -179,10 +262,15 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     template_name: templateName,
     template_vars: templateVars,
     content_hash: ports.hash(messageBody),
+    ...(email ?? {}),
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
   try {
-    await ports.schedule(conv.tenant_id, dueAt, { message_id, conversation_id: conv.id, to_phone: conv.phone_e164, ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }) });
+    await ports.schedule(conv.tenant_id, dueAt, {
+      message_id, conversation_id: conv.id,
+      ...(channel === "email" ? { to_email: to } : { to_phone: to }),
+      ...(jobTemplate ? { template: jobTemplate } : { body: messageBody }),
+    });
   } catch (e) {
     // Never leave an orphan queued row that silently never sends.
     await ports.cancelOrphan(message_id);

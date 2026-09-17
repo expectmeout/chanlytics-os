@@ -32,7 +32,7 @@ test("a caller with no WhatsApp thread: phone is the channel, no reply window, t
 
 test("a WhatsApp thread keeps its window, and a thread with both keeps both channels", () => {
   const chat = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T22:00:00Z", messages: [{ id: "m2", direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: "2026-09-06T22:00:00Z" }] }), null, ZONE, NOW);
-  assert.deepEqual([chat.channels, chat.primaryChannel, chat.hasChat], [["whatsapp"], "whatsapp", true]);
+  assert.deepEqual([chat.channels, chat.primaryChannel, chat.hasChat, chat.replyVia], [["whatsapp"], "whatsapp", true, "WhatsApp"]);
   assert.equal(chat.windowOpen, true, "they wrote an hour ago: the window is open");
   const both = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T22:00:00Z", messages: [...conv().messages, { id: "m2", direction: "inbound", sender: "customer", type: "text", body: "hi", media: null, meta: {}, status: "received", created_at: "2026-09-06T22:10:00Z" }] }), null, ZONE, NOW);
   assert.deepEqual([both.channels, both.primaryChannel], [["whatsapp", "phone"], "whatsapp"]);
@@ -44,6 +44,7 @@ test("an email thread: email is the channel, its words carry their subject line,
   const person = { id: "k2", display_name: null, wa_profile_name: null, phone_e164: null, email: "ana@example.com", consent: "unknown", dnc: false };
   const vm = toInboxThreadVM(conv({ contact: person, messages: [emailed()] }), { id: "e2", reason: "email_review", state: "open", created_at: "2026-09-06T22:30:05Z", details: "An email arrived." }, ZONE, NOW);
   assert.deepEqual([vm.channels, vm.primaryChannel, vm.hasChat], [["email"], "email", true], "REGRESSION guard: every written message that was not a text read as WhatsApp");
+  assert.equal(vm.replyVia, "Email", "the reply box names the wire it sends on");
   assert.equal(vm.who, "ana@example.com");
   assert.equal(vm.whoMeta, "Email · no name saved", "the address IS the name, so the line says that instead of repeating it");
   assert.equal(vm.windowOpen, true, "only WhatsApp has a window");
@@ -60,7 +61,7 @@ test("an email thread: email is the channel, its words carry their subject line,
 
 test("the wiring: the page branches on the channel and reads the reason's sentence; the pills say what they mean", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
-  for (const s of ["Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? \" late\" : \"\"}`}>{` · waited ${thread.waited}`}</span> : \"\"}", "<>{thread.summary}</>", "Call back", 'aria-label="Nothing needed — hand it back to the receptionist"', "thread.hasChat === false", 'data-testid="ix-call-back"', "`${thread.primaryChannel === \"sms\" ? \"Text\" : \"WhatsApp\"} to ${thread.who}…`"]) assert.ok(page.includes(s), s);
+  for (const s of ["Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? \" late\" : \"\"}`}>{` · waited ${thread.waited}`}</span> : \"\"}", "<>{thread.summary}</>", "Call back", 'aria-label="Nothing needed — hand it back to the receptionist"', "thread.hasChat === false", 'data-testid="ix-call-back"', "`${thread.replyVia || \"WhatsApp\"} to ${thread.who}…`"]) assert.ok(page.includes(s), s);
   for (const gone of ["already sent a holding reply", "let the AI resume", "Reply as the salon", "Waiting on you{thread.waitingMin", "They have only phoned", "Call them back"]) assert.ok(!page.includes(gone), `${gone} is gone`);
   const pills = readCode("apps/dashboard/src/legacy/pages/conversations.jsx");
   // The words and the tones are the one pill's now (contracts/tone.ts, run in state-pill.test.mjs); the page names the states.

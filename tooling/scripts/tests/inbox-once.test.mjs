@@ -228,4 +228,8 @@ test("an email in the thread is drawn as one: the envelope, the word Email, its 
   const order = [];
   walk(emailBubble, (n) => { if (byTestId("tl-msg-subject")(n)) order.push("subject"); if (hasClass("tl-msg-body")(n)) order.push("body"); });
   assert.deepEqual(order, ["subject", "body"], "what it is about, then what it says");
+  // They wrote last by email, so that is where a reply goes, and the reply box says so: no window, no templates.
+  const box = find(pane, (n) => n.type === "textarea" && hasClass("ix-composer-text")(n));
+  assert.equal(box?.props.placeholder, `Email to ${vm.who}…`, "REGRESSION guard: every wire that was not a text was named WhatsApp");
+  assert.equal(find(pane, (n) => /24-hour WhatsApp window/.test(textOf(n)) && hasClass("ix-composer-banner")(n)), undefined);
 });

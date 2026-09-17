@@ -229,6 +229,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -377,6 +379,12 @@ var BrainOutputSchema = z2.object({
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -5971,6 +5979,8 @@ var EVENT_KINDS2 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -6119,6 +6129,12 @@ var BrainOutputSchema2 = z22.object({
   language: z22.enum(BRAIN_LANGUAGES2).catch("other")
 });
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
+var REPLY_LIMITS2 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 var RETENTION_DAYS2 = {
@@ -6742,6 +6758,12 @@ function messageIdHeader(id) {
   const s2 = oneLine(id ?? "");
   const bare = s2.replace(/^<|>$/g, "");
   return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
+}
+function isEmailRequest(v) {
+  if (!v || typeof v !== "object") return false;
+  const r2 = v;
+  const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s2) => typeof s2 === "string" && s2.length > 0);
+  return typeof r2.from === "string" && strings(r2.to) && strings(r2.reply_to) && typeof r2.subject === "string" && typeof r2.text === "string" && typeof r2.html === "string" && !!r2.headers && typeof r2.headers === "object" && Array.isArray(r2.tags) && typeof r2.idempotency_key === "string" && r2.idempotency_key.length > 0;
 }
 function messageIdsIn(header) {
   return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
@@ -7778,6 +7800,8 @@ var EVENT_KINDS3 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -7926,6 +7950,12 @@ var BrainOutputSchema3 = z23.object({
   language: z23.enum(BRAIN_LANGUAGES3).catch("other")
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
+var REPLY_LIMITS3 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
 var CALL_OUTCOMES2 = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 var RETENTION_DAYS3 = {
@@ -8628,6 +8658,8 @@ var EVENT_KINDS22 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -8790,6 +8822,12 @@ var BrainOutputSchema22 = z222.object({
   language: z222.enum(BRAIN_LANGUAGES22).catch("other")
 });
 var WA_WINDOW_MS22 = 24 * 3600 * 1e3;
+var REPLY_LIMITS22 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY22 = Math.max(...Object.values(REPLY_LIMITS22).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS22 = 10 * 60 * 1e3;
 var RETENTION_DAYS22 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -9474,6 +9512,8 @@ var EVENT_KINDS32 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -9622,6 +9662,12 @@ var BrainOutputSchema32 = z232.object({
   language: z232.enum(BRAIN_LANGUAGES32).catch("other")
 });
 var WA_WINDOW_MS32 = 24 * 3600 * 1e3;
+var REPLY_LIMITS32 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY32 = Math.max(...Object.values(REPLY_LIMITS32).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS32 = 10 * 60 * 1e3;
 var RETENTION_DAYS32 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -10374,11 +10420,13 @@ async function sendQueued(ports, cmd) {
   if (!msg || msg.status !== "queued") return;
   const purpose = await ports.purposeOf(p.template);
   const channel = msg.channel ?? "whatsapp";
+  const to = channel === "email" ? p.to_email : p.to_phone;
+  if (!to) throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`);
   const out = await ports.deliver({
     tenantId: cmd.tenantId,
     conversationId: p.conversation_id,
     contactId: null,
-    to: p.to_phone,
+    to,
     channel,
     // Read from the ROW, not hardcoded: under a veto window the receptionist's
     // own reply travels this path, and stamping every send "human" would make
@@ -10388,6 +10436,8 @@ async function sendQueued(ports, cmd) {
     proactive: false,
     body: p.body ?? msg.body ?? "",
     template: p.template,
+    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+    ...msg.email ? { email: msg.email } : {},
     messageId: p.message_id
   });
   if (out.outcome !== "failed") return;
@@ -10395,10 +10445,10 @@ async function sendQueued(ports, cmd) {
     await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
   }
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
-  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : `HTTP ${out.status}`;
+  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
-  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
+  await ports.alert(`Reply delivery failed: ${to}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
 }
 async function eraseBlobThread(ports, cmd) {
   const p = cmd.payload;
@@ -10722,6 +10772,8 @@ var EVENT_KINDS4 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -10870,6 +10922,12 @@ var BrainOutputSchema4 = z24.object({
   language: z24.enum(BRAIN_LANGUAGES4).catch("other")
 });
 var WA_WINDOW_MS4 = 24 * 3600 * 1e3;
+var REPLY_LIMITS4 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY4 = Math.max(...Object.values(REPLY_LIMITS4).map((l2) => l2.max));
 var CALL_HEARTBEAT_MS4 = 10 * 60 * 1e3;
 var RETENTION_DAYS4 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -11603,9 +11661,11 @@ async function outboundSend(ctx, job) {
       // so a read that failed and a message that is gone stay separable; the
       // verb turns the error into the job's loud failure.
       queued: async (id) => {
-        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender, meta").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
         if (error) throw new Error(error.message);
-        return data;
+        if (!data) return null;
+        const request = data.meta?.email?.request;
+        return { status: data.status, body: data.body, channel: data.channel, sender: data.sender, email: isEmailRequest(request) ? request : null };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),

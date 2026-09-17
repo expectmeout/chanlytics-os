@@ -7,7 +7,9 @@
  * endpoint's secret. That proves RESEND sent the event. It says nothing about
  * who sent the email the event is about, and nothing here acts as though it
  * did: a received email becomes a job that fetches it, and what the email may
- * change is decided there (core email-ingest.ts), never from the webhook.
+ * change is decided there (core email-ingest.ts), never from the webhook. A
+ * receipt is the other kind of event: the provider's own word on an email WE
+ * sent, which is evidence, and is applied (email-receipts.ts).
  *
  * A delivery is routed by the address the platform assigned, exactly: a
  * workspace's published address, or a reply route's token. Never a display
@@ -22,7 +24,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import { mailboxFor } from "./workspace/db.js";
-import { emailReceivedEventFrom, platformRecipient, verifyResendWebhook, type SvixHeaders } from "./workspace/channels.js";
+import { emailReceiptFrom, emailReceivedEventFrom, platformRecipient, verifyResendWebhook, type EmailReceipt, type SvixHeaders } from "./workspace/channels.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -38,8 +40,10 @@ export interface ResendIngressInput {
 
 export type ResendVerdict =
   | { kind: "refuse"; status: 401 | 400; log: string }
-  /** An event this door has no work for yet (a receipt, a domain event), or a received email that names no address of ours. */
+  /** An event this door has no work for (a domain event, a contact event), or a received email that names no address of ours. */
   | { kind: "ignore"; log: string; unroutable: number }
+  /** What became of an email we sent. */
+  | { kind: "receipt"; receipt: EmailReceipt }
   | { kind: "intake"; receivedId: string; jobs: Array<{ tenantId: string; mailboxId: string }>; unroutable: number };
 
 export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerdict> {
@@ -47,6 +51,8 @@ export async function planResendEvent(i: ResendIngressInput): Promise<ResendVerd
   let payload: unknown;
   try { payload = JSON.parse(i.rawBody); } catch { return { kind: "refuse", status: 400, log: "resend_webhook_not_json" }; }
 
+  const receipt = emailReceiptFrom(payload);
+  if (receipt) return { kind: "receipt", receipt };
   const event = emailReceivedEventFrom(payload);
   if (!event) return { kind: "ignore", log: "resend_webhook_no_work", unroutable: 0 };
 

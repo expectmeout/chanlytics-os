@@ -1022,6 +1022,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -1170,6 +1172,12 @@ var BrainOutputSchema = z2.object({
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var CALL_OUTCOMES = ["answered", "booking_link_sent", "callback_needed", "voicemail", "no_request", "other"];
 var RETENTION_DAYS = {
@@ -1824,6 +1832,19 @@ var twilioUrls = {
   messages: (sid2) => `${API2}/Accounts/${sid2}/Messages.json`
 };
 var enc = new TextEncoder();
+var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
+function addressOf(header) {
+  const s = oneLine(header ?? "");
+  if (!s) return null;
+  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
+  const address = (angle ? angle[2] : s).trim().toLowerCase();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
+  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  return { address, name: name || null };
+}
+function requestLeavesAs(request, as) {
+  return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
+}
 var RESEND_EMAILS = "https://api.resend.com/emails";
 var SEND_TIMEOUT_MS2 = 15e3;
 async function sendEmail(cfg, request) {
@@ -1971,6 +1992,8 @@ var EVENT_KINDS2 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -2215,6 +2238,12 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
 function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
+var REPLY_LIMITS2 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY2 = Math.max(...Object.values(REPLY_LIMITS2).map((l) => l.max));
 var CALL_HEARTBEAT_MS2 = 10 * 60 * 1e3;
 var RETENTION_DAYS2 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -3305,6 +3334,8 @@ var EVENT_KINDS3 = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -3453,6 +3484,12 @@ var BrainOutputSchema3 = z23.object({
   language: z23.enum(BRAIN_LANGUAGES3).catch("other")
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
+var REPLY_LIMITS3 = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY3 = Math.max(...Object.values(REPLY_LIMITS3).map((l) => l.max));
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
 var RETENTION_DAYS3 = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -4066,11 +4103,13 @@ function whatsappSender(cfg) {
     return p.template ? sendTemplate(cfg, digits, p.template) : sendText(cfg, digits, p.body);
   };
 }
-function emailSender(cfg) {
-  if (!cfg) return null;
+function emailSender(cfg, as) {
+  if (!cfg || !as) return null;
+  const refuse = (errorBody) => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return (to, p) => {
-    if (!p.email) return Promise.resolve({ ok: false, wamid: null, status: 0, errorBody: "no_frozen_request" });
-    if (p.email.to.length !== 1 || p.email.to[0] !== to) return Promise.resolve({ ok: false, wamid: null, status: 0, errorBody: "request_names_another_recipient" });
+    if (!p.email) return refuse("no_frozen_request");
+    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
+    if (!requestLeavesAs(p.email, as)) return refuse("request_leaves_as_another_sender");
     return sendEmail(cfg, p.email);
   };
 }
@@ -4338,12 +4377,34 @@ async function cancelSend(ports, cmd) {
 // src/conversations/reply.ts
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
+async function shapeEmailReply(ports, conv, to, text, agreedTo) {
+  if (conv.email_suppressed_at) {
+    throw new AppError("conflict", "Email to this address has stopped: it bounced, or they reported it. Correct the address on their page, or reach them another way.");
+  }
+  const parent = await ports.email.parent(conv);
+  if (!parent) throw new AppError("conflict", "There is no email from this person on this thread to reply to.");
+  if (normalizeEmail(parent.from ?? "") !== to && agreedTo !== to) {
+    throw new AppError(
+      "conflict",
+      `Their last email came from ${parent.from ?? "an address that was not kept"}, and the address on their page is ${to}. This reply will go to ${to}.`,
+      409,
+      { confirm_email_to: to }
+    );
+  }
+  const id = ports.email.newId();
+  const frozen = await ports.email.freeze({ tenantId: conv.tenant_id, messageId: id, to, parent, body: text });
+  if (!frozen) throw new AppError("conflict", "This workspace has no email address to send from yet. Set one up in Settings \u203A Channels first.");
+  return { id, meta: { email: { subject: frozen.subject, to: [to], parent_id: parent.messageId, in_reply_to: parent.rfcMessageId, request: frozen.request } } };
+}
 async function replyToConversation(ports, cmd) {
   const { conv, body } = cmd;
-  if (!conv.phone_e164) throw new AppError("conflict", "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
   if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
   const now = ports.now();
   const channel = await ports.replyChannel(conv);
+  const to = channel === "email" ? conv.email ?? null : conv.phone_e164;
+  if (!to) {
+    throw new AppError("conflict", channel === "email" ? "This person has no email address on their page, so an email reply cannot reach them. Add it there first." : "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
+  }
   const window = replyWindow(channel, conv.last_wa_inbound_at, new Date(now));
   const idemKey = cmd.idempotencyKey ? `${cmd.userId}:${cmd.idempotencyKey}` : null;
   const intentHash = ports.hash(JSON.stringify(body));
@@ -4356,10 +4417,12 @@ async function replyToConversation(ports, cmd) {
   let templateVars = null;
   let templateName = null;
   let jobTemplate;
+  let email = null;
   if (window.open) {
     if (!body.text?.trim()) throw new AppError("validation", "Reply text is required.");
     messageBody = body.text.trim();
-    if (channel === "sms" && messageBody.length > 1600) throw new AppError("validation", "A text can be at most 1600 characters.");
+    if (messageBody.length > REPLY_LIMITS2[channel].max) throw new AppError("validation", REPLY_LIMITS2[channel].refusal);
+    if (channel === "email") email = await shapeEmailReply(ports, conv, to, messageBody, body.email_to);
   } else {
     if (!body.template?.name) throw new AppError("window_closed", "The 24-hour WhatsApp window is closed \u2014 replies must use an approved template.");
     const tpl = await ports.template(conv.tenant_id, body.template.name, body.template.language);
@@ -4384,9 +4447,10 @@ async function replyToConversation(ports, cmd) {
     jobTemplate = { name: tpl.name, language: tpl.language, params };
   }
   const pauseUntil = now + await ports.pauseMs(conv.tenant_id);
-  await ports.pauseBot(conv.tenant_id, conv.phone_e164, pauseUntil);
+  const phone = conv.phone_e164;
+  if (phone) await ports.pauseBot(conv.tenant_id, phone, pauseUntil);
   if (!await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString())) {
-    await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+    if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
@@ -4400,11 +4464,17 @@ async function replyToConversation(ports, cmd) {
     body: messageBody,
     template_name: templateName,
     template_vars: templateVars,
-    content_hash: ports.hash(messageBody)
+    content_hash: ports.hash(messageBody),
+    ...email ?? {}
   });
   const dueAt = new Date(now + SEND_GRACE_MS);
   try {
-    await ports.schedule(conv.tenant_id, dueAt, { message_id, conversation_id: conv.id, to_phone: conv.phone_e164, ...jobTemplate ? { template: jobTemplate } : { body: messageBody } });
+    await ports.schedule(conv.tenant_id, dueAt, {
+      message_id,
+      conversation_id: conv.id,
+      ...channel === "email" ? { to_email: to } : { to_phone: to },
+      ...jobTemplate ? { template: jobTemplate } : { body: messageBody }
+    });
   } catch (e) {
     await ports.cancelOrphan(message_id);
     throw e;
@@ -4430,11 +4500,13 @@ async function sendQueued(ports, cmd) {
   if (!msg || msg.status !== "queued") return;
   const purpose = await ports.purposeOf(p.template);
   const channel = msg.channel ?? "whatsapp";
+  const to = channel === "email" ? p.to_email : p.to_phone;
+  if (!to) throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`);
   const out = await ports.deliver({
     tenantId: cmd.tenantId,
     conversationId: p.conversation_id,
     contactId: null,
-    to: p.to_phone,
+    to,
     channel,
     // Read from the ROW, not hardcoded: under a veto window the receptionist's
     // own reply travels this path, and stamping every send "human" would make
@@ -4444,6 +4516,8 @@ async function sendQueued(ports, cmd) {
     proactive: false,
     body: p.body ?? msg.body ?? "",
     template: p.template,
+    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+    ...msg.email ? { email: msg.email } : {},
     messageId: p.message_id
   });
   if (out.outcome !== "failed") return;
@@ -4451,10 +4525,10 @@ async function sendQueued(ports, cmd) {
     await ports.page?.(`provider_auth:${channel}`, `${channel} rejected a send with ${out.status}`, `Tenant ${cmd.tenantId}, message ${p.message_id}. Credentials, not content.`);
   }
   const notConnected = channel === "sms" ? "the texting line is not connected" : channel === "whatsapp" ? "the WhatsApp number is not connected" : `the ${channel} channel is not connected`;
-  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : `HTTP ${out.status}`;
+  const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
-  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
+  await ports.alert(`Reply delivery failed: ${to}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
 }
 
 // src/messages/erase-thread.ts

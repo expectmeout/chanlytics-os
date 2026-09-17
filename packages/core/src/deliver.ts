@@ -26,7 +26,7 @@
  * conversational words at all.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendText, sendTemplate, sendEmail, type SendResult, type WaConfig, type EmailRequest, type ResendConfig } from "@chanlytics/channels";
+import { sendText, sendTemplate, sendEmail, requestLeavesAs, type SendResult, type WaConfig, type EmailRequest, type EmailSendsAs, type ResendConfig } from "@chanlytics/channels";
 import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
 import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
 
@@ -91,15 +91,20 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
 }
 
 /**
- * Email's wire. It sends the frozen request and nothing it assembled itself: a
- * delivery without one, or one addressed to somebody other than `to`, is a
- * failure the caller hears about, never a send to a guessed address.
+ * Email's wire, bound to ONE workspace's mailbox. It sends the frozen request
+ * and nothing it assembled itself: a delivery without one, one addressed to
+ * somebody other than `to`, or one that would leave as another workspace, is a
+ * failure the caller hears about, never a send. The provider key is the
+ * deployment's; `as` is what makes the wire this workspace's, and a workspace
+ * with no mailbox has no email line (null, like a number with no credentials).
  */
-export function emailSender(cfg: ResendConfig | null): Sender | null {
-  if (!cfg) return null;
+export function emailSender(cfg: ResendConfig | null, as: EmailSendsAs | null): Sender | null {
+  if (!cfg || !as) return null;
+  const refuse = (errorBody: string): Promise<SendResult> => Promise.resolve({ ok: false, wamid: null, status: 0, errorBody });
   return (to, p) => {
-    if (!p.email) return Promise.resolve({ ok: false, wamid: null, status: 0, errorBody: "no_frozen_request" });
-    if (p.email.to.length !== 1 || p.email.to[0] !== to) return Promise.resolve({ ok: false, wamid: null, status: 0, errorBody: "request_names_another_recipient" });
+    if (!p.email) return refuse("no_frozen_request");
+    if (p.email.to.length !== 1 || p.email.to[0] !== to) return refuse("request_names_another_recipient");
+    if (!requestLeavesAs(p.email, as)) return refuse("request_leaves_as_another_sender");
     return sendEmail(cfg, p.email);
   };
 }
