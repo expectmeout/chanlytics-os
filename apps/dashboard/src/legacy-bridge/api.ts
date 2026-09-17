@@ -62,7 +62,15 @@ export function apiFor(win: Window): Api {
       win.location.assign(signInHref(win.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(win),
-    refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
+    // A write landed, so every on-demand answer this tab is holding -- a
+    // person's page, the activity log, the back office -- describes the world
+    // as it was. The surfaces have their own path through the refresh map;
+    // this is the one rule for everything read on demand, so a new cached
+    // read never has to remember to invalidate itself.
+    refresh: (key) => {
+      clearReadCaches();
+      return import("./refresh-map").then((m) => m.refreshAfter(key));
+    },
   });
 }
 
@@ -80,7 +88,15 @@ export function api(): Api {
       window.location.assign(signInHref(window.location.hash));
     },
     onChooseWorkspace: () => forgetWorkspaceAndReboot(window),
-    refresh: (key) => import("./refresh-map").then((m) => m.refreshAfter(key)),
+    // A write landed, so every on-demand answer this tab is holding -- a
+    // person's page, the activity log, the back office -- describes the world
+    // as it was. The surfaces have their own path through the refresh map;
+    // this is the one rule for everything read on demand, so a new cached
+    // read never has to remember to invalidate itself.
+    refresh: (key) => {
+      clearReadCaches();
+      return import("./refresh-map").then((m) => m.refreshAfter(key));
+    },
   });
   return instance;
 }

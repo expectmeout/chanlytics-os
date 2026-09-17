@@ -65,3 +65,68 @@ test("on a workspace page, every surface fires at once with the address's worksp
   assert.equal(log.filter((l) => l[0] === "inbox").length, 1);
   assert.equal(win.reloads + (win.assigned ? 1 : 0) + (win.replaced ? 1 : 0), 0, "a boot never navigates");
 });
+
+/** Overrides that record when they start and finish, so the test can watch how many run at once. */
+function crowd(keys, { hash = "" } = {}) {
+  win.location.pathname = "/w/acme";
+  win.location.hash = hash;
+  win.__ACTIVE_WORKSPACE = "id-a";
+  const order = [];
+  let live = 0;
+  let peak = 0;
+  const overrides = keys.map((key) => ({
+    key,
+    debounceMs: 1,
+    apply: async () => {
+      order.push(key);
+      live += 1;
+      peak = Math.max(peak, live);
+      await tick(); await tick();
+      live -= 1;
+    },
+  }));
+  return { order, overrides, peak: () => peak };
+}
+
+test("boot runs in lanes rather than all at once: twenty-three requests in one millisecond is what made a cold load take 7.8s", async () => {
+  const keys = ["today", "inbox", "people", "calendar", "reports", "settings", "broadcasts", "playbooks", "conversations", "notifications"];
+  const { overrides, peak } = crowd(keys);
+  const stop = startSurfaces(overrides);
+  await settle(60);
+  stop();
+  assert.ok(peak() <= 4, `at most four surfaces boot at once, saw ${peak()}`);
+  assert.ok(peak() > 1, "and more than one, or a cold load is ten round trips end to end");
+});
+
+test("the surface the address is asking for takes the first lane", async () => {
+  // Landing on Reports and loading eleven surfaces ahead of it is backwards.
+  const keys = ["today", "inbox", "people", "calendar", "reports", "settings", "broadcasts", "playbooks"];
+  const { order, overrides } = crowd(keys, { hash: "#/reports" });
+  const stop = startSurfaces(overrides);
+  await settle(60);
+  stop();
+  assert.equal(order[0], "reports", "the one on screen asks first");
+  assert.equal(new Set(order).size, keys.length, "and every other surface still boots");
+});
+
+test("a route with no surface of its own changes nothing: the order is only a preference", async () => {
+  const keys = ["today", "inbox", "people", "calendar"];
+  const { order, overrides } = crowd(keys, { hash: "#/nothing-here" });
+  const stop = startSurfaces(overrides);
+  await settle(40);
+  stop();
+  assert.deepEqual([...order].sort(), [...keys].sort(), "all of them, and none twice");
+});
+
+test("identity leads even on a workspace page, where nothing waits for it", async () => {
+  // The shell reads __ME to decide what a role may see. Queued behind three
+  // strangers it would draw the nav for the wrong role and then correct it.
+  const keys = ["today", "inbox", "people", "calendar", "reports", "workspace", "settings"];
+  const { order, overrides } = crowd(keys, { hash: "#/reports" });
+  const stop = startSurfaces(overrides);
+  await settle(60);
+  stop();
+  assert.equal(order[0], "workspace", "who you are, first");
+  assert.equal(order[1], "reports", "then what you are looking at");
+  assert.equal(new Set(order).size, keys.length, "and the rest still boot");
+});

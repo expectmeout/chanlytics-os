@@ -2,6 +2,7 @@ import { CONSENT_SOURCES, TIMELINE_FILTERS, filterTimeline, mayReceive, offersYe
 import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
+import { readCache } from "./read-cache";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -16,12 +17,28 @@ import { workspaceZone } from "./zone";
  * Resolves null for "not in your workspace" (404) so the page can say so;
  * a session expiry has already signed the tab out by the time this throws.
  */
-export async function personDetail(id: string): Promise<PersonVM | null> {
-  // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
-  const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
-  if (r.ok) return toPersonVM(r.data.person, tz);
-  if (r.status === 404) return null;
-  throw new ApiError(r.code, r.status, r.message);
+export function personDetail(id: string): Promise<PersonVM | null> {
+  return people.through(id, async () => {
+    // Its days and times by the business's clock (zone.ts), read beside the person rather than after.
+    const [r, tz] = await Promise.all([api()("GET contacts/[id]", { params: { id } }), workspaceZone()]);
+    if (r.ok) return toPersonVM(r.data.person, tz);
+    if (r.status === 404) return null;
+    throw new ApiError(r.code, r.status, r.message);
+  });
+}
+
+/** The person this tab already read, if it has. Synchronous: what the page paints first. */
+export function peekPerson(id: string): PersonVM | null {
+  return people.peek(id);
+}
+
+/**
+ * Read someone before their row is clicked. People is a list you open, go back
+ * from and open again, and every one of those opens re-read the person and put
+ * "Loading..." over the page while it did.
+ */
+export function warmPerson(id: string): void {
+  people.warm(id, () => personDetail(id));
 }
 
 /** The client's answer, as the pages read it: `ok`, `data`, or the refusal's `message`. */
@@ -37,6 +54,16 @@ export type DeleteResult = ApiResult<unknown>;
  * named the person — the list, the Inbox, the threads and Today — so nothing
  * keeps showing someone who no longer exists.
  */
+/**
+ * The people this tab has opened.
+ *
+ * A "not in your workspace" is not held: it is the one answer that changes the
+ * moment somebody adds them, and painting it from memory would say they are
+ * gone when they are not. Every write clears this along with every other
+ * on-demand answer (legacy-bridge/api.ts).
+ */
+const people = readCache<PersonVM | null>("person", (vm) => vm !== null);
+
 export async function deletePerson(id: string): Promise<DeleteResult> {
   return api()("DELETE contacts/[id]", { params: { id } });
 }
@@ -172,6 +199,10 @@ export async function setPersonMarketingConsentMany(ids: string[], body: Consent
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
+    /** The person this tab already read: what the page paints before its own read lands. */
+    __peekPerson?: (id: string) => PersonVM | null;
+    /** Read someone before their row is clicked. */
+    __warmPerson?: (id: string) => void;
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
@@ -210,6 +241,8 @@ export async function setPersonDetails(id: string, body: DetailsBody): Promise<D
 
 export function installPeopleCourier(): void {
   window.__personDetail = personDetail;
+  window.__peekPerson = peekPerson;
+  window.__warmPerson = warmPerson;
   window.__setPersonConsentMany = setPersonConsentMany;
   window.__setPersonDetails = setPersonDetails;
   window.__deletePerson = deletePerson;

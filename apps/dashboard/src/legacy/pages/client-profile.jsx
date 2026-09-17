@@ -963,7 +963,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const [tlAll, setTlAll] = useStateP(false);
   const load = React.useCallback(() => {
     if (!window.__personDetail) return;
-    setSt((s) => ({ ...s, loading: !s.vm, error: null }));
+    // Held from the last time this tab opened them, so going back to the list
+    // and in again does not put "Loading..." over a page that is already known.
+    const held = window.__peekPerson ? window.__peekPerson(id) : null;
+    setSt((s) => (held && !s.vm ? { loading: true, vm: held, missing: false, error: null } : { ...s, loading: !s.vm, error: null }));
     window.__personDetail(id).then(
       (vm) => setSt({ loading: false, vm, missing: vm === null, error: null }),
       (e) => setSt((s) => ({ ...s, loading: false, error: e && e.message ? e.message : "could not load this person" })),
