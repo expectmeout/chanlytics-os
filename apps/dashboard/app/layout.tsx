@@ -53,21 +53,26 @@ export const viewport: Viewport = {
 };
 
 /** The nonce the middleware minted for this request, as it reached the render: read from the header Next reads. */
-async function requestNonce(): Promise<string | null> {
+async function requestNonce(): Promise<{ nonce: string | null; via: string }> {
   const h = await headers();
+  const direct = h.get("x-nonce");
+  if (direct) return { nonce: direct, via: "x-nonce" };
   const csp = h.get("content-security-policy") ?? h.get("content-security-policy-report-only") ?? "";
   const m = /'nonce-([A-Za-z0-9+/=_-]+)'/.exec(csp);
-  return m ? m[1] : null;
+  return m ? { nonce: m[1], via: "csp" } : { nonce: null, via: "none" };
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   // Rendered into the page so the nightly can compare it with the header's:
   // a page whose scripts carry no nonce while this meta carries one is Next
   // not applying it; one where this is empty is the header not arriving.
-  const nonce = await requestNonce();
+  const { nonce, via } = await requestNonce();
   return (
     <html lang="en" data-theme="dark" className={`${geist.variable} ${geistMono.variable}`}>
-      <head>{nonce ? <meta name="csp-nonce" content={nonce} /> : null}</head>
+      <head>
+        {nonce ? <meta name="csp-nonce" content={nonce} /> : null}
+        <meta name="csp-nonce-via" content={via} />
+      </head>
       <body>{children}</body>
     </html>
   );
