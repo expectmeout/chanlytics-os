@@ -114,7 +114,7 @@ test("a missing column withholds an offer rather than sending one", () => {
 test("what a message IS comes from what was already recorded, and NULL means marketing", () => {
   // `templates.category` has existed since 00045 and nothing has ever branched
   // on it. The trap is that it is NULL for exactly the rows most likely to
-  // matter: booking_link_v1 was seeded by hand before the column existed, a
+  // matter: booking_link was seeded by hand before the column existed, a
   // workspace that never ran a template sync has NULL throughout, and the mapper
   // returns null for any category Meta names that we do not recognise.
   //

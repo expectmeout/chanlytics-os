@@ -2888,6 +2888,40 @@ var STARTER_TEMPLATES = [
         slots: [FIRST_ES2, BUSINESS_ES2, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }]
       }
     }
+  },
+  {
+    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it
+    // when somebody wants to book (edge retell-fn.ts).
+    //
+    // UTILITY, and that is the whole point of writing it down here. It answers
+    // a request the person just made, so it needs no separate yes to offers --
+    // and because the category is Meta's own word for that, purposeOfTemplate
+    // reads it correctly and nothing has to override the purpose at a call
+    // site. The row this replaces was hand-written straight into one
+    // workspace's database, marked approved, with no meta_id: an approval Meta
+    // had never given, so every send of it failed, and it failed for every
+    // other workspace by not existing at all.
+    key: "booking_link",
+    name: "booking_link",
+    title: "Booking link",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    texts: {
+      en_US: {
+        // The first name every starter opens with, and here it is usually
+        // "there": the phone agent texts somebody whose name nobody has yet,
+        // and resolveParams says so rather than leaving a gap.
+        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
+        footer: null,
+        slots: [FIRST2, BUSINESS2, LINK2]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
+        footer: null,
+        slots: [FIRST_ES2, BUSINESS_ES2, LINK_ES2]
+      }
+    }
   }
 ];
 function starterByName(name) {

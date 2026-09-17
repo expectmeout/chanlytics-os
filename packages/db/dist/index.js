@@ -1323,6 +1323,13 @@ async function releaseControl(db, p) {
   return data === true;
 }
 
+// src/repositories/templates.ts
+async function templatesFor(db, tenantId, channel = "whatsapp") {
+  const { data, error } = await db.from("templates").select("name, language, category, meta_status, body_preview, title, variables").eq("tenant_id", tenantId).eq("channel", channel);
+  if (error) throw new Error(`templatesFor: ${error.message}`);
+  return data ?? [];
+}
+
 // src/repositories/control-plane.ts
 async function getTenantConfig(db, tenantId) {
   const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at, updated_by").eq("tenant_id", tenantId).maybeSingle();
@@ -1473,5 +1480,6 @@ export {
   stampEmailSent,
   stampMailboxReceived,
   subscribeMessagesInserts,
-  suppressEmailOf
+  suppressEmailOf,
+  templatesFor
 };

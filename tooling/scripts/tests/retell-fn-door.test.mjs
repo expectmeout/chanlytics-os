@@ -159,14 +159,26 @@ const BRAIN = {
   // A transfer line of its own, and no published number typed: which number a caller is told is the resolver's to say.
   profile: { hours: { mon: { open: "09:00", close: "17:00" } }, handoff_number: "+13055550199" },
 };
-/** The one template this path sends, as Meta receives it for this business. */
+/** The template this workspace has approved for it, as Meta receives it for this business. */
 const TEMPLATE = {
-  name: "booking_link_v1",
+  name: "booking_link",
   language: { code: "en_US" },
-  components: [{ type: "body", parameters: [{ type: "text", text: "Harbor Moving" }, { type: "text", text: "book.example/harbor" }] }],
+  // "there" is the first name: a caller is usually somebody nobody has met yet,
+  // and resolveParams writes that rather than leaving a gap.
+  components: [{ type: "body", parameters: [{ type: "text", text: "there" }, { type: "text", text: "Harbor Moving" }, { type: "text", text: "book.example/harbor" }] }],
 };
-/** The row a send leaves in the thread, and the key the daily cap counts. */
-const NOTE = "[booking link] Harbor Moving — book.example/harbor";
+/** What the thread keeps: the template's own words, filled -- not a placeholder line about them. */
+const NOTE = "Hi there, it's Harbor Moving. Here's the link to book your appointment: book.example/harbor — pick any time that suits you.";
+/** The workspace's own approved booking template, as a sync leaves the row. */
+const BOOKING_ROW = {
+  channel: "whatsapp", name: "booking_link", language: "en_US", category: "utility", meta_status: "approved", title: null,
+  body_preview: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} — pick any time that suits you.",
+  variables: [
+    { position: 1, label: "First name", example: "Dani" },
+    { position: 2, label: "Business name", example: "Luna Studio" },
+    { position: 3, label: "Booking link", example: "https://booksy.com/luna-studio" },
+  ],
+};
 const SOURCE = "voice_booking_link";
 
 const pad = (n, width) => String(n).padStart(width, "0");
@@ -181,7 +193,7 @@ let seq = 0;
  * puts someone on file, `ask()` is the tool's call, and `open()` hands the door
  * a database over these tables.
  */
-function world({ status = "active", mode = "auto", booking = null, brain = BRAIN, whatsapp = "own", line = LINE } = {}) {
+function world({ status = "active", mode = "auto", booking = null, brain = BRAIN, whatsapp = "own", line = LINE, templates } = {}) {
   const i = ++seq;
   const T = `bbbbbbbb-0000-4000-8000-${pad(i, 12)}`;
   const AGENT = `agent_fn_${i}_${crypto.randomBytes(4).toString("hex")}`;
@@ -200,6 +212,9 @@ function world({ status = "active", mode = "auto", booking = null, brain = BRAIN
       // The Autonomy pane's Booking row, when this workspace has set one.
       ...(booking ? [{ id: `pol-b-${i}`, tenant_id: T, class: "booking", mode: booking, limits: {}, subject_type: null, subject_id: null }] : []),
     ],
+    // Which template this path sends is the workspace's own answer now, so a
+    // world that has none is a workspace that has none.
+    templates: (templates === undefined ? [BOOKING_ROW] : templates).map((t) => ({ id: `tpl-${i}-${t.name}`, tenant_id: T, ...t })),
     google_listings: [], contacts: [], conversations: [], messages: [], events: [],
   };
   const vault = whatsapp === "own" ? { [`wa-${i}`]: { access_token: TOKEN, phone_id: PHONE_ID } } : {};
@@ -665,4 +680,81 @@ test("REGRESSION: a runaway guard that cannot read its own count does not open",
   const said = await listening(async () => spoken(await knock(w.ask(caller))));
   assert.equal(said, CANNOT_SEND);
   assert.deepEqual(w.left().graph, [], "a send that could not be counted is a send that does not happen");
+});
+
+/* --------------------------------- which template, and whose answer it is */
+
+test("a workspace with no approved booking template is told so, in the cause a business can act on", async () => {
+  // REGRESSION: this path named booking_link_v1 by literal. That row existed in
+  // exactly one workspace's database, written by hand and marked approved with
+  // no meta_id -- so Meta had never seen it and the send failed there, while
+  // every OTHER workspace named a row that did not exist at all. Either way the
+  // caller heard "that number may not have WhatsApp", which is the wrong cause
+  // and sends a business looking at the wrong thing.
+  for (const [templates, why] of [
+    [[], "none at all, as a newly created workspace has"],
+    [[{ ...BOOKING_ROW, meta_status: "pending" }], "submitted and not yet approved"],
+    [[{ ...BOOKING_ROW, meta_status: "rejected" }], "Meta said no"],
+    [[{ ...BOOKING_ROW, name: "save_our_number", variables: [{ position: 1, label: "First name", example: "Dani" }, { position: 2, label: "Business name", example: "Luna" }] }], "approved, but it carries no booking link"],
+    [[{ ...BOOKING_ROW, variables: [...BOOKING_ROW.variables, { position: 3, label: "Your message", example: "anything" }] }], "carries the link, but needs words nobody asked the caller for"],
+  ]) {
+    const w = world({ templates });
+    w.open();
+    const caller = w.number();
+    w.person(caller);
+    const said = await listening(async () => spoken(await knock(w.ask(caller))));
+    assert.match(said, /has not set up its booking-link text/i, why);
+    assert.match(said, /take their name/i, "and the agent is told what to do instead");
+    assert.deepEqual(w.left().graph, [], `nothing reached Meta: ${why}`);
+  }
+});
+
+test("the purpose is the template's own category again, so a promotion needs the offers answer and a utility message does not", async () => {
+  // It was declared in the file, because the hand-written row said `marketing`
+  // and purposeOfTemplate fails closed -- which would have refused the link to
+  // every first-time caller. The starter shipped in its place is `utility`, so
+  // the label agrees with the use and the fail-closed rule is back.
+  const utility = world();
+  utility.open();
+  const first = utility.number();
+  utility.person(first, { consent: "unknown", marketing: "unknown" });
+  assert.equal(await listening(async () => spoken(await knock(utility.ask(first)))), SENT,
+    "a first-time caller, who has said yes to nothing, still gets the link they just asked for");
+
+  const promo = world({ templates: [{ ...BOOKING_ROW, category: "marketing" }] });
+  promo.open();
+  const caller = promo.number();
+  promo.person(caller, { consent: "opted_in", marketing: "unknown" });
+  const said = await listening(async () => spoken(await knock(promo.ask(caller))));
+  assert.equal(said, refusalScript("no_marketing_consent", PUBLISHED),
+    "a workspace whose booking template is filed as a promotion needs the yes that goes with it");
+  assert.deepEqual(promo.left().graph, []);
+});
+
+test("the template's own slots are filled in the order it asks for them, not in the one this file used to assume", async () => {
+  // The params were a positional pair -- business name, then link -- which held
+  // only while one hand-written template was the only thing this path could
+  // send. They are resolved from the slots now, as the Inbox and broadcasts
+  // resolve them. A workspace that wrote its OWN booking template, rather than
+  // taking the starter, is the case that proves it: the starter's name carries
+  // the starter's shape, and a name we did not write is read off its labels.
+  const swapped = world({
+    templates: [{
+      ...BOOKING_ROW,
+      name: "reservar_ahora",
+      body_preview: "Book here: {{1}} — that's {{2}}.",
+      variables: [
+        { position: 1, label: "Booking link", example: "https://booksy.com/luna-studio" },
+        { position: 2, label: "Business name", example: "Luna Studio" },
+      ],
+    }],
+  });
+  swapped.open();
+  const caller = swapped.number();
+  swapped.person(caller);
+  assert.equal(await listening(async () => spoken(await knock(swapped.ask(caller)))), SENT);
+  const [sent] = swapped.left().graph;
+  assert.deepEqual(sent.body.template.components[0].parameters.map((p) => p.text), ["book.example/harbor", "Harbor Moving"],
+    "the link first, because this template asks for it first");
+  assert.equal(swapped.tables.messages[0].body, "Book here: book.example/harbor — that's Harbor Moving.");
 });

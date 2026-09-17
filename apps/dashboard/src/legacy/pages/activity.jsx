@@ -51,7 +51,9 @@ const ActivityRow = ({ r, actors }) => {
     : null;
   return (
     <div className="act-row" data-testid="act-row">
-      <span className="act-glyph" aria-hidden="true"><Icon name={ACT_GLYPH(r.kind)} size={11} /></span>
+      <span className="act-glyph" data-tone={window.__activity && window.__activity.tone ? window.__activity.tone(r.kind) : "plain"} aria-hidden="true">
+        <Icon name={ACT_GLYPH(r.kind)} size={11} />
+      </span>
       <span className="act-when">{ACT_TIME(r.at)}</span>
       <span className="act-what">{who && <b>{who} · </b>}{r.text}</span>
       {to && <button className="cl-bucket-link act-open" onClick={() => window.CHANLY.nav(to)}>Open</button>}
@@ -72,7 +74,17 @@ const PaneActivity = () => {
   const [person, setPerson] = React.useState(null); // { id, name }
   const [personQ, setPersonQ] = React.useState("");
   const [matches, setMatches] = React.useState([]);
-  const [st, setSt] = React.useState({ loading: true, rows: [], actors: {}, kinds: [], next: null, hasMore: false, error: null });
+  // What this tab read last time, painted at once. The read below replaces it
+  // inside the time this pane used to spend showing a reader nothing: on the
+  // salon's log it was 763ms of empty pane on the first visit and 433ms on the
+  // fifth, for a hundred rows that had not changed.
+  const [st, setSt] = React.useState(() => {
+    const seed = A && A.peek ? A.peek({}) : null;
+    const d = seed && seed.ok ? seed.data : null;
+    return d
+      ? { loading: true, rows: d.rows, actors: d.actors, kinds: d.kinds, next: d.page.next_cursor, hasMore: d.page.has_more, error: null }
+      : { loading: true, rows: [], actors: {}, kinds: [], next: null, hasMore: false, error: null };
+  });
   // On a phone the three boxes stand between a reader and the log, so they wait
   // behind one control until asked for. On a desktop the control is not drawn.
   const [asking, setAsking] = React.useState(false);
@@ -119,12 +131,25 @@ const PaneActivity = () => {
   // Where the day turns: the heading each row opens, or nothing when the row
   // above it was on the same day.
   const opens = [];
+  const counts = [];
   let sameAs = null;
-  for (const r of st.rows) {
-    const key = ACT_DAY_KEY(r.at);
-    opens.push(key === sameAs ? null : ACT_DAY(r.at));
-    sameAs = key;
+  let head = -1;
+  for (let i = 0; i < st.rows.length; i++) {
+    const key = ACT_DAY_KEY(st.rows[i].at);
+    if (key === sameAs) {
+      opens.push(null);
+      counts[head] += 1;
+    } else {
+      opens.push(ACT_DAY(st.rows[i].at));
+      counts.push(1);
+      head = counts.length - 1;
+      sameAs = key;
+    }
   }
+  // Which heading each row belongs to, so the heading can say its own count.
+  const perDay = [];
+  let n = -1;
+  for (let i = 0; i < st.rows.length; i++) { if (opens[i]) n += 1; perDay.push(counts[n]); }
 
   return (
     <section className="fl-card set-card" data-testid="set-activity">
@@ -175,10 +200,27 @@ const PaneActivity = () => {
       {/* Said whenever it is reading, not only on the first read: narrowing the
           log left the old rows on screen with nothing saying they were stale. */}
       {st.loading && !st.error && <div className="act-reading" role="status" data-testid="act-loading">Reading the activity log…</div>}
+      {st.loading && st.rows.length === 0 && !st.error && (
+        <div className="act-list act-waiting" aria-hidden="true">
+          <div className="act-day"><span className="act-bone act-bone-day" /></div>
+          {[68, 52, 61, 44, 57, 49, 63].map((w, i) => (
+            <div className="act-row" key={i}>
+              <span className="act-glyph" />
+              <span className="act-when"><span className="act-bone" /></span>
+              <span className="act-what"><span className="act-bone" style={{ width: `${w}%` }} /></span>
+            </div>
+          ))}
+        </div>
+      )}
       <div className="act-list" data-testid="act-rows">
         {st.rows.map((r, i) => (
           <React.Fragment key={r.id}>
-            {opens[i] && <div className="act-day">{opens[i]}</div>}
+            {opens[i] && (
+              <div className="act-day">
+                {opens[i]}
+                <span className="act-day-n">{perDay[i]}</span>
+              </div>
+            )}
             <ActivityRow r={r} actors={st.actors} />
           </React.Fragment>
         ))}

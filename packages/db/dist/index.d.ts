@@ -3554,7 +3554,7 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 
-type Db$5 = SupabaseClient<Database>;
+type Db$6 = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
     channel: "whatsapp" | "sms" | "email";
@@ -3594,11 +3594,11 @@ interface IngestResult {
     consent?: string | null;
     dnc?: boolean | null;
 }
-declare function ingestInbound(db: Db$5, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$6, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$5, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db$5, p: {
+declare function markProcessed(db: Db$6, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$6, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -3649,7 +3649,7 @@ interface OutboundTarget extends PurposeBearing {
  * `create: false` means "only an existing contact will do" — the guard for a
  * number somebody supplied rather than one that called us.
  */
-declare function resolveOutboundTarget(db: Db$5, p: {
+declare function resolveOutboundTarget(db: Db$6, p: {
     tenantId: string;
     phoneE164: string;
     create?: boolean;
@@ -3663,18 +3663,18 @@ declare function resolveOutboundTarget(db: Db$5, p: {
  * no cap at all — a caller who phoned repeatedly, or an agent that called its
  * own tool twice, produced one billable template per attempt.
  */
-declare function countSentToday(db: Db$5, p: {
+declare function countSentToday(db: Db$6, p: {
     tenantId: string;
     conversationId: string;
     source: string;
 }): Promise<number>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$5, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$6, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or PG diverges
  *  from the Blob pause forever. */
-declare function recordEchoAndPause(db: Db$5, p: {
+declare function recordEchoAndPause(db: Db$6, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -3697,12 +3697,12 @@ declare function recordEchoAndPause(db: Db$5, p: {
  * excludes matches zero rows and reports success, so the row count is the only
  * way to tell a write that happened from one that was silently skipped.
  */
-declare function pauseConversation(db: Db$5, tenantId: string, conversationId: string, pausedUntilIso: string, 
+declare function pauseConversation(db: Db$6, tenantId: string, conversationId: string, pausedUntilIso: string, 
 /** The holding message this same handoff queued, which the pause must not withdraw. */
 opts?: {
     keepMessageId?: string | null;
 }): Promise<boolean>;
-declare function emitEvent(db: Db$5, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function emitEvent(db: Db$6, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
 
 /**
  * Email's rows: a workspace's mailbox, taking a received email in, the email a
@@ -3725,11 +3725,11 @@ declare function emitEvent(db: Db$5, tenantId: string, kind: EventKind, category
  *           empty one is filled: what an owner typed is never overwritten.
  */
 
-type Db$4 = SupabaseClient<Database>;
+type Db$5 = SupabaseClient<Database>;
 type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
-declare function mailboxById(db: Db$4, id: string): Promise<MailboxRow | null>;
+declare function mailboxById(db: Db$5, id: string): Promise<MailboxRow | null>;
 /** The mailbox a published address or a reply route names. A rotated-out token still routes until it is revoked (00126). */
-declare function mailboxFor(db: Db$4, to: {
+declare function mailboxFor(db: Db$5, to: {
     kind: "mailbox";
     localPart: string;
 } | {
@@ -3746,12 +3746,12 @@ interface IngestEmailParams {
     channelTs: string | null;
     meta: Json;
 }
-declare function ingestInboundEmail(db: Db$4, p: IngestEmailParams): Promise<IngestResult>;
+declare function ingestInboundEmail(db: Db$5, p: IngestEmailParams): Promise<IngestResult>;
 /** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
-declare function sentEmailWithMessageId(db: Db$4, tenantId: string, rfcMessageId: string): Promise<boolean>;
-declare function stampMailboxReceived(db: Db$4, mailboxId: string, at: string): Promise<void>;
+declare function sentEmailWithMessageId(db: Db$5, tenantId: string, rfcMessageId: string): Promise<boolean>;
+declare function stampMailboxReceived(db: Db$5, mailboxId: string, at: string): Promise<void>;
 /** A workspace's mailbox; null when it has none, which is a workspace with no email line. */
-declare function mailboxOfTenant(db: Db$4, tenantId: string): Promise<MailboxRow | null>;
+declare function mailboxOfTenant(db: Db$5, tenantId: string): Promise<MailboxRow | null>;
 /** The email a reply answers: what the thread stores of the person's latest one. */
 interface InboundEmailFacts {
     messageId: string;
@@ -3765,14 +3765,14 @@ interface InboundEmailFacts {
  * conversation and nowhere else: a reply cannot be threaded under another
  * workspace's or another person's message, because no such row can be returned.
  */
-declare function lastInboundEmail(db: Db$4, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
+declare function lastInboundEmail(db: Db$5, tenantId: string, conversationId: string): Promise<InboundEmailFacts | null>;
 /**
  * A sent email learns the provider's id and the Message-ID it left with
  * (00128, one statement, so it cannot overwrite a status stamp written beside
  * it), and says where the row stands and which thread it is on. Null when this
  * workspace has no such outbound email: a receipt for a row that is not there.
  */
-declare function stampEmailSent(db: Db$4, p: {
+declare function stampEmailSent(db: Db$5, p: {
     tenantId: string;
     messageId: string;
     providerId: string;
@@ -3786,7 +3786,7 @@ declare function stampEmailSent(db: Db$4, p: {
  * (backwards, or off a terminal state) is a receipt arriving out of order, and
  * is let go the way recordStatusByExternalId lets it go; anything else throws.
  */
-declare function recordEmailStatus(db: Db$4, p: {
+declare function recordEmailStatus(db: Db$5, p: {
     tenantId: string;
     messageId: string;
     status: "delivered" | "failed";
@@ -3798,7 +3798,7 @@ declare function recordEmailStatus(db: Db$4, p: {
  * went to: a corrected address is a different address (00126). The person's id
  * when their row changed; null when it was already stopped, or no longer theirs.
  */
-declare function suppressEmailOf(db: Db$4, p: {
+declare function suppressEmailOf(db: Db$5, p: {
     tenantId: string;
     messageId: string;
     addresses: string[];
@@ -3842,7 +3842,7 @@ declare function resolveChannel(db: SupabaseClient<Database>, kind: string, exte
  * converge on one row.
  */
 
-type Db$3 = SupabaseClient<Database>;
+type Db$4 = SupabaseClient<Database>;
 interface NormalizedCallInput {
     retellCallId: string;
     agentId: string | null;
@@ -3883,7 +3883,7 @@ interface IngestCallResult {
     contact_id: string | null;
     conversation_id: string | null;
 }
-declare function ingestCall(db: Db$3, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
+declare function ingestCall(db: Db$4, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
 /**
  * Attach the thread note (call_summary message) back to its call row.
  *
@@ -3892,7 +3892,7 @@ declare function ingestCall(db: Db$3, tenantId: string, n: NormalizedCallInput, 
  * nothing, so "the write failed" and "the write did not happen" have to be
  * told apart by counting rows rather than by trusting the absence of an error.
  */
-declare function linkCallMessage(db: Db$3, tenantId: string, callId: string, messageId: string): Promise<void>;
+declare function linkCallMessage(db: Db$4, tenantId: string, callId: string, messageId: string): Promise<void>;
 /**
  * Post-storage-copy state for the recording (private bucket path).
  *
@@ -3903,9 +3903,9 @@ declare function linkCallMessage(db: Db$3, tenantId: string, callId: string, mes
  * left behind is invisible to the purge, which only looks at rows that say
  * `stored`. A row that did not change is now said out loud.
  */
-declare function setCallRecording(db: Db$3, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
+declare function setCallRecording(db: Db$4, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
 /** The customer's thread gets the call as a message, so history stays in one place. */
-declare function recordCallNote(db: Db$3, p: {
+declare function recordCallNote(db: Db$4, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -3918,7 +3918,7 @@ declare function recordCallNote(db: Db$3, p: {
  * note). True for the first caller; false once claimed. Throws on a database
  * error so the webhook answers non-2xx and the provider retries.
  */
-declare function claimCallNotification(db: Db$3, tenantId: string, callId: string): Promise<boolean>;
+declare function claimCallNotification(db: Db$4, tenantId: string, callId: string): Promise<boolean>;
 
 /**
  * Gate 1b: the bot's working memory, read from Postgres.
@@ -3940,7 +3940,7 @@ declare function claimCallNotification(db: Db$3, tenantId: string, callId: strin
  *                a 40-entry array that two concurrent lambdas could both miss.
  */
 
-type Db$2 = SupabaseClient<Database>;
+type Db$3 = SupabaseClient<Database>;
 interface ThreadTurn {
     role: "user" | "assistant";
     content: string;
@@ -3991,7 +3991,7 @@ type HistoryRow = {
 declare function assembleHistory(rows: HistoryRow[], limit: number): ThreadTurn[];
 /** The columns assembleHistory needs. One string, so no caller can under-select. */
 declare const HISTORY_COLUMNS = "body, sender, direction, type, status, created_at, channel_ts, meta";
-declare function readThreadState(db: Db$2, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
+declare function readThreadState(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string | null, historyLimit?: number): Promise<PgThreadState>;
 interface LeadContext {
     contactId: string | null;
     conversationId: string | null;
@@ -4022,7 +4022,7 @@ interface LeadContext {
  * would otherwise leave a lead behind in the workspace. The real ingest paths
  * create rows; this one only reports what is already true.
  */
-declare function readLeadContext(db: Db$2, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
+declare function readLeadContext(db: Db$3, tenantId: string, phoneE164: string, historyLimit?: number): Promise<LeadContext>;
 /**
  * The lead, described for a model in a few plain lines.
  *
@@ -4047,7 +4047,7 @@ declare function describeLead(lead: LeadContext, now?: Date): string;
  * to answer.
  */
 
-type Db$1 = SupabaseClient<Database>;
+type Db$2 = SupabaseClient<Database>;
 /** A person mid-conversation, or a call in progress. */
 type ControlHolder = {
     kind: "person";
@@ -4072,7 +4072,7 @@ type ControlOutcome = "claimed" | "renewed" | "held" | "gone";
  * a read that could not be made, which is not the same as a free thread, so it
  * is left to the caller to fail loudly rather than swallowed here.
  */
-declare function claimControl(db: Db$1, p: {
+declare function claimControl(db: Db$2, p: {
     tenantId: string;
     conversationId: string;
     holder: ControlHolder;
@@ -4083,11 +4083,42 @@ declare function claimControl(db: Db$1, p: {
  * the honest answer to a release that arrives after a person took the thread
  * over, which must not clear their hold.
  */
-declare function releaseControl(db: Db$1, p: {
+declare function releaseControl(db: Db$2, p: {
     tenantId: string;
     conversationId: string;
     holder: ControlHolder;
 }): Promise<boolean>;
+
+/**
+ * A workspace's own message templates, as Meta last told us about them.
+ *
+ * Read-only, and deliberately small: the admin doors in apps/edge own creating,
+ * syncing and deleting them, because that is where the number's credentials
+ * live. What is here is the one question the rest of the product asks -- which
+ * templates may this workspace send, right now -- so that no caller has to name
+ * one by a literal again.
+ */
+
+type Db$1 = SupabaseClient<Database>;
+/** What every reader of a template needs to decide whether it may be sent and how to fill it. */
+interface TemplateRow {
+    name: string;
+    language: string;
+    category: string | null;
+    meta_status: string | null;
+    body_preview: string | null;
+    title: string | null;
+    variables: unknown;
+}
+/**
+ * Every template this workspace holds on a channel.
+ *
+ * A read that fails THROWS. "We could not read the templates" is not "this
+ * workspace has none": the second is an answer a caller can be told, and
+ * telling them it when we simply could not look is how a working feature reads
+ * as a missing one.
+ */
+declare function templatesFor(db: Db$1, tenantId: string, channel?: string): Promise<TemplateRow[]>;
 
 /**
  * Control-plane repository (Session A): config, policies, team.
@@ -4198,4 +4229,4 @@ onInsert: (row: {
     tenant_id: string;
 }, table: string, event?: string) => void, opts?: SubscribeOptions): () => void;
 
-export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, claimControl, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listPolicies, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf };
+export { CALL_CONTROL_S, type ChannelLookup, type ControlHolder, type ControlOutcome, type Database, HISTORY_COLUMNS, type InboundEmailFacts, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TemplateRow, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, claimControl, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, lastInboundEmail, linkCallMessage, listPolicies, mailboxById, mailboxFor, mailboxOfTenant, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordEmailStatus, recordOutbound, recordStatusByExternalId, releaseControl, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampEmailSent, stampMailboxReceived, subscribeMessagesInserts, suppressEmailOf, templatesFor };

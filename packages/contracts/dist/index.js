@@ -5673,6 +5673,40 @@ var STARTER_TEMPLATES = [
         slots: [FIRST_ES, BUSINESS_ES, { kind: "text", label: "La nota", example: "este mes abrimos hasta tarde los jueves." }]
       }
     }
+  },
+  {
+    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it
+    // when somebody wants to book (edge retell-fn.ts).
+    //
+    // UTILITY, and that is the whole point of writing it down here. It answers
+    // a request the person just made, so it needs no separate yes to offers --
+    // and because the category is Meta's own word for that, purposeOfTemplate
+    // reads it correctly and nothing has to override the purpose at a call
+    // site. The row this replaces was hand-written straight into one
+    // workspace's database, marked approved, with no meta_id: an approval Meta
+    // had never given, so every send of it failed, and it failed for every
+    // other workspace by not existing at all.
+    key: "booking_link",
+    name: "booking_link",
+    title: "Booking link",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    texts: {
+      en_US: {
+        // The first name every starter opens with, and here it is usually
+        // "there": the phone agent texts somebody whose name nobody has yet,
+        // and resolveParams says so rather than leaving a gap.
+        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} \u2014 pick any time that suits you.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK]
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Aqu\xED tienes el enlace para reservar tu cita: {{3}} \u2014 elige la hora que mejor te venga.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES]
+      }
+    }
   }
 ];
 function starterByName(name) {
@@ -5803,6 +5837,12 @@ function compareTemplates(a, b) {
 function defaultTemplate(list, trigger) {
   const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
   return (s ? list.find((t) => t.name === s.name) : void 0) ?? list.slice().sort(compareTemplates)[0] ?? null;
+}
+function bookingTemplate(templates) {
+  const usable = templates.filter(
+    (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link")
+  );
+  return usable.find((t) => t.name === "booking_link") ?? usable.slice().sort(compareTemplates)[0] ?? null;
 }
 function slotLabels(t) {
   const vars = Array.isArray(t.variables) ? t.variables : [];
@@ -8674,6 +8714,58 @@ function activityWords(kind, payload) {
   }
   return bits.length ? `${base} \xB7 ${bits.join(" \xB7 ")}` : base;
 }
+var TONES = {
+  // danger -- it failed, it was refused, or something is gone
+  "message.send_failed": "danger",
+  "message.send_blocked": "danger",
+  "line.failed": "danger",
+  "line.texting_rejected": "danger",
+  "contact.erased": "danger",
+  "contact.blob_erased": "danger",
+  "ingest.unroutable": "danger",
+  "ingest.unreachable_sender": "danger",
+  erase: "danger",
+  decline: "danger",
+  remove_member: "danger",
+  // ok -- it completed, it connected, it is answering
+  "line.answering": "ok",
+  "line.texting_approved": "ok",
+  "line.forwarding_verified": "ok",
+  "voice.provisioned": "ok",
+  "google.linked": "ok",
+  "google.connected": "ok",
+  "broadcast.sent": "ok",
+  "billing.resumed": "ok",
+  "mailbox.created": "ok",
+  "workspace.created": "ok",
+  approve: "ok",
+  resolve: "ok",
+  connect_channel: "ok",
+  // warn -- somebody stopped something, or a rule was stepped around
+  "billing.paused": "warn",
+  "policy.veto_window_skipped": "warn",
+  "line.released": "warn",
+  "google.unlinked": "warn",
+  "google.disconnected": "warn",
+  "message.send_raced_cancel": "warn",
+  "ingest.allowlist_skip": "warn",
+  pause_agent: "warn",
+  pause_playbook: "warn",
+  cancel_send: "warn",
+  cancel_broadcast: "warn",
+  revoke_invite: "warn",
+  snooze: "warn",
+  // info -- it is on its way, or a person took it on
+  "message.received": "info",
+  "conversation.reopened": "info",
+  "line.texting_on": "info",
+  take_over: "info",
+  hand_back: "info",
+  reply: "info"
+};
+function activityTone(kind) {
+  return TONES[kind] ?? "plain";
+}
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 function isActivityNoise(kind) {
   return ACTIVITY_NOISE_PREFIXES.some((p) => kind.startsWith(p));
@@ -9235,7 +9327,7 @@ var SCHEMA_SETS = {
 };
 
 // src/tone.ts
-var TONES = ["accent", "warn", "info", "ok", "danger", "plain"];
+var TONES2 = ["accent", "warn", "info", "ok", "danger", "plain"];
 var TONE_OF = {
   thread: { escalated: "warn", needs_you: "warn", snoozed: "info", done: "plain", open: "plain", handled: "plain", booked: "ok", decided: "ok" },
   standing: { escalated: "warn", queued: "info", snoozed: "info", paused: "plain", silent: "plain", answering: "ok" },
@@ -9539,12 +9631,13 @@ export {
   TOAST_TONES,
   TOAST_UNDO_MS,
   TODAY_QUEUE_MAX,
-  TONES,
+  TONES2 as TONES,
   TenantConfigSchema,
   TenantConfigWriteSchema,
   WABA_FIELDS,
   WA_WINDOW_MS,
   abandonedCall,
+  activityTone,
   activityWords,
   addressAlreadyKnown,
   afterPersonRefused,
@@ -9566,6 +9659,7 @@ export {
   billingDoorOpen,
   billingPill,
   bookedAfterAsk,
+  bookingTemplate,
   brainMetaOf,
   broadcastFailureWords,
   broadcastName,

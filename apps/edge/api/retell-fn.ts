@@ -32,42 +32,38 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
-import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode } from "../lib/workspace/db.js";
-import { normalizePhone, policyAskClass, resolveFacts } from "../lib/workspace/contracts.js";
+import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode, templatesFor } from "../lib/workspace/db.js";
+import { bookingTemplate, inboxSlots, normalizePhone, policyAskClass, purposeOfTemplate, renderTemplate, resolveFacts, resolveParams } from "../lib/workspace/contracts.js";
 import { deliver, whatsappSender } from "../lib/workspace/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
 
 /**
- * The one template this path sends.
+ * Which template this path sends is the WORKSPACE'S to answer, not this file's.
  *
- * `purpose` IS STATED HERE, and deliberately not read from `templates.category`.
- * On the live workspace that row's category is `marketing`, so
- * `purposeOfTemplate` would call this send promotional and refuse it to every
- * caller who has not separately asked for offers - which is every first-time
- * caller, and which is the over-block migration 00095 exists to remove arriving in
- * a new place.
+ * It named one by literal -- booking_link_v1/en_US -- right for exactly one
+ * workspace and a guaranteed failure for every other, including every newly
+ * created one. Worse, that row had been written straight into the database and
+ * marked approved with NO meta_id, so Meta had never seen it and the send
+ * failed there too: the caller heard "that number may not have WhatsApp",
+ * which named the wrong cause entirely. The Inbox and the composer left the
+ * same literal behind for the same reason (legacy-bridge inbox-verbs.ts); this
+ * was the last caller holding it.
  *
- * The two are answering different questions and only one of them is about consent.
- * Meta's `category` is a WhatsApp PRICING and template-policy label; it is not a
- * statement about US carrier consent, and WhatsApp is not 10DLC. The consent
- * question here is answered by the call itself: the customer placed it, asked out
- * loud for this link, and the number it goes to is the one they are calling from
- * (which is why `resolveOutboundTarget` is given `create: isCaller`). A message
- * containing exactly what its recipient just requested is solicited, whatever
- * Meta's billing tier calls it.
+ * `bookingTemplate` asks the three questions that matter -- approved, fillable
+ * from the workspace's own facts, carrying the booking link -- and a workspace
+ * with none is told so in words a caller can hear.
  *
- * So the BROADCAST path and this path treat the same template differently, on
- * purpose: a booking link sent to a list nobody asked from is promotional and needs
- * the offers answer; the same words sent to the person who just asked for them are
- * not. Before this, the two differed because one of them had simply never been
- * asked the question - now they differ because the purpose does, declared at each
- * site with its reason.
- *
- * (Recategorising `booking_link_v1` to `utility` at Meta would make the label agree
- * with the use, and is worth doing - but the consent decision above does not wait
- * on it, and must not be silently reversed by a template sync.)
+ * The PURPOSE comes from the template's own category again. It used to be
+ * declared here, because the hand-written row said `marketing` and
+ * purposeOfTemplate fails closed, which would have refused the link to every
+ * first-time caller. The starter shipped in its place is `utility`, Meta's own
+ * word for a message answering a request the person just made -- so the label
+ * agrees with the use, and the fail-closed guarantee is back where it belongs.
  */
-const BOOKING_TEMPLATE = { name: "booking_link_v1", language: "en_US", purpose: "conversational" as const };
+/** Spoken when the workspace has no template approved for this. Names the real cause; never blames the caller's phone. */
+const NO_TEMPLATE =
+  "This business has not set up its booking-link text yet, so I cannot send it. Tell the caller they can book online, take their name, and say someone will follow up.";
+
 /** meta.source stamped on voice-initiated sends — also the key the daily cap counts. */
 const VOICE_SEND_SOURCE = "voice_booking_link";
 /** Per THREAD per day. A caller asking twice in one call is normal; thirty is not. */
@@ -183,6 +179,22 @@ export async function POST(request: Request): Promise<Response> {
     // same request (steps.ts layerTwo takes the link back out of a reply).
     const bookingHeld = policyAskClass(rt.policy, "booking") === "booking";
 
+    // WHICH template, asked of the workspace. A read that fails throws to the
+    // outer catch and the caller is told we could not send, which is true; a
+    // workspace that genuinely has none is told THAT, which is a different and
+    // equally true thing, and the difference is what a business needs to hear
+    // to fix it.
+    const booking = bookingTemplate(await templatesFor(db, routed.tenantId));
+    if (!booking) {
+      log("retell_fn_no_template", { tenant: routed.tenantId });
+      return json(200, { result: NO_TEMPLATE });
+    }
+    // Meta's own word for what this message is, read from the row a sync wrote.
+    // purposeOfTemplate fails closed, so a category we do not have reads as a
+    // promotion and the offers answer is required -- which is the safe way to
+    // be wrong about somebody else's label.
+    const purpose = purposeOfTemplate(booking.category);
+
     // Every gate the conversational receptionist obeys, in one decision.
     //
     // This path used to check consent and stop. So a booking link would land in
@@ -208,7 +220,7 @@ export async function POST(request: Request): Promise<Response> {
       // The row whole: `OutboundTarget` is a `PurposeBearing`, checked by the compiler,
       // so there is no hand re-mapping here to get one field's name wrong.
       contact,
-      purpose: BOOKING_TEMPLATE.purpose,
+      purpose,
       proactive: !isCaller,
       paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
@@ -244,7 +256,19 @@ export async function POST(request: Request): Promise<Response> {
       return json(200, { result: refusalScript(gate.refusal!, publishedNumber) });
     }
 
-    const params = [brain.business_name, brain.booking_link.replace(/^https?:[/][/]/, "")];
+    // The template's OWN slots, filled from the workspace's facts the way the
+    // Inbox and broadcasts fill them (I6): the business's name and its booking
+    // link, in whatever order this template asks for them. The pair used to be
+    // positional, which only held while one hand-written template was the only
+    // one this path could send.
+    const params = resolveParams(inboxSlots(booking), {
+      // No name: a caller is often somebody nobody has met yet, and the one
+      // fact this path holds about them is the number they are ringing from.
+      // resolveParams writes "there", which is true, rather than a gap.
+      firstName: null,
+      businessName: brain.business_name,
+      bookingLink: brain.booking_link.replace(/^https?:[/][/]/, ""),
+    });
     // The door every send leaves through. It re-reads consent, the pause and
     // the workspace's status at the wire, sends on the TENANT's credentials
     // (none is a refusal, said to the caller as a policy hold: the agent must
@@ -258,10 +282,10 @@ export async function POST(request: Request): Promise<Response> {
         to: target,
         channel: "whatsapp",
         sender: "ai",
-        purpose: BOOKING_TEMPLATE.purpose,
+        purpose,
         proactive: !isCaller,
-        body: `[booking link] ${params.join(" — ")}`,
-        template: { name: BOOKING_TEMPLATE.name, language: BOOKING_TEMPLATE.language, params },
+        body: renderTemplate(booking.body_preview, params) || `[booking link] ${params.join(" — ")}`,
+        template: { name: booking.name, language: booking.language, params },
         meta: { source: VOICE_SEND_SOURCE, call_id: call.call_id ?? null },
       },
     );

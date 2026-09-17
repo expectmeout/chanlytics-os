@@ -1,5 +1,16 @@
 -- A thread says who is SPEAKING on it now, apart from who is responsible for it.
 --
+-- RENUMBERED from 00130, which two sessions took in the same hour: this file
+-- and 00130_a_name_does_not_survive_an_erasure.sql. The CLI keys applied
+-- migrations by the VERSION, so on a replay only the first of the two ran and
+-- the second was skipped in silence -- locally the columns below simply were
+-- not there, and in production the history row for 00130 ended up naming the
+-- other file while this one read as pending. Every statement here is written
+-- to be re-runnable (`if not exists`, `drop ... if exists`, `create or
+-- replace`), so applying it again under its own number costs nothing and
+-- leaves one version per file, which is the only thing that makes an ordered
+-- replay mean anything.
+--
 -- `assignee_user_id` and `paused_until` were carrying three facts between them,
 -- and the middle one had nowhere to live:
 --
