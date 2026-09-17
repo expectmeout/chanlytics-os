@@ -181,7 +181,7 @@ let seq = 0;
  * puts someone on file, `ask()` is the tool's call, and `open()` hands the door
  * a database over these tables.
  */
-function world({ status = "active", mode = "auto", brain = BRAIN, whatsapp = "own", line = LINE } = {}) {
+function world({ status = "active", mode = "auto", booking = null, brain = BRAIN, whatsapp = "own", line = LINE } = {}) {
   const i = ++seq;
   const T = `bbbbbbbb-0000-4000-8000-${pad(i, 12)}`;
   const AGENT = `agent_fn_${i}_${crypto.randomBytes(4).toString("hex")}`;
@@ -195,7 +195,11 @@ function world({ status = "active", mode = "auto", brain = BRAIN, whatsapp = "ow
       ...(whatsapp ? [{ id: `wa-${i}`, tenant_id: T, kind: "whatsapp", external_id: PHONE_ID, number_e164: `+1786555${pad(i, 4)}`, status: "active", credentials_ref: whatsapp === "own" ? `vault-ref-${i}` : null, config: {} }] : []),
     ],
     tenant_config: [{ tenant_id: T, config: brain ? { brain } : {} }],
-    policies: mode ? [{ id: `pol-${i}`, tenant_id: T, class: "reply", mode, limits: {}, subject_type: null, subject_id: null }] : [],
+    policies: [
+      ...(mode ? [{ id: `pol-${i}`, tenant_id: T, class: "reply", mode, limits: {}, subject_type: null, subject_id: null }] : []),
+      // The Autonomy pane's Booking row, when this workspace has set one.
+      ...(booking ? [{ id: `pol-b-${i}`, tenant_id: T, class: "booking", mode: booking, limits: {}, subject_type: null, subject_id: null }] : []),
+    ],
     google_listings: [], contacts: [], conversations: [], messages: [], events: [],
   };
   const vault = whatsapp === "own" ? { [`wa-${i}`]: { access_token: TOKEN, phone_id: PHONE_ID } } : {};
@@ -331,7 +335,7 @@ test("before a workspace is known: a number that is no phone is read back before
 
 /* ------------------------------------------------------------ the gate */
 
-test("a paused workspace is refused at the gate, on the runtime's word: the caller hears texting is paused, the wire is never reached and nothing is written -- and once billing resumes, the stamp moves and the next ask is sent", async () => {
+test("a paused workspace is refused at the gate, on the runtime's word: the caller hears texting is paused, the wire is never reached, and the only thing written is the refusal itself -- and once billing resumes, the stamp moves and the next ask is sent", async () => {
   const w = world({ status: "paused" });
   const caller = w.number();
   w.person(caller);
@@ -343,7 +347,11 @@ test("a paused workspace is refused at the gate, on the runtime's word: the call
       "the gate's refusal, with the workspace's mode still auto");
     assert.deepEqual(log.said("retell_fn_refused_at_wire"), [], "not left for the wire to find");
     assert.ok(!db.seen.some((q) => q.table === "conversations" && q.op === "select"), "the wire's own read never happened");
-    assert.deepEqual([w.left().calls, w.tables.messages, w.tables.events], [[], [], []]);
+    assert.deepEqual([w.left().calls, w.tables.messages], [[], []], "nothing left this process, and the customer's thread is untouched");
+    // One row does get written, and it is the point of writing it: the refusal
+    // is findable afterwards without reading a log. It names the thread, not a
+    // message, because the gate refused before any message row existed.
+    assert.deepEqual(w.tables.events.map((e) => [e.kind, e.data.reason, e.subject_type]), [["message.send_blocked", "paused", "conversation"]]);
 
     // Billing resumes: the workspace row changes, and with it the runtime's stamp.
     w.workspace.status = "active";
@@ -603,4 +611,58 @@ test("a repository call that throws is not a 500: the caller is told the text co
     assert.deepEqual(log.said("retell_fn_failed").map((l) => l.args.slice(1)), [["resolve_outbound_target: canceling statement due to statement timeout"]]);
     assert.deepEqual([w.left().calls, w.tables.messages], [[], []]);
   });
+});
+
+
+/* ------------------------------------------- the workspace's own answers */
+
+test("a workspace that confirms its own bookings does not have the link sent for it, and the refusal is a row somebody can find", async () => {
+  // Autonomy -> Booking -> "Ask me first". On WhatsApp this request already ends
+  // with the link taken back out of the reply and a person handed the thread
+  // (steps.ts layerTwo). This path read the REPLY row, so the same workspace
+  // answered the same request two ways depending on which receptionist heard it.
+  const w = world({ mode: "auto", booking: "ask" });
+  const db = w.open();
+  const caller = w.number();
+  w.person(caller);
+  const said = await listening(async (log) => {
+    const out = await spoken(await knock(w.ask(caller)));
+    assert.deepEqual(log.fields("retell_fn_refused").map((f) => f.reason), ["booking_needs_a_person"]);
+    return out;
+  });
+  assert.equal(said, refusalScript("booking_needs_a_person", PUBLISHED));
+  assert.match(said, /confirm/i, "the caller is told a person will confirm, which is what the workspace chose");
+  assert.deepEqual(w.left().graph, [], "nothing reached Meta");
+
+  // REGRESSION: the refusal was a line on stdout and nothing else, so a
+  // customer saying "I never got the link" had no answer anywhere.
+  const blocked = w.tables.events.filter((e) => e.kind === "message.send_blocked");
+  assert.equal(blocked.length, 1);
+  assert.equal(blocked[0].tenant_id, w.T);
+  assert.equal(blocked[0].data.reason, "booking_needs_a_person");
+  assert.equal(blocked[0].data.source, SOURCE);
+});
+
+test("a reply dial left on auto is not permission to book", async () => {
+  const w = world({ mode: "auto", booking: "never" });
+  w.open();
+  const caller = w.number();
+  w.person(caller);
+  const said = await listening(async () => spoken(await knock(w.ask(caller))));
+  assert.equal(said, refusalScript("booking_needs_a_person", PUBLISHED));
+  assert.deepEqual(w.left().graph, []);
+});
+
+test("REGRESSION: a runaway guard that cannot read its own count does not open", async () => {
+  // countSentToday IS the cap. It was caught to zero, so the database condition
+  // most likely to accompany a runaway -- one that cannot answer "how many
+  // today" -- read as "none today" and let every send through. The caller now
+  // hears the truth instead, and nothing leaves.
+  const w = world({ mode: "auto" });
+  const caller = w.number();
+  w.person(caller);
+  w.open({ "messages.select": { message: "statement timeout" } });
+  const said = await listening(async () => spoken(await knock(w.ask(caller))));
+  assert.equal(said, CANNOT_SEND);
+  assert.deepEqual(w.left().graph, [], "a send that could not be counted is a send that does not happen");
 });

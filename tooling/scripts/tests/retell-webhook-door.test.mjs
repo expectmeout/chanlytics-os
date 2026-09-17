@@ -762,3 +762,21 @@ test("an ingest the database refuses is a 500, so the provider retries: nothing 
     line.restore();
   }
 });
+
+
+test("REGRESSION: an erasure check that could not be MADE sends the delivery back, rather than reading as 'nobody asked to be forgotten'", async () => {
+  // A call that began before its caller asked to be erased belongs to that
+  // erasure. The check was caught to false, so a database that could not answer
+  // read as "nobody" and the call's data remade the person -- a contact, a
+  // thread, a summary on it and an email to the owner about them. The comment
+  // above it promised a late sweep to catch that; no such sweep exists.
+  //
+  // 503 instead: Retell redelivers, so a blip costs a retry and not a person.
+  const { deliver, world } = await openDoor();
+  const w = world();
+  w.open({ "contacts.select": { message: "statement timeout" } });
+  const res = await deliver("call_ended", w.analysed(w.callId("erasure_unreadable")));
+  assert.equal(res.status, 503);
+  assert.deepEqual(await res.json(), { ok: false, error: "erasure_unreadable" });
+  assert.deepEqual([w.tables.calls, w.tables.contacts, w.tables.messages], [[], [], []], "nothing was written about a person we could not check");
+});

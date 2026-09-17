@@ -32,8 +32,8 @@ import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { loadTenantRuntime, waCfgFor } from "../lib/tenant-runtime.js";
 import { effectiveReplyMode } from "../lib/reply-posture.js";
-import { resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode } from "../lib/workspace/db.js";
-import { normalizePhone, resolveFacts } from "../lib/workspace/contracts.js";
+import { emitEvent, resolveChannel, resolveOutboundTarget, countSentToday, personReplyMode } from "../lib/workspace/db.js";
+import { normalizePhone, policyAskClass, resolveFacts } from "../lib/workspace/contracts.js";
 import { deliver, whatsappSender } from "../lib/workspace/core.js";
 import { outboundGate, refusalScript, type OutboundRefusal } from "../lib/outbound-gate.js";
 
@@ -176,6 +176,12 @@ export async function POST(request: Request): Promise<Response> {
       return null;
     });
     const replyMode = effectiveReplyMode({ drFallback: false, replyMode: workspaceMode }, personMode);
+    // The Autonomy pane's BOOKING row, read through the same predicate the text
+    // receptionist reads it through. This path read the REPLY row, so a
+    // workspace that asked to confirm its own bookings had its phone agent send
+    // the link anyway while its WhatsApp receptionist was being held for the
+    // same request (steps.ts layerTwo takes the link back out of a reply).
+    const bookingHeld = policyAskClass(rt.policy, "booking") === "booking";
 
     // Every gate the conversational receptionist obeys, in one decision.
     //
@@ -207,17 +213,32 @@ export async function POST(request: Request): Promise<Response> {
       paused: rt.paused,
       pausedUntilMs: contact.pausedUntil ? new Date(contact.pausedUntil).getTime() : null,
       replyMode,
+      bookingHeld,
+      // NOT caught to zero. This count IS the runaway guard, and a read that
+      // failed is the condition most likely to accompany a runaway: a database
+      // that cannot answer "how many today" reading as "none today" opens the
+      // cap exactly when it is needed. A throw leaves the outer catch to tell
+      // the caller we could not send, which is the truth.
       sentToday: await countSentToday(db, {
         tenantId: routed.tenantId,
         conversationId: contact.conversationId,
         source: VOICE_SEND_SOURCE,
-      }).catch(() => 0),
+      }),
       dailyCap: VOICE_SENDS_PER_DAY,
       nowMs: Date.now(),
     });
 
     if (!gate.allowed) {
       log("retell_fn_refused", { tenant: routed.tenantId, reason: gate.refusal, mode: replyMode, person_mode: personMode });
+      // A refusal a person can find afterwards. Every other refusal in the
+      // product lands somewhere durable -- the door writes message.send_blocked,
+      // a broadcast marks its recipient, a failed send flags the thread -- and
+      // this one was a line on stdout, so "she says she never got the link" had
+      // no answer. The door's own kind, naming the thread rather than a message,
+      // because the gate refused before any row existed to name.
+      await emitEvent(db, routed.tenantId, "message.send_blocked", "message", "conversation", contact.conversationId, {
+        reason: gate.refusal, source: VOICE_SEND_SOURCE, channel: "whatsapp", call_id: call.call_id ?? null,
+      });
       // The caller is on the line, so the agent is told what to SAY — never
       // that a colleague is mid-thread with them, or what our policy is.
       return json(200, { result: refusalScript(gate.refusal!, publishedNumber) });
