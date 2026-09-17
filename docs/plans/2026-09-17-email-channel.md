@@ -126,7 +126,7 @@ The migration follows the person-doors pattern the repository already has (`0005
 - `set_person_email(p_contact_id, p_email)`, a definer door for an owner or operator that validates, stores, refuses a second person with the same address in the owner's words, and records `contact.email_set`. An empty address clears it.
 - `people_list` returns `email` and its search matches it.
 
-Rules the code enforces, in `packages/contracts/src/identity.ts` (new, pure):
+Rules the code enforces, in `packages/contracts/src/email-address.ts` (new, pure, beside `phone.ts`; `identity.ts` is already the module that words a signed-in person):
 
 - `normalizeEmail(raw): string | null` trims, lower-cases, and refuses anything that is not one local part, one `@` and a dotted domain, or that carries a control character. It keeps dots and plus tags: `a.b+c@x.com` and `ab@x.com` are different people to this product. Lower-casing the local part is a product policy stated here, not a claim about SMTP.
 - `whyNotAnEmail(raw)` says which kind of not-an-address it was given, in the product's words, as `whyNotAPhone` does.
@@ -358,7 +358,7 @@ Console work, Ruben's, before E0 can run:
 | Edge libs | `lib/email-ingress.ts`, `lib/email-domain.ts` |
 | Channels | `email.ts` (pure), `email-resend.ts` (HTTP), `email-domain.ts` (pure plan) |
 | Core | `messages/email-reply.ts` (`buildReplyEnvelope`) |
-| Contracts | `identity.ts`, `reply-mode.ts`; additions to `enums.ts`, `people.ts`, `setup.ts`, `viewmodels.ts`, `erasure.ts` |
+| Contracts | `email-address.ts`, `reply-mode.ts`; additions to `enums.ts`, `people.ts`, `setup.ts`, `viewmodels.ts`, `erasure.ts` |
 | Tables | `mailboxes`; columns on `contacts` |
 | Routes | `mailboxes` (create, update, domain, test, rotate-token); `contacts/[id]/details` accepts `email` |
 
