@@ -4103,6 +4103,7 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS22 = 24 * 3600 * 1e3;
+var CALL_CONTROL_S = 15 * 60;
 
 // src/deliver.ts
 function whatsappSender(cfg) {
@@ -4128,13 +4129,13 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+  const { data, error } = await db.from("conversations").select("paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
-    assignee: row.assignee_user_id ?? null,
+    control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
     contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
     tenantStatus: row.tenants?.status ?? null
   };
@@ -4152,8 +4153,9 @@ function refusalFor(d, f, nowMs) {
   const kind = kindOf(d);
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (kind === "draft" && f.assignee) return "human_has_it";
-  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  const held = !!f.control && nowMs < new Date(f.control.until).getTime();
+  if (kind === "draft" && held) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -4267,6 +4269,7 @@ async function deliverSafely(ports, d) {
 }
 
 // src/conversations/take-over.ts
+var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 async function takeOver(ports, cmd) {
   const { conv } = cmd;
   const phone = conv.phone_e164;
@@ -4280,6 +4283,7 @@ async function takeOver(ports, cmd) {
     await mirror(0);
     throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
   }
+  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1e3))));
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "take_over", { paused_until });
   return { state: "needs_human", paused_until, decision_id, withdrawn_drafts };
@@ -4303,6 +4307,7 @@ async function handBack(ports, cmd) {
     await back();
     throw new AppError("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
   }
+  await ports.letControlGo(conv.tenant_id, conv.id, cmd.userId);
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "hand_back");
   await ports.resolveEscalation(conv.id, decision_id);
   return { state: "open", decision_id };
@@ -4462,6 +4467,7 @@ async function replyToConversation(ports, cmd) {
     if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
+  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1e3))));
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
   const message_id = await ports.queue({
     tenant_id: conv.tenant_id,
@@ -5084,6 +5090,7 @@ export {
   IDEMPOTENCY_WINDOW_MS,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
+  PERSON_CONTROL_MAX_S,
   SEND_GRACE_MS,
   approveRun,
   archive,

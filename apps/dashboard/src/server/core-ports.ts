@@ -10,7 +10,7 @@ import { lastInboundEmail, type Json } from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "./verbs";
-import { cancelKindFor, mirrorBlobPause, schedule } from "./service";
+import { cancelKindFor, letThreadControlGo, mirrorBlobPause, schedule, takeThreadControl } from "./service";
 import { freezeReply } from "./email";
 
 /**
@@ -33,6 +33,11 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
     snooze: (id, until) => changed(ctx.supabase.from("conversations").update({ state: "snoozed", snooze_until: until, paused_until: null, assignee_user_id: null }).eq("id", id).select("id")),
     wake: (id) => changed(ctx.supabase.from("conversations").update({ state: "open", snooze_until: null }).eq("id", id).eq("state", "snoozed").select("id")),
     archive: (id) => changed(ctx.supabase.from("conversations").update({ state: "archived", paused_until: null, assignee_user_id: null }).eq("id", id).select("id")),
+    // Control is written by the service role -- the column grant fences these
+    // columns off from a member's own session (00130), exactly as it fences the
+    // ledger -- so it goes the way scheduling a job goes.
+    takeControl: (tenantId, id, userId, seconds) => takeThreadControl(tenantId, id, userId, seconds),
+    letControlGo: (tenantId, id, userId) => letThreadControlGo(tenantId, id, userId),
     withdrawDrafts: (tenantId, id) => cancelPendingAiReply(ctx, { id, tenant_id: tenantId }, (tid, k, v) => cancelKindFor(tid, "outbound_send", k, v)),
     resolveEscalation: (id, decisionId) => resolveOpenEscalation(ctx, id, decisionId),
     record: (tenantId, subject, id, verb, payload) => recordDecision(ctx, tenantId, subject, id, verb, payload),
@@ -60,9 +65,9 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
 }
 
 export function replyPorts(ctx: RouteContext): ReplyPorts {
-  const { pauseMs, pauseBot, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
+  const { pauseMs, pauseBot, takeControl, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
   return {
-    pauseMs, pauseBot, withdrawDrafts, record, resolveEscalation, now,
+    pauseMs, pauseBot, takeControl, withdrawDrafts, record, resolveEscalation, now,
     replyChannel: (conv) => replyChannelOf(ctx, conv),
     email: {
       parent: (conv) => lastInboundEmail(ctx.supabase, conv.tenant_id, conv.id),

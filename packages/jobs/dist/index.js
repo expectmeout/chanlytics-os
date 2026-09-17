@@ -10287,19 +10287,20 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
 var DAY_MS222 = 24 * 3600 * 1e3;
+var CALL_CONTROL_S = 15 * 60;
 function kindOf(d) {
   if (d.kind) return d.kind;
   if (d.sender === "human") return d.proactive ? "broadcast" : "reply";
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+  const { data, error } = await db.from("conversations").select("paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
-    assignee: row.assignee_user_id ?? null,
+    control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
     contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
     tenantStatus: row.tenants?.status ?? null
   };
@@ -10317,8 +10318,9 @@ function refusalFor(d, f, nowMs) {
   const kind = kindOf(d);
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  if (kind === "draft" && f.assignee) return "human_has_it";
-  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  const held = !!f.control && nowMs < new Date(f.control.until).getTime();
+  if (kind === "draft" && held) return "human_has_it";
+  if (kind !== "draft" && kind !== "system" && (held || f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime())) return "human_has_it";
   return null;
 }
 async function overtakenByHuman(db, d) {
@@ -10421,6 +10423,7 @@ async function templatePurpose(db, tenantId, template) {
   if (error) throw new Error(`deliver: cannot read template ${template.name}: ${error.message}`);
   return purposeOfTemplate(data?.category);
 }
+var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 var MAX_SNOOZE_MS = 30 * 24 * 3600 * 1e3;
 var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
@@ -11638,6 +11641,7 @@ async function stampMailboxReceived(db, mailboxId, at) {
 var POS_TTL_MS2 = 5 * 60 * 1e3;
 var NEG_TTL_MS2 = 60 * 1e3;
 var DAY_MS23 = 24 * 3600 * 1e3;
+var CALL_CONTROL_S2 = 15 * 60;
 
 // src/escalate.ts
 async function upsertEscalation(db, tenantId, conversationId, reason, details) {

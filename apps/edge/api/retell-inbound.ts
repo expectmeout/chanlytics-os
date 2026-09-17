@@ -27,6 +27,7 @@ import { phoneTail } from "../lib/workspace/contracts.js";
 import { json } from "../lib/http.js";
 import { pg } from "../lib/pg.js";
 import { planCallStart } from "../lib/call-start.js";
+import { claimControl, CALL_CONTROL_S } from "../lib/workspace/db.js";
 import { alertUnroutable } from "../lib/whatsapp/alerts.js";
 import { logger } from "../lib/log.js";
 
@@ -83,6 +84,26 @@ export async function POST(request: Request): Promise<Response> {
     ]).finally(() => clearTimeout(timer));
   }
 
-  L.info("retell_inbound", { facts: start.facts, memory: start.memory, facts_chars: start.variables.business_facts.length });
+  // A call in progress holds the caller's thread (00130), so the text
+  // receptionist does not answer the same person on WhatsApp while they are on
+  // the phone with us -- two of our own agents, one customer, the same minute.
+  // Only a caller we already know has a thread to hold; a first-time caller has
+  // nothing to collide with. Never fatal: a hold we could not take costs the
+  // guard, and refusing a call over it would cost the call.
+  let held: string | null = null;
+  const db = pg();
+  if (db && start.tenantId && start.conversationId && inbound.call_id) {
+    held = await claimControl(db, {
+      tenantId: start.tenantId,
+      conversationId: start.conversationId,
+      holder: { kind: "call", callId: inbound.call_id },
+      seconds: CALL_CONTROL_S,
+    }).catch((e: unknown) => {
+      L.error("retell_inbound_hold_failed", { error: e instanceof Error ? e.message : String(e) });
+      return null;
+    });
+  }
+
+  L.info("retell_inbound", { facts: start.facts, memory: start.memory, facts_chars: start.variables.business_facts.length, hold: held });
   return json(200, { call_inbound: { dynamic_variables: start.variables } });
 }

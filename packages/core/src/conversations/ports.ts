@@ -35,6 +35,17 @@ export interface ThreadPorts {
   wake(conversationId: string): Promise<boolean>;
   /** archived; pause and assignee cleared. True iff a row changed. */
   archive(conversationId: string): Promise<boolean>;
+  /**
+   * The live hold on the thread, taken for this person (00130).
+   *
+   * Apart from `claim`, which records who is RESPONSIBLE: this says who is
+   * speaking now, and it expires. A person's hold outranks a call's and is
+   * never refused, so this answers with nothing -- a failure throws, because a
+   * hold we could not take is not a hold we have.
+   */
+  takeControl(tenantId: string, conversationId: string, userId: string, seconds: number): Promise<void>;
+  /** This person's hold, let go. Somebody else's is left alone. */
+  letControlGo(tenantId: string, conversationId: string, userId: string): Promise<void>;
   /** The receptionist's held drafts on the thread withdrawn, rows then jobs; how many. */
   withdrawDrafts(tenantId: string, conversationId: string): Promise<number>;
   /** The open escalation on the thread resolved by this decision, when there is one. */

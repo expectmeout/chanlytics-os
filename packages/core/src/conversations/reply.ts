@@ -1,6 +1,7 @@
 import { AppError, firstNameOf, inboxSlots, isOptedOutContact, normalizeEmail, OPT_OUT_REFUSAL, purposeOfTemplate, renderTemplate, REPLY_LIMITS, replyWindow, resolveParams, slotToWrite } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Thread, ThreadPorts } from "./ports";
+import { PERSON_CONTROL_MAX_S } from "./take-over";
 
 /** The cancelable window IS the undo (§6): a queued reply waits this long before the job sends it. */
 export const SEND_GRACE_MS = 15 * 1000;
@@ -85,7 +86,7 @@ export interface EmailReplyPorts {
   newId(): string;
 }
 
-export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
+export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
   /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
   replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email">;
   email: EmailReplyPorts;
@@ -246,6 +247,9 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
+  // Who is speaking now (00130), taken before the drafts go: the wire asks
+  // this, and between the claim and the withdrawal a draft can still reach it.
+  await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1000))));
   // The operator is REPLACING the receptionist's held reply, not queueing
   // behind it: withdraw the draft before writing their own words, or the
   // customer receives both.

@@ -83,6 +83,17 @@ export interface CallStart {
   alert: boolean;
   /** The first thing that failed, for the log; null when nothing did. */
   error: string | null;
+  /**
+   * The thread this caller already has, when they have one.
+   *
+   * The door takes the live hold on it (00130) so the text receptionist does
+   * not answer the same person on WhatsApp while they are on the phone with
+   * us. A first-time caller has no thread yet -- readLeadContext is read-only
+   * on purpose -- so there is nothing to hold and nothing to collide with.
+   */
+  conversationId: string | null;
+  /** Whose workspace the call belongs to, when it routed. */
+  tenantId: string | null;
 }
 
 export interface CallStartInput {
@@ -111,6 +122,8 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
   let context = "";
   let businessName: string | null = null;
   let handoff: string | null = null;
+  let conversationId: string | null = null;
+  let tenantId: string | null = null;
   const fail = (e: unknown) => {
     if (error === null) error = e instanceof Error ? e.message : String(e);
   };
@@ -206,6 +219,8 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
             parts.push(lines.join("\n"));
           }
           context = parts.join("\n");
+          conversationId = lead.conversationId;
+          tenantId = routed.tenantId;
           // Said last, once the whole of it is built: a memory that threw
           // halfway is told as none, never as half.
           memory = lead.contactId ? "known" : "new";
@@ -236,5 +251,7 @@ export async function planCallStart(o: CallStartInput): Promise<CallStart> {
     memory,
     alert,
     error,
+    conversationId,
+    tenantId,
   };
 }

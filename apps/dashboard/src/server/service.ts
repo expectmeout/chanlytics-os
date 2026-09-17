@@ -6,7 +6,7 @@ import { deployment } from "./deployment";
  * Blob pause mirror. Tenant DATA writes never happen here — those run on the
  * session client so RLS enforces. This module cannot be imported client-side.
  */
-import { createServiceClient } from "@chanlytics/db";
+import { claimControl, createServiceClient, releaseControl } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
@@ -31,6 +31,25 @@ export async function schedule(
 ): Promise<{ jobId: string }> {
   const { jobId } = await scheduleJob(serviceDb(), { tenantId, kind, dueAt, payload });
   return { jobId };
+}
+
+/**
+ * Who is speaking on a thread right now (00130).
+ *
+ * On the service client for the same reason a job is: the column grant fences
+ * these columns off from a member's own session, so the claim is the database's
+ * to make and not PostgREST's. A person's hold is never refused -- it outranks
+ * a call's and is not blocked by a colleague's -- so this answers with nothing,
+ * and a failure throws rather than being read as a hold we do not have.
+ */
+export async function takeThreadControl(tenantId: string, conversationId: string, userId: string, seconds: number): Promise<void> {
+  const outcome = await claimControl(serviceDb(), { tenantId, conversationId, holder: { kind: "person", userId }, seconds });
+  if (outcome === "gone") throw new Error(`takeThreadControl: no conversation ${conversationId} in workspace ${tenantId}`);
+}
+
+/** This person's hold, let go. Somebody else's is left where it is. */
+export async function letThreadControlGo(tenantId: string, conversationId: string, userId: string): Promise<void> {
+  await releaseControl(serviceDb(), { tenantId, conversationId, holder: { kind: "person", userId } });
 }
 
 export async function cancelKindFor(

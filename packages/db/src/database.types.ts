@@ -786,6 +786,10 @@ export type Database = {
         Row: {
           assignee_user_id: string | null
           contact_id: string
+          control_by: string | null
+          control_kind: string | null
+          control_ref: string | null
+          control_until: string | null
           created_at: string
           id: string
           last_inbound_at: string | null
@@ -800,6 +804,10 @@ export type Database = {
         Insert: {
           assignee_user_id?: string | null
           contact_id: string
+          control_by?: string | null
+          control_kind?: string | null
+          control_ref?: string | null
+          control_until?: string | null
           created_at?: string
           id?: string
           last_inbound_at?: string | null
@@ -814,6 +822,10 @@ export type Database = {
         Update: {
           assignee_user_id?: string | null
           contact_id?: string
+          control_by?: string | null
+          control_kind?: string | null
+          control_ref?: string | null
+          control_until?: string | null
           created_at?: string
           id?: string
           last_inbound_at?: string | null
@@ -2780,6 +2792,17 @@ export type Database = {
         Args: { p_days?: number; p_tenant_id: string }
         Returns: Json
       }
+      claim_conversation_control: {
+        Args: {
+          p_by: string
+          p_conversation_id: string
+          p_kind: string
+          p_ref: string
+          p_seconds: number
+          p_tenant_id: string
+        }
+        Returns: string
+      }
       claim_due_jobs: {
         Args: { p_lease_seconds: number; p_limit: number }
         Returns: {
@@ -3115,6 +3138,16 @@ export type Database = {
       put_line_credentials: {
         Args: { p_line_id: string; p_secret: Json }
         Returns: string
+      }
+      release_conversation_control: {
+        Args: {
+          p_by: string
+          p_conversation_id: string
+          p_kind: string
+          p_ref: string
+          p_tenant_id: string
+        }
+        Returns: boolean
       }
       rename_mailbox: {
         Args: { p_from_name: string; p_mailbox_id: string }
