@@ -199,6 +199,10 @@ export async function setPersonMarketingConsentMany(ids: string[], body: Consent
 declare global {
   interface Window {
     __personDetail?: (id: string) => Promise<PersonVM | null>;
+    /** The person this tab already read: what the page paints before its own read lands. */
+    __peekPerson?: (id: string) => PersonVM | null;
+    /** Read someone before their row is clicked. */
+    __warmPerson?: (id: string) => void;
     __setPersonConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
     __setPersonConsentMany?: (ids: string[], body: ConsentBody) => Promise<ManyResult>;
     __setPersonMarketingConsent?: (id: string, body: ConsentBody) => Promise<DeleteResult>;
