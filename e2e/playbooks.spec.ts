@@ -75,4 +75,45 @@ test.describe("Playbooks on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("brief-run-row")).toHaveCount(Math.min(2, waiting));
   });
+
+  /**
+   * The standing line's dots sit the same distance from the words on both sides.
+   *
+   * `.cm-standing-tap` carried `padding: 0 6px` with `margin-left: -6px`: the
+   * negative margin cancelled the flex gap on the LEFT and the padding added to
+   * it on the RIGHT, so every dot after a tap sat 12px from the word before it
+   * and 6px from the word after. Playbooks is the only Campaigns tab with taps,
+   * which is why it read as kerned by hand next to Broadcasts and Messages.
+   * Geometry, so it is measured in a real browser rather than read off the CSS.
+   */
+  test("Playbooks: the standing line is evenly spaced, as the other tabs are", async ({ page }) => {
+    await page.goto("/#/outbound");
+    await page.waitForLoadState("networkidle");
+    const line = page.getByTestId("pb-standing");
+    await expect(line).toBeVisible();
+    const gaps = await line.evaluate((root) => {
+      const walk = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+      const runs: { text: string; left: number; right: number }[] = [];
+      let n: Node | null;
+      while ((n = walk.nextNode())) {
+        const text = (n.nodeValue ?? "").trim();
+        if (!text) continue;
+        const r = document.createRange();
+        r.selectNodeContents(n);
+        const box = r.getBoundingClientRect();
+        if (!box.width) continue;
+        runs.push({ text, left: box.left, right: box.right });
+      }
+      const out: number[] = [];
+      for (let i = 0; i < runs.length - 1; i += 1) {
+        // Only the gaps that touch a separator, and only within one wrapped row.
+        if (runs[i].text !== "·" && runs[i + 1].text !== "·") continue;
+        const gap = runs[i + 1].left - runs[i].right;
+        if (gap >= 0) out.push(Math.round(gap));
+      }
+      return out;
+    });
+    test.skip(gaps.length === 0, "this workspace's line has no separators");
+    expect(new Set(gaps).size, `every gap around a dot is the same: ${JSON.stringify(gaps)}`).toBe(1);
+  });
 });

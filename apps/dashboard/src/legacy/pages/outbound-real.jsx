@@ -42,6 +42,8 @@ const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : S
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
 // A language code as a person reads it; the code itself when the library is not read.
 const pbLangWords = (code) => (window.__starters && window.__starters.langWords ? window.__starters.langWords(code) : String(code || ""));
+// A run's day as words ("Aug 25"): a calendar day, not an instant, so no zone.
+const pbDay = (day) => (day && window.__clock && window.__clock.dayWords ? window.__clock.dayWords(day) : String(day || ""));
 const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 // The line under the words: the one Meta holds for this row, else the starter's
 // own (contracts templateFooter). It resolved ONLY through the starter library
@@ -340,10 +342,22 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
         )}
         <div className="ob-facts">
           <p className="ob-sentence">
-            Goes to {p.triggerHint} &mdash;{" "}
+            {/* The trigger's hint is a CONDITION, not an audience -- "Nothing heard
+                in 30 days", "Only ever phoned, never texted" -- so "Goes to" in
+                front of it was broken English on five of the six triggers. It
+                leads, and the count follows it. */}
+            {p.triggerHint} &mdash;{" "}
             <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
               {pbPeople(p.candidates)} on the list said yes
-            </button>. {p.schedule}. Next run <b>{p.next}</b>{p.last_run_for ? <>, last ran {p.last_run_for}</> : <>, and it has not run yet</>}.
+            </button>
+            {/* Why a list with people on it can still offer nobody: one message per
+                person per week, across playbooks. A bare "0 people" read as broken. */}
+            {p.held > 0 ? <>, and {pbPeople(p.held)} more heard from you this week and wait</> : null}. {p.schedule}.{" "}
+            {/* "Next run paused" was the words when it is. */}
+            {p.state === "paused"
+              ? <>Paused &mdash; nothing runs until you resume it.</>
+              : <>Next run <b>{p.next}</b>.</>}
+            {p.last_run_for ? <> Last ran {pbDay(p.last_run_for)}.</> : <> It has not run yet.</>}
           </p>
           {templateGone && (
             <p className="bc-excl-hint warn" data-testid="pb-template-gone">Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the playbook sends another.</p>
@@ -369,7 +383,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
           {/* Each run opens as itself on Broadcasts (broadcasts/run:<id>), read by its id however old it is. */}
           {p.totals.history.map((h) => (
             <button key={h.id} type="button" className="cl-prof-aut-hint ob-history-row" onClick={() => window.CHANLY.nav(`broadcasts/run:${h.id}`)} data-testid="pb-run-open">
-              <span className="tabular">{h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : "")}</span>
+              <span className="tabular">{pbDay(h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : ""))}</span>
               {" · "}{h.state === "sent" ? <>{h.sent} sent{h.held > 0 ? `, ${h.held} held` : ""}{h.replied > 0 ? `, ${h.replied} replied` : ""}</>
                 : h.state === "pending_approval" ? `waiting for you · ${h.recipient_count} people`
                 : h.state === "sending" ? `sending · ${h.sent} so far`

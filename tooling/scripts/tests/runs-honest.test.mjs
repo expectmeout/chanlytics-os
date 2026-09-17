@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toBroadcastVM, toTodayVM, stateOf, POLICY_CLASS_WORDS } from "@chanlytics/contracts";
+import { toBroadcastVM, toTodayVM, stateOf, fmtDay, PLAYBOOK_TRIGGERS, POLICY_CLASS_WORDS } from "@chanlytics/contracts";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -457,9 +457,38 @@ test("A card leads with what it sends, not with how it is configured", () => {
   // The trigger, the schedule, the audience and the next run were five chips and
   // a meta line above the message; they are one sentence beside it now.
   const facts = textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
-  for (const part of ["Goes to", "on the list said yes", "Next run"]) assert.ok(facts.includes(part), facts);
+  for (const part of ["on the list said yes", "Next run"]) assert.ok(facts.includes(part), facts);
+  // The trigger's hint is a CONDITION -- contracts PLAYBOOK_TRIGGERS say "Nothing
+  // heard in 30 days", "Only ever phoned, never texted" -- so it leads. "Goes to"
+  // in front of one read as broken English on five of the six, in production.
+  assert.ok(!facts.includes("Goes to"), facts);
+  const hint = PLAYBOOK_TRIGGERS.find((t) => t.id === "quiet_30").hint;
+  const real = textOf(find(card(playbook({ triggerHint: hint })), (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+  assert.ok(real.startsWith(`${hint} —`), real);
   assert.equal(find(tree, (n) => String(n.props?.className || "").includes("ob-audience")), null, "no chip row above the message");
   // The audience is still a door to the people it means.
   press(byTestId(tree, "pb-audience"));
   assert.match(went.at(-1), /^clients\/seg:/);
+});
+
+test("A paused playbook says it is paused, and a run's day is words", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  // `nextRunLabel` returns the literal "paused" when it is, and the card read
+  // "Next run paused" -- seen in production on the month's offer.
+  const off = textOf(find(card(playbook({ state: "paused", next: "paused" })), (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+  assert.ok(off.includes("Paused — nothing runs until you resume it."), off);
+  assert.ok(!off.includes("Next run paused"), off);
+
+  // A run's day is a calendar day, not an instant: it was printed as its raw key.
+  const on = textOf(find(card(playbook({ last_run_for: "2026-08-25" })), (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+  assert.ok(on.includes(`Last ran ${fmtDay("2026-08-25")}.`), on);
+  assert.ok(!on.includes("2026-08-25"), on);
+  // And in every row of its history, which said the key too.
+  const hist = textOf(byTestId(card(playbook()), "pb-history"));
+  assert.ok(!/\d{4}-\d{2}-\d{2}/.test(hist), hist);
+
+  // A list with people on it that offers nobody says why: one message per person
+  // per week, across playbooks. A bare "0 people" read as broken.
+  const held = textOf(find(card(playbook({ candidates: 0, held: 2 })), (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+  assert.ok(held.includes("0 people on the list said yes, and 2 people more heard from you this week and wait"), held);
 });
