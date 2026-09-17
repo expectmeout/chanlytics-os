@@ -369,6 +369,18 @@ time of writing, with correct records published):
   `EMAIL_DOMAIN` and `RESEND_WEBHOOK_SECRET` on the edge and a live delivery.
   Until then the signature path is tested only against itself.
 
+**A domain that LOSES verification swallows mail silently, and that raises the
+price of the health check.** The drop above is not only a first-run annoyance:
+it is what a verified domain would start doing if its DNS were changed, its key
+rotated, or its verification lapsed. Mail to every published workspace address
+would be accepted by the MX and discarded, with no bounce to the sender and
+nothing at all on our side to notice it — a channel whose whole promise is that
+no customer email is lost, losing them quietly. The plan's test 12 ("a quiet
+mailbox stays connected; only a failed probe or a provider error changes its
+health") was written as housekeeping. It is not: `mailboxes.last_received_at`
+plus the domain's status read on the sweep is the only thing that can catch
+this, and it should land with the first real workspace rather than "later".
+
 **Switching the door on is safe with the backlog.** Every event queued while the
 door answered 404 is a receipt for the platform's own transactional mail,
 carrying no `cl_message` tag, so it names no row and is dropped; any
