@@ -413,6 +413,9 @@ const PaneSetup = () => {
           <h2 className="fl-card-title">Setup</h2>
           <span className="fl-card-sub tabular" data-testid="setup-count">{vm.done} of {vm.total} ready</span>
         </div>
+        <div className="setup-meter" data-testid="setup-meter" aria-hidden="true">
+          <span className="setup-meter-fill" style={{ width: `${vm.total ? Math.round((vm.done / vm.total) * 100) : 0}%` }} />
+        </div>
         <p className="setup-sentence" data-testid="setup-sentence">{vm.readiness.sentence}</p>
         {vm.next && (
           <div className="setup-next">

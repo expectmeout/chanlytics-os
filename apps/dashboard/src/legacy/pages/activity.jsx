@@ -9,8 +9,45 @@
 // of a payload beyond the sentence; the evidence families are hidden unless
 // asked for by name.
 
-// When, by the business's clock (window.__clock): the time today, the date and the time before it.
-const ACT_WHEN = (iso) => (iso ? window.__clock.stamp(Date.parse(iso)) : "—");
+// A line says its time; the day it belongs to is said once, above the lines.
+const ACT_MS = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.isNaN(ms) ? null : ms; };
+const ACT_TIME = (iso) => { const ms = ACT_MS(iso); return ms === null ? "—" : window.__clock.time(ms); };
+const ACT_DAY_KEY = (iso) => { const ms = ACT_MS(iso); return ms === null ? "?" : window.__clock.dayKey(ms); };
+// "Today" · "Yesterday" · "Sep 16" · "Dec 30, 2025" — the year only when it is not this one.
+const ACT_DAY = (iso) => {
+  const ms = ACT_MS(iso);
+  if (ms === null) return "Undated";
+  const c = window.__clock, now = Date.now(), key = c.dayKey(ms), today = c.dayKey(now);
+  if (key === today) return "Today";
+  if (key === c.dayKey(now - 86400000)) return "Yesterday";
+  const full = c.dateYear(ms);
+  return key.slice(0, 4) === today.slice(0, 4) ? full.replace(/,\s*\d{4}$/, "") : full;
+};
+
+// What kind of thing happened, as a glyph: an event's family (message.sent →
+// message) or a decision's verb. A kind nothing here names gets a plain dot,
+// which is the honest answer and still lines the rows up.
+const ACT_FAMILY = {
+  message: "chat", conversation: "chat", contact: "user", call: "phone", voice: "phone", line: "phone",
+  google: "star", billing: "money", settings: "settings", business: "home", workspace: "home", setup: "flag",
+  policy: "shield", platform: "shield", broadcast: "bolt", playbook: "bolt", mailbox: "mail",
+  usage: "trending-up", webhook: "bolt", ingest: "alert",
+};
+const ACT_VERB = {
+  approve: "check", resolve: "check", edit: "edit", decline: "x", cancel_send: "x",
+  snooze: "clock", wake: "clock", archive: "content",
+  take_over: "chat", hand_back: "chat", reply: "chat",
+  pause_agent: "pause", resume_agent: "play",
+  invite: "users", revoke_invite: "users", change_role: "users", remove_member: "users",
+  erase: "user", consent_change: "user", whisper: "phone", end_call: "phone",
+  connect_channel: "external", send_broadcast: "bolt", cancel_broadcast: "bolt",
+  start_playbook: "bolt", pause_playbook: "bolt", reply_review: "star", export: "arrow-down",
+};
+const ACT_GLYPH = (kind) => {
+  const k = kind || "";
+  const dot = k.indexOf(".");
+  return (dot > 0 ? ACT_FAMILY[k.slice(0, dot)] : ACT_VERB[k]) || "dot";
+};
 
 const ActivityRow = ({ r, actors }) => {
   const who = r.actor_user_id ? (actors[r.actor_user_id] || "A member") : r.actor_type === "ai" ? "Receptionist" : r.source === "event" ? "" : "System";
@@ -20,12 +57,11 @@ const ActivityRow = ({ r, actors }) => {
     : r.subject_type === "call" && r.subject_id ? `conversations/cv-${r.subject_id}`
     : null;
   return (
-    <div className="cl-prof-attr act-row" data-testid="act-row">
-      <span className="cl-prof-attr-key tabular">{ACT_WHEN(r.at)}</span>
-      <span className="cl-prof-attr-val">
-        {who && <b>{who} · </b>}{r.text}
-        {to && <> <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(to)}>Open</button></>}
-      </span>
+    <div className="act-row" data-testid="act-row">
+      <span className="act-glyph" aria-hidden="true"><Icon name={ACT_GLYPH(r.kind)} size={11} /></span>
+      <span className="act-when">{ACT_TIME(r.at)}</span>
+      <span className="act-what">{who && <b>{who} · </b>}{r.text}</span>
+      {to && <button className="cl-bucket-link act-open" onClick={() => window.CHANLY.nav(to)}>Open</button>}
     </div>
   );
 };
@@ -44,6 +80,9 @@ const PaneActivity = () => {
   const [personQ, setPersonQ] = React.useState("");
   const [matches, setMatches] = React.useState([]);
   const [st, setSt] = React.useState({ loading: true, rows: [], actors: {}, kinds: [], hasMore: false, error: null });
+  // On a phone the three boxes stand between a reader and the log, so they wait
+  // behind one control until asked for. On a desktop the control is not drawn.
+  const [asking, setAsking] = React.useState(false);
 
   // Each read is numbered, and an answer that is not the latest one asked for lands nowhere: a slow first page cannot
   // replace the filter picked after it.
@@ -59,6 +98,7 @@ const PaneActivity = () => {
   }, [A, kind, day, person]);
   React.useEffect(() => { if (may) load(0, false); }, [load, may]);
   const chooseKind = (typed) => setKind(typed.trim());
+  const narrowed = [kind, day, person].filter(Boolean).length;
   React.useEffect(() => {
     if (!A || !personQ.trim()) { setMatches([]); return undefined; }
     let on = true;
@@ -87,7 +127,18 @@ const PaneActivity = () => {
         <span className="fl-card-sub">What happened, and who did it · newest first</span>
       </div>
       {/* The three filters are the settings input: they had no class, so they were the browser's own boxes. */}
-      <div className="set-filters">
+      <button
+        type="button"
+        className="btn btn-ghost btn-sm set-filters-ask"
+        aria-expanded={asking}
+        onClick={() => setAsking((v) => !v)}
+        data-testid="act-filters-ask"
+      >
+        <Icon name="filter" size={12} />
+        Narrow it
+        {narrowed > 0 && <span className="set-filters-ask-n">{narrowed}</span>}
+      </button>
+      <div className={`set-filters${asking ? " open" : ""}`}>
         <input
           className="set-input"
           list="act-kinds"
@@ -116,8 +167,15 @@ const PaneActivity = () => {
       </div>
       {st.error && <FailedRead kind="line" what="the activity log" why={st.error} onRetry={() => load(0, false)} busy={st.loading} testid="act-failed" />}
       {st.loading && st.rows.length === 0 && !st.error && <div className="cl-prof-aut-hint" role="status" data-testid="act-loading">Reading the activity log…</div>}
-      <div className="cl-prof-attr-list" data-testid="act-rows">
-        {st.rows.map((r) => <ActivityRow key={r.id} r={r} actors={st.actors} />)}
+      <div className="act-list" data-testid="act-rows">
+        {st.rows.map((r, i) => (
+          <React.Fragment key={r.id}>
+            {(i === 0 || ACT_DAY_KEY(r.at) !== ACT_DAY_KEY(st.rows[i - 1].at)) && (
+              <div className="act-day">{ACT_DAY(r.at)}</div>
+            )}
+            <ActivityRow r={r} actors={st.actors} />
+          </React.Fragment>
+        ))}
         {!st.loading && st.rows.length === 0 && !st.error && <EmptyState kind="line" title="Nothing here for that." action={kind || day || person ? { label: "Clear the filters", onClick: () => { setKind(""); setKindTyped(""); setDay(""); setPerson(null); } } : null} />}
       </div>
       {st.hasMore && <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.rows.length, true)} data-testid="act-more">{st.loading ? "Loading…" : "Show more"}</button>}
