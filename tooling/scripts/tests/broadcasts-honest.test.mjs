@@ -759,3 +759,41 @@ test("The preview draws the heading and the buttons, which are the message too",
   const said = String(find(preview, (n) => n.props?.className === "mp-bubble").props["aria-label"]);
   assert.ok(said.includes("This week at Luna Studio") && said.includes("Book now"), said);
 });
+
+test("History says whether a playbook or a person sent each broadcast, and the split filters it", () => {
+  // `broadcasts.playbook_id` is on every row and nothing drew it, so a playbook's
+  // automatic run sat beside a hand-sent blast with no way to tell them apart --
+  // while Playbooks summed the same runs again on its own tab.
+  const run = (over = {}) => toBroadcastVM(dto({ id: "b-run", name: "Win-back · 2026-09-10", playbook_id: "pb-1", audience: { kind: "playbook", id: "pb-1", label: "Win-back" }, ...over }), ZONE);
+  const byHand = toBroadcastVM(dto({ id: "b-hand", name: "Spring offer", playbook_id: null, audience: { kind: "list", id: "quiet", label: "Lapsed 60+ days" } }), ZONE);
+  globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [run(), byHand] });
+  let tree = page({ initialSegment: null, initialRun: null });
+
+  const rowWords = () => all(tree, (n) => n.props?.["data-testid"] === "bc-history").map((n) => textOf(n).replace(/\s+/g, " "));
+  let words = rowWords();
+  assert.equal(words.length, 2);
+  assert.ok(words.some((w) => w.includes("by a playbook")), words.join(" || "));
+  assert.ok(words.some((w) => w.includes("by hand")), words.join(" || "));
+  // The playbook's name is said ONCE: it is the audience cell, and that cell opens it.
+  const run0 = all(tree, (n) => n.props?.["data-testid"] === "bc-history")[0];
+  assert.equal(textOf(run0).match(/Win-back/g).length, 2, "the run's own name, and the audience — not a third time in the origin");
+  press(byTestId(run0, "bc-history-playbook"));
+  assert.equal(went.at(-1), "outbound/pb-1", "and it opens the playbook that made it");
+
+  // The line splits them, and each count is its own filter.
+  const line = byTestId(tree, "bc-standing");
+  assert.ok(textOf(line).includes("by a playbook") && textOf(line).includes("by hand"), textOf(line));
+  press(byTestId(line, "bc-origin-hand"));
+  tree = again({ initialSegment: null, initialRun: null });
+  words = rowWords();
+  assert.equal(words.length, 1, words.join(" || "));
+  assert.ok(words[0].includes("Spring offer"), words[0]);
+  // Pressing the one in force clears it, as the Playbooks line's taps do.
+  press(byTestId(byTestId(tree, "bc-standing"), "bc-origin-hand"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(rowWords().length, 2);
+
+  // One kind only: nothing to split, so no taps.
+  globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [byHand] });
+  assert.equal(byTestId(page({ initialSegment: null, initialRun: null }), "bc-origin-playbook"), null);
+});
