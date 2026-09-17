@@ -27,6 +27,8 @@ const AttnRow = ({
   sentence = "",
   quoted = false,
   status = [],
+  /** The facts worth having once: shown behind the row's mark, never printed in the line. */
+  note = "",
   tone = "answering",
   cta = null,
   also = null,
@@ -56,6 +58,15 @@ const AttnRow = ({
         {status.map((seg, i) => (
           <span key={i} className={i === 0 ? "lead" : ""}>{i > 0 && <span className="sep"> · </span>}{seg}</span>
         ))}
+        {note ? (
+          <button
+            type="button"
+            className="set-mark"
+            data-tip={note}
+            aria-label={`What else is known: ${note}`}
+            onClick={(e) => { e.stopPropagation(); if (window.__tip) window.__tip.show(e.currentTarget); }}
+          ><Icon name="info" size={12} /></button>
+        ) : null}
       </div>
     </div>
     {(cta || also) && (

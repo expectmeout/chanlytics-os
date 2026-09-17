@@ -111,7 +111,7 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
       <div className="set-row">
         <div className="set-row-info">
           <span className="set-row-label">What their Setup says</span>
-          <span className="set-row-hint">{vm.readiness.sentence} · {vm.done} of {vm.total} done. These are the rows the owner is looking at, from the same function their page runs.</span>
+          <span className="set-row-hint">{vm.readiness.sentence} · {vm.done} of {vm.total} done.</span>
         </div>
       </div>
       <div className="cl-attn-list" data-testid="platform-setup-rows">
@@ -121,7 +121,8 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
             glyph={r.icon}
             name={r.title}
             sentence={r.sentence}
-            status={[r.stateWords, ...r.details]}
+            status={[r.stateWords]}
+            note={r.details.join(" · ")}
             tone={setupTone(r.state)}
             testid={`platform-setup-${r.id}`}
           />
@@ -132,7 +133,7 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
         <div className="biz-group">
           <div className="biz-group-head">
             <span className="biz-group-title">Their lines</span>
-            <span className="biz-group-sub">where each one stopped, what the provider said, and what can be done about it</span>
+            <span className="biz-group-sub">Where each one stopped, and what can be done.</span>
           </div>
           {lines.map((l) => (
             <PlatformLine key={l.id} line={l} tenantId={detail.tenant.id} onDone={onChanged} flash={flash} />
@@ -143,7 +144,7 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
       <div className="biz-group">
         <div className="biz-group-head">
           <span className="biz-group-title">What has happened</span>
-          <span className="biz-group-sub">newest first — the trail every provisioning step, filing and connection has always written</span>
+          <span className="biz-group-sub">Newest first.</span>
         </div>
         {detail.events.length === 0 ? (
           <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Nothing recorded for this workspace yet.</span></div></div>
