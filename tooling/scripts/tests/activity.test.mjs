@@ -166,6 +166,21 @@ test("rows written in the same instant survive the page edge: the cursor carries
   assert.equal(seen.size, 130, "and none of them read twice");
 });
 
+test("the roster goes out with the ledgers, and a roster that refuses still refuses the read", async () => {
+  // It used to be read AFTER the merge, which put a whole round trip end to end
+  // on the page somebody is waiting in front of. Moving it earlier must not turn
+  // a refusal into a page of rows that quietly say "A member".
+  const angry = { team_roster: () => { throw new Error("roster is down"); } };
+  await assert.rejects(route.GET.run(get(), ctxFor(tables(), angry)), /roster is down/, "a row with a member on it still needs the roster");
+
+  // And where no row names a member, the roster is never awaited at all -- so
+  // its refusal is nobody's business and the log reads.
+  const t = tables();
+  t.decisions = [];
+  const r = await route.GET.run(get(), ctxFor(t, angry));
+  assert.ok(r.rows.length > 0, "the events still read");
+  assert.deepEqual(r.actors, {});
+});
 test("a cursor that is not one is refused, like every other filter -- but every spelling PostgREST uses for an instant is one", async () => {
   await assert.rejects(route.GET.run(get("&cursor=100"), ctxFor(tables(), rpcs)), (e) => e.code === "validation");
   await assert.rejects(route.GET.run(get("&cursor=2026-09-01T00:00:00Z"), ctxFor(tables(), rpcs)), (e) => e.code === "validation", "an instant with no row is half a cursor");
