@@ -75,12 +75,28 @@ function phoneFrom(raw: string): string | null {
   return normalizePhone(s.startsWith("+") ? `+${digits}` : digits);
 }
 
-/** The phones, emails and guest names an event carries, wherever they were written. */
-export function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees">): EventContacts {
+/**
+ * The phones, emails and guest names an event carries, wherever they were
+ * written -- except the organiser's.
+ *
+ * The organiser is the calendar's owner, or the booking tool writing into it.
+ * They are on EVERY event the feed carries, as ORGANIZER and usually among
+ * the guests as well, and they are never who the appointment is for. Left in,
+ * an owner who is also in People -- which the email channel makes likely,
+ * since testing a new inbox means writing to it from your own address --
+ * would take every appointment on their own calendar: by address, or by the
+ * name their CN repeats on every line. So both come off, keyed by the
+ * address, because that is the key the two arrive under. The cost is an
+ * appointment a customer organised themselves, which stays unmatched --
+ * matching nobody is the safe way to be wrong; attaching the owner is not.
+ */
+export function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">): EventContacts {
   const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const organizer = item.organizer?.toLowerCase() || null;
   const emails = new Set<string>();
   for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
   for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  if (organizer) emails.delete(organizer);
   const phones = new Set<string>();
   // Emails out first: the digits in "maria2026@gmail.com" are not a phone.
   for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
@@ -89,6 +105,7 @@ export function extractContacts(item: Pick<FeedItem, "title" | "description" | "
   }
   const names = new Set<string>();
   for (const a of item.attendees ?? []) {
+    if (organizer && a.email?.toLowerCase() === organizer) continue;
     const n = (a.name ?? "").trim();
     if (n && !EMAIL_RE.test(n)) names.add(n);
     EMAIL_RE.lastIndex = 0;
@@ -124,7 +141,7 @@ export function personInText(text: string, people: PersonLike[]): PersonLike | n
 const labelOf = (p: PersonLike): string => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
 
 /** Who the appointment is for: a phone in the event first, then an address, then a whole name in its title, guests or description. */
-export function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees">, people: PersonLike[]): PersonMatch | null {
+export function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, people: PersonLike[]): PersonMatch | null {
   const c = extractContacts(item);
   if (c.phones.length) {
     const byPhone = new Map<string, PersonLike>();
@@ -368,9 +385,15 @@ const CAPITAL = /^\p{Lu}/u;
  * of letters and not a service the workspace lists. Shown in the button
  * before anything is added, so a wrong guess is seen, not saved unread.
  */
-export function guessName(item: Pick<FeedItem, "title" | "attendees">, services: string[] = []): string | null {
+export function guessName(item: Pick<FeedItem, "title" | "attendees" | "organizer">, services: string[] = []): string | null {
   const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
-  const guest = (item.attendees ?? []).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  // The organiser is not the customer, so "Add … to People" never offers the
+  // owner's own name -- which their CN puts on every event they organise.
+  const organizer = item.organizer?.toLowerCase() || null;
+  const guest = (item.attendees ?? [])
+    .filter((a) => !organizer || a.email?.toLowerCase() !== organizer)
+    .map((a) => (a.name ?? "").trim())
+    .find((n) => n && !n.includes("@"));
   if (guest) return guest.slice(0, 80);
   const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
   const parts = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);

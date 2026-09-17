@@ -118,7 +118,7 @@ const GUEST_ICS = [
   "BEGIN:VEVENT",
   "UID:g1",
   "SUMMARY:Colour touch-up",
-  "ATTENDEE;CN=Melany Owner:mailto:owner@salon.com",
+  "ATTENDEE;CN=Front Desk:mailto:owner@salon.com",
   "ATTENDEE:mailto:Sofia.Perez@Gmail.com",
   "DTSTART;TZID=America/New_York:20260911T090000",
   "DTEND;TZID=America/New_York:20260911T100000",
@@ -135,6 +135,15 @@ const GUEST_ICS = [
   "SUMMARY:Daniela Ruiz \u00b7 Colour",
   "DTSTART;TZID=America/New_York:20260913T090000",
   "DTEND;TZID=America/New_York:20260913T100000",
+  "END:VEVENT",
+  "BEGIN:VEVENT",
+  "UID:g4",
+  "SUMMARY:Gel manicure",
+  "ORGANIZER;CN=Melany Owner:mailto:Melany@Gmail.com",
+  "ATTENDEE;CN=Melany Owner;PARTSTAT=ACCEPTED:mailto:melany@gmail.com",
+  "ATTENDEE;CN=Ana Gomez;PARTSTAT=NEEDS-ACTION:mailto:ana.gomez@gmail.com",
+  "DTSTART;TZID=America/New_York:20260914T090000",
+  "DTEND;TZID=America/New_York:20260914T100000",
   "END:VEVENT",
   "END:VCALENDAR",
 ].join("\r\n");
@@ -171,6 +180,37 @@ test("an address is read after the number and before the name, so a customer boo
   assert.deepEqual(allVisitsIn(index, { id: "p-none", name: "", phone: null, email: null }), [], "a person with no address matches none of them");
 
   assert.ok(!describeVisits(v, TZ, NOW).includes("Matched by name only"), "an address is exact: it needs no are-you-sure, no more than a number does");
+});
+
+/**
+ * The owner is on every event their own calendar carries: Google writes them
+ * as ORGANIZER and lists them among the guests as well. They are not the
+ * customer, and the day they are in People -- which the email channel makes
+ * likely, since testing a new inbox means writing to it from your own address
+ * -- matching them would hand them every appointment on the calendar.
+ */
+const OWNER = { id: "p-melany", name: "Melany Owner", phone: null, email: "melany@gmail.com" };
+const ANA = { id: "p-ana-g", name: "Ana Gomez", phone: null, email: "ana.gomez@gmail.com" };
+
+test("the organiser is not the customer: the owner's own address and name are off the event, however many ways it names them", async () => {
+  const { indexFeed, allVisitsIn, guessName } = await import("@chanlytics/contracts");
+  const g = guestFeed();
+  const ev = g.items.find((i) => i.uid === "g4");
+  const people = [...GUESTS, OWNER, ANA];
+
+  const c = extractContacts(ev);
+  assert.deepEqual(c.emails, ["ana.gomez@gmail.com"], "the organiser's address is off, though it is written as a guest too and in another case");
+  assert.deepEqual(c.names, ["Ana Gomez"], "and their name with it: a CN on every event is not a guess at the customer");
+
+  assert.deepEqual(matchPerson(ev, people), { id: "p-ana-g", name: "Ana Gomez", via: "email" }, "the guest is whose appointment it is");
+  assert.equal(guessName(ev), "Ana Gomez", "Add to People offers the customer, never the owner");
+
+  const index = indexFeed(g.items);
+  assert.equal(index.byEmail.get("melany@gmail.com"), undefined, "the organiser is not indexed, so no number of events can add up to a match");
+  assert.deepEqual(allVisitsIn(index, OWNER), [], "the owner takes none of the appointments on their own calendar");
+  assert.deepEqual(allVisitsIn(index, ANA).map((x) => [x.title, x.via]), [["Gel manicure", "email"]]);
+
+  assert.equal(matchPerson({ title: "Lunch", description: null, location: null, attendees: [], organizer: "melany@gmail.com" }, people), null, "an event that names only the organiser is nobody's");
 });
 
 test("their visits: the next one that has not ended, the latest one that has; the words by the business's clock", () => {
