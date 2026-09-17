@@ -140,6 +140,7 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
@@ -311,7 +312,8 @@ test("REGRESSION (C15): the sending hours and the pace are the published ones --
     const tree = page({ initialSegment: null, initialRun: null });
     assert.ok(textOf(find(tree, (n) => n.props?.className === "bc-meta")).includes("sent 10 at a time"), "REGRESSION: '25 at a time' in the page");
     toasts.length = 0;
-    await press(byTestId(tree, "bc-send"));
+    press(byTestId(tree, "bc-send"));
+    await press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send-yes"));
     assert.ok(textOf(toasts.at(-1).msg).includes("sending now, 10 at a time"), textOf(toasts.at(-1).msg));
 
     globalThis.window.__PLAYBOOKS = playbooksSurface();
@@ -400,4 +402,86 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
 
   tree = armed(undefined);
   assert.ok(textOf(byTestId(tree, "template-delete-confirm")).includes("couldn't check which playbooks send it"), "a playbooks read that has not landed is said");
+});
+
+test("Send now asks before it sends, and the question names the template, its language, the count and the list", async () => {
+  const sent = [];
+  const en = templateRow({ id: "tpl-en", name: "winback_offer", language: "en_US", purpose: "marketing", body_preview: "Hi {{1}}, come back to {{2}}." });
+  const es = templateRow({ id: "tpl-es", name: "winback_offer", language: "es", purpose: "marketing", body_preview: "Hola {{1}}, vuelve a {{2}}." });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [en, es], number: healthyNumber });
+  globalThis.window.__broadcasts.send = async (body) => { sent.push(body); return { ok: true, data: { id: "b-new", name: "Win-back", recipient_count: 2, scheduled_for: new Date().toISOString(), moved_from: null } }; };
+
+  let tree = page({ initialSegment: null, initialRun: null });
+  press(byTestId(tree, "bc-send"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(sent.length, 0, "one press sends nothing -- it was the only act here that could not be taken back and the only one that did not ask");
+  const q = textOf(byTestId(tree, "bc-send-confirm"));
+  // A workspace holding the starter set in both languages has two rows per name
+  // and the chips read the same over each, so the question names the one it means.
+  assert.ok(q.includes("(English)"), q);
+  assert.ok(q.includes("Win-back"), q);
+  assert.ok(/to \d+ (person|people) on/.test(q), q);
+  assert.ok(q.includes("cannot be taken back"), q);
+
+  toasts.length = 0;
+  await press(byTestId(tree, "bc-send-yes"));
+  assert.equal(sent.length, 1, "and the Yes sends it");
+  // The receipt's one door out, in the verb the row itself uses: a message
+  // already delivered stays delivered, so it is not offered as an Undo.
+  assert.equal(toasts.at(-1).action.label, "Stop it");
+  assert.equal(toasts.at(-1).links[0].to, "broadcasts/run:b-new");
+});
+
+test("The preview is the message as the customer receives it: the name in the chat header, what fills per person marked, a link drawn as one, and the hour it really goes", () => {
+  const tpl = templateRow({ id: "tpl-1", name: "winback_offer", purpose: "marketing", body_preview: "Hi {{1}}, book at booksy.com/luna and we'll take it from there.", variables: [{ position: 1, label: "First name", example: "Dani" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [tpl], number: healthyNumber, businessName: "Luna Studio" });
+  const tree = page({ initialSegment: null, initialRun: null });
+  const preview = byTestId(tree, "bc-preview");
+  assert.ok(preview, "the composer draws one");
+
+  // The business's name is the chat header. Inside the bubble it is WhatsApp's
+  // GROUP-chat treatment, which a broadcast never is -- and it was drawn there
+  // in --accent, the token reserved for a live agent.
+  const head = find(preview, (n) => n.props?.className === "mp-head");
+  assert.ok(textOf(head).includes("Luna Studio"), textOf(head));
+  assert.ok(textOf(head).includes("Business account"), textOf(head));
+  const bubble = find(preview, (n) => n.props?.className === "mp-bubble");
+  assert.ok(!textOf(find(bubble, (n) => n.props?.className === "mp-body")).startsWith("Luna Studio"), "not a line inside the bubble");
+
+  // What fills per person is marked, so the eye can see what varies. A string
+  // cannot be marked, which is why the three local renderers could not do this.
+  const slots = all(preview, (n) => n.props?.className === "mp-slot");
+  assert.equal(slots.length, 1, "one slot, one mark");
+  assert.equal(textOf(slots[0]), "Dani");
+
+  // The booking link is the pixel the message exists for; it was drawn as prose.
+  const link = find(preview, (n) => n.props?.className === "mp-link");
+  assert.ok(link && textOf(link) === "booksy.com/luna", "the link is a link");
+
+  // The stamp is the hour it really goes -- it was the literal word "now" on a
+  // send that could be scheduled for Tuesday.
+  const stamp = textOf(find(preview, (n) => n.props?.className === "mp-stamp"));
+  assert.notEqual(stamp, "now");
+  assert.equal(stamp, globalThis.window.__clock.time(globalThis.window.__clock.nextOpen(Date.now()).at), stamp);
+
+  // A slot nobody has filled stays a hole rather than quietly reading as words.
+  assert.deepEqual(globalThis.window.mpParts("Hi {{1}}.", []).map((p) => p.text), ["Hi ", "{{1}}", "."]);
+});
+
+test("Messages says what sends each message -- the card worked it out to refuse a delete and then showed it only there", () => {
+  let tree = messages({
+    __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })],
+    __PLAYBOOKS: { rows: [playbook({ id: "pb-1", name: "Win-back", template_name: "offer", template_language: "en_US", state: "running" })] },
+  });
+  const users = byTestId(tree, "template-users");
+  assert.ok(textOf(users).includes("Win-back"), textOf(users));
+  press(users);
+  assert.equal(went.at(-1), "outbound/pb-1", "and it opens that playbook's card");
+
+  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: { rows: [] } });
+  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "No playbook sends it");
+
+  // A playbooks read that has not landed is not "nothing sends it".
+  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: undefined });
+  assert.equal(byTestId(tree, "template-users"), null, "an unread list makes no claim");
 });

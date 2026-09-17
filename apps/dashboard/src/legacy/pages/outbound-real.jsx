@@ -34,7 +34,6 @@ const PB_FILTERS = [
 ];
 // The Autonomy row a class runs under, in the matrix's own words (the playbooks surface carries them).
 const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWords && window.__PLAYBOOKS.classWords[cls]) || {}).name || cls;
-const pbRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
 const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
@@ -46,12 +45,15 @@ const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.b
 // What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
 const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
 const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
-// A card's message: its template among the approved, with the playbook's own values in the slots; null when it is not among them.
+// A card's message: its template among the approved, with the playbook's own
+// values in the slots; null when it is not among them. The body and the values
+// stay apart -- the preview marks what fills per person, and `words` is the same
+// thing joined up, for the one line a closed card shows.
 const pbMessage = (p, templates, businessName) => {
   const t = templates.find((x) => x.id === p.template_id) || null;
   if (!t) return null;
   const values = (p.params || PB_NONE).map((s) => (s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? "")));
-  return { template: t, words: pbRender(t.body_preview, values) };
+  return { template: t, body: t.body_preview, values, words: window.mpFill ? window.mpFill(t.body_preview, values) : String(t.body_preview || "") };
 };
 // When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
 // What a reply is, in the one window's words (contracts REPLY_WINDOW_WORDS, on the surface).
@@ -127,7 +129,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() : { kind: srcOf(i) }));
   const monthly = trigger === "everyone_monthly";
   const ready = !!trig && !!tpl && filled.every((v) => String(v).trim()) && !busy;
-  const preview = tpl ? pbRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
+  const shown = previewValues.map((v) => String(v).trim());
 
   const save = async () => {
     if (!window.__playbooks || !ready) return;
@@ -214,7 +216,9 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           ))}
         </div>
       )}
-      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.WaBubble from={data.businessName} body={preview} footer={pbFooter(tpl)} /></div>}
+      {/* No stamp: a playbook knows the hour it runs at, not the instant its
+          next run lands, and the Clock row below says the hour in words. */}
+      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} footer={pbFooter(tpl)} /></div>}
       <div className="bc-row">
         <span className="bc-row-label">Clock</span>
         <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
@@ -332,8 +336,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
 
       {message && (
         <div className="ob-words" data-testid="pb-words">
-          {wordsOpen && window.WaBubble
-            ? <window.WaBubble from={surface.businessName} body={message.words} footer={pbFooter(message.template)} />
+          {wordsOpen && window.MessagePreview
+            ? <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} footer={pbFooter(message.template)} compact />
             : <span className="ob-words-line">“{message.words}”</span>}
           <button className="cl-bucket-link" aria-expanded={wordsOpen} onClick={() => setWordsOpen((o) => !o)} data-testid="pb-words-toggle">{wordsOpen ? "Show less" : "Show the whole message"}</button>
         </div>

@@ -11,7 +11,7 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterText, templatePreview, templateTitle } from "@chanlytics/contracts";
+import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
 
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
 export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
@@ -58,6 +58,10 @@ export interface StarterLibrary {
   preview: typeof starterPreview;
   /** A saved row as a customer reads it: this business's name and booking link in the slots that name it. */
   rowPreview: typeof templatePreview;
+  /** The same words, one per slot and not yet put back into the body: a preview
+      that draws a chat marks what fills per person, and a string cannot be marked. */
+  rowValues: typeof templatePreviewValues;
+  starterValues: typeof starterPreviewValues;
   title: typeof titleOf;
   slotKinds: typeof defaultSlotKinds;
   slotLabels: typeof slotLabels;
@@ -90,6 +94,8 @@ export function installTemplates(): void {
     text: starterText,
     preview: starterPreview,
     rowPreview: templatePreview,
+    rowValues: templatePreviewValues,
+    starterValues: starterPreviewValues,
     title: titleOf,
     slotKinds: defaultSlotKinds,
     slotLabels,

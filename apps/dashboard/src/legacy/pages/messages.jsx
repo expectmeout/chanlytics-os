@@ -57,7 +57,13 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
   const row = cur ? cur.row : null;
   const starterText = g.starter && S ? S.text(g.starter, langId) : null;
   const own = tplOwn();
-  const body = !S ? "" : row ? S.rowPreview(row, own) : g.starter ? S.preview(g.starter, langId, own.business_name, own.booking_link) : "";
+  // The body with its slots still in it, and the words that fill them: the
+  // preview marks what varies per person, which a filled string cannot.
+  const body = row ? row.body_preview || "" : starterText ? starterText.body : "";
+  const values = !S ? null : row ? S.rowValues(row, own) : g.starter ? S.starterValues(g.starter, langId, own.business_name, own.booking_link) : null;
+  // A footer is a starter's: `public.templates` has no column for one, so a
+  // template written here or synced from WhatsApp Manager has none on file and
+  // the preview shows none rather than inventing the line.
   const footer = starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
@@ -89,13 +95,21 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           return <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>;
         })}
       </div>
-      <window.WaBubble from={bizName || "Your business"} body={body} footer={footer} />
+      <window.MessagePreview from={bizName || "Your business"} body={body} values={values} footer={footer} compact />
       <div className="msg-card-foot">
         {row
           ? <span className="msg-card-meta">{row.name}{row.category ? ` · ${row.category}` : ""}{row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}{row.meta_status === "rejected" && row.rejected_reason ? ` · rejected: ${String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}` : ""}</span>
           : <span className="msg-card-meta">Not on WhatsApp in {cur ? cur.lang.label : "this language"} yet — the words WhatsApp would review</span>}
         {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
         {row && row.quality && <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />}
+        {/* What sends it. The card worked this out already -- it is how a delete
+            knows to refuse -- and then showed it only inside that refusal, so
+            the page that exists to hold the messages could not say which of
+            them anything uses. Null pbRows: the playbooks were not read, and
+            "nothing sends it" would be a claim rather than a reading. */}
+        {row && pbRows && (users.length > 0
+          ? <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(users.length === 1 ? `outbound/${users[0].id}` : "outbound")} data-testid="template-users">Sent by {users.length === 1 ? quoted([users[0].name]) : `${users.length} playbooks`}{sending.length === 0 ? " · paused" : ""}</button>
+          : <span className="msg-card-meta" data-testid="template-users">No playbook sends it</span>)}
         <span className="msg-card-spacer" />
         {row && canAct && !menu && <button className="cl-bucket-link" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
       </div>

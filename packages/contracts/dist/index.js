@@ -5703,12 +5703,15 @@ function slotWords(kind, label, example, own) {
   }
   return example;
 }
-function starterPreview(s, language, businessName, bookingLink) {
+function starterPreviewValues(s, language, businessName, bookingLink) {
   const t = starterText(s, language);
   const own = { business_name: businessName, booking_link: bookingLink };
-  return fill(t.body, t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example));
+  return t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example);
 }
-function templatePreview(t, own = {}) {
+function starterPreview(s, language, businessName, bookingLink) {
+  return fill(starterText(s, language).body, starterPreviewValues(s, language, businessName, bookingLink));
+}
+function templatePreviewValues(t, own = {}) {
   const vars = Array.isArray(t.variables) ? t.variables : [];
   const kinds = defaultSlotKinds(t);
   const labels = slotLabels(t);
@@ -5720,7 +5723,10 @@ function templatePreview(t, own = {}) {
     const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
     if (words !== null) values[at2] = words;
   });
-  return fill(String(t.body_preview ?? ""), values);
+  return values;
+}
+function templatePreview(t, own = {}) {
+  return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
 var TEMPLATE_TITLE_MAX = 60;
 function templateTitle(name, title) {
@@ -9853,6 +9859,7 @@ export {
   starterForTrigger,
   starterIndex,
   starterPreview,
+  starterPreviewValues,
   starterText,
   stateLabel,
   stateOf,
@@ -9862,6 +9869,7 @@ export {
   templateComponents,
   templateNameOk,
   templatePreview,
+  templatePreviewValues,
   templateTitle,
   tenantStatusFor,
   textingTermsMetadata,

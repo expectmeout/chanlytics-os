@@ -20,7 +20,6 @@ const useBroadcasts = () => {
   return window.__BROADCASTS;
 };
 
-const bcRender = (body, params) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (params[Number(n) - 1] || m));
 const bcKey = (a) => `${a.kind}:${a.id || ""}`;
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const bcTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
@@ -361,7 +360,10 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i].trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
-  const preview = tpl ? bcRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
+  const shown = previewValues.map((v) => String(v).trim());
+  // When the message really lands, for the stamp on it: the box's time, or now,
+  // moved to the next nine o'clock exactly as the route moves it (bcWhenNote).
+  const goesAt = window.__clock ? window.__clock.nextOpen(whenAt === null ? Date.now() : whenAt).at : null;
   // A surface cached before the ceiling was published carries none; the route's is thirty days.
   const maxDays = data.scheduleMaxDays || 30;
   const whenNote = bcWhenNote(whenAt, maxDays);
@@ -393,10 +395,10 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     // down the page. It is not an Undo and is not called one: a message already
     // out stays out, which is what the row's own Stop says, so the toast carries
     // the same verb and the same promise. A scheduled run has sent nothing yet.
-    const scheduled = r.data.state === "scheduled" && words !== "sending now";
+    const waits = words !== "sending now";
     flash({
       msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</>,
-      action: canSend ? { label: scheduled ? "Cancel it" : "Stop it", onClick: () => cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: scheduled ? "scheduled" : "sending" }) } : null,
+      action: canSend ? { label: waits ? "Cancel it" : "Stop it", onClick: () => cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: waits ? "scheduled" : "sending" }) } : null,
       links: [{ label: "See who", to: `broadcasts/run:${r.data.id}` }],
     });
   };
@@ -518,7 +520,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             ))}
           </div>
         )}
-        {tpl && <div className="bc-preview-wrap" data-testid="bc-preview"><window.WaBubble from={data.businessName} body={preview} footer={bcFooter(tpl)} /></div>}
+        {tpl && <div className="bc-preview-wrap" data-testid="bc-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} footer={bcFooter(tpl)} at={goesAt} /></div>}
         <div className="bc-meta">
           <Icon name="shield" size={11} />
           <span>
