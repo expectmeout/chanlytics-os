@@ -239,8 +239,8 @@ export function hardLimitsWords(limits: { max_replies_day?: unknown; pause_hours
   };
   return {
     sub: "The first two never change; the last two are yours to set",
-    replies: `Automatic replies to one person in 24 hours before the receptionist stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
-    pause: `How long the receptionist stays out of a conversation once a person steps in — Take over, a reply from the Inbox or from the WhatsApp Business app — or once it hands one to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
+    pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
     hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT,
   };

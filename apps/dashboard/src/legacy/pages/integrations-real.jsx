@@ -191,7 +191,7 @@ const PaneIntegrationsReal = () => {
       {groups.map(({ g, rows: list }) => (
         <section key={g} className="fl-card set-card set-conn" data-testid={`connections-${g}`}>
           <div className="fl-card-head">
-            <span className="fl-card-title">{W[g].title}</span>
+            <h2 className="fl-card-title">{W[g].title}</h2>
             <span className="fl-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
           </div>
           {note && list.some((r) => r.kind === "google_profile") && (
@@ -211,7 +211,7 @@ const PaneIntegrationsReal = () => {
             </React.Fragment>
           ))}
           {g === "connected" && list.some((r) => r.kind === "google_listing") && (
-            <p className="set-card-foot">The public listing is read once a day: Google shows the five reviews it finds most relevant and counts every rating. The Business Profile, connected, carries every review and the replies you send from Reports.</p>
+            <p className="set-card-foot">The public listing is read once a day: Google shows five reviews and counts every rating. Connect the Business Profile for all of them, and for the replies you send from Reports.</p>
           )}
         </section>
       ))}

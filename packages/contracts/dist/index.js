@@ -1316,8 +1316,8 @@ function hardLimitsWords(limits) {
   };
   return {
     sub: "The first two never change; the last two are yours to set",
-    replies: `Automatic replies to one person in 24 hours before the receptionist stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
-    pause: `How long the receptionist stays out of a conversation once a person steps in \u2014 Take over, a reply from the Inbox or from the WhatsApp Business app \u2014 or once it hands one to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
+    replies: `How many it sends before it stops and asks for you. ${REPLY_CAP_DEFAULT} is the default.`,
+    pause: `Counted from Take over, a reply sent from the Inbox or the WhatsApp Business app, or a handoff to you. ${PAUSE_HOURS_DEFAULT} hours is the default.`,
     cap: stored(limits?.max_replies_day) ?? REPLY_CAP_DEFAULT,
     hours: stored(limits?.pause_hours) ?? PAUSE_HOURS_DEFAULT
   };
@@ -8023,7 +8023,7 @@ var CONNECTION_GROUP_WORDS = {
     }
   },
   available: { title: "Available", sub: (rows) => rows.some((r) => r.state === "waiting_you") ? "something here waits on you" : rows.some((r) => r.state === "waiting_them") ? "in progress" : "ready when you are" },
-  later: { title: "Later", sub: () => "nothing here pretends to be connected" }
+  later: { title: "Later", sub: () => "not yet: nothing here is connected" }
 };
 
 // src/platform.ts

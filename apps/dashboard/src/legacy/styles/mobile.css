@@ -201,7 +201,8 @@
      groups are a hairline between Profile and the workspace's tabs rather than
      two words in capitals scrolling by with them. The open tab is brought into
      view by the page (settings.jsx): past Business it was off the screen. */
-  .set-nav { flex-direction: row; align-items: center; gap: 2px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 6px 12px; scrollbar-width: none; }
+  /* 8px, not 6: the rail is a scroll box and the focus ring is drawn 4px outside its tab. */
+  .set-nav { flex-direction: row; align-items: center; gap: 2px; overflow-x: auto; border-right: none; border-bottom: 1px solid var(--line); padding: 8px 12px; scrollbar-width: none; scroll-padding-inline: 8px; }
   .set-nav::-webkit-scrollbar { display: none; }
   .set-nav .fl-roster-head { display: none; }
   .set-nav-group { flex: 0 0 1px; align-self: stretch; width: 1px; margin: 10px 6px; padding: 0; overflow: hidden; font-size: 0; background: var(--line); }
@@ -219,6 +220,20 @@
      switch sat alone at the left edge under a paragraph. */
   .set-row { flex-wrap: wrap; gap: 10px 16px; }
   .set-row-info { flex: 1 1 200px; }
+  /* A finger's worth of every control. The settings input, the icon button and
+     the options in a segmented dial each set a size for a mouse, and each was
+     more specific than the 44px floor in legacy-bridge/legacy.css. */
+  html.legacy-on .settings .set-input,
+  html.legacy-on .settings .sd-input,
+  html.legacy-on .settings .biz-input,
+  html.legacy-on .settings .setup-area { min-height: 44px; }
+  html.legacy-on .settings .btn-icon.btn-sm { width: 44px; }
+  html.legacy-on .settings .cl-tab { min-width: 44px; }
+  html.legacy-on .settings .cl-bucket-link { min-height: 44px; }
+  /* Except the ones that sit inside a sentence -- a fact's Change, an activity's Open.
+     A 44px box in a line of text pushes the line apart, and a target inside a run
+     of prose is the one case the guideline exempts. */
+  html.legacy-on .settings .cl-prof-attr .cl-bucket-link { min-height: 0; }
   /* A Setup row's sentence is the content: on a phone it wraps instead of ending in an ellipsis. */
   .setup-rows .cl-attn-sentence { white-space: normal; }
 
@@ -369,7 +384,15 @@
   .ix-sending-strip { left: 10px; right: 10px; transform: none; justify-content: center; flex-wrap: wrap; row-gap: 6px; }
   .ix-verdict-opts { grid-template-columns: 1fr; }
   .ix-param { flex-wrap: wrap; }
-  .fl-card.set-card { overflow-x: auto; }
+  /* Only a card that holds a real table may scroll sideways. It used to be every
+     Settings card, and an overflow container clips what leaves it: the focus ring
+     is a box-shadow 4px outside its control, so tabbing through a card on a phone
+     lost the ring at both edges. Measured at 390px across all nine panes and the
+     business editor: nothing scrolls sideways any more -- the policy matrix is a
+     list and the invoices are a three-column grid -- so this now guards the back
+     office alone.
+     .tq (Setup) is not .fl-card and never had it. */
+  .fl-card.set-card:has(table) { overflow-x: auto; }
   .pol-table { min-width: 520px; }
   .tb-presence { padding-left: 8px; padding-right: 8px; }
   .bc-comp { white-space: normal; }

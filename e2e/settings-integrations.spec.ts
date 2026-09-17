@@ -40,7 +40,7 @@ test.describe("Settings → Integrations on a real workspace", () => {
     for (const k of KINDS) await expect(page.getByTestId(`connection-${k}`)).toHaveCount(1);
     const later = page.getByTestId("connections-later");
     await expect(later).toContainText("Instagram");
-    await expect(later).toContainText("nothing here pretends to be connected");
+    await expect(later).toContainText("nothing here is connected");
     expect(await later.locator("button").count()).toBe(0);
     const text = await page.locator(".set-pane").innerText();
     for (const s of INVENTED) expect(text, `invented service: "${s}"`).not.toContain(s);

@@ -410,7 +410,7 @@ const PaneSetup = () => {
     <div className="setup" data-testid="setup">
       <section className="fl-card set-card setup-head" data-testid="setup-readiness">
         <div className="fl-card-head">
-          <span className="fl-card-title">Setup</span>
+          <h2 className="fl-card-title">Setup</h2>
           <span className="fl-card-sub tabular" data-testid="setup-count">{vm.done} of {vm.total} ready</span>
         </div>
         <p className="setup-sentence" data-testid="setup-sentence">{vm.readiness.sentence}</p>
@@ -424,7 +424,7 @@ const PaneSetup = () => {
 
       {vm.tryIt && (
         <section className="fl-card set-card setup-try" data-testid="setup-try">
-          <div className="fl-card-head"><span className="fl-card-title">Try your receptionist</span><span className="fl-card-sub">from your own phone</span></div>
+          <div className="fl-card-head"><h2 className="fl-card-title">Try your receptionist</h2><span className="fl-card-sub">from your own phone</span></div>
           <div className="setup-try-rows">
             {vm.tryIt.voice && (
               <div className="setup-try-row">

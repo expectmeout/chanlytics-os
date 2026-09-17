@@ -103,7 +103,7 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
   return (
     <section className="fl-card set-card" data-testid="platform-detail">
       <div className="fl-card-head">
-        <span className="fl-card-title">{detail.tenant.name}</span>
+        <h2 className="fl-card-title">{detail.tenant.name}</h2>
         <span className="fl-card-sub">{detail.tenant.slug} · {detail.tenant.timezone} · since {when(detail.tenant.created_at)}</span>
         <button className="cl-bucket-link" onClick={onClose} data-testid="platform-close">Close</button>
       </div>
@@ -224,7 +224,7 @@ const PanePlatform = () => {
       {health && (
         <section className="fl-card set-card" data-testid="platform-health">
           <div className="fl-card-head">
-            <span className="fl-card-title">The platform</span>
+            <h2 className="fl-card-title">The platform</h2>
             <span className="fl-card-sub" data-testid="platform-health-words">{P.healthWords(health)}</span>
           </div>
           {health.unhealthy.length > 0 && (
@@ -243,7 +243,7 @@ const PanePlatform = () => {
       )}
       <section className="fl-card set-card" data-testid="platform-overview">
         <div className="fl-card-head">
-          <span className="fl-card-title">Every workspace</span>
+          <h2 className="fl-card-title">Every workspace</h2>
           <span className="fl-card-sub" data-testid="platform-summary">{summary.sentence}</span>
           <button className="cl-bucket-link" onClick={load} disabled={busy} data-testid="platform-refresh">{busy ? "Reading…" : "Read again"}</button>
         </div>
