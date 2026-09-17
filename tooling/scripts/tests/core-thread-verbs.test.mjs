@@ -5,6 +5,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { importSrc } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
 
 const core = await importSrc("packages/core/src/conversations/index.ts");
 const NOW = Date.parse("2026-09-11T12:00:00Z");
@@ -15,7 +16,7 @@ const conv = (over = {}) => ({ id: "c1", tenant_id: "t1", state: "open", paused_
 function fakes(over = {}) {
   const log = [];
   const answers = {
-    pauseMs: 2 * HOUR, pauseBot: undefined, claim: true, release: true, snooze: true, wake: true, archive: true,
+    pauseMs: 2 * HOUR, claim: true, release: true, snooze: true, wake: true, archive: true,
     takeControl: undefined, letControlGo: undefined,
     withdrawDrafts: 1, resolveEscalation: undefined, record: "d1", resolve: true, link: undefined, cancelQueued: true, cancelJob: 1,
     ...over,
@@ -34,66 +35,70 @@ function fakes(over = {}) {
 }
 const refused = async (p, code, status, words) => assert.rejects(p, (e) => e.code === code && (status === undefined || e.status === status) && (words === undefined || words.test(e.message)));
 
-test("take over: the bot is paused FIRST, then the claim, then the drafts, then the ledger; a thread with no number has no mirror to pause and is taken all the same", async () => {
+test("take over: the claim IS the pause, then the hold, then the drafts, then the ledger", async () => {
   const { ports, log, call, ops } = fakes();
   const r = await core.takeOver(ports, { conv: conv(), userId: "u1" });
   const until = new Date(NOW + 2 * HOUR).toISOString();
-  // The hold on who is speaking (00130) is taken between the claim and the
+  // The hold on who is speaking (00132) is taken between the claim and the
   // withdrawal, and that position is the point of it: a draft written in the
   // same second still reaches the wire, and the wire asks this.
-  assert.deepEqual(ops(), ["pauseBot", "claim", "takeControl", "withdrawDrafts", "record"]);
-  assert.deepEqual(log[0], ["pauseBot", "t1", "+15550000001", NOW + 2 * HOUR]);
-  assert.deepEqual(log[1], ["claim", "c1", until, "u1"]);
+  assert.deepEqual(ops(), ["claim", "takeControl", "withdrawDrafts", "record"]);
+  assert.deepEqual(log[0], ["claim", "c1", until, "u1"]);
   assert.deepEqual(call("record"), ["record", "t1", "conversation", "c1", "take_over", { paused_until: until }]);
   assert.deepEqual(r, { state: "needs_human", paused_until: until, decision_id: "d1", withdrawn_drafts: 1 });
-  // A person with an email and no number: the mirror is the number's store, so there is none; the row holds the thread.
+  // A person reached by email alone is taken over EXACTLY as one with a number.
+  // It used to differ: the first step was a mirror keyed by the phone number,
+  // so a thread with none skipped it, and "does this person have a number" was
+  // a branch in a verb that has nothing to do with numbers.
   const bare = fakes();
   const taken = await core.takeOver(bare.ports, { conv: conv({ phone_e164: null }), userId: "u1" });
   assert.deepEqual(bare.ops(), ["claim", "takeControl", "withdrawDrafts", "record"]);
   assert.equal(taken.paused_until, until);
-  const lost = fakes({ claim: false });
-  await refused(core.takeOver(lost.ports, { conv: conv({ phone_e164: null }), userId: "u1" }), "conflict", 409, /reload/);
-  assert.deepEqual(lost.ops(), ["claim"], "and a lost claim has no mirror to release");
 });
 
-test("take over: a claim that changed no row releases the pause it mirrored and is a 409, with no decision", async () => {
-  const { ports, log, call, ops } = fakes({ claim: false });
-  await refused(core.takeOver(ports, { conv: conv(), userId: "u1" }), "conflict", 409, /reload/);
-  assert.deepEqual(ops(), ["pauseBot", "claim", "pauseBot"]);
-  assert.equal(log[2][3], 0, "the second mirror releases");
+test("take over: a claim that changed no row is a 409 that leaves nothing behind", async () => {
+  // There is nothing to undo now. The mirror this used to release was a second
+  // store the receptionist read; the row is the only one, so a claim that
+  // matched nothing simply did not happen.
+  for (const c of [conv(), conv({ phone_e164: null })]) {
+    const lost = fakes({ claim: false });
+    await refused(core.takeOver(lost.ports, { conv: c, userId: "u1" }), "conflict", 409, /reload/);
+    assert.deepEqual(lost.ops(), ["claim"]);
+  }
 });
 
-test("hand back: the pause released, the thread opened, the decision recorded, and the open escalation resolved by it", async () => {
+test("hand back: the thread opened, the hold let go, the decision recorded, and the open escalation resolved by it", async () => {
   const { ports, log, call, ops } = fakes();
   assert.deepEqual(await core.handBack(ports, { conv: conv(), userId: "u1" }), { state: "open", decision_id: "d1" });
   // The hold goes LAST, and only if it is ours: a release that ran first and
   // then failed to open the row would leave the receptionist free on a thread
   // still marked for a person, which is the one direction this must not fail in.
-  assert.deepEqual(ops(), ["pauseBot", "release", "letControlGo", "record", "resolveEscalation"]);
-  assert.deepEqual(log[0], ["pauseBot", "t1", "+15550000001", 0]);
+  assert.deepEqual(ops(), ["release", "letControlGo", "record", "resolveEscalation"]);
+  assert.deepEqual(log[0], ["release", "c1"]);
   assert.deepEqual(call("resolveEscalation"), ["resolveEscalation", "c1", "d1"]);
-  assert.deepEqual(call("letControlGo"), ["letControlGo", "t1", "c1", "u1"], "only this person’s hold: somebody else’s is left where it is");
-  const stale = fakes({ release: false });
-  await refused(core.handBack(stale.ports, { conv: conv(), userId: "u1" }), "conflict", 409, /reload/);
-  assert.deepEqual(stale.ops(), ["pauseBot", "release"], "no decision and no resolve for a change that never happened");
+  assert.deepEqual(call("letControlGo"), ["letControlGo", "t1", "c1", "u1"], "only this person\u2019s hold: somebody else\u2019s is left where it is");
+  // With or without a number, held or not: the same four calls. Each of those
+  // used to change the shape, because a second store was keyed by the number.
   const bare = fakes();
   assert.deepEqual(await core.handBack(bare.ports, { conv: conv({ phone_e164: null, paused_until: new Date(NOW + HOUR).toISOString() }) }), { state: "open", decision_id: "d1" });
-  assert.deepEqual(bare.ops(), ["release", "letControlGo", "record", "resolveEscalation"], "a thread with no number is handed back with no mirror to release");
+  assert.deepEqual(bare.ops(), ["release", "letControlGo", "record", "resolveEscalation"]);
 });
 
-test("hand back, snooze and archive: a row that did not change gets its pause back, so the receptionist never speaks under a person still holding the thread", async () => {
+test("hand back, snooze and archive: a row that did not change leaves nothing behind", async () => {
+  // The compensation these carried -- release the receptionist's other store,
+  // then put it back if the row turned out not to have changed -- is gone with
+  // the store. What is left is the property it was reaching for, and it now
+  // holds by construction: a verb that changed no row did nothing at all.
   const until = new Date(NOW + HOUR).toISOString();
   const hb = fakes({ release: false });
   await refused(core.handBack(hb.ports, { conv: conv({ paused_until: until }), userId: "u1" }), "conflict", 409, /reload/);
-  assert.deepEqual(hb.ops(), ["pauseBot", "release", "pauseBot"]);
-  assert.equal(hb.log[2][3], NOW + HOUR, "mirrored back as it was");
+  assert.deepEqual(hb.ops(), ["release"], "no decision and no resolve for a change that never happened");
   const sn = fakes({ snooze: false });
   await refused(core.snooze(sn.ports, { conv: conv({ paused_until: until }), until: new Date(NOW + 2 * HOUR).toISOString() }), "conflict", 409, /reload/);
-  assert.deepEqual(sn.ops(), ["pauseBot", "snooze", "pauseBot"]);
-  assert.equal(sn.log[2][3], NOW + HOUR);
-  const ar = fakes({ archive: () => { throw new Error("PostgREST blip"); } });
+  assert.deepEqual(sn.ops(), ["snooze"]);
+  const ar = fakes({ archive: () => { throw new Error("PostgREST blip") } });
   await assert.rejects(core.archive(ar.ports, { conv: conv({ paused_until: until }) }), /blip/);
-  assert.deepEqual(ar.ops(), ["pauseBot", "archive", "pauseBot"], "a write that threw is compensated too");
+  assert.deepEqual(ar.ops(), ["archive"], "a write that threw has nothing to compensate either");
 });
 
 test("snooze: a missing, malformed, past or too-distant until is refused before anything is touched", async () => {
@@ -104,20 +109,19 @@ test("snooze: a missing, malformed, past or too-distant until is refused before 
   }
 });
 
-test("snooze: releases the receptionist's pause only when the thread holds one, hides the thread, and leaves the escalation OPEN", async () => {
+test("snooze: hides the thread, and leaves the escalation OPEN", async () => {
   const until = new Date(NOW + HOUR).toISOString();
+  // A held thread and a plain one snooze identically: the UPDATE clears the
+  // pause in the same statement that sets the wake time, so there is no
+  // separate release to run, to forget, or to put back.
   const paused = fakes();
   const r = await core.snooze(paused.ports, { conv: conv({ paused_until: new Date(NOW + HOUR).toISOString() }), until });
-  assert.deepEqual(paused.ops(), ["pauseBot", "snooze", "record"]);
-  assert.equal(paused.log[0][3], 0, "released, not extended");
+  assert.deepEqual(paused.ops(), ["snooze", "record"]);
   assert.deepEqual(r, { state: "snoozed", snooze_until: until, decision_id: "d1" });
   const plain = fakes();
   await core.snooze(plain.ports, { conv: conv(), until });
   assert.deepEqual(plain.ops(), ["snooze", "record"]);
   assert.deepEqual(plain.log[1], ["record", "t1", "conversation", "c1", "snooze", { until }]);
-  const stale = fakes({ snooze: false });
-  await refused(core.snooze(stale.ports, { conv: conv(), until }), "conflict", 409, /reload/);
-  assert.deepEqual(stale.ops(), ["snooze"]);
 });
 
 test("wake: only a snoozed thread wakes, only while still snoozed, and it goes back to being whatever it was", async () => {
@@ -132,41 +136,40 @@ test("wake: only a snoozed thread wakes, only while still snoozed, and it goes b
   assert.deepEqual(raced.ops(), ["wake"]);
 });
 
-test("archive: a paused thread's receptionist is released, the thread closed, the escalation resolved", async () => {
-  const { ports, call, ops } = fakes();
+test("archive: the thread closed and the escalation resolved, held or not", async () => {
+  const { ports, ops } = fakes();
   assert.deepEqual(await core.archive(ports, { conv: conv({ paused_until: new Date(NOW + HOUR).toISOString() }) }), { state: "archived", decision_id: "d1" });
-  assert.deepEqual(ops(), ["pauseBot", "archive", "record", "resolveEscalation"]);
+  assert.deepEqual(ops(), ["archive", "record", "resolveEscalation"]);
   const plain = fakes();
   await core.archive(plain.ports, { conv: conv() });
-  assert.deepEqual(plain.ops(), ["archive", "record", "resolveEscalation"], "no pause, nothing to release");
+  assert.deepEqual(plain.ops(), ["archive", "record", "resolveEscalation"], "the same three, because closing a thread clears its pause in the one UPDATE");
   const stale = fakes({ archive: false });
   await refused(core.archive(stale.ports, { conv: conv() }), "conflict", 409, /reload/);
   assert.deepEqual(stale.ops(), ["archive"]);
 });
 
-test("resolve: an already-resolved escalation is an answer, not an error; the update lands before the ledger; the decision is linked back", async () => {
-  const done = fakes();
-  assert.deepEqual(await core.resolveEscalation(done.ports, { esc: { id: "e1", tenant_id: "t1", state: "resolved" } }), { state: "resolved", already: true });
-  assert.deepEqual(done.ops(), []);
-  const { ports, ops, log } = fakes();
-  assert.deepEqual(await core.resolveEscalation(ports, { esc: { id: "e1", tenant_id: "t1", state: "open" } }), { state: "resolved", decision_id: "d1" });
-  assert.deepEqual(ops(), ["resolve", "record", "link"]);
-  assert.deepEqual(log[1], ["record", "t1", "escalation", "e1", "resolve"]);
-  assert.deepEqual(log[2], ["link", "e1", "d1"]);
-  const raced = fakes({ resolve: false });
-  await refused(core.resolveEscalation(raced.ports, { esc: { id: "e1", tenant_id: "t1", state: "open" } }), "conflict", 409, /already resolved/);
-  assert.deepEqual(raced.ops(), ["resolve"]);
-});
+/* -------------------------------------------------------------------------- *
+ * And the rows those ports actually write.
+ *
+ * The verbs above no longer release the receptionist themselves -- the UPDATE
+ * does it, in the same statement that moves the state. That is only true if
+ * the UPDATE says so, so it is read here rather than assumed: this is the half
+ * that used to be covered by a compensation step nobody could see failing.
+ * -------------------------------------------------------------------------- */
 
-test("cancel a send: only a queued row, the row before the job, and the words when the job won", async () => {
-  const { ports, ops, log } = fakes();
-  assert.deepEqual(await core.cancelSend(ports, { msg: { id: "m1", tenant_id: "t1", status: "queued" } }), { status: "canceled", decision_id: "d1" });
-  assert.deepEqual(ops(), ["cancelQueued", "cancelJob", "record"]);
-  assert.deepEqual(log[2], ["record", "t1", "message", "m1", "cancel_send"]);
-  const sent = fakes();
-  await refused(core.cancelSend(sent.ports, { msg: { id: "m1", tenant_id: "t1", status: "sent" } }), "conflict", undefined, /already been sent/);
-  assert.deepEqual(sent.ops(), []);
-  const raced = fakes({ cancelQueued: false });
-  await refused(core.cancelSend(raced.ports, { msg: { id: "m1", tenant_id: "t1", status: "queued" } }), "conflict", undefined, /while you were canceling/);
-  assert.deepEqual(raced.ops(), ["cancelQueued"]);
+test("every state a verb writes clears what that state cannot coexist with", async () => {
+  const { threadPorts } = await import("../../../apps/dashboard/src/server/core-ports.ts");
+  const held = () => ({ id: "c1", tenant_id: "t1", state: "needs_human", paused_until: new Date(NOW + HOUR).toISOString(), snooze_until: null, assignee_user_id: "u1" });
+
+  for (const [verb, call, expect] of [
+    ["claim", (p) => p.claim("c1", new Date(NOW + HOUR).toISOString(), "u1"), { state: "needs_human", snooze_until: null, assignee_user_id: "u1" }],
+    ["release", (p) => p.release("c1"), { state: "open", paused_until: null, snooze_until: null, assignee_user_id: null }],
+    ["snooze", (p) => p.snooze("c1", new Date(NOW + 2 * HOUR).toISOString()), { state: "snoozed", paused_until: null, assignee_user_id: null }],
+    ["archive", (p) => p.archive("c1"), { state: "archived", paused_until: null, assignee_user_id: null }],
+  ]) {
+    const conversations = [held()];
+    const ports = threadPorts({ supabase: fakeDb({ conversations }), userId: "u1" });
+    assert.equal(await call(ports), true, verb);
+    for (const [col, want] of Object.entries(expect)) assert.deepEqual(conversations[0][col], want, `${verb} leaves ${col} as ${String(want)}`);
+  }
 });

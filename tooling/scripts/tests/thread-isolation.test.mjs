@@ -111,7 +111,7 @@ test("every store call site passes a namespace", () => {
   // namespace named after a phone number.
   const files = [
     "api/whatsapp.ts", "lib/whatsapp/inbound.ts", "api/retell-webhook.ts", "api/retell-inbound.ts", "lib/call-start.ts",
-    "api/admin/pause.ts", "api/diag.ts",
+    "api/diag.ts",
   ];
   /** Top-level arguments of a call, respecting nested parentheses —
    *  `getThread(threadNamespace(x), from)` is TWO arguments, not one. */

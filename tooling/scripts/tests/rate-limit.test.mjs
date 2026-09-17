@@ -147,6 +147,9 @@ test("every route that sends, spends or aggregates counts against its bucket", (
 
 test("F42: only the production dashboard reaches the live store or a live call — an unset VERCEL_ENV is not production", () => {
   const service = readCode("apps/dashboard/src/server/service.ts");
-  assert.equal((service.match(/if \(!deployment\.providersLive\)/g) ?? []).length, 11, "the pause mirror, the whisper, the steer, the sign-up config, the number connection, the template sync, create and delete, the playbook run, the end and the hand-over of a call");
-  assert.ok(!service.includes('process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"'), "REGRESSION: plain local dev mirrored pauses into the live store");
+  assert.equal((service.match(/if \(!deployment\.providersLive\)/g) ?? []).length, 10, "the whisper, the steer, the sign-up config, the number connection, the template sync, create and delete, the playbook run, the end and the hand-over of a call");
+  // The pause mirror was the eleventh, and is gone with the store it mirrored
+  // into. The regression it carried is kept as a rule about the guard itself:
+  // an unset VERCEL_ENV is a laptop, and a laptop is not production.
+  assert.ok(!service.includes('process.env.VERCEL_ENV && process.env.VERCEL_ENV !== "production"'), "REGRESSION: plain local dev reached the live providers");
 });

@@ -21,7 +21,7 @@ function fakes(over = {}) {
   const answers = {
     pauseMs: 2 * HOUR, now: () => NOW, replyChannel: "whatsapp", priorReceipt: null, template: approved,
     templateFacts: { business_name: "Melany's", booking_link: "https://book.example/m" }, hash: (s) => `h(${s})`,
-    pauseBot: undefined, claimForReply: true, takeControl: undefined, withdrawDrafts: 1, queue: "m1", schedule: undefined, cancelOrphan: undefined,
+    claimForReply: true, takeControl: undefined, withdrawDrafts: 1, queue: "m1", schedule: undefined, cancelOrphan: undefined,
     record: "d1", resolveEscalation: undefined, storeReceipt: undefined,
     ...over,
   };
@@ -56,8 +56,11 @@ test("inside the window: the words go as they are; the thread is paused and clai
   const r = await replyToConversation(ports, cmd());
   // takeControl sits between the claim and the withdrawal: the wire asks who is
   // speaking now (00130), and a draft written in the same second still reaches it.
-  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"]);
-  assert.deepEqual(call("pauseBot"), ["pauseBot", "t1", "+15550000001", NOW + 2 * HOUR]);
+  assert.deepEqual(ops(), ["claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"]);
+  // The claim IS the pause: one statement, and the row it writes is the one
+  // the receptionist reads. It used to be preceded by a mirror into a second
+  // store, keyed by the number, with a release to undo it.
+  assert.deepEqual(call("claimForReply")[2], new Date(NOW + 2 * HOUR).toISOString());
   assert.deepEqual(call("claimForReply"), ["claimForReply", "c1", iso(NOW + 2 * HOUR), "u1", iso(NOW)]);
   assert.equal(call("queue")[1].body, "On our way.");
   assert.equal(call("queue")[1].type, "text");
@@ -147,14 +150,13 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
 test("a claim that changed no row releases the pause it mirrored and is a 409; nothing was queued", async () => {
   const { ports, log, call, ops } = fakes({ claimForReply: false });
   await refused(replyToConversation(ports, cmd()), "conflict", /nothing was sent/);
-  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "pauseBot"]);
-  assert.equal(log.filter((l) => l[0] === "pauseBot")[1][3], 0, "the second mirror releases, as take-over's does");
+  assert.deepEqual(ops(), ["claimForReply"], "nothing ran before it, so there is nothing to undo after it");
 });
 
 test("a job that could not be scheduled cancels the row it would have sent, and the error is the caller's", async () => {
   const { ports, log, call, ops } = fakes({ schedule: () => { throw new Error("queue down"); } });
   await assert.rejects(replyToConversation(ports, cmd()), /queue down/);
-  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "cancelOrphan"]);
+  assert.deepEqual(ops(), ["claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "cancelOrphan"]);
   assert.deepEqual(log.at(-1), ["cancelOrphan", "m1"]);
 });
 
@@ -175,7 +177,7 @@ test("a replay: the same key and intent inside the window returns the stored rec
   // to find, or the customer receives the words twice.
   const ledgerDown = fakes({ record: () => { throw new Error("decisions down"); } });
   await assert.rejects(replyToConversation(ledgerDown.ports, cmd({ idempotencyKey: "k1" })), /decisions down/);
-  assert.deepEqual(ledgerDown.ops(), ["pauseBot", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "storeReceipt", "record"]);
+  assert.deepEqual(ledgerDown.ops(), ["claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "storeReceipt", "record"]);
   assert.deepEqual(ledgerDown.call("storeReceipt"), ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1 }]);
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
@@ -214,7 +216,7 @@ test("a reply by email goes to the address on the person's page; its request is 
 
   const both = emailFakes();
   await replyToConversation(both.ports, cmd({ conv: byEmail({ phone_e164: "+15550000001" }) }));
-  assert.deepEqual(both.ops().slice(0, 3), ["email.parent", "email.freeze", "pauseBot"], "a person with a number too has a mirror, and a person answering them pauses it");
+  assert.deepEqual(both.ops().slice(0, 3), ["email.parent", "email.freeze", "claimForReply"], "the reply is frozen before the thread is claimed, whether or not the person also has a number");
 });
 
 test("an email reply that cannot go is refused in words before anything is touched: no address, a stopped address, no email to answer, no mailbox, too long", async () => {

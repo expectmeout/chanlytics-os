@@ -23,8 +23,6 @@ export interface Thread {
 export interface ThreadPorts {
   /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
   pauseMs(tenantId: string): Promise<number>;
-  /** The live receptionist's own pause, kept outside Postgres and mirrored FIRST; 0 releases it. */
-  pauseBot(tenantId: string, phone: string, untilMs: number): Promise<void>;
   /** needs_human, paused until, snooze cleared, claimed by the user. True iff a row changed. */
   claim(conversationId: string, untilIso: string, userId: string): Promise<boolean>;
   /** open, pause and snooze cleared, unassigned. True iff a row changed. */

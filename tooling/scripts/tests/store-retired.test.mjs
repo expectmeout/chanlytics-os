@@ -53,8 +53,11 @@ test("retired: the store answers unknown, refuses writes, still deletes", async 
 test("every caller that used the store as a mirror steps aside when it is retired", () => {
   // The echo pause skipping the retired store and landing in Postgres is run in whatsapp-door.test.mjs.
   assert.ok(readRaw("apps/edge/api/whatsapp.ts").includes("RETIRED STORE (BLOB_SHADOW=off)"), "the handler contract says so");
-  const pause = readCode("apps/edge/api/admin/pause.ts");
-  assert.ok(pause.includes('if (storeBackend() === "off") return json(200, { ok: true, store: "off" });'), "the dashboard's mirror call succeeds with nothing to mirror");
+  // The dashboard's own mirror -- a round trip to /api/admin/pause before every
+  // take-over, hand-back, snooze, archive and reply -- is GONE, along with the
+  // endpoint and the compensation logic the five verbs carried for it. What it
+  // mirrored INTO had been retired; a verb that could fail on a call which
+  // could not matter is the reason it went rather than being left inert.
   // /api/diag declining to probe and naming the memory "none" is run in diag-door.test.mjs.
   const st = readCode("apps/edge/lib/store.ts");
   assert.ok(st.includes('const STORE_OFF = process.env.BLOB_SHADOW === "off";'));

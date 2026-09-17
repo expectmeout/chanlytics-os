@@ -184,36 +184,6 @@ export async function erasedThreadIds(tenantId: string, contactId: string): Prom
 import { edgeConfigured, edgeHeaders, edgeUrl } from "./edge";
 
 /**
- * Pre-Gate-1b bridge: the live bot reads pause state from Blob until the read
- * flip — a dashboard pause that doesn't reach Blob doesn't pause the bot
- * (the D10 incident). Fails LOUD: callers treat a mirror failure as a failed verb.
- */
-export async function mirrorBlobPause(
-  tenantId: string,
-  phoneE164: string,
-  pausedUntilMs: number,
-): Promise<void> {
-  // Only the production dashboard owns the live bot's pause state; a preview
-  // must never reach into the real Blob store — and neither may a laptop.
-  // The guard used to fire only when VERCEL_ENV was SET, so plain local dev,
-  // where it is unset, mirrored pauses into the live store (review F42).
-  if (!deployment.providersLive) return;
-  const r = await fetch(`${edgeUrl()}/api/admin/pause`, {
-    method: "POST",
-    headers: edgeHeaders("/api/admin/pause", { workspace: tenantId }),
-    // The tenant is REQUIRED. Without it the edge keyed the pause on the phone
-    // number alone, so taking over a conversation paused that customer's
-    // receptionist at every business that has them as a customer.
-    body: JSON.stringify({
-      tenant_id: tenantId,
-      phone_digits: phoneE164.replace(/[^\d]/g, ""),
-      paused_until_ms: pausedUntilMs,
-    }),
-  });
-  if (!r.ok) throw new Error(`blob pause mirror failed (${r.status})`);
-}
-
-/**
  * Whisper to the phone receptionist mid-call, through the edge — the
  * provider key lives there. Same production guard as the pause mirror: a
  * preview must never speak into a real customer's call. Returns a reason

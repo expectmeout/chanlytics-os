@@ -176,8 +176,6 @@ interface Thread {
 interface ThreadPorts {
     /** How long a person's touch keeps the receptionist off a thread: the reply policy's pause_hours, or a day. */
     pauseMs(tenantId: string): Promise<number>;
-    /** The live receptionist's own pause, kept outside Postgres and mirrored FIRST; 0 releases it. */
-    pauseBot(tenantId: string, phone: string, untilMs: number): Promise<void>;
     /** needs_human, paused until, snooze cleared, claimed by the user. True iff a row changed. */
     claim(conversationId: string, untilIso: string, userId: string): Promise<boolean>;
     /** open, pause and snooze cleared, unassigned. True iff a row changed. */
@@ -222,7 +220,7 @@ interface CancelSendPorts {
     record: ThreadPorts["record"];
 }
 
-type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "pauseBot" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
+type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
 /**
  * The longest a person's hold lasts without being renewed.
  *
@@ -245,7 +243,7 @@ declare function takeOver(ports: TakeOverPorts, cmd: {
     userId: string;
 }): Promise<TakeOverResult>;
 
-type HandBackPorts = Pick<ThreadPorts, "pauseBot" | "release" | "letControlGo" | "record" | "resolveEscalation">;
+type HandBackPorts = Pick<ThreadPorts, "release" | "letControlGo" | "record" | "resolveEscalation">;
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */
 declare function handBack(ports: HandBackPorts, cmd: {
     conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until">;
@@ -257,7 +255,7 @@ declare function handBack(ports: HandBackPorts, cmd: {
 
 declare const MAX_SNOOZE_MS: number;
 declare const NEEDS_UNTIL = "snooze needs a future `until` timestamp.";
-type SnoozePorts = Pick<ThreadPorts, "pauseBot" | "snooze" | "record" | "now">;
+type SnoozePorts = Pick<ThreadPorts, "snooze" | "record" | "now">;
 interface SnoozeResult {
     state: "snoozed";
     snooze_until: string;
@@ -283,7 +281,7 @@ declare function wake(ports: WakePorts, cmd: {
     decision_id: string;
 }>;
 
-type ArchivePorts = Pick<ThreadPorts, "pauseBot" | "archive" | "record" | "resolveEscalation">;
+type ArchivePorts = Pick<ThreadPorts, "archive" | "record" | "resolveEscalation">;
 /** Archive: close the thread (a state, never a deletion — P3). A later inbound reopens it. */
 declare function archive(ports: ArchivePorts, cmd: {
     conv: Pick<Thread, "id" | "tenant_id" | "paused_until" | "phone_e164">;
@@ -437,7 +435,7 @@ interface EmailReplyPorts {
     /** The row's id before the row exists. */
     newId(): string;
 }
-interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
+interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
     /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
     replyChannel(conv: {
         id: string;
