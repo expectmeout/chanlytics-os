@@ -273,7 +273,13 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
   const mailbox = i.email?.mailbox ?? null;
   if (mailbox) {
     const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
-    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: mailbox.address, state: "connected", stateWords: "On", sentence: `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`, verb: { label: "Change the name", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
+    // An email that could not be taken in is said HERE, where the owner looks
+    // at the channel itself — the way the Google listing row carries
+    // check_error above. It is ours to fix, not theirs, so the row says so and
+    // keeps the verb it had; the next email that arrives clears it, so this is
+    // never an old alarm about mail that has since been flowing for a week.
+    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: mailbox.address, state: mailbox.last_error ? "attention" : "connected", stateWords: mailbox.last_error ? "Waiting on us" : "On", sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working, verb: { label: "Change the name", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
   } else if (i.email?.ready) {
     out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "none", stateWords: "Not set up", sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`, verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
   } else {

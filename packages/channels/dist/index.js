@@ -2483,6 +2483,24 @@ function sendsAs(mailbox, domain) {
 function requestLeavesAs(request, as) {
   return addressOf(request.from)?.address === as.address && request.reply_to.length === 1 && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }
+var capabilityOf = (v) => v === "enabled" || v === "disabled" ? v : "unknown";
+function mailDomainsFrom(body) {
+  const rows = body?.data;
+  if (!Array.isArray(rows)) return null;
+  const out = [];
+  for (const r of rows) {
+    const d = r ?? {};
+    const caps = d.capabilities ?? {};
+    if (typeof d.name !== "string" || !d.name) continue;
+    out.push({
+      name: d.name.trim().toLowerCase(),
+      status: typeof d.status === "string" && d.status.trim() ? d.status.trim() : "unknown",
+      sending: capabilityOf(caps.sending),
+      receiving: capabilityOf(caps.receiving)
+    });
+  }
+  return out;
+}
 
 // src/email-text.ts
 import { convert } from "html-to-text";
@@ -2547,6 +2565,24 @@ async function fetchReceivedEmail(cfg, receivedId) {
   const email = receivedEmailFrom(body);
   if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
   return email;
+}
+var RESEND_DOMAINS = "https://api.resend.com/domains";
+async function fetchMailDomains(cfg) {
+  const r = await fetch(RESEND_DOMAINS, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
+  const raw = await r.text();
+  if (!r.ok) throw new Error(`resend: domains answered ${r.status}: ${raw.slice(0, 200)}`);
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new Error("resend: domains answered something that is not JSON");
+  }
+  const domains = mailDomainsFrom(body);
+  if (!domains) throw new Error("resend: domains answered a shape that is not a list of domains");
+  return domains;
 }
 
 // src/a2p.ts
@@ -3666,6 +3702,7 @@ export {
   encodeForm,
   evaluateRequest,
   evaluateTrustProductRequest,
+  fetchMailDomains,
   fetchMediaBytes,
   fetchReceivedEmail,
   fetchRecording,
@@ -3694,6 +3731,7 @@ export {
   listReviews,
   liveTurns,
   locationsRequest,
+  mailDomainsFrom,
   mailboxHeader,
   mergeConsent,
   messageIdHeader,

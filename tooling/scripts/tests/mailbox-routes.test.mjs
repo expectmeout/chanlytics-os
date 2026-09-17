@@ -31,7 +31,7 @@ const B = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const MB = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee1";
 const USER = "u1";
 const membership = (tenant_id, role, slug) => ({ user_id: USER, tenant_id, role, tenants: { slug }, created_at: "2026-01-01T00:00:00Z" });
-const row = (tenant_id, over = {}) => ({ id: MB, tenant_id, local_part: "bestmovers", reply_token: "a".repeat(24), reply_token_prev: null, from_name: "Best Movers", reply_mode: "draft", last_received_at: null, ...over });
+const row = (tenant_id, over = {}) => ({ id: MB, tenant_id, local_part: "bestmovers", reply_token: "a".repeat(24), reply_token_prev: null, from_name: "Best Movers", reply_mode: "draft", last_received_at: null, last_error: null, ...over });
 /** The doors as 00129 answers them, over the tables in memory. */
 function world(tables, doors = {}) {
   const rpcs = {
@@ -64,7 +64,7 @@ test("an owner chooses the address: judged before the door is asked, stored in o
   const tables = { memberships: [membership(A, "owner", "harbor")], mailboxes: [] };
   const ctx = world(tables);
   const out = await mailboxes.POST.run(send("POST", { local_part: "  BestMovers ", from_name: " Best Movers " }), ctx);
-  assert.deepEqual(out, { mailbox: { id: MB, address: "bestmovers@mail.chanlytics.com", from_name: "Best Movers", last_received_at: null } });
+  assert.deepEqual(out, { mailbox: { id: MB, address: "bestmovers@mail.chanlytics.com", from_name: "Best Movers", last_received_at: null, last_error: null } });
   assert.deepEqual(ctx.supabase.seen.find((s) => s.rpc === "create_mailbox").args, { p_tenant_id: A, p_local_part: "bestmovers", p_from_name: "Best Movers" });
 
   for (const [body, words] of [
@@ -110,7 +110,7 @@ test("where the deployment names no mail domain, email is off: nothing can be ma
     assert.deepEqual(db.seen, []);
   } finally { process.env.EMAIL_DOMAIN = "mail.chanlytics.com"; }
   const db = fakeDb({ mailboxes: [row(A, { last_received_at: "2026-09-17T12:00:00Z" })] });
-  assert.deepEqual(await emailSetupFor(db, A), { ready: true, domain: "mail.chanlytics.com", mailbox: { id: MB, address: "bestmovers@mail.chanlytics.com", from_name: "Best Movers", last_received_at: "2026-09-17T12:00:00Z" } });
+  assert.deepEqual(await emailSetupFor(db, A), { ready: true, domain: "mail.chanlytics.com", mailbox: { id: MB, address: "bestmovers@mail.chanlytics.com", from_name: "Best Movers", last_received_at: "2026-09-17T12:00:00Z", last_error: null } });
   assert.deepEqual((await emailSetupFor(db, B)).mailbox, null, "a workspace is told about its own mailbox and nobody else's");
 });
 

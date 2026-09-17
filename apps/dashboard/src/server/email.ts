@@ -46,8 +46,8 @@ export async function freezeReply(ctx: RouteContext, i: Parameters<EmailReplyPor
 }
 
 /** A mailbox row as the pages are told about it: its address on this deployment's domain, and never its reply route. */
-function mailboxDto(row: { id: string; local_part: string; from_name: string; last_received_at: string | null }, domain: string): MailboxDto {
-  return { id: row.id, address: hostedAddress(row.local_part, domain), from_name: row.from_name, last_received_at: row.last_received_at };
+function mailboxDto(row: { id: string; local_part: string; from_name: string; last_received_at: string | null; last_error?: string | null }, domain: string): MailboxDto {
+  return { id: row.id, address: hostedAddress(row.local_part, domain), from_name: row.from_name, last_received_at: row.last_received_at, last_error: row.last_error ?? null };
 }
 
 /**

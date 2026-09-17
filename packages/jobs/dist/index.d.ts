@@ -271,6 +271,13 @@ interface Settled {
     changed: boolean;
     /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
     flagged?: EscalationOutcome;
+    /**
+     * An email intake that died marked the workspace's mailbox. Absent when the
+     * job named no mailbox; "gone" when no such mailbox is this workspace's any
+     * more; "failed" when the write itself did not land. Said rather than
+     * swallowed, and none of the three costs anybody their escalation.
+     */
+    mailbox?: "marked" | "gone" | "failed";
     /** Why nothing could be written, when nothing could be. Never swallowed. */
     error?: string;
     /**

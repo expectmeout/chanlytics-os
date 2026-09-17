@@ -62,6 +62,14 @@ export interface MailboxDto {
   address: string;
   from_name: string;
   last_received_at: string | null;
+  /**
+   * What went wrong with this mailbox last, in a sentence written for the
+   * owner — never a provider's error text or a job's reason, which belong
+   * where a person at Chanlytics reads them. Null when nothing is wrong: the
+   * next email taken in clears it (db stampMailboxReceived), so a mailbox
+   * whose mail is flowing never carries an old one.
+   */
+  last_error: string | null;
 }
 
 /** Email, as Setup and Connections are told: whether this deployment has it at all, on which domain, and the workspace's mailbox when it has one. */

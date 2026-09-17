@@ -13,7 +13,7 @@
  * request never produces.
  */
 import type { SendResult } from "./whatsapp";
-import { receivedEmailFrom, type EmailRequest, type ReceivedEmail } from "./email";
+import { mailDomainsFrom, receivedEmailFrom, type EmailRequest, type MailDomainFacts, type ReceivedEmail } from "./email";
 
 export interface ResendConfig {
   apiKey: string;
@@ -67,4 +67,30 @@ export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string):
   const email = receivedEmailFrom(body);
   if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
   return email;
+}
+
+const RESEND_DOMAINS = "https://api.resend.com/domains";
+
+/**
+ * Every domain this account holds, with what the provider makes of each. Read
+ * by the health check to see whether the one we send and receive on is still
+ * verified.
+ *
+ * It THROWS rather than answering an empty list when it cannot ask, for the
+ * reason fetchReceivedEmail does: "we could not reach the provider" is not
+ * "the provider has no such domain", and only one of those is worth waking
+ * somebody for.
+ */
+export async function fetchMailDomains(cfg: ResendConfig): Promise<MailDomainFacts[]> {
+  const r = await fetch(RESEND_DOMAINS, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  const raw = await r.text();
+  if (!r.ok) throw new Error(`resend: domains answered ${r.status}: ${raw.slice(0, 200)}`);
+  let body: unknown;
+  try { body = JSON.parse(raw); } catch { throw new Error("resend: domains answered something that is not JSON"); }
+  const domains = mailDomainsFrom(body);
+  if (!domains) throw new Error("resend: domains answered a shape that is not a list of domains");
+  return domains;
 }

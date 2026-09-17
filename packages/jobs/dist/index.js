@@ -11935,10 +11935,20 @@ async function failJob(db, job, reason) {
 var NEVER_SENT = "the job that would have sent this never ran";
 var EMAIL_UNFINISHED = "An email arrived and could not be taken in \u2014 the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 var MAY_HAVE_SENT = "the run that was sending this did not finish";
+var MAILBOX_INTAKE_FAILED = "An email could not be taken in. Anything since then is in your Inbox as usual.";
 function idFrom(payload, key) {
   if (typeof payload !== "object" || payload === null) return null;
   const v = payload[key];
   return typeof v === "string" ? v : null;
+}
+async function noteMailboxTrouble(db, tenantId, mailboxId) {
+  if (!mailboxId) return {};
+  const { data, error } = await db.from("mailboxes").update({ last_error: MAILBOX_INTAKE_FAILED }).eq("id", mailboxId).eq("tenant_id", tenantId).select("id");
+  if (error) {
+    console.error("mailbox_trouble_not_marked", error.message);
+    return { mailbox: "failed" };
+  }
+  return { mailbox: data && data.length > 0 ? "marked" : "gone" };
 }
 function resumesOf(payload) {
   if (typeof payload !== "object" || payload === null) return 0;
@@ -11970,12 +11980,13 @@ async function settleJob(db, job, certain) {
   if (job.kind === "email_ingest") {
     const receivedId = idFrom(job.payload, "received_id");
     if (!receivedId) return [{ what: "email", changed: false, error: "no received_id on the job" }];
+    const mailbox = await noteMailboxTrouble(db, job.tenant_id, idFrom(job.payload, "mailbox_id"));
     const { data, error } = await db.from("messages").select("conversation_id").eq("tenant_id", job.tenant_id).eq("channel", "email").eq("external_id", receivedId).maybeSingle();
-    if (error) return [{ what: "email", changed: false, error: error.message }];
+    if (error) return [{ what: "email", changed: false, ...mailbox, error: error.message }];
     const conversationId = data?.conversation_id ?? null;
-    if (!conversationId) return [{ what: "email", changed: false }];
+    if (!conversationId) return [{ what: "email", changed: false, ...mailbox }];
     const flagged = await upsertEscalation(db, job.tenant_id, conversationId, "email_review", EMAIL_UNFINISHED);
-    return [{ what: "email", changed: true, flagged }];
+    return [{ what: "email", changed: true, flagged, ...mailbox }];
   }
   if (job.kind === "broadcast_send") {
     const broadcastId = idFrom(job.payload, "broadcast_id");
@@ -12011,6 +12022,8 @@ function saySettled(results) {
       lines.push(`The broadcast could not be handed to a fresh run (${r2.notResumed}), so it has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`);
     } else if (r2.changed && r2.what === "email") {
       lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
+    } else if (r2.what === "email") {
+      lines.push(r2.mailbox === "marked" ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in." : "The email it was taking in was never stored, so there is nothing to flag for a person.");
     } else if (r2.changed) {
       lines.push(r2.what === "message" ? "The message has been marked failed, so it is no longer shown as on its way." : `The broadcast has been marked failed; the ${r2.reached ?? "people"} it had already reached still got it${typeof r2.remaining === "number" ? `, and ${r2.remaining} did not` : ""}.`);
     }
