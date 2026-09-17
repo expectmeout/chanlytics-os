@@ -11,7 +11,7 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
+import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, groupTemplates, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
 
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
 export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
@@ -66,6 +66,8 @@ export interface StarterLibrary {
   slotKinds: typeof defaultSlotKinds;
   slotLabels: typeof slotLabels;
   compare: typeof compareTemplates;
+  /** The rows of a picker grouped by the message they are, so one message is one chip. */
+  group: typeof groupTemplates;
   defaultFor: typeof defaultTemplate;
   /** What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS): all six, a visit's included. */
   sources: typeof PARAM_SOURCE_LABELS;
@@ -100,6 +102,7 @@ export function installTemplates(): void {
     slotKinds: defaultSlotKinds,
     slotLabels,
     compare: compareTemplates,
+    group: groupTemplates,
     defaultFor: defaultTemplate,
     sources: PARAM_SOURCE_LABELS,
     stillSends: playbooksStillSending,

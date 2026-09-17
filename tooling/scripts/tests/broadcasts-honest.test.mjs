@@ -141,6 +141,7 @@ Object.assign(globalThis.window, {
   __DEMO_MODE: false,
 });
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
+await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
@@ -551,4 +552,74 @@ test("The composer shows one of the real people at a time, and the two nobody ha
   assert.ok(byTestId(tree, "mp-held"), "the bubble is marked Not sent");
   assert.ok(textOf(byTestId(tree, "mp-note")).includes("asked to stop"), textOf(byTestId(tree, "mp-note")));
   assert.equal(textOf(find(byTestId(tree, "mp-step"), (n) => String(n.props?.className || "").startsWith("mp-step-pos"))), "held back", "and its place in the walk says so rather than counting them into the send");
+});
+
+test("One chip per message, its languages inside it -- the starter set in two drew seven pairs of identical chips", () => {
+  const S = globalThis.window.__starters;
+  const starters = S.list.slice(0, 3);
+  // As the rows come back: both languages, in no useful order.
+  const rows = [];
+  for (const lang of ["es", "en_US"]) {
+    for (const s of starters) {
+      const t = S.text(s, lang);
+      rows.push(templateRow({ id: `${s.name}:${lang}`, name: s.name, language: lang, category: s.category, purpose: s.category === "utility" ? "conversational" : "marketing", body_preview: t.body }));
+    }
+  }
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: rows, number: healthyNumber });
+  let tree = page({ initialSegment: null, initialRun: null });
+
+  const chips = all(tree, (n) => n.props?.["data-testid"] === "bc-template");
+  assert.equal(chips.length, starters.length, `one chip per MESSAGE, not per row: ${chips.map(textOf).join(" | ")}`);
+  const titles = chips.map((c) => textOf(c).trim());
+  assert.equal(new Set(titles).size, titles.length, `REGRESSION: two chips read alike -- ${titles.join(" | ")}`);
+
+  // Each chip carries its languages, in words, as its own buttons.
+  const langs = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang");
+  assert.equal(langs.length, starters.length * 2);
+  assert.deepEqual([...new Set(langs.map((l) => textOf(l).trim()))].sort(), ["English", "Spanish"]);
+  // A group with one language shows no toggle at all.
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [rows[rows.length - 1]], number: healthyNumber });
+  assert.equal(all(page({ initialSegment: null, initialRun: null }), (n) => n.props?.["data-testid"] === "bc-template-lang").length, 0);
+
+  // Picking a language picks THAT row, and the armed send names it.
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: rows, number: healthyNumber });
+  tree = page({ initialSegment: null, initialRun: null });
+  const spanish = all(tree, (n) => n.props?.["data-testid"] === "bc-template-lang").find((n) => textOf(n).trim() === "Spanish");
+  press(spanish);
+  tree = again({ initialSegment: null, initialRun: null });
+  press(byTestId(tree, "bc-send"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(textOf(byTestId(tree, "bc-send-confirm")).includes("(Spanish)"), textOf(byTestId(tree, "bc-send-confirm")));
+
+  // And the composer opens on the same row however the rows arrive: `defaultTemplate`
+  // used to `find` on the list as given, so a reload could open on the other language.
+  const opened = (list) => {
+    globalThis.window.__BROADCASTS = broadcastsSurface({ templates: list, number: healthyNumber });
+    const t = page({ initialSegment: null, initialRun: null });
+    const on = all(t, (n) => n.props?.["data-testid"] === "bc-template-lang").find((n) => String(n.props.className).includes("on"));
+    return on ? textOf(on).trim() : null;
+  };
+  assert.equal(opened(rows), opened(rows.slice().reverse()), "the picker opens on the same language either way");
+});
+
+test("A playbook's card says which message it sends AND in which language -- the language was in a data-tip, which no finger reaches", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  fresh();
+  const card = globalThis.window.PlaybookCard({ p: playbook({ template_language: "es" }), canAct: true, onEdit() {}, flash() {} });
+  const chip = find(card, (n) => String(n.props?.className || "").includes("ob-audience-event"));
+  assert.ok(textOf(chip).includes("Spanish"), textOf(chip));
+  assert.ok(!String(chip.props["data-tip"]).includes("es"), "and not only on hover");
+});
+
+test("The template a composer opens on does not depend on the order the rows arrived in", () => {
+  // The page sorts before it asks, so the rendered picker is steady either way --
+  // but `defaultTemplate` is what a caller that does NOT sort gets, and it used
+  // to `find` on the list as given. Held here, where the fix is.
+  const row = (name, language) => ({ id: `${name}:${language}`, name, language, category: "marketing", source: "chanlytics", title: null });
+  const list = [row("welcome_new", "es"), row("winback_offer", "es"), row("welcome_new", "en_US"), row("winback_offer", "en_US")];
+  const pick = (l) => contracts.defaultTemplate(l, "quiet_30").id;
+  assert.equal(pick(list), pick(list.slice().reverse()));
+  assert.equal(pick(list), "winback_offer:en_US", "the trigger's starter, in the first language of the total order");
+  // And the order IS total: two rows of one name never compare equal.
+  assert.notEqual(contracts.compareTemplates(row("winback_offer", "en_US"), row("winback_offer", "es")), 0);
 });

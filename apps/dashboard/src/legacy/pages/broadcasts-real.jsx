@@ -507,11 +507,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (
               <button className="bc-chip" disabled={addingStarters} onClick={addStarters} data-testid="bc-add-starters" {...window.gate("approve", "add the starter set")}><Icon name="sparkle" size={10} /> {addingStarters ? "Adding…" : "Add the starter set"}</button>
             )}
-            {templates.map((t) => (
-              <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => setTplId(t.id)} title={t.body_preview || ""} data-testid="bc-template">
-                {bcTitle(t.name)}<span className="bc-chip-count">{bcIsStarter(t.name) ? "starter" : (t.category || "")}</span>
-              </button>
-            ))}
+            <window.TemplateChips templates={templates} value={tplId} onPick={setTplId} testid="bc-template" />
             {window.TemplateComposer && (
               <button className="bc-chip" onClick={() => setComposing((c) => !c)} data-testid="bc-new-template" {...window.gate("approve", "write a template")}><Icon name="plus" size={10} /> New template</button>
             )}

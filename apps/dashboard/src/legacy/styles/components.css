@@ -1514,6 +1514,20 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .bc-chip:hover { color: var(--ink); border-color: var(--ink-faint); }
 .bc-chip.active { background: var(--bg-raised); color: var(--ink); border-color: var(--ink); }
 .bc-chip-count { font-size: 10px; color: var(--ink-dim); }
+/* ---- One chip per message, its languages inside it (components/template-chips.jsx) ----
+   A chip was one ROW and its title took no language, so the starter set in two
+   languages drew seven pairs of identical chips side by side. The chip is a span
+   now, holding the name and -- when the message exists in more than one language
+   -- a toggle: each button is its own tap target, so the coarse-pointer floor in
+   legacy.css gives each of them 44px and the chip is as tall as one of them, the
+   same height a chip has always been on a phone. */
+.tpl-chip { padding: 2px 4px 2px 10px; gap: 6px; }
+.tpl-chip-name { font: inherit; color: inherit; background: none; border: none; padding: 2px 0; cursor: pointer; }
+.tpl-chip-langs { display: inline-flex; gap: 2px; padding: 2px; border-radius: var(--radius-full); background: var(--bg); }
+.tpl-chip-lang { font-size: 10px; font-weight: var(--weight-medium); color: var(--ink-dim); background: none; border: none; border-radius: var(--radius-full); padding: 2px 8px; cursor: pointer; white-space: nowrap; }
+.tpl-chip-lang:hover { color: var(--ink); }
+.tpl-chip-lang.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
+.bc-chip.tpl-chip.active .tpl-chip-langs { background: var(--bg-sunken); }
 .bc-meta { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); }
 .bc-meta .icon { color: var(--ink-faint); }
 .bc-actions { display: flex; align-items: center; gap: 6px; }

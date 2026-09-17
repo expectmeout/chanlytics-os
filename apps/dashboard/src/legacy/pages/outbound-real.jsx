@@ -40,6 +40,8 @@ const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
+// A language code as a person reads it; the code itself when the library is not read.
+const pbLangWords = (code) => (window.__starters && window.__starters.langWords ? window.__starters.langWords(code) : String(code || ""));
 const pbOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.byName(t.name) : null; return s ? (window.__starters.text(s, t.language).footer || null) : null; };
 // What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
@@ -173,11 +175,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           {templatesRead && templates.length === 0 && (
             <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one, or sync yours from WhatsApp Manager, in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Messages</button>.</span>
           )}
-          {templates.map((t) => (
-            <button key={t.id} className={"bc-chip" + (t.id === tplId ? " active" : "")} onClick={() => { setPicked(true); setTplId(t.id); }} title={t.body_preview || ""} data-testid="pb-template">
-              {pbTitle(t.name)}<span className="bc-chip-count">{pbIsStarter(t.name) ? "starter" : (t.category || "")}</span>
-            </button>
-          ))}
+          <window.TemplateChips templates={templates} value={tplId} onPick={(id) => { setPicked(true); setTplId(id); }} testid="pb-template" />
         </div>
       </div>
       {starter && (
@@ -329,9 +327,13 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
           {pbPeople(p.candidates)} on the list said yes
           <Icon name="arrow-right" size={10} />
         </button>
-        <span className="ob-audience ob-audience-event" data-tip={`WhatsApp template · ${p.template_language}`}>
+        {/* Which message, and in which language. The language was in a data-tip,
+            which no finger reaches, on a card whose whole job is to say what a
+            standing rule sends. */}
+        <span className="ob-audience ob-audience-event" data-tip="The WhatsApp template its runs send">
           <Icon name="chat" size={12} />
           {pbTitle(p.template_name)}
+          <span className="bc-chip-count">{pbLangWords(p.template_language)}</span>
         </span>
         <PolicyChip cls={p.policy_class} />
         <span className="ob-note">next run {p.next}{p.last_run_for ? ` · last ran ${p.last_run_for}` : " · has not run yet"}</span>

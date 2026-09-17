@@ -5844,11 +5844,40 @@ function compareTemplates(a, b) {
   const bi = starterIndex(b.name);
   if (ai !== bi) return ai - bi;
   const rank = (t) => (t.source === "chanlytics" ? 0 : 2) + (t.category === "utility" ? 1 : 0);
-  return rank(a) - rank(b) || a.name.localeCompare(b.name);
+  return rank(a) - rank(b) || a.name.localeCompare(b.name) || String(a.language ?? "").localeCompare(String(b.language ?? ""));
 }
 function defaultTemplate(list, trigger) {
   const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
-  return (s ? list.find((t) => t.name === s.name) : void 0) ?? list.slice().sort(compareTemplates)[0] ?? null;
+  const sorted = list.slice().sort(compareTemplates);
+  return (s ? sorted.find((t) => t.name === s.name) : void 0) ?? sorted[0] ?? null;
+}
+function languageLabels(codes) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const c of codes) {
+    const w = languageWords(c);
+    seen.set(w, (seen.get(w) ?? 0) + 1);
+  }
+  const out = {};
+  for (const c of codes) {
+    const w = languageWords(c);
+    out[c] = (seen.get(w) ?? 0) > 1 ? `${w} (${c})` : w;
+  }
+  return out;
+}
+function groupTemplates(list) {
+  const out = [];
+  const at2 = /* @__PURE__ */ new Map();
+  for (const t of list.slice().sort(compareTemplates)) {
+    let g = at2.get(t.name);
+    if (!g) {
+      g = { name: t.name, title: templateTitle(t.name, t.title), rows: [], labels: {} };
+      at2.set(t.name, g);
+      out.push(g);
+    }
+    g.rows.push(t);
+  }
+  for (const g of out) g.labels = languageLabels(g.rows.map((r) => r.language));
+  return out;
 }
 function bookingTemplate(templates) {
   const usable = templates.filter(
@@ -9788,6 +9817,7 @@ export {
   googleAudienceWords,
   googleCallbackUrl,
   groundCitations,
+  groupTemplates,
   guardSpokenTurns,
   guessName,
   guessSlotKind,
@@ -9825,6 +9855,7 @@ export {
   isUngrounded,
   isUsablePassword,
   knownTimezones,
+  languageLabels,
   languageWords,
   lastChangedWords,
   lineCredentialFailure,

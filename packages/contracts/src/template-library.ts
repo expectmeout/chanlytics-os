@@ -449,20 +449,92 @@ export function starterIndex(name: string | null | undefined): number {
  * often needs is nearest.
  */
 export function compareTemplates(
-  a: { name: string; category?: string | null; source?: string | null },
-  b: { name: string; category?: string | null; source?: string | null },
+  a: { name: string; category?: string | null; source?: string | null; language?: string | null },
+  b: { name: string; category?: string | null; source?: string | null; language?: string | null },
 ): number {
   const ai = starterIndex(a.name);
   const bi = starterIndex(b.name);
   if (ai !== bi) return ai - bi;
   const rank = (t: { category?: string | null; source?: string | null }) => (t.source === "chanlytics" ? 0 : 2) + (t.category === "utility" ? 1 : 0);
-  return rank(a) - rank(b) || a.name.localeCompare(b.name);
+  // Language last, so the order is TOTAL. Templates are one row per (name,
+  // language): without this the rows of one name came back in whatever order
+  // the query gave them, which is also the order `defaultTemplate` picked from.
+  return rank(a) - rank(b) || a.name.localeCompare(b.name) || String(a.language ?? "").localeCompare(String(b.language ?? ""));
 }
 
-/** The template a composer opens on: the trigger's starter, the quick note for a broadcast, else the first. */
-export function defaultTemplate<T extends { name: string; category?: string | null; source?: string | null }>(list: readonly T[], trigger: string | null): T | null {
+/**
+ * The template a composer opens on: the trigger's starter, the quick note for a
+ * broadcast, else the first.
+ *
+ * It used to `find` on the list AS GIVEN, so a workspace holding a starter in
+ * two languages opened on whichever row the query happened to return first --
+ * a different language on a different load, from a picker that drew the two
+ * rows identically. The sort decides it now, and it is a total order.
+ */
+export function defaultTemplate<T extends { name: string; category?: string | null; source?: string | null; language?: string | null }>(list: readonly T[], trigger: string | null): T | null {
   const s = trigger ? starterForTrigger(trigger) : starterByKey("quick_note");
-  return (s ? list.find((t) => t.name === s.name) : undefined) ?? list.slice().sort(compareTemplates)[0] ?? null;
+  const sorted = list.slice().sort(compareTemplates);
+  return (s ? sorted.find((t) => t.name === s.name) : undefined) ?? sorted[0] ?? null;
+}
+
+/**
+ * The languages of a set of rows, each with the words a person reads.
+ *
+ * `languageWords` strips the region, so "en_US" and "en" both read "English" --
+ * and a workspace holding both would see one chip offering the same word twice.
+ * Where two codes would read alike, each keeps its own code beside the word;
+ * where they do not, the word stands alone.
+ */
+export function languageLabels(codes: readonly string[]): Record<string, string> {
+  const seen = new Map<string, number>();
+  for (const c of codes) {
+    const w = languageWords(c);
+    seen.set(w, (seen.get(w) ?? 0) + 1);
+  }
+  const out: Record<string, string> = {};
+  for (const c of codes) {
+    const w = languageWords(c);
+    out[c] = (seen.get(w) ?? 0) > 1 ? `${w} (${c})` : w;
+  }
+  return out;
+}
+
+/** One entry per template NAME, in the library's order, with its rows by language. */
+export interface TemplateGroup<T> {
+  name: string;
+  /** The words for the name: the workspace's own title, else the starter's, else the name made words. */
+  title: string;
+  /** Every row of this name, language order, and the words for each language. */
+  rows: T[];
+  labels: Record<string, string>;
+}
+
+/**
+ * The rows of a picker grouped by the template they are.
+ *
+ * A composer showed one chip per ROW and titled it with `templateTitle(name)`,
+ * which takes no language -- so the starter set installed in English and Spanish,
+ * which Messages advertises as the default, drew seven PAIRS of identical chips
+ * sitting next to each other. The Inbox composer had already solved this
+ * (`inboxTemplates` labels each "<title> · <language>"); the two Campaigns
+ * composers had not.
+ */
+export function groupTemplates<T extends { name: string; language: string; title?: string | null; category?: string | null; source?: string | null }>(
+  list: readonly T[],
+): TemplateGroup<T>[] {
+  const out: TemplateGroup<T>[] = [];
+  const at = new Map<string, TemplateGroup<T>>();
+  for (const t of list.slice().sort(compareTemplates)) {
+    let g = at.get(t.name);
+    if (!g) {
+      g = { name: t.name, title: templateTitle(t.name, t.title), rows: [], labels: {} };
+      at.set(t.name, g);
+      out.push(g);
+    }
+    g.rows.push(t);
+  }
+  for (const g of out) g.labels = languageLabels(g.rows.map((r) => r.language));
+  return out;
 }
 
 /** Each slot's words for a person: a starter's own labels, else the labels the row carries, else "Value n". */
