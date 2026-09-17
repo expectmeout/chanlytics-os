@@ -454,7 +454,8 @@ const PaneSetup = () => {
                 name={r.title}
                 sentence={r.sentence}
                 quoted={false}
-                status={[r.stateWords, ...r.details]}
+                status={[r.stateWords]}
+                note={r.details.join(" · ")}
                 tone={setupTone(r.state)}
                 cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null}
                 also={r.undo

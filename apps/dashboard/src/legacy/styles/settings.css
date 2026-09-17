@@ -106,7 +106,9 @@
    empty. Whatever a pane draws is a child of the pane, so the rule is the
    pane's and no section can forget it. */
 .set-card, .setup-rows { max-width: var(--measure-prose); }
-.set-pane > * { width: 100%; max-width: var(--measure-prose); margin-inline: auto; flex: 0 0 auto; }
+/* Left, where the rail leaves off, the way every other page begins. Centred,
+   a wide monitor put 350px of nothing between the rail and the first word. */
+.set-pane > * { width: 100%; max-width: var(--measure-prose); margin-inline: 0; flex: 0 0 auto; }
 
 /* A section: its title, and under it the one sentence that says what it is.
    The sentence sat opposite the title, right-aligned, where a long one ran the
@@ -392,6 +394,39 @@
 }
 .set-row .set-row-label { font-variant-numeric: tabular-nums; }
 
+/* ---- The detail behind a mark ------------------------------------------
+   A settings page carries two kinds of fact: the one you came for, and the one
+   you want the first time and never again. The second kind was being printed in
+   full on every row -- "Ready · Transfers to +1 (646) 932-5775 when a caller
+   insists on a person · Last call 14h ago · Tested — activate it to say it is
+   yours" -- and it is what made these pages read as walls. It lives behind this
+   mark now: the app's own tooltip, so it opens on hover, on focus and on a tap,
+   and Escape closes it. */
+.set-mark {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 18px; height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: help;
+  transition: color var(--duration-fast) var(--ease-out), background var(--duration-fast) var(--ease-out);
+}
+.set-mark:hover, .set-mark[data-tip]:focus-visible { color: var(--ink); background: var(--bg-hover); }
+.set-mark svg { display: block; }
+/* On a row of the settings kind the mark follows the label; in a list row it
+   follows the state, where the chain of facts used to run. */
+.set-row-label .set-mark, .pol-label .set-mark { margin-left: 6px; vertical-align: -3px; }
+.cl-attn-status .set-mark { margin-left: 6px; vertical-align: -4px; }
+@media (pointer: coarse) {
+  html.legacy-on .settings .set-mark { width: 28px; height: 28px; min-height: 0; }
+  html.legacy-on .settings .set-mark::after { content: ""; position: absolute; inset: -8px; }
+}
+.settings .set-mark { position: relative; }
+
 /* A table of records (invoices): named columns, figures that line up. */
 .set-table { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto auto auto; column-gap: 24px; }
 .set-table > * { grid-column: 1 / -1; }
@@ -501,6 +536,9 @@
 .pol-table{width:100%;border-collapse:collapse;margin:4px 0 10px}
 .pol-table th{font-size:var(--text-xs);color:var(--ink-dim);font-weight:500;text-align:left;padding:6px 0 8px;border-bottom:1px solid var(--line)}
 .pol-table th.pol-mode{text-align:center;width:64px}
+.pol-table th.pol-mode[data-tip]{cursor:help}
+.pol-table th.pol-mode[data-tip]:hover,.pol-table th.pol-mode[data-tip]:focus-visible{color:var(--ink)}
+.pol-table th.pol-mode[data-tip]:focus-visible{outline:none;box-shadow:var(--focus-ring);border-radius:var(--radius-xs)}
 .pol-table td{padding:13px 0;border-bottom:1px solid var(--line);vertical-align:middle}
 .pol-table td:first-child{padding-right:16px}
 .pol-table tr:last-child td{border-bottom:none}

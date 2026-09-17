@@ -1931,7 +1931,13 @@ const WorkspaceData = () => {
             {href && (
               <a className="btn btn-ghost btn-sm" href={href} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file" {...window.gate("export", "download the workspace's data")}><Icon name="external" size={12} /> Download (JSON)</a>
             )}
-            <span className="set-team-mail">People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.</span>
+            <button
+              type="button"
+              className="set-mark"
+              data-tip="People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here."
+              aria-label="What the file holds: people, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here."
+              onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+            ><Icon name="info" size={12} /></button>
           </span>
         </div>
         <div className="cl-prof-attr">
@@ -2384,14 +2390,24 @@ const PaneAutonomyReal = ({ flash }) => {
           <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         <table className="pol-table">
-          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" title={AUT_MODE_HINT[m]}>{m}</th>)}</tr></thead>
+          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" data-tip={AUT_MODE_HINT[m]} tabIndex={0}>{m}</th>)}</tr></thead>
           <tbody>
             {rows.map((r) => {
               return (
                 <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
                   <td>
-                    <span className="pol-label">{r.label}</span>
-                    <span className="pol-note">{r.note}</span>
+                    <span className="pol-label">
+                      {r.label}
+                      {r.note && (
+                        <button
+                          type="button"
+                          className="set-mark"
+                          data-tip={r.note}
+                          aria-label={`What each mode does for ${r.label}: ${r.note}`}
+                          onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                        ><Icon name="info" size={12} /></button>
+                      )}
+                    </span>
                     {r.locked && <span className="pol-evidence">Locked by charter — enforced in the database</span>}
                   </td>
                   {MODES.map((m) => (
@@ -2767,8 +2783,17 @@ const PaneNotificationsReal = ({ flash }) => {
         {NOTIF_KINDS.map((k) => (
           <div className="set-row" key={k.title}>
             <div className="set-row-info">
-              <span className="set-row-label">{k.title}{k.platform && <span className="pill set-notif-platform">to Chanlytics</span>}</span>
-              <span className="set-row-hint">{k.what}</span>
+              <span className="set-row-label">
+                {k.title}
+                {k.platform && <span className="pill set-notif-platform">to Chanlytics</span>}
+                <button
+                  type="button"
+                  className="set-mark"
+                  data-tip={k.what}
+                  aria-label={`When this is sent: ${k.what}`}
+                  onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                ><Icon name="info" size={12} /></button>
+              </span>
             </div>
           </div>
         ))}
