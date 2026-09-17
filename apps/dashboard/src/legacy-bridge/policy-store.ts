@@ -1,4 +1,4 @@
-import { POLICY_CLASS_WORDS, type PolicyClass } from "@chanlytics/contracts";
+import { POLICY_CLASS_WORDS, POLICY_MODE_WORDS, type PolicyClass, type PolicyMode } from "@chanlytics/contracts";
 /**
  * The workspace policy matrix, on the mockup's own store interface.
  *
@@ -25,6 +25,18 @@ import { POLICY_CLASS_WORDS, type PolicyClass } from "@chanlytics/contracts";
 
 export type UiMode = "Auto" | "Veto" | "Ask" | "Never";
 export const UI_MODES: readonly UiMode[] = ["Auto", "Veto", "Ask", "Never"];
+
+/**
+ * A UiMode is a FILING word, not a word anyone reads. What the pane and the
+ * chips show is contracts' POLICY_MODE_WORDS, keyed here by the label the
+ * mockup's store already speaks so no reader has to learn a second vocabulary.
+ */
+export const UI_MODE_WORDS: Record<UiMode, (typeof POLICY_MODE_WORDS)[PolicyMode]> = {
+  Auto: POLICY_MODE_WORDS.auto,
+  Veto: POLICY_MODE_WORDS.veto,
+  Ask: POLICY_MODE_WORDS.ask,
+  Never: POLICY_MODE_WORDS.never,
+};
 
 export interface UiRowMeta {
   /** The mockup's id (the chip callers use these). */
@@ -99,6 +111,7 @@ export function uiRows(p: PoliciesSurface): UiRow[] {
 
 interface SeedStore {
   MODES: readonly string[];
+  WORDS?: Record<string, { head: string; sub: string; chip: string; does: string }>;
   ROWS: unknown[];
   forPerm?: Record<string, string>;
   row?: (id: string) => unknown;
@@ -124,6 +137,9 @@ export function installPolicyStore(win: PolicyWindow = window as unknown as Poli
     get MODES(): readonly string[] {
       return surface() === undefined ? seed?.MODES ?? UI_MODES : UI_MODES;
     },
+    // Contracts' words in every session, the mockup's included: what a mode does
+    // is the same fact whether the rows behind it are real or seeded.
+    WORDS: UI_MODE_WORDS,
     get ROWS(): unknown[] {
       const s = surface();
       if (s === undefined) return seed?.ROWS ?? [];

@@ -58,6 +58,30 @@ export const POLICY_MODES = ["auto", "veto", "ask", "never"] as const;
 export type PolicyMode = (typeof POLICY_MODES)[number];
 
 /**
+ * What each mode DOES, in the owner's words — the matrix's column headings, the
+ * name a phone puts over each dot, and the words a policy chip says after the
+ * dot.
+ *
+ * The stored values stay `auto | veto | ask | never`: those are filing words. A
+ * salon owner does not say "veto", and the plain sentence for each mode existed
+ * only as a hover tip on the column heading — which a phone has no way to
+ * trigger and a mouse has no reason to look for. The heading says it instead.
+ *
+ * `head` is verb-first with the receptionist as its subject, `sub` is the one
+ * clause that tells it apart from its neighbour, `chip` is the same fact small
+ * enough for a pill, `does` is the whole sentence for a control's title. No
+ * heading names a duration: how long a hold lasts belongs to the class (a reply
+ * waits the workspace's hold window, a playbook run waits thirty minutes), and a
+ * heading that said "30s" would be wrong on four of the six rows.
+ */
+export const POLICY_MODE_WORDS: Record<PolicyMode, { head: string; sub: string; chip: string; does: string }> = {
+  auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
+  veto: { head: "Holds it", sub: "you can stop it", chip: "holds it", does: "Writes it, holds it, and sends it unless you stop it." },
+  ask: { head: "Asks you", sub: "nothing sent", chip: "asks you", does: "Waits for you. Nothing is sent until you say so." },
+  never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." },
+};
+
+/**
  * The modes each class can honour — a switch nothing enforces is a switch
  * that lies. Replies can wait (veto), wait for a person (ask) or stay silent
  * (never). Booking and service questions are answered by the receptionist

@@ -205,6 +205,36 @@ const VetoModeRow = () => {
   );
 };
 
+// A mode's words, said where they are needed rather than hidden in a hover.
+// `Auto | Veto | Ask | Never` are filing words — the plain sentence for each one
+// existed only as a tip on the heading, which a phone cannot trigger at all. The
+// heading is the sentence now: a verb and the one clause that tells it apart.
+// One source (window.POLICY.WORDS → contracts POLICY_MODE_WORDS).
+const polMode = (m) => ((window.POLICY.WORDS || {})[m] || { head: m, sub: "", does: m });
+const PolModeHead = ({ m }) => {
+  const w = polMode(m);
+  return (
+    <span className="pol-mode-words">
+      <span className="pol-mode-head">{w.head}</span>
+      {w.sub && <span className="pol-mode-sub">{w.sub}</span>}
+    </span>
+  );
+};
+
+// A locked row is not a row with one box ticked: it is a rule, and it says so.
+// Money was three dashes and a grey tick under "Never" — and once the headings
+// say what a mode DOES, "Stays quiet · nothing happens" is the one thing that is
+// not true of it. The charter's own words go across the columns instead, so
+// there is nothing to press and nothing to misread.
+const PolLockedCells = ({ span, note }) => (
+  <td className="pol-fixed" colSpan={span}>
+    <span className="pol-fixed-words">
+      <Icon name="shield" size={12} />
+      <span><b>{note}</b> — locked by charter, enforced in the database.</span>
+    </span>
+  </td>
+);
+
 // The charter as one screen — rows/modes live in window.POLICY (data-bits); Fleet reads the same source.
 const PolicyMatrix = () => {
   const POL_ROWS = window.POLICY.ROWS;
@@ -223,16 +253,14 @@ const PolicyMatrix = () => {
         <span className="fl-card-sub">What agents may do, per action class — the ruleset the backend enforces</span>
       </div>
       <table className="pol-table">
-        <thead><tr><th>Action class</th>{POL_MODES.map((m) => <th key={m} className="pol-mode">{m}</th>)}</tr></thead>
+        <thead><tr><th>Action class</th>{POL_MODES.map((m) => <th key={m} className="pol-mode"><PolModeHead m={m} /></th>)}</tr></thead>
         <tbody>
           {POL_ROWS.map((r) => (
             <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
               <td><span className="pol-label">{r.label}</span><span className="pol-note">{r.note}</span>{window.TRUST && window.TRUST.cls(r.id) && <span className="pol-evidence">{window.TRUST.cls(r.id).sent.toLocaleString()} auto-sent · {window.TRUST.rate(window.TRUST.cls(r.id))}% edited · 30d</span>}</td>
-              {POL_MODES.map((m) => (
-                <td key={m} className="pol-cell" data-mode={m}>
-                  {r.locked && m !== "Never" ? <span className="pol-dash">—</span> : (
-                    <button className={`pol-dot ${modeOf(r) === m ? "on" : ""}`} title={r.locked ? "Charter — fixed" : m} disabled={r.locked} onClick={() => set(r, m)} {...window.gate("autonomy")}>{modeOf(r) === m ? <Icon name={r.locked ? "shield" : "check"} size={11} /> : ""}</button>
-                  )}
+              {r.locked ? <PolLockedCells span={POL_MODES.length} note={r.note} /> : POL_MODES.map((m) => (
+                <td key={m} className="pol-cell" data-mode={polMode(m).head}>
+                  <button className={`pol-dot ${modeOf(r) === m ? "on" : ""}`} title={polMode(m).does} onClick={() => set(r, m)} {...window.gate("autonomy")}>{modeOf(r) === m ? <Icon name="check" size={11} /> : ""}</button>
                 </td>
               ))}
             </tr>
@@ -2336,12 +2364,9 @@ const AUT_BUDGET = [["Off", 0], ["100k", 100000], ["250k", 250000], ["500k", 500
 const AUT_CAP = [["10", 10], ["20", 20], ["40", 40], ["100", 100]];
 const AUT_PAUSE = [["1h", 1], ["4h", 4], ["12h", 12], ["24h", 24], ["3d", 72]];
 const withStep = (steps, value, label) => (steps.some((s) => s[1] === value) ? steps : [...steps, [label, value]].sort((a, b) => a[1] - b[1]));
-const AUT_MODE_HINT = {
-  Auto: "sends right away",
-  Veto: "writes the reply, waits, then sends unless you stop it",
-  Ask: "waits for you before anything is sent",
-  Never: "stays silent",
-};
+// The words for a mode are polMode() above — contracts' POLICY_MODE_WORDS
+// through window.POLICY.WORDS. There is no second map here: the four sentences
+// this file used to keep were the ones hidden in the column's hover.
 
 const PaneAutonomyReal = ({ flash }) => {
   const [, tick] = useSetState(0);
@@ -2396,7 +2421,8 @@ const PaneAutonomyReal = ({ flash }) => {
               ? <><b>Reply cap</b> → {maxRepliesDay} automatic replies to one person in 24 hours — from the next reply</>
               : pauseHours !== undefined
                 ? <><b>Stays out after a person steps in</b> → {(AUT_PAUSE.find((p) => p[1] === pauseHours) || [`${pauseHours}h`])[0]} — from the next time someone steps in</>
-                : <><b>{r.label}</b> → {mode.charAt(0).toUpperCase() + mode.slice(1)} — from the next message</>,
+                // The confirmation says what will happen, in the words the heading just used.
+                : <><b>{r.label}</b> → {polMode(mode.charAt(0).toUpperCase() + mode.slice(1)).head.toLowerCase()} — from the next message</>,
     });
   };
 
@@ -2408,7 +2434,7 @@ const PaneAutonomyReal = ({ flash }) => {
           <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         <table className="pol-table">
-          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" data-tip={AUT_MODE_HINT[m]} tabIndex={0}>{m}</th>)}</tr></thead>
+          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode"><PolModeHead m={m} /></th>)}</tr></thead>
           <tbody>
             {rows.map((r) => {
               return (
@@ -2416,7 +2442,8 @@ const PaneAutonomyReal = ({ flash }) => {
                   <td>
                     <span className="pol-label">
                       {r.label}
-                      {r.note && (
+                      {/* A locked row carries its note across the columns instead — said once. */}
+                      {r.note && !r.locked && (
                         <button
                           type="button"
                           className="set-mark"
@@ -2426,21 +2453,20 @@ const PaneAutonomyReal = ({ flash }) => {
                         ><Icon name="info" size={12} /></button>
                       )}
                     </span>
-                    {r.locked && <span className="pol-evidence">Locked by charter — enforced in the database</span>}
                   </td>
-                  {MODES.map((m) => (
-                    <td key={m} className="pol-cell" data-mode={m}>
-                      {(r.locked && m !== "Never") || (r.modes && !r.modes.includes(m)) ? <span className="pol-dash" title={r.locked ? "Charter — fixed" : m === "Veto" ? "Nothing to hold for review here" : "Answered by the receptionist or by you — there is no never"}>—</span> : (
+                  {r.locked ? <PolLockedCells span={MODES.length} note={r.note} /> : MODES.map((m) => (
+                    <td key={m} className="pol-cell" data-mode={polMode(m).head}>
+                      {r.modes && !r.modes.includes(m) ? <span className="pol-dash" title={m === "Veto" ? "Nothing to hold for review here" : "Answered by the receptionist or by you — there is no never"}>—</span> : (
                         <button
                           className={`pol-dot ${r.mode === m ? "on" : ""}`}
-                          aria-label={`${r.label}: ${m}`}
+                          aria-label={`${r.label}: ${polMode(m).head}`}
                           aria-pressed={r.mode === m}
-                          title={r.locked ? "Charter — fixed" : (r.hints && r.hints[m]) || AUT_MODE_HINT[m]}
-                          disabled={r.locked || busy === r.cls}
+                          title={(r.hints && r.hints[m]) || polMode(m).does}
+                          disabled={busy === r.cls}
                           onClick={() => put(r, m.toLowerCase())}
                           {...window.gate("autonomy")}
                         >
-                          {r.mode === m ? <Icon name={r.locked ? "shield" : "check"} size={11} /> : ""}
+                          {r.mode === m ? <Icon name="check" size={11} /> : ""}
                         </button>
                       )}
                     </td>

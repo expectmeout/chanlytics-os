@@ -13,7 +13,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toBroadcastVM, toTodayVM, stateOf, fmtDay, PLAYBOOK_TRIGGERS, POLICY_CLASS_WORDS } from "@chanlytics/contracts";
+import { toBroadcastVM, toTodayVM, stateOf, fmtDay, PLAYBOOK_TRIGGERS, POLICY_CLASS_WORDS, POLICY_MODE_WORDS } from "@chanlytics/contracts";
 
 const TID = "t-studio";
 const ZONE = "America/New_York";
@@ -401,7 +401,7 @@ test("REGRESSION (C18): a visit reminder's card shows its policy chip -- its cla
     const tree = card(playbook({ id: "pb-v", name: "Visit reminder", trigger: "visit_tomorrow", policy_class: "booking", triggerLabel: "Visit tomorrow" }));
     const chip = find(tree, (n) => n.type === globalThis.PolicyChip);
     assert.ok(chip && chip.rendered, "REGRESSION: no chip at all");
-    assert.equal(textOf(chip.rendered), `${POLICY_CLASS_WORDS.booking.short} · Auto`);
+    assert.equal(textOf(chip.rendered), `${POLICY_CLASS_WORDS.booking.short} · ${POLICY_MODE_WORDS.auto.chip}`, "the chip says what the mode does, not how it is filed");
   } finally {
     delete globalThis.window.__POLICIES;
   }
