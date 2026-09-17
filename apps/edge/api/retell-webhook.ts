@@ -40,6 +40,9 @@ import {
   linkCallMessage,
   claimCallNotification,
   emitEvent,
+  claimControl,
+  releaseControl,
+  CALL_CONTROL_S,
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
 import { markForwardingVerified } from "../lib/forwarding.js";
@@ -322,6 +325,23 @@ export async function POST(request: Request): Promise<Response> {
             channelTsIso: n.startedAtIso,
           });
           if (msgId) await linkCallMessage(db, routed.tenantId, res.call_id, msgId);
+        }
+
+        // The hold this call has on the caller's thread (00130), taken at the
+        // inbound door so the text receptionist does not answer the same person
+        // while they are on the phone. A call that is over lets it go; a call
+        // still running renews it, which is what keeps a long one from lapsing
+        // mid-sentence. Only ever its OWN hold: a person who took the thread
+        // over during the call keeps it, because release names the holder.
+        if (res.conversation_id) {
+          const over = n.status === "ended" || n.status === "error" || event === "call_analyzed";
+          const holder = { kind: "call" as const, callId: n.retellCallId };
+          await (over
+            ? releaseControl(db, { tenantId: routed.tenantId, conversationId: res.conversation_id, holder })
+            : claimControl(db, { tenantId: routed.tenantId, conversationId: res.conversation_id, holder, seconds: CALL_CONTROL_S })
+          ).catch((e: unknown) => {
+            console.error("retell_call_hold_failed", JSON.stringify({ call: n.retellCallId, over, error: e instanceof Error ? e.message : String(e) }));
+          });
         }
 
         // The analysis says a person must call them back: the thread lands on

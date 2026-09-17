@@ -188,6 +188,17 @@ interface ThreadPorts {
     wake(conversationId: string): Promise<boolean>;
     /** archived; pause and assignee cleared. True iff a row changed. */
     archive(conversationId: string): Promise<boolean>;
+    /**
+     * The live hold on the thread, taken for this person (00130).
+     *
+     * Apart from `claim`, which records who is RESPONSIBLE: this says who is
+     * speaking now, and it expires. A person's hold outranks a call's and is
+     * never refused, so this answers with nothing -- a failure throws, because a
+     * hold we could not take is not a hold we have.
+     */
+    takeControl(tenantId: string, conversationId: string, userId: string, seconds: number): Promise<void>;
+    /** This person's hold, let go. Somebody else's is left alone. */
+    letControlGo(tenantId: string, conversationId: string, userId: string): Promise<void>;
     /** The receptionist's held drafts on the thread withdrawn, rows then jobs; how many. */
     withdrawDrafts(tenantId: string, conversationId: string): Promise<number>;
     /** The open escalation on the thread resolved by this decision, when there is one. */
@@ -211,7 +222,17 @@ interface CancelSendPorts {
     record: ThreadPorts["record"];
 }
 
-type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "pauseBot" | "claim" | "withdrawDrafts" | "record" | "now">;
+type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "pauseBot" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
+/**
+ * The longest a person's hold lasts without being renewed.
+ *
+ * The pause a take-over sets is how long the RECEPTIONIST is held off, and a
+ * workspace may set that to a week. How long a person is actually on a thread
+ * is a different question and a shorter one, and a hold that outlives the
+ * person holding it is the defect this fact was added to end -- so the pause
+ * window is the ceiling, and a day is the ceiling on that.
+ */
+declare const PERSON_CONTROL_MAX_S: number;
 interface TakeOverResult {
     state: "needs_human";
     paused_until: string;
@@ -224,10 +245,11 @@ declare function takeOver(ports: TakeOverPorts, cmd: {
     userId: string;
 }): Promise<TakeOverResult>;
 
-type HandBackPorts = Pick<ThreadPorts, "pauseBot" | "release" | "record" | "resolveEscalation">;
+type HandBackPorts = Pick<ThreadPorts, "pauseBot" | "release" | "letControlGo" | "record" | "resolveEscalation">;
 /** Hand back: the receptionist resumes; the open escalation resolves (§4). */
 declare function handBack(ports: HandBackPorts, cmd: {
     conv: Pick<Thread, "id" | "tenant_id" | "phone_e164" | "paused_until">;
+    userId: string;
 }): Promise<{
     state: "open";
     decision_id: string;
@@ -415,7 +437,7 @@ interface EmailReplyPorts {
     /** The row's id before the row exists. */
     newId(): string;
 }
-interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
+interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
     /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
     replyChannel(conv: {
         id: string;
@@ -1144,4 +1166,4 @@ interface PlaybookInput {
  */
 declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
-export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, type IncomingEmail, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, ingestEmail, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };
+export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, type IncomingEmail, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, PERSON_CONTROL_MAX_S, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, ingestEmail, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };

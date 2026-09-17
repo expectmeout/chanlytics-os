@@ -8,5 +8,5 @@ export const POST = write({
   scope: conversationScope,
   role: "operator",
   rate: "thread_state",
-  handle: ({ ctx, row: conv }) => handBack(threadPorts(ctx), { conv }),
+  handle: ({ ctx, row: conv }) => handBack(threadPorts(ctx), { conv, userId: ctx.userId }),
 });

@@ -21,7 +21,7 @@ function fakes(over = {}) {
   const answers = {
     pauseMs: 2 * HOUR, now: () => NOW, replyChannel: "whatsapp", priorReceipt: null, template: approved,
     templateFacts: { business_name: "Melany's", booking_link: "https://book.example/m" }, hash: (s) => `h(${s})`,
-    pauseBot: undefined, claimForReply: true, withdrawDrafts: 1, queue: "m1", schedule: undefined, cancelOrphan: undefined,
+    pauseBot: undefined, claimForReply: true, takeControl: undefined, withdrawDrafts: 1, queue: "m1", schedule: undefined, cancelOrphan: undefined,
     record: "d1", resolveEscalation: undefined, storeReceipt: undefined,
     ...over,
   };
@@ -33,13 +33,17 @@ function fakes(over = {}) {
       return typeof answer === "function" ? answer(...args) : answer;
     };
   }
-  return { ports, log, ops: () => log.map((l) => l[0]) };
+  // By NAME, never by position: these assertions used to index the log, so
+  // adding one step to the order re-numbered a dozen of them in files that had
+  // nothing to do with the change.
+  const call = (name) => log.find((l) => l[0] === name);
+  return { ports, log, call, ops: () => log.map((l) => l[0]) };
 }
 const cmd = (over = {}) => ({ conv: conv(), userId: "u1", body: { text: "On our way." }, idempotencyKey: null, ...over });
 const refused = async (p, code, words) => assert.rejects(p, (e) => e.code === code && words.test(e.message));
 
 test("a person who opted out is refused before anything is paused or queued; so is a thread with no phone", async () => {
-  const { ports, ops } = fakes();
+  const { ports, call, ops } = fakes();
   await refused(replyToConversation(ports, cmd({ conv: conv({ consent: "opted_out" }) })), "conflict", /opt/i);
   assert.deepEqual(ops(), []);
   const bare = fakes();
@@ -48,19 +52,21 @@ test("a person who opted out is refused before anything is paused or queued; so 
 });
 
 test("inside the window: the words go as they are; the thread is paused and claimed BEFORE any row a job could send exists; the draft is withdrawn; the receipt says so", async () => {
-  const { ports, log, ops } = fakes();
+  const { ports, log, call, ops } = fakes();
   const r = await replyToConversation(ports, cmd());
-  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"]);
-  assert.deepEqual(log[0], ["pauseBot", "t1", "+15550000001", NOW + 2 * HOUR]);
-  assert.deepEqual(log[1], ["claimForReply", "c1", iso(NOW + 2 * HOUR), "u1", iso(NOW)]);
-  assert.equal(log[3][1].body, "On our way.");
-  assert.equal(log[3][1].type, "text");
-  assert.equal(log[3][1].sent_by, "u1");
-  assert.equal(log[3][1].channel, "whatsapp");
-  assert.equal(log[4][2].toISOString(), iso(NOW + SEND_GRACE_MS));
-  assert.deepEqual(log[4][3], { message_id: "m1", conversation_id: "c1", to_phone: "+15550000001", body: "On our way." });
-  assert.deepEqual(log[5], ["record", "t1", "conversation", "c1", "reply", { message_id: "m1", window_open: true, template: null }]);
-  assert.deepEqual(log[6], ["resolveEscalation", "c1", "d1"]);
+  // takeControl sits between the claim and the withdrawal: the wire asks who is
+  // speaking now (00130), and a draft written in the same second still reaches it.
+  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"]);
+  assert.deepEqual(call("pauseBot"), ["pauseBot", "t1", "+15550000001", NOW + 2 * HOUR]);
+  assert.deepEqual(call("claimForReply"), ["claimForReply", "c1", iso(NOW + 2 * HOUR), "u1", iso(NOW)]);
+  assert.equal(call("queue")[1].body, "On our way.");
+  assert.equal(call("queue")[1].type, "text");
+  assert.equal(call("queue")[1].sent_by, "u1");
+  assert.equal(call("queue")[1].channel, "whatsapp");
+  assert.equal(call("schedule")[2].toISOString(), iso(NOW + SEND_GRACE_MS));
+  assert.deepEqual(call("schedule")[3], { message_id: "m1", conversation_id: "c1", to_phone: "+15550000001", body: "On our way." });
+  assert.deepEqual(call("record"), ["record", "t1", "conversation", "c1", "reply", { message_id: "m1", window_open: true, template: null }]);
+  assert.deepEqual(call("resolveEscalation"), ["resolveEscalation", "c1", "d1"]);
   assert.deepEqual(r, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1, decision_id: "d1" });
 });
 
@@ -76,7 +82,7 @@ test("inside the window, empty text is refused; a reply longer than its wire tak
   assert.deepEqual(sms.ops(), []);
   const fine = fakes({ replyChannel: "sms" });
   const r = await replyToConversation(fine.ports, cmd({ body: { text: "x".repeat(1600) } }));
-  assert.equal(fine.log[3][1].channel, "sms");
+  assert.equal(fine.call("queue")[1].channel, "sms");
   assert.equal(r.status, "queued");
 });
 
@@ -91,12 +97,12 @@ test("outside the window: only an approved template goes, a promotion needs a ye
   await refused(replyToConversation(promo.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "forbidden", /offers/);
   const yes = fakes({ template: { ...approved, category: "marketing" } });
   assert.equal((await replyToConversation(yes.ports, cmd({ conv: { ...closed, marketing_consent: "opted_in" }, body: { template: { name: "booking_link_v1", language: "en_US" } } }))).status, "queued", "a yes to offers lets the promotion through");
-  const { ports, log } = fakes();
+  const { ports, log, call } = fakes();
   const r = await replyToConversation(ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["client", "params"] } } }));
-  assert.equal(log[3][1].body, "Book with Melany's: book.example/m", "the workspace's facts, the scheme stripped, over the client's");
-  assert.equal(log[3][1].type, "template");
-  assert.deepEqual(log[4][3].template, { name: "booking_link_v1", language: "en_US", params: ["Melany's", "book.example/m"] });
-  assert.deepEqual(log[5][5], { message_id: "m1", window_open: false, template: "booking_link_v1" });
+  assert.equal(call("queue")[1].body, "Book with Melany's: book.example/m", "the workspace's facts, the scheme stripped, over the client's");
+  assert.equal(call("queue")[1].type, "template");
+  assert.deepEqual(call("schedule")[3].template, { name: "booking_link_v1", language: "en_US", params: ["Melany's", "book.example/m"] });
+  assert.deepEqual(call("record")[5], { message_id: "m1", window_open: false, template: "booking_link_v1" });
   assert.equal(r.window_open, false);
   const bare = fakes({ templateFacts: null });
   await refused(replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["A", "B"] } } })), "validation", /no template facts/);
@@ -118,7 +124,7 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
     name: "welcome_new", language: "en_US", body_preview: "Hi {{1}}, welcome to {{2}}! Book whenever you're ready: {{3}}", meta_status: "approved", category: "utility",
     variables: [{ label: "Value 1", example: "Dani", position: 1 }, { label: "Value 2", example: "Luna Studio", position: 2 }, { label: "Value 3", example: "https://booksy.com/luna-studio", position: 3 }],
   };
-  const { ports, log } = fakes({ template: welcome });
+  const { ports, log, call } = fakes({ template: welcome });
   const r = await replyToConversation(ports, cmd({ conv: closed, body: { template: { name: "welcome_new", language: "en_US" } } }));
   assert.equal(r.status, "queued", "REGRESSION: 'This template takes 3 values; the Inbox fills two' turned away the workspace's own starter");
   assert.deepEqual(log.find((l) => l[0] === "schedule")[3].template.params, ["Rosa", "Melany's", "book.example/m"], "the first name, the business, the link: the starter's own slots");
@@ -139,16 +145,16 @@ test("REGRESSION (I6): a template is filled by its own slots, as broadcasts and 
 });
 
 test("a claim that changed no row releases the pause it mirrored and is a 409; nothing was queued", async () => {
-  const { ports, log, ops } = fakes({ claimForReply: false });
+  const { ports, log, call, ops } = fakes({ claimForReply: false });
   await refused(replyToConversation(ports, cmd()), "conflict", /nothing was sent/);
   assert.deepEqual(ops(), ["pauseBot", "claimForReply", "pauseBot"]);
-  assert.equal(log[2][3], 0, "the second mirror releases, as take-over's does");
+  assert.equal(log.filter((l) => l[0] === "pauseBot")[1][3], 0, "the second mirror releases, as take-over's does");
 });
 
 test("a job that could not be scheduled cancels the row it would have sent, and the error is the caller's", async () => {
-  const { ports, log, ops } = fakes({ schedule: () => { throw new Error("queue down"); } });
+  const { ports, log, call, ops } = fakes({ schedule: () => { throw new Error("queue down"); } });
   await assert.rejects(replyToConversation(ports, cmd()), /queue down/);
-  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "withdrawDrafts", "queue", "schedule", "cancelOrphan"]);
+  assert.deepEqual(ops(), ["pauseBot", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "cancelOrphan"]);
   assert.deepEqual(log.at(-1), ["cancelOrphan", "m1"]);
 });
 
@@ -169,8 +175,8 @@ test("a replay: the same key and intent inside the window returns the stored rec
   // to find, or the customer receives the words twice.
   const ledgerDown = fakes({ record: () => { throw new Error("decisions down"); } });
   await assert.rejects(replyToConversation(ledgerDown.ports, cmd({ idempotencyKey: "k1" })), /decisions down/);
-  assert.deepEqual(ledgerDown.ops(), ["pauseBot", "claimForReply", "withdrawDrafts", "queue", "schedule", "storeReceipt", "record"]);
-  assert.deepEqual(ledgerDown.log[5], ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1 }]);
+  assert.deepEqual(ledgerDown.ops(), ["pauseBot", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "storeReceipt", "record"]);
+  assert.deepEqual(ledgerDown.call("storeReceipt"), ["storeReceipt", "t1", key, intent, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1 }]);
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
   assert.ok(!noKey.ops().includes("storeReceipt"), "no key, nothing stored");
@@ -196,14 +202,14 @@ function emailFakes(over = {}, email = {}) {
 }
 
 test("a reply by email goes to the address on the person's page; its request is frozen before the thread is claimed, and the row is born with its id and that request", async () => {
-  const { ports, log, ops } = emailFakes({ queue: (row) => row.id });
+  const { ports, log, call, ops } = emailFakes({ queue: (row) => row.id });
   const r = await replyToConversation(ports, cmd({ conv: byEmail(), body: { text: "We can do Saturday at 9." } }));
-  assert.deepEqual(ops(), ["email.parent", "email.freeze", "claimForReply", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"], "no mirror to pause: this person has no number");
-  assert.deepEqual(log[1], ["email.freeze", { tenantId: "t1", messageId: "id-1", to: ADDRESS, parent: PARENT, body: "We can do Saturday at 9." }]);
-  const row = log[4][1];
+  assert.deepEqual(ops(), ["email.parent", "email.freeze", "claimForReply", "takeControl", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"], "no mirror to pause: this person has no number");
+  assert.deepEqual(call("email.freeze"), ["email.freeze", { tenantId: "t1", messageId: "id-1", to: ADDRESS, parent: PARENT, body: "We can do Saturday at 9." }]);
+  const row = call("queue")[1];
   assert.deepEqual([row.id, row.channel, row.type, row.body], ["id-1", "email", "text", "We can do Saturday at 9."]);
   assert.deepEqual(row.meta, { email: { subject: "Re: Quote for Saturday", to: [ADDRESS], parent_id: "m0", in_reply_to: "<q1@customer.example>", request: FROZEN.request } });
-  assert.deepEqual(log[5][3], { message_id: "id-1", conversation_id: "c1", to_email: ADDRESS, body: "We can do Saturday at 9." }, "an address never travels as to_phone");
+  assert.deepEqual(call("schedule")[3], { message_id: "id-1", conversation_id: "c1", to_email: ADDRESS, body: "We can do Saturday at 9." }, "an address never travels as to_phone");
   assert.equal(r.window_open, true, "email has no window");
 
   const both = emailFakes();

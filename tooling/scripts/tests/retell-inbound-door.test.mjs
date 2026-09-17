@@ -174,7 +174,15 @@ function world({ config = { brain: BRAIN }, channel = "active" } = {}) {
   return {
     i, T, AGENT, CALLER, CALL_ID, tables,
     open: (faults = {}) => {
-      const db = fakeDb(tables, faults, { runtime_stamp: () => `stamp-${i}` });
+      // The hold a call takes on the caller's thread (00130) is the database's
+      // to give: it is one locked statement, so a double answers here the way
+      // Postgres answers, by what it returns rather than by what was read.
+      const held = [];
+      const db = fakeDb(tables, faults, {
+        runtime_stamp: () => `stamp-${i}`,
+        claim_conversation_control: (args) => { held.push(args); return "claimed"; },
+      });
+      db.held = held;
       setPg(db);
       return db;
     },
@@ -260,7 +268,7 @@ test("a routed call is answered 200 with the four variables the shell's prompt r
       "routed by the agent the call arrived on",
     );
 
-    assert.deepEqual(log.said("retell_inbound"), [{ stream: "log", level: "info", event: "retell_inbound", ...w.tail, facts: "composed", memory: "known", facts_chars: v.business_facts.length }],
+    assert.deepEqual(log.said("retell_inbound"), [{ stream: "log", level: "info", event: "retell_inbound", ...w.tail, facts: "composed", memory: "known", facts_chars: v.business_facts.length, hold: "claimed" }],
       "one line: the caller's tail, the agent, the call, and what the agent was handed");
     assert.deepEqual(log.lines.filter((l) => l.stream !== "log"), [], "nothing fell short, so nothing is said above info");
     assert.ok(!JSON.stringify(log.lines).includes(w.CALLER.slice(2)), "never the number");
@@ -275,7 +283,7 @@ test("an agent nobody routes is answered 200 with the shell's own defaults, said
     assert.deepEqual(await heard(await knock(w.call())), [200, "application/json", SHELL], "what the shell says on its own: no facts, no memory, no line to dial, a greeting that names nobody");
     assert.deepEqual(db.seen.map((q) => q.table), ["tenant_channels"], "the routing answer, and nothing of anyone's facts or memory");
     assert.deepEqual(log.said("inbound_ctx_unrouted"), [{ stream: "warn", level: "warn", event: "inbound_ctx_unrouted", ...w.tail }]);
-    assert.deepEqual(log.said("retell_inbound").map((l) => [l.facts, l.memory, l.facts_chars]), [["unrouted", "none", FACTS_UNAVAILABLE.length]]);
+    assert.deepEqual(log.said("retell_inbound").map((l) => [l.facts, l.memory, l.facts_chars, l.hold]), [["unrouted", "none", FACTS_UNAVAILABLE.length, null]], "nothing routed, so there is no thread to hold");
 
     const mail = w.mail();
     assert.equal(mail.length, 1, "the platform is told");

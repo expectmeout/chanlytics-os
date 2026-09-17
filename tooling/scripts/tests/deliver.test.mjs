@@ -125,7 +125,10 @@ test("a person who asked to be erased is refused from the moment they asked, not
 });
 
 test("a thread a person holds refuses the receptionist's draft, and only the draft: the take-over's withdrawal, kept at the wire", async () => {
-  const held = () => thread({ assignee_user_id: "u-owner" });
+  // A LIVE hold, not a column that names somebody (00130). The door used to
+  // read assignee_user_id, which nothing ever clears -- so a thread taken over
+  // one Tuesday refused every draft after it for the life of the workspace.
+  const held = () => thread({ control_kind: "person", control_until: "2026-09-10T11:00:00.000Z" });
   const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:59:00.000Z" };
   const t = tables({ conversations: [held()], messages: [{ ...draft }] });
   const w = wireOf();
@@ -134,10 +137,31 @@ test("a thread a person holds refuses the receptionist's draft, and only the dra
   assert.equal(t.messages[0].status, "canceled", "and retired in place");
   assert.equal(w.calls.length, 0, "nothing reached the wire");
   // The person's own reply on the thread they hold goes; so does a system
-  // message, owed whoever holds it; an answer meets the pause, not this.
+  // message, owed whoever holds it.
   assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "human" }))).outcome, "sent");
-  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "system" }))).outcome, "sent");
-  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "ai" }))).outcome, "sent");
+  assert.equal((await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "system", kind: "system" }))).outcome, "sent", "an opt-in confirmation is owed the moment the yes was given, whoever holds the thread");
+  // The receptionist answering NOW is held too, and that is the half of this
+  // rule that keeps two of our own agents off one person: while a call holds
+  // the thread, a message arriving on WhatsApp is stored and answered by
+  // nobody, instead of being answered over the call the customer is on.
+  assert.deepEqual(
+    await deliver(ports(tables({ conversations: [held()] }), wireOf()), words({ sender: "ai" })).then((r) => [r.outcome, r.reason]),
+    ["refused", "human_has_it"],
+  );
+});
+
+test("a hold that has run out holds nothing: the fact expires, which is what the column it replaced never did", async () => {
+  // assignee_user_id was read as "somebody is on this thread" and is cleared by
+  // nothing -- expire_stale_pauses skips any row with an open escalation, and a
+  // take-over leaves one open on purpose. So a thread taken over once refused
+  // the receptionist's drafts for ever, and the workspace's veto window quietly
+  // stopped working on it. A hold carries its own expiry instead.
+  const lapsed = () => thread({ control_kind: "person", control_until: "2026-09-10T09:59:59.000Z" });
+  const draft = { id: "m1", tenant_id: T, conversation_id: "c1", status: "queued", body: "We open at 9.", sender: "ai", direction: "outbound", created_at: "2026-09-10T09:00:00.000Z" };
+  const t = tables({ conversations: [lapsed()], messages: [{ ...draft }] });
+  const w = wireOf();
+  assert.equal((await deliver(ports(t, w), words({ sender: "ai", messageId: "m1" }))).outcome, "sent");
+  assert.equal((await deliver(ports(tables({ conversations: [lapsed()] }), wireOf()), words({ sender: "ai" }))).outcome, "sent");
 });
 
 test("a queued row is finalized in place: sent with its id, or canceled with its reason and an event that says why", async () => {

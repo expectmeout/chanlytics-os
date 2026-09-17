@@ -178,8 +178,16 @@ export interface DeliverPorts {
 
 interface WireFacts {
   pausedUntil: string | null;
-  /** The person who took the thread over, when one did. */
-  assignee: string | null;
+  /**
+   * Who is SPEAKING on this thread right now, and until when (00130).
+   *
+   * Not `assignee_user_id`, which says who is responsible and may outlive the
+   * exchange -- reading that as a live hold is how a thread taken over and
+   * never handed back refused the receptionist's drafts for ever. A hold
+   * expires; responsibility does not, and neither does the escalation that
+   * keeps the thread in somebody's queue.
+   */
+  control: { kind: string; until: string } | null;
   contact: {
     consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null; erasing_since: string | null;
     /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
@@ -197,7 +205,7 @@ interface WireFacts {
 async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   const { data, error } = await db
     .from("conversations")
-    .select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)")
+    .select("paused_until, control_kind, control_until, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)")
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId)
     .maybeSingle();
@@ -205,13 +213,14 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data as unknown as {
     paused_until: string | null;
-    assignee_user_id?: string | null;
+    control_kind?: string | null;
+    control_until?: string | null;
     contacts: WireFacts["contact"] | null;
     tenants: { status: string | null } | null;
   };
   return {
     pausedUntil: row.paused_until ?? null,
-    assignee: row.assignee_user_id ?? null,
+    control: row.control_kind && row.control_until ? { kind: row.control_kind, until: row.control_until } : null,
     contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
     tenantStatus: row.tenants?.status ?? null,
   };
@@ -252,12 +261,18 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  // A thread a person holds does not take the receptionist's draft. Taking
+  // Is somebody speaking on this thread right now (00130)? A person who took it
+  // over, or a call in progress. It is asked as a LIVE fact with an expiry,
+  // never as "does a column name somebody": the assignee it used to read is
+  // never cleared, so a thread taken over one Tuesday refused every draft
+  // after it for the life of the workspace.
+  const held = !!f.control && nowMs < new Date(f.control.until).getTime();
+  // A thread somebody holds does not take the receptionist's draft. Taking
   // over withdraws the drafts written before it; this is the same promise
   // kept at the wire, for the withdrawal that failed or the draft written in
-  // the same second. Only the draft: an answer meets the pause below, a
+  // the same second. Only the draft: an answer meets the hold below, a
   // system message is owed whoever holds the thread.
-  if (kind === "draft" && f.assignee) return "human_has_it";
+  if (kind === "draft" && held) return "human_has_it";
   // The thread's pause holds the receptionist answering now, and a broadcast.
   // It does not hold a queued draft, written before the pause it now meets --
   // the receptionist's own escalation pauses the thread and queues its holding
@@ -267,7 +282,12 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // before it (pauseConversation, withdrawDrafts) besides. Nor does it hold a
   // system message: an opt-in confirmation is owed the moment the yes was
   // given, whoever holds the thread.
-  if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
+  //
+  // A live hold stops them too, and that is what keeps two of our own agents
+  // off one person: while a call is in progress the thread is held, so the
+  // text receptionist stores what the customer writes and answers none of it,
+  // rather than talking over the call the same customer is on.
+  if (kind !== "draft" && kind !== "system" && (held || (f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()))) return "human_has_it";
   return null;
 }
 

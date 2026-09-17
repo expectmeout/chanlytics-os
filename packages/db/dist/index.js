@@ -1297,6 +1297,32 @@ function describeLead(lead, now = /* @__PURE__ */ new Date()) {
   return bits.join(" ");
 }
 
+// src/repositories/control.ts
+var CALL_CONTROL_S = 15 * 60;
+async function claimControl(db, p) {
+  const { data, error } = await db.rpc("claim_conversation_control", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_kind: p.holder.kind,
+    p_by: p.holder.kind === "person" ? p.holder.userId : null,
+    p_ref: p.holder.kind === "call" ? p.holder.callId : null,
+    p_seconds: p.seconds
+  });
+  if (error) throw new Error(`claim_conversation_control: ${error.message}`);
+  return data;
+}
+async function releaseControl(db, p) {
+  const { data, error } = await db.rpc("release_conversation_control", {
+    p_tenant_id: p.tenantId,
+    p_conversation_id: p.conversationId,
+    p_kind: p.holder.kind,
+    p_by: p.holder.kind === "person" ? p.holder.userId : null,
+    p_ref: p.holder.kind === "call" ? p.holder.callId : null
+  });
+  if (error) throw new Error(`release_conversation_control: ${error.message}`);
+  return data === true;
+}
+
 // src/repositories/control-plane.ts
 async function getTenantConfig(db, tenantId) {
   const { data, error } = await db.from("tenant_config").select("tenant_id, config, version, updated_at, updated_by").eq("tenant_id", tenantId).maybeSingle();
@@ -1406,9 +1432,11 @@ function subscribeMessagesInserts(client, onInsert, opts = {}) {
   };
 }
 export {
+  CALL_CONTROL_S,
   HISTORY_COLUMNS,
   assembleHistory,
   claimCallNotification,
+  claimControl,
   countSentToday,
   createServiceClient,
   describeLead,
@@ -1434,6 +1462,7 @@ export {
   recordEmailStatus,
   recordOutbound,
   recordStatusByExternalId,
+  releaseControl,
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
