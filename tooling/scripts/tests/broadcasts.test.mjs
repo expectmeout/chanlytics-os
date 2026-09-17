@@ -315,7 +315,7 @@ test("the detail: every person on a broadcast, with what happened to them; the s
   const d = readCode("apps/dashboard/app/api/v1/broadcasts/[id]/route.ts");
   assert.ok(d.includes("return await getBroadcast(ctx, tenantId, id);"));
   const s = readCode("apps/dashboard/src/server/broadcasts.ts");
-  assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164)"), "names come with the rows");
+  assert.ok(s.includes("contacts(display_name, wa_profile_name, phone_e164, email)"), "names come with the rows");
   assert.ok(s.includes("replied: !!(r.messages?.conversation_id && replied.has(r.messages.conversation_id)),"));
   // The number's refusals are run: core-campaigns.test.mjs.
   assert.ok(readCode("apps/dashboard/app/api/v1/channels/route.ts").includes("quality: s(\"quality_rating\"),"));

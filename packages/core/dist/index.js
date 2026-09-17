@@ -5,6 +5,9 @@ import { z as z3 } from "zod";
 import { z as z4 } from "zod";
 import { z as z5 } from "zod";
 z.config({ jitless: true });
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -67,9 +70,10 @@ var EVENT_KINDS = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -913,6 +917,9 @@ var DEFAULT_STATUS = {
   upstream_auth: 503,
   internal: 500
 };
+var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
 var EVENT_KINDS2 = [
   "message.received",
   "message.sent",
@@ -975,9 +982,10 @@ var EVENT_KINDS2 = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -2243,6 +2251,9 @@ import { z as z33 } from "zod";
 import { z as z43 } from "zod";
 import { z as z53 } from "zod";
 z7.config({ jitless: true });
+var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
 var EVENT_KINDS3 = [
   "message.received",
   "message.sent",
@@ -2305,9 +2316,10 @@ var EVENT_KINDS3 = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -3211,12 +3223,15 @@ async function deliverSafely(ports, d) {
 // src/conversations/take-over.ts
 async function takeOver(ports, cmd) {
   const { conv } = cmd;
-  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  const phone = conv.phone_e164;
+  const mirror = async (until) => {
+    if (phone) await ports.pauseBot(conv.tenant_id, phone, until);
+  };
   const untilMs = ports.now() + await ports.pauseMs(conv.tenant_id);
   const paused_until = new Date(untilMs).toISOString();
-  await ports.pauseBot(conv.tenant_id, conv.phone_e164, untilMs);
+  await mirror(untilMs);
   if (!await ports.claim(conv.id, paused_until, cmd.userId)) {
-    await ports.pauseBot(conv.tenant_id, conv.phone_e164, 0);
+    await mirror(0);
     throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
   }
   const withdrawn_drafts = await ports.withdrawDrafts(conv.tenant_id, conv.id);
@@ -3227,10 +3242,12 @@ async function takeOver(ports, cmd) {
 // src/conversations/hand-back.ts
 async function handBack(ports, cmd) {
   const { conv } = cmd;
-  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
   const phone = conv.phone_e164;
-  await ports.pauseBot(conv.tenant_id, phone, 0);
-  const back = conv.paused_until ? () => ports.pauseBot(conv.tenant_id, phone, Date.parse(conv.paused_until)) : async () => {
+  const mirror = async (until) => {
+    if (phone) await ports.pauseBot(conv.tenant_id, phone, until);
+  };
+  await mirror(0);
+  const back = conv.paused_until ? () => mirror(Date.parse(conv.paused_until)) : async () => {
   };
   const released = await ports.release(conv.id).catch(async (e) => {
     await back();
@@ -3325,7 +3342,7 @@ var SEND_GRACE_MS = 15 * 1e3;
 var IDEMPOTENCY_WINDOW_MS = 30 * 1e3;
 async function replyToConversation(ports, cmd) {
   const { conv, body } = cmd;
-  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  if (!conv.phone_e164) throw new AppError("conflict", "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
   if (isOptedOutContact(conv)) throw new AppError("conflict", OPT_OUT_REFUSAL);
   const now = ports.now();
   const channel = await ports.replyChannel(conv);

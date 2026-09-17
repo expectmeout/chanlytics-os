@@ -13,7 +13,7 @@ import type { CallDto, ConversationDto, MessageDto } from "@chanlytics/contracts
  */
 
 export const CONVERSATION_COLUMNS =
-  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc, marketing_consent)";
+  "id, state, paused_until, snooze_until, assignee_user_id, last_wa_inbound_at, last_message_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc, marketing_consent)";
 
 export const MESSAGE_COLUMNS =
   "id, conversation_id, direction, sender, type, body, media, meta, status, created_at, channel_ts, channel";

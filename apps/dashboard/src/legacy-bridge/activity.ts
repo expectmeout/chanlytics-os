@@ -30,11 +30,11 @@ export const activity = {
     ]);
     return r;
   },
-  /** Up to ten people matching a name or a number, to filter by one of them. */
+  /** Up to ten people matching a name, a number or an address, to filter by one of them. */
   people: async (q: string): Promise<{ id: string; name: string; phone: string | null }[]> => {
     const r = await api()("GET contacts", { query: { q } });
     if (!r.ok) return [];
-    return (r.data.people as PersonRowDto[]).slice(0, 10).map((p) => ({ id: p.id, name: p.display_name || p.wa_profile_name || p.phone_e164 || "Unknown", phone: p.phone_e164 }));
+    return (r.data.people as PersonRowDto[]).slice(0, 10).map((p) => ({ id: p.id, name: p.display_name || p.wa_profile_name || p.phone_e164 || p.email || "Unknown", phone: p.phone_e164 }));
   },
 };
 

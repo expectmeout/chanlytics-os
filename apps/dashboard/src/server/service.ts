@@ -10,7 +10,7 @@ import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { scheduleJob, cancelJobsFor } from "@chanlytics/jobs";
-import { AppError, erasedPhoneHash, type JobKind } from "@chanlytics/contracts";
+import { AppError, erasedEmailHash, erasedPhoneHash, type JobKind } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import { recordDecision } from "./verbs";
 
@@ -63,17 +63,25 @@ export async function signedMediaUrl(storagePath: string, seconds = 300): Promis
 /**
  * The first leg of an erasure: the block, written before anything is
  * destroyed. From this moment the wire refuses the person (deliver.ts reads
- * erasing_since beside erased_at), and the tombstone keeps the keyed digest
- * of the number (contracts/erasure.ts) so the calendar import and a late
- * call event do not bring them back. Service role: a session cannot write
+ * erasing_since beside erased_at), and the tombstone keeps a keyed digest of
+ * each identifier the person has (contracts/erasure.ts) so the calendar
+ * import, a late call event, or mail from the address do not bring them back.
+ * Both identifiers are named by the caller, present or null: a digest that is
+ * not written here can never be written, because the erasure removes what it
+ * is computed from. Service role: a session cannot write
  * contacts, and the route has already judged the owner. Idempotent: a second
  * request finds the block written and changes nothing.
  */
-export async function beginErasure(tenantId: string, contactId: string, phoneE164: string | null): Promise<void> {
-  const hash = phoneE164 ? await erasedPhoneHash(tenantId, phoneE164) : null;
+export async function beginErasure(tenantId: string, contactId: string, ids: { phone: string | null; email: string | null }): Promise<void> {
+  const phoneHash = ids.phone ? await erasedPhoneHash(tenantId, ids.phone) : null;
+  const emailHash = ids.email ? await erasedEmailHash(tenantId, ids.email) : null;
   const { error } = await serviceDb()
     .from("contacts")
-    .update({ erasing_since: new Date().toISOString(), ...(hash ? { erased_phone_hash: hash } : {}) })
+    .update({
+      erasing_since: new Date().toISOString(),
+      ...(phoneHash ? { erased_phone_hash: phoneHash } : {}),
+      ...(emailHash ? { erased_email_hash: emailHash } : {}),
+    })
     .eq("id", contactId)
     .eq("tenant_id", tenantId)
     .is("erased_at", null)

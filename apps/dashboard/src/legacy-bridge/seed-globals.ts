@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -20,6 +20,7 @@ declare global {
     __FACT_WORDS: typeof SOURCE_WORDS;
     __samePhone: typeof samePhone;
     __whyNotAPhone: typeof whyNotAPhone;
+    __whyNotAnEmail: typeof whyNotAnEmail;
     __whyNotAHandoff: typeof whyNotAHandoff;
     __handoffE164: typeof handoffE164;
     __phoneDisplay: typeof formatPhoneDisplay;
@@ -57,6 +58,8 @@ if (typeof window !== "undefined") {
   // words. The published number is now optional, so the only thing standing
   // between a typo and a receptionist reading it aloud is this check.
   window.__whyNotAPhone = whyNotAPhone;
+  // The same for an address typed on a person's page: said under the field, before a round trip.
+  window.__whyNotAnEmail = whyNotAnEmail;
   window.__whyNotAHandoff = whyNotAHandoff;
   window.__handoffE164 = handoffE164;
   // A stored number written the way people write one, "+1 (305) 555-0100", as

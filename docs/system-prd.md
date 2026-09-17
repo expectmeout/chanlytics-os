@@ -207,7 +207,7 @@ The order is the contract: a viewer is refused before a token is spent, so is a 
 | `create_workspace` | a signed-in person | Workspace and owner membership in one transaction, recorded where it is made (00104); at most ten per account |
 | `provision_tenant` (trigger on insert) | automatic | Seeds the policy matrix, `tenant_config` and the billing row |
 | `set_contact_consent`, `set_marketing_consent` | operators and owners; the edge | The two consent answers, with an event that keeps the evidence — the channel, the provider's message id and the words of a texted answer (00110, S-14) |
-| `create_person`, `set_person_name`, `set_person_notes`, `set_person_reply_mode` | operators and owners | People added and described by hand; the receptionist's mode for one person, and for fifty at a time |
+| `create_person`, `set_person_name`, `set_person_notes`, `set_person_email`, `set_person_reply_mode` | operators and owners | People added and described by hand, their email address among it (00125: one per workspace, stored trimmed and lower-cased, cleared by a trigger when the person is erased, remembered afterwards only as a keyed digest); the receptionist's mode for one person, and for fifty at a time |
 | `set_template_hidden`, `set_template_title` | operators and owners | How a template appears in the composers |
 | `line_forwarding_set`, `line_forwarding_test` | owners | Keep-your-number rows (S-07) |
 | `profile_set` | the person | Their display name |

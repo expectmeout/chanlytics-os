@@ -514,3 +514,104 @@ test("a person known by number is invited to name them; an empty Lists section i
     globalThis.window.__PEOPLE = saved;
   }
 });
+
+/* ----------------------------------- the address (00125) ----------------------------------- */
+
+/** A profile drawn with the bridge's save replaced by a recorder that answers as told. */
+const profileSaving = async (vm, answer = { ok: true, data: {} }) => {
+  const sent = [];
+  const saved = { details: globalThis.window.__setPersonDetails, why: globalThis.window.__whyNotAnEmail };
+  globalThis.window.__setPersonDetails = async (id, body) => { sent.push([id, body]); return answer; };
+  globalThis.window.__whyNotAnEmail = contracts.whyNotAnEmail;
+  const draw = await profile(vm);
+  const restore = () => { globalThis.window.__setPersonDetails = saved.details; globalThis.window.__whyNotAnEmail = saved.why; };
+  return { draw, sent, restore };
+};
+const type = (input, value) => input.props.onChange({ target: { value } });
+
+test("a person's email address is said once, in About, and added there: the row is its own control, and what is wrong with a typed address is said under the field before anything is sent", async () => {
+  const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW));
+  assert.equal(vm.email, null);
+  const { draw, sent, restore } = await profileSaving(vm);
+  try {
+    let tree = draw();
+    const keys = all(tree, (n) => n.props?.className === "cl-prof-attr-key").map((k) => textOf(k));
+    assert.deepEqual(keys.slice(0, 2), ["History", "Email"], `someone who may change it gets the row while it is empty: ${keys}`);
+    const add = byTestId(tree, "person-email-edit");
+    assert.equal(textOf(add).trim(), "Add an email", "an empty address is an invitation, not a bare pencil");
+    press(add);
+    tree = draw();
+    const input = byTestId(tree, "person-email-input");
+    assert.ok(input, "the row becomes the field");
+    type(input, "ana.example.com");
+    tree = draw();
+    press(byTestId(tree, "person-email-save"));
+    await settle();
+    tree = draw();
+    assert.match(textOf(byTestId(tree, "person-email-problem")), /missing the @/, "which kind of not-an-address, under the field");
+    assert.deepEqual(sent, [], "and nothing went over the wire");
+    type(byTestId(tree, "person-email-input"), "  Ana@Example.com ");
+    tree = draw();
+    assert.equal(byTestId(tree, "person-email-problem"), null, "typing clears what was said about the last attempt");
+    press(byTestId(tree, "person-email-save"));
+    await settle();
+    assert.deepEqual(sent, [["p1", { email: "Ana@Example.com" }]], "the typed address, trimmed; the route and the door decide its stored spelling");
+  } finally { restore(); }
+});
+
+test("an address that is there shows with a quiet pencil; the door's refusal is said under the field, in its own words; someone who may only read sees the address and no control, or no row at all", async () => {
+  const vm = toPersonVM(detail({ row: row({ visits: VISITS, email: "ana@example.com" }) }), ZONE, new Date(NOW));
+  assert.equal(vm.email, "ana@example.com");
+  assert.ok(vm.about.some((a) => a.k === "Email" && a.v === "ana@example.com"), "About carries it from the contract");
+  const taken = "Another person here already has that address.";
+  const { draw, sent, restore } = await profileSaving(vm, { ok: false, code: "conflict", message: taken });
+  try {
+    let tree = draw();
+    assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-prof-email-val")), "ana@example.com");
+    const edit = byTestId(tree, "person-email-edit");
+    assert.equal(textOf(edit).trim(), "", "a pencil, not an invitation");
+    press(edit);
+    tree = draw();
+    assert.equal(byTestId(tree, "person-email-input").props.value, "ana@example.com", "the field opens on what is stored");
+    type(byTestId(tree, "person-email-input"), "bo@example.com");
+    tree = draw();
+    press(byTestId(tree, "person-email-save"));
+    await settle();
+    tree = draw();
+    assert.deepEqual(sent, [["p1", { email: "bo@example.com" }]]);
+    assert.equal(textOf(byTestId(tree, "person-email-problem")), taken);
+    assert.ok(byTestId(tree, "person-email-input"), "and the field stays open on what was typed");
+  } finally { restore(); }
+
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    const withOne = (await profile(vm))();
+    assert.equal(textOf(byTestId(withOne, "person-email")), "ana@example.com");
+    assert.equal(byTestId(withOne, "person-email-edit"), null, "a viewer reads it");
+    const without = (await profile(toPersonVM(detail({ row: row({ visits: VISITS, email: null }) }), ZONE, new Date(NOW))))();
+    assert.equal(byTestId(without, "person-email"), null, "and with no address there is no empty row to read");
+  } finally { globalThis.window.__ME = me; }
+});
+
+test("a person with an address and no number or name is called by the address everywhere, is invited to be named, and their thread's line says the address instead of 'no phone'", async () => {
+  const dto = row({ display_name: null, wa_profile_name: null, phone_e164: null, email: "ana@example.com", channels: [], has_chat: false, conversation_count: 0, escalation_count: 0, needs_human: false, open_escalation_reason: null, latest_conversation_id: null, last_inbound_text: null, last_message_at: null });
+  const vm = toPersonRowVM(dto, ZONE, new Date(NOW));
+  assert.equal(vm.name, "ana@example.com", "REGRESSION: 'Unknown' for a person whose only identifier is an address");
+  assert.equal(vm.phone, null);
+  assert.equal(contracts.personName({ display_name: null, wa_profile_name: null, phone_e164: null }), "Unknown", "a person with nothing is still nobody");
+  assert.equal(contracts.isIdentifierName("ana@example.com"), true);
+  assert.equal(contracts.isIdentifierName("+1 (786) 555-0181"), true);
+  assert.equal(contracts.isIdentifierName("Ana Reyes"), false);
+
+  const draw = await peoplePage([dto]);
+  const tr = find(draw(), (n) => n.type === "tr" && n.props?.id === "person-p1");
+  assert.ok(byTestId(tr, "row-name-them"), "named by an identifier: the row invites a name");
+  assert.equal(find(tr, (n) => n.type === "Icon" && n.props?.name === "mail") !== null, true, "an envelope, not a handset");
+
+  const conv = { contact: { id: "p1", display_name: null, wa_profile_name: null, phone_e164: null, email: "ana@example.com" } };
+  assert.equal(contracts.contactName(conv), "ana@example.com");
+  assert.equal(contracts.contactMeta(conv), "WhatsApp · no name saved", "the identifier IS the name, so the line says that instead of repeating it");
+  assert.equal(contracts.contactMeta({ contact: { ...conv.contact, display_name: "Ana Reyes" } }), "WhatsApp · ana@example.com", "REGRESSION: 'no phone' under a person who has an address");
+  assert.equal(contracts.contactMeta({ contact: { ...conv.contact, display_name: "Ana Reyes", email: null } }), "WhatsApp · no phone");
+});

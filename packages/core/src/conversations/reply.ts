@@ -78,7 +78,8 @@ export interface ReplyCommand { conv: ReplyThread; userId: string; body: ReplyBo
  */
 export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand): Promise<ReplyReceipt> {
   const { conv, body } = cmd;
-  if (!conv.phone_e164) throw new AppError("conflict", "Conversation has no phone identity.");
+  // Replies leave by WhatsApp or text, and both need a number. (The email wire is its own release: docs/plans/2026-09-17-email-channel.md.)
+  if (!conv.phone_e164) throw new AppError("conflict", "This person has no phone number, so a WhatsApp or text reply cannot reach them.");
   // An opt-out binds the humans too — refuse BEFORE anything is queued, so the
   // operator is told rather than watching a message sit in "queued" and then
   // silently cancel itself when the job re-checks.

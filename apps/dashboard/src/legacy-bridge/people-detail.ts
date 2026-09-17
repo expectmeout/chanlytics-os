@@ -195,13 +195,14 @@ declare global {
 }
 
 /**
- * A person's name and the owner's notes: `window.__setPersonDetails(id, { name?, notes? })`.
+ * A person's name, the owner's notes and their email address:
+ * `window.__setPersonDetails(id, { name?, notes?, email? })`.
  *
  * Owner or operator on the server; an empty string clears. The People list
  * is re-read because names show on every row, and the profile reloads on
  * the same event.
  */
-export interface DetailsBody { name?: string; notes?: string }
+export interface DetailsBody { name?: string; notes?: string; email?: string }
 
 export async function setPersonDetails(id: string, body: DetailsBody): Promise<DeleteResult> {
   return api()("PUT contacts/[id]/details", { params: { id }, body });

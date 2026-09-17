@@ -55,6 +55,8 @@ export interface ConversationDto {
     display_name: string | null;
     wa_profile_name: string | null;
     phone_e164: string | null;
+    /** As stored (00125). Absent on payloads read without it. */
+    email?: string | null;
     /** 'unknown' | 'opted_in' | 'opted_out'. Absent on payloads written before
      *  opt-out was enforced, which is why every reader treats it as optional
      *  and only 'opted_out'/dnc blocks — never the absence of a value. */
@@ -186,14 +188,25 @@ export function contactName(dto: ConversationDto): string {
     dto.contact.display_name ||
     dto.contact.wa_profile_name ||
     formatPhoneDisplay(dto.contact.phone_e164) ||
+    dto.contact.email ||
     "Unknown"
   );
 }
 
+/**
+ * A name that is an identifier, a number or an address, has no first name to
+ * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
+ */
+export function isIdentifierName(name: string): boolean {
+  return /^[+\d(]/.test(name) || name.includes("@");
+}
+
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
 export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" | "Text" = "WhatsApp"): string {
-  const phone = formatPhoneDisplay(dto.contact.phone_e164);
-  return contactName(dto) === phone ? `${channel} · no name saved` : `${channel} · ${phone ?? "no phone"}`;
+  // The identifier under the name: the number, else the address. When it IS
+  // the name, the line says so instead of repeating it.
+  const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
+  return contactName(dto) === id ? `${channel} · no name saved` : `${channel} · ${id ?? "no phone"}`;
 }
 
 export function initialsOf(name: string): string {
@@ -799,9 +812,9 @@ function clipAtWord(text: string, max: number): string {
 
 export function toConversationVM(dto: ConversationDto, tz: string, now = new Date()): ConversationVM {
   const who = contactName(dto);
-  // A phone-like name is not split: "+1" is nobody's first name. The
-  // viewer read "Latest from +1" for a person known only by number.
-  const whoShort = /^[+\d(]/.test(who) ? who : who.split(" ")[0] || who;
+  // An identifier is not split: "+1" is nobody's first name. The viewer
+  // read "Latest from +1" for a person known only by number.
+  const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
   // The status travels with the bubble. It used to be dropped here, and the
   // conversations API filters nothing — so a queued draft still inside its veto
   // window, a send that failed, and a reply an operator canceled all arrived on
@@ -1031,7 +1044,7 @@ export function toCallVM(dto: CallDto, tz: string, now = new Date()): CallVM {
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
-  const whoShort = name ? (/^[+\d(]/.test(name) ? name : name.split(" ")[0]) : "Caller";
+  const whoShort = name ? (isIdentifierName(name) ? name : name.split(" ")[0]) : "Caller";
   const dur = mmss(dto.duration_ms);
   // Not `status === "ongoing"`. A lost call_ended leaves that flag set forever,
   // and this viewmodel is what the Live surface would render from.

@@ -324,6 +324,7 @@ export interface VerbErasure {
   id: string;
   tenant_id: string;
   phone_e164: string | null;
+  email: string | null;
   erased_at: string | null;
 }
 
@@ -337,7 +338,7 @@ export async function loadErasable(ctx: RouteContext, id: string): Promise<VerbE
   const contactId = requireUuid(id, "contact");
   const { data, error } = await ctx.supabase
     .from("contacts")
-    .select("id, tenant_id, phone_e164, erased_at")
+    .select("id, tenant_id, phone_e164, email, erased_at")
     .eq("id", contactId)
     .maybeSingle();
   if (error) throw new Error(error.message);

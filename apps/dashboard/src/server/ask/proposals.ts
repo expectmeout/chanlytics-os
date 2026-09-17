@@ -170,12 +170,12 @@ async function draftReply(t: ToolContext, input: Record<string, unknown>): Promi
   if (!text) return refuse("text is required");
   const { data: conv, error } = await t.ctx.supabase
     .from("conversations")
-    .select("id, tenant_id, state, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, consent, dnc)")
+    .select("id, tenant_id, state, last_wa_inbound_at, contacts (id, display_name, wa_profile_name, phone_e164, email, consent, dnc)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
-  const who = contactName({ contact: { id: conv.contacts?.id ?? "", display_name: conv.contacts?.display_name ?? null, wa_profile_name: conv.contacts?.wa_profile_name ?? null, phone_e164: conv.contacts?.phone_e164 ?? null, consent: null, dnc: false } } as Parameters<typeof contactName>[0]);
+  const who = contactName({ contact: { id: conv.contacts?.id ?? "", display_name: conv.contacts?.display_name ?? null, wa_profile_name: conv.contacts?.wa_profile_name ?? null, phone_e164: conv.contacts?.phone_e164 ?? null, email: conv.contacts?.email ?? null, consent: null, dnc: false } } as Parameters<typeof contactName>[0]);
   if (conv.contacts?.dnc) return refuse(`${who} opted out; nothing can be sent to them`);
   // The window the reply route will enforce, on the channel it will send on:
   // a texting thread has none, and this card used to call one closed.
@@ -221,12 +221,12 @@ async function proposeThreadVerb(t: ToolContext, input: Record<string, unknown>)
   if (!THREAD_VERBS.includes(verb)) return refuse(`verb must be one of ${THREAD_VERBS.join(", ")}`);
   const { data: conv, error } = await t.ctx.supabase
     .from("conversations")
-    .select("id, state, assignee_user_id, snooze_until, contacts (display_name, wa_profile_name, phone_e164)")
+    .select("id, state, assignee_user_id, snooze_until, contacts (display_name, wa_profile_name, phone_e164, email)")
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!conv) return refuse("no such conversation in this workspace");
-  const who = conv.contacts?.display_name || conv.contacts?.wa_profile_name || conv.contacts?.phone_e164 || "this person";
+  const who = conv.contacts?.display_name || conv.contacts?.wa_profile_name || conv.contacts?.phone_e164 || conv.contacts?.email || "this person";
   let escalationId: string | null = null;
   if (verb === "resolve") {
     const { data: esc } = await t.ctx.supabase.from("escalations").select("id").eq("conversation_id", id).eq("state", "open").order("created_at", { ascending: false }).limit(1).maybeSingle();
@@ -263,11 +263,11 @@ async function proposePersonMode(t: ToolContext, input: Record<string, unknown>)
   const mode = str(input.mode, 10);
   if (!UUID.test(id)) return refuse("contact_id must be an id a read returned");
   if (!(["inherit", ...PERSON_MODES] as string[]).includes(mode)) return refuse("mode must be auto, ask, never or inherit");
-  const { data: c, error } = await t.ctx.supabase.from("contacts").select("id, display_name, wa_profile_name, phone_e164, erased_at").eq("id", id).maybeSingle();
+  const { data: c, error } = await t.ctx.supabase.from("contacts").select("id, display_name, wa_profile_name, phone_e164, email, erased_at").eq("id", id).maybeSingle();
   if (error) throw new Error(error.message);
   if (!c || c.erased_at) return refuse("no such person in this workspace");
   const { data: pol } = await t.ctx.supabase.from("policies").select("mode").eq("tenant_id", t.tenantId).eq("class", "reply").eq("subject_type", "contact").eq("subject_id", id).maybeSingle();
-  const who = c.display_name || c.wa_profile_name || c.phone_e164 || "this person";
+  const who = c.display_name || c.wa_profile_name || c.phone_e164 || c.email || "this person";
   const LABEL: Record<string, string> = { auto: "answers them", ask: "asks you first", never: "stays silent with them", inherit: "follows the workspace rule" };
   t.read.person.add(id);
   return propose({

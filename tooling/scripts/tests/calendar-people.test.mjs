@@ -410,7 +410,7 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/details/route.ts");
   assert.ok(route.includes('rate: "person_edit",') && route.includes('role: "operator",'));
   assert.ok(route.includes('rpc("set_person_name", { p_contact_id: id, p_name: name ?? "" })') && route.includes('rpc("set_person_notes", { p_contact_id: id, p_notes: notes ?? "" })'));
-  assert.ok(route.includes('"Send a name, notes, or both."'), "the schema refuses in the same words");
+  assert.ok(route.includes('"Send a name, notes or an email address."'), "the schema refuses in the same words");
   const detail = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(detail.includes('sb.from("contacts").select("notes").eq("id", id).maybeSingle()') && detail.includes("notes: own.data?.notes ?? null,"));
   const bridge = readCode("apps/dashboard/src/legacy-bridge/people-detail.ts");
@@ -523,7 +523,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   assert.ok(page.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
   assert.ok(page.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
   assert.ok(page.includes("React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);"), "a selection never outlives its view");
-  assert.ok(page.includes('const head = ["Name", "Phone", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
+  assert.ok(page.includes('const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
   assert.ok(page.includes("selectable={canEditLists || canExport}"));
 });
 

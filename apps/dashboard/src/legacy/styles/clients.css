@@ -1648,6 +1648,18 @@
 .cl-prof-name-input { font: inherit; font-size: 20px; font-weight: 600; letter-spacing: -.01em; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line-strong); border-radius: var(--radius-md); padding: 4px 10px; flex: 1 1 200px; min-width: 0; max-width: 420px; outline: none; }
 .cl-prof-name-input:focus { border-color: var(--accent); }
 .cl-prof-name-acts { display: inline-flex; align-items: center; gap: 6px; }
+/* The address in the About list: shown with its pencil on one line, edited in place on three. */
+.cl-prof-email { display: inline-flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.cl-prof-email-val { min-width: 0; overflow-wrap: anywhere; }
+.cl-prof-email .cl-prof-rename { opacity: 1; flex: none; }
+/* A pencil alone is 22px wide; on a touch screen it is the row's only control, and the row has the room. */
+@media (pointer: coarse) { .cl-prof-email .cl-prof-rename:not(.is-plain) { min-width: 44px; } }
+.cl-prof-email.editing { display: flex; flex-direction: column; align-items: stretch; gap: 6px; }
+.cl-prof-email-input { font: inherit; font-size: 12.5px; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: 6px; padding: 5px 8px; min-width: 0; width: 100%; }
+.cl-prof-email-input:focus { outline: none; border-color: var(--accent); }
+.cl-prof-email-input[aria-invalid="true"] { border-color: var(--danger); }
+.cl-prof-email-problem { font-size: 11.5px; line-height: 1.4; color: var(--danger); }
+.cl-prof-email.editing .cl-prof-name-acts { justify-content: flex-end; }
 .cl-prof-notes { display: flex; flex-direction: column; gap: 6px; }
 .cl-prof-notes textarea { font: inherit; font-size: 12.5px; line-height: 1.45; color: var(--ink); background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 8px 10px; resize: vertical; min-height: 78px; outline: none; }
 .cl-prof-notes textarea:focus { border-color: var(--accent); }
