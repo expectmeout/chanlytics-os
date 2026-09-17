@@ -51,11 +51,11 @@ globalThis.window = {
   appNavigate() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"]) globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
-globalThis.WaBubble = () => null;
 
 /** The words of a tree in reading order. */
 const say = (n) => {

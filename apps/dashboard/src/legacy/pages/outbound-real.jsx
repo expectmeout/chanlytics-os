@@ -53,7 +53,10 @@ const pbMessage = (p, templates, businessName) => {
   const t = templates.find((x) => x.id === p.template_id) || null;
   if (!t) return null;
   const values = (p.params || PB_NONE).map((s) => (s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? "")));
-  return { template: t, body: t.body_preview, values, words: window.mpFill ? window.mpFill(t.body_preview, values) : String(t.body_preview || "") };
+  // No fallback: message-preview.jsx is loaded before every page, in both lists,
+  // and a quiet `String(body)` here would put raw {{1}} on a card rather than
+  // the words -- which is what a test that had not loaded it drew.
+  return { template: t, body: t.body_preview, values, words: window.mpFill(t.body_preview, values) };
 };
 // When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
 // What a reply is, in the one window's words (contracts REPLY_WINDOW_WORDS, on the surface).

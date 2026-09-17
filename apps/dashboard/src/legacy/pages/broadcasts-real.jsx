@@ -299,6 +299,8 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const [name, setName] = React.useState("");
   const [whenAt, setWhenAt] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  // Which of the audience's people the preview is showing.
+  const [who, setWho] = React.useState(0);
   // Whether Send now has been pressed once and is asking. A question about one
   // template and one audience cannot be answered for another, so changing either
   // puts the button back.
@@ -326,7 +328,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   }, [templates, tplId]);
   // The armed question names a template and an audience: change either and it is
   // no longer the question that was asked.
-  React.useEffect(() => { setArmed(false); }, [tplId, aud]);
+  React.useEffect(() => { setArmed(false); setWho(0); }, [tplId, aud]);
 
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   // The template comes BEFORE the counts now, because the counts depend on it.
@@ -361,6 +363,21 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
   const shown = previewValues.map((v) => String(v).trim());
+  // Who the preview is drawing it for. The bridge keeps a handful of the rows the
+  // count is a length of; a surface cached before they were published has none,
+  // and then the composer shows the example values as it always did.
+  const sample = (active && active.preview && active.preview[purpose]) || null;
+  const people = sample ? sample.people : BC_NONE;
+  const person = people.length ? people[Math.min(who, people.length - 1)] : null;
+  // What this person really reads. A first-name slot takes THEIR name, and the
+  // words the wire uses when nobody has one -- "Hi there" (contracts
+  // resolveParams) -- had never been shown to anybody before a send.
+  const forPerson = !person ? shown : vars.map((v, i) => (srcOf(i) === "first_name" ? (person.firstName || "there") : shown[i]));
+  const noName = !!person && !person.refusal && !person.firstName;
+  const personNote = !person ? null
+    : person.refusal ? person.refusal
+    : noName ? "No first name on file, only a number — the message opens “Hi there”."
+    : null;
   // When the message really lands, for the stamp on it: the box's time, or now,
   // moved to the next nine o'clock exactly as the route moves it (bcWhenNote).
   const goesAt = window.__clock ? window.__clock.nextOpen(whenAt === null ? Date.now() : whenAt).at : null;
@@ -520,7 +537,19 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             ))}
           </div>
         )}
-        {tpl && <div className="bc-preview-wrap" data-testid="bc-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} footer={bcFooter(tpl)} at={goesAt} /></div>}
+        {tpl && (
+          <div className="bc-preview-wrap" data-testid="bc-preview">
+            <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} footer={bcFooter(tpl)} at={goesAt} held={person ? person.refusal : null}>
+              <window.PreviewStepper
+                people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
+                index={Math.min(who, Math.max(people.length - 1, 0))}
+                onStep={setWho}
+                note={personNote}
+                tone={person && (person.refusal || noName) ? "warn" : null}
+              />
+            </window.MessagePreview>
+          </div>
+        )}
         <div className="bc-meta">
           <Icon name="shield" size={11} />
           <span>

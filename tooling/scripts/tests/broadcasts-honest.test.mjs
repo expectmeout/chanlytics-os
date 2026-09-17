@@ -485,3 +485,70 @@ test("Messages says what sends each message -- the card worked it out to refuse 
   tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: undefined });
   assert.equal(byTestId(tree, "template-users"), null, "an unread list makes no claim");
 });
+
+/**
+ * A person as GET contacts returns them, through the same view model the bridge
+ * builds audiences from -- not a shape invented here, because a made-up fixture
+ * field is how a page passes a test while production stays wrong.
+ */
+const contact = (over = {}) => ({
+  id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani", phone_e164: "+17865550181",
+  consent: "opted_in", consent_source: "reply", consent_updated_at: iso(-30 * D), dnc: false, marketing_consent: "opted_in", channels: ["whatsapp"],
+  conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+  latest_conversation_id: "cv1", latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null,
+  latest_wa_inbound_at: iso(-2 * H), last_message_at: iso(-2 * H), last_message_direction: "inbound", last_message_sender: "customer",
+  last_inbound_text: "See you Saturday", last_inbound_at: iso(-2 * H),
+  last_call_at: null, last_inbound_call_at: null, last_inbound_call_summary: null, call_count: 0, call_seconds: 0,
+  first_contact_at: iso(-60 * D), earliest_row_at: iso(-60 * D), has_backfill: false, has_chat: true, queued_reply_at: null,
+  effective_reply_mode: "auto", visits: null, ...over,
+});
+
+test("The composer shows one of the real people at a time, and the two nobody had ever been shown: the one with no name, and the one held back", () => {
+  const rows = [
+    contact({ id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani" }),
+    // Only a number on file. The wire greets them "Hi there" (resolveParams) and
+    // the composer had no way to show it before the send went.
+    contact({ id: "c2", display_name: null, wa_profile_name: null }),
+    contact({ id: "c3", display_name: "Marco Ortiz", wa_profile_name: "Marco" }),
+    // In the list, not in the send.
+    contact({ id: "c4", display_name: "Tomás Ruiz", wa_profile_name: "Tomás", consent: "opted_out", marketing_consent: "opted_out" }),
+  ].map((c) => contracts.toPersonRowVM(c, ZONE, new Date(NOW)));
+  const pv = contracts.audiencePreview(rows, "everyone", null, null, "marketing");
+  assert.equal(pv.sending, 3);
+  assert.equal(pv.held, 1);
+  // An ordinary person first, then the one with no name -- the case worth seeing.
+  // The name a human typed wins over the WhatsApp profile name, as at the wire.
+  assert.equal(pv.people[0].firstName, "Daniela");
+  assert.equal(pv.people[1].firstName, null);
+  assert.equal(pv.people.at(-1).refusal, contracts.PURPOSE_REFUSALS.opted_out, "the reason is the one the wire would give");
+
+  const tpl = templateRow({ id: "tpl-1", name: "winback_offer", purpose: "marketing", body_preview: "Hi {{1}}, come back to us.", variables: [{ position: 1, label: "First name", example: "Dani" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({
+    templates: [tpl], number: healthyNumber,
+    audiences: [{ kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: pv.sending, conversational: pv.sending }, preview: { marketing: pv, conversational: pv } }],
+  });
+
+  let tree = page({ initialSegment: null, initialRun: null });
+  const step = byTestId(tree, "mp-step");
+  assert.ok(step, "an audience chip showed a count and never a person");
+  assert.ok(textOf(step).includes("Daniela R."), textOf(step));
+  assert.ok(textOf(step).includes("1 of 3"), textOf(step));
+  assert.ok(textOf(byTestId(tree, "bc-preview")).includes("Hi Daniela"), "the slot takes THEIR name");
+
+  // The next one has no name on file: the message opens "Hi there", and the page
+  // says why rather than leaving it to be discovered after the send.
+  press(find(step, (n) => n.props?.["aria-label"] === "The next person"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(textOf(byTestId(tree, "bc-preview")).includes("Hi there"), textOf(byTestId(tree, "bc-preview")));
+  assert.ok(textOf(byTestId(tree, "mp-note")).includes("Hi there"), textOf(byTestId(tree, "mp-note")));
+
+  // And the last is in the list but held back: drawn as not sent, with the reason.
+  // Two more steps: Daniela, the one with no name, Marco, then Tomás.
+  for (let i = 0; i < 2; i += 1) {
+    press(find(byTestId(tree, "mp-step"), (n) => n.props?.["aria-label"] === "The next person"));
+    tree = again({ initialSegment: null, initialRun: null });
+  }
+  assert.ok(byTestId(tree, "mp-held"), "the bubble is marked Not sent");
+  assert.ok(textOf(byTestId(tree, "mp-note")).includes("asked to stop"), textOf(byTestId(tree, "mp-note")));
+  assert.equal(textOf(find(byTestId(tree, "mp-step"), (n) => String(n.props?.className || "").startsWith("mp-step-pos"))), "held back", "and its place in the walk says so rather than counting them into the send");
+});

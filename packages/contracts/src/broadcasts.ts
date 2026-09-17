@@ -25,8 +25,8 @@
 import { templateTitle } from "./template-library";
 import { clockDate, clockWhen } from "./clock";
 import { PEOPLE_LISTS, mayReceive, type PersonRowVM } from "./people";
-import type { ParamSpec } from "./templates";
-import type { SendPurpose } from "./consent";
+import { firstNameOf, type ParamSpec } from "./templates";
+import { mayMessageFor, PURPOSE_REFUSALS, type SendPurpose } from "./consent";
 
 export const BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"] as const;
 export type BroadcastState = (typeof BROADCAST_STATES)[number];
@@ -98,6 +98,75 @@ export function eligibleFor(
     pool = rows.filter((r) => savedIds.has(r.id));
   }
   return pool.filter((r) => mayReceive(r, purpose));
+}
+
+/**
+ * A few of the people an audience really means, for a preview to walk through.
+ *
+ * An audience chip showed a count and nothing else, so the last thing an owner
+ * saw before an irreversible send was a number: no way to see who the twenty-
+ * three are, and no way to find out that three of them have no first name on
+ * file and will be greeted "Hi there" (resolveParams, templates.ts). The rows
+ * are already in hand -- the count is a length of exactly this list -- so this
+ * takes the same pool and names a handful of it.
+ *
+ * The order is not the list's: an ordinary person first, then the first person
+ * with no name on file if there is one, because that is the case nobody has
+ * ever been shown and the one worth seeing. Anyone held back comes last, with
+ * the reason in the operator's own words.
+ */
+export interface PreviewPerson {
+  id: string;
+  /** What the operator calls them: their name, or the number on file. */
+  label: string;
+  /** The words the wire puts in a first-name slot, or null when nothing is on file. */
+  firstName: string | null;
+  /** Why nothing is sent to them, in the operator's words; null when it is. */
+  refusal: string | null;
+}
+
+export interface AudiencePreview {
+  people: PreviewPerson[];
+  /** How many the send really reaches, and how many in the list it does not. */
+  sending: number;
+  held: number;
+}
+
+function previewPerson(r: PersonRowVM, refusal: string | null): PreviewPerson {
+  return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
+}
+
+export function audiencePreview(
+  rows: PersonRowVM[],
+  kind: AudienceKind,
+  id: string | null | undefined,
+  savedIds: ReadonlySet<string> | null,
+  purpose: SendPurpose,
+  limit = 5,
+): AudiencePreview {
+  let pool: PersonRowVM[] = rows;
+  if (kind === "list") {
+    const l = PEOPLE_LISTS.find((x) => x.id === id);
+    pool = l ? rows.filter(l.test) : [];
+  } else if (kind === "saved") {
+    pool = savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  }
+  const sending = pool.filter((r) => mayReceive(r, purpose));
+  const held = pool.filter((r) => !mayReceive(r, purpose));
+  const named = sending.filter((r) => firstNameOf(r.givenName, r.waName) !== null);
+  const unnamed = sending.filter((r) => firstNameOf(r.givenName, r.waName) === null);
+  // One ordinary person, then the one nobody has seen, then the rest in order.
+  const order = [...named.slice(0, 1), ...unnamed.slice(0, 1), ...named.slice(1), ...unnamed.slice(1)];
+  const people = order.slice(0, limit).map((r) => previewPerson(r, null));
+  // Why a person in the list is not in the send, from the one place that answers
+  // it: no number at all, else the consent the purpose asks for.
+  for (const r of held.slice(0, 2)) {
+    const why = !r.phone
+      ? "No phone number on file, so nothing can be sent."
+      : PURPOSE_REFUSALS[mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).reason ?? ""] ?? "Held back.";
+    people.push(previewPerson(r, why));
+  }
+  return { people, sending: sending.length, held: held.length };
 }
 
 /** The words a person will read: the body with its numbered slots filled. */
