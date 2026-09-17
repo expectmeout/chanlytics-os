@@ -105,3 +105,34 @@ test("the wiring: one row component for People and Today, the queue in the comma
   assert.ok(css.includes(".tq-live {") && css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
   assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
 });
+
+test("REGRESSION: the queue names the wire the thread is actually on", () => {
+  // Every escalation row said "WhatsApp", hard-coded. The day email went live
+  // an owner would have read "WhatsApp \u00b7 waited 2h" above a quote from an
+  // email -- the same defect that had the Conversations list labelling SMS
+  // threads WhatsApp until it was found there.
+  const wired = (id, channel, at) => ({
+    id: `m-${id}`, conversation_id: id, direction: "inbound", sender: "customer", type: "text",
+    body: "Can you do Saturday at 9?", media: null, meta: null, status: "received", channel, created_at: at,
+  });
+  const threads = [
+    { id: "cvE", state: "needs_human", paused_until: null, last_wa_inbound_at: null, last_message_at: "2026-09-06T13:00:00Z",
+      contact: { id: "cE", display_name: "Ana Reyes", wa_profile_name: null, phone_e164: null, email: "ana@example.com", consent: "opted_in", dnc: false },
+      messages: [wired("cvE", "email", "2026-09-06T13:00:00Z")] },
+    { id: "cvS", state: "needs_human", paused_until: null, last_wa_inbound_at: "2026-09-06T12:30:00Z", last_message_at: "2026-09-06T12:30:00Z",
+      contact: { id: "cS", display_name: "Bea", wa_profile_name: null, phone_e164: "+13055550199", consent: "opted_in", dnc: false },
+      messages: [wired("cvS", "sms", "2026-09-06T12:30:00Z")] },
+  ];
+  const held = [
+    { id: "eE", reason: "email_review", details: null, state: "open", created_at: "2026-09-06T13:05:00Z", conversation_id: "cvE" },
+    { id: "eS", reason: "human_token", details: null, state: "open", created_at: "2026-09-06T12:35:00Z", conversation_id: "cvS" },
+  ];
+  const rows = toTodayVM(metrics(), threads, held, [], NOW).queue.rows;
+  assert.deepEqual(rows.map((r) => [r.who, r.channel]), [["Bea", "Text"], ["Ana Reyes", "Email"]],
+    "the wire each thread's words last travelled, longest wait first");
+  assert.deepEqual(rows[1].status.slice(0, 2), ["Escalated", "wrote by email"]);
+  // A thread with no messages at all still reads as WhatsApp, which is what
+  // every row was before the column existed to say otherwise.
+  const bare = toTodayVM(metrics(), conversations, escalations, calls, NOW).queue.rows;
+  assert.equal(bare.find((r) => r.who === "Ana").channel, "Phone", "a call-back row is the call's");
+});

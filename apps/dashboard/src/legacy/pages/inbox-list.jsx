@@ -49,7 +49,10 @@ const InboxList = ({
   const [askArchive, setAskArchive] = React.useState(false);
   React.useEffect(() => { if (!selected.length) setAskArchive(false); }, [selected.length]);
 
-  const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
+  // Keyed on what the view model says (writtenChannelOf): "email". It carried
+  // only the seed's "mail", so a real email thread fell through to the chat
+  // bubble and wore WhatsApp's glyph in the list. inbox-thread.jsx accepts both.
+  const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : (c === "email" || c === "mail") ? "mail" : "chat";
 
   // Filter: a non-empty search spans ALL threads (so results surface across
   // buckets); otherwise the parent already scoped `threads` to bucket/view.

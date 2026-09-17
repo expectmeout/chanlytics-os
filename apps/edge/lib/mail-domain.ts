@@ -24,20 +24,28 @@ import { fetchMailDomains, type MailCapability, type MailDomainFacts } from "./w
 /** The one status that means the DNS is in place. Everything else is judged by what it costs, never assumed benign. */
 const VERIFIED = "verified";
 /**
- * Statuses the provider only gives a domain that was verified once
- * (`temporary_failure`: the records stopped being seen on a periodic check;
- * `failed`: they stayed unseen for 72 hours). Worth different words from a
- * domain that was never set up, because somebody's mail is being lost NOW.
+ * The one status the provider gives ONLY to a domain that was verified and has
+ * stopped being seen on a periodic check. Worth its own words, because it is
+ * the case where mail that was arriving has started being lost.
+ *
+ * `failed` deliberately is NOT in here, though it was at first. The provider
+ * uses it for "the records stayed unseen for 72 hours", which a domain reaches
+ * from either direction -- one that was working and lost them, and one that was
+ * never finished. Our own mail domain sat at `failed` having never verified,
+ * which is how the wrong grouping was caught: the alarm would have said a
+ * domain that never worked had stopped working.
  */
-const WAS_WORKING: ReadonlySet<string> = new Set(["temporary_failure", "failed"]);
+const WAS_VERIFIED: ReadonlySet<string> = new Set(["temporary_failure"]);
 
 export type MailDomainTrouble =
   /** The provider has no such domain. EMAIL_DOMAIN names something that was never added, or was deleted. */
   | { kind: "absent" }
   /** Never verified: added and not finished (`not_started`, `pending`), or a status this code has not heard of. */
   | { kind: "never_verified"; status: string }
-  /** It was verified and the records stopped being seen. */
+  /** It was verified and the records stopped being seen: mail that was arriving is being lost now. */
   | { kind: "stopped"; status: string }
+  /** The provider gave up after 72 hours of not seeing the records. It may never have been verified, or it may have been and lost them. */
+  | { kind: "given_up"; status: string }
   /** One half verified, the other not (`partially_verified`, `partially_failed`). Which half is in the provider's dashboard. */
   | { kind: "half"; status: string }
   /** Verified, and configured with a half switched off — so that half of the address does nothing. */
@@ -60,7 +68,8 @@ export function judgeMailDomain(domains: MailDomainFacts[], wanted: string): Mai
   if (!d) return { kind: "absent" };
   if (d.status !== VERIFIED) {
     if (d.status.startsWith("partially_")) return { kind: "half", status: d.status };
-    return WAS_WORKING.has(d.status) ? { kind: "stopped", status: d.status } : { kind: "never_verified", status: d.status };
+    if (d.status === "failed") return { kind: "given_up", status: d.status };
+    return WAS_VERIFIED.has(d.status) ? { kind: "stopped", status: d.status } : { kind: "never_verified", status: d.status };
   }
   if (d.sending === "disabled" || d.receiving === "disabled") return { kind: "off", sending: d.sending, receiving: d.receiving };
   return null;
@@ -75,6 +84,8 @@ function consequence(t: MailDomainTrouble): string {
       return "email is switched on for this deployment and the domain was never finished. Mail sent to it is refused or dropped, and replies cannot leave.";
     case "stopped":
       return "mail addressed to every workspace is being dropped WITHOUT a bounce to the sender, so nobody on either side is told. Replies fail too.";
+    case "given_up":
+      return "mail addressed to every workspace is being dropped and replies cannot leave. The provider stopped looking after 72 hours, so this will not fix itself even once the records are right: somebody has to ask it to verify the domain again.";
     case "half":
       return "one of sending and receiving is verified and the other is not. If it is receiving, customers' emails are being lost silently.";
     case "off":

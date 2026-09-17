@@ -202,6 +202,27 @@ export function writtenChannelOf(channel: string | null | undefined): "whatsapp"
 /** A thread's channel in the words under a person's name. */
 const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } as const;
 
+/**
+ * The wire a thread's written words LAST travelled; "phone" when it has none.
+ *
+ * One derivation, because three surfaces were each answering it their own way
+ * and two of them answered "WhatsApp" whatever the row said. Today hard-coded
+ * the word onto every escalation, so an email arriving read "WhatsApp \u00b7 waited
+ * 12m"; the conversation row derived it properly only after the same defect
+ * was found there. A row that names the wrong wire is worse than one that
+ * names none: the owner replies in the wrong place, or does not recognise the
+ * thread they are being asked about.
+ */
+export function threadChannelOf(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "whatsapp" | "sms" | "email" | "phone" {
+  const written = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return written ? writtenChannelOf(written.channel) : "phone";
+}
+
+/** The same question, in the words a row shows. */
+export function threadChannelWords(messages: ReadonlyArray<Pick<MessageDto, "type" | "channel">>): "WhatsApp" | "Text" | "Email" | "Phone" {
+  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
+}
+
 /** An email's subject, as the intake kept it (core email-ingest.ts). */
 function emailSubjectOf(m: MessageDto): string | null {
   const email = (m.meta as { email?: { subject?: unknown } } | null)?.email;
@@ -934,10 +955,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     answeredBy: lastAuthor ? lastAuthor.kind : null,
     // The wire the conversation's last written words travelled. A thread with
     // nothing but a call note is the phone, which is what it looks like.
-    channel: (() => {
-      const written = [...dto.messages].reverse().find((m) => m.type !== "call_summary");
-      return written ? writtenChannelOf(written.channel) : "phone";
-    })(),
+    channel: threadChannelOf(dto.messages),
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a

@@ -11,6 +11,19 @@ const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect } = Rea
 const CV_ICON = { phone: "phone", sms: "chat", whatsapp: "chat", instagram: "instagram", email: "mail" };
 const CV_LABEL = { phone: "Phone", sms: "Text", whatsapp: "WhatsApp", instagram: "Instagram", email: "Email" };
 
+// ONE rule for "is this row in that tab", read by the filter AND the counts, so
+// a tab can never show a number it does not then list. `chats` is the mockup's
+// grouped tab; a real workspace gets one tab per wire (legacy-bridge
+// surface-data.ts). "mail" is the seed's spelling of what the view model calls
+// "email" — the filter carried only the seed's, so the Email tab was empty on
+// the mockup and matched nothing at all on a real workspace.
+const CV_TAB_KEYS = { chats: ["instagram", "sms", "whatsapp"], email: ["email", "mail"], mail: ["email", "mail"] };
+const inChannel = (c, id) => id === "all" || (CV_TAB_KEYS[id] || [id]).includes(c.channel);
+// Published so the rule can be driven on its own, the way the back office
+// publishes its waiting row: a tab that lists the wrong rows is not something
+// reading this file tells you.
+window.CV_IN_CHANNEL = inChannel;
+
 // The row's outcome as the one pill draws it. The words a page knows better
 // stay here (which channel answered, what you chose); the tones are the map's,
 // so "Needs you" is amber here as it is in the Inbox and on a playbook.
@@ -332,7 +345,7 @@ const CvViewer = ({ c, onBack = null, notice = null }) => {
         {/* Summary */}
         <div className="cv-summary">
           <div className="cv-summary-eyebrow">
-            <Icon name={c.channel === "phone" ? "phone" : "chat"} size={11} />
+            <Icon name={CV_ICON[c.channel] || "chat"} size={11} />
             {c.channel === "phone" ? "What happened on this call" : `Latest from ${c.whoShort || c.who}`}
             {c.policyClass && <PolicyChip cls={c.policyClass} className="cv-pol" />}
           </div>
@@ -457,11 +470,7 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
     return () => { window.removeEventListener("inbox:decisions", bump); window.removeEventListener("live:ended", bump); window.removeEventListener("surface:conversations", bump); };
   }, []);
 
-  const matchesChannel = (c) =>
-    channel === "all" ? true :
-    channel === "phone" ? c.channel === "phone" :
-    channel === "chats" ? (c.channel === "instagram" || c.channel === "sms" || c.channel === "whatsapp") :
-    c.channel === "mail";
+  const matchesChannel = (c) => inChannel(c, channel);
 
   const visible = useCvMemo(() => {
     let list = CONVERSATIONS.filter(matchesChannel);
@@ -485,12 +494,12 @@ const ConversationsPage = ({ channel = "all", initialId = null }) => {
   const requestedMissing = !!initialId && selectedId === initialId && visible.length > 0 && !visible.some((c) => c.id === initialId);
   useCvEffect(() => { if (!initialId) setSelectedId(null); }, [channel]);
 
-  const counts = useCvMemo(() => ({
-    all: CONVERSATIONS.length,
-    phone: CONVERSATIONS.filter(c => c.channel === "phone").length,
-    chats: CONVERSATIONS.filter(c => c.channel === "instagram" || c.channel === "sms" || c.channel === "whatsapp").length,
-    mail: CONVERSATIONS.filter(c => c.channel === "mail").length,
-  }), [tick]); // tick: counts read the swapped global too
+  // Counted from the tabs THIS workspace has, by the same rule that filters
+  // them: a tab that is drawn always carries the number of rows it will show.
+  const counts = useCvMemo(
+    () => Object.fromEntries(CV_CHANNELS.map((t) => [t.id, CONVERSATIONS.filter((c) => inChannel(c, t.id)).length])),
+    [tick], // tick: counts read the swapped global too
+  );
 
   return (
     <div className={`conversations ${phoneOpen ? "phone-detail" : ""}`}>
