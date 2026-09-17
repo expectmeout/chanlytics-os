@@ -850,13 +850,15 @@ function parseIcs(text, fallbackTz, opts = {}) {
     const guests = r.attendees.slice();
     const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
     const uid = p.UID?.value.trim() || null;
+    const org = p.ORGANIZER?.value.trim() ?? "";
+    const organizer = /^mailto:/i.test(org) ? org.slice(7).toLowerCase() : null;
     const isOverride = !!p["RECURRENCE-ID"];
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
     const push = (o) => {
       busy.push(o);
-      items.push({ ...o, title, allDay, uid, description, location, attendees: guests });
+      items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer });
     };
     if (p.RRULE && !isOverride && rule && local) {
       const ex = new Set(instantsOf(r.exdates, fallbackTz));
@@ -3292,9 +3294,11 @@ function phoneFrom(raw) {
 }
 function extractContacts(item) {
   const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
+  const organizer = item.organizer?.toLowerCase() || null;
   const emails = /* @__PURE__ */ new Set();
   for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
   for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
+  if (organizer) emails.delete(organizer);
   const phones = /* @__PURE__ */ new Set();
   for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
     const p = phoneFrom(m);
@@ -3302,6 +3306,7 @@ function extractContacts(item) {
   }
   const names = /* @__PURE__ */ new Set();
   for (const a of item.attendees ?? []) {
+    if (organizer && a.email?.toLowerCase() === organizer) continue;
     const n = (a.name ?? "").trim();
     if (n && !EMAIL_RE.test(n)) names.add(n);
     EMAIL_RE.lastIndex = 0;
@@ -3460,7 +3465,8 @@ var NAME_WORD = /^[\p{L}][\p{L}'’.-]*$/u;
 var CAPITAL = /^\p{Lu}/u;
 function guessName(item, services = []) {
   const svc = new Set(services.map((s) => s.trim().toLowerCase()).filter(Boolean));
-  const guest = (item.attendees ?? []).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
+  const organizer = item.organizer?.toLowerCase() || null;
+  const guest = (item.attendees ?? []).filter((a) => !organizer || a.email?.toLowerCase() !== organizer).map((a) => (a.name ?? "").trim()).find((n) => n && !n.includes("@"));
   if (guest) return guest.slice(0, 80);
   const title = item.title.replace(/\([^)]*\)/g, " ").replace(/\[[^\]]*\]/g, " ");
   const parts2 = title.split(/\s+(?:-|–|—|·|\||:|\/)\s+|\s+(?:with|for|w\/)\s+|:\s+/i).map((p) => p.trim()).filter(Boolean);

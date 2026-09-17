@@ -3147,6 +3147,13 @@ interface FeedItem extends BusyBlock {
     description: string | null;
     location: string | null;
     attendees: FeedAttendee[];
+    /**
+     * The address the event names as its ORGANIZER, lower-cased, or null. On a
+     * business's own calendar that is the owner or the booking tool that writes
+     * into it -- present on every event, and usually among the guests as well.
+     * Kept so the match can tell them from the customer (calendar-people.ts).
+     */
+    organizer: string | null;
 }
 interface ParsedFeed {
     busy: BusyBlock[];
@@ -3363,8 +3370,22 @@ interface PersonMatch {
     thread?: string | null;
     wa_inbound_at?: string | null;
 }
-/** The phones, emails and guest names an event carries, wherever they were written. */
-declare function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees">): EventContacts;
+/**
+ * The phones, emails and guest names an event carries, wherever they were
+ * written -- except the organiser's.
+ *
+ * The organiser is the calendar's owner, or the booking tool writing into it.
+ * They are on EVERY event the feed carries, as ORGANIZER and usually among
+ * the guests as well, and they are never who the appointment is for. Left in,
+ * an owner who is also in People -- which the email channel makes likely,
+ * since testing a new inbox means writing to it from your own address --
+ * would take every appointment on their own calendar: by address, or by the
+ * name their CN repeats on every line. So both come off, keyed by the
+ * address, because that is the key the two arrive under. The cost is an
+ * appointment a customer organised themselves, which stays unmatched --
+ * matching nobody is the safe way to be wrong; attaching the owner is not.
+ */
+declare function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">): EventContacts;
 /**
  * A person whose whole name the text carries: four letters or more, on word
  * edges ("Dani" is not in "Daniela"), the longest match when several fit.
@@ -3372,7 +3393,7 @@ declare function extractContacts(item: Pick<FeedItem, "title" | "description" | 
  */
 declare function personInText(text: string, people: PersonLike[]): PersonLike | null;
 /** Who the appointment is for: a phone in the event first, then an address, then a whole name in its title, guests or description. */
-declare function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees">, people: PersonLike[]): PersonMatch | null;
+declare function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, people: PersonLike[]): PersonMatch | null;
 interface Visit {
     id: string;
     /** Epoch ms. */
@@ -3476,7 +3497,7 @@ declare function toVisitDto(v: Visit | null): VisitDto | null;
  * of letters and not a service the workspace lists. Shown in the button
  * before anything is added, so a wrong guess is seen, not saved unread.
  */
-declare function guessName(item: Pick<FeedItem, "title" | "attendees">, services?: string[]): string | null;
+declare function guessName(item: Pick<FeedItem, "title" | "attendees" | "organizer">, services?: string[]): string | null;
 /** One person an appointment names: the phone that keys them, the name as the event gives it, and the appointment it came from. */
 interface CalendarPerson {
     /** E.164. */

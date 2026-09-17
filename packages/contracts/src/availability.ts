@@ -35,6 +35,13 @@ export interface FeedItem extends BusyBlock {
   description: string | null;
   location: string | null;
   attendees: FeedAttendee[];
+  /**
+   * The address the event names as its ORGANIZER, lower-cased, or null. On a
+   * business's own calendar that is the owner or the booking tool that writes
+   * into it -- present on every event, and usually among the guests as well.
+   * Kept so the match can tell them from the customer (calendar-people.ts).
+   */
+  organizer: string | null;
 }
 
 export interface ParsedFeed {
@@ -383,11 +390,13 @@ export function parseIcs(text: string, fallbackTz: string, opts: ParseOptions = 
     const guests = r.attendees.slice();
     const allDay = p.DTSTART.params.VALUE === "DATE" || /^\d{8}$/.test(p.DTSTART.value.trim());
     const uid = p.UID?.value.trim() || null;
+    const org = p.ORGANIZER?.value.trim() ?? "";
+    const organizer = /^mailto:/i.test(org) ? org.slice(7).toLowerCase() : null;
     const isOverride = !!p["RECURRENCE-ID"];
     const rule = p.RRULE && !isOverride ? parseRule(p.RRULE.value, fallbackTz) : null;
     const local = p.RRULE && !isOverride ? localPartsOf(p.DTSTART.value, p.DTSTART.params, fallbackTz) : null;
     const dur = end - start;
-    const push = (o: BusyBlock) => { busy.push(o); items.push({ ...o, title, allDay, uid, description, location, attendees: guests }); };
+    const push = (o: BusyBlock) => { busy.push(o); items.push({ ...o, title, allDay, uid, description, location, attendees: guests, organizer }); };
 
     if (p.RRULE && !isOverride && rule && local) {
       const ex = new Set<number>(instantsOf(r.exdates, fallbackTz));
