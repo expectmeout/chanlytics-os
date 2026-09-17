@@ -369,7 +369,15 @@
   .ix-sending-strip { left: 10px; right: 10px; transform: none; justify-content: center; flex-wrap: wrap; row-gap: 6px; }
   .ix-verdict-opts { grid-template-columns: 1fr; }
   .ix-param { flex-wrap: wrap; }
-  .fl-card.set-card { overflow-x: auto; }
+  /* Only a card that holds a real table may scroll sideways. It used to be every
+     Settings card, and an overflow container clips what leaves it: the focus ring
+     is a box-shadow 4px outside its control, so tabbing through a card on a phone
+     lost the ring at both edges. Measured at 390px across all nine panes and the
+     business editor: nothing scrolls sideways any more -- the policy matrix is a
+     list and the invoices are a three-column grid -- so this now guards the back
+     office alone.
+     .tq (Setup) is not .fl-card and never had it. */
+  .fl-card.set-card:has(table) { overflow-x: auto; }
   .pol-table { min-width: 520px; }
   .tb-presence { padding-left: 8px; padding-right: 8px; }
   .bc-comp { white-space: normal; }
