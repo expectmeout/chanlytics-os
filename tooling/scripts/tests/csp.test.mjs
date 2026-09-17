@@ -17,23 +17,24 @@ const { contentSecurityPolicy, CSP_HEADER } = await importSrc("apps/dashboard/sr
 
 const directives = (policy) => Object.fromEntries(policy.split(";").map((d) => d.trim()).filter(Boolean).map((d) => { const [name, ...values] = d.split(/\s+/); return [name, values]; }));
 
-test("script-src is the nonce and strict-dynamic, never unsafe-inline; production has no eval; the policy refuses framing, objects and a foreign base", () => {
-  const p = directives(contentSecurityPolicy({ nonce: "abc123==", supabaseUrl: "https://mwwy.supabase.co" }));
-  assert.deepEqual(p["script-src"], ["'self'", "'nonce-abc123=='", "'strict-dynamic'", "https://connect.facebook.net"]);
-  assert.ok(!p["script-src"].includes("'unsafe-inline'") && !p["script-src"].includes("'unsafe-eval'"), "the directive a policy exists to withhold");
+test("script-src is the app's own origin, Meta's SDK host and inline by name (the nonce does not reach the render on Vercel); production has no eval; the policy refuses framing, objects and a foreign base", () => {
+  const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co" }));
+  assert.deepEqual(p["script-src"], ["'self'", "'unsafe-inline'", "https://connect.facebook.net"]);
+  assert.ok(!p["script-src"].includes("'unsafe-eval'") && !p["script-src"].some((v) => /^https?:\/\//.test(v) && v !== "https://connect.facebook.net"), "no eval, no foreign script origin");
+  assert.ok(!p["script-src"].some((v) => v.startsWith("'nonce-")), "no nonce: with one present, inline would be refused, and the render on Vercel never receives it");
   assert.deepEqual(p["frame-ancestors"], ["'none'"]);
   assert.deepEqual(p["object-src"], ["'none'"]);
   assert.deepEqual(p["base-uri"], ["'self'"]);
   assert.deepEqual(p["form-action"], ["'self'"]);
   assert.ok("upgrade-insecure-requests" in p, "production upgrades");
-  const reporting = directives(contentSecurityPolicy({ nonce: "n", supabaseUrl: "https://x.supabase.co", reportOnly: true }));
+  const reporting = directives(contentSecurityPolicy({ supabaseUrl: "https://x.supabase.co", reportOnly: true }));
   assert.ok(!("upgrade-insecure-requests" in reporting), "not while it only reports: the browser ignores it there and says so on every page");
   assert.ok("script-src" in reporting, "the rest of the policy rides unchanged");
   assert.deepEqual(p["default-src"], ["'self'"]);
 });
 
 test("the workspace's Supabase origin is allowed over https and wss, and for the signed media it serves; Meta's origins for the sign-up SDK; nothing else", () => {
-  const p = directives(contentSecurityPolicy({ nonce: "n", supabaseUrl: "https://mwwy.supabase.co/" }));
+  const p = directives(contentSecurityPolicy({ supabaseUrl: "https://mwwy.supabase.co/" }));
   assert.deepEqual(p["connect-src"], ["'self'", "https://mwwy.supabase.co", "wss://mwwy.supabase.co", "https://connect.facebook.net", "https://www.facebook.com", "https://web.facebook.com", "https://graph.facebook.com"]);
   assert.deepEqual(p["img-src"], ["'self'", "data:", "blob:", "https://mwwy.supabase.co", "https://*.googleusercontent.com"]);
   assert.deepEqual(p["media-src"], ["'self'", "blob:", "https://mwwy.supabase.co"]);
@@ -45,11 +46,11 @@ test("the workspace's Supabase origin is allowed over https and wss, and for the
 });
 
 test("no Supabase URL, or a malformed one, allows no Supabase origin rather than a wildcard; a dev server gets eval and no upgrade", () => {
-  const none = directives(contentSecurityPolicy({ nonce: "n", supabaseUrl: undefined }));
+  const none = directives(contentSecurityPolicy({ supabaseUrl: undefined }));
   assert.deepEqual(none["connect-src"].filter((v) => v.includes("supabase")), []);
-  const bad = directives(contentSecurityPolicy({ nonce: "n", supabaseUrl: "not a url" }));
+  const bad = directives(contentSecurityPolicy({ supabaseUrl: "not a url" }));
   assert.deepEqual(bad["connect-src"].filter((v) => v.includes("supabase")), []);
-  const dev = directives(contentSecurityPolicy({ nonce: "n", supabaseUrl: "https://x.supabase.co", dev: true }));
+  const dev = directives(contentSecurityPolicy({ supabaseUrl: "https://x.supabase.co", dev: true }));
   assert.ok(dev["script-src"].includes("'unsafe-eval'"), "fast refresh needs it");
   assert.ok(!("upgrade-insecure-requests" in dev), "a laptop is http");
   assert.equal(CSP_HEADER, "content-security-policy-report-only", "report-only until the nightly walks every page clean");

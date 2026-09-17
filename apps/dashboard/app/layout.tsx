@@ -1,17 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
-import { headers } from "next/headers";
-
-/**
- * Every page is rendered per request. The Content-Security-Policy carries a
- * nonce the middleware mints, and Next attaches it to the scripts it emits
- * only while rendering; a page prerendered at build time ships its scripts
- * without one, and the nightly's first report-only run showed the login page
- * doing exactly that (ten script tags, none nonced). At this traffic a
- * request per page costs nothing; a policy that cannot hold costs the app.
- */
-export const dynamic = "force-dynamic";
 
 /**
  * next/font self-hosts the files at build time: one origin instead of three,
@@ -52,27 +41,9 @@ export const viewport: Viewport = {
   themeColor: "#0e1512",
 };
 
-/** The nonce the middleware minted for this request, as it reached the render: read from the header Next reads. */
-async function requestNonce(): Promise<{ nonce: string | null; via: string }> {
-  const h = await headers();
-  const direct = h.get("x-nonce");
-  if (direct) return { nonce: direct, via: "x-nonce" };
-  const csp = h.get("content-security-policy") ?? h.get("content-security-policy-report-only") ?? "";
-  const m = /'nonce-([A-Za-z0-9+/=_-]+)'/.exec(csp);
-  return m ? { nonce: m[1], via: "csp" } : { nonce: null, via: "none" };
-}
-
-export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  // Rendered into the page so the nightly can compare it with the header's:
-  // a page whose scripts carry no nonce while this meta carries one is Next
-  // not applying it; one where this is empty is the header not arriving.
-  const { nonce, via } = await requestNonce();
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" data-theme="dark" className={`${geist.variable} ${geistMono.variable}`}>
-      <head>
-        {nonce ? <meta name="csp-nonce" content={nonce} /> : null}
-        <meta name="csp-nonce-via" content={via} />
-      </head>
       <body>{children}</body>
     </html>
   );

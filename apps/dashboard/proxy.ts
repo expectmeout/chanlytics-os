@@ -85,29 +85,17 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
 export async function proxy(request: NextRequest) {
   const moved = canonicalRedirect(request);
   if (moved) return moved;
-  // One nonce per request, on the request so Next attaches it to the inline
-  // scripts it renders, and on the response so the browser enforces -- for
-  // now, reports -- the policy composed in src/csp.ts.
-  const nonce = btoa(crypto.randomUUID());
+  // The policy composed in src/csp.ts, on the response so the browser
+  // enforces -- for now, reports -- it. Nothing rides on the request: the
+  // nonce a request header would carry does not reach the render on Vercel
+  // (src/csp.ts says what was tried), so the policy names inline by name.
   const csp = contentSecurityPolicy({
-    nonce,
     supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
     dev: process.env.NODE_ENV !== "production",
     reportOnly: CSP_HEADER === "content-security-policy-report-only",
   });
-  const requestHeaders = new Headers(request.headers);
-  requestHeaders.set(CSP_HEADER, csp);
-  // On the REQUEST only, never the response: Next reads the nonce for the
-  // scripts it emits from the request's content-security-policy header first
-  // and the report-only one second. The first nightly with every page dynamic
-  // still found no script nonced in production, so the nonce rides under the
-  // name Next reads first as well; the browser sees only the response header.
-  requestHeaders.set("content-security-policy", csp);
-  // The documented custom header too, so the render can tell a header the
-  // platform dropped by name from an override that never arrived at all.
-  requestHeaders.set("x-nonce", nonce);
   const nextWithPolicy = () => {
-    const r = NextResponse.next({ request: { headers: requestHeaders } });
+    const r = NextResponse.next();
     r.headers.set(CSP_HEADER, csp);
     return r;
   };
