@@ -692,6 +692,8 @@ export type Database = {
           display_name: string | null
           dnc: boolean
           email: string | null
+          email_suppressed_at: string | null
+          email_suppressed_reason: string | null
           erased_at: string | null
           erased_email_hash: string | null
           erased_phone_hash: string | null
@@ -717,6 +719,8 @@ export type Database = {
           display_name?: string | null
           dnc?: boolean
           email?: string | null
+          email_suppressed_at?: string | null
+          email_suppressed_reason?: string | null
           erased_at?: string | null
           erased_email_hash?: string | null
           erased_phone_hash?: string | null
@@ -742,6 +746,8 @@ export type Database = {
           display_name?: string | null
           dnc?: boolean
           email?: string | null
+          email_suppressed_at?: string | null
+          email_suppressed_reason?: string | null
           erased_at?: string | null
           erased_email_hash?: string | null
           erased_phone_hash?: string | null
@@ -1937,6 +1943,56 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "lines_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mailboxes: {
+        Row: {
+          created_at: string
+          from_name: string
+          id: string
+          last_error: string | null
+          last_received_at: string | null
+          local_part: string
+          reply_mode: string
+          reply_token: string
+          reply_token_prev: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          from_name: string
+          id?: string
+          last_error?: string | null
+          last_received_at?: string | null
+          local_part: string
+          reply_mode?: string
+          reply_token: string
+          reply_token_prev?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          from_name?: string
+          id?: string
+          last_error?: string | null
+          last_received_at?: string | null
+          local_part?: string
+          reply_mode?: string
+          reply_token?: string
+          reply_token_prev?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mailboxes_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"

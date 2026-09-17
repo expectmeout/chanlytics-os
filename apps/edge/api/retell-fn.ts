@@ -249,7 +249,14 @@ export async function POST(request: Request): Promise<Response> {
       // The wire found what the gate could not see a moment ago. An erased
       // person is spoken of as one who asked us to stop, which is what they did.
       log("retell_fn_refused_at_wire", { tenant: routed.tenantId, reason: out.reason });
-      const script: OutboundRefusal = out.reason === "erased" ? "opted_out" : out.reason === "superseded_by_human" ? "human_has_it" : out.reason;
+      // This send is on WhatsApp, so email's three refusals cannot arise here; the
+      // compiler cannot know that, and if one ever did, "it could not be sent" is
+      // the true thing to say on a call.
+      const script: OutboundRefusal =
+        out.reason === "erased" ? "opted_out"
+        : out.reason === "superseded_by_human" ? "human_has_it"
+        : out.reason === "email_marketing_disabled" || out.reason === "email_suppressed" || out.reason === "recipient_changed" ? "policy_hold"
+        : out.reason;
       return json(200, { result: refusalScript(script, publishedNumber) });
     }
     if (out.outcome === "failed") {

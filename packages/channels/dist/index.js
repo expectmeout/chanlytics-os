@@ -2250,6 +2250,100 @@ async function verifyTwilioSignature(authToken, url, form2, header) {
   return sameSignature(await twilioSignature(authToken, url, form2), header);
 }
 
+// src/email.ts
+function hostedAddress(localPart, domain) {
+  return `${localPart}@${domain}`;
+}
+function replyRouteAddress(replyToken, domain) {
+  return `r+${replyToken}@${domain}`;
+}
+function hostedIdentity(mailbox, domain) {
+  return { fromName: mailbox.from_name, fromAddress: hostedAddress(mailbox.local_part, domain), replyTo: replyRouteAddress(mailbox.reply_token, domain) };
+}
+var oneLine = (s) => s.replace(/\p{Cc}+/gu, " ").replace(/\s+/g, " ").trim();
+function mailboxHeader(name, address) {
+  const clean = oneLine(name).replace(/["\\]/g, "");
+  return clean ? `"${clean}" <${address}>` : address;
+}
+var REPLY_PREFIX = /^\s*(?:re|aw|sv|rv|antw)\s*:\s*/i;
+var SUBJECT_MAX = 200;
+function replySubject(parentSubject) {
+  let s = oneLine(parentSubject ?? "");
+  while (REPLY_PREFIX.test(s)) s = s.replace(REPLY_PREFIX, "");
+  return `Re: ${s || "your message"}`.slice(0, SUBJECT_MAX);
+}
+var escapeHtml = (s) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+function emailHtml(text) {
+  return text.split(/\n{2,}/).map((p) => p.trim()).filter(Boolean).map((p) => `<p>${escapeHtml(p).replace(/\n/g, "<br>")}</p>`).join("\n");
+}
+function messageIdHeader(id) {
+  const s = oneLine(id ?? "");
+  const bare = s.replace(/^<|>$/g, "");
+  return /^[^\s<>@]+@[^\s<>@]+$/.test(bare) ? `<${bare}>` : null;
+}
+function referencesFor(parent) {
+  const ids = [...parent.references, parent.rfcMessageId].map(messageIdHeader).filter((x) => x !== null);
+  const unique = [...new Set(ids)];
+  const MAX = 20;
+  return unique.length <= MAX ? unique : [unique[0], ...unique.slice(unique.length - (MAX - 1))];
+}
+function buildEmailRequest(i) {
+  const text = [i.body.trim(), i.signature?.trim()].filter(Boolean).join("\n\n");
+  const inReplyTo = messageIdHeader(i.parent.rfcMessageId);
+  const references = referencesFor(i.parent);
+  const headers2 = {
+    ...inReplyTo ? { "In-Reply-To": inReplyTo } : {},
+    ...references.length ? { References: references.join(" ") } : {},
+    ...i.actor === "ai" ? { "Auto-Submitted": "auto-replied" } : {}
+  };
+  return {
+    from: mailboxHeader(i.identity.fromName, i.identity.fromAddress),
+    to: [i.to],
+    reply_to: [i.identity.replyTo],
+    subject: replySubject(i.parent.subject),
+    text,
+    html: emailHtml(text),
+    headers: headers2,
+    tags: [{ name: "cl_message", value: i.messageId }, { name: "cl_tenant", value: i.tenantId }],
+    idempotency_key: i.messageId
+  };
+}
+function isEmailRequest(v) {
+  if (!v || typeof v !== "object") return false;
+  const r = v;
+  const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
+  return typeof r.from === "string" && strings(r.to) && strings(r.reply_to) && typeof r.subject === "string" && typeof r.text === "string" && typeof r.html === "string" && !!r.headers && typeof r.headers === "object" && Array.isArray(r.tags) && typeof r.idempotency_key === "string" && r.idempotency_key.length > 0;
+}
+
+// src/email-resend.ts
+var RESEND_EMAILS = "https://api.resend.com/emails";
+var SEND_TIMEOUT_MS2 = 15e3;
+async function sendEmail(cfg, request) {
+  const { idempotency_key, ...body } = request;
+  try {
+    const r = await fetch(RESEND_EMAILS, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${cfg.apiKey}`, "Content-Type": "application/json", "Idempotency-Key": idempotency_key },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(SEND_TIMEOUT_MS2)
+    });
+    const raw = await r.text().catch(() => "");
+    if (r.ok) {
+      const id = (() => {
+        try {
+          return JSON.parse(raw).id;
+        } catch {
+          return null;
+        }
+      })();
+      return { ok: true, wamid: typeof id === "string" ? id : null, status: r.status };
+    }
+    return { ok: false, wamid: null, status: r.status, errorBody: raw.slice(0, 500) };
+  } catch (e) {
+    return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
+  }
+}
+
 // src/a2p.ts
 var A2P_POLICIES = {
   /** The bundle one customer of an ISV gets. */
@@ -3339,6 +3433,7 @@ export {
   b64url,
   brandRequest,
   brandTypeFor,
+  buildEmailRequest,
   businessAttributes,
   businessEndUserRequest,
   callSummaryLine,
@@ -3355,6 +3450,7 @@ export {
   deleteReplyRequest,
   desiredVoiceShell,
   dryProvider,
+  emailHtml,
   encodeForm,
   evaluateRequest,
   evaluateTrustProductRequest,
@@ -3369,11 +3465,14 @@ export {
   getRetellLlm,
   grantHasScope,
   greetingFor,
+  hostedAddress,
+  hostedIdentity,
   idTokenClaims,
   importPhoneNumber,
   isAreaCode,
   isBrandNotReady,
   isE164,
+  isEmailRequest,
   isValidSipPassword,
   keywordsFor,
   listAccounts,
@@ -3382,7 +3481,9 @@ export {
   listReviews,
   liveTurns,
   locationsRequest,
+  mailboxHeader,
   mergeConsent,
+  messageIdHeader,
   needsHydration,
   newNonce,
   nextA2PStep,
@@ -3405,9 +3506,12 @@ export {
   planVoiceConvergence,
   planVoiceProvision,
   publishAgentVersion,
+  referencesFor,
   refusalWords,
   registrationVerdict,
   replyRequest,
+  replyRouteAddress,
+  replySubject,
   replyToReview,
   representativeAttributes,
   representativeEndUserRequest,
@@ -3421,6 +3525,7 @@ export {
   runLineSaga,
   sameSignature,
   searchPlaces,
+  sendEmail,
   sendTemplate,
   sendText,
   signEdgeToken,

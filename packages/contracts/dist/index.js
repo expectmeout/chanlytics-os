@@ -436,7 +436,12 @@ var PURPOSE_REFUSALS = {
   // messages and nothing else -- an informational campaign, filed that way
   // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
   // go out under a consent the carriers were never told about.
-  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there."
+  sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  // Email's three, at the wire (deliver.ts). Replies only until promotions by
+  // email are a release of their own; a suppression is a fact about the address.
+  email_marketing_disabled: "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
+  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now."
 };
 var OFFERS_BY_WHATSAPP_NOTE = "Offers and news go by WhatsApp only. The text line is registered with the carriers for replies and appointment messages, so nothing promotional is sent by text; someone who has only ever texted you hears about offers once they say yes on WhatsApp.";
 function consentChangeOf(e) {
@@ -5793,6 +5798,9 @@ var HELD_REASONS = {
   paused: "the workspace was paused",
   superseded_by_human: "a person answered first",
   sms_carries_no_promotions: "no offers by text",
+  email_marketing_disabled: "no offers by email yet",
+  email_suppressed: "their email address stopped accepting mail",
+  recipient_changed: "their email address changed",
   erased: "deleted",
   send_failed: "WhatsApp refused",
   missing_value: "a value was missing",
@@ -8996,6 +9004,7 @@ var SCHEMA_SETS = {
   "lines.step": ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"],
   "lines.voice_state": ["none", "provisioning", "answering", "failed"],
   "lines.whatsapp_state": ["none", "connecting", "connected", "coexistence", "failed"],
+  "mailboxes.reply_mode": ["draft", "veto", "auto"],
   "memberships.role": ["owner", "operator", "viewer"],
   "messages.channel": ["whatsapp", "voice", "sms", "email", "system"],
   "messages.direction": ["inbound", "outbound"],

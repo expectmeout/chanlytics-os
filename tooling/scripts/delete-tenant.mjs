@@ -72,7 +72,7 @@ const TABLES = [
   "broadcasts", "business_records", "calls", "capability_activations", "contact_identities", "contacts", "conversations",
   "decisions", "escalations", "events", "google_connections", "google_listing_days",
   "google_listings", "google_reviews", "idempotency_keys", "invitations", "jobs", "lines",
-  "memberships", "messages", "notification_reads", "notifications", "playbooks", "policies",
+  "mailboxes", "memberships", "messages", "notification_reads", "notifications", "playbooks", "policies",
   "segment_members", "segments", "templates", "tenant_channels", "tenant_config",
 ];
 
