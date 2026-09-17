@@ -60,6 +60,14 @@ export const JOB_KINDS = [
    * edge with the provider's credentials and is injected into the tick.
    */
   "line_provision",
+  /**
+   * One received email, fetched from the provider and taken in (00127). The
+   * webhook that announces it is a pointer, and a fetch can fail, so intake is
+   * a job: once per mailbox however often the webhook is replayed, and resumed
+   * where an interrupted run stopped. The fetch stays on the edge with the
+   * provider's key and is injected into the tick.
+   */
+  "email_ingest",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -275,6 +283,8 @@ export const ESCALATION_REASONS = [
   "paused",
   /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
   "carriers",
+  /** An email a person must read before anyone answers it (00127). */
+  "email_review",
 ] as const;
 export type EscalationReason = (typeof ESCALATION_REASONS)[number];
 

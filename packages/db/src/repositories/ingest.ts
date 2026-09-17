@@ -12,7 +12,7 @@ type Db = SupabaseClient<Database>;
 
 export interface IngestInboundParams {
   tenantId: string;
-  channel: "whatsapp" | "sms";
+  channel: "whatsapp" | "sms" | "email";
   identityExternalId: string;
   phoneE164: string | null;
   waProfileName: string | null;

@@ -18,7 +18,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { alertFor } from "../../lib/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
-import { emailWire } from "../../lib/email.js";
+import { emailWire, emailIntake } from "../../lib/email.js";
 import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
@@ -67,6 +67,8 @@ export async function POST(request: Request): Promise<Response> {
           // its request was frozen, from that workspace's own mailbox.
           const line = await smsSenderForTenant(db, job.tenant_id);
           const email = emailWire();
+          // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
+          const intake = emailIntake(db);
           const wire = {
             whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
             sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body) : null,
@@ -81,6 +83,7 @@ export async function POST(request: Request): Promise<Response> {
               // The edge is the only runtime holding BLOB_READ_WRITE_TOKEN.
               eraseThread: deleteThread,
               provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
+              ...(intake ? { email: intake } : {}),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.
               schedule: async (kind, dueAt, payload) => {

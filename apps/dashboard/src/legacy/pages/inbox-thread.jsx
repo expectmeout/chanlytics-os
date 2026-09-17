@@ -266,7 +266,7 @@ const IxAsk = ({ ask }) => (
 
 // =============== HEADER ===============
 const ThreadHeader = ({ thread, channelLabels, onOpenClient = () => {}, onSnooze = () => {}, onMarkUnread = () => {}, onBack = null, onArchive = null }) => {
-  const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
+  const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
   const snoozed = thread.state === "snoozed";
 
   return (
@@ -587,7 +587,7 @@ const ConfidenceMeter = ({ level }) => {
 
 // =============== TIMELINE ENTRY ===============
 const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
-  const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" ? "mail" : c === "sms" ? "chat" : "chat";
+  const channelIcon = (c) => c === "phone" ? "phone" : c === "instagram" ? "instagram" : c === "mail" || c === "email" ? "mail" : "chat";
 
   if (entry.type === "agent-thinking" || entry.type === "agent-decision") {
     const isDecision = entry.type === "agent-decision";
@@ -639,6 +639,8 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
             <span className="tl-msg-time tabular">{entry.at}</span>
           </div>
         )}
+        {/* An email says what it is about before it says it. */}
+        {entry.subject && <div className="tl-msg-subject" data-testid="tl-msg-subject">{entry.subject}</div>}
         <div className="tl-msg-body">{entry.body}</div>
         {entry.media && <TlMedia media={entry.media} />}
         {/* What became of words that did not reach them is said on their own bubble, whatever follows. */}

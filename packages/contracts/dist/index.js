@@ -176,7 +176,15 @@ var JOB_KINDS = [
    * the heartbeat if a worker dies (00109). The saga itself stays on the
    * edge with the provider's credentials and is injected into the tick.
    */
-  "line_provision"
+  "line_provision",
+  /**
+   * One received email, fetched from the provider and taken in (00127). The
+   * webhook that announces it is a pointer, and a fetch can fail, so intake is
+   * a job: once per mailbox however often the webhook is replayed, and resumed
+   * where an interrupted run stopped. The fetch stays on the edge with the
+   * provider's key and is injected into the tick.
+   */
+  "email_ingest"
 ];
 var JOB_STATES = ["scheduled", "fired", "done", "canceled", "failed"];
 var WABA_FIELDS = [
@@ -308,7 +316,9 @@ var ESCALATION_REASONS = [
   /** The workspace is paused (billing): messages land, nothing is answered until it resumes. */
   "paused",
   /** A text arrived on a line the carriers have not approved for texting yet: kept, a person answers. */
-  "carriers"
+  "carriers",
+  /** An email a person must read before anyone answers it (00127). */
+  "email_review"
 ];
 var ESCALATION_STATES = ["open", "resolved"];
 var DECISION_VERBS = [
@@ -1283,7 +1293,7 @@ function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
   return { open: closes > now.getTime(), closesAtIso: new Date(closes).toISOString() };
 }
 function replyWindow(replyChannel, lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
-  return replyChannel === "sms" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 function isLiveCall(call, now = /* @__PURE__ */ new Date()) {
@@ -1415,6 +1425,14 @@ function bubbleTime(iso, tz, now) {
 function contactName(dto) {
   return dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || dto.contact.email || "Unknown";
 }
+function writtenChannelOf(channel) {
+  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+}
+var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function emailSubjectOf(m) {
+  const email = m.meta?.email;
+  return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
+}
 function isIdentifierName(name) {
   return /^[+\d(]/.test(name) || name.includes("@");
 }
@@ -1506,7 +1524,8 @@ var ESCALATION_REASON_LABELS = {
   budget: "The day's model budget is used up \u2014 the receptionist paused itself",
   callback: "Needs a call back \u2014 the phone receptionist could not finish it",
   paused: "Held \u2014 the workspace is paused until billing resumes",
-  carriers: "Held \u2014 the carriers have not approved this line for texting yet"
+  carriers: "Held \u2014 the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email \u2014 a person answers"
 };
 var ESCALATION_SUMMARIES = {
   human_token: "They asked for a person. A holding message went out \u2014 they're waiting on you.",
@@ -1525,7 +1544,8 @@ var ESCALATION_SUMMARIES = {
   stale: "This reached us hours after they sent it, too late to answer automatically. NOTHING was sent \u2014 they have been waiting since.",
   callback: "They phoned and the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings \u203A Billing, or answer this one yourself.",
-  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup."
+  carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here."
 };
 function formatWaited(ms2) {
   return waitedLabel(ms2);
@@ -1558,17 +1578,21 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
   const win = replyWindow(lastInbound?.channel, dto.last_wa_inbound_at, now).open;
   const hasCalls = dto.messages.some((m) => m.type === "call_summary");
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
-  const chatChannel = lastInbound?.channel === "sms" ? "sms" : "whatsapp";
+  const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel = hasChat || !hasCalls ? chatChannel : "phone";
-  const channels = [...hasChat || !hasCalls ? [chatChannel] : [], ...hasCalls ? ["phone"] : []];
+  const written = [...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))];
+  const channels = [...hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : [], ...hasCalls ? ["phone"] : []];
   const timeline = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
+    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     return {
       type: "msg",
       from: m.sender === "customer" ? "client" : "agent",
-      channel: onPhone ? "phone" : m.channel === "sms" ? "sms" : "whatsapp",
+      channel: onPhone ? "phone" : writtenChannelOf(m.channel),
+      // An email's subject line, above its words.
+      ...subject ? { subject } : {},
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...media ? { media } : {},
@@ -1620,7 +1644,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     optedOut: isOptedOut(dto),
     offersOk: dto.contact.marketing_consent === "opted_in",
     who,
-    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : primaryChannel === "sms" ? "Text" : "WhatsApp"),
+    whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
     avatar: initialsOf(who),
     state,
     takenOver,
@@ -3453,6 +3477,7 @@ var REASON_SHORT = {
   policy_ask: "a booking or a question set to Ask me first",
   person_hold: "held for you",
   carriers: "waiting on carriers",
+  email_review: "wrote by email",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",
   brain_error: "the receptionist hit an error",
@@ -3489,11 +3514,14 @@ function personName(r) {
 }
 function channelsOf(r) {
   const set = new Set(r.channels ?? []);
-  if (r.has_chat) set.add("whatsapp");
+  const wrote = r.message_channels;
+  if (wrote ? wrote.some((c) => c === "whatsapp" || c === "sms") : r.has_chat) set.add("whatsapp");
+  if (wrote?.includes("email")) set.add("email");
   if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order = ["whatsapp", "voice"];
+  const order = ["whatsapp", "voice", "email"];
   return order.filter((c) => set.has(c));
 }
+var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", voice: "Phone", email: "Email" };
 function personStanding(r, nowMs) {
   return standingOf({
     state: r.latest_state === "snoozed" ? "snoozed" : r.needs_human || r.latest_state === "needs_human" ? "needs_human" : r.latest_state ?? "open",
@@ -4027,7 +4055,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     k: "First contact",
     v: base.firstContact.ts !== null ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} \xB7 ${firstChannel}` : "\u2014"
   });
-  about.push({ k: "Channels", v: base.channels.map((c) => c === "whatsapp" ? "WhatsApp" : "Phone").join(" \xB7 ") || "\u2014" });
+  about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
   if (base.hasChat) {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
@@ -8967,12 +8995,13 @@ var SCHEMA_SETS = {
     "policy_ask",
     "callback",
     "paused",
-    "carriers"
+    "carriers",
+    "email_review"
   ],
   "escalations.state": ["open", "resolved"],
   "google_reviews.origin": ["places", "profile"],
   "invitations.role": ["operator", "viewer"],
-  "jobs.kind": ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"],
+  "jobs.kind": ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest"],
   "jobs.state": ["scheduled", "fired", "done", "canceled", "failed"],
   "lines.forwarding_state": ["none", "instructed", "verified"],
   "lines.kind": ["chanlytics", "hosted", "ported", "forwarded"],
@@ -9251,6 +9280,7 @@ export {
   PEOPLE_LIST_GROUPS,
   PEOPLE_TABS,
   PERM_DOING,
+  PERSON_CHANNEL_WORDS,
   PERSON_MODES,
   PERSON_MODE_LABELS,
   PERSON_MODE_WORDS,
@@ -9760,6 +9790,7 @@ export {
   whyNotAnEmail,
   windowFor,
   workspaceHotkey,
+  writtenChannelOf,
   zoneDayKey,
   zoneMidnight,
   zoneOffsetMs,

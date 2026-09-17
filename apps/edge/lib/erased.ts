@@ -9,7 +9,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
-import { erasedPhoneHash } from "./workspace/contracts.js";
+import { erasedEmailHash, erasedPhoneHash } from "./workspace/contracts.js";
 
 type Db = SupabaseClient<Database>;
 
@@ -46,4 +46,24 @@ export async function erasedBeforeCall(db: Db, tenantId: string, phoneE164: stri
   if (!t) return false;
   const since = t.erasing_since ?? t.erased_at;
   return !!since && Date.parse(startedAtIso) < Date.parse(since);
+}
+
+/**
+ * The same question of an email: received at this moment from this address,
+ * does it belong to an erasure? The address left its own digest (00125). An
+ * intake that runs late -- a job retried, a webhook delivered after the fact --
+ * must not make the person again from an email they sent before they asked to
+ * be forgotten; one they send afterwards is them coming back.
+ */
+export async function erasedBeforeEmail(db: Db, tenantId: string, address: string, receivedAtIso: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("contacts")
+    .select("erased_at, erasing_since")
+    .eq("tenant_id", tenantId)
+    .eq("erased_email_hash", await erasedEmailHash(tenantId, address));
+  if (error) throw new Error(`erased_tombstones: ${error.message}`);
+  return ((data ?? []) as Tombstone[]).some((t) => {
+    const since = t.erasing_since ?? t.erased_at;
+    return !!since && Date.parse(receivedAtIso) < Date.parse(since);
+  });
 }

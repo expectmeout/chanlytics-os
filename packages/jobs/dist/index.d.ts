@@ -1,7 +1,8 @@
 import { Database, Json } from '@chanlytics/db';
 import { JobKind } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
-import { Wire } from '@chanlytics/core';
+import { ReceivedEmail } from '@chanlytics/channels';
+import { Wire, EmailIngestPorts, IncomingEmail } from '@chanlytics/core';
 
 /**
  * The jobs ledger: the rules a row moves by, and the writes that move it.
@@ -108,6 +109,13 @@ declare function scheduleJob(db: Db, p: ScheduleParams): Promise<{
     jobId: string;
 }>;
 /**
+ * The same insert, for a kind the ledger holds at most one of per subject (a
+ * unique index on its payload: email_ingest, 00127). A second insert for the
+ * same subject is the provider delivering its webhook again, and is answered
+ * as the fact it is rather than thrown: the work is already on the ledger.
+ */
+declare function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled" | "already_scheduled">;
+/**
  * Withdraw every scheduled job of a kind for one subject, in one statement.
  * A job already claimed is past withdrawing; from there the handler's own
  * checks are the guard (an outbound_send re-reads its message, and a canceled
@@ -172,6 +180,23 @@ interface JobContext {
         did?: string;
     }>;
     /**
+     * Email's intake, as the edge holds it. INJECTED like the two above: the
+     * provider's key and the deployment's mail domain live on the edge, and so
+     * does the read of who asked to be forgotten. Optional so a test context
+     * need not supply one; an email_ingest job in a runtime without it fails
+     * loudly rather than guessing.
+     */
+    email?: {
+        /** The deployment's mail domain: what a mailbox's local part is an address on. */
+        domain: string;
+        /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
+        fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
+        /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
+        erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
+        /** Tell the workspace's people an email is waiting: the edge's notify, addressed from that workspace. Never throws. */
+        tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
+    };
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */
@@ -191,6 +216,12 @@ interface ClaimedJob {
     payload: Record<string, unknown>;
 }
 
+/**
+ * The provider's email, as the verb takes it: what it claims to be, its words
+ * as plain text, and its thread ids read out of its headers. The parsing is
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs).
+ */
+declare function incomingEmailOf(e: ReceivedEmail): IncomingEmail;
 declare function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind">;
 
 /**
@@ -306,4 +337,4 @@ interface TickCounts {
 }
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, type JobContext, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, dispatchJob, failJob, runTick, saySettled, scheduleJob, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, type JobContext, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, dispatchJob, failJob, incomingEmailOf, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };

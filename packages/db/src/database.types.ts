@@ -3018,6 +3018,7 @@ export type Database = {
           marketing_consent: string
           marketing_consent_source: string
           marketing_consent_updated_at: string
+          message_channels: string[]
           needs_human: boolean
           open_escalation_reason: string
           open_escalation_since: string

@@ -81,6 +81,8 @@ export interface PersonRowDto {
   earliest_row_at: string | null;
   has_backfill: boolean | null;
   has_chat: boolean | null;
+  /** The wires their written words travelled: whatsapp, sms, email (00127). Absent on a row read before it. */
+  message_channels?: string[] | null;
   queued_reply_at: string | null;
   /** The reply mode in force for this person — their own setting, else the
    *  workspace's. Attached by the API from the policies table; people_list
@@ -202,6 +204,7 @@ const REASON_SHORT: Record<string, string> = {
   policy_ask: "a booking or a question set to Ask me first",
   person_hold: "held for you",
   carriers: "waiting on carriers",
+  email_review: "wrote by email",
   send_failed: "a reply failed to send",
   deadman: "no answer in time",
   brain_error: "the receptionist hit an error",
@@ -262,7 +265,7 @@ export function personName(r: Pick<PersonRowDto, "display_name" | "wa_profile_na
   return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || r.email || "Unknown";
 }
 
-export type PersonChannel = "whatsapp" | "voice";
+export type PersonChannel = "whatsapp" | "voice" | "email";
 
 /**
  * Channels are what actually happened, not only what identities record.
@@ -272,11 +275,19 @@ export type PersonChannel = "whatsapp" | "voice";
  */
 function channelsOf(r: PersonRowDto): PersonChannel[] {
   const set = new Set<string>(r.channels ?? []);
-  if (r.has_chat) set.add("whatsapp");
+  // Which wires their words travelled (00127). A row read without it has
+  // written words and no way to say where, and until email every written word
+  // was WhatsApp's or a text's, which share a glyph.
+  const wrote = r.message_channels;
+  if (wrote ? wrote.some((c) => c === "whatsapp" || c === "sms") : r.has_chat) set.add("whatsapp");
+  if (wrote?.includes("email")) set.add("email");
   if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order: PersonChannel[] = ["whatsapp", "voice"];
+  const order: PersonChannel[] = ["whatsapp", "voice", "email"];
   return order.filter((c) => set.has(c));
 }
+
+/** A channel in the owner's words. */
+export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = { whatsapp: "WhatsApp", voice: "Phone", email: "Email" };
 
 type StandingRow = Pick<PersonRowDto, "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason">;
 
@@ -1248,7 +1259,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} · ${firstChannel}`
       : "—",
   });
-  about.push({ k: "Channels", v: base.channels.map((c) => (c === "whatsapp" ? "WhatsApp" : "Phone")).join(" · ") || "—" });
+  about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" · ") || "—" });
   if (base.hasChat) {
     const w = waWindow(r.latest_wa_inbound_at, now);
     const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;

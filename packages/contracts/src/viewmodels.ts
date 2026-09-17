@@ -193,6 +193,20 @@ export function contactName(dto: ConversationDto): string {
   );
 }
 
+/** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
+export function writtenChannelOf(channel: string | null | undefined): "whatsapp" | "sms" | "email" {
+  return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
+}
+
+/** A thread's channel in the words under a person's name. */
+const THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } as const;
+
+/** An email's subject, as the intake kept it (core email-ingest.ts). */
+function emailSubjectOf(m: MessageDto): string | null {
+  const email = (m.meta as { email?: { subject?: unknown } } | null)?.email;
+  return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
+}
+
 /**
  * A name that is an identifier, a number or an address, has no first name to
  * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
@@ -202,7 +216,7 @@ export function isIdentifierName(name: string): boolean {
 }
 
 /** The "WhatsApp · +1 …" subtitle line, same source as the thread viewmodel; "Phone · …" for a caller with no thread. */
-export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" | "Text" = "WhatsApp"): string {
+export function contactMeta(dto: ConversationDto, channel: "WhatsApp" | "Phone" | "Text" | "Email" = "WhatsApp"): string {
   // The identifier under the name: the number, else the address. When it IS
   // the name, the line says so instead of repeating it.
   const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
@@ -333,6 +347,7 @@ export const ESCALATION_REASON_LABELS: Record<string, string> = {
   callback: "Needs a call back — the phone receptionist could not finish it",
   paused: "Held — the workspace is paused until billing resumes",
   carriers: "Held — the carriers have not approved this line for texting yet",
+  email_review: "Wrote by email — a person answers",
 };
 
 /**
@@ -367,6 +382,7 @@ const ESCALATION_SUMMARIES: Record<string, string> = {
   callback: "They phoned and the receptionist couldn't finish it.",
   paused: "The workspace is paused because billing stopped, so the receptionist did not answer. Resume from Settings › Billing, or answer this one yourself.",
   carriers: "This text arrived before the carriers approved your line for texting, so the receptionist did not answer. Answer it yourself, or wait for the approval on Setup.",
+  email_review: "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.",
 };
 
 /** "8m" / "3h" / "2d". An overnight wait is the NORMAL case for a morning
@@ -444,7 +460,7 @@ export interface InboxThreadVM {
   veto?: { window: number; draft: string; endsAtMs: number; messageId: string; why?: ReplyWhyVM };
   /** The channels the thread has actually used: "whatsapp", "phone", or both. */
   channels: string[];
-  primaryChannel: "whatsapp" | "phone" | "sms";
+  primaryChannel: "whatsapp" | "phone" | "sms" | "email";
   /** A WhatsApp thread exists. False for a caller who has only ever phoned: no reply window, phone verbs. */
   hasChat: boolean;
   /** The number to call back, E.164, when known. */
@@ -481,6 +497,8 @@ export interface InboxThreadVM {
         channel: string;
         at: string;
         body: string;
+        /** An email's subject line; absent on every other wire. */
+        subject?: string;
         /** The attachment, when the message is one. */
         media?: MediaVM;
         /** Why the receptionist said it, when the row remembers. */
@@ -579,18 +597,24 @@ export function toInboxThreadVM(
   const hasChat = !!dto.last_wa_inbound_at || dto.messages.some((m) => m.type !== "call_summary");
   // The wire a reply goes out on, as the reply route picks it: where they last wrote. A text thread said WhatsApp,
   // its window read closed, and its composer offered only templates, which the route refuses on a text (I5).
-  const chatChannel: "whatsapp" | "sms" = lastInbound?.channel === "sms" ? "sms" : "whatsapp";
+  const chatChannel = writtenChannelOf(lastInbound?.channel);
   const primaryChannel: InboxThreadVM["primaryChannel"] = hasChat || !hasCalls ? chatChannel : "phone";
-  const channels = [...(hasChat || !hasCalls ? [chatChannel] : []), ...(hasCalls ? ["phone"] : [])];
+  // Every wire the thread's written words travelled, the one a reply goes out on first: with more than one, each
+  // bubble says its own (the page names a bubble's channel only when a thread has several).
+  const written = [...new Set(dto.messages.filter((m) => m.type !== "call_summary").map((m) => writtenChannelOf(m.channel)))];
+  const channels = [...(hasChat || !hasCalls ? [chatChannel, ...written.filter((c) => c !== chatChannel)] : []), ...(hasCalls ? ["phone"] : [])];
 
   const timeline: InboxThreadVM["timeline"] = dto.messages.map((m) => {
     const onPhone = m.type === "call_summary";
     const media = mediaVM(m);
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
+    const subject = m.channel === "email" ? emailSubjectOf(m) : null;
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
-      channel: onPhone ? "phone" : m.channel === "sms" ? "sms" : "whatsapp",
+      channel: onPhone ? "phone" : writtenChannelOf(m.channel),
+      // An email's subject line, above its words.
+      ...(subject ? { subject } : {}),
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...(media ? { media } : {}),
@@ -668,7 +692,7 @@ export function toInboxThreadVM(
     optedOut: isOptedOut(dto),
     offersOk: dto.contact.marketing_consent === "opted_in",
     who,
-    whoMeta: contactMeta(dto, primaryChannel === "phone" ? "Phone" : primaryChannel === "sms" ? "Text" : "WhatsApp"),
+    whoMeta: contactMeta(dto, THREAD_CHANNEL_WORDS[primaryChannel]),
     avatar: initialsOf(who),
     state,
     takenOver,

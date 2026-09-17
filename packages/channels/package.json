@@ -18,9 +18,11 @@
   },
   "dependencies": {
     "@chanlytics/contracts": "workspace:*",
+    "html-to-text": "^9.0.5",
     "zod": "^4.6.5"
   },
   "devDependencies": {
+    "@types/html-to-text": "^9.0.4",
     "tsup": "^8.3.0",
     "typescript": "^5.7.0"
   }

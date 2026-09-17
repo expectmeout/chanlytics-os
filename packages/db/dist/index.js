@@ -994,6 +994,54 @@ async function emitEvent(db, tenantId, kind, category, subjectType, subjectId, d
   if (error) console.error("emit_event_failed", kind, error.message);
 }
 
+// src/repositories/email.ts
+async function mailboxById(db, id) {
+  const { data, error } = await db.from("mailboxes").select("*").eq("id", id).maybeSingle();
+  if (error) throw new Error(`mailbox: ${error.message}`);
+  return data;
+}
+async function mailboxFor(db, to) {
+  const q = db.from("mailboxes").select("*");
+  const { data, error } = to.kind === "mailbox" ? await q.eq("local_part", to.localPart).maybeSingle() : await q.or(`reply_token.eq.${to.token},reply_token_prev.eq.${to.token}`).maybeSingle();
+  if (error) throw new Error(`mailbox: ${error.message}`);
+  return data;
+}
+async function ingestInboundEmail(db, p) {
+  const known = await db.from("contacts").select("id").eq("tenant_id", p.tenantId).eq("email", p.address).is("erased_at", null).is("merged_into_contact_id", null).maybeSingle();
+  if (known.error) throw new Error(`ingest_email: cannot read who has this address: ${known.error.message}`);
+  if (known.data) {
+    const { error } = await db.from("contact_identities").upsert({ tenant_id: p.tenantId, contact_id: known.data.id, channel: "email", external_id: p.address }, { onConflict: "tenant_id,channel,external_id", ignoreDuplicates: true });
+    if (error) throw new Error(`ingest_email: cannot name the person this address belongs to: ${error.message}`);
+  }
+  const out = await ingestInbound(db, {
+    tenantId: p.tenantId,
+    channel: "email",
+    identityExternalId: p.address,
+    phoneE164: null,
+    waProfileName: null,
+    messageExternalId: p.receivedId,
+    type: "text",
+    body: p.body,
+    channelTs: p.channelTs,
+    meta: p.meta
+  });
+  if (!known.data) {
+    const { error } = await db.from("contacts").update({ email: p.address }).eq("id", out.contact_id).eq("tenant_id", p.tenantId).is("email", null);
+    if (error && error.code !== "23505") throw new Error(`ingest_email: cannot record the person's address: ${error.message}`);
+    if (error) console.error("ingest_email_address_taken", JSON.stringify({ tenant: p.tenantId, contact: out.contact_id }));
+  }
+  return out;
+}
+async function sentEmailWithMessageId(db, tenantId, rfcMessageId) {
+  const { data, error } = await db.from("messages").select("id").eq("tenant_id", tenantId).eq("channel", "email").eq("direction", "outbound").eq("meta->email->>message_id", rfcMessageId).limit(1);
+  if (error) throw new Error(`ingest_email: cannot read the ledger of sent emails: ${error.message}`);
+  return (data ?? []).length > 0;
+}
+async function stampMailboxReceived(db, mailboxId, at) {
+  const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
+  if (error) console.error("mailbox_stamp_failed", error.message);
+}
+
 // src/repositories/routing.ts
 var POS_TTL_MS = 5 * 60 * 1e3;
 var NEG_TTL_MS = 60 * 1e3;
@@ -1318,8 +1366,11 @@ export {
   getTenantConfig,
   ingestCall,
   ingestInbound,
+  ingestInboundEmail,
   linkCallMessage,
   listPolicies,
+  mailboxById,
+  mailboxFor,
   markProcessed,
   pauseConversation,
   personReplyMode,
@@ -1333,8 +1384,10 @@ export {
   resolveChannel,
   resolveChannelDetailed,
   resolveOutboundTarget,
+  sentEmailWithMessageId,
   setCallRecording,
   setPersonReplyMode,
   setPolicyMode,
+  stampMailboxReceived,
   subscribeMessagesInserts
 };
