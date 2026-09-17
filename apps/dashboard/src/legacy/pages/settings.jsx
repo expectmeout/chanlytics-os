@@ -2647,7 +2647,7 @@ const PaneNotifications = () => {
 
 const NOTIF_KINDS = [
   { title: "A customer needs a person", what: "It stopped on a thread and someone is waiting. The alert carries their message." },
-  { title: "Still waiting", what: "Nobody has answered a customer since a handoff." },
+  { title: "Still waiting", what: "A handoff has gone unanswered for a while." },
   { title: "After every phone call", what: "Who called, how long, how it went." },
   { title: "A reply failed to send", what: "It wrote an answer and the channel refused it." },
   // The last two are platform alerts: a switched-off number has no workspace

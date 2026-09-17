@@ -279,5 +279,5 @@ export const CONNECTION_GROUP_WORDS: Record<ConnectionGroup, { title: string; su
     },
   },
   available: { title: "Available", sub: (rows) => (rows.some((r) => r.state === "waiting_you") ? "something here waits on you" : rows.some((r) => r.state === "waiting_them") ? "in progress" : "ready when you are") },
-  later: { title: "Later", sub: () => "built, but not yet: nothing here is connected" },
+  later: { title: "Later", sub: () => "not yet: nothing here is connected" },
 };
