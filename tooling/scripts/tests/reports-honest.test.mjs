@@ -307,11 +307,11 @@ test("REGRESSION (C25): the reply window is one rule said one way -- three place
   const replied = toCampaignReportVM(campaignDto()).tiles.find((t) => t.id === "replied");
   assert.equal(replied.meta, `4 wrote back ${contracts.REPLY_WINDOW_WORDS}`);
   fresh();
-  const stats = globalThis.window.BcHistoryStats({ rows: [], more: false, replyWindow: "within 2 days" });
-  assert.ok(find(stats, (n) => n.props?.label === "Replies" && String(n.props.tip).includes("within 2 days of a broadcast")), "Broadcasts reads the published words");
+  const stats = globalThis.window.BcHistoryStats({ rows: [{ id: "b1", open: false, state: "sent", counts: { sent: 2, delivered: 2, replied: 1, skipped: 0, failed: 0 } }], more: false, replyWindow: "within 2 days" });
+  assert.ok(find(stats, (n) => String(n.props?.["data-tip"]).includes("within 2 days of a broadcast")), "Broadcasts reads the published words");
   globalThis.window.__PLAYBOOKS = playbooksSurface({ replyWindow: "within 2 days" });
   fresh();
   const page = globalThis.window.OutboundPage({});
-  assert.ok(find(page, (n) => n.props?.label === "Replies" && String(n.props.tip).includes("within 2 days of a run")), "REGRESSION: Playbooks said 'after a run'");
+  assert.ok(find(page, (n) => String(n.props?.["data-tip"]).includes("within 2 days of a run")), "REGRESSION: Playbooks said 'after a run'");
   assert.ok(find(page, (n) => n.props?.["data-tip"] && String(n.props["data-tip"]).includes("within 2 days of a run")), "and so does each card");
 });

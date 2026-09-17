@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, PolicyChip, Confirm, EmptyState, FailedRead */
+/* global React, Icon, PolicyChip, Confirm, EmptyState, FailedRead */
 // Campaigns › Playbooks, real: a standing rule that sends one approved
 // template to newly eligible people who said yes, under the workspace's
 // autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
@@ -27,10 +27,10 @@ const PB_NONE = [];
 // The hours a run may start at: the sending hours the clock publishes (contracts SENDING_HOURS_WORDS).
 const pbHours = () => { const h = window.__clock && window.__clock.hours; return h ? Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i) : []; };
 const PB_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "running", label: "Running" },
-  { id: "approval", label: "Needs you" },
-  { id: "paused", label: "Paused" },
+  { id: "all", label: "All", words: "in all" },
+  { id: "running", label: "Running", words: "running" },
+  { id: "approval", label: "Needs you", words: "waiting on you" },
+  { id: "paused", label: "Paused", words: "paused" },
 ];
 // The Autonomy row a class runs under, in the matrix's own words (the playbooks surface carries them).
 const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWords && window.__PLAYBOOKS.classWords[cls]) || {}).name || cls;
@@ -445,31 +445,41 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
 
   return (
     <div className="reports" data-testid="playbooks-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Playbooks</div>
-          <div className="cl-page-sub">
-            Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.
-          </div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label="Running" value={running} meta={waiting ? `${waiting} waiting on you` : "on your clock"} />
-          <StatCell label="Sent" value={sent} meta="by every run so far" />
-          <StatCell label="Replies" tip={pbReplyTip()} value={replied} meta="answered in the Inbox" />
-        </StatStrip>
-      </div>
-
-      <div className="cl-controls">
-        <div className="cl-controls-right" style={{ marginLeft: 0 }}>
-          <div className="fleet-filter">
-            {PB_FILTERS.map((f) => (
-              <button key={f.id} className={`fleet-filter-chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>
-                {f.label}
-                <span className="fleet-filter-count tabular">{f.id === "all" ? rows.length : rows.filter((p) => pbStatus(p) === f.id).length}</span>
+      {/* One line above the cards, the way Today, Reports and People say their
+          numbers (#556, #557, #558). It was a page title the top bar already
+          showed, a two-line sub-headline, a three-cell stat strip and a row of
+          four filter chips -- about 467px of a phone before the first playbook,
+          and the chips filtered nothing at the one to four playbooks a salon
+          runs. Every filter is still here: a count is its own tap, and pressing
+          the one in force clears it, as the People line's does. */}
+      <div className="cm-standing" data-testid="pb-standing">
+        <span className="cm-standing-lead" data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
+          {rows.length === 0 ? "No playbook yet" : `${rows.length} ${rows.length === 1 ? "playbook" : "playbooks"}`}
+        </span>
+        {PB_FILTERS.filter((f) => f.id !== "all").map((f) => {
+          const n = rows.filter((p) => pbStatus(p) === f.id).length;
+          if (n === 0) return null;
+          return (
+            <span className="cm-standing-part" key={f.id}>
+              <span className="cm-standing-dot" aria-hidden="true">·</span>
+              <button
+                type="button"
+                className={`cm-standing-tap ${filter === f.id ? "on" : ""}${f.id === "approval" ? " needs" : ""}`}
+                aria-pressed={filter === f.id}
+                onClick={() => setFilter(filter === f.id ? "all" : f.id)}
+                data-testid={`pb-filter-${f.id}`}
+              >
+                <span className="tabular">{n}</span> {f.words}
               </button>
-            ))}
-          </div>
-        </div>
+            </span>
+          );
+        })}
+        {sent > 0 && (
+          <span className="cm-standing-part">
+            <span className="cm-standing-dot" aria-hidden="true">·</span>
+            <span className="tabular" data-tip={pbReplyTip()}>{sent} sent, {replied} {replied === 1 ? "reply" : "replies"}</span>
+          </span>
+        )}
       </div>
 
       <div className="rp-body">

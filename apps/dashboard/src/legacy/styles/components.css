@@ -1485,6 +1485,27 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ct-ghost:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
 .ct-week-foot { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); line-height: 1.5; }
 .ct-week-foot .icon { color: var(--ink-faint); flex-shrink: 0; }
+/* ---- The Campaigns standing line ----
+   One line above the work on all three tabs, the way Today, Reports, People and
+   the Calendar say their numbers. What it replaces, measured at 390px: Playbooks
+   opened with a title the top bar already showed, a two-line sub-headline, a
+   three-cell stat strip and a row of four filter chips (~467px before the first
+   card); Broadcasts with an h2, a three-line sub and a stat strip (~384px before
+   the composer); Messages with a six-line sub and a strip (~590px, and not one
+   message card on the first screen of the page that exists to show them).
+   The sentences those headers carried are on the line's first phrase, one hover
+   or tap away, and the numbers are in Reports > Campaigns where a chart is. */
+.cm-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 2px 0 12px; font-size: var(--text-sm); color: var(--ink-dim); }
+.cm-standing-lead { color: var(--ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.cm-standing-part { display: inline-flex; align-items: center; gap: 6px; }
+.cm-standing-dot { color: var(--ink-faint); }
+/* A count that is also its filter, as the People line's "needs you" is. */
+.cm-standing-tap { min-height: 28px; padding: 0 6px; margin-left: -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--ink-dim); cursor: pointer; }
+.cm-standing-tap:hover { background: var(--bg-hover); color: var(--ink); }
+.cm-standing-tap.on { background: var(--bg-hover); color: var(--ink); }
+.cm-standing-tap.needs { color: var(--warn-ink); }
+.cm-standing-tap.needs.on { color: var(--ink); }
+
 .bc-composer { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .bc-row { display: flex; align-items: flex-start; gap: 12px; }
 .bc-row-label { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); width: 26px; padding-top: 6px; flex-shrink: 0; }

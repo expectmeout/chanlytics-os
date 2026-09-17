@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
+/* global React, Icon, Confirm, EmptyState, FailedRead */
 // Campaigns › Broadcasts, real: one approved template to the people who said
 // yes. Same chrome as the seeded page (broadcasts.jsx); every number is a
 // row's. Nothing here scores, estimates or invents: no credits, no revenue,
@@ -251,20 +251,39 @@ const bcWhenNote = (at, maxDays) => {
 };
 window.bcWhenNote = bcWhenNote;
 
-// The history's numbers -- sent, delivered, replies -- over the rows the route
-// returned. Past fifty broadcasts the route says older ones exist (more), and
-// the numbers say they are the latest fifty rather than reading as everything.
+// The history in ONE LINE above the work, the way Today, Reports and People say
+// their numbers (#556, #557, #558). It was a three-cell stat strip under a page
+// title the top bar already showed and a two-line sub-headline: 384px of a phone
+// before the composer, and every number in it is also in Reports > Campaigns,
+// which is where a number that wants a chart belongs.
+// Past fifty broadcasts the route says older ones exist (more), and the line
+// says its numbers are the latest fifty rather than reading as everything.
 const BcHistoryStats = ({ rows, more, replyWindow = null }) => {
   const history = (rows || []).filter((r) => !r.open);
   const messages = history.reduce((a, r) => a + r.counts.sent, 0);
   const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
-  const scope = more ? " · latest 50 broadcasts" : "";
+  const replied = history.reduce((a, r) => a + r.counts.replied, 0);
+  const sent = history.filter((r) => r.state === "sent").length;
+  const dot = <span className="cm-standing-dot" aria-hidden="true">·</span>;
   return (
-    <StatStrip>
-      <StatCell label="Sent" value={history.filter((r) => r.state === "sent").length} meta={`${messages.toLocaleString()} messages${scope}`} />
-      <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={messages ? `${Math.round((delivered / messages) * 100)}%` : "—"} meta={`from WhatsApp receipts${scope}`} />
-      <StatCell label="Replies" tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"} value={history.reduce((a, r) => a + r.counts.replied, 0)} meta={`answered in the Inbox${scope}`} accent />
-    </StatStrip>
+    <div className="cm-standing" data-testid="bc-standing">
+      <span className="cm-standing-lead" data-tip="One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.">
+        {sent === 0 ? "Nothing sent yet" : `${sent} ${sent === 1 ? "broadcast" : "broadcasts"} sent`}
+      </span>
+      {messages > 0 && (
+        <span className="cm-standing-part">
+          {dot}
+          <span className="tabular" data-tip="Delivered or read, over sent — WhatsApp's own receipts">{messages.toLocaleString()} {messages === 1 ? "message" : "messages"}, {Math.round((delivered / messages) * 100)}% delivered</span>
+        </span>
+      )}
+      {messages > 0 && (
+        <span className="cm-standing-part">
+          {dot}
+          <span className="tabular" data-tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"}>{replied} {replied === 1 ? "reply" : "replies"} in the Inbox</span>
+        </span>
+      )}
+      {more && <span className="cm-standing-part">{dot}<span>the latest 50 broadcasts</span></span>}
+    </div>
   );
 };
 window.BcHistoryStats = BcHistoryStats;
@@ -450,13 +469,6 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
 
   return (
     <div className="bc-page" data-testid="broadcasts-real">
-      <header className="ct-head">
-        <div>
-          <h2 className="ct-h2">Broadcasts</h2>
-          <p className="ct-sub">One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.</p>
-        </div>
-      </header>
-
       {/* A run the list does not hold -- older than its newest fifty -- opens here, first, where its link lands. */}
       {openId && !rows.some((r) => r.id === openId) && (
         <section className="ct-section bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">

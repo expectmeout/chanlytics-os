@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
+/* global React, Icon, Confirm, EmptyState, FailedRead */
 // Campaigns › Messages: what the receptionist and the campaigns send on
 // WhatsApp, shown as the customer sees it. One card per message — the
 // starter set in the library's order, then what the workspace wrote or
@@ -163,14 +163,14 @@ const MessagesReal = () => {
   if (templates === undefined) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div></div></div>
+        <div className="cm-standing">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div>
       </div>
     );
   }
   if (templates === null) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Couldn&rsquo;t be loaded right now</div></div></div>
+        <div className="cm-standing">Your messages couldn&rsquo;t be loaded right now</div>
         <div className="rp-body">
           <FailedRead kind="card" what="your messages" body="The receptionist keeps sending; this page just can't show them at the moment." surface="settings" testid="messages-failed" />
         </div>
@@ -223,18 +223,31 @@ const MessagesReal = () => {
 
   return (
     <div className="reports" data-testid="messages-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Messages</div>
-          <div className="cl-page-sub">
-            What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way. A marketing template can only go to people who said yes to offers.
-          </div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label="Approved" value={approved} meta={lastSync ? `synced ${tplAgo(lastSync)}` : "never synced"} />
-          <StatCell label="In review" value={pending} meta="with WhatsApp" />
-          <StatCell label="Not yet added" value={missingTotal} meta={missingTotal ? "one tap each" : "every starter, both languages"} />
-        </StatStrip>
+      {/* One line above the messages, the way Today, Reports and People say their
+          numbers (#556, #557, #558). The page whose whole job is to show the
+          messages opened with a title the top bar already showed, a sub-headline
+          that ran to six lines at 390px and a three-cell stat strip: about 590px
+          of a phone, and not one message card on the first screen. */}
+      <div className="cm-standing" data-testid="messages-standing">
+        <span className="cm-standing-lead" data-tip="What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way. A marketing template can only go to people who said yes to offers.">
+          {shown.length === 0 ? "No message on file yet" : `${shown.length} ${shown.length === 1 ? "message" : "messages"}`}
+        </span>
+        {shown.length > 0 && (
+          <span className="cm-standing-part">
+            <span className="cm-standing-dot" aria-hidden="true">·</span>
+            <span className="tabular">{approved} approved{pending ? `, ${pending} in review with WhatsApp` : ""}</span>
+          </span>
+        )}
+        {missingTotal > 0 && (
+          <span className="cm-standing-part">
+            <span className="cm-standing-dot" aria-hidden="true">·</span>
+            <span className="tabular">{missingTotal} of the starter set not added</span>
+          </span>
+        )}
+        <span className="cm-standing-part">
+          <span className="cm-standing-dot" aria-hidden="true">·</span>
+          <span>{lastSync ? `synced ${tplAgo(lastSync)}` : "never synced from WhatsApp"}</span>
+        </span>
       </div>
 
       <div className="cl-controls">
