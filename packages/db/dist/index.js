@@ -948,16 +948,7 @@ async function recordEchoAndPause(db, p) {
     console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
     return;
   }
-  const { data: conv, error: verr } = await db.from("conversations").upsert(
-    {
-      tenant_id: p.tenantId,
-      contact_id: contact.id,
-      state: "needs_human",
-      paused_until: p.pausedUntilIso,
-      last_message_at: (/* @__PURE__ */ new Date()).toISOString()
-    },
-    { onConflict: "tenant_id,contact_id" }
-  ).select("id").single();
+  const { data: conv, error: verr } = await db.from("conversations").upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" }).select("id").single();
   if (verr || !conv) {
     console.error("record_echo_conv_failed", verr?.message);
     return;
@@ -976,6 +967,9 @@ async function recordEchoAndPause(db, p) {
     meta: { echo: true }
   });
   if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  if (error?.code === "23505" && p.externalId) return;
+  const { error: perr } = await db.from("conversations").update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: (/* @__PURE__ */ new Date()).toISOString() }).eq("id", conv.id).eq("tenant_id", p.tenantId);
+  if (perr) console.error("record_echo_pause_failed", perr.message);
 }
 async function pauseConversation(db, tenantId, conversationId, pausedUntilIso, opts = {}) {
   const { data, error } = await db.from("conversations").update({ state: "needs_human", paused_until: pausedUntilIso }).eq("id", conversationId).eq("tenant_id", tenantId).select("id");
@@ -1163,12 +1157,14 @@ async function ingestCall(db, tenantId, n, raw) {
   return data;
 }
 async function linkCallMessage(db, tenantId, callId, messageId) {
-  const { error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId);
+  const { data, error } = await db.from("calls").update({ message_id: messageId }).eq("id", callId).eq("tenant_id", tenantId).select("id");
   if (error) console.error("link_call_message_failed", error.message);
+  else if (!data || data.length === 0) console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 async function setCallRecording(db, tenantId, callId, recording) {
-  const { error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId);
+  const { data, error } = await db.from("calls").update({ recording }).eq("id", callId).eq("tenant_id", tenantId).select("id");
   if (error) console.error("set_call_recording_failed", error.message);
+  else if (!data || data.length === 0) console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 async function recordCallNote(db, p) {
   const { data, error } = await db.from("messages").insert({
