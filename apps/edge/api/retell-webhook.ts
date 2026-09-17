@@ -164,28 +164,16 @@ export async function POST(request: Request): Promise<Response> {
     ? verifyRetellSignature(restringified, signature, webhookKey)
     : sigRaw;
   const sigOk = sigRaw || sigRestringified;
-  // The `?key=` in the URL is a secret that rides in Retell's dashboard and
-  // in access logs; anyone holding it could forge a call_analyzed — a
-  // fabricated transcript emailed to the owner and a poisoned note in a
-  // customer's bot memory. Retell signs every delivery, and the signature
-  // should be the only credential. Which one passed is logged on every
-  // event so the key can be retired once a real delivery proves the
-  // signature verifies against the key this deployment holds.
-  //
-  // Two things this key is NOT allowed to be: absent, and the signature's
-  // replacement forever. A blank RETELL_FN_SECRET with `?key=` on the URL
-  // compared "" with "" and opened the door, so an empty variable — the shape
-  // a rotation leaves behind for a moment — admitted anyone. And because the
-  // same secret opens /api/retell-fn (which texts a template on the tenant's
-  // own WhatsApp credentials), a leaked webhook URL is not only a forged
-  // call. RETIRING IT IS AN OPS STEP FIRST, IN THIS ORDER: set
-  // RETELL_WEBHOOK_KEY to the badged key, watch /api/diag's retellAuth for a
-  // delivery with sig:true, re-converge the agents onto a webhook_url with no
-  // query string, and only then delete these three lines. Deleting them while
-  // the signature still fails takes every live call's webhook with it.
-  const urlKey = process.env.RETELL_FN_SECRET;
-  const keyOk = !!urlKey && new URL(request.url).searchParams.get("key") === urlKey;
-  console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk, key: keyOk }));
+  // The signature is the only credential. The `?key=` that once opened this
+  // door beside it was a secret in Retell's dashboard and in access logs, and
+  // anyone holding it could forge a call_analyzed — a fabricated transcript
+  // emailed to the owner and a poisoned note in a customer's bot memory. It
+  // was retired once a real delivery verified against RETELL_WEBHOOK_KEY (the
+  // badged key) and the agents were converged onto a URL with no query
+  // string; a key that still rides on an old URL is ignored, never read. The
+  // auth row keeps its `key` field, always false now, for the diagnostic's
+  // shape.
+  console.log("retell_webhook_auth", JSON.stringify({ sig: sigOk }));
   // AWAITED, not fired and forgotten. A serverless invocation is frozen when it
   // answers and nothing in this app registers a waitUntil, so an un-awaited
   // insert only lands if another delivery happens to thaw the instance in
@@ -199,10 +187,10 @@ export async function POST(request: Request): Promise<Response> {
   // sends" — an unauthenticated write amplifier that would also bury the
   // evidence under itself. Once a minute is enough to answer the only question
   // the row is for ("is Retell being turned away?") and cannot be driven.
-  const refused = !sigOk && !keyOk;
+  const refused = !sigOk;
   if (!refused || Date.now() - lastRefusedAuthRow >= REFUSED_AUTH_ROW_MS) {
     if (refused) lastRefusedAuthRow = Date.now();
-    await recordWebhookAuth(sigOk, keyOk, { raw: sigRaw, restringified: sigRestringified });
+    await recordWebhookAuth(sigOk, false, { raw: sigRaw, restringified: sigRestringified });
   }
   if (refused) {
     return json(401, { ok: false, error: "unauthorized" });

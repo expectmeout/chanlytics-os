@@ -270,6 +270,8 @@ export interface RetellAgentConfig {
   llm_id: string | null;
   llm_version: number | null;
   webhook_url: string | null;
+  /** Whether the live URL still carries the retired `?key=`: the converger plans it away (voice-shell planAgentSettings). */
+  webhook_url_keyed: boolean;
   /** Absent means Retell's default: call_started, call_ended, call_analyzed.
    *  transcript_updated (live transcript) is opt-in. */
   webhook_events: string[] | null;
@@ -302,8 +304,10 @@ export async function getAgent(cfg: RetellConfig, agentId: string): Promise<Rete
     llm_id: engine.type === "retell-llm" && typeof engine.llm_id === "string" ? engine.llm_id : null,
     llm_version: typeof engine.version === "number" ? engine.version : null,
     // The URL only, never its query string: Retell lets a secret ride there
-    // (?key=...) and this object is meant to be printed by a diagnostic.
+    // (?key=...) and this object is meant to be printed by a diagnostic. That
+    // a key rides there at all is kept as a fact, so the planner can retire it.
     webhook_url: str("webhook_url")?.split("?")[0] ?? null,
+    webhook_url_keyed: /[?&]key=/.test(str("webhook_url") ?? ""),
     webhook_events: Array.isArray(a.webhook_events) ? (a.webhook_events as unknown[]).map(String) : null,
     webhook_timeout_ms: num("webhook_timeout_ms"),
     data_storage_setting: str("data_storage_setting"),

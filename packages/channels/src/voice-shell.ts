@@ -390,6 +390,13 @@ function sameAnalysisField(live: Record<string, unknown>, want: AnalysisField): 
 
 /** The agent-level fields the plan reads, as get-agent returns them. */
 export interface LiveAgentSettings {
+  /**
+   * The call webhook's URL. Raw from the provider it may still carry the
+   * retired `?key=`; parsed (voice-retell getAgent) the query is gone and
+   * webhook_url_keyed says it was there. Either form is the same drift.
+   */
+  webhook_url?: string | null;
+  webhook_url_keyed?: boolean | null;
   webhook_events?: string[] | null;
   webhook_timeout_ms?: number | null;
   opt_in_signed_url?: boolean | null;
@@ -445,6 +452,13 @@ export function planAgentSettings(live: LiveAgentSettings, opts: { retentionDays
       ...liveFields.filter((l) => !CALL_ANALYSIS_FIELDS.some((f) => f.name === l.name)),
       ...CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
     ];
+  }
+  // The call webhook's credential is Retell's signature; a `?key=` on the URL
+  // is a secret in the provider's dashboard and in access logs, and the door
+  // no longer reads it. The same URL, bare.
+  if (typeof live.webhook_url === "string" && live.webhook_url !== "" && (live.webhook_url_keyed === true || /[?&]key=/.test(live.webhook_url))) {
+    drift.push("webhook_url still carries the retired query-string key; the signature is the credential and the door no longer reads one");
+    patch.webhook_url = live.webhook_url.split("?")[0];
   }
   if (opts.retentionDays !== undefined && live.data_storage_retention_days !== opts.retentionDays) {
     if (!Number.isInteger(opts.retentionDays) || opts.retentionDays < 1 || opts.retentionDays > 730) {

@@ -270,7 +270,7 @@ test("the app a deployment that names none introspects its token as: the one liv
 /* -------------------------------- the voice lines ------------------------- */
 
 const KEY = "retell-key-value-nobody-may-see";
-/** An agent as get-agent returns it, on the product's settings, its webhook URL carrying the secret Retell lets ride there. */
+/** An agent as get-agent returns it, on the product's settings, its webhook URL still carrying the retired ?key= (provisioned before the signature became the only credential). */
 const agentOnShell = (id, llm) => ({
   agent_id: id, agent_name: "Harbor Moving front desk", version: 2, is_published: true,
   response_engine: { type: "retell-llm", llm_id: llm, version: 1 },
@@ -318,7 +318,8 @@ test("each voice line's agent and shell are read from Retell: the live transcrip
     assert.equal(ok.live_transcript, true, "transcript_updated is the setting the Live page depends on");
     assert.equal(ok.model, "claude-4.5-haiku", "which text model the line runs: provisioning parity in one word");
     assert.deepEqual(ok.shell, { converged: true, drift: [] }, "on the product's shell");
-    assert.deepEqual(ok.agent, { converged: true, drift: [] }, "on the pipeline's settings");
+    assert.deepEqual(ok.agent, { converged: false, drift: ["webhook_url still carries the retired query-string key; the signature is the credential and the door no longer reads one"] }, "on the pipeline's settings but for the key its URL still carries: the one thing left for the converger, named");
+    assert.ok(!JSON.stringify(ok).includes("fn-secret-nobody-may-see"), "the drift names the key and never prints it");
     assert.equal(ok.webhook_url, "https://edge.test/api/retell-webhook", "the query string never comes out");
     assert.deepEqual(gone, { agent_id: "agent_gone", channel_status: "disabled", error: "unreadable" });
     assert.equal(old.live_transcript, false);

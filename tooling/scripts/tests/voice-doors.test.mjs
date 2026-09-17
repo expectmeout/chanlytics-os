@@ -253,7 +253,7 @@ test("provision, the plan: a dry run by default that prints what an apply would 
   } finally { net.restore(); }
 });
 
-test("provision, the apply that buys a number: the LLM that is the shell, the agent over it, the first version published, a local number bought and pinned -- each body the shared package's, each behind the key -- then the row LAST, the workspace's bell and the platform's event; the read-back plans nothing; nothing that comes back carries the secret", async () => {
+test("provision, the apply that buys a number: the LLM that is the shell, the agent over it, the first version published, a local number bought and pinned -- each body the shared package's, the call-start webhook behind the key and the call webhook behind the signature -- then the row LAST, the workspace's bell and the platform's event; the read-back plans nothing; nothing that comes back carries the secret", async () => {
   const { tables } = use();
   const p = retell();
   let rowsWhenBought = null;
@@ -273,7 +273,7 @@ test("provision, the apply that buys a number: the LLM that is the shell, the ag
   assert.deepEqual(llm, voiceLlmCreateBody(SECRETS), "the shell, byte for byte: placeholders, the four tools with the secret on their header, spoken defaults");
   assert.equal(llm.general_tools.find((t) => t.name === "send_booking_link").headers["x-fn-secret"], FN_SECRET, "the tools can open the edge");
   assert.deepEqual(agent, voiceAgentCreateBody({ llmId: "llm_1", llmVersion: 0, agentName: "Harbor Moving front desk" }, SECRETS), "the product's voice, the webhook with its events, the analysis fields, retention");
-  assert.equal(agent.webhook_url, `${voiceEndpoints(DEFAULT_FN_URL).webhook}?key=${FN_SECRET}`, "the webhook carries the secret Retell lets ride in its query string");
+  assert.equal(agent.webhook_url, voiceEndpoints(DEFAULT_FN_URL).webhook, "the call webhook carries no key: the signature is its credential");
   assert.deepEqual(publish, { version: 0, version_title: "provisioned from the edge" });
   assert.deepEqual(number, voiceNumberCreateBody({ areaCode: 305, agentId: "agent_2", pinned: true, nickname: "Harbor Moving · Chanlytics" }, SECRETS));
   assert.deepEqual(number.inbound_agents, [{ agent_id: "agent_2", agent_version: "latest_published", weight: 1 }], "pinned to latest_published: a saved draft cannot go live by itself");
@@ -403,18 +403,18 @@ test("provision, a run that fails partway answers with the step, the provider's 
 
 /* =============================== voice-converge ============================ */
 
-/** An agent as get-agent returns it, on the pipeline's settings, published at version 3. */
+/** An agent as get-agent returns it, on the pipeline's settings, its call webhook bare (the signature is its credential), published at version 3. */
 const onSettings = (id, over = {}) => ({
   agent_id: id, agent_name: "Harbor Moving front desk", version: 3, is_published: true,
   response_engine: { type: "retell-llm", llm_id: "llm_pub", version: 1 },
-  webhook_url: `https://chanlytics-messaging.vercel.app/api/retell-webhook?key=${FN_SECRET}`,
+  webhook_url: "https://chanlytics-messaging.vercel.app/api/retell-webhook",
   webhook_events: [...VOICE_WEBHOOK_EVENTS], webhook_timeout_ms: VOICE_WEBHOOK_TIMEOUT_MS, opt_in_signed_url: true,
   data_storage_retention_days: 90, post_call_analysis_data: CALL_ANALYSIS_FIELDS.map((f) => ({ ...f })),
   ...over,
 });
-/** The same agent as the live one was found: Retell's default events, its default budget, public recording links, no analysis fields. */
-const drifted = (id, over = {}) => onSettings(id, { webhook_events: ["call_started", "call_ended", "call_analyzed"], webhook_timeout_ms: 10000, opt_in_signed_url: false, post_call_analysis_data: [], ...over });
-const DRIFT_KEYS = ["webhook_events", "webhook_timeout_ms", "opt_in_signed_url", "post_call_analysis_data"];
+/** The same agent as the live one was found: Retell's default events, its default budget, public recording links, no analysis fields, and the retired ?key= still on its call webhook. */
+const drifted = (id, over = {}) => onSettings(id, { webhook_events: ["call_started", "call_ended", "call_analyzed"], webhook_timeout_ms: 10000, opt_in_signed_url: false, post_call_analysis_data: [], webhook_url: `https://chanlytics-messaging.vercel.app/api/retell-webhook?key=${FN_SECRET}`, ...over });
+const DRIFT_KEYS = ["webhook_events", "webhook_timeout_ms", "opt_in_signed_url", "post_call_analysis_data", "webhook_url"];
 
 test("converge, the door: a token for another door, a forgery and no credential are 403; no provider key is a 503; without an agent named the voice rows decide, so no database is a 503 -- with one named, no database is needed", async () => {
   const { db } = use();

@@ -66,7 +66,12 @@ export function voiceEndpoints(fnUrl: string = DEFAULT_FN_URL): { fn: string; av
   };
 }
 
-/** The shared secret rides the tool header and, as ?key=, both webhooks (the edge checks each). */
+/**
+ * The shared secret rides the tool header and, as ?key=, the call-start webhook (retell-inbound), whose only
+ * credential it is. The call webhook (retell-webhook) carries none: Retell signs every delivery with the badged
+ * key, and the signature is that door's credential -- a secret in a URL rides in Retell's dashboard and in access
+ * logs, and anyone holding it could forge a call_analyzed.
+ */
 export interface ProvisionSecrets {
   fnSecret: string;
 }
@@ -96,7 +101,7 @@ export function voiceAgentCreateBody(
     response_engine: { type: "retell-llm", llm_id: o.llmId, ...(o.llmVersion === null ? {} : { version: o.llmVersion }) },
     ...VOICE_AGENT_DEFAULTS,
     language: [...VOICE_AGENT_DEFAULTS.language],
-    webhook_url: withKey(voiceEndpoints(fnUrl).webhook, s.fnSecret),
+    webhook_url: voiceEndpoints(fnUrl).webhook,
     webhook_events: [...VOICE_WEBHOOK_EVENTS],
     webhook_timeout_ms: VOICE_WEBHOOK_TIMEOUT_MS,
     opt_in_signed_url: true,

@@ -60,7 +60,7 @@ test("the agent body carries the product's voice and every setting the pipeline 
   assert.deepEqual(body.response_engine, { type: "retell-llm", llm_id: "llm_abc", version: 0 });
   assert.equal(body.voice_id, VOICE_AGENT_DEFAULTS.voice_id);
   assert.equal(body.language.length, 10, "multilingual, like the live line");
-  assert.equal(body.webhook_url, `https://chanlytics-messaging.vercel.app/api/retell-webhook?key=${S.fnSecret}`);
+  assert.equal(body.webhook_url, "https://chanlytics-messaging.vercel.app/api/retell-webhook", "the call webhook carries no key: the signature is its credential");
   assert.deepEqual(body.webhook_events, ["call_started", "call_ended", "call_analyzed", "transcript_updated"]);
   assert.equal(body.webhook_timeout_ms, 20000);
   assert.equal(body.opt_in_signed_url, true);

@@ -308,6 +308,8 @@ interface RetellAgentConfig {
     llm_id: string | null;
     llm_version: number | null;
     webhook_url: string | null;
+    /** Whether the live URL still carries the retired `?key=`: the converger plans it away (voice-shell planAgentSettings). */
+    webhook_url_keyed: boolean;
     /** Absent means Retell's default: call_started, call_ended, call_analyzed.
      *  transcript_updated (live transcript) is opt-in. */
     webhook_events: string[] | null;
@@ -586,6 +588,13 @@ declare const CALL_ANALYSIS_FIELDS: readonly [{
 }];
 /** The agent-level fields the plan reads, as get-agent returns them. */
 interface LiveAgentSettings {
+    /**
+     * The call webhook's URL. Raw from the provider it may still carry the
+     * retired `?key=`; parsed (voice-retell getAgent) the query is gone and
+     * webhook_url_keyed says it was there. Either form is the same drift.
+     */
+    webhook_url?: string | null;
+    webhook_url_keyed?: boolean | null;
     webhook_events?: string[] | null;
     webhook_timeout_ms?: number | null;
     opt_in_signed_url?: boolean | null;
@@ -651,7 +660,12 @@ declare function voiceEndpoints(fnUrl?: string): {
     webhook: string;
     inbound: string;
 };
-/** The shared secret rides the tool header and, as ?key=, both webhooks (the edge checks each). */
+/**
+ * The shared secret rides the tool header and, as ?key=, the call-start webhook (retell-inbound), whose only
+ * credential it is. The call webhook (retell-webhook) carries none: Retell signs every delivery with the badged
+ * key, and the signature is that door's credential -- a secret in a URL rides in Retell's dashboard and in access
+ * logs, and anyone holding it could forge a call_analyzed.
+ */
 interface ProvisionSecrets {
     fnSecret: string;
 }
