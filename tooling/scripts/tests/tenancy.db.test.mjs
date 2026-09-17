@@ -123,6 +123,7 @@ before(async () => {
   await seed("business_records", { tenant_id: A, legal_name: "Tenancy LLC", street: "1 Main St", city: "Brooklyn", region: "NY", postal_code: "11201", contact_first_name: "M", contact_last_name: "S", contact_email: "m@example.com", contact_phone: "+16460000000", website_url: "https://example.com" }, null);
   await seed("capability_activations", { tenant_id: A, capability: "voice" }, null);
   await seed("lines", { tenant_id: A, provider: "dry", kind: "chanlytics", e164: "+15550002001" });
+  await seed("mailboxes", { tenant_id: A, local_part: `tenancy-${Date.now().toString(36)}`, reply_token: "t".repeat(24), from_name: "Tenancy" });
   await seed("tenant_channels", { tenant_id: A, kind: "whatsapp", external_id: "tenancy-wa-1" });
   await seed("google_connections", { tenant_id: A, account_name: "accounts/tenancy" }, null);
   await seed("google_listings", { tenant_id: A, place_id: "ChIJtenancy1", name: "Tenancy Salon" }, null);
@@ -191,6 +192,8 @@ const TENANT_TABLES = {
   business_records: ["member", () => ({ tenant_id: A, legal_name: "Stranger LLC", street: "2 Main St", city: "Brooklyn", region: "NY", postal_code: "11201", contact_first_name: "S", contact_last_name: "T", contact_email: "s@example.com", contact_phone: "+16460000001", website_url: "https://example.org" })],
   capability_activations: ["member", () => ({ tenant_id: A, capability: "sms" })],
   lines: ["member", () => ({ tenant_id: A, provider: "dry", kind: "chanlytics", e164: "+15550002002" })],
+  // One mailbox per workspace, so this insert would meet the unique index too; row-level security refuses it first, which is the proof.
+  mailboxes: ["member", () => ({ tenant_id: A, local_part: `stranger-${Date.now().toString(36)}`, reply_token: "s".repeat(24), from_name: "Stranger" })],
   tenant_channels: ["member", () => ({ tenant_id: A, kind: "sms", external_id: "tenancy-sms-2" })],
   google_connections: ["member", () => ({ tenant_id: A, account_name: "accounts/stranger" })],
   google_listings: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger", name: "Stranger Salon" })],

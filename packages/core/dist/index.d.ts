@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { SendResult, WaConfig } from '@chanlytics/channels';
+import { EmailRequest, SendResult, ResendConfig, WaConfig } from '@chanlytics/channels';
 import { SendPurpose, DecisionSubject, DecisionVerb, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass } from '@chanlytics/contracts';
 import { Json, Database } from '@chanlytics/db';
 
@@ -32,7 +32,7 @@ import { Json, Database } from '@chanlytics/db';
  */
 
 type Db = SupabaseClient<Database>;
-type Channel = "whatsapp" | "sms";
+type Channel = "whatsapp" | "sms" | "email";
 /**
  * What a send IS, for the door's rules -- never read off `sender`, which is a
  * fact about who wrote the words and is recorded as such.
@@ -56,6 +56,11 @@ interface TemplateSend {
 interface WirePayload {
     body: string;
     template?: TemplateSend;
+    /**
+     * The request an email leaves as, built and frozen when the message was
+     * queued (channels email.ts). Present on the email wire and nowhere else.
+     */
+    email?: EmailRequest;
 }
 /** How to put words on one channel's wire. Owns its own address format. */
 type Sender = (to: string, p: WirePayload) => Promise<SendResult>;
@@ -71,11 +76,17 @@ type Wire = Partial<Record<Channel, Sender | null>>;
  * so the "+" is stripped here rather than by a caller who should not know.
  */
 declare function whatsappSender(cfg: WaConfig | null): Sender | null;
+/**
+ * Email's wire. It sends the frozen request and nothing it assembled itself: a
+ * delivery without one, or one addressed to somebody other than `to`, is a
+ * failure the caller hears about, never a send to a guessed address.
+ */
+declare function emailSender(cfg: ResendConfig | null): Sender | null;
 interface Delivery {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
-    /** E.164, with or without the "+"; each wire shapes it. */
+    /** Where it goes: E.164 (with or without the "+") on a phone's wire, the person's stored address on email's. Each wire shapes it. */
     to: string;
     channel: Channel;
     sender: "ai" | "human" | "system";
@@ -84,6 +95,8 @@ interface Delivery {
     proactive: boolean;
     body: string;
     template?: TemplateSend;
+    /** The frozen request, on the email wire (WirePayload.email). */
+    email?: EmailRequest;
     /**
      * An outbox row already written as `queued` (the honest undo): finalized
      * in place rather than inserted, and only while it is still queued, so a
@@ -96,7 +109,7 @@ interface Delivery {
     meta?: Record<string, Json>;
 }
 /** Why the door stayed shut. Each is a fact about the person, the thread or the workspace, never about us. */
-type DeliveryRefusal = "opted_out" | "not_opted_in" | "no_marketing_consent" | "erased" | "paused" | "human_has_it" | "superseded_by_human" | "sms_carries_no_promotions";
+type DeliveryRefusal = "opted_out" | "not_opted_in" | "no_marketing_consent" | "erased" | "paused" | "human_has_it" | "superseded_by_human" | "sms_carries_no_promotions" | "email_marketing_disabled" | "email_suppressed" | "recipient_changed";
 type Delivered = {
     outcome: "sent";
     messageId: string | null;
@@ -968,4 +981,4 @@ interface PlaybookInput {
  */
 declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
-export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };
+export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };

@@ -18,6 +18,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { alertFor } from "../../lib/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
+import { emailWire } from "../../lib/email.js";
 import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
@@ -60,11 +61,16 @@ export async function POST(request: Request): Promise<Response> {
           // TENANT's WhatsApp credentials, never the environment's (a second
           // business's reply must not leave from the first one's number), and
           // the texting line's sender when the workspace has one. Null on
-          // either is a refusal at the door, not a guess.
+          // either is a refusal at the door, not a guess. Email's wire is the
+          // deployment's (one provider key, one mail domain) and is bound only
+          // where email is on; whose identity an email carries was decided when
+          // its request was frozen, from that workspace's own mailbox.
           const line = await smsSenderForTenant(db, job.tenant_id);
+          const email = emailWire();
           const wire = {
             whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
             sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body) : null,
+            ...(email !== undefined ? { email } : {}),
           };
           return dispatchJob(
             {

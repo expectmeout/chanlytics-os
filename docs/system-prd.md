@@ -896,6 +896,7 @@ Beside the tables: the private `media` bucket (inbound attachments and call reco
 | Roll the edge's credential | Set `EDGE_CALL_SECRET` on both projects, in either order; drop `DIAG_KEY` when every caller carries a token |
 | Close the front door, or queue it | `SIGNUP_CODE` (invite code), or the waitlist posture |
 | Switch on Google, Stripe or Embedded Signup | Their variables on the edge; absent means nothing is drawn |
+| Switch on email | `EMAIL_DOMAIN` on the edge (the subdomain that sends and receives); absent, the email wire is not bound and a delivery naming it fails as a channel this runtime does not have. A workspace's own switch is its `mailboxes` row (00126) |
 
 A Vercel variable reaches a running deployment only after a redeploy.
 
@@ -968,7 +969,7 @@ Names only; values live in each Vercel project.
 |---|---|---|
 | Edge | WhatsApp | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_ID`, `META_APP_SECRET`, `META_APP_ID`, `META_ES_CONFIG_ID`, `WHATSAPP_TEST_ALLOWLIST` |
 | | Voice and lines | `RETELL_API_KEY`, `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PRIMARY_PROFILE_SID`, `LINES_DRY_RUN` |
-| | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM` |
+| | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN` |
 | | Memory | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PG_WRITES`, `PG_READS`, `PG_DEDUPE`, `BLOB_SHADOW`, `BLOB_READ_WRITE_TOKEN` |
 | | Google | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_OAUTH_AUDIENCE` |
 | | Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `BILLING_TRIAL_DAYS`, `DASHBOARD_ORIGIN` |

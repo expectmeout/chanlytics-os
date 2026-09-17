@@ -26,14 +26,14 @@
  * conversational words at all.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { sendText, sendTemplate, type SendResult, type WaConfig } from "@chanlytics/channels";
+import { sendText, sendTemplate, sendEmail, type SendResult, type WaConfig, type EmailRequest, type ResendConfig } from "@chanlytics/channels";
 import { mayMessageFor, purposeOfTemplate, type SendPurpose, type EventKind } from "@chanlytics/contracts";
 import { emitEvent, recordOutbound, type Database, type Json } from "@chanlytics/db";
 
 export type Db = SupabaseClient<Database>;
 type MessagePatch = Database["public"]["Tables"]["messages"]["Update"];
 
-export type Channel = "whatsapp" | "sms";
+export type Channel = "whatsapp" | "sms" | "email";
 
 /**
  * What a send IS, for the door's rules -- never read off `sender`, which is a
@@ -60,6 +60,11 @@ export interface TemplateSend {
 export interface WirePayload {
   body: string;
   template?: TemplateSend;
+  /**
+   * The request an email leaves as, built and frozen when the message was
+   * queued (channels email.ts). Present on the email wire and nowhere else.
+   */
+  email?: EmailRequest;
 }
 
 /** How to put words on one channel's wire. Owns its own address format. */
@@ -85,11 +90,25 @@ export function whatsappSender(cfg: WaConfig | null): Sender | null {
   };
 }
 
+/**
+ * Email's wire. It sends the frozen request and nothing it assembled itself: a
+ * delivery without one, or one addressed to somebody other than `to`, is a
+ * failure the caller hears about, never a send to a guessed address.
+ */
+export function emailSender(cfg: ResendConfig | null): Sender | null {
+  if (!cfg) return null;
+  return (to, p) => {
+    if (!p.email) return Promise.resolve({ ok: false, wamid: null, status: 0, errorBody: "no_frozen_request" });
+    if (p.email.to.length !== 1 || p.email.to[0] !== to) return Promise.resolve({ ok: false, wamid: null, status: 0, errorBody: "request_names_another_recipient" });
+    return sendEmail(cfg, p.email);
+  };
+}
+
 export interface Delivery {
   tenantId: string;
   conversationId: string;
   contactId: string | null;
-  /** E.164, with or without the "+"; each wire shapes it. */
+  /** Where it goes: E.164 (with or without the "+") on a phone's wire, the person's stored address on email's. Each wire shapes it. */
   to: string;
   channel: Channel;
   sender: "ai" | "human" | "system";
@@ -98,6 +117,8 @@ export interface Delivery {
   proactive: boolean;
   body: string;
   template?: TemplateSend;
+  /** The frozen request, on the email wire (WirePayload.email). */
+  email?: EmailRequest;
   /**
    * An outbox row already written as `queued` (the honest undo): finalized
    * in place rather than inserted, and only while it is still queued, so a
@@ -126,7 +147,10 @@ export type DeliveryRefusal =
   | "paused"
   | "human_has_it"
   | "superseded_by_human"
-  | "sms_carries_no_promotions";
+  | "sms_carries_no_promotions"
+  | "email_marketing_disabled"
+  | "email_suppressed"
+  | "recipient_changed";
 
 export type Delivered =
   | { outcome: "sent"; messageId: string | null; externalId: string | null }
@@ -151,7 +175,11 @@ interface WireFacts {
   pausedUntil: string | null;
   /** The person who took the thread over, when one did. */
   assignee: string | null;
-  contact: { consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null; erasing_since: string | null };
+  contact: {
+    consent: string | null; dnc: boolean | null; marketing_consent: string | null; erased_at: string | null; erasing_since: string | null;
+    /** The address on file now, and whether it has stopped being sent to (00125, 00126). */
+    email: string | null; email_suppressed_at: string | null;
+  };
   tenantStatus: string | null;
 }
 
@@ -164,7 +192,7 @@ interface WireFacts {
 async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   const { data, error } = await db
     .from("conversations")
-    .select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since), tenants (status)")
+    .select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since, email, email_suppressed_at), tenants (status)")
     .eq("id", d.conversationId)
     .eq("tenant_id", d.tenantId)
     .maybeSingle();
@@ -179,7 +207,7 @@ async function wireFacts(db: Db, d: Delivery): Promise<WireFacts> {
   return {
     pausedUntil: row.paused_until ?? null,
     assignee: row.assignee_user_id ?? null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null },
+    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null, email: null, email_suppressed_at: null },
     tenantStatus: row.tenants?.status ?? null,
   };
 }
@@ -196,6 +224,19 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // under a consent the carriers were never told about, whatever the person
   // said to us -- so it does not, whoever asks. Offers and news go by WhatsApp.
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
+  if (d.channel === "email") {
+    // Email carries replies and nothing promotional until a release of its own
+    // brings the unsubscribe a promotion owes (the plan's §11): refused here,
+    // at the door, rather than hidden in a menu.
+    if (d.purpose === "marketing") return "email_marketing_disabled";
+    // A permanent bounce, a complaint or the provider's own list: a fact about
+    // the address, kept apart from any one message's delivery (00126).
+    if (f.contact.email_suppressed_at) return "email_suppressed";
+    // The request was frozen for one address. If the person's address on file
+    // is no longer that one -- corrected, removed -- these words were approved
+    // for somewhere they should no longer go: canceled, and written again.
+    if (f.contact.email !== d.to) return "recipient_changed";
+  }
   // Consent outranks everything, asked with this message's own purpose.
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
@@ -310,7 +351,7 @@ export async function deliver(ports: DeliverPorts, d: Delivery): Promise<Deliver
   const sent: SendResult & { reason?: "no_sender_for_channel" | "no_credentials" } =
     send === undefined ? { ok: false, wamid: null, status: 0, errorBody: "no_sender_for_channel", reason: "no_sender_for_channel" }
     : send === null ? { ok: false, wamid: null, status: 503, errorBody: "no_credentials", reason: "no_credentials" }
-    : await send(d.to, { body: d.body, template: d.template });
+    : await send(d.to, { body: d.body, template: d.template, ...(d.email ? { email: d.email } : {}) });
 
   if (sent.ok) {
     if (d.messageId) {

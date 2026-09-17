@@ -97,6 +97,11 @@ export const PURPOSE_REFUSALS: Record<string, string> = {
   // after the fourth refusal (30896, 11 Sep 2026). A promotion by text would
   // go out under a consent the carriers were never told about.
   sms_carries_no_promotions: "Offers and news do not go by text: the line is registered with the carriers for replies and appointment messages only. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  // Email's three, at the wire (deliver.ts). Replies only until promotions by
+  // email are a release of their own; a suppression is a fact about the address.
+  email_marketing_disabled: "Offers and news do not go by email yet. This customer hears about offers on WhatsApp, once they have said yes to them there.",
+  email_suppressed: "Email to this address has stopped: it bounced for good, or the person marked a message as spam. Correct the address on their page, or reach them another way.",
+  recipient_changed: "This person's email address changed after the reply was written, so it was not sent. Write it again and it goes to the address on file now.",
 };
 
 /**

@@ -7,6 +7,8 @@ export * from "./lines-twilio";
 export * from "./lines-dry";
 export * from "./lines-saga";
 export * from "./sms";
+export * from "./email";
+export * from "./email-resend";
 export * from "./a2p";
 export * from "./a2p-saga";
 export * from "./google-places";

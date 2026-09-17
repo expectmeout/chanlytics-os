@@ -341,3 +341,78 @@ test("a wire that cannot be read is a failure with its own name, never a throw p
   assert.match(out.errorBody, /connection reset/);
   assert.equal(w.calls.length, 0);
 });
+
+/* ------------------------------------------------------------------ email */
+
+const { emailSender } = await import(pathToFileURL(path.join(ROOT, "packages/core/dist/index.js")).href);
+const { buildEmailRequest } = await import(pathToFileURL(path.join(ROOT, "packages/channels/dist/index.js")).href);
+
+const ADDRESS = "ana@example.com";
+const frozen = (over = {}) => buildEmailRequest({
+  identity: { fromName: "Best Movers", fromAddress: "bestmovers@mail.chanlytics.com", replyTo: "r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com" },
+  to: ADDRESS, parent: { messageId: "m0", rfcMessageId: "<q1@customer.example>", references: [], subject: "Quote for Saturday" },
+  body: "We can do Saturday at 9.", signature: null, actor: "human", messageId: "m1", tenantId: T, ...over,
+});
+const emailed = (over = {}) => words({ to: ADDRESS, channel: "email", email: frozen(), body: "We can do Saturday at 9.", ...over });
+const onEmail = (over = {}) => person({ email: ADDRESS, email_suppressed_at: null, ...over });
+const emailWire = (result = { ok: true, wamid: "re_1", status: 200 }) => {
+  const calls = [];
+  return { calls, wire: { email: async (to, p) => { calls.push({ to, p }); return result; } } };
+};
+
+test("an email leaves as the request that was frozen for it: the wire is handed those bytes, and the row says email", async () => {
+  const t = tables({ conversations: [thread({ contacts: onEmail() })] });
+  const w = emailWire();
+  const d = emailed();
+  const out = await deliver(ports(t, w), d);
+  assert.equal(out.outcome, "sent");
+  assert.equal(out.externalId, "re_1", "the provider's id, which a receipt may also name");
+  assert.equal(w.calls.length, 1);
+  assert.equal(w.calls[0].to, ADDRESS);
+  assert.equal(w.calls[0].p.email, d.email, "the frozen request itself, not something assembled at the door");
+  assert.equal(t.messages[0].channel, "email");
+});
+
+test("email's three refusals, each a fact about the person or the product, asked before consent and before the wire", async () => {
+  const cases = [
+    [{ purpose: "marketing" }, onEmail({ marketing_consent: "opted_in" }), "email_marketing_disabled"],
+    [{}, onEmail({ email_suppressed_at: "2026-09-01T00:00:00Z" }), "email_suppressed"],
+    [{}, onEmail({ email: "ana.new@example.com" }), "recipient_changed"],
+    [{}, onEmail({ email: null }), "recipient_changed"],
+    // A person's own reply passes every pause, and still goes nowhere the address on file is not.
+    [{ sender: "human", proactive: false }, onEmail({ email: "ana.new@example.com" }), "recipient_changed"],
+    // Erasure outranks all of it.
+    [{}, onEmail({ erasing_since: "2026-09-10T09:00:00Z" }), "erased"],
+    [{}, onEmail(), null],
+  ];
+  for (const [over, who, reason] of cases) {
+    const t = tables({ conversations: [thread({ contacts: who })] });
+    const w = emailWire();
+    const out = await deliver(ports(t, w), emailed(over));
+    assert.equal(out.outcome === "refused" ? out.reason : null, reason, JSON.stringify({ over, who }));
+    assert.equal(w.calls.length, reason ? 0 : 1, `${reason ?? "sent"}: the wire is called only for words that may go`);
+  }
+});
+
+test("email's wire sends the frozen request and nothing it assembled: none, or one naming another recipient, is a failure and no send", async () => {
+  assert.equal(emailSender(null), null, "no provider key: the channel exists and this runtime cannot send on it");
+  const send = emailSender({ apiKey: "test-key" });
+  const real = globalThis.fetch;
+  const posted = [];
+  globalThis.fetch = async (url, init) => { posted.push({ url, init }); return new Response(JSON.stringify({ id: "re_9" }), { status: 200 }); };
+  try {
+    assert.deepEqual(await send(ADDRESS, { body: "hi" }), { ok: false, wamid: null, status: 0, errorBody: "no_frozen_request" });
+    assert.deepEqual(await send("someone.else@example.com", { body: "hi", email: frozen() }), { ok: false, wamid: null, status: 0, errorBody: "request_names_another_recipient" });
+    assert.equal(posted.length, 0, "neither reached the provider");
+    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen() }), { ok: true, wamid: "re_9", status: 200 });
+    assert.equal(posted.length, 1);
+  } finally { globalThis.fetch = real; }
+});
+
+test("a workspace with no email wire bound fails as ours, like any channel this runtime does not have", async () => {
+  const t = tables({ conversations: [thread({ contacts: onEmail() })] });
+  const out = await deliver(ports(t, wireOf()), emailed());
+  assert.equal(out.outcome, "failed");
+  assert.equal(out.reason, "no_sender_for_channel");
+  assert.equal(t.messages[0].status, "failed");
+});

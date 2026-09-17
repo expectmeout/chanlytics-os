@@ -129,7 +129,7 @@ export async function recordOutbound(
      *  fired later by outbound_send, cancellable until then. */
     status?: "sent" | "failed" | "queued";
     /** The wire it goes out on: where the person last wrote. WhatsApp unless said. */
-    channel?: "whatsapp" | "sms";
+    channel?: "whatsapp" | "sms" | "email";
   },
 ): Promise<string | null> {
   const { data, error } = await db

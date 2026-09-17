@@ -1758,6 +1758,7 @@ declare const SCHEMA_SETS: {
     readonly "lines.step": readonly ["subaccount", "number", "trunk", "agent", "import", "messaging", "channel"];
     readonly "lines.voice_state": readonly ["none", "provisioning", "answering", "failed"];
     readonly "lines.whatsapp_state": readonly ["none", "connecting", "connected", "coexistence", "failed"];
+    readonly "mailboxes.reply_mode": readonly ["draft", "veto", "auto"];
     readonly "memberships.role": readonly ["owner", "operator", "viewer"];
     readonly "messages.channel": readonly ["whatsapp", "voice", "sms", "email", "system"];
     readonly "messages.direction": readonly ["inbound", "outbound"];
