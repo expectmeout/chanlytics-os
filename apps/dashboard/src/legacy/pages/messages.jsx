@@ -83,6 +83,12 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
       {/* A refusal was a `title=` on the language button and a tail on the meta
           line: 10px, and on a touch screen nowhere at all. It is the row's own
           line now, in the tone of a refusal. */}
+      {/* A message WhatsApp approved that this product still cannot put on the
+          wire: the composers do not offer it, so its card says why rather than
+          leaving it looking available. */}
+      {row && row.blocked && (
+        <p className="bc-excl-hint warn" data-testid="template-blocked">Can&rsquo;t be sent from here: it has {row.blocked}. It still works in WhatsApp Manager.</p>
+      )}
       {row && row.meta_status === "rejected" && row.rejected_reason && (
         <p className="bc-excl-hint danger" data-testid="template-rejected">WhatsApp refused this one: {String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}. Change the words and send it back.</p>
       )}
@@ -103,7 +109,7 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>
         ))}
       </div>
-      <window.MessagePreview from={bizName || "Your business"} body={body} values={values} footer={footer} compact />
+      <window.MessagePreview from={bizName || "Your business"} body={body} values={values} header={row ? row.header : null} footer={footer} buttons={row ? row.buttons : null} compact />
       <div className="msg-card-foot">
         {row
           ? <span className="msg-card-meta">{row.name}{row.category ? ` · ${row.category}` : ""}{row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}</span>

@@ -11,7 +11,7 @@
  * the server; a viewer's click returns the server's refusal.
  */
 import { api } from "./api";
-import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, groupTemplates, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, templateFooter, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
+import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, groupTemplates, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, templateFooter, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
 
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
 export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
@@ -77,6 +77,8 @@ export interface StarterLibrary {
   langWords: typeof languageWords;
   /** The line under a message's words: the one Meta holds, else the starter's own. */
   footer: typeof templateFooter;
+  /** What a composer may offer, and one sentence for what it may not. */
+  sendable: typeof sendableTemplates;
 }
 
 declare global {
@@ -110,5 +112,6 @@ export function installTemplates(): void {
     stillSends: playbooksStillSending,
     langWords: languageWords,
     footer: templateFooter,
+    sendable: sendableTemplates,
   };
 }

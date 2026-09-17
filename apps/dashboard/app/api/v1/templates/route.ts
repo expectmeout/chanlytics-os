@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, footerOf, templateComponents, validateTemplateDraft } from "@chanlytics/contracts";
+import { AppError, templateBlocked, templateComponents, templateParts, validateTemplateDraft } from "@chanlytics/contracts";
 import { read, write, workspace } from "@/server/route";
 import { jsonBody } from "@/server/request-guards";
 import { createTemplate } from "@/server/service";
@@ -51,8 +51,11 @@ export const GET = read({
     if (!all) q = q.eq("meta_status", "approved").is("hidden_at", null);
     const { data, error } = await q.order("name");
     if (error) throw new Error(error.message);
-    // The footer as a line, and Meta's array left behind.
-    const templates = (data ?? []).map(({ components, ...t }) => ({ ...t, footer: footerOf(components) }));
+    // The message as the customer receives it -- heading, footer, buttons -- and
+    // why this product cannot send it, if it cannot. Meta's array stays behind:
+    // three composers digging the same shapes out of it would put Meta's schema
+    // in a .jsx file, where the compiler cannot see it.
+    const templates = (data ?? []).map(({ components, ...t }) => ({ ...t, ...templateParts(components), blocked: templateBlocked({ components }) }));
     return { templates };
   },
 });
