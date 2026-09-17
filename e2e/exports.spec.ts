@@ -8,7 +8,7 @@ import { apiGet } from "./workspace";
  * The signed-in session is the workspace owner, so the whole customer list is
  * theirs to take. Nothing is written; every request here is a read.
  */
-const PEOPLE_HEADER = "name,whatsapp_name,phone,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist";
+const PEOPLE_HEADER = "name,whatsapp_name,phone,email,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist";
 
 test.describe("Exports on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
