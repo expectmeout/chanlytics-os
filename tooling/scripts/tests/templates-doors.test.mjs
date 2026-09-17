@@ -250,7 +250,7 @@ test("sync, the door: the knock, the workspace rule, no database, a bad workspac
 });
 
 test("sync, the whole way: every template Meta returns is upserted on (tenant, channel, name, language) with the labels a person gave kept where the positions match; a row Meta does not return is left exactly as it was; Meta's sample is hidden on first sight and only then; every page is walked", async () => {
-  const handWritten = row({ id: T2, name: "booking_link_v1", meta_id: null, source: "meta", meta_status: "approved", variables: [{ position: 1, label: "Business name", example: "Harbor" }, { position: 2, label: "Booking link", example: "https://b.example" }] });
+  const handWritten = row({ id: T2, name: "booking_link", meta_id: null, source: "meta", meta_status: "approved", variables: [{ position: 1, label: "Business name", example: "Harbor" }, { position: 2, label: "Booking link", example: "https://b.example" }] });
   const { tables, db } = use({ templates: [row(), handWritten] });
   const page2 = `${GRAPH}/${WABA}/message_templates?after=cursor-2`;
   const m = meta((req) => {
@@ -350,12 +350,12 @@ test("delete, the whole way: by name AND the template's own id so one language g
 });
 
 test("delete, a row that was never synced: no template id on file, so Meta is not asked -- by name alone it would take every language and lock the name -- and the row is still removed from here, because a sync can never fill in an id for a template Meta never had", async () => {
-  const { tables } = use({ templates: [row({ id: T2, name: "booking_link_v1", meta_id: null })] });
+  const { tables } = use({ templates: [row({ id: T2, name: "booking_link", meta_id: null })] });
   const net = unreachable("a row with no id must never be sent to Meta by name");
   const log = quiet();
   let status, body;
   try { [status, body] = await answer(await knockDelete({ tenant_id: A, template_id: T2 })); } finally { log.restore(); net.restore(); }
-  assert.deepEqual([status, body], [200, { ok: true, id: T2, name: "booking_link_v1", at_meta: false }]);
+  assert.deepEqual([status, body], [200, { ok: true, id: T2, name: "booking_link", at_meta: false }]);
   assert.equal(tables.templates.length, 0, "REGRESSION: refusing the local delete too left the row undeletable for ever");
-  assert.ok(log.lines.some((l) => l.startsWith("wa_template_delete_unsynced") && l.includes("booking_link_v1")), "said in the log");
+  assert.ok(log.lines.some((l) => l.startsWith("wa_template_delete_unsynced") && l.includes("booking_link")), "said in the log");
 });

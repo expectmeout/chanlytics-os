@@ -3,7 +3,7 @@
  *
  * Seen on the salon's workspace, 15 Sep 2026, look-only:
  * - the phone-only composer read "PHONE · +19175550106", where the header said "+1 (917) 555-0106";
- * - the template picker read "booking_link_v1 · en_US", and offered all seven approved templates to people the
+ * - the template picker read "booking_link · en_US", and offered all seven approved templates to people the
  *   reply route refuses most of them for: a promotion goes only to someone who said yes to offers, and the Inbox
  *   fills exactly two values -- a button whose only outcome was a refusal;
  * - its button said "Send booking link" whichever template was picked;
@@ -35,7 +35,7 @@ const asked = (over = {}) => ({ id: "e1", reason: "human_token", details: null, 
 const tpl = (name, over = {}) => ({ id: `t-${name}-${over.language ?? "en_US"}`, channel: "whatsapp", name, language: "en_US", body_preview: "Hi", variables: [{}, {}], category: "utility", meta_status: "approved", title: null, ...over });
 // The shapes the salon's rows have: a Meta template's labels, and the starters' "Value n" labels with their examples.
 const valued = (...examples) => examples.map((example, i) => ({ label: `Value ${i + 1}`, example, position: i + 1 }));
-const booking = tpl("booking_link_v1", { variables: [{ label: "Business name", example: "Melany's Beauty Salon", position: 1 }, { label: "Booking link", example: "booksy.com/melanys", position: 2 }] });
+const booking = tpl("booking_link", { variables: [{ label: "Business name", example: "Melany's Beauty Salon", position: 1 }, { label: "Booking link", example: "booksy.com/melanys", position: 2 }] });
 const offer = tpl("monthly_offer", { category: "marketing", variables: valued("Dani", "Luna Studio", "20% off balayage for regulars, book by Friday.", "https://booksy.com/luna-studio") });
 const note = tpl("quick_note", { variables: valued("Dani", "Luna Studio", "we're open late on Thursdays this month.") });
 const saveEs = tpl("save_our_number", { language: "es", variables: [{ label: "Nombre", example: "Dani", position: 1 }, { label: "Nombre del negocio", example: "Luna Studio", position: 2 }, { label: "Enlace de reservas", example: "https://booksy.com/luna-studio", position: 3 }] });
@@ -47,7 +47,7 @@ test("the templates a person can be sent: every slot a fact the Inbox has, a pro
   const { inboxTemplates, languageWords } = contracts;
   assert.deepEqual([languageWords("en_US"), languageWords("es"), languageWords("pt-BR")], ["English", "Spanish", "Portuguese"]);
   const no = inboxTemplates([booking, offer, note, saveEs], { who: "Rosa Díaz", offersOk: false });
-  assert.deepEqual(no.sendable.map((s) => [s.template.name, s.title, s.label]), [["booking_link_v1", "Booking link", "Booking link · English"], ["save_our_number", "Save our number", "Save our number · Spanish"]]);
+  assert.deepEqual(no.sendable.map((s) => [s.template.name, s.title, s.label]), [["booking_link", "Booking link", "Booking link · English"], ["save_our_number", "Save our number", "Save our number · Spanish"]]);
   assert.equal(no.hidden, "Not offered: 2 that need words the Inbox doesn't ask for.", "an offer and a note have words to write; the Inbox asks for none");
   const yes = inboxTemplates([booking, offer, note, welcome], { who: "Rosa Díaz", offersOk: true });
   assert.deepEqual(yes.sendable.map((s) => s.title), ["Booking link", "Welcome"], "REGRESSION: a starter that opens with their first name was turned away for taking three values");
@@ -172,7 +172,7 @@ test("the template send offers what can go to this person, by title and language
   globalThis.window.__TEMPLATES = [booking, saveEs];
   tree = composerOf(closed);
   const pick = find(tree, (n) => n.type === "select");
-  assert.deepEqual(findAll(pick, (n) => n.type === "option").map(textOf), ["Booking link · English", "Save our number · Spanish"], "REGRESSION: booking_link_v1 · en_US");
+  assert.deepEqual(findAll(pick, (n) => n.type === "option").map(textOf), ["Booking link · English", "Save our number · Spanish"], "REGRESSION: booking_link · en_US");
   assert.ok(buttonsOf(tree).includes("Send template"));
 
   globalThis.window.__TEMPLATES = [tpl("welcome_new", { category: "marketing", variables: welcome.variables }), note];

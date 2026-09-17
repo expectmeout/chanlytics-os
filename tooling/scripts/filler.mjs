@@ -89,7 +89,7 @@ const PEOPLE = [
       { kind: "in", at: dayAt(3, 10, 12), body: "Hi! Do you do balayage? How much for medium length hair?" },
       { kind: "ai", at: dayAt(3, 10, 13), body: "Hi Daniela! Yes — balayage is one of our specialties. For medium-length hair it usually runs $180–$240 depending on the technique and toner. Would you like the booking link?", intent: "pricing", confidence: 0.86 },
       { kind: "in", at: dayAt(3, 10, 15), body: "Yes please! And yes to offers" },
-      { kind: "ai", at: dayAt(3, 10, 16), body: "Done — you'll hear about our monthly offers here. Book any time: {link}", intent: "booking", confidence: 0.91, template: "booking_link_v1", status: "read" },
+      { kind: "ai", at: dayAt(3, 10, 16), body: "Done — you'll hear about our monthly offers here. Book any time: {link}", intent: "booking", confidence: 0.91, template: "booking_link", status: "read" },
       { kind: "in", at: hoursAgo(2.1), body: "I booked for Saturday but can you do it for $150? my friend got that price last month" },
     ],
     conv: { state: "needs_human", pausedUntil: inHours(22) },
@@ -121,7 +121,7 @@ const PEOPLE = [
       { kind: "in", at: dayAt(25, 11, 2), body: "Hola! Do you do keratin treatments?" },
       { kind: "ai", at: dayAt(25, 11, 3), body: "Hi Sofia! Yes — a keratin smoothing treatment is $220–$280 depending on length and lasts about 3 months. Want the booking link?", intent: "services", confidence: 0.9 },
       { kind: "in", at: dayAt(25, 11, 5), body: "Yes and YES to offers 🙂" },
-      { kind: "ai", at: dayAt(25, 11, 6), body: "Done — you'll hear about our monthly offers here. Book any time: {link}", intent: "booking", confidence: 0.92, template: "booking_link_v1", status: "read" },
+      { kind: "ai", at: dayAt(25, 11, 6), body: "Done — you'll hear about our monthly offers here. Book any time: {link}", intent: "booking", confidence: 0.92, template: "booking_link", status: "read" },
       { kind: "in", at: dayAt(12, 12, 40), body: "Is the 20% also for highlights?" },
       { kind: "ai", at: dayAt(12, 12, 41), body: "It is — the September offer covers any color service, highlights included, booked before the 20th. Want me to send the booking link again?", intent: "pricing", confidence: 0.87 },
       { kind: "in", at: dayAt(5, 9, 48), body: "What are your hours on Saturdays?" },
@@ -170,7 +170,7 @@ const PEOPLE = [
       { kind: "in", at: dayAt(20, 16, 30), body: "Hola, cuánto cuesta un corte y color?" },
       { kind: "ai", at: dayAt(20, 16, 31), body: "¡Hola Laura! El corte cuesta $65 y el color desde $120 según el largo. ¿Te envío el enlace para reservar?", intent: "pricing", confidence: 0.89, language: "es" },
       { kind: "in", at: dayAt(20, 16, 33), body: "Sí, y sí a las ofertas" },
-      { kind: "ai", at: dayAt(20, 16, 34), body: "Listo — te avisaremos de las ofertas del mes por aquí. Reserva cuando quieras: {link}", intent: "booking", confidence: 0.9, template: "booking_link_v1", status: "read", language: "es" },
+      { kind: "ai", at: dayAt(20, 16, 34), body: "Listo — te avisaremos de las ofertas del mes por aquí. Reserva cuando quieras: {link}", intent: "booking", confidence: 0.9, template: "booking_link", status: "read", language: "es" },
       { kind: "in", at: dayAt(6, 19, 12), body: "STOP" },
       { kind: "ai", at: dayAt(6, 19, 13), body: "Entendido, Laura — no recibirás más ofertas por aquí. Si necesitas una cita, escríbenos cuando quieras.", intent: "other", confidence: 0.97, status: "read", language: "es" },
     ],
@@ -183,7 +183,7 @@ const PEOPLE = [
       { kind: "in", at: dayAt(2, 14, 18), body: "Hi, I saw your lash extensions on Instagram — do you do classic sets?" },
       { kind: "ai", at: dayAt(2, 14, 19), body: "Hi Nina! Yes — a classic set is $110 and takes about 90 minutes. Hybrid is $140 and volume $170. Want the booking link?", intent: "services", confidence: 0.9 },
       { kind: "in", at: dayAt(2, 14, 22), body: "Classic please!" },
-      { kind: "ai", at: dayAt(2, 14, 23), body: "Here you go: {link} — pick any slot that suits you and we'll take it from there.", intent: "booking", confidence: 0.92, template: "booking_link_v1", status: "delivered" },
+      { kind: "ai", at: dayAt(2, 14, 23), body: "Here you go: {link} — pick any slot that suits you and we'll take it from there.", intent: "booking", confidence: 0.92, template: "booking_link", status: "delivered" },
     ],
   }),
   person({
@@ -448,8 +448,8 @@ async function apply() {
         me.lastMsg = noteRow.id;
         touch(s.at, true, false);
         if (s.link) {
-          const t = templates.booking_link_v1;
-          const [m] = await insert("messages", { tenant_id: TENANT, conversation_id: me.conversation, contact_id: me.contact, channel: "whatsapp", direction: "outbound", sender: "ai", type: "template", template_name: "booking_link_v1", body: render(t?.body_preview ?? "Thanks for reaching out to {{1}}! You can book your appointment here: {{2}}", [{ kind: "business_name" }, { kind: "booking_link" }], ctxOf(p)), status: s.link === "failed" ? "failed" : "delivered", status_updated_at: iso(minutesAfter(ended, 1)), external_id: s.link === "failed" ? null : wamid(), channel_ts: iso(ended), created_at: iso(minutesAfter(ended, 0.2)), meta: { source: "voice_booking_link", call_id: retellId }, ...(s.link === "failed" ? { error: { http_status: 400, body: { error: { code: 131026, message: "Message Undeliverable." } } } } : {}) });
+          const t = templates.booking_link;
+          const [m] = await insert("messages", { tenant_id: TENANT, conversation_id: me.conversation, contact_id: me.contact, channel: "whatsapp", direction: "outbound", sender: "ai", type: "template", template_name: "booking_link", body: render(t?.body_preview ?? "Thanks for reaching out to {{1}}! You can book your appointment here: {{2}}", [{ kind: "business_name" }, { kind: "booking_link" }], ctxOf(p)), status: s.link === "failed" ? "failed" : "delivered", status_updated_at: iso(minutesAfter(ended, 1)), external_id: s.link === "failed" ? null : wamid(), channel_ts: iso(ended), created_at: iso(minutesAfter(ended, 0.2)), meta: { source: "voice_booking_link", call_id: retellId }, ...(s.link === "failed" ? { error: { http_status: 400, body: { error: { code: 131026, message: "Message Undeliverable." } } } } : {}) });
           note("messages", m.id);
           touch(minutesAfter(ended, 0.2), false, false);
         }

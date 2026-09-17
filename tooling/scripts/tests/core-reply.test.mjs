@@ -12,7 +12,7 @@ const NOW = Date.parse("2026-09-11T12:00:00Z");
 const HOUR = 3_600_000;
 const iso = (ms) => new Date(ms).toISOString();
 const conv = (over = {}) => ({ id: "c1", tenant_id: "t1", phone_e164: "+15550000001", contact_id: "k1", last_wa_inbound_at: iso(NOW - HOUR), consent: "opted_in", dnc: false, marketing_consent: null, ...over });
-const approved = { name: "booking_link_v1", language: "en_US", body_preview: "Book with {{1}}: {{2}}", meta_status: "approved", category: "utility" };
+const approved = { name: "reservar_ahora", language: "en_US", body_preview: "Book with {{1}}: {{2}}", meta_status: "approved", category: "utility" };
 const READS = new Set(["pauseMs", "replyChannel", "priorReceipt", "template", "templateFacts", "hash", "now"]);
 
 /** Every port answers a value (or a function of its arguments); the writes log their call as [name, ...args]. */
@@ -92,28 +92,28 @@ test("outside the window: only an approved template goes, a promotion needs a ye
   await refused(replyToConversation(noTemplate.ports, cmd({ conv: closed })), "window_closed", /24-hour/);
   assert.deepEqual(noTemplate.ops(), []);
   const pending = fakes({ template: { ...approved, meta_status: "pending" } });
-  await refused(replyToConversation(pending.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /not approved/);
+  await refused(replyToConversation(pending.ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } })), "validation", /not approved/);
   const promo = fakes({ template: { ...approved, category: "marketing" } });
-  await refused(replyToConversation(promo.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "forbidden", /offers/);
+  await refused(replyToConversation(promo.ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } })), "forbidden", /offers/);
   const yes = fakes({ template: { ...approved, category: "marketing" } });
-  assert.equal((await replyToConversation(yes.ports, cmd({ conv: { ...closed, marketing_consent: "opted_in" }, body: { template: { name: "booking_link_v1", language: "en_US" } } }))).status, "queued", "a yes to offers lets the promotion through");
+  assert.equal((await replyToConversation(yes.ports, cmd({ conv: { ...closed, marketing_consent: "opted_in" }, body: { template: { name: "reservar_ahora", language: "en_US" } } }))).status, "queued", "a yes to offers lets the promotion through");
   const { ports, log, call } = fakes();
-  const r = await replyToConversation(ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["client", "params"] } } }));
+  const r = await replyToConversation(ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US", params: ["client", "params"] } } }));
   assert.equal(call("queue")[1].body, "Book with Melany's: book.example/m", "the workspace's facts, the scheme stripped, over the client's");
   assert.equal(call("queue")[1].type, "template");
-  assert.deepEqual(call("schedule")[3].template, { name: "booking_link_v1", language: "en_US", params: ["Melany's", "book.example/m"] });
-  assert.deepEqual(call("record")[5], { message_id: "m1", window_open: false, template: "booking_link_v1" });
+  assert.deepEqual(call("schedule")[3].template, { name: "reservar_ahora", language: "en_US", params: ["Melany's", "book.example/m"] });
+  assert.deepEqual(call("record")[5], { message_id: "m1", window_open: false, template: "reservar_ahora" });
   assert.equal(r.window_open, false);
   const bare = fakes({ templateFacts: null });
-  await refused(replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US", params: ["A", "B"] } } })), "validation", /no template facts/);
+  await refused(replyToConversation(bare.ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US", params: ["A", "B"] } } })), "validation", /no template facts/);
   assert.deepEqual(bare.ops(), [], "the client's params are never a fallback: the browser does not choose the link that lands on a phone");
   const typed = fakes({ template: { ...approved, variables: [{ label: "Business name", position: 1 }, { label: "Offer", position: 2 }] } });
-  await refused(replyToConversation(typed.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /needs words for “Offer”/);
+  await refused(replyToConversation(typed.ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } })), "validation", /needs words for “Offer”/);
   assert.deepEqual(typed.ops(), [], "a template with words to write is refused here, not by Meta fifteen seconds after 'queued'");
   const two = fakes({ template: { ...approved, variables: [{ label: "Business name", position: 1 }, { label: "Booking link", position: 2 }] } });
-  assert.equal((await replyToConversation(two.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } }))).status, "queued");
+  assert.equal((await replyToConversation(two.ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } }))).status, "queued");
   const none = fakes({ templateFacts: null });
-  await refused(replyToConversation(none.ports, cmd({ conv: closed, body: { template: { name: "booking_link_v1", language: "en_US" } } })), "validation", /no template facts/);
+  await refused(replyToConversation(none.ports, cmd({ conv: closed, body: { template: { name: "reservar_ahora", language: "en_US" } } })), "validation", /no template facts/);
   assert.deepEqual(none.ops(), []);
 });
 
