@@ -71,4 +71,40 @@ test.describe("sidebar on a real workspace", () => {
       await page.evaluate((p) => { if (p === null) localStorage.removeItem("chanlytics-os-prefs"); else localStorage.setItem("chanlytics-os-prefs", p); }, prefsBefore);
     }
   });
+
+  /**
+   * Conversations and Live read the same table the Inbox does (surface-data.ts
+   * inboxOverride / conversationsOverride both GET conversations), so they are
+   * views of it rather than places of their own. In a real browser, on a real
+   * workspace -- where demoOnly items are filtered out and a node render of the
+   * rail cannot see that filtering.
+   */
+  test("the Inbox is one door: Conversations and Live are its views, and the rail lights one item", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
+
+    // Seven places on a real workspace (Agents is demo-only), and Conversations
+    // is not one of them. Counted rather than spelled out: a nav item carries a
+    // hint and a badge inside it, and this promise is about which places exist.
+    const rail = page.getByTestId("sidebar");
+    await expect(rail.locator(".nav-item")).toHaveCount(7);
+    await expect(rail.locator(".nav-item", { hasText: "Conversations" })).toHaveCount(0);
+    for (const place of ["Today", "Inbox", "People", "Calendar", "Campaigns", "Reports", "Settings"]) {
+      await expect(rail.locator(".nav-item", { hasText: place })).toHaveCount(1);
+    }
+
+    for (const [hash, tab] of [["/#/inbox", "Needs you"], ["/#/conversations", "Conversations"], ["/#/live", "Live"]] as const) {
+      await page.goto(hash);
+      await page.waitForLoadState("networkidle");
+      const strip = page.locator(".stabs");
+      await expect(strip.locator(".stabs-tab")).toHaveCount(3);
+      await expect(strip.locator(".stabs-tab.active")).toHaveText(new RegExp(`^${tab}`));
+      // One item lit on the rail, and it is the Inbox -- every one of these
+      // routes used to light a second nav item of its own.
+      const lit = rail.locator(".nav-item.active");
+      await expect(lit).toHaveCount(1);
+      await expect(lit).toContainText("Inbox");
+    }
+  });
 });

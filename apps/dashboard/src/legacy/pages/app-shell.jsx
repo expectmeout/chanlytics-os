@@ -530,9 +530,10 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     // live/<callId>: the call a door names, opened on Live and named in the crumbs. The route had no place
     // for an id, so a door could only open the list.
     const liveCall = param ? [...(((window.__LIVE || {}).now) || []), ...(((window.__LIVE || {}).recent) || [])].find((c) => c.callId === param) : null;
+    // Live is a view of the Inbox, so the trail starts where the nav item is.
     crumbs = liveCall
-      ? [{ label: "Conversations", to: "conversations" }, { label: "Live", to: "live" }, liveCall.who]
-      : [{ label: "Conversations", to: "conversations" }, "Live"];
+      ? [{ label: "Inbox", to: "inbox" }, { label: "Live", to: "live" }, liveCall.who]
+      : [{ label: "Inbox", to: "inbox" }, "Live"];
     pane = true;
     content = <LiveMonitorPage initialCallId={param || null} />;
   } else if (page === "conversations") {
@@ -543,7 +544,11 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     const isCvId = !!param && !chLabel;
     const cvWho = isCvId && (((window.CONVERSATIONS_DATA || {}).CONVERSATIONS || []).find(c => c.id === param) || {}).who;
     activeNav = { phone: "calls", chats: "chats", mail: "email" }[param] || "conversations";
-    crumbs = cvWho ? [{ label: "Conversations", to: "conversations" }, cvWho] : chLabel ? [{ label: "Conversations", to: "conversations" }, chLabel] : ["Conversations"];
+    crumbs = cvWho
+      ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, cvWho]
+      : chLabel
+        ? [{ label: "Inbox", to: "inbox" }, { label: "Conversations", to: "conversations" }, chLabel]
+        : [{ label: "Inbox", to: "inbox" }, "Conversations"];
     pane = true;
     content = (
       <ConversationsPage
