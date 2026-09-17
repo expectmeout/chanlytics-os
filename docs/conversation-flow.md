@@ -6,7 +6,9 @@ It is a **conformance** map. `docs/system-prd.md` is the component catalogue —
 
 Every claim names a file and a line. Where this document and the code disagree, the code is right and this is stale. It is written against `main` at `0e463030`; work in flight on other branches is out of scope and is not counted as either a strength or a hole.
 
-**In one sentence:** the way *out* is one door that every channel shares and it is the best thing in the repository; the way *in* is four doors that agree on what matters and differ on the rest; and the differences that cost a customer something are listed in §6, ranked.
+**In one sentence:** every message a customer receives leaves through one shared door, and that door is the best thing in the repository; the way *in* is four doors that agree on what matters and differ on the rest; and the differences that cost a customer something are listed in §6, ranked.
+
+One qualification, because it changes what is worth centralising. `deliver()` is the **message-send** door, not the door for everything a customer experiences. The voice agent speaks live without passing through it, and reading open times aloud, transferring a call and ending one are customer-facing actions it never sees. Improving `deliver()` alone cannot make the voice experience obey the same rules — G4 below is exactly that gap, and it is why the unit worth sharing is an *action*, not a channel handler.
 
 ---
 
@@ -101,6 +103,8 @@ The subtlety worth keeping: a queued draft is deliberately **not** held by the t
 
 `SendKind` being a separate axis from `sender` is the reason all of this works: who wrote the words is a fact recorded on the row, and what policy the send goes under is a different question. Copy it anywhere a fifth channel is added.
 
+**Three facts share two columns, and that is the root of G3 and G5 together.** `assignee_user_id` and `paused_until` are asked to carry *who is responsible for this customer*, *who is controlling the response right now*, and *may the machine act*. They are different facts with different lifetimes. Responsibility can outlive an interaction and should survive a handover; control of the current exchange must be claimed and released and must expire; permission for the machine to act is a policy answer, not something to infer from whether a row happens to name somebody. Collapsing them is why a departed teammate holds a thread for ever (G3) and why nothing can say "a call is in progress, do not start a second conversation" (G5) — there is no place to write it. Anything built on top of the present two columns is a patch; the durable fix is to separate the three and give the middle one an atomic claim with an expiry, because a read-then-decide loses the race it exists to settle.
+
 **One hold per thread.** `upsertEscalation` (`packages/jobs/src/escalate.ts:14`) inserts or refreshes, and **the refresh overwrites the reason**. Nineteen reasons exist (`packages/contracts/src/enums.ts:269`) and they are the whole vocabulary for "a person is needed". Two of them — `deadman` and `manual` — have no emitter anywhere.
 
 ---
@@ -113,7 +117,7 @@ Four front doors, and a shorter shared road than it looks: **only WhatsApp and S
 
 Voice never joins that road. A call is answered live by the Retell agent and *deposited* on the thread afterwards as a single `call_summary` message keyed `call:<retell_call_id>`. Email steps off the road deliberately, before the receptionist's turn.
 
-The 21 gates on the text road are asked in a fixed order — allowlist, dedupe, per-person mode, consent, carrier hold, message kind, staleness, opt-in confirmation, thread pause, daily cap, token budget, workspace paused, reply mode, then the model, then layer two. **There is no business-hours gate anywhere**: opening hours reach the model as prose and nothing enforces them, in a file whose own header says prompt text is never the only defence.
+The 21 gates on the text road are asked in a fixed order — allowlist, dedupe, per-person mode, consent, carrier hold, message kind, staleness, opt-in confirmation, thread pause, daily cap, token budget, workspace paused, reply mode, then the model, then layer two. Opening hours are enforced where they decide a *time*: `freeWindows` builds every offered window out of that day's own intervals, so a closed day offers nothing. They are enforced nowhere else — nothing stops the receptionist answering at three in the morning, and nothing stops a transfer being offered to a line nobody is standing beside. Whether either is a defect is a product question asked per action, not a missing gate.
 
 ### 5.2 Handing a conversation to a person
 
@@ -182,9 +186,11 @@ Ranked by what it costs a real customer conversation. Each names the evidence, w
 
 **G13. WhatsApp is the one door with no judgement split.** The 503-vs-200 decision at `whatsapp.ts:240` decides whether a customer's message survives, and it is held by nothing but reading 170 lines. Three later doors each wrote a pure `plan*` function and each cited the last one as precedent.
 
-**G14. No replay window on the Meta or Twilio signatures.** Email checks the timestamp within five minutes; the two older doors verify the HMAC and nothing else. `ingest_inbound` blunts the message case; `sms-status.ts` re-applies a status on every replay.
+**G14. Repeated deliveries have effects that are not idempotent.** *(Rewritten: the first version of this finding asked for a fix that would have lost customer messages.)* Neither older provider gives us a freshness check to make — Twilio signs the URL and its parameters, Meta signs the raw body, and **neither carries a timestamp**, so email's five-minute window has nothing to copy across. And Meta redelivers a failed webhook for up to seven days, so an age check on the event would discard precisely the retries the 503 contract exists to earn.
 
-**G15. `lineByNumber` is not tenant-scoped** (`apps/edge/lib/sms.ts:22`). The row it picks supplies both the token that verifies the inbound signature and the tenant a delivery receipt is written against, with no `order by` to make even the arbitrary choice stable.
+The real finding is narrower and fixable. `ingest_inbound` already makes a replayed *message* harmless; nothing else on those doors is idempotent. The owner-echo branch slides `paused_until` forward by a fresh pause window on every redelivery, `sms-status.ts` re-applies a status, and `ingest.unroutable` is emitted once per change with no throttle where the email door holds it to one a minute. Make those three harmless on the provider's own event identity; do not add a clock the provider never sent.
+
+**G15. ~~`lineByNumber` is not tenant-scoped.~~** *(Withdrawn on checking.)* A lookup that takes a number and no tenant reads like an isolation hole — but `lines_e164_live_idx` (`00066_lines.sql:39`) is a unique index on `(e164) where e164 is not null and voice_state <> 'failed'`, and the lookup filters on exactly that predicate. One live line per number is enforced by the database, so the row cannot be ambiguous and there is nothing for an `order by` to stabilise. Discovering the tenant from the destination number is also what the door must do *before* it can choose the credentials that verify the signature. Kept here rather than deleted, because the lesson is worth the line: looking something up without a tenant is safe exactly when a constraint says it is, and a real hole when none does.
 
 **G16. A day can be skipped or doubled around a daylight-saving change.** `packages/contracts/src/availability.ts:519-521` steps the horizon by adding 86 400 000 ms and then asking which local day that lands on. Every other day-stepper in the codebase uses calendar arithmetic. Reading availability late in the evening before a spring-forward drops the whole next day from the offered windows; the autumn edge emits one day twice and loses one off the far end. Narrow — it needs the read to happen within an hour of local midnight — but it is twice a year, in the one number a customer is told out loud.
 
@@ -217,11 +223,14 @@ Ranked by what it costs a real customer conversation. Each names the evidence, w
 
 ## 8. Convergence, in the order worth doing it
 
-1. **G1 and G4** — the two places the phone receptionist silently under-delivers for a paying workspace. Both are small.
-2. **G3** — clear the assignee when a member goes, and give the pause sweeper a way out. One migration and one line in the team service.
-3. **G11 and G12** — two small fixes that keep the email channel's promise once it can answer.
-4. **G6, G7, G10** — make the voice path obey the house rules it is the exception to: a failed read is not an answer, and a refusal is a row.
-5. **G13** — lift `whatsapp.ts`'s judgement into `planWhatsappDelivery`, the fourth of its kind. Nothing changes behaviourally; the 503 decision becomes testable.
-6. **G19** — derive one `Channel` union from `enums.ts` and let the sink, the draft queue and the veto window carry email.
-7. **G20** — make the README, the system map and the A2P filing say what the product does.
-8. **G16 and G17** — calendar arithmetic in `freeWindows`, and a workspace that has never chosen a timezone should be asked rather than assumed.
+Ordered by what each batch stops costing somebody, not by how much code it tidies. The two that ship today ship today; nothing here holds a small fix hostage to a large one.
+
+**Batch 1 — stop the unsafe failure modes, and stop saying untrue things.** G6 (a failed count reads as zero), G7 (a failed erasure read reads as nobody), G8 (zero rows read as success), G10 (a refusal that is only a log line), G14 (make the three repeated effects idempotent). Alongside them, the copy fixes from G20 and G2 — an interface that claims a capability the journey cannot deliver is a defect that costs nothing to correct. The test for this batch: uncertainty never authorises an action, and an unknown outcome is visible to somebody.
+
+**Batch 2 — repair the voice and human-control journeys.** G1 and G4 first, because a paying workspace's phone receptionist under-delivers silently today and both are small. Then G3 and G5 together, as one change rather than two patches, along the seam named in §4: separate responsibility, live control and automation permission, and give control an atomic claim with an expiry. G9 rides with it. G16 and G17 belong here too, because a wrong day and a wrong clock are wrong in the one number a customer is told out loud.
+
+**Batch 3 — finish email end to end.** G2, G11 and G12, plus as much of G19 as the reply path actually needs. The acceptance test is an **email-only** contact: received, shown, composed, queued with its undo, sent from the right identity, outcome recorded, thread continued. A contact who also has a phone number does not prove it.
+
+**Batch 4 — consolidate, and remove what is superseded.** G13 (lift `whatsapp.ts`'s judgement into `planWhatsappDelivery`, the fourth of its kind — no behaviour change, and the 503 decision becomes testable), G18 (retire the Blob mirror and the compensations built around it), the rest of G19, G21, G22. This batch is last on purpose: it is the one whose value is entirely in the next change, not this one.
+
+**One thing to extend rather than invent.** `capabilityStatus` (`packages/contracts/src/capabilities.ts`, table `capability_activations`, 00108) already answers "is this workspace actually ready for this channel" for `voice`, `whatsapp` and `sms`, off real prerequisites. G1 and G2 are both the same shape of bug — a capability that exists in types, seeds and interface copy but not in the journey — so they belong in that model as two more kinds, `booking_link` and `email_reply`, with `ready` meaning the whole path was checked and not merely that a row exists.
