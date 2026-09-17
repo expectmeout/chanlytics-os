@@ -984,45 +984,112 @@ export interface WeekTileLike {
 }
 /** What the Reports surface publishes, as far as Today reads it. */
 export interface ReportsLike {
-  vm: { days: number; rangeLabel: string; since: string; until: string; empty: boolean; tiles: WeekTileLike[] };
+  vm: {
+    days: number;
+    rangeLabel: string;
+    since: string;
+    until: string;
+    empty: boolean;
+    tiles: WeekTileLike[];
+    /** Who answered the period's customer messages: `none` is the number nobody ever answered. */
+    answered?: { totals: { in: number; ai: number; you: number; none: number } };
+    /** Why the receptionist stopped, most common first — the period's "driven by". */
+    reasons?: Array<{ id: string; label: string; value: number }>;
+  };
   campaigns: { tiles: WeekTileLike[]; empty: boolean };
-  booking: { present: boolean; headline: string; sub: string; pct: number | null };
+  booking: { present: boolean; headline: string; sub: string; pct: number | null; asked?: number; booked?: number };
+}
+
+/** One of the three ways to read the period, behind the card's own control. */
+export interface TodayWeekViewVM {
+  id: "conversations" | "campaigns" | "booking";
+  /** The control's word. */
+  label: string;
+  tiles: WeekTileLike[];
+  /** Under the tiles: what drove the headline number, in the period's own counts. */
+  chips: Array<{ label: string; value: string }>;
+  /** Said when there is nothing to draw, or what the numbers mean when there is. */
+  note: string | null;
+  /** Where the full version of this view lives. */
+  to: string;
 }
 
 export interface TodayWeekVM {
   /** "Last 7 days" — the range the owner chose on Reports. */
   label: string;
-  /** "Aug 31 – Sep 6 · against the 7 days before" */
+  /** "Aug 31 – Sep 6" — the range itself; the comparison it is drawn against lives on Reports, with the charts. */
   sub: string;
-  tiles: WeekTileLike[];
-  /** The offers' line and the booking line, each with where it leads. */
-  lines: Array<{ id: "campaigns" | "booking"; text: string; to: string }>;
+  views: TodayWeekViewVM[];
+  /** The view to open on: the first one with something in it. */
+  initial: TodayWeekViewVM["id"];
 }
 
 /**
- * The period as Reports counts it: its tiles untouched, plus one line for
- * what the offers earned and one for who booked. The same numbers as the
- * page it links to, never a second count.
+ * The period as Reports counts it, in three reads behind one control:
+ * the conversations (its own six tiles, and what made the receptionist stop),
+ * the campaigns (what went out and what came back), and the booking (who
+ * wrote or called, and who ended up on the calendar).
+ *
+ * It was six tiles and two grey lines underneath, and the two lines carried
+ * the numbers that matter most to a business: what the offers earned, and how
+ * many of the people who asked ever booked. "Asked -> booked: 0 of 18 · 0%"
+ * is not a footnote. Each read is now a first-class view with its own tiles;
+ * none of them is a second count — every number is the one Reports prints.
  */
 export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
   if (!r) return null;
   const find = (id: string) => r.campaigns.tiles.find((t) => t.id === id);
   const sent = find("sent");
-  const yes = find("optins");
-  const offers = r.campaigns.empty || !sent || sent.value === "0"
-    ? "No campaign message went out."
-    : `${sent.value} campaign message${sent.value === "1" ? "" : "s"} sent · ${yes ? yes.value : "0"} said yes`;
+  const noCampaign = r.campaigns.empty || !sent || sent.value === "0";
+
+  // Why the receptionist stopped: the period's escalation reasons, as Reports
+  // counts them. The chips say what the "Needed you" tile above them is made of.
+  const reasons = (r.vm.reasons ?? []).filter((x) => x.value > 0).slice(0, 5);
+  const conversations: TodayWeekViewVM = {
+    id: "conversations",
+    label: "Conversations",
+    tiles: r.vm.tiles,
+    chips: reasons.map((x) => ({ label: x.label, value: String(x.value) })),
+    // No "N never got an answer" line here: the Receptionist answered tile
+    // already carries "4 unanswered" in its own meta, and todayLeaks says it in
+    // words above. A third printing on one page is what this pass is removing.
+    note: r.vm.empty ? "Nobody wrote or called in this period." : null,
+    to: "reports",
+  };
+
+  const campaigns: TodayWeekViewVM = {
+    id: "campaigns",
+    label: "Campaigns",
+    tiles: noCampaign ? [] : r.campaigns.tiles,
+    chips: [],
+    note: noCampaign ? "No campaign message went out in this period." : null,
+    to: "broadcasts",
+  };
+
   const b = r.booking;
-  const booking = !b.present
-    ? { text: b.sub, to: "calendar" }
-    : b.pct === null
-      ? { text: "Nobody wrote or called, so there was nothing to book.", to: "reports" }
-      : { text: `Asked → booked: ${b.headline} · ${b.pct}%`, to: "reports" };
+  const bookingTiles: WeekTileLike[] = !b.present || b.pct === null
+    ? []
+    : [
+        { id: "asked", label: "Wrote or called", value: String(b.asked ?? 0), meta: `in the last ${r.vm.rangeLabel}`, delta: null, spark: [] },
+        { id: "booked", label: "On the calendar", value: String(b.booked ?? 0), meta: "have an appointment ahead", delta: null, spark: [] },
+        { id: "rate", label: "Asked → booked", value: `${b.pct}%`, meta: b.headline, delta: null, spark: [] },
+      ];
+  const booking: TodayWeekViewVM = {
+    id: "booking",
+    label: "Booking",
+    tiles: bookingTiles,
+    chips: [],
+    note: bookingTiles.length ? null : b.present ? "Nobody wrote or called, so there was nothing to book." : b.sub,
+    to: b.present ? "reports" : "calendar",
+  };
+
+  const views = [conversations, campaigns, booking];
+  const full = views.find((v) => v.tiles.length > 0);
   return {
     label: `Last ${r.vm.rangeLabel}`,
-    sub: `${r.vm.since} – ${r.vm.until} · against the ${r.vm.days} days before`,
-    tiles: r.vm.tiles,
-    lines: [{ id: "campaigns", text: offers, to: "reports" }, { id: "booking", ...booking }],
+    sub: `${r.vm.since} – ${r.vm.until}`,
+    views,
+    initial: full ? full.id : "conversations",
   };
 }
 
@@ -1034,8 +1101,19 @@ export interface JourneyListLike {
   count: number;
   action: { text: string; cta: string; to: string; enabled: boolean } | null;
 }
+export interface TodayJourneyRowVM {
+  id: string;
+  label: string;
+  count: number;
+  to: string;
+  act: { label: string; to: string } | null;
+}
+
 export interface TodayJourneyVM {
-  rows: Array<{ id: string; label: string; count: number; to: string; act: { label: string; to: string } | null }>;
+  /** On the way to a booking. */
+  rows: TodayJourneyRowVM[];
+  /** Who can still be reached, and how -- the same lists People groups under Reach. */
+  reach: TodayJourneyRowVM[];
   /** Said once when the calendar is not connected: which lists are missing and why. */
   note: string | null;
 }
@@ -1043,14 +1121,231 @@ export interface TodayJourneyVM {
 /** Where people are on the way to a booking: People's journey lists, their counts, and the step each has when it has one. */
 export function todayJourney(people: { lists: JourneyListLike[]; calendar: { state: string } } | null): TodayJourneyVM | null {
   if (!people) return null;
-  const rows = people.lists
-    .filter((l) => l.group === "journey")
+  const group = (name: string): TodayJourneyRowVM[] => people.lists
+    .filter((l) => l.group === name)
     .map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
-  return { rows, note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
+  return { rows: group("journey"), reach: group("reach"), note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
 }
 
 /** While you were away: the bell's unread rows in the bell's order, capped, the rest counted. */
 export function todayAway<T extends { unread: boolean }>(rows: T[], max = 5): { rows: T[]; more: number } {
   const fresh = rows.filter((r) => r.unread);
   return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
+}
+
+/* ------------------------------ worth a look ----------------------------- */
+
+/**
+ * The few things this page holds that no row on it says on its own.
+ *
+ * Every one of them is a RE-PRINT: the numbers are the ones Reports and
+ * People already publish, said together so the shape shows. "18 wrote or
+ * called" sits on Reports and "17 asked, never booked" sits on People, and
+ * neither page can tell you they are the same eighteen people. Nothing here
+ * is counted twice, and nothing here is a trend -- a period over a period is
+ * noise at these counts (reports.ts dropped tile deltas for exactly that).
+ */
+export type TodayLeakId = "never-booked" | "unanswered" | "unreachable" | "quiet";
+
+export interface TodayLeakVM {
+  id: TodayLeakId;
+  tone: "danger" | "warn" | "info";
+  /** The problem, in one sentence, with the number in it. */
+  text: string;
+  /** The arithmetic behind the sentence, so nobody has to take it on faith. */
+  math: string;
+  /** The door. */
+  cta: { label: string; to: string };
+  /** The act, when the list this is about has one it can actually run. */
+  also: { label: string; to: string } | null;
+}
+
+/** What People publishes, as far as this reads it. */
+export interface PeopleListsLike {
+  lists: JourneyListLike[];
+  aggregates?: { total: number };
+}
+
+/** At most this many; the rest is not an insight, it is a list. */
+export const TODAY_LEAK_MAX = 2;
+
+/**
+ * In this order, and the order is the point: the first two both cost a
+ * customer, and the one that costs more of them comes first. A person who
+ * asked and never got onto the calendar is the business's whole purpose
+ * missed; a message nobody answered is one conversation. Then the two that
+ * cost a chance rather than a customer.
+ */
+const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "unreachable", "quiet"];
+
+export function todayLeaks(
+  reports: ReportsLike | null,
+  people: PeopleListsLike | null,
+  max = TODAY_LEAK_MAX,
+): TodayLeakVM[] {
+  const found = new Map<TodayLeakId, TodayLeakVM>();
+  const list = (id: string) => (people ? people.lists.find((l) => l.id === id) ?? null : null);
+  const step = (id: string) => {
+    const l = list(id);
+    return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
+  };
+
+  const b = reports ? reports.booking : null;
+  // Five is the floor: two people who did not book is a quiet week, not a leak.
+  if (reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25) {
+    const asked = b.asked ?? 0;
+    const booked = b.booked ?? 0;
+    const never = list("asked_never_booked");
+    found.set("never-booked", {
+      id: "never-booked",
+      tone: "danger",
+      text: booked === 0
+        ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
+        : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`,
+      math: never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline,
+      cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
+      also: step("asked_never_booked"),
+    });
+  }
+
+  const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
+  if (reports && a && a.none > 0) {
+    found.set("unanswered", {
+      id: "unanswered",
+      tone: "danger",
+      text: `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`,
+      math: `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`,
+      cta: { label: "Open Reports", to: "reports" },
+      also: null,
+    });
+  }
+
+  // A yes to hearing from the business is not a yes to an offer, and a list
+  // nobody can be mailed reads as a broken composer one screen later.
+  const yes = list("opted_in");
+  const offers = list("offers_ok");
+  if (yes && offers && yes.count > 0 && offers.count === 0) {
+    found.set("unreachable", {
+      id: "unreachable",
+      tone: "warn",
+      text: `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`,
+      math: "a broadcast reaches only the second yes · 0 can receive one",
+      cta: { label: "Open People", to: `clients/seg:${yes.id}` },
+      also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
+    });
+  }
+
+  const quiet = list("quiet");
+  if (quiet && quiet.count >= 5) {
+    found.set("quiet", {
+      id: "quiet",
+      tone: "info",
+      text: `${quiet.count} people have not heard from you in 30 days.`,
+      math: people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list",
+      cta: { label: "See who", to: `clients/seg:${quiet.id}` },
+      also: step("quiet"),
+    });
+  }
+
+  return LEAK_ORDER.map((id) => found.get(id)).filter((x): x is TodayLeakVM => !!x).slice(0, max);
+}
+
+/* --------------------------- while you were away ------------------------- */
+
+/** A bell row as the bell publishes it, as far as this reads it. */
+export interface AwayRowLike {
+  id?: string;
+  key?: string;
+  kind?: string;
+  unread: boolean;
+  title: string;
+  message: string;
+  tone: "" | "ok" | "warn";
+  icon: string;
+  about?: { type: string; id: string } | null;
+}
+
+export interface AwayGroupVM<T extends AwayRowLike> {
+  /** The row itself when it stands alone; the newest of the group otherwise. */
+  row: T;
+  /** How many rows this stands for. 1 is an ordinary row. */
+  count: number;
+  /** The group's words when it stands for more than one. */
+  title: string | null;
+  /** Every row it swallowed, so read and dismiss reach all of them. */
+  ids: string[];
+}
+
+/**
+ * One noun per kind: a group of like rows says how many, and links where all
+ * of them live. A kind with no noun here never groups, so a new kind of alert
+ * shows itself rather than being counted into a total nobody can read. Never
+ * derived from the kind's spelling.
+ */
+const AWAY_NOUN: Record<string, [one: string, many: string]> = {
+  call: ["call", "calls"],
+  job_failed: ["job did not finish", "jobs did not finish"],
+  review: ["new rating on Google", "new ratings on Google"],
+  calendar_people: ["person added from your calendar", "people added from your calendar"],
+  handoff: ["conversation needs you", "conversations need you"],
+  playbook: ["playbook is ready", "playbooks are ready"],
+};
+
+/** A warning outranks good news, whatever their clocks say. */
+const AWAY_TONE_RANK: Record<string, number> = { warn: 0, "": 1, ok: 2 };
+
+/** Two of a kind is already a pattern; one is news. */
+const AWAY_GROUP_MIN = 2;
+
+/**
+ * What happened while the owner was away, as Today reads it rather than as
+ * the bell lists it.
+ *
+ * Three rules, and each one was a real page: a conversation already sitting
+ * in the queue at the top of this page is NOT repeated here; twelve calls
+ * from the same line become one row that says twelve, because five identical
+ * "No conversation happened" cards pushed a WhatsApp quality downgrade and
+ * three failed jobs off the bottom; and a warning sorts above good news, so
+ * the downgrade is not outranked by a five-star rating that landed later.
+ */
+export function todayAwayGrouped<T extends AwayRowLike>(
+  rows: readonly T[],
+  inQueue: readonly string[] = [],
+  max = 5,
+): { groups: Array<AwayGroupVM<T>>; more: number; total: number } {
+  const covered = new Set(inQueue);
+  const fresh = rows.filter((r) => r.unread && !(r.about && r.about.type === "conversation" && covered.has(r.about.id)));
+  const idOf = (r: T) => r.id ?? r.key ?? "";
+
+  const order: string[] = [];
+  const byKind = new Map<string, T[]>();
+  for (const r of fresh) {
+    const k = r.kind && AWAY_NOUN[r.kind] ? r.kind : `@${idOf(r)}`;
+    let bucket = byKind.get(k);
+    if (!bucket) { bucket = []; byKind.set(k, bucket); order.push(k); }
+    bucket.push(r);
+  }
+
+  const groups: Array<AwayGroupVM<T>> = [];
+  for (const k of order) {
+    const members = byKind.get(k) ?? [];
+    const noun = AWAY_NOUN[k];
+    if (!noun || members.length < AWAY_GROUP_MIN) {
+      for (const r of members) groups.push({ row: r, count: 1, title: null, ids: [idOf(r)] });
+      continue;
+    }
+    groups.push({ row: members[0], count: members.length, title: `${members.length} ${noun[1]}`, ids: members.map(idOf) });
+  }
+
+  const rank = (g: AwayGroupVM<T>) => AWAY_TONE_RANK[g.row.tone] ?? 1;
+  const sorted = groups
+    .map((g, i) => ({ g, i }))
+    .sort((x, y) => (rank(x.g) - rank(y.g)) || (x.i - y.i))
+    .map((x) => x.g);
+  // The head says how many unread things there are and the foot how many are
+  // not on screen, so the two must add up: a group of twelve stands for twelve,
+  // not for one. Counting groups here read as "22 ... and 2 more".
+  const shown = sorted.slice(0, max);
+  const stoodFor = shown.reduce((n, g) => n + g.count, 0);
+  return { groups: shown, more: Math.max(0, fresh.length - stoodFor), total: fresh.length };
 }

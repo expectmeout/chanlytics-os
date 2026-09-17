@@ -60,12 +60,16 @@ interface Globals {
 /** The row the popover draws: the mockup's own shape. */
 export interface BellRow {
   id: string;
+  /** What kind of thing this is, so a reader can group twelve of them into one row (contracts todayAwayGrouped). */
+  kind: string;
   icon: string;
   tone: string;
   unread: boolean;
   time: string;
   title: string;
   message: string;
+  /** The record it is about, when the edge said so -- how Today knows this conversation is already in its queue. */
+  about: { type: string; id: string } | null;
   actions: Array<{ label: string; to: string; primary: boolean }>;
 }
 
@@ -112,12 +116,14 @@ export function feedFromGlobals(g: Globals, now: number) {
 export function toRows(rows: NotificationRow[], now: number): BellRow[] {
   return rows.map((r) => ({
     id: r.key,
+    kind: r.kind,
     icon: r.icon,
     tone: r.tone,
     unread: r.unread,
     time: agoLabel(r.at, now),
     title: r.title,
     message: r.message,
+    about: r.about ?? null,
     actions: [{ label: r.action, to: r.to, primary: true }],
   }));
 }

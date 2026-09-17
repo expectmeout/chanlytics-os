@@ -4757,25 +4757,159 @@ function todayWeek(r) {
   if (!r) return null;
   const find = (id) => r.campaigns.tiles.find((t) => t.id === id);
   const sent = find("sent");
-  const yes = find("optins");
-  const offers = r.campaigns.empty || !sent || sent.value === "0" ? "No campaign message went out." : `${sent.value} campaign message${sent.value === "1" ? "" : "s"} sent \xB7 ${yes ? yes.value : "0"} said yes`;
+  const noCampaign = r.campaigns.empty || !sent || sent.value === "0";
+  const reasons = (r.vm.reasons ?? []).filter((x) => x.value > 0).slice(0, 5);
+  const conversations = {
+    id: "conversations",
+    label: "Conversations",
+    tiles: r.vm.tiles,
+    chips: reasons.map((x) => ({ label: x.label, value: String(x.value) })),
+    // No "N never got an answer" line here: the Receptionist answered tile
+    // already carries "4 unanswered" in its own meta, and todayLeaks says it in
+    // words above. A third printing on one page is what this pass is removing.
+    note: r.vm.empty ? "Nobody wrote or called in this period." : null,
+    to: "reports"
+  };
+  const campaigns = {
+    id: "campaigns",
+    label: "Campaigns",
+    tiles: noCampaign ? [] : r.campaigns.tiles,
+    chips: [],
+    note: noCampaign ? "No campaign message went out in this period." : null,
+    to: "broadcasts"
+  };
   const b = r.booking;
-  const booking = !b.present ? { text: b.sub, to: "calendar" } : b.pct === null ? { text: "Nobody wrote or called, so there was nothing to book.", to: "reports" } : { text: `Asked \u2192 booked: ${b.headline} \xB7 ${b.pct}%`, to: "reports" };
+  const bookingTiles = !b.present || b.pct === null ? [] : [
+    { id: "asked", label: "Wrote or called", value: String(b.asked ?? 0), meta: `in the last ${r.vm.rangeLabel}`, delta: null, spark: [] },
+    { id: "booked", label: "On the calendar", value: String(b.booked ?? 0), meta: "have an appointment ahead", delta: null, spark: [] },
+    { id: "rate", label: "Asked \u2192 booked", value: `${b.pct}%`, meta: b.headline, delta: null, spark: [] }
+  ];
+  const booking = {
+    id: "booking",
+    label: "Booking",
+    tiles: bookingTiles,
+    chips: [],
+    note: bookingTiles.length ? null : b.present ? "Nobody wrote or called, so there was nothing to book." : b.sub,
+    to: b.present ? "reports" : "calendar"
+  };
+  const views = [conversations, campaigns, booking];
+  const full = views.find((v) => v.tiles.length > 0);
   return {
     label: `Last ${r.vm.rangeLabel}`,
-    sub: `${r.vm.since} \u2013 ${r.vm.until} \xB7 against the ${r.vm.days} days before`,
-    tiles: r.vm.tiles,
-    lines: [{ id: "campaigns", text: offers, to: "reports" }, { id: "booking", ...booking }]
+    sub: `${r.vm.since} \u2013 ${r.vm.until}`,
+    views,
+    initial: full ? full.id : "conversations"
   };
 }
 function todayJourney(people) {
   if (!people) return null;
-  const rows = people.lists.filter((l) => l.group === "journey").map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
-  return { rows, note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
+  const group = (name) => people.lists.filter((l) => l.group === name).map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
+  return { rows: group("journey"), reach: group("reach"), note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
 }
 function todayAway(rows, max = 5) {
   const fresh = rows.filter((r) => r.unread);
   return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
+}
+var TODAY_LEAK_MAX = 2;
+var LEAK_ORDER = ["never-booked", "unanswered", "unreachable", "quiet"];
+function todayLeaks(reports, people, max = TODAY_LEAK_MAX) {
+  const found = /* @__PURE__ */ new Map();
+  const list = (id) => people ? people.lists.find((l) => l.id === id) ?? null : null;
+  const step = (id) => {
+    const l = list(id);
+    return l && l.action && l.action.enabled && l.count > 0 ? { label: l.action.cta, to: l.action.to } : null;
+  };
+  const b = reports ? reports.booking : null;
+  if (reports && b && b.present && b.pct !== null && (b.asked ?? 0) >= 5 && b.pct <= 25) {
+    const asked = b.asked ?? 0;
+    const booked = b.booked ?? 0;
+    const never = list("asked_never_booked");
+    found.set("never-booked", {
+      id: "never-booked",
+      tone: "danger",
+      text: booked === 0 ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.` : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`,
+      math: never ? `${b.headline} \xB7 ${never.count} on Asked, never booked` : b.headline,
+      cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
+      also: step("asked_never_booked")
+    });
+  }
+  const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
+  if (reports && a && a.none > 0) {
+    found.set("unanswered", {
+      id: "unanswered",
+      tone: "danger",
+      text: `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`,
+      math: `of ${a.in} in the last ${reports.vm.rangeLabel} \xB7 the receptionist answered ${a.ai}, you answered ${a.you}`,
+      cta: { label: "Open Reports", to: "reports" },
+      also: null
+    });
+  }
+  const yes = list("opted_in");
+  const offers = list("offers_ok");
+  if (yes && offers && yes.count > 0 && offers.count === 0) {
+    found.set("unreachable", {
+      id: "unreachable",
+      tone: "warn",
+      text: `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`,
+      math: "a broadcast reaches only the second yes \xB7 0 can receive one",
+      cta: { label: "Open People", to: `clients/seg:${yes.id}` },
+      also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null
+    });
+  }
+  const quiet = list("quiet");
+  if (quiet && quiet.count >= 5) {
+    found.set("quiet", {
+      id: "quiet",
+      tone: "info",
+      text: `${quiet.count} people have not heard from you in 30 days.`,
+      math: people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list",
+      cta: { label: "See who", to: `clients/seg:${quiet.id}` },
+      also: step("quiet")
+    });
+  }
+  return LEAK_ORDER.map((id) => found.get(id)).filter((x) => !!x).slice(0, max);
+}
+var AWAY_NOUN = {
+  call: ["call", "calls"],
+  job_failed: ["job did not finish", "jobs did not finish"],
+  review: ["new rating on Google", "new ratings on Google"],
+  calendar_people: ["person added from your calendar", "people added from your calendar"],
+  handoff: ["conversation needs you", "conversations need you"],
+  playbook: ["playbook is ready", "playbooks are ready"]
+};
+var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
+var AWAY_GROUP_MIN = 2;
+function todayAwayGrouped(rows, inQueue = [], max = 5) {
+  const covered = new Set(inQueue);
+  const fresh = rows.filter((r) => r.unread && !(r.about && r.about.type === "conversation" && covered.has(r.about.id)));
+  const idOf = (r) => r.id ?? r.key ?? "";
+  const order = [];
+  const byKind = /* @__PURE__ */ new Map();
+  for (const r of fresh) {
+    const k = r.kind && AWAY_NOUN[r.kind] ? r.kind : `@${idOf(r)}`;
+    let bucket = byKind.get(k);
+    if (!bucket) {
+      bucket = [];
+      byKind.set(k, bucket);
+      order.push(k);
+    }
+    bucket.push(r);
+  }
+  const groups = [];
+  for (const k of order) {
+    const members = byKind.get(k) ?? [];
+    const noun = AWAY_NOUN[k];
+    if (!noun || members.length < AWAY_GROUP_MIN) {
+      for (const r of members) groups.push({ row: r, count: 1, title: null, ids: [idOf(r)] });
+      continue;
+    }
+    groups.push({ row: members[0], count: members.length, title: `${members.length} ${noun[1]}`, ids: members.map(idOf) });
+  }
+  const rank = (g) => AWAY_TONE_RANK[g.row.tone] ?? 1;
+  const sorted = groups.map((g, i) => ({ g, i })).sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i).map((x) => x.g);
+  const shown = sorted.slice(0, max);
+  const stoodFor = shown.reduce((n, g) => n + g.count, 0);
+  return { groups: shown, more: Math.max(0, fresh.length - stoodFor), total: fresh.length };
 }
 
 // src/notifications.ts
@@ -9842,6 +9976,7 @@ export {
   TOAST_MS,
   TOAST_TONES,
   TOAST_UNDO_MS,
+  TODAY_LEAK_MAX,
   TODAY_QUEUE_MAX,
   TONES2 as TONES,
   TenantConfigSchema,
@@ -10239,10 +10374,12 @@ export {
   toVisitDto,
   toastShape,
   todayAway,
+  todayAwayGrouped,
   todayDay,
   todayDayFacts,
   todayDayLine,
   todayJourney,
+  todayLeaks,
   todayWeek,
   tomorrowAtIn,
   trialOffer,

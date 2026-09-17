@@ -4,7 +4,7 @@
  * Reports, the bell. Published on window the way the calendar's verbs are,
  * so the page composes and never derives.
  */
-import { todayDay, todayDayFacts, todayDayLine, todayWeek, todayJourney, todayAway } from "@chanlytics/contracts";
+import { todayDay, todayDayFacts, todayDayLine, todayWeek, todayJourney, todayAway, todayAwayGrouped, todayLeaks } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -15,10 +15,12 @@ declare global {
       week: typeof todayWeek;
       journey: typeof todayJourney;
       away: typeof todayAway;
+      awayGrouped: typeof todayAwayGrouped;
+      leaks: typeof todayLeaks;
     };
   }
 }
 
 export function installToday(): void {
-  window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };
+  window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway, awayGrouped: todayAwayGrouped, leaks: todayLeaks };
 }

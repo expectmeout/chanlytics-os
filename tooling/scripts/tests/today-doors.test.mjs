@@ -112,8 +112,8 @@ const textOf = (n) => {
 };
 const buttonsSaying = (tree, words) => findAll(tree, (n) => n.type === "button" && textOf(n).includes(words));
 const mountHero = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.HeroBrief(); };
-// The day's lines -- its numbers, the receipts, the proof, a reply that failed -- sit under the work now (TodayRecap).
-const mountRecap = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.TodayRecap(); };
+// The day's lines -- its numbers, the receipts, the proof, a reply that failed -- sit under the work now, inside the card that carries the period (TodayRecapBody).
+const mountRecap = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.TodayRecapBody(); };
 const mountQueue = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.AgentCommand(); };
 const todayWith = (channels, over = {}) => toTodayVM(metrics({ channels, now: zeroNow, period: quietPeriod, ...over }), [], [], [], NOW);
 

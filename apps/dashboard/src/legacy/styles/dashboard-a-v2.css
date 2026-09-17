@@ -36,9 +36,6 @@
 }
 .today-standing-lines { display: inline-flex; align-items: center; gap: 6px; }
 .today-standing-alert { color: var(--danger); font-weight: 500; }
-/* The day's numbers, in one sentence under the work that they explain. */
-.today-recap-line { margin: 0; padding: 12px 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); max-width: 68ch; }
-.today-recap-beats { padding: 10px 16px 14px; margin-top: 0; }
 .brief-meta {
   display: flex;
   align-items: center;
@@ -1849,37 +1846,123 @@ button.dec-policy.pill-warn{border:1px solid transparent}
 .td-day-foot { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 10px 16px; border: none; border-top: 1px solid var(--line); background: var(--bg-sunken); color: var(--ink-muted); font-size: 11.5px; cursor: pointer; }
 .td-day-foot span { flex: 1; min-width: 0; }
 .td-day-foot:hover { color: var(--ink); }
-@media (max-width: 900px) {
-  .dash-a-v2-core { grid-template-columns: 1fr; }
-}
-
-/* ---- Below the core: the period, while away, the journey ------------------- */
+/* ---- Below the core: worth a look, how it's going, away, the journey ------ */
 .tsec { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
 .tsec-head { display: flex; align-items: baseline; gap: 10px; padding: 12px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
 .tsec-head .btn { margin-left: auto; }
 .tsec-title { font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; }
-.tj .tsec-head { flex-wrap: wrap; gap: 4px 10px; }
-.tj .tsec-sub { order: 3; flex-basis: 100%; }
 .tsec-sub { min-width: 0; font-size: 11.5px; color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tsec-note { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-dim); }
-.tsec .rp2-tiles { border: none; border-radius: 0; background: transparent; }
-.tsec-lines { display: flex; flex-direction: column; border-top: 1px solid var(--line); background: var(--bg-sunken); }
-.tsec-line { display: flex; align-items: center; gap: 8px; width: 100%; text-align: left; padding: 9px 16px; border: none; border-top: 1px solid var(--line); background: transparent; color: var(--ink-muted); font-size: 11.5px; cursor: pointer; }
-.tsec-line:first-child { border-top: none; }
-.tsec-line span { flex: 1; min-width: 0; }
-.tsec-line:hover { color: var(--ink); }
+
+/* ---- Worth a look: the page's one place where two numbers meet ------------- */
+/* Deliberately quiet. A red panel shouting at a salon owner every morning is
+   noise within a week; a three-pixel edge, the sentence, and the arithmetic
+   under it in the tone's own ink is read once and believed. */
+.tl-list { display: flex; flex-direction: column; }
+.tl-row { display: grid; grid-template-columns: 3px minmax(0, 1fr) auto; align-items: center; gap: 0 14px; padding: 0; border-top: 1px solid var(--line); }
+.tl-row:first-child { border-top: none; }
+.tl-mark { align-self: stretch; background: var(--ink-faint); }
+.tl-row.tl-danger .tl-mark { background: var(--danger); }
+.tl-row.tl-warn .tl-mark { background: var(--warn); }
+.tl-row.tl-info .tl-mark { background: var(--info); }
+.tl-body { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 13px 0 13px 13px; }
+.tl-text { font-size: 13.5px; line-height: 1.45; color: var(--ink); font-weight: 500; max-width: 78ch; }
+.tl-math { font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
+.tl-row.tl-danger .tl-math { color: var(--danger-ink); }
+.tl-row.tl-warn .tl-math { color: var(--warn-ink); }
+.tl-acts { display: flex; align-items: center; gap: 6px; flex: none; padding: 10px 14px 10px 0; }
+
+/* ---- How it's going: the day so far, then the period in one of three reads - */
+/* The day's numbers carry their own label, because the card's header says the
+   period's range and the two are minutes and months apart. */
+.today-recap { display: flex; flex-direction: column; }
+.today-recap-line { margin: 0; padding: 13px 16px 0; font-size: 13.5px; line-height: 1.5; color: var(--ink); max-width: 68ch; }
+.today-recap-when { font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-faint); margin-right: 7px; }
+.today-recap-beats { padding: 10px 16px 13px; margin-top: 0; }
+.today-recap-beats:empty { display: none; }
+.today-recap:has(+ .tw-period) { border-bottom: 1px solid var(--line); }
+
+.tw-period { display: flex; flex-direction: column; }
+.tw-seg { display: flex; align-items: center; gap: 6px; padding: 11px 16px; flex-wrap: wrap; }
+.tw-seg-label { font-size: 11.5px; color: var(--ink-dim); margin-right: 4px; white-space: nowrap; }
+.tw-seg-btn { padding: 5px 11px; border-radius: var(--radius-full); border: 1px solid transparent; font-size: 12px; font-weight: 500; color: var(--ink-dim); background: transparent; cursor: pointer; transition: color 110ms, background 110ms, border-color 110ms; }
+.tw-seg-btn:hover { color: var(--ink); background: var(--bg-hover); }
+.tw-seg-btn.active { color: var(--ink); background: var(--bg-raised); border-color: var(--line-strong); box-shadow: var(--shadow-sm); }
+.tw-seg-open { margin-left: auto; display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; color: var(--ink-dim); background: transparent; border: none; cursor: pointer; padding: 5px 2px; }
+.tw-seg-open:hover { color: var(--ink); }
+/* One rule for every count of tiles and every wrap: the grid's own gap draws
+   the lines. The nth-child borders it replaces only ever held for six. */
+.tsec .tw-period .rp2-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--line); border: none; border-top: 1px solid var(--line); border-radius: 0; }
+.tsec .tw-period .rp2-tiles .rp2-tile { background: var(--bg-raised); border: none; padding: 12px 14px 11px; }
+.tw-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 11px 16px; border-top: 1px solid var(--line); }
+.tw-chips-label { font-size: 11.5px; color: var(--ink-dim); margin-right: 2px; }
+.tw-chip { display: inline-flex; align-items: baseline; gap: 5px; font-size: 11.5px; color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: var(--radius-full); padding: 2px 9px; white-space: nowrap; }
+.tw-chip b { font-weight: 500; color: var(--ink); }
+.tw-note { padding: 10px 16px; border-top: 1px solid var(--line); font-size: 11.5px; color: var(--ink-dim); }
+
+/* ---- Where people are: on the way to a booking, and who you can reach ------ */
 .tj-list { display: flex; flex-direction: column; }
+.tj-group { padding: 10px 16px 5px; font-family: var(--font-mono); font-size: 9.5px; font-weight: 500; letter-spacing: 0.07em; text-transform: uppercase; color: var(--ink-faint); border-top: 1px solid var(--line); background: var(--bg-sunken); }
+.tj-group:first-child { border-top: none; }
 .tj-row { display: flex; align-items: center; gap: 8px; padding-right: 12px; border-top: 1px solid var(--line); }
-.tj-row:first-child { border-top: none; }
+.tj-group + .tj-row { border-top: none; }
 .tj-open { display: flex; align-items: baseline; gap: 10px; flex: 1; min-width: 0; padding: 10px 16px; border: none; background: transparent; text-align: left; cursor: pointer; color: var(--ink); font-size: 12.5px; }
 .tj-open:hover { background: var(--bg-sunken); }
 .tj-label { flex: 1; min-width: 0; }
-.tj-count { font-size: 14px; font-weight: 500; color: var(--ink-muted); }
-.tj-open:hover .tj-count { color: var(--ink); }
+.tj-count { font-size: 14px; font-weight: 500; color: var(--ink); }
+.tj-count.none { color: var(--ink-faint); font-weight: 400; }
+/* The step is People's own words ("Broadcast to everyone who said yes"), and
+   this card is 320px wide in the right column: beside a label it squeezed
+   "Can receive offers" onto three lines. Under it, both read. The query sits
+   AFTER the rules it overrides -- a container query carries no specificity of
+   its own, so an earlier one would simply lose. */
+.tj { container-type: inline-size; }
+@container (max-width: 430px) {
+  .tj-row { flex-wrap: wrap; padding-right: 16px; padding-bottom: 9px; }
+  .tj-open { flex-basis: 100%; padding-bottom: 3px; }
+  .tj-row .btn { margin-left: 16px; }
+}
+
+/* ---- While you were away: the bell, grouped, warnings first ---------------- */
 .ta-list { display: flex; flex-direction: column; }
-.ta-list .tbn-item { padding-left: 14px; }
+.ta-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: start; gap: 10px; padding: 11px 12px 11px 14px; border-top: 1px solid var(--line); }
+.ta-row:first-child { border-top: none; }
+.ta-row:hover { background: var(--bg-hover); }
+.ta-main { display: flex; flex-direction: column; gap: 3px; min-width: 0; padding: 0; border: none; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.ta-line1 { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.ta-title { flex: 1; min-width: 0; font-size: 12.5px; font-weight: 500; color: var(--ink); line-height: 1.35; overflow-wrap: anywhere; }
+.ta-main:hover .ta-title { text-decoration: underline; text-underline-offset: 2px; }
+.ta-time { flex: none; font-size: 11px; color: var(--ink-faint); }
+.ta-msg { font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.ta-msg:empty { display: none; }
+.ta-row.warn .ta-title { color: var(--warn-ink); }
+/* Dismiss is out of the way until a pointer is on the row — and always there
+   for a finger, which has no hover to reveal it with. */
+.ta-x { display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; margin: -2px -2px 0 0; border: none; border-radius: var(--radius-sm); background: transparent; color: var(--ink-faint); cursor: pointer; flex: none; transition: opacity 120ms var(--ease-out), color 120ms, background 120ms; }
+.ta-x:hover { color: var(--danger); background: var(--danger-soft); }
+@media (hover: hover) {
+  .ta-x { opacity: 0; }
+  .ta-row:hover .ta-x, .ta-row:focus-within .ta-x { opacity: 1; }
+}
+/* legacy.css gives every button 44px of HEIGHT on a coarse pointer; a 24px-wide
+   glyph is still a 24px-wide target, and this one throws a row away. */
+@media (pointer: coarse) { .ta-x { width: 44px; margin-right: -8px; } }
+.ta-row[data-count="1"] .ta-msg { color: var(--ink-dim); }
+.ta-row:not([data-count="1"]) .ta-title { letter-spacing: -0.005em; }
+
 @media (max-width: 900px) {
-  .tsec .rp2-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .tsec .rp2-tile:nth-child(3n) { border-right: none; }
-  .tsec .rp2-tile:nth-child(-n + 3) { border-bottom: 1px solid var(--line); }
+  .dash-a-v2-core { grid-template-columns: 1fr; }
+}
+@media (max-width: 720px) {
+  /* A phone puts nothing above the work it can help with: the head is one line
+     with its door on it, and the sentence under it -- not three stacked rows. */
+  .tq-head, .tw .tsec-head { flex-wrap: wrap; row-gap: 2px; padding-bottom: 10px; }
+  .tq-head .btn, .tw .tsec-head .btn { order: 2; }
+  .tq-sub, .tw .tsec-sub { order: 3; flex-basis: 100%; white-space: normal; }
+}
+@media (max-width: 640px) {
+  .tl-row { grid-template-columns: 3px minmax(0, 1fr); }
+  .tl-acts { grid-column: 2; padding: 0 14px 12px 13px; flex-wrap: wrap; }
+  .tl-body { padding-bottom: 9px; }
+  .tsec .tw-period .rp2-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
