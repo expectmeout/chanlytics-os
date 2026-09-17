@@ -10,7 +10,7 @@ import { lastInboundEmail, type Json } from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "./verbs";
-import { cancelKindFor, letThreadControlGo, mirrorBlobPause, schedule, takeThreadControl } from "./service";
+import { cancelKindFor, letThreadControlGo, schedule, takeThreadControl } from "./service";
 import { freezeReply } from "./email";
 
 /**
@@ -27,7 +27,6 @@ export async function changed(q: PromiseLike<{ data: unknown[] | null; error: { 
 export function threadPorts(ctx: RouteContext): ThreadPorts {
   return {
     pauseMs: (tenantId) => pauseMsFor(ctx, tenantId),
-    pauseBot: (tenantId, phone, untilMs) => mirrorBlobPause(tenantId, phone, untilMs),
     claim: (id, until, userId) => changed(ctx.supabase.from("conversations").update({ state: "needs_human", paused_until: until, snooze_until: null, assignee_user_id: userId }).eq("id", id).select("id")),
     release: (id) => changed(ctx.supabase.from("conversations").update({ state: "open", paused_until: null, snooze_until: null, assignee_user_id: null }).eq("id", id).select("id")),
     snooze: (id, until) => changed(ctx.supabase.from("conversations").update({ state: "snoozed", snooze_until: until, paused_until: null, assignee_user_id: null }).eq("id", id).select("id")),
@@ -65,9 +64,9 @@ export function cancelSendPorts(ctx: RouteContext): CancelSendPorts {
 }
 
 export function replyPorts(ctx: RouteContext): ReplyPorts {
-  const { pauseMs, pauseBot, takeControl, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
+  const { pauseMs, takeControl, withdrawDrafts, record, resolveEscalation, now } = threadPorts(ctx);
   return {
-    pauseMs, pauseBot, takeControl, withdrawDrafts, record, resolveEscalation, now,
+    pauseMs, takeControl, withdrawDrafts, record, resolveEscalation, now,
     replyChannel: (conv) => replyChannelOf(ctx, conv),
     email: {
       parent: (conv) => lastInboundEmail(ctx.supabase, conv.tenant_id, conv.id),

@@ -1,7 +1,7 @@
 import { AppError } from "@chanlytics/contracts";
 import type { Thread, ThreadPorts } from "./ports";
 
-export type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "pauseBot" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
+export type TakeOverPorts = Pick<ThreadPorts, "pauseMs" | "claim" | "takeControl" | "withdrawDrafts" | "record" | "now">;
 
 /**
  * The longest a person's hold lasts without being renewed.
@@ -18,19 +18,15 @@ export interface TakeOverResult { state: "needs_human"; paused_until: string; de
 /** Take over: pause the receptionist, claim the thread. The open escalation stays open (§4). */
 export async function takeOver(ports: TakeOverPorts, cmd: { conv: Pick<Thread, "id" | "tenant_id" | "phone_e164">; userId: string }): Promise<TakeOverResult> {
   const { conv } = cmd;
-  // The mirror is the WhatsApp receptionist's own store, keyed by the number.
-  // A person with an email and no number has no such store: their thread is
-  // held by the row alone, which is what every other reader trusts.
-  const phone = conv.phone_e164;
-  const mirror = async (until: number) => { if (phone) await ports.pauseBot(conv.tenant_id, phone, until); };
   const untilMs = ports.now() + (await ports.pauseMs(conv.tenant_id));
   const paused_until = new Date(untilMs).toISOString();
-  // The live receptionist reads its own store: mirror FIRST, fail loud.
-  await mirror(untilMs);
+  // The row IS the pause. There used to be a second store in front of it --
+  // the receptionist's own, mirrored over the network before the claim and
+  // released again if the claim changed nothing -- and every verb here carried
+  // the compensation for it. Nothing reads that store any more, so a thread is
+  // held by one fact in one place, and a claim that changes no row leaves
+  // nothing behind to undo.
   if (!(await ports.claim(conv.id, paused_until, cmd.userId))) {
-    // The mirror already paused the receptionist; release it so the two stores
-    // do not disagree about a thread nobody took.
-    await mirror(0);
     throw new AppError("conflict", "Could not take this thread over — reload and try again.", 409);
   }
   // Who is speaking now, before the drafts are withdrawn: between the claim and

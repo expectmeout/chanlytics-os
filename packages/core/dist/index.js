@@ -4306,15 +4306,9 @@ async function deliverSafely(ports, d) {
 var PERSON_CONTROL_MAX_S = 24 * 60 * 60;
 async function takeOver(ports, cmd) {
   const { conv } = cmd;
-  const phone = conv.phone_e164;
-  const mirror = async (until) => {
-    if (phone) await ports.pauseBot(conv.tenant_id, phone, until);
-  };
   const untilMs = ports.now() + await ports.pauseMs(conv.tenant_id);
   const paused_until = new Date(untilMs).toISOString();
-  await mirror(untilMs);
   if (!await ports.claim(conv.id, paused_until, cmd.userId)) {
-    await mirror(0);
     throw new AppError("conflict", "Could not take this thread over \u2014 reload and try again.", 409);
   }
   await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((untilMs - ports.now()) / 1e3))));
@@ -4326,19 +4320,7 @@ async function takeOver(ports, cmd) {
 // src/conversations/hand-back.ts
 async function handBack(ports, cmd) {
   const { conv } = cmd;
-  const phone = conv.phone_e164;
-  const mirror = async (until) => {
-    if (phone) await ports.pauseBot(conv.tenant_id, phone, until);
-  };
-  await mirror(0);
-  const back = conv.paused_until ? () => mirror(Date.parse(conv.paused_until)) : async () => {
-  };
-  const released = await ports.release(conv.id).catch(async (e) => {
-    await back();
-    throw e;
-  });
-  if (!released) {
-    await back();
+  if (!await ports.release(conv.id)) {
     throw new AppError("conflict", "Could not hand this thread back \u2014 reload and try again.", 409);
   }
   await ports.letControlGo(conv.tenant_id, conv.id, cmd.userId);
@@ -4356,17 +4338,8 @@ async function snooze(ports, cmd) {
   const until = cmd.until ? new Date(cmd.until) : null;
   if (!until || Number.isNaN(until.getTime()) || until.getTime() <= now) throw new AppError("validation", NEEDS_UNTIL);
   if (until.getTime() - now > MAX_SNOOZE_MS) throw new AppError("validation", "snooze is capped at 30 days.");
-  const held = conv.paused_until && conv.phone_e164 ? { phone: conv.phone_e164, until: Date.parse(conv.paused_until) } : null;
-  if (held) await ports.pauseBot(conv.tenant_id, held.phone, 0);
   const snooze_until = until.toISOString();
-  const back = held ? () => ports.pauseBot(conv.tenant_id, held.phone, held.until) : async () => {
-  };
-  const snoozed = await ports.snooze(conv.id, snooze_until).catch(async (e) => {
-    await back();
-    throw e;
-  });
-  if (!snoozed) {
-    await back();
+  if (!await ports.snooze(conv.id, snooze_until)) {
     throw new AppError("conflict", "Could not snooze this thread \u2014 reload and try again.", 409);
   }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "snooze", { until: snooze_until });
@@ -4385,16 +4358,7 @@ async function wake(ports, cmd) {
 // src/conversations/archive.ts
 async function archive(ports, cmd) {
   const { conv } = cmd;
-  const held = conv.paused_until && conv.phone_e164 ? { phone: conv.phone_e164, until: Date.parse(conv.paused_until) } : null;
-  if (held) await ports.pauseBot(conv.tenant_id, held.phone, 0);
-  const back = held ? () => ports.pauseBot(conv.tenant_id, held.phone, held.until) : async () => {
-  };
-  const archived = await ports.archive(conv.id).catch(async (e) => {
-    await back();
-    throw e;
-  });
-  if (!archived) {
-    await back();
+  if (!await ports.archive(conv.id)) {
     throw new AppError("conflict", "Could not archive this thread \u2014 reload and try again.", 409);
   }
   const decision_id = await ports.record(conv.tenant_id, "conversation", conv.id, "archive");
@@ -4495,10 +4459,7 @@ async function replyToConversation(ports, cmd) {
     jobTemplate = { name: tpl.name, language: tpl.language, params };
   }
   const pauseUntil = now + await ports.pauseMs(conv.tenant_id);
-  const phone = conv.phone_e164;
-  if (phone) await ports.pauseBot(conv.tenant_id, phone, pauseUntil);
   if (!await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString())) {
-    if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1e3))));

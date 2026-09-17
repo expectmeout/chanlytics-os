@@ -86,7 +86,7 @@ export interface EmailReplyPorts {
   newId(): string;
 }
 
-export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
+export interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "takeControl" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
   /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
   replyChannel(conv: { id: string; tenant_id: string }): Promise<"whatsapp" | "sms" | "email">;
   email: EmailReplyPorts;
@@ -236,15 +236,9 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
   // "it failed" is the truth. Zero rows counts as failure for the same reason
   // it does everywhere else: a forbidden or mis-targeted UPDATE reports success.
   const pauseUntil = now + (await ports.pauseMs(conv.tenant_id));
-  // The mirror is keyed by the person's number, so it exists only for someone
-  // who has one; a person reached by email alone has no stored thread to pause
-  // (take-over and hand-back say the same).
-  const phone = conv.phone_e164;
-  if (phone) await ports.pauseBot(conv.tenant_id, phone, pauseUntil);
+  // The claim IS the pause: one statement, one fact, and nothing in front of it
+  // to be left disagreeing when it changes no row (take-over.ts says why).
   if (!(await ports.claimForReply(conv.id, new Date(pauseUntil).toISOString(), cmd.userId, new Date(now).toISOString()))) {
-    // The mirror already paused the receptionist; release it so the two stores
-    // do not disagree about a thread nobody took (take-over does the same).
-    if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
   // Who is speaking now (00132), taken before the drafts go: the wire asks
