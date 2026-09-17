@@ -1527,6 +1527,11 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .cm-standing-lead { color: var(--ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
 .cm-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .cm-standing-dot { color: var(--ink-faint); }
+/* The split reads as an aside on the count before it, not as another item. */
+.cm-standing-dash { color: var(--ink-faint); }
+/* A comma belongs to the word before it. The row's gap and the tap's own bleed
+   would otherwise leave it floating: "by a playbook , 3 by hand". */
+.cm-standing-comma { margin-left: -6px; color: var(--ink-dim); }
 /* A count that is also its filter, as the People line's "needs you" is. */
 /* The bleed is on BOTH sides. With `margin-left` alone the padding cancelled
    the flex gap on the left and ADDED to it on the right, so measured glyph to

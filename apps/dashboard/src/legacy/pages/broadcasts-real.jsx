@@ -262,18 +262,43 @@ window.bcWhenNote = bcWhenNote;
 // which is where a number that wants a chart belongs.
 // Past fifty broadcasts the route says older ones exist (more), and the line
 // says its numbers are the latest fifty rather than reading as everything.
-const BcHistoryStats = ({ rows, more, replyWindow = null }) => {
+// A run a playbook made, rather than one a person sent. The column is on every
+// row (broadcasts.playbook_id) and nothing drew it, so a playbook's automatic
+// Tuesday run sat in this list beside Saturday's hand-sent blast with no way to
+// tell them apart -- while Playbooks summed the same runs again on its own tab.
+const bcByPlaybook = (r) => !!r.playbook_id;
+const BC_ORIGINS = [["playbook", "by a playbook"], ["hand", "by hand"]];
+const bcOrigin = (r) => (bcByPlaybook(r) ? "playbook" : "hand");
+
+const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigin = null }) => {
   const history = (rows || []).filter((r) => !r.open);
   const messages = history.reduce((a, r) => a + r.counts.sent, 0);
   const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
   const replied = history.reduce((a, r) => a + r.counts.replied, 0);
   const sent = history.filter((r) => r.state === "sent").length;
   const dot = <span className="cm-standing-dot" aria-hidden="true">·</span>;
+  // The split, and each count its own filter -- the way the Playbooks line's are.
+  const byOrigin = BC_ORIGINS.map(([id, words]) => [id, words, history.filter((r) => bcOrigin(r) === id).length]).filter(([, , n]) => n > 0);
+  const split = onOrigin && byOrigin.length > 1;
   return (
     <div className="cm-standing" data-testid="bc-standing">
       <span className="cm-standing-lead" data-tip="One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.">
         {sent === 0 ? "Nothing sent yet" : `${sent} ${sent === 1 ? "broadcast" : "broadcasts"} sent`}
       </span>
+      {split && byOrigin.map(([id, words, n], i) => (
+        <span className="cm-standing-part" key={id}>
+          {i === 0 ? <span className="cm-standing-dash" aria-hidden="true">&mdash;</span> : <span className="cm-standing-comma" aria-hidden="true">,</span>}
+          <button
+            type="button"
+            className={`cm-standing-tap ${origin === id ? "on" : ""}`}
+            aria-pressed={origin === id}
+            onClick={() => onOrigin(origin === id ? null : id)}
+            data-testid={`bc-origin-${id}`}
+          >
+            <span className="tabular">{n}</span> {words}
+          </button>
+        </span>
+      ))}
       {messages > 0 && (
         <span className="cm-standing-part">
           {dot}
@@ -331,6 +356,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const [busy, setBusy] = React.useState(false);
   // Which of the audience's people the preview is showing.
   const [who, setWho] = React.useState(0);
+  // Which half of the history is in view: a playbook's runs, the ones sent by
+  // hand, or both. Null is both.
+  const [origin, setOrigin] = React.useState(null);
   // Whether Send now has been pressed once and is asking. A question about one
   // template and one audience cannot be answered for another, so changing either
   // puts the button back.
@@ -418,6 +446,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const rows = data.rows || [];
   const open = rows.filter((r) => r.open);
   const history = rows.filter((r) => !r.open);
+  const shownHistory = origin ? history.filter((r) => bcOrigin(r) === origin) : history;
 
   const submit = async (scheduled) => {
     if (!window.__broadcasts || !ready || !canSend) return;
@@ -487,7 +516,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
         </section>
       )}
 
-      <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} />
+      <BcHistoryStats rows={rows} more={data.more} replyWindow={data.replyWindow} origin={origin} onOrigin={setOrigin} />
 
       <section className="bc-composer" data-testid="bc-composer">
         <div className="ct-sec-head">
@@ -680,15 +709,27 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             <span>Broadcast</span><span>Audience</span><span className="num">Sent</span><span className="num">Delivered</span><span className="num">Read</span><span className="num">Replies</span>
           </div>
           {history.length === 0 && <EmptyState kind="line" title="No broadcast sent yet." />}
-          {history.map((h) => (
+          {history.length > 0 && shownHistory.length === 0 && <EmptyState kind="line" title={origin === "playbook" ? "No playbook has run yet." : "Nothing sent by hand yet."} />}
+          {shownHistory.map((h) => (
             <React.Fragment key={h.id}>
             <div id={`bc-run-${h.id}`} className={"bc-hist-row clickable" + (openId === h.id ? " is-open" : "")} data-testid="bc-history" role="button" tabIndex={0} aria-expanded={openId === h.id}
               onClick={() => openRun(openId === h.id ? null : h.id)}
               onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); openRun(openId === h.id ? null : h.id); } }}>
               <span className="bc-hist-name">
-                {h.name}<span className="bc-hist-date">{h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}${h.failureLabel ? ` — ${h.failureLabel}` : ""}` : ""}</span>
+                {h.name}
+                <span className="bc-hist-date">
+                  {h.when}{h.state !== "sent" ? ` · ${h.stateLabel.toLowerCase()}${h.failureLabel ? ` — ${h.failureLabel}` : ""}` : ""}
+                  {/* Where it came from. The playbook's NAME is already the
+                      audience cell beside this, so this says which kind it was
+                      and the name is said once. */}
+                  {" · "}{bcByPlaybook(h) ? "by a playbook" : "by hand"}
+                </span>
               </span>
-              <span className="bc-hist-seg">{h.audience.label}</span>
+              <span className="bc-hist-seg">
+                {bcByPlaybook(h)
+                  ? <button className="cl-bucket-link" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`outbound/${h.playbook_id}`); }} data-testid="bc-history-playbook">{h.audience.label}</button>
+                  : h.audience.label}
+              </span>
               <span className="num tabular">{h.counts.sent}{h.counts.skipped + h.counts.failed ? <span className="dim"> · {h.counts.skipped + h.counts.failed} held</span> : null}</span>
               <span className="num tabular">{h.deliveredPct === null ? "—" : `${h.deliveredPct}%`}</span>
               <span className="num tabular">{h.readPct === null ? "—" : `${h.readPct}%`}</span>
