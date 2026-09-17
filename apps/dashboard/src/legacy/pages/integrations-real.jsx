@@ -77,16 +77,18 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
         )}
       </span>
       <StatePill kind="tone" value={r.tone} label={<>{r.tone === "ok" && <span className="dot" />}{r.stateWords}</>} />
-      {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
-        <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>
-      )}
-      {/* A verb the role may not press stays on the row and says why (window.gate);
-          it used to be hidden, with no word. A page to open is anyone's to open. */}
-      {r.verb && !armed && (
-        r.verb.to.startsWith("verb:")
-          ? <button className={`btn btn-sm${primary ? " btn-primary" : ""}`} onClick={() => run(r)} disabled={busy} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} {...(mayPress(r.verb) || !window.gate ? {} : window.gate(r.verb.who === "owner" ? "team" : "approve", VERB_DOING[r.verb.to]))}>{busy && r.verb.to === "verb:google-check" ? "Reading…" : r.verb.label}</button>
-          : <button className={primary ? "btn btn-sm btn-primary" : "cl-bucket-link"} onClick={() => window.CHANLY.nav(r.verb.to)} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} title={r.kind === "whatsapp" ? "What the receptionist and your campaigns send on this number" : undefined}>{r.verb.label}</button>
-      )}
+      <span className="set-int-actions">
+        {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
+          <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>
+        )}
+        {/* A verb the role may not press stays on the row and says why (window.gate);
+            it used to be hidden, with no word. A page to open is anyone's to open. */}
+        {r.verb && !armed && (
+          r.verb.to.startsWith("verb:")
+            ? <button className={`btn btn-sm${primary ? " btn-primary" : ""}`} onClick={() => run(r)} disabled={busy} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} {...(mayPress(r.verb) || !window.gate ? {} : window.gate(r.verb.who === "owner" ? "team" : "approve", VERB_DOING[r.verb.to]))}>{busy && r.verb.to === "verb:google-check" ? "Reading…" : r.verb.label}</button>
+            : <button className={primary ? "btn btn-sm btn-primary" : "cl-bucket-link"} onClick={() => window.CHANLY.nav(r.verb.to)} data-testid={VERB_TESTID[r.verb.to] || `connection-${r.kind}-verb`} title={r.kind === "whatsapp" ? "What the receptionist and your campaigns send on this number" : undefined}>{r.verb.label}</button>
+        )}
+      </span>
     </div>
   );
 };
@@ -187,7 +189,7 @@ const PaneIntegrationsReal = () => {
   return (
     <>
       {groups.map(({ g, rows: list }) => (
-        <section key={g} className="fl-card set-card" data-testid={`connections-${g}`}>
+        <section key={g} className="fl-card set-card set-conn" data-testid={`connections-${g}`}>
           <div className="fl-card-head">
             <span className="fl-card-title">{W[g].title}</span>
             <span className="fl-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
@@ -209,11 +211,7 @@ const PaneIntegrationsReal = () => {
             </React.Fragment>
           ))}
           {g === "connected" && list.some((r) => r.kind === "google_listing") && (
-            <div className="set-row">
-              <div className="set-row-info">
-                <span className="set-row-hint">The public listing is read once a day: Google shows the five reviews it finds most relevant and counts every rating. The Business Profile, connected, carries every review and the replies you send from Reports.</span>
-              </div>
-            </div>
+            <p className="set-card-foot">The public listing is read once a day: Google shows the five reviews it finds most relevant and counts every rating. The Business Profile, connected, carries every review and the replies you send from Reports.</p>
           )}
         </section>
       ))}

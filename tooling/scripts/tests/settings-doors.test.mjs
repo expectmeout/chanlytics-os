@@ -203,10 +203,13 @@ test("REGRESSION (S20): Billing says what a state means for the receptionist, an
   press(buttonSaying(tree, "Show invoices"));
   await flush();
   tree = settle(Billing, { flash() {} });
-  const hints = all(byTestId(tree, "billing-invoices"), (n) => String(n.props?.className || "").includes("set-row-hint")).map(textOf);
-  assert.ok(hints.some((h) => h.endsWith("· Paid")), `REGRESSION: ${hints.join(" | ")}`);
-  assert.ok(hints.some((h) => h.endsWith("· Not paid yet")), hints.join(" | "));
-  assert.ok(!hints.some((h) => / · (paid|open)$/.test(h)), "no status in Stripe's words");
+  // The invoices are a table now: a row each, its status a pill in its own cell, in the owner's words.
+  const statuses = all(byTestId(tree, "billing-invoices"), (n) => n.props?.["data-testid"] === "billing-invoice")
+    .map((row) => all(row, (n) => String(n.props?.className || "").split(" ").includes("pill")).map(textOf).join(""));
+  assert.ok(statuses.length > 0, "every invoice is a row of the table");
+  assert.ok(statuses.includes("Paid"), `REGRESSION: ${statuses.join(" | ")}`);
+  assert.ok(statuses.includes("Not paid yet"), statuses.join(" | "));
+  assert.ok(!statuses.some((s) => /^(paid|open)$/.test(s)), "no status in Stripe's words");
 });
 
 test("REGRESSION (S9): on Stripe's test keys the pane says test mode, beside its title and under the card -- it said 'Card on file' and nothing about test cards", () => {
@@ -217,7 +220,8 @@ test("REGRESSION (S9): on Stripe's test keys the pane says test mode, beside its
   let tree = render(Billing, { flash() {} });
   assert.equal(textOf(byTestId(tree, "billing-test-mode")), "Test mode", "REGRESSION: nothing on the pane said test mode");
   assert.equal(textOf(byTestId(tree, "billing-test-mode-note")), "Billing is in test mode, so only Stripe's test cards work and no real money moves.");
-  assert.ok(textOf(tree).includes("Card on file: Visa ending 4242"), "the card is still said");
+  // Said once: the sentence about the trial already names the card, so the pane does not add "Card on file" under it.
+  assert.equal(textOf(tree).split("Visa ending 4242").length - 1, 1, "the card is still said, and once");
 
   billing(trialing, true);
   tree = render(Billing, { flash() {} });

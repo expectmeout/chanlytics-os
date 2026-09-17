@@ -211,7 +211,7 @@ const PolicyMatrix = () => {
             <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
               <td><span className="pol-label">{r.label}</span><span className="pol-note">{r.note}</span>{window.TRUST && window.TRUST.cls(r.id) && <span className="pol-evidence">{window.TRUST.cls(r.id).sent.toLocaleString()} auto-sent · {window.TRUST.rate(window.TRUST.cls(r.id))}% edited · 30d</span>}</td>
               {POL_MODES.map((m) => (
-                <td key={m} className="pol-cell">
+                <td key={m} className="pol-cell" data-mode={m}>
                   {r.locked && m !== "Never" ? <span className="pol-dash">—</span> : (
                     <button className={`pol-dot ${modeOf(r) === m ? "on" : ""}`} title={r.locked ? "Charter — fixed" : m} disabled={r.locked} onClick={() => set(r, m)} {...window.gate("autonomy")}>{modeOf(r) === m ? <Icon name={r.locked ? "shield" : "check"} size={11} /> : ""}</button>
                   )}
@@ -2396,10 +2396,12 @@ const PaneAutonomyReal = ({ flash }) => {
                     {r.locked && <span className="pol-evidence">Locked by charter — enforced in the database</span>}
                   </td>
                   {MODES.map((m) => (
-                    <td key={m} className="pol-cell">
+                    <td key={m} className="pol-cell" data-mode={m}>
                       {(r.locked && m !== "Never") || (r.modes && !r.modes.includes(m)) ? <span className="pol-dash" title={r.locked ? "Charter — fixed" : m === "Veto" ? "Nothing to hold for review here" : "Answered by the receptionist or by you — there is no never"}>—</span> : (
                         <button
                           className={`pol-dot ${r.mode === m ? "on" : ""}`}
+                          aria-label={`${r.label}: ${m}`}
+                          aria-pressed={r.mode === m}
                           title={r.locked ? "Charter — fixed" : (r.hints && r.hints[m]) || AUT_MODE_HINT[m]}
                           disabled={r.locked || busy === r.cls}
                           onClick={() => put(r, m.toLowerCase())}
@@ -2946,6 +2948,11 @@ const PaneSoon = ({ which, onTab }) => {
   );
 };
 
+// The open tab, brought into view. On a phone the rail is one strip that scrolls sideways, and a pane opened by its
+// address (a bell's link, Setup's "Open Billing") left its own tab off the screen for every pane past Business. A
+// callback ref, not an effect: it runs when a tab becomes the open one and at no other time.
+const setTabIntoView = (el) => { if (el && el.scrollIntoView) el.scrollIntoView({ block: "nearest", inline: "center" }); };
+
 const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
   const active = SET_TAB(tab);
   const [toastNode, flash] = window.usePPToast();
@@ -2971,7 +2978,7 @@ const SettingsPage = ({ tab = "workspace", onTab = () => {} }) => {
           <React.Fragment key={g.name}>
             <div className="set-nav-group">{g.name}</div>
             {g.tabs.map(t => (
-              <button key={t.id} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => go(t.id)}>
+              <button key={t.id} ref={active.id === t.id ? setTabIntoView : undefined} className={`fl-agent set-nav-row ${active.id === t.id ? "active" : ""}`} aria-current={active.id === t.id ? "page" : undefined} onClick={() => go(t.id)}>
                 <Icon name={t.icon} size={14} />
                 <span className="set-nav-label">{t.label}</span>
               </button>

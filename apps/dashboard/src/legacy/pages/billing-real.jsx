@@ -7,6 +7,9 @@
 // A workspace on a direct arrangement sees that, and no button that charges.
 
 const BILLING_PILL = { ok: "pill-ok", warn: "pill-warn", danger: "pill-danger", "": "pill-accent" };
+// An invoice's status as the pill every other status on this surface is. The words are contracts' (invoiceStatusWords);
+// the tone is the page's: paid is fine, not paid yet wants a look, could not be collected is a problem, the rest are plain.
+const INVOICE_PILL = { paid: "pill-ok", open: "pill-warn", uncollectible: "pill-danger" };
 
 const PaneBillingReal = ({ flash }) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
@@ -97,7 +100,7 @@ const PaneBillingReal = ({ flash }) => {
               {vm.mode === "stripe" && vm.status !== "none" && <span className={`pill ${BILLING_PILL[pill.tone]}`} style={{ marginLeft: 8 }} data-testid="billing-pill">{pill.words}</span>}
             </span>
             <span className="set-row-hint">{vm.detail}</span>
-            {vm.card && <span className="set-row-hint">Card on file: {vm.card}</span>}
+            {vm.card && !String(vm.detail || "").includes(vm.card) && <span className="set-row-hint">Card on file: {vm.card}</span>}
             {vm.testMode && <span className="set-row-hint" data-testid="billing-test-mode-note">{vm.testMode}</span>}
           </div>
           <div className="bc-chips">
@@ -122,15 +125,26 @@ const PaneBillingReal = ({ flash }) => {
             </div>
           ) : invoices.length === 0 ? (
             <div className="set-row"><div className="set-row-info"><span className="set-row-hint">No invoices yet.</span></div></div>
-          ) : invoices.map((inv) => (
-            <div key={inv.id} className="set-row">
-              <div className="set-row-info">
-                <span className="set-row-label">{inv.number || inv.id} · {api.words.money(inv.amount_due, inv.currency)}</span>
-                <span className="set-row-hint">{api.words.day(inv.created_at)} · {api.words.invoice(inv.status)}</span>
+          ) : (
+            <div className="set-table" role="table" aria-label="Invoices" data-testid="billing-invoice-rows">
+              <div className="set-table-head" role="row">
+                <span role="columnheader">Invoice</span>
+                <span role="columnheader">Date</span>
+                <span role="columnheader" className="set-table-num">Amount</span>
+                <span role="columnheader">Status</span>
+                <span role="columnheader" aria-label="On Stripe" />
               </div>
-              {inv.hosted_url && <a className="cl-bucket-link" href={inv.hosted_url} target="_blank" rel="noreferrer">Open</a>}
+              {invoices.map((inv) => (
+                <div key={inv.id} className="set-table-row" role="row" data-testid="billing-invoice">
+                  <span role="cell" className="set-table-key">{inv.number || inv.id}</span>
+                  <span role="cell" className="dim">{api.words.day(inv.created_at)}</span>
+                  <span role="cell" className="set-table-num">{api.words.money(inv.amount_due, inv.currency)}</span>
+                  <span role="cell"><span className={`pill ${INVOICE_PILL[inv.status] || ""}`}>{api.words.invoice(inv.status)}</span></span>
+                  <span role="cell">{inv.hosted_url && <a className="cl-bucket-link" href={inv.hosted_url} target="_blank" rel="noreferrer">Open</a>}</span>
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </section>
       )}
     </>
