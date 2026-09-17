@@ -208,6 +208,30 @@ function emailSubjectOf(m: MessageDto): string | null {
 }
 
 /**
+ * What an email carried that the thread does not show. The intake keeps the
+ * names of an email's files and never the files, and a bounded amount of its
+ * words (core email-ingest.ts); an owner reading "see the attached floor plan"
+ * above nothing at all would take the email for the whole of it. Said in one
+ * line under the words, and only when something was left out.
+ */
+export function emailLeftOutOf(meta: unknown): string | null {
+  const email = (meta as { email?: { attachments?: unknown; more_attachments?: unknown; truncated?: unknown } } | null)?.email;
+  if (!email) return null;
+  const files = Array.isArray(email.attachments) ? email.attachments : [];
+  const unnamed = typeof email.more_attachments === "number" && email.more_attachments > 0 ? email.more_attachments : 0;
+  const names = files.map((f) => (f as { filename?: unknown } | null)?.filename).filter((n): n is string => typeof n === "string" && n.trim().length > 0);
+  const total = files.length + unnamed;
+  const said: string[] = [];
+  if (total) {
+    const rest = total - names.length;
+    const listed = names.length ? `: ${names.join(", ")}${rest > 0 ? ` and ${rest} more` : ""}` : "";
+    said.push(`${total === 1 ? "1 attachment was" : `${total} attachments were`} not kept${listed}.`);
+  }
+  if (email.truncated === true) said.push("This email was longer than Chanlytics keeps; the rest was left out.");
+  return said.length ? said.join(" ") : null;
+}
+
+/**
  * A name that is an identifier, a number or an address, has no first name to
  * shorten to: "+1" as a speaker label is nobody, and neither is "ana@".
  */
@@ -501,6 +525,8 @@ export interface InboxThreadVM {
         body: string;
         /** An email's subject line; absent on every other wire. */
         subject?: string;
+        /** What an email carried that is not shown: files whose names alone were kept, words past the bound (emailLeftOutOf). */
+        leftOut?: string;
         /** The attachment, when the message is one. */
         media?: MediaVM;
         /** Why the receptionist said it, when the row remembers. */
@@ -611,12 +637,14 @@ export function toInboxThreadVM(
     const media = mediaVM(m);
     const why = m.sender === "ai" ? replyWhy(m.meta) : null;
     const subject = m.channel === "email" ? emailSubjectOf(m) : null;
+    const leftOut = m.channel === "email" ? emailLeftOutOf(m.meta) : null;
     return {
       type: "msg" as const,
       from: m.sender === "customer" ? ("client" as const) : ("agent" as const),
       channel: onPhone ? "phone" : writtenChannelOf(m.channel),
       // An email's subject line, above its words.
       ...(subject ? { subject } : {}),
+      ...(leftOut ? { leftOut } : {}),
       at: bubbleTime(messageAt(m), tz, now),
       body: messageText(m),
       ...(media ? { media } : {}),

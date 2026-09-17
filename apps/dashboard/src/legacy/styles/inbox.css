@@ -977,6 +977,14 @@
   margin: 2px 2px 4px;
   overflow-wrap: anywhere;
 }
+/* What an email carried that the thread does not show: quieter than its words, and never mistaken for them. */
+.tl-msg-note {
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--ink-muted);
+  margin: 4px 2px 0;
+  overflow-wrap: anywhere;
+}
 
 /* System events */
 .tl-event {

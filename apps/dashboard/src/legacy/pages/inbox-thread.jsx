@@ -643,6 +643,8 @@ const TimelineEntry = ({ entry, thread, channelLabels, lines = null }) => {
         {entry.subject && <div className="tl-msg-subject" data-testid="tl-msg-subject">{entry.subject}</div>}
         <div className="tl-msg-body">{entry.body}</div>
         {entry.media && <TlMedia media={entry.media} />}
+        {/* An email's files are not kept, and its words only up to a bound: the bubble says so, or "see attached" reads as the whole of it. */}
+        {entry.leftOut && <div className="tl-msg-note" data-testid="tl-msg-left-out"><Icon name="info" size={11} /> {entry.leftOut}</div>}
         {/* What became of words that did not reach them is said on their own bubble, whatever follows. */}
         {!isClient && (!lines || lines.by || held || entry.reachedCustomer === false) && (
           <div className="tl-msg-by">
