@@ -3342,13 +3342,6 @@ type Database = {
                 };
                 Returns: Json;
             };
-            scrub_contact_events: {
-                Args: {
-                    p_contact_id: string;
-                    p_tenant_id: string;
-                };
-                Returns: number;
-            };
             set_contact_consent: {
                 Args: {
                     p_consent: string;
