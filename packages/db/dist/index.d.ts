@@ -3844,9 +3844,25 @@ interface IngestCallResult {
     conversation_id: string | null;
 }
 declare function ingestCall(db: Db$2, tenantId: string, n: NormalizedCallInput, raw?: unknown): Promise<IngestCallResult>;
-/** Attach the thread note (call_summary message) back to its call row. */
+/**
+ * Attach the thread note (call_summary message) back to its call row.
+ *
+ * Row-counted, like every other conditional write here: an UPDATE that RLS
+ * excludes or that names a row which is gone reports success and changes
+ * nothing, so "the write failed" and "the write did not happen" have to be
+ * told apart by counting rows rather than by trusting the absence of an error.
+ */
 declare function linkCallMessage(db: Db$2, tenantId: string, callId: string, messageId: string): Promise<void>;
-/** Post-storage-copy state for the recording (private bucket path). */
+/**
+ * Post-storage-copy state for the recording (private bucket path).
+ *
+ * Row-counted, and this is the one where it bites: the audio is already in the
+ * bucket by the time this runs. A write that silently changed nothing leaves
+ * the row saying `pending`, so the sweep fetches the file again, uploads it
+ * again (upsert), three times, and then marks it failed -- and the object it
+ * left behind is invisible to the purge, which only looks at rows that say
+ * `stored`. A row that did not change is now said out loud.
+ */
 declare function setCallRecording(db: Db$2, tenantId: string, callId: string, recording: Record<string, unknown>): Promise<void>;
 /** The customer's thread gets the call as a message, so history stays in one place. */
 declare function recordCallNote(db: Db$2, p: {
