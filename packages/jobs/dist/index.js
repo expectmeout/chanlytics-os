@@ -21,6 +21,9 @@ import { z as z3 } from "zod";
 import { z as z4 } from "zod";
 import { z as z5 } from "zod";
 z.config({ jitless: true });
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -83,9 +86,10 @@ var EVENT_KINDS = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -829,6 +833,9 @@ import { z as z33 } from "zod";
 import { z as z43 } from "zod";
 import { z as z53 } from "zod";
 z6.config({ jitless: true });
+var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
 var EVENT_KINDS2 = [
   "message.received",
   "message.sent",
@@ -891,9 +898,10 @@ var EVENT_KINDS2 = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -1665,6 +1673,9 @@ var STATE_TTL_MS = 10 * 6e4;
 var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 z62.config({ jitless: true });
+var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL22 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE22 = new RegExp(`^(${LOCAL22})@(${LABEL22}(?:\\.${LABEL22})+)$`);
 var EVENT_KINDS22 = [
   "message.received",
   "message.sent",
@@ -1727,9 +1738,10 @@ var EVENT_KINDS22 = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -2507,6 +2519,9 @@ var PASSWORD_WORDS22 = {
   backToSignIn: "Back to sign-in"
 };
 z7.config({ jitless: true });
+var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
 var EVENT_KINDS3 = [
   "message.received",
   "message.sent",
@@ -2569,9 +2584,10 @@ var EVENT_KINDS3 = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -3678,6 +3694,9 @@ function normalizePhone(raw) {
   if (digits2.length >= 8 && digits2.length <= 15) return `+${digits2}`;
   return null;
 }
+var LABEL4 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL4 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE4 = new RegExp(`^(${LOCAL4})@(${LABEL4}(?:\\.${LABEL4})+)$`);
 var EVENT_KINDS4 = [
   "message.received",
   "message.sent",
@@ -3740,9 +3759,10 @@ var EVENT_KINDS4 = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */

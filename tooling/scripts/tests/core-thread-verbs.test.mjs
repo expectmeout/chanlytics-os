@@ -30,7 +30,7 @@ function fakes(over = {}) {
 }
 const refused = async (p, code, status, words) => assert.rejects(p, (e) => e.code === code && (status === undefined || e.status === status) && (words === undefined || words.test(e.message)));
 
-test("take over: the bot is paused FIRST, then the claim, then the drafts, then the ledger; a thread with no phone is refused before anything", async () => {
+test("take over: the bot is paused FIRST, then the claim, then the drafts, then the ledger; a thread with no number has no mirror to pause and is taken all the same", async () => {
   const { ports, log, ops } = fakes();
   const r = await core.takeOver(ports, { conv: conv(), userId: "u1" });
   const until = new Date(NOW + 2 * HOUR).toISOString();
@@ -39,9 +39,14 @@ test("take over: the bot is paused FIRST, then the claim, then the drafts, then 
   assert.deepEqual(log[1], ["claim", "c1", until, "u1"]);
   assert.deepEqual(log[3], ["record", "t1", "conversation", "c1", "take_over", { paused_until: until }]);
   assert.deepEqual(r, { state: "needs_human", paused_until: until, decision_id: "d1", withdrawn_drafts: 1 });
+  // A person with an email and no number: the mirror is the number's store, so there is none; the row holds the thread.
   const bare = fakes();
-  await refused(core.takeOver(bare.ports, { conv: conv({ phone_e164: null }), userId: "u1" }), "conflict", undefined, /phone/);
-  assert.deepEqual(bare.ops(), []);
+  const taken = await core.takeOver(bare.ports, { conv: conv({ phone_e164: null }), userId: "u1" });
+  assert.deepEqual(bare.ops(), ["claim", "withdrawDrafts", "record"]);
+  assert.equal(taken.paused_until, until);
+  const lost = fakes({ claim: false });
+  await refused(core.takeOver(lost.ports, { conv: conv({ phone_e164: null }), userId: "u1" }), "conflict", 409, /reload/);
+  assert.deepEqual(lost.ops(), ["claim"], "and a lost claim has no mirror to release");
 });
 
 test("take over: a claim that changed no row releases the pause it mirrored and is a 409, with no decision", async () => {
@@ -60,7 +65,9 @@ test("hand back: the pause released, the thread opened, the decision recorded, a
   const stale = fakes({ release: false });
   await refused(core.handBack(stale.ports, { conv: conv() }), "conflict", 409, /reload/);
   assert.deepEqual(stale.ops(), ["pauseBot", "release"], "no decision and no resolve for a change that never happened");
-  await refused(core.handBack(fakes().ports, { conv: conv({ phone_e164: null }) }), "conflict", undefined, /phone/);
+  const bare = fakes();
+  assert.deepEqual(await core.handBack(bare.ports, { conv: conv({ phone_e164: null, paused_until: new Date(NOW + HOUR).toISOString() }) }), { state: "open", decision_id: "d1" });
+  assert.deepEqual(bare.ops(), ["release", "record", "resolveEscalation"], "a thread with no number is handed back with no mirror to release");
 });
 
 test("hand back, snooze and archive: a row that did not change gets its pause back, so the receptionist never speaks under a person still holding the thread", async () => {

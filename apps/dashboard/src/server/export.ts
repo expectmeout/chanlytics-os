@@ -21,11 +21,11 @@ export interface ExportOpts {
   exportedAt?: Date;
 }
 
-type ContactLike = { display_name?: string | null; wa_profile_name?: string | null; phone_e164?: string | null } | null | undefined;
+type ContactLike = { display_name?: string | null; wa_profile_name?: string | null; phone_e164?: string | null; email?: string | null } | null | undefined;
 
-/** The name a person goes by: what we call them, else what WhatsApp calls them, else the number. */
+/** The name a person goes by: what we call them, else what WhatsApp calls them, else the number, else the address. */
 export function personLabel(c: ContactLike): string {
-  return c?.display_name || c?.wa_profile_name || c?.phone_e164 || "Unknown";
+  return c?.display_name || c?.wa_profile_name || c?.phone_e164 || c?.email || "Unknown";
 }
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
@@ -163,6 +163,7 @@ export const PEOPLE_COLUMNS: ReadonlyArray<readonly [string, (r: PersonRowDto, t
   ["name", (r) => r.display_name],
   ["whatsapp_name", (r) => r.wa_profile_name],
   ["phone", (r) => r.phone_e164],
+  ["email", (r) => r.email],
   ["consent", (r) => r.consent],
   ["consent_source", (r) => r.consent_source],
   ["consent_updated", (r, tz) => stamp(r.consent_updated_at, tz)],

@@ -42,7 +42,7 @@ interface RecipientRow {
   reason: string | null;
   sent_at: string | null;
   messages: { conversation_id: string; status: string; meta?: unknown } | null;
-  contacts?: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null } | null;
+  contacts?: { display_name: string | null; wa_profile_name: string | null; phone_e164: string | null; email: string | null } | null;
 }
 
 /** When a status arrived, from the stamp the guard keeps on the row (00111); null before it, or for a status not reached. */
@@ -196,7 +196,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const { data: recipients, error: rErr } = await ctx.supabase
     .from("broadcast_recipients")
-    .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164)")
+    .select("broadcast_id, contact_id, state, reason, sent_at, messages(conversation_id, status, meta), contacts(display_name, wa_profile_name, phone_e164, email)")
     .eq("tenant_id", tenantId)
     .eq("broadcast_id", id)
     .order("sent_at", { ascending: false, nullsFirst: false });
@@ -210,7 +210,7 @@ export async function getBroadcast(ctx: RouteContext, tenantId: string, id: stri
 
   const people: BroadcastRecipientDto[] = rows.map((r) => ({
     contact_id: r.contact_id,
-    name: personName({ display_name: r.contacts?.display_name ?? null, wa_profile_name: r.contacts?.wa_profile_name ?? null, phone_e164: r.contacts?.phone_e164 ?? null }),
+    name: personName({ display_name: r.contacts?.display_name ?? null, wa_profile_name: r.contacts?.wa_profile_name ?? null, phone_e164: r.contacts?.phone_e164 ?? null, email: r.contacts?.email ?? null }),
     phone: r.contacts?.phone_e164 ?? null,
     state: r.state as RecipientState,
     reason: r.reason,

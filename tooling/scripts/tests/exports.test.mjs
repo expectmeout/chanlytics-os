@@ -105,7 +105,7 @@ test("the CSV quotes what must be quoted and defuses what a spreadsheet would ru
   assert.equal(X.csvCell(true), "yes");
   assert.equal(X.csvCell(0), "0");
   const rows = [{
-    id: "p1", display_name: "Dani, Jr.", wa_profile_name: "=cmd", phone_e164: "+19175550100", consent: "opted_in", consent_source: "keyword",
+    id: "p1", display_name: "Dani, Jr.", wa_profile_name: "=cmd", phone_e164: "+19175550100", email: "dani@example.com", consent: "opted_in", consent_source: "keyword",
     consent_updated_at: "2026-08-01T12:00:00Z",
     // The OTHER answer. This person answers the business and has NOT asked for
     // offers, which is the ordinary case and the one an audit needs to be able to
@@ -118,8 +118,8 @@ test("the CSV quotes what must be quoted and defuses what a spreadsheet would ru
   const csv = X.peopleCsv(rows, TZ);
   assert.equal(csv.charCodeAt(0), 0xfeff, "a BOM so a spreadsheet reads accents");
   const [head, row, tail] = csv.slice(1).split("\r\n");
-  assert.equal(head, "name,whatsapp_name,phone,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist");
-  assert.equal(row, `"Dani, Jr.",'=cmd,'+19175550100,opted_in,keyword,2026-08-01 08:00,unknown,,,no,whatsapp voice,2,1,0,2026-07-01 08:00,2026-09-01 08:00,,,auto`);
+  assert.equal(head, "name,whatsapp_name,phone,email,consent,consent_source,consent_updated,offers_consent,offers_consent_source,offers_consent_updated,do_not_contact,channels,conversations,calls,escalations,first_contact,last_message,last_inbound,last_call,receptionist");
+  assert.equal(row, `"Dani, Jr.",'=cmd,'+19175550100,dani@example.com,opted_in,keyword,2026-08-01 08:00,unknown,,,no,whatsapp voice,2,1,0,2026-07-01 08:00,2026-09-01 08:00,,,auto`);
   assert.equal(tail, "", "CRLF rows, trailing newline");
 });
 

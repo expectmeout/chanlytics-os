@@ -681,8 +681,8 @@ const plCsv = (rows) => {
   const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
   // Both answers, because "Consent" alone cannot say which one it means -- and the
   // one an audit asks about is the offers column, which this file did not carry.
-  const head = ["Name", "Phone", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];
-  const lines = rows.map((p) => [p.name, p.phone || "", p.stateLabel, p.lastContact.label, p.consent.label, (PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown)[0], p.nextVisit || "", p.firstContact.label].map(esc).join(","));
+  const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];
+  const lines = rows.map((p) => [p.name, p.phone || "", p.email || "", p.stateLabel, p.lastContact.label, p.consent.label, (PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown)[0], p.nextVisit || "", p.firstContact.label].map(esc).join(","));
   return [head.map(esc).join(","), ...lines].join("\r\n");
 };
 const plDownload = (name, text) => {
@@ -1006,6 +1006,8 @@ const PL_MODES = [
 const plModeWord = (id) => (window.__chrome && window.__chrome.state ? window.__chrome.state("mode", id).label : id);
 
 const plIsNumber = (name) => /^[+\d(]/.test(name || "");
+// A person shown by their address because they have no name and no number (contracts personName).
+const plIsAddress = (p) => !!p.email && p.name === p.email;
 // The exact moment, by the business's clock (window.__clock): "Sep 6, 2026 · 3:10 PM".
 const plWhen = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.isNaN(ms) ? undefined : `${window.__clock.dateYear(ms)} · ${window.__clock.time(ms)}`; };
 
@@ -1059,7 +1061,9 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
       </thead>
       <tbody>
         {rows.map((p) => {
-          const numbered = plIsNumber(p.name);
+          // Named by an identifier, a number or an address: nobody has named them yet.
+          const byNumber = plIsNumber(p.name);
+          const numbered = byNumber || plIsAddress(p);
           const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;
           // Their words, or what they said on the phone, as the attention strip says them: a row in Needs you
           // said neither, and gave no reason for the state either.
@@ -1075,16 +1079,18 @@ const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, o
               <td className="cl-name-cell">
                 <div className="cl-row-name">
                   {numbered
-                    ? <div className="ix-thread-avatar cl-row-avatar-glyph" title="No name yet"><Icon name="phone" size={12} /></div>
+                    ? <div className="ix-thread-avatar cl-row-avatar-glyph" title="No name yet"><Icon name={byNumber ? "phone" : "mail"} size={12} /></div>
                     : <div className="ix-thread-avatar">{p.initials}</div>}
                   <div className="cl-row-name-block">
                     <div className="cl-row-fullname">
-                      <span className={numbered ? "tabular" : ""}>{p.name}</span>
+                      <span className={byNumber ? "tabular" : ""}>{p.name}</span>
                       {numbered && <button className="cl-row-name-them" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} title="Give them a name on their profile" data-testid="row-name-them">Name them <Icon name="arrow-right" size={9} /></button>}
                     </div>
                     <div className="cl-row-meta">
                       <PeopleChannels channels={p.channels} />
                       {!numbered && p.phone && <><span className="dot" /><span className="tabular">{p.phone}</span></>}
+                      {/* The address stands in for the number only when there is none: a row says one identifier. */}
+                      {!numbered && !p.phone && p.email && <><span className="dot" /><span>{p.email}</span></>}
                       {!numbered && p.waName && p.waName !== p.name && <><span className="dot" /><span title="Their name on WhatsApp">{p.waName} on WhatsApp</span></>}
                       <span className="dot" />
                       <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
@@ -1526,11 +1532,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     const needle = q.trim().toLowerCase();
     const digits = needle.replace(/\D/g, "");
     if (needle) {
-      // The name, the number, their name on WhatsApp — and the words on the
-      // row: their last message and their visits, so "balayage" finds people.
+      // The name, the number, the address, their name on WhatsApp — and the
+      // words on the row: their last message and their visits, so "balayage"
+      // finds people. The server's search and count match the same (00125).
       list = list.filter((p) =>
         p.name.toLowerCase().includes(needle) ||
         (p.waName || "").toLowerCase().includes(needle) ||
+        (p.email || "").includes(needle) ||
         (digits.length >= 3 && (p.phone || "").replace(/\D/g, "").includes(digits)) ||
         (p.quote || "").toLowerCase().includes(needle) ||
         (p.nextVisit || "").toLowerCase().includes(needle) ||

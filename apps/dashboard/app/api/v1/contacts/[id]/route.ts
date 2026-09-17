@@ -110,7 +110,7 @@ export const DELETE = write({
     // number still on the row: the digest the tombstone keeps is computed
     // from it. A write that could not be made is a retry too.
     try {
-      await beginErasure(contact.tenant_id, id, contact.phone_e164 ?? null);
+      await beginErasure(contact.tenant_id, id, { phone: contact.phone_e164 ?? null, email: contact.email ?? null });
     } catch (e) {
       console.error("erase_begin_failed", id, e instanceof Error ? e.message : e);
       throw new AppError("internal", "Could not mark this person as being erased, so nothing was deleted. Try again.", 500);
@@ -170,7 +170,10 @@ export const DELETE = write({
     // assistant's memory of a person is a name that outlives its erasure too.
     {
       const { data: scrubbed, error: askErr } = await ctx.supabase.rpc("scrub_ask_for_contact", {
-        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: threadIds,
+        // The thread keys, and the address: an Ask turn can quote either. Read
+        // off the row before erase_contact ran, because the row no longer has it;
+        // a re-driven erasure (above) scrubs by the person's id and thread keys alone.
+        p_tenant_id: contact.tenant_id, p_contact_id: id, p_needles: [...threadIds, ...(contact.email ? [contact.email] : [])],
       });
       if (askErr) console.error("erase_ask_scrub_failed", id, askErr.message);
       else console.log(JSON.stringify({ level: "info", event: "erase_ask_scrubbed", contact: id, messages: scrubbed }));

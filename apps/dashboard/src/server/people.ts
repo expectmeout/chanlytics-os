@@ -15,7 +15,7 @@ import type { RouteContext } from "./with-route";
 export const PEOPLE_PAGE = 1000;
 
 export interface PeoplePage {
-  /** A name, their WhatsApp name, or three digits of the number. */
+  /** A name, their WhatsApp name, their email address, or three digits of the number. */
   q?: string | null;
   offset?: number;
   limit?: number;
@@ -86,7 +86,9 @@ export async function everyone(ctx: Pick<RouteContext, "supabase">, tenantId: st
 /**
  * How many live people there are, or match a query: the page's "N of M", and
  * whether there is a next page. Counted where the rows are (never erased,
- * never merged), with the same three matches the search uses. The query is
+ * never merged), with the same four matches the search uses (00125 added the
+ * address to both, together: a count that matches less than the list pages
+ * wrong). The query is
  * kept to the characters a name or a number holds, so a comma cannot reach
  * the filter grammar.
  */
@@ -100,7 +102,7 @@ export async function countPeople(ctx: Pick<RouteContext, "supabase">, tenantId:
   const needle = searchNeedle(q);
   if (needle) {
     const digits = needle.replace(/\D/g, "");
-    const clauses = [`display_name.ilike.*${needle}*`, `wa_profile_name.ilike.*${needle}*`, ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : [])];
+    const clauses = [`display_name.ilike.*${needle}*`, `wa_profile_name.ilike.*${needle}*`, `email.ilike.*${needle}*`, ...(digits.length >= 3 ? [`phone_e164.ilike.*${digits}*`] : [])];
     query = query.or(clauses.join(","));
   }
   const { count, error } = await query;

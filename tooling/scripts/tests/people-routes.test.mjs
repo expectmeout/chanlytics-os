@@ -172,7 +172,7 @@ test("details: an operator where the person lives, a name or notes or both, trim
   await refused(details.PUT.run(send("PUT", { name: "Ada" }), ctxFor(tables, { id: P1 }, rpcs)), "forbidden", 403);
   await assert.rejects(details.PUT.run(send("PUT", {}), ctxFor(tables, { id: P2 }, rpcs)), (e) => {
     assert.equal(e.code, "validation");
-    assert.match(e.message, /Send a name, notes, or both\./);
+    assert.match(e.message, /Send a name, notes or an email address\./);
     return true;
   });
   await refused(details.PUT.run(send("PUT", { name: "Ada" }), ctxFor(tables, { id: P3 }, rpcs)), "not_found", 404, "erased");
@@ -182,6 +182,35 @@ test("details: an operator where the person lives, a name or notes or both, trim
   assert.deepEqual(doors, [["name", { p_contact_id: P2, p_name: "Ada Lovelace" }], ["notes", { p_contact_id: P2, p_notes: "Sees Sofia" }]]);
   const cleared = await details.PUT.run(send("PUT", { notes: "" }), ctxFor(tables, { id: P2 }, rpcs));
   assert.deepEqual(cleared, { contact_id: P2, notes: null }, "an empty string clears");
+});
+
+test("details: an email address is judged by the one normalizer before the door opens, stored in its spelling, cleared by an empty string, and the door's own refusal for a second person with it is a 409 in the owner's words", async () => {
+  const doors = [];
+  const taken = { code: "23505", message: "Another person here already has that address." };
+  const rpcs = {
+    set_person_email: (a) => {
+      doors.push(a);
+      if (a.p_email === "taken@example.com") { const e = new Error(taken.message); e.code = taken.code; throw e; }
+      return { email: a.p_email || null };
+    },
+  };
+  const tables = { memberships: both("viewer", "operator"), contacts: [contact(P1, A), contact(P2, B), contact(P3, B, { erased_at: "2026-09-01T00:00:00Z" })] };
+  const put = (body, id = P2) => details.PUT.run(send("PUT", body), ctxFor(tables, { id }, rpcs));
+  await refused(put({ email: "ana@example.com" }, P1), "forbidden", 403);
+  await refused(put({ email: "ana@example.com" }, P3), "not_found", 404, "erased");
+  for (const [typed, words] of [["ana.example.com", /missing the @/], ["Ana <ana@example.com>", /Only the address itself/], ["ana@example", /full domain/]]) {
+    await assert.rejects(put({ email: typed }), (e) => { assert.equal(e.code, "validation"); assert.match(e.message, words); return true; });
+  }
+  assert.equal(doors.length, 0, "no door was opened for a refusal");
+  assert.deepEqual(await put({ email: "  Ana@Example.COM " }), { contact_id: P2, email: "ana@example.com" });
+  assert.deepEqual(doors, [{ p_contact_id: P2, p_email: "ana@example.com" }], "the door is handed the stored spelling, not the typed one");
+  assert.deepEqual(await put({ email: "" }), { contact_id: P2, email: null }, "an empty string clears");
+  await assert.rejects(put({ email: "taken@example.com" }), (e) => {
+    assert.equal(e.code, "conflict");
+    assert.equal(e.status, 409);
+    assert.equal(e.message, taken.message);
+    return true;
+  });
 });
 
 test("the receptionist for one person: owner-only where they live, one of four modes, a policies row replaced not duplicated and removed by inherit, each change on the ledger", async () => {

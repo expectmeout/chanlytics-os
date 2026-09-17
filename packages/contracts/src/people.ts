@@ -21,6 +21,7 @@ import { tidyCallSummary } from "./call-words";
 import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   initialsOf,
+  isIdentifierName,
   messageAt,
   messageText,
   shortTime,
@@ -38,6 +39,8 @@ export interface PersonRowDto {
   display_name: string | null;
   wa_profile_name: string | null;
   phone_e164: string | null;
+  /** As normalizeEmail stores it (00125). A person may have this and no number. */
+  email: string | null;
   consent: string | null;
   consent_source: string | null;
   marketing_consent?: string | null;
@@ -248,8 +251,15 @@ function mmss(ms: number | null | undefined): string | undefined {
 
 const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-export function personName(r: Pick<PersonRowDto, "display_name" | "wa_profile_name" | "phone_e164">): string {
-  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || "Unknown";
+/**
+ * What to call a person: the name a human typed, their WhatsApp name, their
+ * number, their email address. "Unknown" is a person with none of them, not
+ * a person whose only identifier is an address. `email` is optional on the
+ * argument because a call's contact is read without one; every list of
+ * people carries it.
+ */
+export function personName(r: Pick<PersonRowDto, "display_name" | "wa_profile_name" | "phone_e164"> & { email?: string | null }): string {
+  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || r.email || "Unknown";
 }
 
 export type PersonChannel = "whatsapp" | "voice";
@@ -495,6 +505,9 @@ export function mayReceive(
   r: Pick<PersonRowVM, "consent" | "phone">,
   purpose: SendPurpose,
 ): boolean {
+  // Every audience today leaves by WhatsApp or text, and both need a number. A
+  // person with an address and none is reached when the email wire carries
+  // reminders (docs/plans/2026-09-17-email-channel.md, §11), not before.
   if (!r.phone) return false;
   return mayMessageFor(
     { consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing },
@@ -538,6 +551,7 @@ export interface PersonRowVM {
   givenName: string | null;
   initials: string;
   phone: string | null;
+  email: string | null;
   waName: string | null;
   channels: PersonChannel[];
   hasChat: boolean;
@@ -623,6 +637,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     givenName: r.display_name?.trim() || null,
     initials: initialsOf(name),
     phone: formatPhoneDisplay(r.phone_e164),
+    email: r.email ?? null,
     waName: r.wa_profile_name,
     channels: channelsOf(r),
     hasChat: !!r.has_chat,
@@ -1039,9 +1054,9 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     visits: d.visits ?? d.row.visits ?? null,
   };
   const base = toPersonRowVM(row, tz, now);
-  // A person we know only by number has no first name to shorten to: "+1"
-  // as a speaker label is nobody. Keep the whole formatted number.
-  const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
+  // A person we know only by number or address has no first name to shorten
+  // to: "+1" as a speaker label is nobody. Keep the whole identifier.
+  const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t: number) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items: PersonTimelineItemVM[] = [];
   const convIds = new Set(d.conversations.map((c) => c.id));
@@ -1225,6 +1240,7 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   // About rail.
   const about: { k: string; v: string }[] = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
+  if (base.email) about.push({ k: "Email", v: base.email });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
     k: "First contact",

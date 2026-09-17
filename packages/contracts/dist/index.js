@@ -125,6 +125,32 @@ function formatPhoneDisplay(e164) {
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
 
+// src/email-address.ts
+var MAX_ADDRESS = 254;
+var MAX_LOCAL = 64;
+var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
+var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
+var SHAPE = new RegExp(`^(${LOCAL})@(${LABEL}(?:\\.${LABEL})+)$`);
+function normalizeEmail(raw) {
+  if (raw == null) return null;
+  const s = String(raw).trim().toLowerCase();
+  if (!s || s.length > MAX_ADDRESS) return null;
+  const m = SHAPE.exec(s);
+  if (!m || m[1].length > MAX_LOCAL) return null;
+  return s;
+}
+function whyNotAnEmail(raw) {
+  if (normalizeEmail(raw)) return null;
+  const s = String(raw ?? "").trim();
+  if (!s) return "An email address is needed.";
+  if (/[<>]/.test(s) || /\s/.test(s)) return "Only the address itself, like name@example.com, with no name or spaces around it.";
+  const at2 = s.split("@").length - 1;
+  if (at2 === 0) return "That is missing the @.";
+  if (at2 > 1) return "An address has one @.";
+  if (!/@[^@]*\./.test(s)) return "That needs a full domain after the @, like name@example.com.";
+  return "That is not an email address anyone can be reached at.";
+}
+
 // src/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
 var MEMBERSHIP_ROLES = ["owner", "operator", "viewer"];
@@ -223,9 +249,10 @@ var EVENT_KINDS = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -1381,11 +1408,14 @@ function bubbleTime(iso, tz, now) {
   return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
 }
 function contactName(dto) {
-  return dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || "Unknown";
+  return dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || dto.contact.email || "Unknown";
+}
+function isIdentifierName(name) {
+  return /^[+\d(]/.test(name) || name.includes("@");
 }
 function contactMeta(dto, channel = "WhatsApp") {
-  const phone = formatPhoneDisplay(dto.contact.phone_e164);
-  return contactName(dto) === phone ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${phone ?? "no phone"}`;
+  const id = formatPhoneDisplay(dto.contact.phone_e164) ?? dto.contact.email ?? null;
+  return contactName(dto) === id ? `${channel} \xB7 no name saved` : `${channel} \xB7 ${id ?? "no phone"}`;
 }
 function initialsOf(name) {
   const digits2 = name.replace(/[^\d]/g, "");
@@ -1683,7 +1713,7 @@ function clipAtWord(text, max) {
 }
 function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const who = contactName(dto);
-  const whoShort = /^[+\d(]/.test(who) ? who : who.split(" ")[0] || who;
+  const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
     channel: m.type === "call_summary" ? "phone" : "whatsapp",
@@ -1781,7 +1811,7 @@ function toCallVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const phone = formatPhoneDisplay(dto.from_e164);
   const name = dto.contact?.display_name || dto.contact?.wa_profile_name || null;
   const who = withheld ? "Caller ID withheld" : name || phone || dto.from_raw || "Unknown caller";
-  const whoShort = name ? /^[+\d(]/.test(name) ? name : name.split(" ")[0] : "Caller";
+  const whoShort = name ? isIdentifierName(name) ? name : name.split(" ")[0] : "Caller";
   const dur = mmss(dto.duration_ms);
   const live = isLiveCall(dto, now);
   const missed = dto.status === "not_connected";
@@ -3450,7 +3480,7 @@ function mmss3(ms2) {
 }
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 function personName(r) {
-  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || "Unknown";
+  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || r.email || "Unknown";
 }
 function channelsOf(r) {
   const set = new Set(r.channels ?? []);
@@ -3588,6 +3618,7 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     givenName: r.display_name?.trim() || null,
     initials: initialsOf(name),
     phone: formatPhoneDisplay(r.phone_e164),
+    email: r.email ?? null,
     waName: r.wa_profile_name,
     channels: channelsOf(r),
     hasChat: !!r.has_chat,
@@ -3828,7 +3859,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     visits: d.visits ?? d.row.visits ?? null
   };
   const base = toPersonRowVM(row2, tz, now);
-  const first = /^[+\d(]/.test(base.name) ? base.name : base.name.split(" ")[0] || base.name;
+  const first = isIdentifierName(base.name) ? base.name : base.name.split(" ")[0] || base.name;
   const stamp = (t) => ({ time: clockTime(t, tz), day: clockDayLabel(t, tz, nowMs) });
   const items = [];
   const convIds = new Set(d.conversations.map((c) => c.id));
@@ -3985,6 +4016,7 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   ];
   const about = [];
   if (base.phone) about.push({ k: "Phone", v: base.phone });
+  if (base.email) about.push({ k: "Email", v: base.email });
   if (base.waName) about.push({ k: "WhatsApp name", v: base.waName });
   about.push({
     k: "First contact",
@@ -8310,6 +8342,7 @@ var WORDS = {
   "contact.added": "A person was added",
   "contact.named": "A person was named",
   "contact.noted": "A note was written",
+  "contact.email_set": "A person's email address changed",
   "contact.erased": "A person was erased",
   "contact.blob_erased": "A person's stored thread was erased",
   "conversation.reopened": "A thread reopened",
@@ -9052,10 +9085,16 @@ function stateOf(kind, value) {
 }
 
 // src/erasure.ts
-async function erasedPhoneHash(tenantId, phoneE164) {
-  const bytes = new TextEncoder().encode(`${tenantId}:${phoneE164}`);
+async function keyedDigest(tenantId, identifier) {
+  const bytes = new TextEncoder().encode(`${tenantId}:${identifier}`);
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function erasedPhoneHash(tenantId, phoneE164) {
+  return keyedDigest(tenantId, phoneE164);
+}
+function erasedEmailHash(tenantId, email) {
+  return keyedDigest(tenantId, email);
 }
 export {
   ABANDONED_MS,
@@ -9399,6 +9438,7 @@ export {
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
+  erasedEmailHash,
   erasedPhoneHash,
   err,
   eventText,
@@ -9460,6 +9500,7 @@ export {
   isDayKey,
   isForwardingMode,
   isHeldDraft,
+  isIdentifierName,
   isLiveCall,
   isOptedOut,
   isOptedOutContact,
@@ -9503,6 +9544,7 @@ export {
   nextOpenMoment,
   nextRunLabel,
   nextThemePref,
+  normalizeEmail,
   normalizeNavigate,
   normalizePhone,
   notFoundPageMetadata,
@@ -9706,6 +9748,7 @@ export {
   whyCannotSpend,
   whyNotAHandoff,
   whyNotAPhone,
+  whyNotAnEmail,
   windowFor,
   workspaceHotkey,
   zoneDayKey,

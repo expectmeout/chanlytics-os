@@ -153,9 +153,10 @@ export const EVENT_KINDS = [
   "webhook.delivery",
   /** A person who came from the calendar or a hand, not from a message (00053). */
   "contact.added",
-  /** A person renamed or annotated at the desk (00054). */
+  /** A person renamed or annotated at the desk (00054), or given an email address (00125). */
   "contact.named",
   "contact.noted",
+  "contact.email_set",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */

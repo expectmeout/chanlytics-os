@@ -23,7 +23,7 @@ export const GET = read({
     const id = requireUuid(params.id, "conversation");
     const { data: conv, error } = await supabase
       .from("conversations")
-      .select("id, tenant_id, contacts (id, display_name, wa_profile_name, phone_e164)")
+      .select("id, tenant_id, contacts (id, display_name, wa_profile_name, phone_e164, email)")
       .eq("id", id)
       .eq("tenant_id", member.tenantId)
       .maybeSingle();

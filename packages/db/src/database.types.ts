@@ -691,7 +691,9 @@ export type Database = {
           created_at: string
           display_name: string | null
           dnc: boolean
+          email: string | null
           erased_at: string | null
+          erased_email_hash: string | null
           erased_phone_hash: string | null
           erasing_since: string | null
           first_seen_at: string
@@ -714,7 +716,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dnc?: boolean
+          email?: string | null
           erased_at?: string | null
+          erased_email_hash?: string | null
           erased_phone_hash?: string | null
           erasing_since?: string | null
           first_seen_at?: string
@@ -737,7 +741,9 @@ export type Database = {
           created_at?: string
           display_name?: string | null
           dnc?: boolean
+          email?: string | null
           erased_at?: string | null
+          erased_email_hash?: string | null
           erased_phone_hash?: string | null
           erasing_since?: string | null
           first_seen_at?: string
@@ -2933,6 +2939,7 @@ export type Database = {
           display_name: string
           dnc: boolean
           earliest_row_at: string
+          email: string
           escalation_count: number
           first_contact_at: string
           has_backfill: boolean
@@ -3079,6 +3086,10 @@ export type Database = {
           p_source: string
           p_tenant_id: string
         }
+        Returns: Json
+      }
+      set_person_email: {
+        Args: { p_contact_id: string; p_email: string }
         Returns: Json
       }
       set_person_name: {
