@@ -315,6 +315,60 @@ The same three layers the SMS channel has (pure in `packages/channels` and `pack
 
 Plus the source-scan ratchet against a new `"whatsapp" | "sms"` literal union outside `enums.ts`, and the golden test for the composed email prompt.
 
+## 14b. E0: what the provider actually does
+
+Captured from live traffic on 17 September, against the real account. The
+fixtures are in `tooling/scripts/fixtures/email/` and
+`email-fixtures.test.mjs` runs them through the parsers that read them, so a
+shape Resend changes fails a test rather than a customer's thread.
+
+**Settled.**
+
+- **Tags round-trip INVERTED.** A request sends `tags` as a list of
+  `{name, value}`; every receipt returns them as a MAP. Code that read back only
+  the shape it sends would find no row on every receipt, and every bounce and
+  complaint would be dropped as "not a workspace's email" with nobody told.
+  `emailReceiptFrom` reads both, and now has a real payload proving it.
+- **`tags` is ABSENT, not empty,** on mail that carried none — which is every
+  transactional email the platform already sends. Those receipts name no row and
+  are dropped quietly.
+- **The id the send returns is the receipt's `email_id`,** and `message_id` is
+  the RFC id the provider minted, in angle brackets.
+- **Webhook DELIVERY order inverts.** For one email Resend queued
+  `email.delivered` a full 22 seconds BEFORE its `email.sent`. The payload's
+  `data.created_at` is the email's time; the event's own `created_at` is the
+  queueing time. Order-independence is the normal case, not an edge case.
+- **Inbound is catch-all at the domain** ("any address at your Resend domain"),
+  which is what routing by the envelope to a `mailboxes` row assumes. Resend's
+  newer "inbox" feature is a different product and is not required.
+- **Resend does not loop its own outbound into its own inbound.** A send from a
+  verified Resend domain to the receiving domain produces no received email, so
+  the inbound fixtures need mail from outside.
+- **The door is inert in production, proven by the provider.** Resend's own
+  delivery attempts answer `404 {"ok":false,"error":"email_off"}`.
+
+**Still open, and what each blocks.** All of these need one real inbound, which
+needs the domain fully verified (its DKIM and SPF were still `pending` at the
+time of writing, with correct records published):
+
+- `received_for` on a real `email.received`, direct and forwarded.
+- Whether a fetched email's headers arrive as a map or as a list of pairs — the
+  one shape slice B reads leniently in both directions.
+- What authentication evidence (SPF, DKIM, DMARC results) Resend exposes on a
+  fetched received email. **The trust policy in §8 is written from this and is
+  not written before it**, which is why the receptionist drafting email is the
+  last slice rather than an early one.
+- Svix signature verification against a REAL signature. This one cannot be
+  proved offline: the attempts API does not expose request headers, so it needs
+  `EMAIL_DOMAIN` and `RESEND_WEBHOOK_SECRET` on the edge and a live delivery.
+  Until then the signature path is tested only against itself.
+
+**Switching the door on is safe with the backlog.** Every event queued while the
+door answered 404 is a receipt for the platform's own transactional mail,
+carrying no `cl_message` tag, so it names no row and is dropped; any
+`email.received` finds no mailbox and is counted as mail for nobody. Nothing in
+the backlog can land in a customer's thread.
+
 ## 15. Delivery order
 
 Each phase is one plan to completion, merged on green and seen live before the next begins.
