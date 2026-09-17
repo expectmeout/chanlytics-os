@@ -210,6 +210,7 @@ The order is the contract: a viewer is refused before a token is spent, so is a 
 | `create_person`, `set_person_name`, `set_person_notes`, `set_person_email`, `set_person_reply_mode` | operators and owners | People added and described by hand, their email address among it (00125: one per workspace, stored trimmed and lower-cased, cleared by a trigger when the person is erased, remembered afterwards only as a keyed digest); the receptionist's mode for one person, and for fifty at a time |
 | `set_template_hidden`, `set_template_title` | operators and owners | How a template appears in the composers |
 | `line_forwarding_set`, `line_forwarding_test` | owners | Keep-your-number rows (S-07) |
+| `create_mailbox`, `rename_mailbox` | owners | The workspace's email address, once, and the name customers see beside it (00129). The reply route's token is minted inside the door and never returned; the address is changed by nobody; a session writes no column of `mailboxes` |
 | `profile_set` | the person | Their display name |
 | `notifications_seen`, `notification_mark` | the person | Their read state on the bell, keyed by the workspace and pruned with the feed |
 | `setup_request` | operators and owners | Ask a person at Chanlytics for something the product cannot provision yet |
@@ -258,6 +259,8 @@ The one surface that crosses workspaces on purpose, and the pane that says wheth
   - **statuses** (sent, delivered, read, failed) update the message found by its WhatsApp id, and each receipt keeps its time (00111). The `messages_guard` trigger keeps status moving forward and makes `failed` and `canceled` terminal. Receipts that stop coming are watched: a message Meta accepted with no delivered, read or failed receipt for six hours, in a workspace where nothing has been receipted since, pages the platform (`receipts-watch.ts`) — the webhook, not a phone that is off.
   - **SMS statuses** arrive the same way at `/api/sms-status`: every text names it as its `StatusCallback`, the door proves `X-Twilio-Signature` with the line's own subaccount token, and delivered, read or a carrier's refusal (with its code) move the row through the same forward-only writer (#579). Before it, a text was `sent` forever.
   - **smb_message_echoes** — the owner replied from the WhatsApp Business app — pause that thread for the workspace's own pause length, recorded on the conversation.
+
+**Email** has its own door, `/api/resend-webhook`, which does not exist (404) on a deployment that names no `EMAIL_DOMAIN`; production names none yet, so everything in this paragraph is built and inert (`docs/plans/2026-09-17-email-channel.md`). The door proves Svix's signature over the raw body, which proves Resend sent the EVENT and nothing about who sent the email. A received email is a pointer: it is routed by the envelope (`received_for`) to the mailbox whose published address or reply route it names, and becomes one `email_ingest` job per mailbox, once however often it is redelivered (00127). The job fetches it, reads what it claims to be (a delivery report, an automatic reply, automated mail, a person), keeps it through the same `ingest_inbound` gate every channel uses with the provider's id as the replay key, flags the thread `email_review`, and answers nothing: the receptionist does not draft email yet. It resumes where the WhatsApp road skips, because nothing is sent here and a lost customer email is the worse outcome. A receipt for an email we sent is applied in the request (`lib/email-receipts.ts`), found by the tags the request left with: every receipt teaches the row the provider's id and the Message-ID it left with in one statement (00128), `delivered` moves it forward, a bounce, a failure or a provider suppression flags the thread `send_failed` and then fails the row, and only a bounce the provider calls permanent, a complaint or the provider's own list stops the address (`contacts.email_suppressed_at`, 00126), while it is still the person's.
 
 ### 5.2 One message — `handleInbound`
 
@@ -452,7 +455,7 @@ stateDiagram-v2
   fired --> failed: lease expired, speaks to a person: give up
 ```
 
-**The ledger.** `jobs` carries four kinds — `outbound_send`, `broadcast_send`, `blob_thread_erase`, `line_provision` — through `scheduled → fired → done | failed`, or `scheduled → canceled`. The `jobs_guard` trigger refuses every other transition inside the database. Scheduling is one insert (`scheduleJob`, service role only); `cancelJobsFor` withdraws them. An approval of an ask-mode run moves its send to the next open moment, and the row says so (00119).
+**The ledger.** `jobs` carries five kinds — `outbound_send`, `broadcast_send`, `blob_thread_erase`, `line_provision`, `email_ingest` — through `scheduled → fired → done | failed`, or `scheduled → canceled`. The `jobs_guard` trigger refuses every other transition inside the database. Scheduling is one insert (`scheduleJob`, service role only); `cancelJobsFor` withdraws them. An approval of an ask-mode run moves its send to the next open moment, and the row says so (00119).
 
 **The heartbeat.** pg_cron's `jobs-tick` runs every ten seconds; `trigger_jobs_tick()` checks for due rows and only then posts to the edge through `pg_net` with the sweep key. `/api/jobs/tick` binds the database and each job's own workspace credentials into ports and hands them to `runTick` (`packages/jobs/src/tick.ts`, tested against fakes):
 
@@ -469,6 +472,7 @@ stateDiagram-v2
 | `broadcast_send` | broadcast | core `sendBroadcastBatch`: only `scheduled` or `sending` → a paused workspace fails it → the template must still be approved, and its category decides which consent → up to 25 people, 300 ms apart, each re-checked (erased, no phone, `mayMessageFor(…, { proactive: true })`, a person has the thread) → values resolved per person → sent as the template and recorded in their thread → more left: schedule the next batch; none: close, record, tell the workspace. One read per batch; a send says what it is |
 | `blob_thread_erase` | contact, namespace, thread keys | core `eraseBlobThread`: deletes the Blob copies; on success, scrubs the phone digits from every job payload for that contact and records the erase on the ledger (actor `system`) |
 | `line_provision` | line | core `provisionLine` over the edge's ports (S-07): a fresh buy, a person's retry, or a worker that died; receipts per step |
+| `email_ingest` | mailbox, the provider's id for one received email | core `ingestEmail` over the edge's ports (00127; one job per received email per mailbox, by a unique index): fetch it → drop our own email coming back, and one received before its sender asked to be forgotten → read what it claims to be → a delivery report is not a conversation; an automatic reply is kept and nobody is paged → kept through `ingest_inbound` with the provider's id as the replay key → the thread flagged `email_review`, the workspace told once per hold → marked handled LAST, so a run that died after the row was stored finishes it on the next try. On an `outbound_send` whose row is an email, the job carries `to_email` and the row the request it leaves as, frozen when it was queued |
 
 **The row clocks.** Two more ten-second pg_cron jobs, pure SQL, each on its own schedule so neither can stop the other: `expire-stale-pauses` hands paused threads back to the receptionist — never one with an open escalation, because a person's request stays with a person — and `wake-stale-snoozes` wakes snoozed threads. A pause and a snooze are timestamps on the conversation, not jobs.
 
@@ -896,7 +900,7 @@ Beside the tables: the private `media` bucket (inbound attachments and call reco
 | Roll the edge's credential | Set `EDGE_CALL_SECRET` on both projects, in either order; drop `DIAG_KEY` when every caller carries a token |
 | Close the front door, or queue it | `SIGNUP_CODE` (invite code), or the waitlist posture |
 | Switch on Google, Stripe or Embedded Signup | Their variables on the edge; absent means nothing is drawn |
-| Switch on email | `EMAIL_DOMAIN` on the edge (the subdomain that sends and receives); absent, the email wire is not bound and a delivery naming it fails as a channel this runtime does not have. A workspace's own switch is its `mailboxes` row (00126) |
+| Switch on email | `EMAIL_DOMAIN` on the edge AND the dashboard, the same value (the subdomain that sends and receives: the edge binds the wire and opens the webhook door; the dashboard freezes the request a reply is queued with, and draws Setup's and Connections' rows), and `RESEND_WEBHOOK_SECRET` on the edge. Absent, the door is a 404, the wire is not bound, nothing is drawn, and a reply by email is refused in words. A workspace's own switch is its `mailboxes` row, which its owner makes from Connections (00129); the wire sends only as that mailbox |
 
 A Vercel variable reaches a running deployment only after a redeploy.
 
@@ -969,9 +973,9 @@ Names only; values live in each Vercel project.
 |---|---|---|
 | Edge | WhatsApp | `WHATSAPP_VERIFY_TOKEN`, `WHATSAPP_ACCESS_TOKEN`, `WHATSAPP_PHONE_ID`, `META_APP_SECRET`, `META_APP_ID`, `META_ES_CONFIG_ID`, `WHATSAPP_TEST_ALLOWLIST` |
 | | Voice and lines | `RETELL_API_KEY`, `RETELL_WEBHOOK_KEY`, `RETELL_FN_SECRET`, `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PRIMARY_PROFILE_SID`, `LINES_DRY_RUN` |
-| | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN` |
+| | Model and email | `ANTHROPIC_API_KEY`, `RESEND_API_KEY`, `LEAD_TO`, `LEAD_FROM`, `EMAIL_DOMAIN`, `RESEND_WEBHOOK_SECRET` |
 | | Memory | `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `PG_WRITES`, `PG_READS`, `PG_DEDUPE`, `BLOB_SHADOW`, `BLOB_READ_WRITE_TOKEN` |
 | | Google | `GOOGLE_PLACES_API_KEY`, `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`, `GOOGLE_OAUTH_AUDIENCE` |
 | | Billing | `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID`, `BILLING_TRIAL_DAYS`, `DASHBOARD_ORIGIN` |
 | | Operations | `DIAG_KEY`, `EDGE_CALL_SECRET`, `EDGE_ORIGIN` |
-| Dashboard | | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DIAG_KEY`, `EDGE_URL`, `EDGE_CALL_SECRET`, `EDGE_PROVIDERS`, `GOOGLE_OAUTH_STATE_SECRET`, `CANONICAL_HOST`, `NEXT_PUBLIC_BUILD_SHA` (from `VERCEL_GIT_COMMIT_SHA`), `SIGNUP_CODE` |
+| Dashboard | | `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`, `DIAG_KEY`, `EDGE_URL`, `EDGE_CALL_SECRET`, `EDGE_PROVIDERS`, `GOOGLE_OAUTH_STATE_SECRET`, `CANONICAL_HOST`, `NEXT_PUBLIC_BUILD_SHA` (from `VERCEL_GIT_COMMIT_SHA`), `SIGNUP_CODE`, `EMAIL_DOMAIN` |
