@@ -1,5 +1,6 @@
 export * from "./service-client";
 export * from "./repositories/ingest";
+export * from "./repositories/email";
 export * from "./repositories/routing";
 export * from "./repositories/calls";
 export * from "./repositories/thread";

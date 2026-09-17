@@ -155,7 +155,8 @@ export function replyWindow(
   lastWaInboundAtIso: string | null | undefined,
   now = new Date(),
 ): WaWindow {
-  return replyChannel === "sms" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
+  // Only WhatsApp has a window: a text and an email may be answered whenever.
+  return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
 
 /* ----------------------------- live calls -------------------------------- */

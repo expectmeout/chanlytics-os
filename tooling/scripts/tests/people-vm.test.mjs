@@ -167,6 +167,14 @@ test("channels come from identities OR from what actually happened — a chat im
   assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: false, call_count: 1 }), ZONE, NOW).channels, ["voice"]);
 });
 
+test("a person who only ever wrote by email is not on WhatsApp: the list says which wires their words travelled (00127), and a row read without it keeps the old reading", () => {
+  const emailOnly = toPersonRowVM(row({ channels: ["email"], has_chat: true, message_channels: ["email"], call_count: 0, phone_e164: null, email: "ana@example.com" }), ZONE, NOW);
+  assert.deepEqual(emailOnly.channels, ["email"], "REGRESSION guard: has_chat alone read as WhatsApp");
+  assert.deepEqual(toPersonRowVM(row({ channels: ["whatsapp", "email"], has_chat: true, message_channels: ["email", "whatsapp"], call_count: 2 }), ZONE, NOW).channels, ["whatsapp", "voice", "email"]);
+  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: true, message_channels: ["sms"], call_count: 0 }), ZONE, NOW).channels, ["whatsapp"], "a text shares WhatsApp's glyph, as it always has");
+  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: true, call_count: 0 }), ZONE, NOW).channels, ["whatsapp"], "no message_channels on the row: every written word was WhatsApp's or a text's");
+});
+
 /* ------------------------- lists and aggregates -------------------------- */
 
 test("smart lists: phoned-only, and opted-out includes someone who also needs you", () => {

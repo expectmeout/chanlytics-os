@@ -304,7 +304,7 @@ export const inboxOverride: SurfaceOverride = {
       THREADS: threads,
       INBOX_BUCKETS: REAL_BUCKETS,
       INBOX_VIEWS: [], // saved views are all structurally zero on real data
-      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone", sms: "Text" },
+      CHANNEL_LABELS: { ...(prev.CHANNEL_LABELS ?? {}), whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" },
       INBOX_BASELINE: { ...(prev.INBOX_BASELINE ?? {}), doneThisWeek: 0 },
       UNREAD_ESCALATED: unreadEscalated,
     };

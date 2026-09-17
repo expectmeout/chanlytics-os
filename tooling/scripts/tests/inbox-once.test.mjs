@@ -212,3 +212,20 @@ test("REGRESSION: a row says each thing once -- why a person is needed, what the
   const samRow = said("Sam Ortiz");
   assert.ok(samRow.wait && !samRow.time, "a snoozed row says when it wakes, and not also when it last moved");
 });
+
+test("an email in the thread is drawn as one: the envelope, the word Email, its subject above its words; a WhatsApp bubble beside it has no subject line", () => {
+  const ana = person("p9", null, { phone_e164: null, email: "ana@example.com" });
+  const emailed = { ...wrote("m9", "Can you do Saturday at 9?", 20), channel: "email", meta: { email: { subject: "Quote for Saturday" } } };
+  const vm = vmOf(chat({ contact: ana, last_wa_inbound_at: ago(60), messages: [wrote("m8", "hello", 60), emailed] }), { id: "e9", reason: "email_review", details: "An email arrived.", state: "open", created_at: ago(20) });
+  const pane = InboxThread({ thread: vm, channelLabels: { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" } });
+  const bubbles = findAll(pane, hasClass("tl-msg"));
+  assert.equal(bubbles.length, 2);
+  const [chatBubble, emailBubble] = bubbles;
+  assert.equal(textOf(find(emailBubble, byTestId("tl-msg-subject"))), "Quote for Saturday");
+  assert.equal(find(chatBubble, byTestId("tl-msg-subject")), undefined, "a subject is an email's");
+  assert.ok(find(emailBubble, (n) => n.type === "Icon" && n.props?.name === "mail"), "an envelope, not a chat bubble");
+  assert.match(textOf(find(emailBubble, hasClass("tl-msg-meta"))), /Email/);
+  const order = [];
+  walk(emailBubble, (n) => { if (byTestId("tl-msg-subject")(n)) order.push("subject"); if (hasClass("tl-msg-body")(n)) order.push("body"); });
+  assert.deepEqual(order, ["subject", "body"], "what it is about, then what it says");
+});

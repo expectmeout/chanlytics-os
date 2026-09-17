@@ -30,6 +30,9 @@
     "api/inbound-sms.ts": {
       "maxDuration": 60
     },
+    "api/resend-webhook.ts": {
+      "maxDuration": 30
+    },
     "api/cron/registrations.ts": {
       "maxDuration": 60
     },

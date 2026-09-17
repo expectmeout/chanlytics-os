@@ -39,6 +39,25 @@ test("a WhatsApp thread keeps its window, and a thread with both keeps both chan
   assert.equal(contactMeta(conv()), "WhatsApp · +1 (917) 555-0106", "the default stays what Today's rows print");
 });
 
+test("an email thread: email is the channel, its words carry their subject line, no reply window applies, and the line under the name says the address", () => {
+  const emailed = (over = {}) => ({ id: "m3", direction: "inbound", sender: "customer", channel: "email", type: "text", body: "Can you do Saturday at 9?", media: null, status: "received", created_at: "2026-09-06T22:30:00Z", meta: { email: { subject: "  Quote for Saturday ", message_id: "<q1@customer.example>" } }, ...over });
+  const person = { id: "k2", display_name: null, wa_profile_name: null, phone_e164: null, email: "ana@example.com", consent: "unknown", dnc: false };
+  const vm = toInboxThreadVM(conv({ contact: person, messages: [emailed()] }), { id: "e2", reason: "email_review", state: "open", created_at: "2026-09-06T22:30:05Z", details: "An email arrived." }, ZONE, NOW);
+  assert.deepEqual([vm.channels, vm.primaryChannel, vm.hasChat], [["email"], "email", true], "REGRESSION guard: every written message that was not a text read as WhatsApp");
+  assert.equal(vm.who, "ana@example.com");
+  assert.equal(vm.whoMeta, "Email · no name saved", "the address IS the name, so the line says that instead of repeating it");
+  assert.equal(vm.windowOpen, true, "only WhatsApp has a window");
+  const bubble = vm.timeline.find((e) => e.type === "msg");
+  assert.deepEqual([bubble.channel, bubble.subject, bubble.body], ["email", "Quote for Saturday", "Can you do Saturday at 9?"]);
+  assert.equal(vm.summary, "They wrote by email. The receptionist does not answer email yet, so nothing was sent. Read it and reply from here.");
+  assert.equal(contactMeta(conv({ contact: { ...person, display_name: "Ana Reyes" } }), "Email"), "Email · ana@example.com");
+
+  const mixed = toInboxThreadVM(conv({ last_wa_inbound_at: "2026-09-06T21:00:00Z", messages: [emailed({ id: "m4", channel: "whatsapp", meta: {}, created_at: "2026-09-06T21:00:00Z" }), emailed()] }), null, ZONE, NOW);
+  assert.equal(mixed.primaryChannel, "email", "a reply goes where they last wrote");
+  assert.equal("subject" in mixed.timeline.find((e) => e.type === "msg" && e.channel === "whatsapp"), false, "a subject is an email's");
+  assert.equal("subject" in toInboxThreadVM(conv({ contact: person, messages: [emailed({ meta: { email: { subject: "   " } } })] }), null, ZONE, NOW).timeline[0], false, "an empty subject is no subject");
+});
+
 test("the wiring: the page branches on the channel and reads the reason's sentence; the pills say what they mean", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   for (const s of ["Needs you{thread.waited ? <span className={`ix-take-wait${thread.waitingMin > 30 ? \" late\" : \"\"}`}>{` · waited ${thread.waited}`}</span> : \"\"}", "<>{thread.summary}</>", "Call back", 'aria-label="Nothing needed — hand it back to the receptionist"', "thread.hasChat === false", 'data-testid="ix-call-back"', "`${thread.primaryChannel === \"sms\" ? \"Text\" : \"WhatsApp\"} to ${thread.who}…`"]) assert.ok(page.includes(s), s);

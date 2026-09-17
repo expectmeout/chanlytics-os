@@ -13,7 +13,7 @@
  * request never produces.
  */
 import type { SendResult } from "./whatsapp";
-import type { EmailRequest } from "./email";
+import { receivedEmailFrom, type EmailRequest, type ReceivedEmail } from "./email";
 
 export interface ResendConfig {
   apiKey: string;
@@ -43,4 +43,28 @@ export async function sendEmail(cfg: ResendConfig, request: EmailRequest): Promi
     // status 0: never reached the provider, which is distinct from any answer it gave.
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
   }
+}
+
+const RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
+const FETCH_TIMEOUT_MS = 15_000;
+
+/**
+ * One received email, by the id its webhook named. `null` is the provider
+ * saying it has no such email (404): a fact, and the intake ends. Anything
+ * else that is not an email THROWS, because "we could not ask" is not "it is
+ * gone": the job fails and the ledger tries again.
+ */
+export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string): Promise<ReceivedEmail | null> {
+  const r = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+  });
+  if (r.status === 404) return null;
+  const raw = await r.text();
+  if (!r.ok) throw new Error(`resend: received email ${receivedId} answered ${r.status}: ${raw.slice(0, 200)}`);
+  let body: unknown;
+  try { body = JSON.parse(raw); } catch { throw new Error(`resend: received email ${receivedId} answered something that is not JSON`); }
+  const email = receivedEmailFrom(body);
+  if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
+  return email;
 }

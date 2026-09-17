@@ -969,6 +969,15 @@
   border: 1px solid transparent;
 }
 
+/* An email's subject: above the bubble it belongs to, in the bubble's own column, said quietly and in full. */
+.tl-msg-subject {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ink);
+  margin: 2px 2px 4px;
+  overflow-wrap: anywhere;
+}
+
 /* System events */
 .tl-event {
   display: flex;

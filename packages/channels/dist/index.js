@@ -2314,6 +2314,128 @@ function isEmailRequest(v) {
   const strings = (x) => Array.isArray(x) && x.length > 0 && x.every((s) => typeof s === "string" && s.length > 0);
   return typeof r.from === "string" && strings(r.to) && strings(r.reply_to) && typeof r.subject === "string" && typeof r.text === "string" && typeof r.html === "string" && !!r.headers && typeof r.headers === "object" && Array.isArray(r.tags) && typeof r.idempotency_key === "string" && r.idempotency_key.length > 0;
 }
+var bytesOfBase64 = (s) => {
+  const raw = atob(s);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
+  for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i);
+  return out.buffer;
+};
+var base64OfBytes = (b) => btoa(String.fromCharCode(...new Uint8Array(b)));
+function sameBytes(a, b) {
+  if (a.length !== b.length) return false;
+  let diff = 0;
+  for (let i = 0; i < a.length; i += 1) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+var WEBHOOK_TOLERANCE_S = 300;
+async function resendWebhookSignature(secret, id, timestamp, rawBody) {
+  let keyBytes;
+  try {
+    keyBytes = bytesOfBase64(secret.startsWith("whsec_") ? secret.slice(6) : secret);
+  } catch {
+    return null;
+  }
+  const key = await globalThis.crypto.subtle.importKey("raw", keyBytes, { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  return base64OfBytes(await globalThis.crypto.subtle.sign("HMAC", key, new TextEncoder().encode(`${id}.${timestamp}.${rawBody}`)));
+}
+async function verifyResendWebhook(secret, h, rawBody, nowMs) {
+  if (!secret || !h.id || !h.timestamp || !h.signature) return false;
+  const ts = Number(h.timestamp);
+  if (!Number.isFinite(ts) || Math.abs(nowMs / 1e3 - ts) > WEBHOOK_TOLERANCE_S) return false;
+  const expected = await resendWebhookSignature(secret, h.id, h.timestamp, rawBody);
+  if (!expected) return false;
+  return h.signature.split(" ").some((entry) => {
+    const [version, sig] = entry.split(",");
+    return version === "v1" && !!sig && sameBytes(sig, expected);
+  });
+}
+function platformRecipient(address, domain) {
+  const a = address.trim().toLowerCase();
+  const at = a.lastIndexOf("@");
+  if (at < 1 || a.slice(at + 1) !== domain.toLowerCase()) return null;
+  const local = a.slice(0, at);
+  const reply = /^r\+([a-z2-7]{24})$/.exec(local);
+  if (reply) return { kind: "reply", token: reply[1] };
+  return /^[a-z0-9]([a-z0-9-]{0,38}[a-z0-9])?$/.test(local) && local !== "r" ? { kind: "mailbox", localPart: local } : null;
+}
+function addressOf(header) {
+  const s = oneLine(header ?? "");
+  if (!s) return null;
+  const angle = /^(.*)<([^<>\s]+)>\s*$/.exec(s);
+  const address = (angle ? angle[2] : s).trim().toLowerCase();
+  if (!/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)) return null;
+  const name = angle ? angle[1].trim().replace(/^"(.*)"$/, "$1").trim() : "";
+  return { address, name: name || null };
+}
+var stringsOf = (v) => (Array.isArray(v) ? v : typeof v === "string" ? [v] : []).filter((x) => typeof x === "string" && x.length > 0);
+var addressesOf = (v) => stringsOf(v).map((r) => addressOf(r)?.address).filter((a) => !!a);
+function emailReceivedEventFrom(payload) {
+  const p = payload;
+  if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
+  const id = p.data.email_id ?? p.data.id;
+  if (typeof id !== "string" || !id) return null;
+  const recipients = [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
+  return { type: "email.received", receivedId: id, recipients: [...new Set(recipients)] };
+}
+function headersOf(v) {
+  const out = {};
+  const put = (k, val) => {
+    if (typeof k === "string" && typeof val === "string" && !(k.toLowerCase() in out)) out[k.toLowerCase()] = val;
+  };
+  if (Array.isArray(v)) for (const h of v) put(h?.name, h?.value);
+  else if (v && typeof v === "object") for (const [k, val] of Object.entries(v)) put(k, Array.isArray(val) ? val[0] : val);
+  return out;
+}
+function receivedEmailFrom(body) {
+  const b = body;
+  if (!b || typeof b !== "object" || typeof b.id !== "string") return null;
+  const headers2 = headersOf(b.headers);
+  const str4 = (v) => typeof v === "string" && v.length ? v : null;
+  return {
+    id: b.id,
+    from: addressOf(str4(b.from) ?? headers2.from),
+    to: addressesOf(b.to),
+    cc: addressesOf(b.cc),
+    subject: str4(b.subject) ?? str4(headers2.subject),
+    text: str4(b.text),
+    html: str4(b.html),
+    headers: headers2,
+    messageId: messageIdHeader(str4(b.message_id) ?? headers2["message-id"]),
+    createdAt: str4(b.created_at),
+    attachments: (Array.isArray(b.attachments) ? b.attachments : []).map((a) => {
+      const x = a ?? {};
+      return { filename: str4(x.filename), contentType: str4(x.content_type), size: typeof x.size === "number" ? x.size : null };
+    })
+  };
+}
+function messageIdsIn(header) {
+  return (header ?? "").split(/\s+/).map(messageIdHeader).filter((x) => x !== null);
+}
+function classifyReceived(e) {
+  const h = e.headers;
+  const local = e.from?.address.split("@")[0] ?? "";
+  if (/multipart\/report/i.test(h["content-type"] ?? "") || /^(mailer-daemon|postmaster)$/.test(local)) return "report";
+  const auto = (h["auto-submitted"] ?? "").trim().toLowerCase();
+  if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())) return "auto_reply";
+  if (auto && auto !== "no" || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h) return "automated";
+  return "person";
+}
+
+// src/email-text.ts
+import { convert } from "html-to-text";
+function emailPlainText(e) {
+  const text = (e.text ?? "").replace(/\r\n/g, "\n").trim();
+  if (text) return text;
+  if (!e.html) return null;
+  const converted = convert(e.html, {
+    wordwrap: false,
+    selectors: [
+      { selector: "img", format: "skip" },
+      { selector: "a", options: { hideLinkHrefIfSameAsText: true } }
+    ]
+  }).replace(/\n{3,}/g, "\n\n").trim();
+  return converted || null;
+}
 
 // src/email-resend.ts
 var RESEND_EMAILS = "https://api.resend.com/emails";
@@ -2342,6 +2464,26 @@ async function sendEmail(cfg, request) {
   } catch (e) {
     return { ok: false, wamid: null, status: 0, errorBody: e instanceof Error ? e.message : String(e) };
   }
+}
+var RESEND_RECEIVED = "https://api.resend.com/emails/receiving";
+var FETCH_TIMEOUT_MS = 15e3;
+async function fetchReceivedEmail(cfg, receivedId) {
+  const r = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
+    headers: { Authorization: `Bearer ${cfg.apiKey}` },
+    signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
+  });
+  if (r.status === 404) return null;
+  const raw = await r.text();
+  if (!r.ok) throw new Error(`resend: received email ${receivedId} answered ${r.status}: ${raw.slice(0, 200)}`);
+  let body;
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    throw new Error(`resend: received email ${receivedId} answered something that is not JSON`);
+  }
+  const email = receivedEmailFrom(body);
+  if (!email) throw new Error(`resend: received email ${receivedId} answered a shape that is not an email`);
+  return email;
 }
 
 // src/a2p.ts
@@ -3422,9 +3564,11 @@ export {
   VOICE_SHELL_PROMPT,
   VOICE_WEBHOOK_EVENTS,
   VOICE_WEBHOOK_TIMEOUT_MS,
+  WEBHOOK_TOLERANCE_S,
   a2pProfileEndUserRequest,
   a2pProfileRequest,
   accountsRequest,
+  addressOf,
   addressRequest,
   agentSettingsDrift,
   assignRequest,
@@ -3440,6 +3584,7 @@ export {
   campaignRequest,
   carrierConsent,
   chooseLineProvider,
+  classifyReceived,
   cleanReply,
   createAgent,
   createAgentVersion,
@@ -3451,10 +3596,13 @@ export {
   desiredVoiceShell,
   dryProvider,
   emailHtml,
+  emailPlainText,
+  emailReceivedEventFrom,
   encodeForm,
   evaluateRequest,
   evaluateTrustProductRequest,
   fetchMediaBytes,
+  fetchReceivedEmail,
   fetchRecording,
   fetchTwilio,
   getAgent,
@@ -3484,6 +3632,7 @@ export {
   mailboxHeader,
   mergeConsent,
   messageIdHeader,
+  messageIdsIn,
   needsHydration,
   newNonce,
   nextA2PStep,
@@ -3505,7 +3654,9 @@ export {
   planProfileSync,
   planVoiceConvergence,
   planVoiceProvision,
+  platformRecipient,
   publishAgentVersion,
+  receivedEmailFrom,
   referencesFor,
   refusalWords,
   registrationVerdict,
@@ -3515,6 +3666,7 @@ export {
   replyToReview,
   representativeAttributes,
   representativeEndUserRequest,
+  resendWebhookSignature,
   retellImportBody,
   reviewBells,
   reviewIdOf,
@@ -3567,6 +3719,7 @@ export {
   updateLiveCall,
   updatePhoneNumber,
   verifyEdgeToken,
+  verifyResendWebhook,
   verifyRetellSignature,
   verifyState,
   verifyTwilioSignature,

@@ -28,8 +28,19 @@ const workspace = async (slug) => {
   made.push(data.id);
   return data.id;
 };
-const TOKEN = (c) => c.repeat(24);
-const mailbox = (tenant_id, over = {}) => ({ tenant_id, local_part: "bestmovers", reply_token: TOKEN("a"), from_name: "Best Movers", ...over });
+/**
+ * A reply token per letter, the same one each time a test asks for that
+ * letter, and nobody else's: tokens are unique across the platform and the
+ * database suites run side by side, so a fixed "aaaa..." in two files is a
+ * collision that reads as a failed rule.
+ */
+const minted = new Map();
+const TOKEN = (c) => {
+  if (!minted.has(c)) minted.set(c, Array.from(globalThis.crypto.getRandomValues(new Uint8Array(24)), (b) => "abcdefghijklmnopqrstuvwxyz234567"[b % 32]).join(""));
+  return minted.get(c);
+};
+const stamp = Date.now().toString(36);
+const mailbox = (tenant_id, over = {}) => ({ tenant_id, local_part: `bestmovers-${stamp}`, reply_token: TOKEN("a"), from_name: "Best Movers", ...over });
 
 before(async () => {
   if (skip) return;
@@ -47,15 +58,15 @@ test("an address is one workspace's for good, a workspace has one mailbox, and a
   assert.equal(first.error, null, first.error?.message);
   assert.equal(first.data.reply_mode, "draft", "email starts with the receptionist drafting, never sending");
 
-  const second = await db.from("mailboxes").insert(mailbox(a, { local_part: "bestmovers2", reply_token: TOKEN("b") }));
+  const second = await db.from("mailboxes").insert(mailbox(a, { local_part: `bestmovers2-${stamp}`, reply_token: TOKEN("b") }));
   assert.equal(second.error?.code, "23505", "a second mailbox for one workspace is a routing decision, not an insert");
   const sameAddress = await db.from("mailboxes").insert(mailbox(b, { reply_token: TOKEN("c") }));
   assert.equal(sameAddress.error?.code, "23505", "another workspace cannot take an address that is somebody's");
-  const sameToken = await db.from("mailboxes").insert(mailbox(b, { local_part: "otherco" }));
+  const sameToken = await db.from("mailboxes").insert(mailbox(b, { local_part: `otherco-${stamp}` }));
   assert.equal(sameToken.error?.code, "23505", "nor a reply route");
   const prevIsLive = await db.from("mailboxes").update({ reply_token: TOKEN("d"), reply_token_prev: TOKEN("a") }).eq("tenant_id", a);
   assert.equal(prevIsLive.error, null, "a rotation keeps the old token routing");
-  const takesPrev = await db.from("mailboxes").insert(mailbox(b, { local_part: "otherco", reply_token: TOKEN("e"), reply_token_prev: TOKEN("a") }));
+  const takesPrev = await db.from("mailboxes").insert(mailbox(b, { local_part: `otherco-${stamp}`, reply_token: TOKEN("e"), reply_token_prev: TOKEN("a") }));
   assert.equal(takesPrev.error?.code, "23505", "and a token still routing for one workspace cannot route for another");
 });
 
@@ -65,13 +76,13 @@ test("what is not an address a workspace may hold is refused by the table, whoev
     const { error } = await db.from("mailboxes").insert(mailbox(t, { local_part, reply_token: TOKEN("f") }));
     assert.match(error?.message ?? "", /mailboxes_local_part_check|violates check/, `refused: ${JSON.stringify(local_part)}`);
   }
-  for (const reply_token of ["short", TOKEN("A"), TOKEN("1"), "a".repeat(25)]) {
-    const { error } = await db.from("mailboxes").insert(mailbox(t, { local_part: "shapeco", reply_token }));
+  for (const reply_token of ["short", "A".repeat(24), "1".repeat(24), "a".repeat(25)]) {
+    const { error } = await db.from("mailboxes").insert(mailbox(t, { local_part: `shapeco-${stamp}`, reply_token }));
     assert.match(error?.message ?? "", /violates check/, `refused: ${JSON.stringify(reply_token)}`);
   }
-  const { error: mode } = await db.from("mailboxes").insert(mailbox(t, { local_part: "shapeco", reply_token: TOKEN("g"), reply_mode: "send" }));
+  const { error: mode } = await db.from("mailboxes").insert(mailbox(t, { local_part: `shapeco-${stamp}`, reply_token: TOKEN("g"), reply_mode: "send" }));
   assert.match(mode?.message ?? "", /violates check/);
-  const { error: nameless } = await db.from("mailboxes").insert(mailbox(t, { local_part: "shapeco", reply_token: TOKEN("g"), from_name: "   " }));
+  const { error: nameless } = await db.from("mailboxes").insert(mailbox(t, { local_part: `shapeco-${stamp}`, reply_token: TOKEN("g"), from_name: "   " }));
   assert.match(nameless?.message ?? "", /violates check/);
 });
 
@@ -102,8 +113,8 @@ test("a suppression is a reason and a time together, about an address: a correct
 
 test("members read their own workspace's mailbox and write none; a stranger reads nothing", { skip }, async () => {
   const [mine, theirs] = [await workspace("mailbox-mine"), await workspace("mailbox-theirs")];
-  await db.from("mailboxes").insert(mailbox(mine, { local_part: "mineco", reply_token: TOKEN("m") }));
-  await db.from("mailboxes").insert(mailbox(theirs, { local_part: "theirsco", reply_token: TOKEN("n") }));
+  await db.from("mailboxes").insert(mailbox(mine, { local_part: `mineco-${stamp}`, reply_token: TOKEN("m") }));
+  await db.from("mailboxes").insert(mailbox(theirs, { local_part: `theirsco-${stamp}`, reply_token: TOKEN("n") }));
   const email = `mailbox-${Date.now()}@example.test`;
   const { data: user, error: uErr } = await db.auth.admin.createUser({ email, password: "a-long-test-password-1", email_confirm: true });
   assert.equal(uErr, null, uErr?.message);
@@ -113,7 +124,7 @@ test("members read their own workspace's mailbox and write none; a stranger read
     const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
     if (sErr) { assert.ok(true, `no anon sign-in here: ${sErr.message}`); return; }
     const { data: seen } = await as.from("mailboxes").select("local_part");
-    assert.deepEqual(seen.map((m) => m.local_part), ["mineco"], "their own, and nobody else's");
+    assert.deepEqual(seen.map((m) => m.local_part), [`mineco-${stamp}`], "their own, and nobody else's");
     const { data: changed } = await as.from("mailboxes").update({ reply_mode: "auto" }).eq("tenant_id", mine).select("id");
     assert.deepEqual(changed ?? [], [], "an owner's session cannot turn the dial: the route does, as the service role, after judging the role");
     const { data: still } = await db.from("mailboxes").select("reply_mode").eq("tenant_id", mine).single();

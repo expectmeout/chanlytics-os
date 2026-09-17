@@ -26,6 +26,21 @@ export async function scheduleJob(db: Db, p: ScheduleParams): Promise<{ jobId: s
 }
 
 /**
+ * The same insert, for a kind the ledger holds at most one of per subject (a
+ * unique index on its payload: email_ingest, 00127). A second insert for the
+ * same subject is the provider delivering its webhook again, and is answered
+ * as the fact it is rather than thrown: the work is already on the ledger.
+ */
+export async function scheduleJobOnce(db: Db, p: ScheduleParams): Promise<"scheduled" | "already_scheduled"> {
+  const { error } = await db
+    .from("jobs")
+    .insert({ tenant_id: p.tenantId, kind: p.kind, due_at: p.dueAt.toISOString(), payload: p.payload });
+  if (!error) return "scheduled";
+  if (error.code === "23505") return "already_scheduled";
+  throw new Error(`schedule_job: ${error.message}`);
+}
+
+/**
  * Withdraw every scheduled job of a kind for one subject, in one statement.
  * A job already claimed is past withdrawing; from there the handler's own
  * checks are the guard (an outbound_send re-reads its message, and a canceled

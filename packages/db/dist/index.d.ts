@@ -3123,6 +3123,7 @@ type Database = {
                     marketing_consent: string;
                     marketing_consent_source: string;
                     marketing_consent_updated_at: string;
+                    message_channels: string[];
                     needs_human: boolean;
                     open_escalation_reason: string;
                     open_escalation_since: string;
@@ -3482,10 +3483,10 @@ declare function createServiceClient(cfg: ServiceClientConfig): SupabaseClient<D
  * plain row work. All writes are ADDITIVE to the Blob path during dual-write.
  */
 
-type Db$3 = SupabaseClient<Database>;
+type Db$4 = SupabaseClient<Database>;
 interface IngestInboundParams {
     tenantId: string;
-    channel: "whatsapp" | "sms";
+    channel: "whatsapp" | "sms" | "email";
     identityExternalId: string;
     phoneE164: string | null;
     waProfileName: string | null;
@@ -3522,11 +3523,11 @@ interface IngestResult {
     consent?: string | null;
     dnc?: boolean | null;
 }
-declare function ingestInbound(db: Db$3, p: IngestInboundParams): Promise<IngestResult>;
+declare function ingestInbound(db: Db$4, p: IngestInboundParams): Promise<IngestResult>;
 /** Stamp a message handled (replied / deliberately skipped) — retry no-ops after this.
  *  One server-side jsonb merge (no read-modify-write, no lost-update race). */
-declare function markProcessed(db: Db$3, tenantId: string, messageId: string): Promise<void>;
-declare function recordOutbound(db: Db$3, p: {
+declare function markProcessed(db: Db$4, tenantId: string, messageId: string): Promise<void>;
+declare function recordOutbound(db: Db$4, p: {
     tenantId: string;
     conversationId: string;
     contactId: string | null;
@@ -3577,7 +3578,7 @@ interface OutboundTarget extends PurposeBearing {
  * `create: false` means "only an existing contact will do" — the guard for a
  * number somebody supplied rather than one that called us.
  */
-declare function resolveOutboundTarget(db: Db$3, p: {
+declare function resolveOutboundTarget(db: Db$4, p: {
     tenantId: string;
     phoneE164: string;
     create?: boolean;
@@ -3591,18 +3592,18 @@ declare function resolveOutboundTarget(db: Db$3, p: {
  * no cap at all — a caller who phoned repeatedly, or an agent that called its
  * own tool twice, produced one billable template per attempt.
  */
-declare function countSentToday(db: Db$3, p: {
+declare function countSentToday(db: Db$4, p: {
     tenantId: string;
     conversationId: string;
     source: string;
 }): Promise<number>;
 /** Delivery receipts: update by wamid; monotone rank enforced by trigger. */
-declare function recordStatusByExternalId(db: Db$3, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
+declare function recordStatusByExternalId(db: Db$4, tenantId: string, externalId: string, status: "sent" | "delivered" | "read" | "failed", errorDetail?: Json): Promise<void>;
 /** Owner replied from the WhatsApp Business app: persist the echo + pause the bot.
  *  Upserts the contact/conversation — an owner-INITIATED thread (customer never
  *  messaged yet) must still record the message and the pause, or PG diverges
  *  from the Blob pause forever. */
-declare function recordEchoAndPause(db: Db$3, p: {
+declare function recordEchoAndPause(db: Db$4, p: {
     tenantId: string;
     customerPhoneDigits: string;
     body: string | null;
@@ -3625,12 +3626,58 @@ declare function recordEchoAndPause(db: Db$3, p: {
  * excludes matches zero rows and reports success, so the row count is the only
  * way to tell a write that happened from one that was silently skipped.
  */
-declare function pauseConversation(db: Db$3, tenantId: string, conversationId: string, pausedUntilIso: string, 
+declare function pauseConversation(db: Db$4, tenantId: string, conversationId: string, pausedUntilIso: string, 
 /** The holding message this same handoff queued, which the pause must not withdraw. */
 opts?: {
     keepMessageId?: string | null;
 }): Promise<boolean>;
-declare function emitEvent(db: Db$3, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+declare function emitEvent(db: Db$4, tenantId: string, kind: EventKind, category: string, subjectType: string | null, subjectId: string | null, data?: Json): Promise<void>;
+
+/**
+ * Email's rows: a workspace's mailbox, and taking a received email in.
+ *
+ * Taking an email in goes through `ingest_inbound`, the same atomic gate every
+ * channel uses (one advisory lock per identity, one replay gate on the
+ * provider's id), with the sender's address as the identity. That function is
+ * the hot path for every inbound message in the product and is not recreated
+ * to learn a column (ingest.ts says the same of the offers answer). The two
+ * things email needs around it are done here, each idempotent, so a run that
+ * dies between them resumes cleanly:
+ *
+ *   before  a person the owner already gave this address to (00125) has never
+ *           written from it, so no identity names them yet. The identity is
+ *           written first, and the ingest then joins THAT person instead of
+ *           making a second one.
+ *   after   a person who arrived by email gets the address on their own row,
+ *           where replies are addressed from and People shows it. Only an
+ *           empty one is filled: what an owner typed is never overwritten.
+ */
+
+type Db$3 = SupabaseClient<Database>;
+type MailboxRow = Database["public"]["Tables"]["mailboxes"]["Row"];
+declare function mailboxById(db: Db$3, id: string): Promise<MailboxRow | null>;
+/** The mailbox a published address or a reply route names. A rotated-out token still routes until it is revoked (00126). */
+declare function mailboxFor(db: Db$3, to: {
+    kind: "mailbox";
+    localPart: string;
+} | {
+    kind: "reply";
+    token: string;
+}): Promise<MailboxRow | null>;
+interface IngestEmailParams {
+    tenantId: string;
+    /** The sender's address, as normalizeEmail stores it. */
+    address: string;
+    /** The provider's id for this delivery: the replay gate. Never the sender's own Message-ID, which the sender writes. */
+    receivedId: string;
+    body: string | null;
+    channelTs: string | null;
+    meta: Json;
+}
+declare function ingestInboundEmail(db: Db$3, p: IngestEmailParams): Promise<IngestResult>;
+/** Did this workspace send a message with this Message-ID? How an email that is our own, coming back, is known. */
+declare function sentEmailWithMessageId(db: Db$3, tenantId: string, rfcMessageId: string): Promise<boolean>;
+declare function stampMailboxReceived(db: Db$3, mailboxId: string, at: string): Promise<void>;
 
 /** Webhook → tenant routing over tenant_channels(kind, external_id). */
 
@@ -3952,4 +3999,4 @@ onInsert: (row: {
     tenant_id: string;
 }, table: string, event?: string) => void, opts?: SubscribeOptions): () => void;
 
-export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, linkCallMessage, listPolicies, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, setCallRecording, setPersonReplyMode, setPolicyMode, subscribeMessagesInserts };
+export { type ChannelLookup, type Database, HISTORY_COLUMNS, type IngestCallResult, type IngestEmailParams, type IngestInboundParams, type IngestResult, type Json, type LeadContext, type MailboxRow, type NormalizedCallInput, type OutboundTarget, type PgThreadState, type PolicyRecord, type PutTenantConfigResult, type RoutedChannel, type ServiceClientConfig, type SubscribeOptions, type TenantConfigRow, type ThreadTurn, assembleHistory, claimCallNotification, countSentToday, createServiceClient, describeLead, emitEvent, getTenantConfig, ingestCall, ingestInbound, ingestInboundEmail, linkCallMessage, listPolicies, mailboxById, mailboxFor, markProcessed, pauseConversation, personReplyMode, putTenantConfig, readLeadContext, readThreadState, recordCallNote, recordEchoAndPause, recordOutbound, recordStatusByExternalId, resolveChannel, resolveChannelDetailed, resolveOutboundTarget, sentEmailWithMessageId, setCallRecording, setPersonReplyMode, setPolicyMode, stampMailboxReceived, subscribeMessagesInserts };

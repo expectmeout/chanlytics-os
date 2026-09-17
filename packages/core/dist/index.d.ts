@@ -618,6 +618,109 @@ declare function provisionLine(ports: ProvisionLinePorts, cmd: {
 }): Promise<void>;
 
 /**
+ * email_ingest: one received email, taken in (00127).
+ *
+ * The webhook that announced it was a pointer. This fetches the email, decides
+ * what it CLAIMS to be, keeps it, and asks a person to read it. It never
+ * answers: until the receptionist drafts email replies, every email from a
+ * person is a person's to answer, and the day it does draft, it drafts only
+ * for mail whose sender could be verified. A claim decides how LITTLE is done
+ * (an automatic reply is kept and never flagged; a delivery report is not a
+ * conversation at all), never how much.
+ *
+ * It resumes. The replay gate is the provider's id for the delivery, so a run
+ * that died after the message was stored finds it on the next try and carries
+ * on from there; it stops early only when the row says it was handled. (The
+ * WhatsApp road skips a message it has seen, on purpose: there a missed reply
+ * beats a double text. Here nothing is sent, so nothing can be sent twice, and
+ * a lost customer email is the worse outcome.)
+ */
+/** What an email claims to be, from headers anyone can write (the adapter decides it: channels classifyReceived). */
+type EmailClaim = "report" | "auto_reply" | "automated" | "person";
+/**
+ * One received email as this verb needs it: the provider's shape and the
+ * parsing of headers and HTML are the adapter's (packages/jobs, over
+ * packages/channels); what arrives here is already words and ids.
+ */
+interface IncomingEmail {
+    /** The provider's id for this delivery: the replay gate. */
+    id: string;
+    from: {
+        address: string;
+        name: string | null;
+    } | null;
+    to: string[];
+    cc: string[];
+    subject: string | null;
+    /** The words, as plain text; null when the email had none. */
+    text: string | null;
+    /** Its own Message-ID, its parent's, and the chain it carried: written by the sender, used for threading and never as a key. */
+    messageId: string | null;
+    inReplyTo: string | null;
+    references: string[];
+    receivedAt: string | null;
+    claim: EmailClaim;
+    attachments: Array<{
+        filename: string | null;
+        contentType: string | null;
+        size: number | null;
+    }>;
+}
+interface EmailIngestPorts {
+    /** The mailbox the delivery named, or null when it is gone. */
+    mailbox(id: string): Promise<{
+        id: string;
+        tenant_id: string;
+        address: string;
+    } | null>;
+    /** The email, by the provider's id; null when the provider no longer has it. Throws when it cannot be asked. */
+    fetch(receivedId: string): Promise<IncomingEmail | null>;
+    /**
+     * Does this email belong to an erasure? True when the address left a digest (00125) AND the email was received
+     * before the person asked to be forgotten: taking it in late would make them again from data they asked us to
+     * drop. An email received AFTER the request is the person coming back, and is a new conversation (edge erased.ts).
+     */
+    erasedBefore(tenantId: string, address: string, receivedAtIso: string): Promise<boolean>;
+    /** Our own email, coming back: a forward loop, or a copy. */
+    ours(tenantId: string, rfcMessageId: string): Promise<boolean>;
+    record(p: {
+        tenantId: string;
+        address: string;
+        receivedId: string;
+        body: string | null;
+        channelTs: string | null;
+        meta: Json;
+    }): Promise<{
+        message_id: string;
+        conversation_id: string;
+        is_new: boolean;
+        processed: boolean;
+    }>;
+    /** Flag the thread for a person: a new hold, a refresh of the one already open, or a write that did not land. */
+    escalate(tenantId: string, conversationId: string, reason: "email_review", details: string): Promise<"opened" | "refreshed" | "failed">;
+    /** Tell the workspace's people, once per hold: the bell, and the mail their alerts go to. Never throws. */
+    tell(tenantId: string, note: {
+        conversationId: string;
+        from: string;
+        fromName: string | null;
+        subject: string | null;
+        preview: string | null;
+        claim: EmailClaim;
+    }): Promise<void>;
+    markProcessed(tenantId: string, messageId: string): Promise<void>;
+    received(mailboxId: string, at: string): Promise<void>;
+    now(): number;
+}
+type EmailIngestOutcome = "kept_for_a_person" | "kept_quietly" | "already_handled" | "not_a_conversation" | "our_own" | "erased_person" | "no_sender" | "gone";
+/** As much of one email's words as a thread keeps. The original stays with the provider; this is what a person reads and, one day, a model. */
+declare const EMAIL_BODY_MAX = 20000;
+/** What the person who opens the thread is told, by what the email claimed to be. */
+declare const EMAIL_REVIEW_WORDS: Record<Extract<EmailClaim, "person" | "automated">, string>;
+declare function ingestEmail(ports: EmailIngestPorts, cmd: {
+    payload: Record<string, unknown>;
+}): Promise<EmailIngestOutcome>;
+
+/**
  * How long a batch that reached nobody waits before it is tried again. The
  * rest of a run is scheduled the moment a batch ends; a batch in which every
  * read failed would otherwise schedule itself again at once, and a read that
@@ -981,4 +1084,4 @@ interface PlaybookInput {
  */
 declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
-export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };
+export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, type IncomingEmail, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, ingestEmail, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };

@@ -6,8 +6,9 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseTenantConfig, type JobKind } from "@chanlytics/contracts";
-import { deliver, eraseBlobThread, provisionLine, sendBroadcastBatch, sendQueued, templatePurpose, type EraseThreadCommand, type SendQueuedCommand, type Wire } from "@chanlytics/core";
-import { resolveOutboundTarget, type Database, type Json } from "@chanlytics/db";
+import { classifyReceived, emailPlainText, messageIdsIn, type ReceivedEmail } from "@chanlytics/channels";
+import { deliver, eraseBlobThread, ingestEmail, provisionLine, type EmailIngestPorts, type IncomingEmail, sendBroadcastBatch, sendQueued, templatePurpose, type EraseThreadCommand, type SendQueuedCommand, type Wire } from "@chanlytics/core";
+import { ingestInboundEmail, mailboxById, markProcessed, resolveOutboundTarget, sentEmailWithMessageId, stampMailboxReceived, type Database, type Json } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
 
 export interface JobContext {
@@ -42,6 +43,23 @@ export interface JobContext {
    * without it fails loudly rather than guessing.
    */
   provisionLine?: (lineId: string, by: "owner" | "support" | "sweep") => Promise<{ ok: boolean; step?: string; error?: string; did?: string }>;
+  /**
+   * Email's intake, as the edge holds it. INJECTED like the two above: the
+   * provider's key and the deployment's mail domain live on the edge, and so
+   * does the read of who asked to be forgotten. Optional so a test context
+   * need not supply one; an email_ingest job in a runtime without it fails
+   * loudly rather than guessing.
+   */
+  email?: {
+    /** The deployment's mail domain: what a mailbox's local part is an address on. */
+    domain: string;
+    /** One received email by the provider's id; null when the provider has none such. Throws when it cannot be asked. */
+    fetch: (receivedId: string) => Promise<ReceivedEmail | null>;
+    /** Was this email received before a person with this address asked to be forgotten (00125's digest)? */
+    erasedBefore: (tenantId: string, address: string, receivedAtIso: string) => Promise<boolean>;
+    /** Tell the workspace's people an email is waiting: the edge's notify, addressed from that workspace. Never throws. */
+    tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
+  };
   /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
    * batch after another, through the same door the dashboard uses.
@@ -276,6 +294,51 @@ async function broadcastSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
 async function lineProvision(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await provisionLine({ ...(ctx.provisionLine ? { provision: ctx.provisionLine } : {}) }, { payload: job.payload });
 }
+/**
+ * The provider's email, as the verb takes it: what it claims to be, its words
+ * as plain text, and its thread ids read out of its headers. The parsing is
+ * here, in the adapter, so the verb knows no provider (hygiene.test.mjs).
+ */
+export function incomingEmailOf(e: ReceivedEmail): IncomingEmail {
+  return {
+    id: e.id, from: e.from, to: e.to, cc: e.cc, subject: e.subject,
+    text: emailPlainText(e),
+    messageId: e.messageId,
+    inReplyTo: messageIdsIn(e.headers["in-reply-to"])[0] ?? null,
+    references: messageIdsIn(e.headers.references),
+    receivedAt: e.createdAt,
+    claim: classifyReceived(e),
+    attachments: e.attachments,
+  };
+}
+
+/** email_ingest: core's ingestEmail, over the rows and the provider fetch the edge injects. */
+async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  const email = ctx.email;
+  if (!email) throw new Error("email_ingest: this runtime holds no email provider");
+  const { db } = ctx;
+  const outcome = await ingestEmail(
+    {
+      mailbox: async (id) => {
+        const m = await mailboxById(db, id);
+        // The job's own tenant, not the payload's word for it: a mailbox that is not this workspace's is not found.
+        return m && m.tenant_id === job.tenant_id ? { id: m.id, tenant_id: m.tenant_id, address: `${m.local_part}@${email.domain}` } : null;
+      },
+      fetch: async (receivedId) => { const e = await email.fetch(receivedId); return e ? incomingEmailOf(e) : null; },
+      erasedBefore: email.erasedBefore,
+      ours: (tenantId, rfcMessageId) => sentEmailWithMessageId(db, tenantId, rfcMessageId),
+      record: (p) => ingestInboundEmail(db, p),
+      escalate: (tenantId, conversationId, reason, details) => upsertEscalation(db, tenantId, conversationId, reason, details),
+      tell: email.tell,
+      markProcessed: (tenantId, messageId) => markProcessed(db, tenantId, messageId),
+      received: (mailboxId, at) => stampMailboxReceived(db, mailboxId, at),
+      now: Date.now,
+    },
+    { payload: job.payload },
+  );
+  console.log(JSON.stringify({ level: "info", event: "email_ingested", tenant: job.tenant_id, job: job.id, outcome }));
+}
+
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
 
 /**
@@ -289,6 +352,7 @@ const HANDLERS: Record<JobKind, Handler> = {
   broadcast_send: broadcastSend,
   blob_thread_erase: blobThreadErase,
   line_provision: lineProvision,
+  email_ingest: emailIngest,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

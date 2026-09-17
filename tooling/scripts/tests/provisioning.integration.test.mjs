@@ -106,6 +106,11 @@ test("every existing tenant was backfilled", { skip }, async () => {
       .from("policies").select("id").eq("tenant_id", t.id).is("subject_type", null);
     const { data: c } = await db
       .from("tenant_config").select("tenant_id").eq("tenant_id", t.id).maybeSingle();
+    // The database suites run side by side and each makes and removes its own
+    // workspaces: one that was deleted between the listing above and these
+    // reads has no rows because it is gone, not because it was never backfilled.
+    const { data: still } = await db.from("tenants").select("id").eq("id", t.id).maybeSingle();
+    if (!still) continue;
     assert.equal(p.length, POLICY_CLASSES.length, `${t.slug} has ${p.length} policy rows`);
     assert.ok(c, `${t.slug} has no tenant_config row`);
   }
