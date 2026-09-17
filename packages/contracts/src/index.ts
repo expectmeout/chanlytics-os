@@ -1,3 +1,14 @@
+import { z } from "zod";
+
+// No code from strings, anywhere. zod 4 probes `Function("")` at first use to
+// decide whether to compile object parsers with the Function constructor; under
+// a Content-Security-Policy without 'unsafe-eval' the probe itself is a
+// violation the browser reports on every page (the nightly saw two per page),
+// and the compiled path buys nothing at this size. jitless keeps the same
+// parsers on the interpreted path and the policy quiet, on the edge and in the
+// browser alike, since every consumer imports this package first.
+z.config({ jitless: true });
+
 export * from "./envelope";
 export * from "./errors";
 export * from "./phone";

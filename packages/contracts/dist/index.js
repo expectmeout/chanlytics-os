@@ -1,3 +1,6 @@
+// src/index.ts
+import { z as z5 } from "zod";
+
 // src/envelope.ts
 var ok = (data) => ({ ok: true, data });
 var err = (code2, message, details) => ({
@@ -572,8 +575,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z5] = m;
-  if (z5) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z6] = m;
+  if (z6) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -9053,6 +9056,9 @@ async function erasedPhoneHash(tenantId, phoneE164) {
   const digest = await globalThis.crypto.subtle.digest("SHA-256", bytes);
   return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
+
+// src/index.ts
+z5.config({ jitless: true });
 export {
   ABANDONED_MS,
   ACTIVITY_KINDS,
