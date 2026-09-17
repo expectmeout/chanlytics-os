@@ -1,4 +1,5 @@
 // ../channels/dist/index.js
+import { z as z5 } from "zod";
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
@@ -782,6 +783,7 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+z5.config({ jitless: true });
 var GRAPH = "https://graph.facebook.com/v25.0";
 var SEND_TIMEOUT_MS = 15e3;
 async function postGraph(cfg, payload) {
@@ -876,7 +878,8 @@ var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 
 // ../contracts/dist/index.js
-import { z as z5 } from "zod";
+import { z as z52 } from "zod";
+import { z as z6 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
@@ -1200,14 +1203,14 @@ var BRAIN_OUTPUT_JSON_SCHEMA2 = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema2 = z5.object({
-  reply: z5.string(),
-  intent: z5.enum(BRAIN_INTENTS2).catch("other"),
-  escalate: z5.boolean().catch(false),
-  reason: z5.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z5.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z5.array(z5.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
-  language: z5.enum(BRAIN_LANGUAGES2).catch("other")
+var BrainOutputSchema2 = z6.object({
+  reply: z6.string(),
+  intent: z6.enum(BRAIN_INTENTS2).catch("other"),
+  escalate: z6.boolean().catch(false),
+  reason: z6.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z6.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z6.array(z6.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  language: z6.enum(BRAIN_LANGUAGES2).catch("other")
 });
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
@@ -2231,9 +2234,11 @@ var PASSWORD_WORDS2 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+z52.config({ jitless: true });
 
 // ../db/dist/index.js
-import { z as z6 } from "zod";
+import { z as z53 } from "zod";
+import { z as z7 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
@@ -2440,14 +2445,14 @@ var BRAIN_OUTPUT_JSON_SCHEMA3 = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema3 = z6.object({
-  reply: z6.string(),
-  intent: z6.enum(BRAIN_INTENTS3).catch("other"),
-  escalate: z6.boolean().catch(false),
-  reason: z6.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z6.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z6.array(z6.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
-  language: z6.enum(BRAIN_LANGUAGES3).catch("other")
+var BrainOutputSchema3 = z7.object({
+  reply: z7.string(),
+  intent: z7.enum(BRAIN_INTENTS3).catch("other"),
+  escalate: z7.boolean().catch(false),
+  reason: z7.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z7.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z7.array(z7.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  language: z7.enum(BRAIN_LANGUAGES3).catch("other")
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
@@ -3015,6 +3020,7 @@ var PASSWORD_WORDS3 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+z53.config({ jitless: true });
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,

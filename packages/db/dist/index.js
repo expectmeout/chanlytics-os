@@ -7,6 +7,7 @@ function createServiceClient(cfg) {
 }
 
 // ../contracts/dist/index.js
+import { z as z5 } from "zod";
 import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
@@ -797,6 +798,7 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+z5.config({ jitless: true });
 
 // src/repositories/ingest.ts
 async function ingestInbound(db, p) {
