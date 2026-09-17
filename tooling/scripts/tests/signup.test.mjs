@@ -58,7 +58,7 @@ test("what the form said waits on the user, and is a prefilled form rather than 
 });
 
 test("the wiring: two public paths, the guards on the route, a service role that makes no workspace, the one place workspaces are made", () => {
-  const middleware = readCode("apps/dashboard/middleware.ts");
+  const middleware = readCode("apps/dashboard/proxy.ts");
   assert.ok(middleware.includes('"/signup"') && middleware.includes('"/api/v1/signup"'), "public by a deliberate edit to PUBLIC_PATHS");
   const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
   assert.ok(!route.includes("withRoute"), "no session to verify: the route does not go through withRoute");

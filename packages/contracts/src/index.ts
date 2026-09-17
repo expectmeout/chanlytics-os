@@ -1,3 +1,5 @@
+// First, before any schema below is built: zod-config.ts says why the order matters.
+import "./zod-config";
 export * from "./envelope";
 export * from "./errors";
 export * from "./phone";
@@ -55,3 +57,4 @@ export * from "./billing";
 export * from "./schema-sets";
 export * from "./schema-sets.generated";
 export * from "./tone";
+export * from "./erasure";

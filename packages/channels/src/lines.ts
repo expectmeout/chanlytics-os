@@ -64,7 +64,8 @@ export interface LineProvider {
   createMessagingService(acct: ProviderAccount, o: { friendlyName: string; inboundUrl: string }): Promise<{ sid: string }>;
   addNumberToService(acct: ProviderAccount, serviceSid: string, numberSid: string): Promise<{ sid: string }>;
   /** One text out through the service. Never throws: a refusal is an answer with the provider's code. */
-  sendSms(acct: ProviderAccount, o: { serviceSid: string; to: string; body: string }): Promise<SmsSendResult>;
+  /** `statusCallback`: where the carrier's word on this text is posted (sms-status); without it a text is "sent" forever. */
+  sendSms(acct: ProviderAccount, o: { serviceSid: string; to: string; body: string; statusCallback?: string }): Promise<SmsSendResult>;
 }
 
 export interface SmsSendResult {

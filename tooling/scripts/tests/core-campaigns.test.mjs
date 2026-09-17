@@ -8,6 +8,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { BROADCAST_MAX_RECIPIENTS, EVERYONE_LABEL, broadcastName, emptyAudienceRefusal, numberHealth, paramLabel, starterForTrigger, templateTitle } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
+import { localDate as tzDate } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -179,6 +180,20 @@ test("what could not be written says so: no row is an error; people not written 
   await refused(make(noJob, { template_id: T1, audience: everyone }), "upstream_meta", 502, "The send could not be scheduled. Nothing was sent; try again.");
   assert.deepEqual(noJob.ops(), ["create", "enrol", "schedule", "fail"]);
   assert.deepEqual(noJob.of("fail")[0], ["fail", "b1", "schedule_failed"]);
+});
+
+test("approve: a playbook's run is a day's run: approved on a later day it is refused before anything moves, and the one for today goes", async () => {
+  const tz = await fakes().ports.timezone();
+  const today = tzDate(tz, NOW);
+  const stale = { id: "b1", tenant_id: "t1", state: "pending_approval", name: "Visit reminder · yesterday", recipient_count: 3, playbook_id: "p1", run_for: "2026-09-05" };
+  const f = fakes();
+  await refused(approveRun(f.ports, { row: stale, now: NOW }), "conflict", 409, "This run was made for 2026-09-05 and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.");
+  assert.deepEqual(f.ops(), [], "nothing moved");
+  const fresh = fakes();
+  const r = await approveRun(fresh.ports, { row: { ...stale, run_for: today }, now: NOW });
+  assert.equal(r.state, "scheduled");
+  const hand = fakes();
+  assert.equal((await approveRun(hand.ports, { row: { ...stale, playbook_id: null, run_for: null }, now: NOW })).state, "scheduled", "a broadcast made by hand has no day");
 });
 
 test("approve: a run not waiting is refused; one that changed under the approver says so; a job the ledger refused leaves it waiting; else the send now and the approver's decision", async () => {

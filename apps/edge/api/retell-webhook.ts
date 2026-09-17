@@ -43,6 +43,7 @@ import {
 } from "../lib/workspace/db.js";
 import { copyRecording, WEBHOOK_COPY_TIMEOUT_MS } from "../lib/call-recording.js";
 import { markForwardingVerified } from "../lib/forwarding.js";
+import { erasedBeforeCall } from "../lib/erased.js";
 import { upsertEscalation } from "../lib/workspace/jobs.js";
 import { callOutcomeWords, formatPhoneDisplay, guardSpokenTurns, frameGuardrail } from "../lib/workspace/contracts.js";
 import type { RoutedChannel } from "../lib/workspace/db.js";
@@ -232,6 +233,18 @@ export async function POST(request: Request): Promise<Response> {
 
   const n = normalizeCall(call);
   const db = pg();
+  // A call that began before its caller asked to be erased belongs to the
+  // erasure: its events must not make the person again with the call's data,
+  // nor mail the owner about them. A call begun after the request is the
+  // person calling back, and is theirs to make. A check that cannot be made
+  // does not skip: the erasure has its own sweep for what lands late.
+  if (db && n.agentId && n.fromE164 && n.startedAtIso) {
+    const routedEarly = await resolveChannel(db, "voice", n.agentId).catch(() => null);
+    if (routedEarly && await erasedBeforeCall(db, routedEarly.tenantId, n.fromE164, n.startedAtIso).catch(() => false)) {
+      console.log("retell_call_skipped_erased", JSON.stringify({ call: n.retellCallId, tenant: routedEarly.tenantId, event }));
+      return json(200, { ok: true, skipped: "erased" });
+    }
+  }
   // null = no control plane to ask; true = this delivery owns the post-call
   // side effects; false = a retry or replay, they already went out.
   let notifyClaim: boolean | null = null;

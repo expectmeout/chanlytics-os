@@ -34,7 +34,7 @@ const DASH = path.join(ROOT, "apps/dashboard");
 // why every code-scanning assertion needs both.
 const read = (p) => readCode(p);
 
-const middleware = read("apps/dashboard/middleware.ts");
+const middleware = read("apps/dashboard/proxy.ts");
 const signout = read("apps/dashboard/app/auth/signout/route.ts");
 const login = read("apps/dashboard/app/login/page.tsx");
 const osLayout = read("apps/dashboard/app/(os)/layout.tsx");

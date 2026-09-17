@@ -3,6 +3,8 @@ import { z } from "zod";
 import { z as z2 } from "zod";
 import { z as z3 } from "zod";
 import { z as z4 } from "zod";
+import { z as z5 } from "zod";
+z.config({ jitless: true });
 var EVENT_KINDS = [
   "message.received",
   "message.sent",
@@ -206,14 +208,14 @@ var BRAIN_OUTPUT_JSON_SCHEMA = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema = z.object({
-  reply: z.string(),
-  intent: z.enum(BRAIN_INTENTS).catch("other"),
-  escalate: z.boolean().catch(false),
-  reason: z.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z.array(z.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
-  language: z.enum(BRAIN_LANGUAGES).catch("other")
+var BrainOutputSchema = z2.object({
+  reply: z2.string(),
+  intent: z2.enum(BRAIN_INTENTS).catch("other"),
+  escalate: z2.boolean().catch(false),
+  reason: z2.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z2.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z2.array(z2.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
@@ -271,9 +273,9 @@ var POLICY_CLASS_WORDS = {
   reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
-var PolicyLimitsSchema = z2.object({
-  max_replies_day: z2.number().int().min(1).max(200).optional(),
-  pause_hours: z2.number().int().min(1).max(168).optional(),
+var PolicyLimitsSchema = z3.object({
+  max_replies_day: z3.number().int().min(1).max(200).optional(),
+  pause_hours: z3.number().int().min(1).max(168).optional(),
   /**
    * How long the receptionist WAITS before its own reply goes out, in ms.
    *
@@ -282,14 +284,14 @@ var PolicyLimitsSchema = z2.object({
    * the customer nothing and buys the business a window to redirect the bot
    * before it speaks, rather than apologising for it afterwards.
    */
-  reply_delay_ms: z2.number().int().min(5e3).max(6e5).optional(),
+  reply_delay_ms: z3.number().int().min(5e3).max(6e5).optional(),
   /**
    * The confidence dial. Under 'auto', a reply the model is less sure about
    * than this waits in the hold window (reply_delay_ms) for a person instead
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z2.number().min(0).max(1).optional(),
+  min_confidence: z3.number().min(0).max(1).optional(),
   /**
    * The day's token budget: model tokens in and out over a rolling 24
    * hours, read from the usage events every reply writes. Over it the
@@ -297,11 +299,11 @@ var PolicyLimitsSchema = z2.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z2.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z3.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
-var TIME = z2.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema = z2.object({ open: TIME, close: TIME });
-var HoursSchema = z2.object({
+var TIME = z3.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema = z3.object({ open: TIME, close: TIME });
+var HoursSchema = z3.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
   open: TIME.nullable().optional(),
   close: TIME.nullable().optional(),
@@ -310,78 +312,78 @@ var HoursSchema = z2.object({
    * actually keeps. Additive: a day that has always been one stretch keeps
    * saying so with open/close, and no stored config is rewritten.
    */
-  intervals: z2.array(IntervalSchema).optional()
+  intervals: z3.array(IntervalSchema).optional()
 }).strict();
-var DATE = z2.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema = z2.object({
+var DATE = z3.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema = z3.object({
   date: DATE,
   until: DATE.optional(),
-  note: z2.string().max(200).optional()
+  note: z3.string().max(200).optional()
 });
 var DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema = z2.object({
-  name: z2.string().min(1).max(80),
+var ServiceSchema = z3.object({
+  name: z3.string().min(1).max(80),
   /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z2.number().int().min(1).max(1440).optional(),
+  duration_min: z3.number().int().min(1).max(1440).optional(),
   /**
    * Free text, not a number, and deliberately so: "from $45", "quoted at
    * consult", "varies by length". A price the business cannot state flatly
    * must not be forced into a field that looks like it can.
    */
-  price_note: z2.string().max(120).optional()
+  price_note: z3.string().max(120).optional()
 }).strict();
-var GuardrailsSchema = z2.object({
-  never_quote_prices: z2.boolean().optional(),
-  never_confirm_booking: z2.boolean().optional(),
-  disclose_ai: z2.boolean().optional(),
+var GuardrailsSchema = z3.object({
+  never_quote_prices: z3.boolean().optional(),
+  never_confirm_booking: z3.boolean().optional(),
+  disclose_ai: z3.boolean().optional(),
   /**
    * OPT-IN, unlike the three above. Those default on because absent means
    * "the safe reading"; this one arrived after prompts were live, and a
    * rule that defaulted on would have changed every composed prompt in
    * production the moment it deployed.
    */
-  no_health_advice: z2.boolean().optional()
+  no_health_advice: z3.boolean().optional()
 }).strict();
-var NoteSchema = z2.object({
-  title: z2.string().min(1).max(80),
-  text: z2.string().min(1).max(1200)
+var NoteSchema = z3.object({
+  title: z3.string().min(1).max(80),
+  text: z3.string().min(1).max(1200)
 }).strict();
-var BookingRulesSchema = z2.object({
+var BookingRulesSchema = z3.object({
   /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z2.number().int().min(0).max(168).optional(),
+  lead_hours: z3.number().int().min(0).max(168).optional(),
   /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z2.number().int().min(0).max(120).optional(),
+  buffer_min: z3.number().int().min(0).max(120).optional(),
   /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z2.number().int().min(1).max(90).optional(),
+  max_days_ahead: z3.number().int().min(1).max(90).optional(),
   /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z2.number().int().min(15).max(240).optional(),
+  slot_min: z3.number().int().min(15).max(240).optional(),
   /** Services that need a consultation before they can be booked. */
-  consult_first: z2.array(z2.string().min(1).max(80)).max(20).optional(),
-  party_max: z2.number().int().min(1).max(20).optional(),
+  consult_first: z3.array(z3.string().min(1).max(80)).max(20).optional(),
+  party_max: z3.number().int().min(1).max(20).optional(),
   /** Anything else about booking, one short line each. */
-  notes: z2.array(z2.string().min(1).max(200)).max(10).optional()
+  notes: z3.array(z3.string().min(1).max(200)).max(10).optional()
 }).strict();
 var E164 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX = 2e4;
-var BusinessProfileSchema = z2.object({
-  address: z2.string().max(300).optional(),
-  hours: z2.partialRecord(z2.enum(DAYS), HoursSchema).optional(),
+var BusinessProfileSchema = z3.object({
+  address: z3.string().max(300).optional(),
+  hours: z3.partialRecord(z3.enum(DAYS), HoursSchema).optional(),
   /** Dates the business is shut regardless of the weekly grid. */
-  closures: z2.array(ClosureSchema).optional(),
-  services: z2.array(ServiceSchema).max(60).optional(),
-  languages: z2.array(z2.string().min(2).max(40)).max(8).optional(),
+  closures: z3.array(ClosureSchema).optional(),
+  services: z3.array(ServiceSchema).max(60).optional(),
+  languages: z3.array(z3.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema.optional(),
   /** What must reach a person. One short line each. */
-  escalate_when: z2.array(z2.string().min(1).max(200)).max(20).optional(),
-  tone: z2.string().max(200).optional(),
+  escalate_when: z3.array(z3.string().min(1).max(200)).max(20).optional(),
+  tone: z3.string().max(200).optional(),
   /**
    * The line a PERSON answers. The phone receptionist warm-transfers here
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z2.string().regex(E164, "E.164, like +16469325775").optional(),
-  website: z2.string().url().max(500).optional(),
-  notes: z2.array(NoteSchema).max(10).optional(),
+  handoff_number: z3.string().regex(E164, "E.164, like +16469325775").optional(),
+  website: z3.string().url().max(500).optional(),
+  notes: z3.array(NoteSchema).max(10).optional(),
   booking_rules: BookingRulesSchema.optional(),
   /**
    * Anything the owner wants said that no field covers.
@@ -393,10 +395,10 @@ var BusinessProfileSchema = z2.object({
    * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
    * the form carries that prompt into it.
    */
-  extra_instructions: z2.string().max(INSTRUCTIONS_MAX).optional()
+  extra_instructions: z3.string().max(INSTRUCTIONS_MAX).optional()
 }).strict();
-var BrainConfigSchema = z2.object({
-  business_name: z2.string().min(1).max(120),
+var BrainConfigSchema = z3.object({
+  business_name: z3.string().min(1).max(120),
   /**
    * The number the receptionist tells customers to call — an OVERRIDE, and
    * optional because it should almost never be set.
@@ -414,11 +416,11 @@ var BrainConfigSchema = z2.object({
    * business deliberately publishes something else — a tracking line, a
    * shopfront — and the pane says so in those words.
    */
-  phone_display: z2.string().min(3).max(40).optional(),
-  booking_link: z2.string().url().max(500),
+  phone_display: z3.string().min(3).max(40).optional(),
+  booking_link: z3.string().url().max(500),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z2.string().min(40).max(INSTRUCTIONS_MAX),
+  system_prompt: z3.string().min(40).max(INSTRUCTIONS_MAX),
   /**
    * The business's facts, as fields.
    *
@@ -427,24 +429,24 @@ var BrainConfigSchema = z2.object({
    * it REPLACES system_prompt as the source the prompt is built from.
    */
   profile: BusinessProfileSchema.optional(),
-  fallbacks: z2.object({
+  fallbacks: z3.object({
     /** Sent when no model key is configured. */
-    greeting: z2.string().min(1).max(2e3),
+    greeting: z3.string().min(1).max(2e3),
     /** Sent when the model call failed. */
-    error: z2.string().min(1).max(2e3),
+    error: z3.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
-    non_text: z2.string().min(1).max(2e3)
+    non_text: z3.string().min(1).max(2e3)
   }).strict()
 }).strict();
-var NotificationsConfigSchema = z2.object({
-  escalation_emails: z2.array(z2.string().email()).min(1).max(10),
-  from: z2.string().max(200).optional()
+var NotificationsConfigSchema = z3.object({
+  escalation_emails: z3.array(z3.string().email()).min(1).max(10),
+  from: z3.string().max(200).optional()
 }).strict();
-var CalendarConfigSchema = z2.object({
-  ical_url: z2.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+var CalendarConfigSchema = z3.object({
+  ical_url: z3.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
-var FeaturesConfigSchema = z2.object({ vision: z2.boolean().optional() }).strict();
-var TenantConfigSchema = z2.object({
+var FeaturesConfigSchema = z3.object({ vision: z3.boolean().optional() }).strict();
+var TenantConfigSchema = z3.object({
   brain: BrainConfigSchema.optional(),
   notifications: NotificationsConfigSchema.optional(),
   calendar: CalendarConfigSchema.optional(),
@@ -472,14 +474,14 @@ function checkDay(h, day, ctx) {
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
@@ -487,7 +489,7 @@ function checkDay(h, day, ctx) {
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY} shifts.`
     });
@@ -495,7 +497,7 @@ function checkDay(h, day, ctx) {
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
-        code: z2.ZodIssueCode.custom,
+        code: z3.ZodIssueCode.custom,
         path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
@@ -505,7 +507,7 @@ function checkDay(h, day, ctx) {
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
-        code: z2.ZodIssueCode.custom,
+        code: z3.ZodIssueCode.custom,
         path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
@@ -516,21 +518,21 @@ function checkClosure(c, n, ctx) {
   const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate(c.date)) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate(c.until)) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: at2("until"),
       message: "A closure cannot end before it starts."
     });
@@ -538,14 +540,14 @@ function checkClosure(c, n, ctx) {
 }
 var TenantConfigWriteSchema = TenantConfigSchema.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z2.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({ code: z3.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords("address") ?? "Not an address the receptionist may read." });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
   for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay(h, day, ctx);
   if ((p.closures?.length ?? 0) > MAX_CLOSURES) {
     ctx.addIssue({
-      code: z2.ZodIssueCode.custom,
+      code: z3.ZodIssueCode.custom,
       path: ["brain", "profile", "closures"],
       message: `At most ${MAX_CLOSURES} closures.`
     });
@@ -623,31 +625,31 @@ function cleanAnswer(raw) {
   if (cut >= 0) s = s.slice(0, cut);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
 }
-var AskFinishSchema = z3.object({
-  answer: z3.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
-  citations: z3.array(
-    z3.object({
-      kind: z3.enum(ASK_CITATION_KINDS).catch("page"),
-      id: z3.string().catch("").transform(clip(200)),
-      label: z3.string().catch("").transform(clip(80))
+var AskFinishSchema = z4.object({
+  answer: z4.string().catch("").transform((s) => clip(1500)(cleanAnswer(s))),
+  citations: z4.array(
+    z4.object({
+      kind: z4.enum(ASK_CITATION_KINDS).catch("page"),
+      id: z4.string().catch("").transform(clip(200)),
+      label: z4.string().catch("").transform(clip(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS.citations)),
-  followups: z3.array(z3.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
-  navigate: z3.object({ to: z3.string().catch(""), label: z3.string().catch(""), now: z3.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
-  language: z3.enum(ASK_LANGUAGES).catch("other")
+  followups: z4.array(z4.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS.followups).map((s) => s.slice(0, 90))),
+  navigate: z4.object({ to: z4.string().catch(""), label: z4.string().catch(""), now: z4.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  language: z4.enum(ASK_LANGUAGES).catch("other")
 });
 var ASK_UNDO_MS = 10 * 6e4;
-var AskProposalOutcomeSchema = z3.object({
-  state: z3.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z3.string().max(300).catch(""),
-  atMs: z3.number().catch(0),
-  undo: z3.record(z3.string(), z3.unknown()).nullable().optional()
+var AskProposalOutcomeSchema = z4.object({
+  state: z4.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z4.string().max(300).catch(""),
+  atMs: z4.number().catch(0),
+  undo: z4.record(z4.string(), z4.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema = z3.discriminatedUnion("op", [
-  z3.object({ op: z3.literal("add_closure"), date: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z3.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z3.string().max(200).optional() }),
-  z3.object({ op: z3.literal("set_hours"), day: z3.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z3.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z3.string().regex(/^\d{2}:\d{2}$/).nullable() }),
-  z3.object({ op: z3.literal("add_note"), title: z3.string().min(1).max(80), text: z3.string().min(1).max(1200) }),
-  z3.object({ op: z3.literal("add_service"), name: z3.string().min(1).max(80), duration_min: z3.number().int().min(1).max(1440).optional() })
+var AskSettingsChangeSchema = z4.discriminatedUnion("op", [
+  z4.object({ op: z4.literal("add_closure"), date: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z4.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z4.string().max(200).optional() }),
+  z4.object({ op: z4.literal("set_hours"), day: z4.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z4.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z4.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z4.object({ op: z4.literal("add_note"), title: z4.string().min(1).max(80), text: z4.string().min(1).max(1200) }),
+  z4.object({ op: z4.literal("add_service"), name: z4.string().min(1).max(80), duration_min: z4.number().int().min(1).max(1440).optional() })
 ]);
 var FIRST = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -718,9 +720,9 @@ var SOLE_PROP_CEILING_SENTENCE = `This is the sole-proprietor registration: one 
 var SOLE_PROP_TEXTING_SENTENCE = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE}`;
 var SIGNUP_NAME_MIN = 2;
 var SIGNUP_NAME_MAX = 120;
-var SignupSchema = z4.object({
-  name: z4.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
-  email: z4.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema = z5.object({
+  name: z5.string().trim().min(SIGNUP_NAME_MIN, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX, "That name is too long \u2014 120 characters at most."),
+  email: z5.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -734,17 +736,17 @@ var SignupSchema = z4.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z4.string().max(200).optional(),
+  password: z5.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z4.string().trim().min(1).max(64).optional(),
+  timezone: z5.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z4.string().trim().max(80).optional()
+  code: z5.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema = z4.object({
-  name: z4.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
+var PendingWorkspaceSchema = z5.object({
+  name: z5.string().trim().min(SIGNUP_NAME_MIN).max(SIGNUP_NAME_MAX),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z4.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
+  timezone: z5.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone(v) ? v : null)
 });
 function isTimezone(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -876,10 +878,12 @@ var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 
 // ../contracts/dist/index.js
-import { z as z5 } from "zod";
+import { z as z6 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
+import { z as z52 } from "zod";
+z6.config({ jitless: true });
 var AppError = class extends Error {
   code;
   status;
@@ -1200,14 +1204,14 @@ var BRAIN_OUTPUT_JSON_SCHEMA2 = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema2 = z5.object({
-  reply: z5.string(),
-  intent: z5.enum(BRAIN_INTENTS2).catch("other"),
-  escalate: z5.boolean().catch(false),
-  reason: z5.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z5.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z5.array(z5.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
-  language: z5.enum(BRAIN_LANGUAGES2).catch("other")
+var BrainOutputSchema2 = z22.object({
+  reply: z22.string(),
+  intent: z22.enum(BRAIN_INTENTS2).catch("other"),
+  escalate: z22.boolean().catch(false),
+  reason: z22.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z22.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z22.array(z22.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  language: z22.enum(BRAIN_LANGUAGES2).catch("other")
 });
 var WA_WINDOW_MS2 = 24 * 3600 * 1e3;
 function waWindow(lastWaInboundAtIso, now = /* @__PURE__ */ new Date()) {
@@ -1272,9 +1276,9 @@ var POLICY_CLASS_WORDS2 = {
   reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
-var PolicyLimitsSchema2 = z22.object({
-  max_replies_day: z22.number().int().min(1).max(200).optional(),
-  pause_hours: z22.number().int().min(1).max(168).optional(),
+var PolicyLimitsSchema2 = z32.object({
+  max_replies_day: z32.number().int().min(1).max(200).optional(),
+  pause_hours: z32.number().int().min(1).max(168).optional(),
   /**
    * How long the receptionist WAITS before its own reply goes out, in ms.
    *
@@ -1283,14 +1287,14 @@ var PolicyLimitsSchema2 = z22.object({
    * the customer nothing and buys the business a window to redirect the bot
    * before it speaks, rather than apologising for it afterwards.
    */
-  reply_delay_ms: z22.number().int().min(5e3).max(6e5).optional(),
+  reply_delay_ms: z32.number().int().min(5e3).max(6e5).optional(),
   /**
    * The confidence dial. Under 'auto', a reply the model is less sure about
    * than this waits in the hold window (reply_delay_ms) for a person instead
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z22.number().min(0).max(1).optional(),
+  min_confidence: z32.number().min(0).max(1).optional(),
   /**
    * The day's token budget: model tokens in and out over a rolling 24
    * hours, read from the usage events every reply writes. Over it the
@@ -1298,11 +1302,11 @@ var PolicyLimitsSchema2 = z22.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z22.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z32.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
-var TIME2 = z22.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema2 = z22.object({ open: TIME2, close: TIME2 });
-var HoursSchema2 = z22.object({
+var TIME2 = z32.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema2 = z32.object({ open: TIME2, close: TIME2 });
+var HoursSchema2 = z32.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
   open: TIME2.nullable().optional(),
   close: TIME2.nullable().optional(),
@@ -1311,78 +1315,78 @@ var HoursSchema2 = z22.object({
    * actually keeps. Additive: a day that has always been one stretch keeps
    * saying so with open/close, and no stored config is rewritten.
    */
-  intervals: z22.array(IntervalSchema2).optional()
+  intervals: z32.array(IntervalSchema2).optional()
 }).strict();
-var DATE2 = z22.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema2 = z22.object({
+var DATE2 = z32.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema2 = z32.object({
   date: DATE2,
   until: DATE2.optional(),
-  note: z22.string().max(200).optional()
+  note: z32.string().max(200).optional()
 });
 var DAYS2 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema2 = z22.object({
-  name: z22.string().min(1).max(80),
+var ServiceSchema2 = z32.object({
+  name: z32.string().min(1).max(80),
   /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z22.number().int().min(1).max(1440).optional(),
+  duration_min: z32.number().int().min(1).max(1440).optional(),
   /**
    * Free text, not a number, and deliberately so: "from $45", "quoted at
    * consult", "varies by length". A price the business cannot state flatly
    * must not be forced into a field that looks like it can.
    */
-  price_note: z22.string().max(120).optional()
+  price_note: z32.string().max(120).optional()
 }).strict();
-var GuardrailsSchema2 = z22.object({
-  never_quote_prices: z22.boolean().optional(),
-  never_confirm_booking: z22.boolean().optional(),
-  disclose_ai: z22.boolean().optional(),
+var GuardrailsSchema2 = z32.object({
+  never_quote_prices: z32.boolean().optional(),
+  never_confirm_booking: z32.boolean().optional(),
+  disclose_ai: z32.boolean().optional(),
   /**
    * OPT-IN, unlike the three above. Those default on because absent means
    * "the safe reading"; this one arrived after prompts were live, and a
    * rule that defaulted on would have changed every composed prompt in
    * production the moment it deployed.
    */
-  no_health_advice: z22.boolean().optional()
+  no_health_advice: z32.boolean().optional()
 }).strict();
-var NoteSchema2 = z22.object({
-  title: z22.string().min(1).max(80),
-  text: z22.string().min(1).max(1200)
+var NoteSchema2 = z32.object({
+  title: z32.string().min(1).max(80),
+  text: z32.string().min(1).max(1200)
 }).strict();
-var BookingRulesSchema2 = z22.object({
+var BookingRulesSchema2 = z32.object({
   /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z22.number().int().min(0).max(168).optional(),
+  lead_hours: z32.number().int().min(0).max(168).optional(),
   /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z22.number().int().min(0).max(120).optional(),
+  buffer_min: z32.number().int().min(0).max(120).optional(),
   /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z22.number().int().min(1).max(90).optional(),
+  max_days_ahead: z32.number().int().min(1).max(90).optional(),
   /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z22.number().int().min(15).max(240).optional(),
+  slot_min: z32.number().int().min(15).max(240).optional(),
   /** Services that need a consultation before they can be booked. */
-  consult_first: z22.array(z22.string().min(1).max(80)).max(20).optional(),
-  party_max: z22.number().int().min(1).max(20).optional(),
+  consult_first: z32.array(z32.string().min(1).max(80)).max(20).optional(),
+  party_max: z32.number().int().min(1).max(20).optional(),
   /** Anything else about booking, one short line each. */
-  notes: z22.array(z22.string().min(1).max(200)).max(10).optional()
+  notes: z32.array(z32.string().min(1).max(200)).max(10).optional()
 }).strict();
 var E1642 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX2 = 2e4;
-var BusinessProfileSchema2 = z22.object({
-  address: z22.string().max(300).optional(),
-  hours: z22.partialRecord(z22.enum(DAYS2), HoursSchema2).optional(),
+var BusinessProfileSchema2 = z32.object({
+  address: z32.string().max(300).optional(),
+  hours: z32.partialRecord(z32.enum(DAYS2), HoursSchema2).optional(),
   /** Dates the business is shut regardless of the weekly grid. */
-  closures: z22.array(ClosureSchema2).optional(),
-  services: z22.array(ServiceSchema2).max(60).optional(),
-  languages: z22.array(z22.string().min(2).max(40)).max(8).optional(),
+  closures: z32.array(ClosureSchema2).optional(),
+  services: z32.array(ServiceSchema2).max(60).optional(),
+  languages: z32.array(z32.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema2.optional(),
   /** What must reach a person. One short line each. */
-  escalate_when: z22.array(z22.string().min(1).max(200)).max(20).optional(),
-  tone: z22.string().max(200).optional(),
+  escalate_when: z32.array(z32.string().min(1).max(200)).max(20).optional(),
+  tone: z32.string().max(200).optional(),
   /**
    * The line a PERSON answers. The phone receptionist warm-transfers here
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z22.string().regex(E1642, "E.164, like +16469325775").optional(),
-  website: z22.string().url().max(500).optional(),
-  notes: z22.array(NoteSchema2).max(10).optional(),
+  handoff_number: z32.string().regex(E1642, "E.164, like +16469325775").optional(),
+  website: z32.string().url().max(500).optional(),
+  notes: z32.array(NoteSchema2).max(10).optional(),
   booking_rules: BookingRulesSchema2.optional(),
   /**
    * Anything the owner wants said that no field covers.
@@ -1394,10 +1398,10 @@ var BusinessProfileSchema2 = z22.object({
    * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
    * the form carries that prompt into it.
    */
-  extra_instructions: z22.string().max(INSTRUCTIONS_MAX2).optional()
+  extra_instructions: z32.string().max(INSTRUCTIONS_MAX2).optional()
 }).strict();
-var BrainConfigSchema2 = z22.object({
-  business_name: z22.string().min(1).max(120),
+var BrainConfigSchema2 = z32.object({
+  business_name: z32.string().min(1).max(120),
   /**
    * The number the receptionist tells customers to call — an OVERRIDE, and
    * optional because it should almost never be set.
@@ -1415,11 +1419,11 @@ var BrainConfigSchema2 = z22.object({
    * business deliberately publishes something else — a tracking line, a
    * shopfront — and the pane says so in those words.
    */
-  phone_display: z22.string().min(3).max(40).optional(),
-  booking_link: z22.string().url().max(500),
+  phone_display: z32.string().min(3).max(40).optional(),
+  booking_link: z32.string().url().max(500),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z22.string().min(40).max(INSTRUCTIONS_MAX2),
+  system_prompt: z32.string().min(40).max(INSTRUCTIONS_MAX2),
   /**
    * The business's facts, as fields.
    *
@@ -1428,24 +1432,24 @@ var BrainConfigSchema2 = z22.object({
    * it REPLACES system_prompt as the source the prompt is built from.
    */
   profile: BusinessProfileSchema2.optional(),
-  fallbacks: z22.object({
+  fallbacks: z32.object({
     /** Sent when no model key is configured. */
-    greeting: z22.string().min(1).max(2e3),
+    greeting: z32.string().min(1).max(2e3),
     /** Sent when the model call failed. */
-    error: z22.string().min(1).max(2e3),
+    error: z32.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
-    non_text: z22.string().min(1).max(2e3)
+    non_text: z32.string().min(1).max(2e3)
   }).strict()
 }).strict();
-var NotificationsConfigSchema2 = z22.object({
-  escalation_emails: z22.array(z22.string().email()).min(1).max(10),
-  from: z22.string().max(200).optional()
+var NotificationsConfigSchema2 = z32.object({
+  escalation_emails: z32.array(z32.string().email()).min(1).max(10),
+  from: z32.string().max(200).optional()
 }).strict();
-var CalendarConfigSchema2 = z22.object({
-  ical_url: z22.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+var CalendarConfigSchema2 = z32.object({
+  ical_url: z32.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
-var FeaturesConfigSchema2 = z22.object({ vision: z22.boolean().optional() }).strict();
-var TenantConfigSchema2 = z22.object({
+var FeaturesConfigSchema2 = z32.object({ vision: z32.boolean().optional() }).strict();
+var TenantConfigSchema2 = z32.object({
   brain: BrainConfigSchema2.optional(),
   notifications: NotificationsConfigSchema2.optional(),
   calendar: CalendarConfigSchema2.optional(),
@@ -1473,14 +1477,14 @@ function checkDay2(h, day, ctx) {
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
@@ -1488,7 +1492,7 @@ function checkDay2(h, day, ctx) {
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY2) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY2} shifts.`
     });
@@ -1496,7 +1500,7 @@ function checkDay2(h, day, ctx) {
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
-        code: z22.ZodIssueCode.custom,
+        code: z32.ZodIssueCode.custom,
         path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
@@ -1506,7 +1510,7 @@ function checkDay2(h, day, ctx) {
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
-        code: z22.ZodIssueCode.custom,
+        code: z32.ZodIssueCode.custom,
         path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
@@ -1517,21 +1521,21 @@ function checkClosure2(c, n, ctx) {
   const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate2(c.date)) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate2(c.until)) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: at2("until"),
       message: "A closure cannot end before it starts."
     });
@@ -1539,14 +1543,14 @@ function checkClosure2(c, n, ctx) {
 }
 var TenantConfigWriteSchema2 = TenantConfigSchema2.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk2(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z22.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords2("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({ code: z32.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords2("address") ?? "Not an address the receptionist may read." });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
   for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay2(h, day, ctx);
   if ((p.closures?.length ?? 0) > MAX_CLOSURES2) {
     ctx.addIssue({
-      code: z22.ZodIssueCode.custom,
+      code: z32.ZodIssueCode.custom,
       path: ["brain", "profile", "closures"],
       message: `At most ${MAX_CLOSURES2} closures.`
     });
@@ -1678,31 +1682,31 @@ function cleanAnswer2(raw) {
   if (cut >= 0) s = s.slice(0, cut);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
 }
-var AskFinishSchema2 = z32.object({
-  answer: z32.string().catch("").transform((s) => clip2(1500)(cleanAnswer2(s))),
-  citations: z32.array(
-    z32.object({
-      kind: z32.enum(ASK_CITATION_KINDS2).catch("page"),
-      id: z32.string().catch("").transform(clip2(200)),
-      label: z32.string().catch("").transform(clip2(80))
+var AskFinishSchema2 = z42.object({
+  answer: z42.string().catch("").transform((s) => clip2(1500)(cleanAnswer2(s))),
+  citations: z42.array(
+    z42.object({
+      kind: z42.enum(ASK_CITATION_KINDS2).catch("page"),
+      id: z42.string().catch("").transform(clip2(200)),
+      label: z42.string().catch("").transform(clip2(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS2.citations)),
-  followups: z32.array(z32.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))),
-  navigate: z32.object({ to: z32.string().catch(""), label: z32.string().catch(""), now: z32.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
-  language: z32.enum(ASK_LANGUAGES2).catch("other")
+  followups: z42.array(z42.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS2.followups).map((s) => s.slice(0, 90))),
+  navigate: z42.object({ to: z42.string().catch(""), label: z42.string().catch(""), now: z42.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  language: z42.enum(ASK_LANGUAGES2).catch("other")
 });
 var ASK_UNDO_MS2 = 10 * 6e4;
-var AskProposalOutcomeSchema2 = z32.object({
-  state: z32.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z32.string().max(300).catch(""),
-  atMs: z32.number().catch(0),
-  undo: z32.record(z32.string(), z32.unknown()).nullable().optional()
+var AskProposalOutcomeSchema2 = z42.object({
+  state: z42.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z42.string().max(300).catch(""),
+  atMs: z42.number().catch(0),
+  undo: z42.record(z42.string(), z42.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema2 = z32.discriminatedUnion("op", [
-  z32.object({ op: z32.literal("add_closure"), date: z32.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z32.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z32.string().max(200).optional() }),
-  z32.object({ op: z32.literal("set_hours"), day: z32.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z32.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z32.string().regex(/^\d{2}:\d{2}$/).nullable() }),
-  z32.object({ op: z32.literal("add_note"), title: z32.string().min(1).max(80), text: z32.string().min(1).max(1200) }),
-  z32.object({ op: z32.literal("add_service"), name: z32.string().min(1).max(80), duration_min: z32.number().int().min(1).max(1440).optional() })
+var AskSettingsChangeSchema2 = z42.discriminatedUnion("op", [
+  z42.object({ op: z42.literal("add_closure"), date: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z42.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z42.string().max(200).optional() }),
+  z42.object({ op: z42.literal("set_hours"), day: z42.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z42.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z42.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z42.object({ op: z42.literal("add_note"), title: z42.string().min(1).max(80), text: z42.string().min(1).max(1200) }),
+  z42.object({ op: z42.literal("add_service"), name: z42.string().min(1).max(80), duration_min: z42.number().int().min(1).max(1440).optional() })
 ]);
 var FIRST2 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS2 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -2060,7 +2064,7 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
       return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS52)) && !r.booked;
     });
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
-    return pool2.slice(0, Math.max(1, p.cap_per_run));
+    return pool2;
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
   const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS52;
@@ -2113,13 +2117,27 @@ var PLAYBOOK_CLASS_LABEL2 = {
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short
 };
-function visitFactsFor(trigger, visit, tz) {
+function visitFactsFor(trigger, visit, tz, sendAt) {
   const t = triggerOf(trigger);
   if (!t || t.kind !== "visit" || !visit) return null;
   return {
-    visit_when: trigger === "visit_tomorrow" ? `tomorrow at ${visitStartTime(visit, tz)}` : "yesterday",
+    visit_when: trigger === "visit_tomorrow" ? `${visitDayWord(visit, tz, sendAt, "tomorrow")} at ${visitStartTime(visit, tz)}` : visitDayWord(visit, tz, sendAt, "yesterday"),
     visit_service: visit.title.trim() || "your appointment"
   };
+}
+function visitDayWord(visit, tz, sendAt, assumed) {
+  if (!sendAt) return assumed;
+  const visitDay2 = localDate(tz, new Date(visit.start));
+  const sendDay = localDate(tz, sendAt);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS52);
+  if (delta === 1) return "tomorrow";
+  if (delta === 0) return "today";
+  if (delta === -1) return "yesterday";
+  try {
+    return `on ${new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(new Date(visit.start))}`;
+  } catch {
+    return delta > 0 ? "soon" : "recently";
+  }
 }
 var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
@@ -2153,9 +2171,9 @@ var SOLE_PROP_CEILING_SENTENCE2 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE2 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE2}`;
 var SIGNUP_NAME_MIN2 = 2;
 var SIGNUP_NAME_MAX2 = 120;
-var SignupSchema2 = z42.object({
-  name: z42.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
-  email: z42.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema2 = z52.object({
+  name: z52.string().trim().min(SIGNUP_NAME_MIN2, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX2, "That name is too long \u2014 120 characters at most."),
+  email: z52.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2169,17 +2187,17 @@ var SignupSchema2 = z42.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z42.string().max(200).optional(),
+  password: z52.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z42.string().trim().min(1).max(64).optional(),
+  timezone: z52.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z42.string().trim().max(80).optional()
+  code: z52.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema2 = z42.object({
-  name: z42.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
+var PendingWorkspaceSchema2 = z52.object({
+  name: z52.string().trim().min(SIGNUP_NAME_MIN2).max(SIGNUP_NAME_MAX2),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z42.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
+  timezone: z52.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone2(v) ? v : null)
 });
 function isTimezone2(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -2219,10 +2237,12 @@ var PASSWORD_WORDS2 = {
 };
 
 // ../db/dist/index.js
-import { z as z6 } from "zod";
+import { z as z7 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
+import { z as z53 } from "zod";
+z7.config({ jitless: true });
 var EVENT_KINDS3 = [
   "message.received",
   "message.sent",
@@ -2426,14 +2446,14 @@ var BRAIN_OUTPUT_JSON_SCHEMA3 = {
   required: ["reply", "intent", "escalate", "reason", "confidence", "facts_used", "language"],
   additionalProperties: false
 };
-var BrainOutputSchema3 = z6.object({
-  reply: z6.string(),
-  intent: z6.enum(BRAIN_INTENTS3).catch("other"),
-  escalate: z6.boolean().catch(false),
-  reason: z6.string().catch("").transform((s) => s.trim().slice(0, 300)),
-  confidence: z6.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
-  facts_used: z6.array(z6.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
-  language: z6.enum(BRAIN_LANGUAGES3).catch("other")
+var BrainOutputSchema3 = z23.object({
+  reply: z23.string(),
+  intent: z23.enum(BRAIN_INTENTS3).catch("other"),
+  escalate: z23.boolean().catch(false),
+  reason: z23.string().catch("").transform((s) => s.trim().slice(0, 300)),
+  confidence: z23.number().catch(0).transform((n) => Number.isFinite(n) ? Math.min(1, Math.max(0, n)) : 0),
+  facts_used: z23.array(z23.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, 5).map((s) => s.slice(0, 80))),
+  language: z23.enum(BRAIN_LANGUAGES3).catch("other")
 });
 var WA_WINDOW_MS3 = 24 * 3600 * 1e3;
 var CALL_HEARTBEAT_MS3 = 10 * 60 * 1e3;
@@ -2490,9 +2510,9 @@ var POLICY_CLASS_WORDS3 = {
   reviews: { name: "Google reviews", short: "Reviews", note: "replies under new reviews on Google, through the connected Business Profile \xB7 auto answers each within the hour, ask drafts one for you to send, never leaves them all to you" },
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
-var PolicyLimitsSchema3 = z23.object({
-  max_replies_day: z23.number().int().min(1).max(200).optional(),
-  pause_hours: z23.number().int().min(1).max(168).optional(),
+var PolicyLimitsSchema3 = z33.object({
+  max_replies_day: z33.number().int().min(1).max(200).optional(),
+  pause_hours: z33.number().int().min(1).max(168).optional(),
   /**
    * How long the receptionist WAITS before its own reply goes out, in ms.
    *
@@ -2501,14 +2521,14 @@ var PolicyLimitsSchema3 = z23.object({
    * the customer nothing and buys the business a window to redirect the bot
    * before it speaks, rather than apologising for it afterwards.
    */
-  reply_delay_ms: z23.number().int().min(5e3).max(6e5).optional(),
+  reply_delay_ms: z33.number().int().min(5e3).max(6e5).optional(),
   /**
    * The confidence dial. Under 'auto', a reply the model is less sure about
    * than this waits in the hold window (reply_delay_ms) for a person instead
    * of going straight out — sure enough sends itself, not sure enough waits.
    * 0 or absent means off.
    */
-  min_confidence: z23.number().min(0).max(1).optional(),
+  min_confidence: z33.number().min(0).max(1).optional(),
   /**
    * The day's token budget: model tokens in and out over a rolling 24
    * hours, read from the usage events every reply writes. Over it the
@@ -2516,11 +2536,11 @@ var PolicyLimitsSchema3 = z23.object({
    * reply cap. 0 or absent is off; a value is at least a thousand, because
    * a budget of ten would be a mute button with a misleading name.
    */
-  max_llm_tokens_day: z23.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
+  max_llm_tokens_day: z33.number().int().min(0).max(5e6).refine((n) => n === 0 || n >= 1e3, "at least 1,000, or 0 to turn it off").optional()
 }).strict();
-var TIME3 = z23.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
-var IntervalSchema3 = z23.object({ open: TIME3, close: TIME3 });
-var HoursSchema3 = z23.object({
+var TIME3 = z33.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/);
+var IntervalSchema3 = z33.object({ open: TIME3, close: TIME3 });
+var HoursSchema3 = z33.object({
   /** "09:00". Absent or null = closed that day, which is a real answer. */
   open: TIME3.nullable().optional(),
   close: TIME3.nullable().optional(),
@@ -2529,78 +2549,78 @@ var HoursSchema3 = z23.object({
    * actually keeps. Additive: a day that has always been one stretch keeps
    * saying so with open/close, and no stored config is rewritten.
    */
-  intervals: z23.array(IntervalSchema3).optional()
+  intervals: z33.array(IntervalSchema3).optional()
 }).strict();
-var DATE3 = z23.string().regex(/^\d{4}-\d{2}-\d{2}$/);
-var ClosureSchema3 = z23.object({
+var DATE3 = z33.string().regex(/^\d{4}-\d{2}-\d{2}$/);
+var ClosureSchema3 = z33.object({
   date: DATE3,
   until: DATE3.optional(),
-  note: z23.string().max(200).optional()
+  note: z33.string().max(200).optional()
 });
 var DAYS3 = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
-var ServiceSchema3 = z23.object({
-  name: z23.string().min(1).max(80),
+var ServiceSchema3 = z33.object({
+  name: z33.string().min(1).max(80),
   /** Minutes. The receptionist is asked "how long does it take" constantly. */
-  duration_min: z23.number().int().min(1).max(1440).optional(),
+  duration_min: z33.number().int().min(1).max(1440).optional(),
   /**
    * Free text, not a number, and deliberately so: "from $45", "quoted at
    * consult", "varies by length". A price the business cannot state flatly
    * must not be forced into a field that looks like it can.
    */
-  price_note: z23.string().max(120).optional()
+  price_note: z33.string().max(120).optional()
 }).strict();
-var GuardrailsSchema3 = z23.object({
-  never_quote_prices: z23.boolean().optional(),
-  never_confirm_booking: z23.boolean().optional(),
-  disclose_ai: z23.boolean().optional(),
+var GuardrailsSchema3 = z33.object({
+  never_quote_prices: z33.boolean().optional(),
+  never_confirm_booking: z33.boolean().optional(),
+  disclose_ai: z33.boolean().optional(),
   /**
    * OPT-IN, unlike the three above. Those default on because absent means
    * "the safe reading"; this one arrived after prompts were live, and a
    * rule that defaulted on would have changed every composed prompt in
    * production the moment it deployed.
    */
-  no_health_advice: z23.boolean().optional()
+  no_health_advice: z33.boolean().optional()
 }).strict();
-var NoteSchema3 = z23.object({
-  title: z23.string().min(1).max(80),
-  text: z23.string().min(1).max(1200)
+var NoteSchema3 = z33.object({
+  title: z33.string().min(1).max(80),
+  text: z33.string().min(1).max(1200)
 }).strict();
-var BookingRulesSchema3 = z23.object({
+var BookingRulesSchema3 = z33.object({
   /** Least notice for a slot, in hours. Absent = 2. */
-  lead_hours: z23.number().int().min(0).max(168).optional(),
+  lead_hours: z33.number().int().min(0).max(168).optional(),
   /** Gap kept around each existing appointment, in minutes. Absent = 0. */
-  buffer_min: z23.number().int().min(0).max(120).optional(),
+  buffer_min: z33.number().int().min(0).max(120).optional(),
   /** How far ahead open times are offered, in days. Absent = 14. */
-  max_days_ahead: z23.number().int().min(1).max(90).optional(),
+  max_days_ahead: z33.number().int().min(1).max(90).optional(),
   /** The shortest window worth naming, in minutes. Absent = 30. */
-  slot_min: z23.number().int().min(15).max(240).optional(),
+  slot_min: z33.number().int().min(15).max(240).optional(),
   /** Services that need a consultation before they can be booked. */
-  consult_first: z23.array(z23.string().min(1).max(80)).max(20).optional(),
-  party_max: z23.number().int().min(1).max(20).optional(),
+  consult_first: z33.array(z33.string().min(1).max(80)).max(20).optional(),
+  party_max: z33.number().int().min(1).max(20).optional(),
   /** Anything else about booking, one short line each. */
-  notes: z23.array(z23.string().min(1).max(200)).max(10).optional()
+  notes: z33.array(z33.string().min(1).max(200)).max(10).optional()
 }).strict();
 var E1643 = /^\+[1-9]\d{6,14}$/;
 var INSTRUCTIONS_MAX3 = 2e4;
-var BusinessProfileSchema3 = z23.object({
-  address: z23.string().max(300).optional(),
-  hours: z23.partialRecord(z23.enum(DAYS3), HoursSchema3).optional(),
+var BusinessProfileSchema3 = z33.object({
+  address: z33.string().max(300).optional(),
+  hours: z33.partialRecord(z33.enum(DAYS3), HoursSchema3).optional(),
   /** Dates the business is shut regardless of the weekly grid. */
-  closures: z23.array(ClosureSchema3).optional(),
-  services: z23.array(ServiceSchema3).max(60).optional(),
-  languages: z23.array(z23.string().min(2).max(40)).max(8).optional(),
+  closures: z33.array(ClosureSchema3).optional(),
+  services: z33.array(ServiceSchema3).max(60).optional(),
+  languages: z33.array(z33.string().min(2).max(40)).max(8).optional(),
   guardrails: GuardrailsSchema3.optional(),
   /** What must reach a person. One short line each. */
-  escalate_when: z23.array(z23.string().min(1).max(200)).max(20).optional(),
-  tone: z23.string().max(200).optional(),
+  escalate_when: z33.array(z33.string().min(1).max(200)).max(20).optional(),
+  tone: z33.string().max(200).optional(),
   /**
    * The line a PERSON answers. The phone receptionist warm-transfers here
    * during opening hours; absent, it takes a message instead. Never the
    * receptionist's own line — that would ring itself.
    */
-  handoff_number: z23.string().regex(E1643, "E.164, like +16469325775").optional(),
-  website: z23.string().url().max(500).optional(),
-  notes: z23.array(NoteSchema3).max(10).optional(),
+  handoff_number: z33.string().regex(E1643, "E.164, like +16469325775").optional(),
+  website: z33.string().url().max(500).optional(),
+  notes: z33.array(NoteSchema3).max(10).optional(),
   booking_rules: BookingRulesSchema3.optional(),
   /**
    * Anything the owner wants said that no field covers.
@@ -2612,10 +2632,10 @@ var BusinessProfileSchema3 = z23.object({
    * It holds what the prompt it grew out of holds (INSTRUCTIONS_MAX), because
    * the form carries that prompt into it.
    */
-  extra_instructions: z23.string().max(INSTRUCTIONS_MAX3).optional()
+  extra_instructions: z33.string().max(INSTRUCTIONS_MAX3).optional()
 }).strict();
-var BrainConfigSchema3 = z23.object({
-  business_name: z23.string().min(1).max(120),
+var BrainConfigSchema3 = z33.object({
+  business_name: z33.string().min(1).max(120),
   /**
    * The number the receptionist tells customers to call — an OVERRIDE, and
    * optional because it should almost never be set.
@@ -2633,11 +2653,11 @@ var BrainConfigSchema3 = z23.object({
    * business deliberately publishes something else — a tracking line, a
    * shopfront — and the pane says so in those words.
    */
-  phone_display: z23.string().min(3).max(40).optional(),
-  booking_link: z23.string().url().max(500),
+  phone_display: z33.string().min(3).max(40).optional(),
+  booking_link: z33.string().url().max(500),
   /** The complete system prompt the model receives — the "AI memory" pane's
    *  one hard promise is that what it shows is EXACTLY this, nothing more. */
-  system_prompt: z23.string().min(40).max(INSTRUCTIONS_MAX3),
+  system_prompt: z33.string().min(40).max(INSTRUCTIONS_MAX3),
   /**
    * The business's facts, as fields.
    *
@@ -2646,24 +2666,24 @@ var BrainConfigSchema3 = z23.object({
    * it REPLACES system_prompt as the source the prompt is built from.
    */
   profile: BusinessProfileSchema3.optional(),
-  fallbacks: z23.object({
+  fallbacks: z33.object({
     /** Sent when no model key is configured. */
-    greeting: z23.string().min(1).max(2e3),
+    greeting: z33.string().min(1).max(2e3),
     /** Sent when the model call failed. */
-    error: z23.string().min(1).max(2e3),
+    error: z33.string().min(1).max(2e3),
     /** Sent for voice notes / photos before escalating. */
-    non_text: z23.string().min(1).max(2e3)
+    non_text: z33.string().min(1).max(2e3)
   }).strict()
 }).strict();
-var NotificationsConfigSchema3 = z23.object({
-  escalation_emails: z23.array(z23.string().email()).min(1).max(10),
-  from: z23.string().max(200).optional()
+var NotificationsConfigSchema3 = z33.object({
+  escalation_emails: z33.array(z33.string().email()).min(1).max(10),
+  from: z33.string().max(200).optional()
 }).strict();
-var CalendarConfigSchema3 = z23.object({
-  ical_url: z23.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
+var CalendarConfigSchema3 = z33.object({
+  ical_url: z33.string().max(2e3).refine((u) => /^(https?|webcal):\/\/\S+$/i.test(u), "An https:// or webcal:// address")
 }).strict();
-var FeaturesConfigSchema3 = z23.object({ vision: z23.boolean().optional() }).strict();
-var TenantConfigSchema3 = z23.object({
+var FeaturesConfigSchema3 = z33.object({ vision: z33.boolean().optional() }).strict();
+var TenantConfigSchema3 = z33.object({
   brain: BrainConfigSchema3.optional(),
   notifications: NotificationsConfigSchema3.optional(),
   calendar: CalendarConfigSchema3.optional(),
@@ -2691,14 +2711,14 @@ function checkDay3(h, day, ctx) {
   const close = h.close ?? void 0;
   if (!!open !== !!close) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: at2(open ? "close" : "open"),
       message: `${name} needs both an opening and a closing time, or neither.`
     });
   }
   if (open && close && close <= open) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: at2("close"),
       message: `${name} closes at or before it opens.`
     });
@@ -2706,7 +2726,7 @@ function checkDay3(h, day, ctx) {
   const iv = h.intervals ?? [];
   if (iv.length > MAX_INTERVALS_PER_DAY3) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: at2("intervals"),
       message: `${name} can be split into at most ${MAX_INTERVALS_PER_DAY3} shifts.`
     });
@@ -2714,7 +2734,7 @@ function checkDay3(h, day, ctx) {
   iv.forEach((x, n) => {
     if (x.close <= x.open) {
       ctx.addIssue({
-        code: z23.ZodIssueCode.custom,
+        code: z33.ZodIssueCode.custom,
         path: at2("intervals", n, "close"),
         message: `${name}: a shift has to close after it opens.`
       });
@@ -2724,7 +2744,7 @@ function checkDay3(h, day, ctx) {
   for (let n = 1; n < sorted.length; n++) {
     if (sorted[n].open < sorted[n - 1].close) {
       ctx.addIssue({
-        code: z23.ZodIssueCode.custom,
+        code: z33.ZodIssueCode.custom,
         path: at2("intervals", n, "open"),
         message: `${name}: two shifts overlap.`
       });
@@ -2735,21 +2755,21 @@ function checkClosure3(c, n, ctx) {
   const at2 = (...rest) => ["brain", "profile", "closures", n, ...rest];
   if (!isRealDate3(c.date)) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: at2("date"),
       message: `${c.date} is not a date on the calendar.`
     });
   }
   if (c.until && !isRealDate3(c.until)) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: at2("until"),
       message: `${c.until} is not a date on the calendar.`
     });
   }
   if (c.until && c.until < c.date) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: at2("until"),
       message: "A closure cannot end before it starts."
     });
@@ -2757,14 +2777,14 @@ function checkClosure3(c, n, ctx) {
 }
 var TenantConfigWriteSchema3 = TenantConfigSchema3.superRefine((cfg, ctx) => {
   if (cfg.calendar && !feedUrlOk3(cfg.calendar.ical_url)) {
-    ctx.addIssue({ code: z23.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords3("address") ?? "Not an address the receptionist may read." });
+    ctx.addIssue({ code: z33.ZodIssueCode.custom, path: ["calendar", "ical_url"], message: feedProblemWords3("address") ?? "Not an address the receptionist may read." });
   }
   const p = cfg.brain?.profile;
   if (!p) return;
   for (const [day, h] of Object.entries(p.hours ?? {})) if (h) checkDay3(h, day, ctx);
   if ((p.closures?.length ?? 0) > MAX_CLOSURES3) {
     ctx.addIssue({
-      code: z23.ZodIssueCode.custom,
+      code: z33.ZodIssueCode.custom,
       path: ["brain", "profile", "closures"],
       message: `At most ${MAX_CLOSURES3} closures.`
     });
@@ -2842,31 +2862,31 @@ function cleanAnswer3(raw) {
   if (cut >= 0) s = s.slice(0, cut);
   return s.replace(/<\/?[a-z_]+(\s[^>]*)?>/gi, "").replace(/\s+$/g, "").trim();
 }
-var AskFinishSchema3 = z33.object({
-  answer: z33.string().catch("").transform((s) => clip3(1500)(cleanAnswer3(s))),
-  citations: z33.array(
-    z33.object({
-      kind: z33.enum(ASK_CITATION_KINDS3).catch("page"),
-      id: z33.string().catch("").transform(clip3(200)),
-      label: z33.string().catch("").transform(clip3(80))
+var AskFinishSchema3 = z43.object({
+  answer: z43.string().catch("").transform((s) => clip3(1500)(cleanAnswer3(s))),
+  citations: z43.array(
+    z43.object({
+      kind: z43.enum(ASK_CITATION_KINDS3).catch("page"),
+      id: z43.string().catch("").transform(clip3(200)),
+      label: z43.string().catch("").transform(clip3(80))
     })
   ).catch([]).transform((a) => a.filter((c) => c.id && c.label).slice(0, ASK_CAPS3.citations)),
-  followups: z33.array(z33.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))),
-  navigate: z33.object({ to: z33.string().catch(""), label: z33.string().catch(""), now: z33.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
-  language: z33.enum(ASK_LANGUAGES3).catch("other")
+  followups: z43.array(z43.string()).catch([]).transform((a) => a.map((s) => s.trim()).filter(Boolean).slice(0, ASK_CAPS3.followups).map((s) => s.slice(0, 90))),
+  navigate: z43.object({ to: z43.string().catch(""), label: z43.string().catch(""), now: z43.boolean().catch(false) }).catch({ to: "", label: "", now: false }).transform((n) => n.to.trim() ? { to: n.to.trim().replace(/^#?\/+/, "").slice(0, 200), label: n.label.trim().slice(0, 60) || "Open", now: n.now === true } : null),
+  language: z43.enum(ASK_LANGUAGES3).catch("other")
 });
 var ASK_UNDO_MS3 = 10 * 6e4;
-var AskProposalOutcomeSchema3 = z33.object({
-  state: z33.enum(["done", "dismissed", "failed", "undone"]),
-  receipt: z33.string().max(300).catch(""),
-  atMs: z33.number().catch(0),
-  undo: z33.record(z33.string(), z33.unknown()).nullable().optional()
+var AskProposalOutcomeSchema3 = z43.object({
+  state: z43.enum(["done", "dismissed", "failed", "undone"]),
+  receipt: z43.string().max(300).catch(""),
+  atMs: z43.number().catch(0),
+  undo: z43.record(z43.string(), z43.unknown()).nullable().optional()
 });
-var AskSettingsChangeSchema3 = z33.discriminatedUnion("op", [
-  z33.object({ op: z33.literal("add_closure"), date: z33.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z33.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z33.string().max(200).optional() }),
-  z33.object({ op: z33.literal("set_hours"), day: z33.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z33.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z33.string().regex(/^\d{2}:\d{2}$/).nullable() }),
-  z33.object({ op: z33.literal("add_note"), title: z33.string().min(1).max(80), text: z33.string().min(1).max(1200) }),
-  z33.object({ op: z33.literal("add_service"), name: z33.string().min(1).max(80), duration_min: z33.number().int().min(1).max(1440).optional() })
+var AskSettingsChangeSchema3 = z43.discriminatedUnion("op", [
+  z43.object({ op: z43.literal("add_closure"), date: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/), until: z43.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(), note: z43.string().max(200).optional() }),
+  z43.object({ op: z43.literal("set_hours"), day: z43.enum(["mon", "tue", "wed", "thu", "fri", "sat", "sun"]), open: z43.string().regex(/^\d{2}:\d{2}$/).nullable(), close: z43.string().regex(/^\d{2}:\d{2}$/).nullable() }),
+  z43.object({ op: z43.literal("add_note"), title: z43.string().min(1).max(80), text: z43.string().min(1).max(1200) }),
+  z43.object({ op: z43.literal("add_service"), name: z43.string().min(1).max(80), duration_min: z43.number().int().min(1).max(1440).optional() })
 ]);
 var FIRST3 = { kind: "first_name", label: "First name", example: "Dani" };
 var BUSINESS3 = { kind: "business_name", label: "Business name", example: "Luna Studio" };
@@ -2937,9 +2957,9 @@ var SOLE_PROP_CEILING_SENTENCE3 = `This is the sole-proprietor registration: one
 var SOLE_PROP_TEXTING_SENTENCE3 = `Texting is on. ${SOLE_PROP_CEILING_SENTENCE3}`;
 var SIGNUP_NAME_MIN3 = 2;
 var SIGNUP_NAME_MAX3 = 120;
-var SignupSchema3 = z43.object({
-  name: z43.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
-  email: z43.string().trim().toLowerCase().email("Enter a work email address.").max(254),
+var SignupSchema3 = z53.object({
+  name: z53.string().trim().min(SIGNUP_NAME_MIN3, "Give the business a name of at least 2 characters.").max(SIGNUP_NAME_MAX3, "That name is too long \u2014 120 characters at most."),
+  email: z53.string().trim().toLowerCase().email("Enter a work email address.").max(254),
   /**
    * The credential, and the reason it is OPTIONAL here rather than required.
    *
@@ -2953,17 +2973,17 @@ var SignupSchema3 = z43.object({
    *
    * The cap here is a body-size guard, not the rule; the rule is bytes.
    */
-  password: z43.string().max(200).optional(),
+  password: z53.string().max(200).optional(),
   /** IANA zone from the device; the database validates it and the route retries without one it does not know. */
-  timezone: z43.string().trim().min(1).max(64).optional(),
+  timezone: z53.string().trim().min(1).max(64).optional(),
   /** The invite code, when sign-up is by invitation. */
-  code: z43.string().trim().max(80).optional()
+  code: z53.string().trim().max(80).optional()
 }).strict();
-var PendingWorkspaceSchema3 = z43.object({
-  name: z43.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
+var PendingWorkspaceSchema3 = z53.object({
+  name: z53.string().trim().min(SIGNUP_NAME_MIN3).max(SIGNUP_NAME_MAX3),
   // A clock Postgres would refuse is dropped here, so the owner's first Create
   // never fails over a zone a stranger's device reported.
-  timezone: z43.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
+  timezone: z53.string().trim().min(1).max(64).nullish().transform((v) => v && isTimezone3(v) ? v : null)
 });
 function isTimezone3(raw) {
   if (typeof raw !== "string" || !raw.trim()) return false;
@@ -3055,24 +3075,26 @@ function kindOf(d) {
   return d.messageId ? "draft" : "answer";
 }
 async function wireFacts(db, d) {
-  const { data, error } = await db.from("conversations").select("paused_until, contacts (consent, dnc, marketing_consent, erased_at), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
+  const { data, error } = await db.from("conversations").select("paused_until, assignee_user_id, contacts (consent, dnc, marketing_consent, erased_at, erasing_since), tenants (status)").eq("id", d.conversationId).eq("tenant_id", d.tenantId).maybeSingle();
   if (error) throw new Error(`deliver: cannot read the wire for conversation ${d.conversationId}: ${error.message}`);
   if (!data) throw new Error(`deliver: no conversation ${d.conversationId} in workspace ${d.tenantId}`);
   const row = data;
   return {
     pausedUntil: row.paused_until ?? null,
-    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null },
+    assignee: row.assignee_user_id ?? null,
+    contact: row.contacts ?? { consent: null, dnc: null, marketing_consent: null, erased_at: null, erasing_since: null },
     tenantStatus: row.tenants?.status ?? null
   };
 }
 function refusalFor(d, f, nowMs) {
-  if (f.contact.erased_at) return "erased";
+  if (f.contact.erased_at || f.contact.erasing_since) return "erased";
   if (d.channel === "sms" && d.purpose === "marketing") return "sms_carries_no_promotions";
   const may = mayMessageFor(f.contact, d.purpose, { proactive: d.proactive });
   if (!may.ok) return may.reason;
   const kind = kindOf(d);
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
+  if (kind === "draft" && f.assignee) return "human_has_it";
   if (kind !== "draft" && kind !== "system" && f.pausedUntil && nowMs < new Date(f.pausedUntil).getTime()) return "human_has_it";
   return null;
 }
@@ -3653,15 +3675,20 @@ async function runPlaybook(ports, cmd) {
     { byThis: ctx.touches.byThis.get(p.id) ?? /* @__PURE__ */ new Map(), byAny: ctx.touches.byAny },
     now.getTime()
   );
-  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) eligible = eligible.slice(0, Math.max(0, Math.floor(ctx.health.limitPerDay)));
+  let dropped = 0;
+  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) {
+    const keep = Math.max(0, Math.floor(ctx.health.limitPerDay));
+    dropped = eligible.length - keep;
+    eligible = eligible.slice(0, keep);
+  }
   if (eligible.length === 0) {
-    await record({ mode, eligible: 0 });
+    await record({ mode, eligible: 0, ...dropped ? { dropped } : {} });
     return { outcome: "empty", eligible: 0, mode };
   }
   const specs = parseParamSpecs(p.params);
   const factsOf = (r) => {
     const v = ctx.visits.get(r.id);
-    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz);
+    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? v?.next ?? null : v?.last ?? null, ctx.tz, open ? open.at : now);
   };
   const n = eligible.length;
   const made = await assembleRun(ports, {
@@ -3815,7 +3842,11 @@ async function createBroadcast(ports, cmd) {
 async function approveRun(ports, cmd) {
   const b = cmd.row;
   if (b.state !== "pending_approval") throw new AppError("conflict", "This run is not waiting for approval.", 409);
-  const open = nextOpenMoment(await ports.timezone(), cmd.now);
+  const tz = await ports.timezone();
+  if (b.playbook_id && b.run_for && localDate(tz, cmd.now) !== b.run_for) {
+    throw new AppError("conflict", `This run was made for ${b.run_for} and that day has passed: its people and its words were that day's. Skip it; the next run reads the calendar again.`, 409);
+  }
+  const open = nextOpenMoment(tz, cmd.now);
   const at = open.at;
   if (!await ports.release(b.id, at)) throw new AppError("conflict", "This run just changed state; look again.", 409);
   try {

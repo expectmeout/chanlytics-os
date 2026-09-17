@@ -16,7 +16,7 @@ test.describe("Today on a real workspace", () => {
   test("one queue: every row has a sentence, a state line and one verb; the hero keeps the narrative", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator(".brief")).toBeVisible();
+    await expect(page.getByTestId("today-standing")).toBeVisible();
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
     const rows = queue.locator(".cl-attn-row");
@@ -27,12 +27,13 @@ test.describe("Today on a real workspace", () => {
       await expect(row.locator(".cl-attn-cta.primary")).toHaveCount(1);
     }
     if (n === 0) await expect(queue.getByText("All caught up")).toBeVisible();
-    // The rows live in the queue alone: the hero no longer repeats them.
-    await expect(page.locator(".brief").getByText("Open and reply")).toHaveCount(0);
+    // The rows live in the queue alone: neither the standing line above it nor the recap under it repeats them.
+    await expect(page.getByTestId("today-standing").getByText("Open and reply")).toHaveCount(0);
+    await expect(page.getByTestId("today-recap").getByText("Open and reply")).toHaveCount(0);
     await expect(page.getByText("Agent Command")).toHaveCount(0);
     // Nothing invented: no dollar amounts in any fact or tile on a page with no
     // revenue column. A customer's own words may name a price; the numbers may not.
-    for (const cell of await page.locator(".brief .stat-cell, .rp2-tile").allInnerTexts()) expect(cell).not.toMatch(/\$\d/);
+    for (const cell of await page.locator(".today-standing, .today-recap-line, .rp2-tile").allInnerTexts()) expect(cell).not.toMatch(/\$\d/);
   });
 
   test("the day beside the queue: today and tomorrow from the calendar when there is one, nothing when there is not", async ({ page }) => {
@@ -59,8 +60,8 @@ test.describe("Today on a real workspace", () => {
     }
     await expect(day.getByRole("button", { name: /Open Calendar/ })).toBeVisible();
     await expect(day.getByTestId("today-day-reminders")).toBeVisible();
-    // The facts strip carries the day's two beside the recap's four.
-    await expect(page.locator(".brief .stat-cell").filter({ hasText: "Appointments today" })).toHaveCount(1);
+    // The day's own numbers join the recap's sentence under the work; the strip of cards they sat in is gone (#556).
+    await expect(page.getByTestId("today-recap-line")).toContainText(/\d+ appointments? today/);
   });
 
   test("below the core: the period as Reports counts it, where people are, and what happened while away", async ({ page }) => {

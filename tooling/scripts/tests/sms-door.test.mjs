@@ -411,7 +411,7 @@ test("a text on an approved line is answered on that line: the subaccount's own 
     assert.deepEqual(w.left().texts, [{
       url: `${TWILIO}/Accounts/${w.SUB}/Messages.json`,
       authorization: `Basic ${Buffer.from(`${w.SUB}:${w.TOKEN}`).toString("base64")}`,
-      form: { MessagingServiceSid: w.SERVICE, To: from, Body: `${GREETING}\n${SMS_FOOTER}` },
+      form: { MessagingServiceSid: w.SERVICE, To: from, Body: `${GREETING}\n${SMS_FOOTER}`, StatusCallback: "https://chanlytics-messaging.vercel.app/api/sms-status" },
     }], "one text, on this workspace's own line and account, never the platform's master");
     assert.deepEqual(seen.sent.map((s) => [s.tenantId, s.channel, s.to]), [[w.T, "sms", from.slice(1)]], "the answer went through the workspace's sms wire");
     assert.deepEqual(seen.escalations.map((e) => e.reason), ["brain_error"], "and with no model it is the greeting, handed to a person as everywhere else");

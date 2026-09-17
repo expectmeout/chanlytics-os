@@ -15,17 +15,24 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import type { CalendarPerson } from "./workspace/contracts.js";
+import { erasedTombstones } from "./erased.js";
 
 export interface AddedFromCalendar {
   seen: number;
   added: number;
   named: number;
+  /** Appointments whose person asked to be erased: left erased, never made again from the calendar. */
+  erased: number;
 }
 
 export async function addPeopleFromCalendar(db: SupabaseClient<Database>, tenantId: string, rows: CalendarPerson[]): Promise<AddedFromCalendar> {
-  const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0 };
+  const out: AddedFromCalendar = { seen: rows.length, added: 0, named: 0, erased: 0 };
   if (!rows.length) return out;
   const phones = rows.map((r) => r.phone);
+  // A person who asked to be erased is not brought back by their own
+  // appointment: the tombstone keeps a keyed digest of the number (00124),
+  // and an appointment that names it is left alone.
+  const gone = await erasedTombstones(db, tenantId, phones);
   const { data: existing, error } = await db
     .from("contacts")
     .select("id, phone_e164, display_name")
@@ -37,6 +44,7 @@ export async function addPeopleFromCalendar(db: SupabaseClient<Database>, tenant
   const known = new Map((existing ?? []).map((c) => [c.phone_e164 as string, c]));
 
   for (const r of rows) {
+    if (gone.has(r.phone)) { out.erased += 1; continue; }
     const have = known.get(r.phone);
     if (have) {
       // A name we did not have is worth keeping; one we have is never overwritten.

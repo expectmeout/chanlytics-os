@@ -795,6 +795,7 @@ interface BroadcastRef {
     name: string;
     recipient_count: number | null;
     playbook_id: string | null;
+    run_for?: string | null;
 }
 interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
     /** The business's clock, for the hours a send may go out in. */

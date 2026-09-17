@@ -124,7 +124,7 @@ export interface TemplateValuesPorts {
 }
 
 /** A run or broadcast as the route's scope loaded it. */
-export interface BroadcastRef { id: string; tenant_id: string; state: string; name: string; recipient_count: number | null; playbook_id: string | null }
+export interface BroadcastRef { id: string; tenant_id: string; state: string; name: string; recipient_count: number | null; playbook_id: string | null; run_for?: string | null }
 
 export interface CreateBroadcastPorts extends AssemblePorts, TemplateValuesPorts {
   /** The business's clock, for the hours a send may go out in. */

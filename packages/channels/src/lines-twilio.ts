@@ -233,7 +233,10 @@ export function twilioProvider(http: TwilioHttp = fetchTwilio): LineProvider {
     },
 
     async sendSms(acct, o) {
-      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), { MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body });
+      const a = await http(acct, "POST", twilioUrls.messages(acct.sid), {
+        MessagingServiceSid: o.serviceSid, To: o.to, Body: o.body,
+        ...(o.statusCallback ? { StatusCallback: o.statusCallback } : {}),
+      });
       const ok = a.status >= 200 && a.status < 300 && !!str(a.body, "sid");
       return { ok, sid: str(a.body, "sid"), status: a.status, code: typeof a.body?.code === "number" ? (a.body.code as number) : null };
     },

@@ -1,6 +1,6 @@
 # Chanlytics OS As-Built
 
-A system reference in PRD form: every system and subsystem of Chanlytics OS, the logic it runs, and what it is wired to. It is written from the code at commit `14efd153` (PR #563, 16 September 2026), not from the plans. The first edition was cut at `95f7a22` (PR #327, 10 September); 236 pull requests landed between the two, and every sheet below was re-read against the code. Where the built system departs from a plan, or a known gap stands, the note is marked **Δ** — a redline, in the drafting sense: the mark on a drawing that records what was actually built. They are collected in S-24, with the six the first edition carried that have since closed.
+A system reference in PRD form: every system and subsystem of Chanlytics OS, the logic it runs, and what it is wired to. It is written from the code at commit `576891d2` (PR #580, 16 September 2026), not from the plans. The first edition was cut at `95f7a22` (PR #327, 10 September); 253 pull requests landed between the two, and every sheet below was re-read against the code. Where the built system departs from a plan, or a known gap stands, the note is marked **Δ** — a redline, in the drafting sense: the mark on a drawing that records what was actually built. They are collected in S-24, with the six the first edition carried that have since closed.
 
 | Sheet | Covers |
 |---|---|
@@ -228,7 +228,7 @@ Six modules, each for one reason: `server/service.ts` (scheduling jobs, signing 
 
 `/signup` → `POST /api/v1/signup` (public; same-origin; limited per network and per address, and a stranger counts against the shared limit; an invite code compared in constant time when `SIGNUP_CODE` is set) → the service role creates the auth user with the password, keeps what the form said — the workspace's name and details — **on the auth user**, and sends the confirmation code. **The workspace waits for its owner**: the person who enters the code makes it, signed in, through `create_workspace`. Nothing exists for an address until its owner does; a stranger typing someone else's address gets that person nothing they did not ask for. The page says the same sentence whether or not the address was known; a code that could not be sent is said, not answered 500; and the platform mailbox is told through `/api/admin/signup-notify`. The front door has three postures: open, invite code, and waitlist (`waitlist`, 00088). The first-workspace screen joins the waitlist itself and offers a way out.
 
-> **Δ1 · Open** Production sign-up runs open. Closing the front door (gate 2 of the launch plan) is shipped as code and waits on an environment change, which is Ruben's decision.
+> **Δ1 · Closed (16 September)** Production sign-up runs on the waitlist posture: `SIGNUP_CODE` is `waitlist` on the dashboard project, redeployed and read back from outside (`posture: "waitlist"`). Opening the door, or handing out invite codes, is the same environment change in reverse.
 
 A signed-in person with no workspace sees `CreateWorkspace` instead of the app, and the workspace menu offers another workspace the same way (`create_workspace`, five an hour). A new workspace opens at its slug, so the app boots once and lands on its Setup.
 
@@ -256,6 +256,7 @@ The one surface that crosses workspaces on purpose, and the pane that says wheth
   - **Account events** (quality rating, messaging limit, template status, account review) are keyed on the WABA, not a number: routed to the workspace by its WABA id, kept as events, and alerted when they change what the business can do (`lib/waba-events.ts`). A template's new status lands on its row.
   - **messages** are routed by `metadata.phone_number_id` through `tenant_channels` (`kind 'whatsapp'`, `external_id`). Found: that workspace. The lookup *failed*: an infrastructure blip, which only the environment's own pilot number may ride out on its baked profile. The lookup *answered* and the channel is not active: unroutable — nothing is persisted or answered, an `ingest.unroutable` event is kept, and a person is told, throttled. Each message runs in its own try/catch, so one failure cannot swallow the rest of the batch.
   - **statuses** (sent, delivered, read, failed) update the message found by its WhatsApp id, and each receipt keeps its time (00111). The `messages_guard` trigger keeps status moving forward and makes `failed` and `canceled` terminal. Receipts that stop coming are watched: a message Meta accepted with no delivered, read or failed receipt for six hours, in a workspace where nothing has been receipted since, pages the platform (`receipts-watch.ts`) — the webhook, not a phone that is off.
+  - **SMS statuses** arrive the same way at `/api/sms-status`: every text names it as its `StatusCallback`, the door proves `X-Twilio-Signature` with the line's own subaccount token, and delivered, read or a carrier's refusal (with its code) move the row through the same forward-only writer (#579). Before it, a text was `sent` forever.
   - **smb_message_echoes** — the owner replied from the WhatsApp Business app — pause that thread for the workspace's own pause length, recorded on the conversation.
 
 ### 5.2 One message — `handleInbound`
@@ -313,7 +314,7 @@ The gates, in the order they run. Each stop reports through the sink, and tells 
 | 23 | The hold plan | Veto window, or confidence below `min_confidence`: written as a `queued` draft with an `outbound_send` job (`draft-queue.ts`, the one writer, shared with steer) |
 | 24 | Send now | Outbound row written `sent` only when the provider accepted it, and `usage.llm_tokens`; on a handoff, pause + escalation + an alert whose email tells the truth; on a failed send, escalation `send_failed` |
 
-A draft that cannot be queued is sent at once and recorded (`vetoFallback`): an un-vetoed reply beats silence.
+A veto-window draft that cannot be queued is sent at once and recorded (`vetoFallback`): an un-vetoed reply beats silence. A low-confidence hold that cannot be queued sends nothing: the floor is the owner's policy, so the thread is a person's for the pause window and the owner is told what the customer said (#577). The brain's plain retry, taken when the schema is refused, carries a record at confidence 0 so the dial still holds it (#577). At the wire, a draft on a thread a person has taken over is refused (`human_has_it`), the take-over's withdrawal kept for the case it failed (#577).
 
 **`ingest_inbound`** is the concurrency gate, one RPC in one transaction: an advisory lock per workspace, channel and identity; dedupe before any side effect; contact, identity and conversation upserts; the message insert; an archived or snoozed thread reopened (never overriding a person who has it); the WhatsApp 24-hour window from `last_wa_inbound_at`; metering; and the consent keywords — STOP, BAJA, UNSUBSCRIBE and ALTO opt out; START, UNSTOP, RESUME and ALTA opt back in to conversation; YES OFFERS and SÍ OFERTAS answer the separate marketing question (00095), with the words, the channel and the provider's id kept on the event (00110). It returns the consent it just wrote, so the gate needs no second query.
 
@@ -396,7 +397,7 @@ sequenceDiagram
 
 A recording reaches a browser only through `/api/v1/calls/:id/recording`, as a five-minute signed URL. The provider's unsigned URL is never stored on a row, because `calls` is in the realtime publication and every column reaches every member's browser.
 
-> **Δ2 · Open** An empty Retell function secret should open neither door (`?key=` on the tool calls and the call start). PR #479 closes it and waits on Ruben.
+> **Δ2 · Closed (16 September)** PR #479 merged: an empty Retell function secret opens none of the three doors (the tool calls, the call start, the availability tool), each probed from outside and refusing with 401. What remains is the call webhook's `?key=` fallback: PR #573 retires it (the signature becomes the only credential, provisioning writes a bare `webhook_url`, the converger strips a leftover key) and is held until a real delivery shows `sig: true` and the agents are converged.
 
 ## S-07 · Channels: SMS, lines and carrier registration
 
@@ -433,7 +434,7 @@ Each step records its receipt on the row before the next runs, so a retry resume
 
 > **Δ4 · Open** The live campaign's opt-in confirmation still names the workspace's old name. The campaign's editable fields cannot change it (refused three times); the replace door files a new campaign at a second vetting fee (about $15), and paying it is Ruben's decision.
 
-> **Δ5 · Open** PR #530 — an owner asking for their number to be brought over, and for a broken configuration to be repaired, as two more setup-request kinds (S8, S14 of the launch audit) — waits on Ruben's push of migration 00123 to production, then merges.
+> **Δ5 · Closed (16 September)** PR #530 merged once migration 00123 reached production: an owner asking for their number to be brought over, and for a broken configuration to be repaired, are two more setup-request kinds (S8, S14 of the launch audit).
 
 ## S-08 · The jobs ledger and row clocks
 
@@ -457,7 +458,7 @@ stateDiagram-v2
 
 - It claims **one** job at a time with `claim_due_jobs()` (`FOR UPDATE SKIP LOCKED`, a 90-second lease) for the first 20 seconds of the run, so "claimed" always means "started".
 - A handler that loops yields at 45 seconds and schedules its own follow-up.
-- A row whose lease ran out is claimed again, and `verdictFor` decides: work that speaks to a person (`outbound_send`, `broadcast_send`) **gives up** rather than risk a second message; internal work retries up to three times. The **stale-jobs sweep** (:04, :19, :34, :49 — off the grid the other sweeps tick on) re-claims what the heartbeat missed.
+- A row whose lease ran out is claimed again, and `verdictFor` decides: work that speaks to a person (`outbound_send`, `broadcast_send`) **gives up** rather than risk a second message; internal work retries up to three times. There has been no re-claiming sweep since 00098: a lease that expires is settled by the tick itself. What the ledger cannot see — a queued reply with no job to send it, a customer's message the handler never finished with — the deadman tick finds (S-09, `lib/unfinished.ts`, #578) and puts in front of a person, never answering on its own.
 - `completeJob` and `failJob` are compare-and-swaps on the state *and* the attempt. A failed job is **settled** by kind (a message stops saying "Sending…", a broadcast closes) and its workspace is told (`alertFor`, addressed from the workspace's own settings, naming the channel the reply failed on). A run that fails many jobs at once pages the platform (S-19).
 
 **The handlers** (`packages/jobs/src/handlers.ts`) are thin: each runs a `packages/core` use case over the runtime's ports.
@@ -497,9 +498,8 @@ Every clock in the product is a pg_cron job, and **every clock is registered as 
 | `jobs-tick` | every 10 s | edge `/api/jobs/tick`, only when a job is due | The ledger's heartbeat (S-08) |
 | `expire-stale-pauses` | every 10 s | SQL | Pause expiry |
 | `wake-stale-snoozes` | every 10 s | SQL | Snooze expiry |
-| `stale-jobs-sweep` | :04 :19 :34 :49 | edge `/api/jobs/tick` | Re-claim rows whose lease expired |
 | `call-reconcile` | every 5 min | edge `/api/cron/calls` | Close calls the webhook never ended; retry recording copies; remove audio past retention |
-| `deadman-sweep` | every 10 min | edge `/api/cron/deadman` | An escalation nobody picked up: found in SQL (`deadman_candidates()`), alerted by the edge, once (`deadman_alerted_at`); a workspace with nobody on file to tell pages the platform |
+| `deadman-sweep` | every 10 min | edge `/api/cron/deadman` | An escalation nobody picked up: found in SQL (`deadman_candidates()`), alerted by the edge, once (`deadman_alerted_at`); a workspace with nobody on file to tell pages the platform; and two more questions each tick (`lib/unfinished.ts`, #578): a customer's message older than three minutes with no handled stamp is flagged for a person with their words, and a queued reply older than ten minutes with no scheduled or fired job is failed and flagged |
 | `lines-sweep` | :08 :23 :38 :53 | edge `/api/cron/lines` | Resume line sagas that were cut off |
 | `playbooks-sweep` | hourly at :05 | edge `/api/cron/playbooks` | Run the playbooks whose hour it is (S-14) |
 | `calendar-people-sweep` | hourly at :23 | edge `/api/cron/calendar` | People from calendar appointments (S-15) |
@@ -558,17 +558,20 @@ The other thread verbs: **take over** pauses the receptionist and claims the thr
 - Same-origin writes, validated ids and parsed bodies, and the declared input schema (`server/request-guards.ts`, `route()`).
 - Limits per signed-in person, counted in Postgres so a burst across serverless instances is limited in total (`take_rate`), falling back to memory when the database is slow — and the memory limiter announces itself; money fails closed. The buckets (`RATE`): replies 30 a minute, conversation changes 120, whispers and call controls 20, settings 30, broadcasts 10, playbook changes 30, consent, list and receptionist changes 60, profile edits 60, notification marks 120, report reads 240; an hour holds 10 invitations, 30 team changes, 5 erasures, 5 new workspaces, 60 people added, 5 setup requests, 20 number searches, 3 lines bought, 10 line retries, 10 forwarding changes, 20 business-record changes, 3 registrations; the back office 30 retries, 20 refiles and 5 releases for other workspaces. A refusal is the envelope's `rate_limited` (429) with a retry hint, said in the owner's words.
 - Response headers deny framing (`frame-ancestors`): the app has Send and Approve buttons bound to a session.
+- A Content-Security-Policy, enforced since 17 September (`proxy.ts`, `src/csp.ts`; #569 report-only, #588 the policy as it ships, #595 the flip): `script-src 'self' 'unsafe-inline' https://connect.facebook.net`, so no foreign script origin and no eval; the Supabase project and Meta's origins named for connections, images, media and frames; `object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`, `upgrade-insecure-requests`. Not a nonce, though a nonce is what a policy exists to carry: Next takes the nonce from the request's policy header, and on Vercel that header, set by the proxy, does not reach the render, while a custom header set beside it does (proved on the login page, #587); the same build started on a laptop nonces every script. So inline is allowed by name, and the one thing the policy would have caught beyond that, code from strings, is closed at the source: zod runs jitless before the first schema is built (#590, #592). The nightly walks every public and signed-in page and fails on the first violation the console reports (`e2e/csp.spec.ts`); run 35170328083 walked clean, and the flip followed. The road back to a nonce is Vercel's self-fetch pattern, the day it is worth its cost.
 
-> **Δ6 · Open** No Content-Security-Policy beyond `frame-ancestors` (the ported mockup's inline styles need nonce plumbing first, and a policy that provides no protection while looking like it does is worse than none), and no CAPTCHA on the auth endpoints, so the public anon key can still ask Supabase whether an address has an account.
+> **Δ6 · Closed for the policy (17 September), open for CAPTCHA** The policy enforces (#595) after a clean nightly, in the by-name form above. No CAPTCHA on the auth endpoints yet, so the public anon key can still ask Supabase whether an address has an account.
 
 ### 10.4 Erasure, export and retention
 
 `DELETE /contacts/:id` (owner; five an hour) runs in a fixed order so that a crash leaves a request that can be retried:
 
-1. The Blob job is queued first — its key is the phone digits, which cannot be recomputed after the tombstone.
-2. Storage objects go next; a Storage failure stops everything.
-3. `erase_contact` tombstones the person (every identifier removed, the id kept so the ledger still resolves; no answer about offers survives, 00101) and deletes their messages, calls, identities, policies and events in one transaction.
-4. Ask turns that mention them are scrubbed for every member.
+1. The keys are read while the rows still exist (reads only; a failed read is a retry with nothing to undo).
+2. The block (#581, held for migration 00124): `erasing_since` on the row, so the wire refuses the person from that moment, and `erased_phone_hash` (sha256 of the tenant id and the number, tenant-keyed, no column grant), so the calendar import and a call that began before the request leave the person erased instead of making them again. A new message or a new call from the number is the person coming back.
+3. The Blob job is queued — its key is the phone digits, which cannot be recomputed after the tombstone.
+4. Storage objects go next; a Storage failure stops there, with the person blocked, not live.
+5. `erase_contact` tombstones the person (every identifier removed, the id kept so the ledger still resolves; no answer about offers survives, 00101) and deletes their messages, calls, identities, policies and events in one transaction.
+6. Ask turns that mention them are scrubbed for every member.
 
 The ledger records `erase` twice: the owner's decision, and the system finishing the Blob leg. The other half of the privacy promise is access, and every export leaves a ledger row too (00114): a thread or a call as a text file (members), everyone as a CSV (owner), and **everything** — people, conversations with their messages, calls with their transcripts, and the consent history with who recorded each answer and how — as one JSON file written a section at a time (`export-bundle.ts`, owner). Recordings are not in it: audio is removed on its own schedule. **How long the product keeps what** is stated once (`contracts/retention.ts`) and enforced where stated: call recordings 90 days, the events ledger's evidence kinds 30, Ask threads 90, the bell 90, cron history 14; the privacy page reads the same file.
 
@@ -741,7 +744,7 @@ A standing rule that sends one approved template to people who newly qualify.
 | Visit reminder | The day before an appointment on the calendar | booking |
 | After the visit | The day after a visit, with nothing booked next | reengage |
 
-A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own.
+A run (core `runPlaybook`, shared by the hourly sweep and Run now, every branch tested) is a broadcast: the trigger's people who said yes, minus anyone this playbook reached within its gap (90 days by default), minus anyone any playbook reached this week, longest-unheard first, up to the cap (25 by default); one run per local day, at the playbook's hour (between 9 and 20). The class's mode decides what the run does: **auto** sends now, **veto** schedules it half an hour out with a Stop, **ask** leaves it waiting as `pending_approval` on Today and on Playbooks — and an approval moves the send to the next open moment (00119) — **never** does nothing. A person who presses Run now has decided: it sends unless the class is never. A visit run keeps the visit's own words ("tomorrow at 2:00 PM", the service) on each recipient row. A playbook's card says what it sends, and a run has a page of its own. A visit run is different in three ways (#580): it reminds everyone with a visit, the cap being a fatigue limit for offers (the number's own daily limit is the one ceiling left, and the run's record says when it cut); its words are relative to the moment the send goes, so a run asked for at eleven at night and moved to nine says "today"; and a day's run approved on a later day is refused, and the next sweep reads the calendar again.
 
 ## S-15 · Calendar and availability
 
@@ -875,7 +878,7 @@ Beside the tables: the private `media` bucket (inbound attachments and call reco
 | The edge's contract | `golden-edge.mjs` against a deployed URL: signatures, the frozen public pages | Before an edge release |
 | The receptionist and Ask | `eval-brain.mjs`, `eval-ask.mjs` with their judges; the Ask turn in CI against a scripted model | On a prompt or model change; CI |
 | The ratchet | Assertions that read source text may only get fewer (`source-scan-baseline.json`); a behaviour test replaces each one that goes | CI |
-| Dependencies | Dependabot, weekly and grouped; every workflow action on Node 24, the code on Node 22 | Weekly |
+| Dependencies | Dependabot, weekly and grouped; every workflow action on Node 24, the code on Node 22. Majors are decided one at a time: TypeScript 7 is ignored until tsup's declaration build runs on it; eslint-plugin-react-hooks 7 is in, by its two rules, the compiler lints kept off the mockup (PR #568) | Weekly |
 
 ## S-23 · Operations
 
@@ -914,13 +917,20 @@ The redlines in one place: where the built system departs from a plan, or where 
 
 | Δ | Sheet | Note | Decision with |
 |---|---|---|---|
-| 1 | S-04 | Production sign-up runs open (launch gate 2); closing it is an environment change | Ruben |
-| 2 | S-06 | PR #479: an empty Retell function secret should open neither door | Ruben |
+| 1 | S-04 | Closed: production sign-up runs on the waitlist posture (`SIGNUP_CODE`) | Done |
+| 2 | S-06 | Closed: PR #479 merged, the three Retell doors refuse an empty secret. Follow-on: PR #573 retires the call webhook's `?key=` fallback, held for one signed delivery and a converge | Engineering |
 | 3 | S-07 | The sole-proprietor verification-code leg waits on one real filing | Ruben |
 | 4 | S-07 | The live campaign's opt-in message names the old workspace; the replace door files a new one at a second vetting fee | Ruben |
-| 5 | S-07 | PR #530 (number port-in and repair requests) waits on the push of migration 00123 to production | Ruben |
-| 6 | S-10 | No Content-Security-Policy beyond `frame-ancestors`; no CAPTCHA on sign-in | Engineering |
-| 7 | S-22 | Two Dependabot majors open: TypeScript 7 (#401) and eslint-plugin-react-hooks 7 (#489) | Engineering |
+| 5 | S-07 | Closed: PR #530 merged after migration 00123 reached production | Done |
+| 6 | S-10 | Policy closed: a Content-Security-Policy enforces since 17 September (#588 the policy, #595 the flip), inline by name because Vercel keeps the nonce from the render; no CAPTCHA on sign-in | Engineering |
+| 7 | S-22 | Closed: TypeScript 7 ignored until the toolchain runs on it, eslint-plugin-react-hooks 7 taken (PR #568). Three new majors (next 16, eslint 10, globals 17) are under CI and get the same one-at-a-time decision | Engineering |
+| 8 | S-05 | Closed: a low-confidence hold that could not be queued sent the reply anyway; the brain's plain retry left the confidence dial off; a taken-over thread could take a draft the withdrawal missed (PR #577) | Done |
+| 9 | S-08 | Closed: a message the handler never finished with, and a queued reply with no job, were noticed by nothing; the deadman tick finds both (PR #578) | Done |
+| 10 | S-07 | Closed: SMS delivery statuses were never requested or received, so a filtered text looked delivered (PR #579) | Done |
+| 11 | S-14 | Closed: visit reminders past the cap were dropped, worded for the wrong day, approvable a day late (PR #580) | Done |
+| 12 | S-10 | Erasure deleted Storage before the tombstone, and the erased were brought back by their own appointment or a late call; PR #581 fixes both and waits on the push of migration 00124 | Ruben |
+
+Rows 8 to 12 come from the 16 September architecture review, a design audit of this document, checked finding by finding against the code before anything was changed. Of its eleven P0s, five were already handled in the code or wrong about it (Stripe ordering, consent scoping, the final dispatch gate, reminders sharing the promotional cap, stale data after a workspace switch), four were real and are closed above, and two things the review had not seen (SMS statuses, the reminder cap) were found by checking. What it recommended beyond these — a three-record send model, a consent ledger, usage reservations, execution lanes, tracing objectives, a strangler rewrite of the bridge — is deliberately not taken at this volume; a delivery outcome that stays unknown after a worker's death is the one open thread, kept honest by the settle path's note and the owner's alert until a late receipt can rescue it.
 
 Closed since the first edition: QStash (Δ1 then — the responder and its variables removed, there being no account to retry from); tenancy by convention (Δ2 then — `route()` scopes, `choose_workspace`, the workspace in the URL); rules in two apps (Δ7 — three groups of `packages/core`); realtime unfiltered by workspace (Δ8 — #351); the legacy frontend's future and the demo surfaces (Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%); nothing paging the operator (Δ11 — the pager, six conditions).
 

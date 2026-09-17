@@ -184,6 +184,23 @@ test("a visit run keeps each person's words on their row, from the visit the run
   assert.deepEqual(of("enrol")[0][2], [{ contact_id: "a", facts: { visit_when: "tomorrow at 2:00 PM", visit_service: "Balayage" } }]);
 });
 
+test("a reminder run asked for at night goes at nine and says \"today\": the words are relative to the moment the send goes; every visit is reminded, whatever the cap", async () => {
+  const night = new Date("2026-09-07T03:00:00Z"); // 23:00 in New York, September 6
+  const next = visit("2026-09-07T18:00:00Z", "Balayage"); // September 7, 2:00 PM in New York: tomorrow at eleven, today at nine
+  const visits = new Map(["a", "b", "c"].map((id) => [id, { timezone: TZ, source: "calendar", state: "ok", next, last: null }]));
+  const rows = ["a", "b", "c"].map((id) => toPersonRowVM(dto(id, { visits: visits.get(id) }), TZ, night));
+  const f = fakes();
+  const r = await runPlaybook(f.ports, cmd({
+    playbook: playbook({ trigger: "visit_tomorrow", policy_class: "booking", template_name: "visit_reminder", params: [{ kind: "visit_when" }, { kind: "visit_service" }], cap_per_run: 1 }),
+    ctx: context({ now: night, modes: new Map([["booking", "auto"]]), calendar: "ok", people: rows, visits }),
+    by: { kind: "user", userId: "u1" },
+  }));
+  assert.equal(r.outcome, "sent");
+  assert.equal(r.eligible, 3, "the cap is for offers: all three are reminded");
+  assert.equal(r.moved_from, night.toISOString());
+  assert.deepEqual(f.of("enrol")[0][2].map((e) => e.facts.visit_when), ["today at 2:00 PM", "today at 2:00 PM", "today at 2:00 PM"], "read at nine, the visit is today");
+});
+
 test("a run that could not be written says so and stops: no row, nothing else; the people not written, the row failed with its reason; the job refused, the row failed with its reason and no decision", async () => {
   const noRow = fakes({ create: new Error("insert refused") });
   assert.deepEqual(await runPlaybook(noRow.ports, cmd()), { outcome: "failed", error: "insert refused" });

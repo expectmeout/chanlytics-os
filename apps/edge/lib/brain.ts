@@ -36,7 +36,11 @@ export interface BrainReply {
   reason?: "human_token" | "refusal" | "brain_error";
   usage?: { input_tokens: number; output_tokens: number };
   /** What the row remembers about this answer; absent when the model's
-   *  answer could not be read and the holding reply went out instead. */
+   *  answer could not be read and the holding reply went out instead. An
+   *  answer read without its record (the schema refused, the plain retry
+   *  taken) carries a record that says so, at confidence 0: the confidence
+   *  dial then holds it where the owner set a floor, instead of the outage
+   *  quietly switching the floor off. */
   meta?: BrainMeta;
 }
 
@@ -68,7 +72,13 @@ function legacyReply(raw: string, fallbackText: string, stopReason: string, usag
     text = fallbackText;
     escalate = true;
   }
-  return { text, escalate, reason: escalate ? "human_token" : undefined, usage };
+  return {
+    text,
+    escalate,
+    reason: escalate ? "human_token" : undefined,
+    usage,
+    meta: { intent: "other", confidence: 0, reason: "read without its record: the schema was refused and the plain retry answered", facts_used: [], language: "other", model: BRAIN_MODEL },
+  };
 }
 
 export async function generateReply(

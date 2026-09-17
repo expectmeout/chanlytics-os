@@ -21,6 +21,9 @@ const PARAM_FOLLOWED_AS_PROP = new Set(["admin", "inbox", "broadcasts"]);
 // A flipped surface whose fetch failed. Painting the mockup here would show
 // invented customers as real, so the shell says so instead.
 const routeFailed = (page, param) => !!window.__surfaceFailed && window.__surfaceFailed(page, param);
+// A real workspace: the bridge is here (it publishes the registry) and the session did not declare itself a demo.
+// Not a gate (the honesty gate below is the one gate); which of two real drawings a route gets before its surface lands.
+const realWorkspace = () => !window.__DEMO_MODE && !!window.__surfaceState;
 
 const SurfaceUnavailable = ({ onNavigate }) => (
   <FailedRead
@@ -304,9 +307,20 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   }, []);
   // A list's own route (`segments/<id>`) is People with that list picked on a real workspace; the address says so.
   // Replaced, not pushed, so Back leaves People rather than bouncing through the old route.
+  // Which list an id names is the People surface's to say, and on a cold load of the old route that surface is
+  // still on its way: the redirect waits for it (surface:people when it first lands, surface:clients when a page
+  // of it does) rather than running once, finding nothing, and never running again.
   useShellEffect(() => {
-    if (route.page !== "segments" || !window.__PEOPLE || !window.__listRoute) return;
-    window.location.replace("#/" + window.__listRoute(route.param));
+    if (route.page !== "segments" || !window.__listRoute) return;
+    const names = ["surface:people", "surface:clients"];
+    const go = () => {
+      if (!window.__PEOPLE) return;
+      names.forEach((n) => window.removeEventListener(n, go));
+      window.location.replace("#/" + window.__listRoute(route.param));
+    };
+    if (window.__PEOPLE) { go(); return; }
+    names.forEach((n) => window.addEventListener(n, go));
+    return () => names.forEach((n) => window.removeEventListener(n, go));
   }, [route.page, route.param]);
 
   useShellEffect(() => {
@@ -440,15 +454,18 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     );
     content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
-  } else if (page === "segments" && window.__PEOPLE) {
+  } else if (page === "segments" && (window.__PEOPLE || realWorkspace())) {
     // Lists is a view of People on a real workspace: the list's own route lands on People with that list picked
     // (the People page's rule, window.__listRoute), so Playbooks' list, an answer's jump and a kept address still
     // arrive. Drawn here as that view, and the address is replaced (the effect above) so Back leaves People.
+    // On a cold load the surface is still on its way: People draws with no list picked, never the seeded page,
+    // and the address is replaced the moment the surface lands.
+    const P = window.__PEOPLE || { lists: [], saved: [] };
     const to = window.__listRoute ? window.__listRoute(param) : "clients";
     const kind = to.startsWith("clients/") ? to.slice(8, to.indexOf(":")) : null;
     const listId = kind ? to.slice(to.indexOf(":") + 1) : null;
-    const surfaceList = kind === "seg" ? (window.__PEOPLE.lists || []).find((l) => l.id === listId) : null;
-    const savedMeta = kind === "list" ? (window.__PEOPLE.saved || []).find((s) => s.id === listId) : null;
+    const surfaceList = kind === "seg" ? (P.lists || []).find((l) => l.id === listId) : null;
+    const savedMeta = kind === "list" ? (P.saved || []).find((s) => s.id === listId) : null;
     activeNav = "clients";
     crumbs = surfaceList || savedMeta ? [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : savedMeta.name] : ["People"];
     pane = true;

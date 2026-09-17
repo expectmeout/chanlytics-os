@@ -298,8 +298,8 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
     authorization: `Basic ${Buffer.from(`${s.line.subaccount_sid}:${s.lineToken}`).toString("base64")}`,
   };
   assert.deepEqual(L.left().twilio, [
-    { ...line, form: { MessagingServiceSid: s.line.messaging_service_sid, To: "+16465550142", Body: "Your table is ready" } },
-    { ...line, form: { MessagingServiceSid: s.line.messaging_service_sid, To: "+16465550143", Body: "See you at 7" } },
+    { ...line, form: { MessagingServiceSid: s.line.messaging_service_sid, To: "+16465550142", Body: "Your table is ready", StatusCallback: "https://chanlytics-messaging.vercel.app/api/sms-status" } },
+    { ...line, form: { MessagingServiceSid: s.line.messaging_service_sid, To: "+16465550143", Body: "See you at 7", StatusCallback: "https://chanlytics-messaging.vercel.app/api/sms-status" } },
   ], "bare digits given their +, an E.164 number left as it was, on this workspace's own account and never the platform's master");
   assert.deepEqual(L.left().graph, [], "a text never leaves on WhatsApp");
 

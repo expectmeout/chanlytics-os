@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isRetryableAuthError } from "@/server/auth-errors";
+import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -81,10 +82,24 @@ function canonicalRedirect(request: NextRequest): NextResponse | null {
   return NextResponse.redirect(url, 308);
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const moved = canonicalRedirect(request);
   if (moved) return moved;
-  let response = NextResponse.next({ request });
+  // The policy composed in src/csp.ts, on the response so the browser
+  // enforces it. Nothing rides on the request: the
+  // nonce a request header would carry does not reach the render on Vercel
+  // (src/csp.ts says what was tried), so the policy names inline by name.
+  const csp = contentSecurityPolicy({
+    supabaseUrl: process.env.NEXT_PUBLIC_SUPABASE_URL,
+    dev: process.env.NODE_ENV !== "production",
+    reportOnly: CSP_HEADER === "content-security-policy-report-only",
+  });
+  const nextWithPolicy = () => {
+    const r = NextResponse.next();
+    r.headers.set(CSP_HEADER, csp);
+    return r;
+  };
+  let response = nextWithPolicy();
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -96,7 +111,7 @@ export async function middleware(request: NextRequest) {
         },
         setAll(cookiesToSet) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
+          response = nextWithPolicy();
           cookiesToSet.forEach(({ name, value, options }) =>
             response.cookies.set(name, value, options),
           );

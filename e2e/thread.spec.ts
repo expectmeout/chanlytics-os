@@ -206,12 +206,14 @@ test.describe("The thread, in the nightly's own workspace", () => {
         await page.setViewportSize(size);
         await freshLoad(page, `#/inbox/th-${id}`);
         const pane = page.locator(".ix-thread-pane");
-        await expect(pane.locator(".ix-take")).toBeVisible();
+        // The thread is yours since the reply: the owned bar carries the decision and its words (I1), never the
+        // take banner beside it.
+        await expect(pane.locator(".ix-take, .ix-owned")).toBeVisible();
         // Measured, not asked: toBeVisible passes a box an overflow has cut to nothing.
         const fit = await pane.evaluate((el) => {
           const edge = el.getBoundingClientRect();
           const words = el.querySelector(".ix-take-body")?.getBoundingClientRect();
-          const inside = [...el.querySelectorAll(".ix-take .btn, .ix-th-actions .btn")].every((b) => {
+          const inside = [...el.querySelectorAll(".ix-take .btn, .ix-owned .cl-bucket-link, .ix-th-actions .btn")].every((b) => {
             const r = b.getBoundingClientRect();
             return r.width === 0 || (r.left >= edge.left - 1 && r.right <= edge.right + 1);
           });
@@ -241,13 +243,18 @@ test.describe("The thread, in the nightly's own workspace", () => {
       await page.setViewportSize({ width: 1280, height: 720 });
     });
 
-    await test.step("the escalation it opened is listed in Today's queue", async () => {
+    await test.step("Today says the reply never reached them: the thread is yours since the reply, so the recap carries it, not the queue", async () => {
       await freshLoad(page, "#/today");
       const queue = page.getByTestId("today-queue");
       await expect(queue).toBeVisible();
-      const row = queue.getByTestId("queue-handoff").filter({ hasText: ROBIN.name });
-      await expect(row).toHaveCount(1);
-      await expect(row).toContainText("a reply failed to send");
+      // One rule (standing.ts): a thread you took by replying is yours, not the queue's, escalation or not; the
+      // Inbox lists it under Needs you as an escalated thread, Today's queue does not repeat it. What Today
+      // must never be quiet about is the failure itself: the recap's warning line, with the door to the thread.
+      await expect(queue.locator(".cl-attn-row").filter({ hasText: ROBIN.name })).toHaveCount(0);
+      const failed = page.getByTestId("today-recap").locator(".brief-beat").filter({ hasText: /failed to deliver/ });
+      await expect(failed).toHaveCount(1);
+      await expect(failed).toContainText("the customer got no answer");
+      await expect(failed.getByRole("button", { name: /See the thread/ })).toBeVisible();
     });
 
     await test.step("snoozed, the thread lets go of the person holding it and keeps the request; woken, it waits for someone", async () => {

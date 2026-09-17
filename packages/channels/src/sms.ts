@@ -136,6 +136,61 @@ export function smsInboundUrl(fnUrl: string): string {
   return `${fnUrl.replace(/\/api\/retell-fn$/, "")}/api/inbound-sms`;
 }
 
+/** Where the carrier's word on a text we sent arrives: the StatusCallback on every send. */
+export function smsStatusUrl(fnUrl: string): string {
+  return `${fnUrl.replace(/\/api\/retell-fn$/, "")}/api/sms-status`;
+}
+
+/** One status callback's fields as one object; null when it is not one. */
+export interface SmsStatus {
+  messageSid: string;
+  /** Twilio's word: queued, accepted, sending, sent, delivered, undelivered, failed, canceled, read. */
+  status: string;
+  /** The carrier's reason when it refused, as Twilio numbers it (30007 filtered, 30003 unreachable, ...). */
+  errorCode: string | null;
+  /** The number the text left from: the line. */
+  from: string;
+  /** The person it went to. */
+  to: string;
+  messagingServiceSid: string | null;
+  accountSid: string | null;
+}
+
+export function smsStatusFrom(form: Record<string, string>): SmsStatus | null {
+  const messageSid = form.MessageSid || form.SmsSid || "";
+  const status = (form.MessageStatus || form.SmsStatus || "").toLowerCase();
+  const from = form.From || "";
+  const to = form.To || "";
+  if (!messageSid || !status || !from || !to) return null;
+  return {
+    messageSid,
+    status,
+    errorCode: form.ErrorCode ? String(form.ErrorCode) : null,
+    from,
+    to,
+    messagingServiceSid: form.MessagingServiceSid || null,
+    accountSid: form.AccountSid || null,
+  };
+}
+
+/**
+ * The row's word for the carrier's. The row is already `sent` when the
+ * provider accepted the text, so only what the carrier adds is recorded:
+ * delivered, read, or a refusal. The interim words (queued, accepted,
+ * sending, scheduled) say nothing the row does not know, and are ignored.
+ */
+export function smsStatusToRow(status: string): "sent" | "delivered" | "read" | "failed" | null {
+  switch (status) {
+    case "sent": return "sent";
+    case "delivered": return "delivered";
+    case "read": return "read";
+    case "undelivered":
+    case "failed":
+    case "canceled": return "failed";
+    default: return null;
+  }
+}
+
 /** The exact string Twilio signs: the URL as requested, then each POST field sorted by name with its value appended. */
 export function twilioSignedString(url: string, form: Record<string, string>): string {
   return url + Object.keys(form).sort().map((k) => `${k}${form[k]}`).join("");

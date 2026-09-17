@@ -69,16 +69,25 @@ export async function runPlaybook(ports: RunPlaybookPorts, cmd: RunPlaybookComma
     { byThis: ctx.touches.byThis.get(p.id) ?? new Map(), byAny: ctx.touches.byAny },
     now.getTime(),
   );
-  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) eligible = eligible.slice(0, Math.max(0, Math.floor(ctx.health.limitPerDay)));
-  if (eligible.length === 0) { await record({ mode, eligible: 0 }); return { outcome: "empty", eligible: 0, mode }; }
+  // The number's own daily limit is the one ceiling a reminder meets; the
+  // people past it are named in the run's record, never dropped in silence.
+  let dropped = 0;
+  if (ctx.health.limitPerDay !== null && eligible.length > ctx.health.limitPerDay) {
+    const keep = Math.max(0, Math.floor(ctx.health.limitPerDay));
+    dropped = eligible.length - keep;
+    eligible = eligible.slice(0, keep);
+  }
+  if (eligible.length === 0) { await record({ mode, eligible: 0, ...(dropped ? { dropped } : {}) }); return { outcome: "empty", eligible: 0, mode }; }
 
   const specs = parseParamSpecs(p.params);
   // A visit run keeps each person's words on their row — the visit's time
   // and service as the calendar said them now — so the send fills the slots
   // without reading the calendar again.
+  // Relative to the moment the send goes: a run asked for at night goes at
+  // nine, and "tomorrow" said at eleven is "today" by then.
   const factsOf = (r: PersonRowVM) => {
     const v = ctx.visits.get(r.id);
-    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null), ctx.tz);
+    return visitFactsFor(p.trigger, p.trigger === "visit_tomorrow" ? (v?.next ?? null) : (v?.last ?? null), ctx.tz, open ? open.at : now);
   };
   const n = eligible.length;
   const made = await assembleRun(ports, {

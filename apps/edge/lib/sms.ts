@@ -8,7 +8,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, Json } from "./workspace/db.js";
 import type { LineSecrets, ProviderAccount } from "./workspace/channels.js";
-import { lineProviderFromEnv } from "./lines.js";
+import { smsStatusUrl } from "./workspace/channels.js";
+import { lineProviderFromEnv, edgeFnUrl } from "./lines.js";
 import { logger } from "./log.js";
 import { phoneTail } from "./workspace/contracts.js";
 
@@ -101,7 +102,8 @@ export function smsSenderFor(line: SmsLine, acct: ProviderAccount): SmsSender | 
   const L = logger({ tenant_id: line.tenant_id, line_id: line.id });
   return {
     async send(to, body) {
-      const r = await choice.provider.sendSms(acct, { serviceSid, to, body });
+      // The carrier's word comes back to /api/sms-status, signed with this line's own token, and lands on the row by its sid.
+      const r = await choice.provider.sendSms(acct, { serviceSid, to, body, statusCallback: smsStatusUrl(edgeFnUrl()) });
       if (r.ok) L.info("sms_sent", { to_tail: phoneTail(to), sid: r.sid });
       else L.error("sms_send_failed", { to_tail: phoneTail(to), status: r.status, code: r.code });
       return { ok: r.ok, wamid: r.sid, status: r.status, errorBody: r.ok ? undefined : `Twilio ${r.code ?? r.status}` };
