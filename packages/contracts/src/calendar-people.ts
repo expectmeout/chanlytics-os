@@ -6,9 +6,12 @@
  * put the client's name and the service in the title; some add a phone or
  * an email in the description, and a booking made through Google adds the
  * booker as a guest. None of it is structured, so the match goes by
- * evidence: a phone number found anywhere in the event beats a name, and a
- * name only counts when it is a whole saved name of four letters or more.
- * An email is carried for the panel; People holds no email to match yet.
+ * evidence: a phone number found anywhere in the event beats an address, an
+ * address beats a name, and a name only counts when it is a whole saved name
+ * of four letters or more. A number and an address are exact — they are the
+ * person, or nobody; a name is a guess, and a name match is the only one that
+ * says so. People has held an address since 00125, so the customer a booking
+ * through Google adds as a guest is now someone, not an unmatched block.
  *
  * Pure. The dashboard's calendar, the person's profile, both receptionists
  * and the tests share it, so an appointment is the same person everywhere.
@@ -30,16 +33,21 @@ export interface PersonLike {
   name: string;
   /** E.164, or null. */
   phone: string | null;
+  /** Their address, lower-cased the way People stores it (00125), or null. Matched against, never created from: `create_person` wants a phone. */
+  email: string | null;
   /** Their latest conversation, when they have one: the thread a booking link is texted into. */
   thread?: string | null;
   /** When they last wrote on WhatsApp, for the reply window. */
   waInboundAt?: string | null;
 }
 
+/** How a match was made, surest first: a number and an address are exact, a name is a guess. */
+export type MatchVia = "phone" | "email" | "name";
+
 export interface PersonMatch {
   id: string;
   name: string;
-  via: "phone" | "name";
+  via: MatchVia;
   /** Present only when the person has a thread: its conversation id, and their last WhatsApp message for the reply window. */
   thread?: string | null;
   wa_inbound_at?: string | null;
@@ -111,9 +119,11 @@ export function personInText(text: string, people: PersonLike[]): PersonLike | n
   return best;
 }
 
-const labelOf = (p: PersonLike): string => p.name.trim() || formatPhoneDisplay(p.phone) || "Unknown";
+// The same order People names someone by (people.ts personName), so a person
+// known only by an address reads as that address and not as "Unknown".
+const labelOf = (p: PersonLike): string => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
 
-/** Who the appointment is for: a phone in the event first, then a whole name in its title, guests or description. */
+/** Who the appointment is for: a phone in the event first, then an address, then a whole name in its title, guests or description. */
 export function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees">, people: PersonLike[]): PersonMatch | null {
   const c = extractContacts(item);
   if (c.phones.length) {
@@ -122,6 +132,17 @@ export function matchPerson(item: Pick<FeedItem, "title" | "description" | "loca
     for (const ph of c.phones) {
       const p = byPhone.get(ph);
       if (p) return { id: p.id, name: labelOf(p), via: "phone", ...threadOf(p) };
+    }
+  }
+  if (c.emails.length) {
+    // The event's addresses are lower-cased by extractContacts; People's are
+    // normalised on the way in (00125), and lower-cased again here for a row
+    // written before that.
+    const byEmail = new Map<string, PersonLike>();
+    for (const p of people) if (p.email) byEmail.set(p.email.toLowerCase(), p);
+    for (const em of c.emails) {
+      const p = byEmail.get(em);
+      if (p) return { id: p.id, name: labelOf(p), via: "email", ...threadOf(p) };
     }
   }
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
@@ -137,7 +158,7 @@ export interface Visit {
   end: number;
   title: string;
   allDay: boolean;
-  via: "phone" | "name";
+  via: MatchVia;
 }
 
 export interface Visits {
@@ -147,44 +168,56 @@ export interface Visits {
   last: Visit | null;
 }
 
-/** A feed indexed once — every item's phones and words found up front — so many people can be matched against it. */
+/** A feed indexed once — every item's phones, addresses and words found up front — so many people can be matched against it. */
 export interface FeedIndex {
   byPhone: Map<string, FeedItem[]>;
+  /**
+   * Lower-cased, as extractContacts gives them — every address the event
+   * carried, the organiser's own among them, because an ICS ATTENDEE does not
+   * say which is which. An address is only a match for the person in People
+   * who holds it, so an owner who is not in People matches nothing; an owner
+   * who IS would take every appointment they are a guest on. Parsing
+   * ORGANIZER and skipping it is the fix if that ever bites.
+   */
+  byEmail: Map<string, FeedItem[]>;
   texts: Array<{ item: FeedItem; text: string }>;
 }
 
 export function indexFeed(items: FeedItem[]): FeedIndex {
   const byPhone = new Map<string, FeedItem[]>();
+  const byEmail = new Map<string, FeedItem[]>();
   const texts: FeedIndex["texts"] = [];
   for (const it of items) {
     const c = extractContacts(it);
     for (const ph of c.phones) byPhone.set(ph, [...(byPhone.get(ph) ?? []), it]);
+    for (const em of c.emails) byEmail.set(em, [...(byEmail.get(em) ?? []), it]);
     texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, texts };
+  return { byPhone, byEmail, texts };
 }
 
-/** Every appointment of one person against an indexed feed, oldest first: their number first, their whole name second. */
+/** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
 export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
   const out: Visit[] = [];
   const seen = new Set<FeedItem>();
-  const take = (it: FeedItem, via: "phone" | "name") => {
+  const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
     out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
   const re = nameMatcher(person.name);
   if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   return out.sort((a, b) => a.start - b.start);
 }
 
-/** One person's next and last appointment against an indexed feed: their number first, their whole name second. */
+/** One person's next and last appointment against an indexed feed: their number first, their address second, their whole name third. */
 export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
   let next: Visit | null = null;
   let last: Visit | null = null;
   const seen = new Set<FeedItem>();
-  const take = (it: FeedItem, via: "phone" | "name") => {
+  const take = (it: FeedItem, via: MatchVia) => {
     if (seen.has(it)) return;
     seen.add(it);
     const v: Visit = { id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via };
@@ -192,6 +225,7 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
     else if (!last || v.end > last.end) last = v;
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
   const re = nameMatcher(person.name);
   if (re) for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
   return { next, last };
@@ -303,7 +337,7 @@ export interface VisitDto {
   end: string;
   title: string;
   all_day: boolean;
-  via: "phone" | "name";
+  via: MatchVia;
 }
 
 /** A person's appointments as their profile reads them. */
