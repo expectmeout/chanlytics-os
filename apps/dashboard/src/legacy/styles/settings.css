@@ -195,8 +195,23 @@
 .settings .sd-input::placeholder { color: var(--ink-dim); }
 /* Where a fact came from is the whole point of the row it sits on. */
 .settings .set-fact-src { color: var(--ink-dim); }
-/* Setup's state word carries the row's tone; on white, ok read 3.42. */
-.setup-rows .cl-attn-row.tone-ok .cl-attn-status .lead { color: var(--ok-ink); }
+/* Setup's state word carries the row's tone; on white, ok read 3.42. The
+   colour is a 6px mark rather than the whole word: ten rows saying "Ready" in
+   green made the finished ones shout and left the one that wants you level
+   with them. Ready mutes its words and keeps its mark; every other tone keeps
+   both, so the row that needs a person is the only colour on the page. */
+.setup-rows .cl-attn-status .lead { display: inline-flex; align-items: center; gap: 6px; }
+.setup-rows .cl-attn-status .lead::before {
+  content: ""; flex: none;
+  width: 6px; height: 6px; border-radius: var(--radius-full);
+  background: currentColor;
+}
+/* Ready keeps its green as the mark and gives up the words. */
+.setup-rows .cl-attn-row.tone-ok .cl-attn-status .lead { color: var(--ink-dim); }
+.setup-rows .cl-attn-row.tone-ok .cl-attn-status .lead::before { background: var(--ok-ink); }
+/* A row with nothing on it yet takes an open ring, not a filled dot: a finished
+   row and an untouched one should not be the same shape. */
+.setup-rows .cl-attn-row.tone-plain .cl-attn-status .lead::before { background: transparent; box-shadow: inset 0 0 0 1.5px var(--ink-dim); }
 .setup-rows .cl-attn-row.tone-warn .cl-attn-status .lead { color: var(--warn-ink); }
 .setup-rows .cl-attn-row.tone-info .cl-attn-status .lead { color: var(--info-ink); }
 .setup-rows .cl-attn-row.tone-danger .cl-attn-status .lead { color: var(--danger-ink); }
@@ -224,12 +239,66 @@
 /* A fact's own link ("Open") is part of its sentence, not a control at the end of a row. */
 .settings .cl-prof-attr .cl-bucket-link { height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
 .settings .cl-prof-aut-hint { margin-top: 0; font-size: var(--set-hint); font-style: normal; line-height: 1.5; }
-/* Filters over a list: the settings input, a row of them. */
+/* Filters over a list: the settings input, a row of them. On a phone they wait
+   behind one control, which is the only place this button is drawn. */
+.set-filters-ask { display: none; align-items: center; gap: 6px; margin: 8px 0 0; }
+.set-filters-ask-n { font-variant-numeric: tabular-nums; color: var(--ink-dim); }
 .set-filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 8px 0 12px; }
 .set-filters .set-input { width: auto; flex: 1 1 180px; max-width: 240px; }
 .set-filter-person { position: relative; display: flex; flex: 1 1 180px; max-width: 240px; }
 .set-filter-person .set-input { flex: 1 1 auto; max-width: none; }
-.set-filters + .cl-prof-attr-list { border-top: 1px solid var(--line); }
+.set-filters + .cl-prof-attr-list, .set-filters + .act-list { border-top: 1px solid var(--line); }
+/* The date box was as wide as the boxes either side of it, so "mm/dd/yyyy"
+   shouted louder than the two filters a person actually types in. */
+.set-filters .set-input[type="date"] { flex: 0 0 auto; width: 150px; font-variant-numeric: tabular-nums; }
+.set-filters .set-input[type="date"]::-webkit-calendar-picker-indicator { opacity: 0.45; cursor: pointer; }
+.set-filters .set-input[type="date"]:hover::-webkit-calendar-picker-indicator { opacity: 0.8; }
+
+/* ---- The activity log ---------------------------------------------------
+   Thirteen rows, each printing its own date, read as thirteen dates and no
+   log. The day is said once above the rows that belong to it; a row says the
+   time, what kind of thing it was, what happened, and where to go for it. */
+.act-list { display: flex; flex-direction: column; }
+.act-day {
+  padding: 16px 0 6px;
+  font-size: var(--set-hint);
+  font-weight: 600;
+  letter-spacing: 0.01em;
+  color: var(--ink-dim);
+}
+.act-list > .act-day:first-child { padding-top: 10px; }
+.act-row {
+  display: grid;
+  grid-template-columns: 16px 62px minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 10px;
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
+}
+/* The first row under a heading is opened by the heading, not by a rule. */
+.act-day + .act-row { border-top: 0; }
+.act-glyph { align-self: center; display: grid; place-items: center; width: 16px; height: 16px; color: var(--ink-faint); }
+.act-when { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.act-what { font-size: var(--set-label); color: var(--ink); line-height: 1.5; text-wrap: pretty; }
+.settings .act-row .act-open { justify-self: end; height: auto; padding: 0 4px; margin-left: 2px; vertical-align: baseline; }
+@media (max-width: 640px) {
+  /* On a phone the sentence wants the whole width, so the kind, the time and the
+     door share one line and the sentence takes the next. Every cell is placed:
+     left to itself, the sentence spanned to the end and pushed the door onto a
+     line of its own, outside the card. */
+  .act-row { grid-template-columns: 16px minmax(0, 1fr) auto; row-gap: 3px; }
+  .act-glyph { grid-row: 1; grid-column: 1; }
+  .act-when { grid-row: 1; grid-column: 2; }
+  .settings .act-row .act-open { grid-row: 1; grid-column: 3; }
+  .act-what { grid-row: 2; grid-column: 2 / -1; }
+
+  /* A log is the work; three boxes are how you narrow it once you are in it.
+     Stacked, they pushed the first line 300px down a phone. */
+  .set-filters-ask { display: inline-flex; }
+  .set-filters { display: none; }
+  .set-filters.open { display: flex; }
+  .set-filters .set-input, .set-filters .set-input[type="date"], .set-filter-person { flex: 1 1 100%; max-width: none; width: auto; }
+}
 .settings .st-bullets { margin: 4px 0 12px; gap: 9px; }
 .settings .st-bullets li { font-size: var(--set-label); }
 
@@ -508,7 +577,17 @@
 /* A member's row is the settings row with an avatar in front (above); what is
    its own is the avatar's size, the pending look, and the word "You". */
 .set-team-row .avatar { width: 32px; height: 32px; font-size: 12px; }
-.set-team-row.pending { opacity: 0.85; }
+/* Each person's own hue, stable from their address, dark enough that the two
+   letters on it read at 12px. Four identical grey discs told a reader nothing
+   and made a page of people look like a page of rows. */
+.set-team-face { background: oklch(0.45 0.075 var(--who-h, 260)); color: oklch(0.985 0.003 80); }
+/* Somebody invited is not somebody here: the disc is drawn, not filled. */
+.set-team-row.pending .set-team-face {
+  background: transparent;
+  color: var(--ink-dim);
+  border: 1px dashed var(--line-strong);
+}
+.set-team-row.pending .set-team-name { color: var(--ink-muted); }
 .set-team-you { font-size: 10px; font-weight: var(--weight-medium); text-transform: uppercase; letter-spacing: 0.05em; color: var(--accent-ink); background: color-mix(in oklab, var(--accent) 12%, transparent); border-radius: var(--radius-full); padding: 1px 7px; margin-left: 8px; vertical-align: 1px; }
 .set-team-spacer { width: 30px; flex: none; }
 
@@ -546,9 +625,10 @@
 .pol-label{display:block;font-size:var(--set-label);font-weight:500;line-height:1.35;color:var(--ink)}
 .pol-note{display:block;margin-top:3px;font-size:var(--set-hint);line-height:1.5;color:var(--ink-dim);max-width:58ch;text-wrap:pretty}
 .pol-dot{width:22px;height:22px;border-radius:var(--radius-full);border:1px solid var(--line);background:var(--bg-raised);cursor:pointer;display:inline-flex;align-items:center;justify-content:center;color:transparent;padding:0}
-.pol-dot:hover{border-color:var(--accent)}
-.pol-dot.on{background:var(--accent);border-color:var(--accent);color:var(--accent-fg)}
-.pol-locked .pol-dot.on{background:var(--ink-dim);border-color:var(--ink-dim)}
+.pol-dot:hover{border-color:var(--ink)}
+.pol-dot.on{background:var(--ink);border-color:var(--ink);color:var(--bg-raised)}
+/* Locked is a setting too, but not one to reach for: it is drawn, not filled. */
+.pol-locked .pol-dot.on{background:var(--bg);border-color:var(--ink-dim);color:var(--ink-dim)}
 .pol-locked .pol-dot{cursor:not-allowed}
 /* The dash is the mark that says a mode is not on offer for this row. */
 .pol-dash{color:var(--ink-dim)}
@@ -984,6 +1064,23 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
    are the content -- "Ready · Transfers to +1 (305) 555-0108 when a caller
    insists on a person · Last call 2h ago · A…" was cut mid-word on a 1280
    screen, and on a phone the same line lost everything after the first fact. */
+/* How far the setup is, as a figure and as a length. */
+.setup-meter {
+  height: 4px;
+  margin: 12px 0 18px;
+  border-radius: var(--radius-full);
+  background: var(--line);
+  overflow: hidden;
+}
+.setup-meter-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--ink);
+  transition: width var(--duration-slow) var(--ease-out);
+}
+@media (prefers-reduced-motion: reduce) { .setup-meter-fill { transition: none; } }
+
 .setup-rows { padding: 6px 0; }
 .setup-rows .tq-list > div + div > .cl-attn-row { border-top: 1px solid var(--line); }
 .setup-rows .cl-attn-row {
@@ -1010,6 +1107,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 /* The row is dimmed because the invite is not accepted; the avatar is a solid
    disc with letters on it and had no contrast to spare. */
 .set-team-row.pending .avatar { opacity: 1; }
+.settings .set-team-row.pending .set-team-face { opacity: 1; }
 @media (max-width: 640px) {
   /* The words keep the width; the acts take the next line, at the end of it. */
   .setup-rows .cl-attn-row { grid-template-columns: var(--set-lead) minmax(0, 1fr); row-gap: 8px; padding-left: 18px; padding-right: 18px; }

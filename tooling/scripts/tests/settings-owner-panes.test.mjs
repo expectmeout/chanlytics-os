@@ -113,7 +113,12 @@ Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   __chrome: { state: stateOf },
-  __clock: { stamp: () => "2:00 PM" },
+  __clock: {
+    stamp: () => "2:00 PM",
+    time: () => "2:00 PM",
+    dayKey: (ms) => new Date(ms).toISOString().slice(0, 10),
+    dateYear: (ms) => { const d = new Date(ms); return `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`; },
+  },
   __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=studio`,
   __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
   __identity: {
