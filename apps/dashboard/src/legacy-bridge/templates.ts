@@ -14,7 +14,7 @@ import { api } from "./api";
 import { PARAM_SOURCE_LABELS, STARTER_LANGUAGES, STARTER_TEMPLATES, compareTemplates, defaultSlotKinds, defaultTemplate, groupTemplates, languageWords, playbooksStillSending, slotLabels, starterByName, starterForTrigger, starterPreview, starterPreviewValues, starterText, sendableTemplates, templateFooter, templatePreview, templatePreviewValues, templateTitle } from "@chanlytics/contracts";
 
 export interface DraftBody { brief: string; category: "marketing" | "utility"; language: string }
-export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[] }
+export interface CreateBody { name: string; language: string; category: string; body: string; footer: string | null; examples: string[]; labels?: string[]; button?: { text: string; url: string } | null }
 export interface StarterBody { keys?: string[]; languages?: string[] }
 
 export const syncTemplates = () => api()("POST templates/sync");

@@ -25,6 +25,8 @@ export const TEMPLATE_BODY_MAX = 1024;
 export const TEMPLATE_FOOTER_MAX = 60;
 export const TEMPLATE_EXAMPLE_MAX = 100;
 export const TEMPLATE_NAME_MAX = 60;
+/** Meta's ceiling for the words on a button. */
+export const TEMPLATE_BUTTON_TEXT_MAX = 25;
 
 const NAME = /^[a-z0-9_]{1,512}$/;
 
@@ -64,6 +66,15 @@ export interface TemplateDraftInput {
   footer?: string | null;
   /** One example per slot, in order — Meta's reviewers read these. */
   examples?: string[];
+  /**
+   * One button under the words, opening a fixed address — the business's own
+   * booking link. STATIC on purpose: a button whose URL takes a value needs a
+   * parameter at send time, and `sendTemplate` puts the body on the wire and
+   * nothing else, so such a template is refused by Meta for every recipient
+   * (template-library.ts templateBlocked). A fixed link needs no parameter, so
+   * this one sends exactly as it is written.
+   */
+  button?: { text: string; url: string } | null;
 }
 
 export interface TemplateDraft {
@@ -73,6 +84,7 @@ export interface TemplateDraft {
   body: string;
   footer: string | null;
   examples: string[];
+  button: { text: string; url: string } | null;
 }
 
 export type TemplateDraftCheck = { ok: true; value: TemplateDraft; warnings: string[] } | { ok: false; error: string };
@@ -97,11 +109,23 @@ export function validateTemplateDraft(d: TemplateDraftInput): TemplateDraftCheck
   const footer = d.footer ? String(d.footer).trim() : "";
   if (footer.length > TEMPLATE_FOOTER_MAX) return { ok: false, error: `The footer must be under ${TEMPLATE_FOOTER_MAX} characters.` };
   if (/\{\{/.test(footer)) return { ok: false, error: "The footer cannot take a value." };
+  let button: TemplateDraft["button"] = null;
+  if (d.button) {
+    const text = String(d.button.text ?? "").replace(/\s+/g, " ").trim();
+    const url = String(d.button.url ?? "").trim();
+    if (!text) return { ok: false, error: "Give the button its words, or leave it out." };
+    if (text.length > TEMPLATE_BUTTON_TEXT_MAX) return { ok: false, error: `A button's words must be under ${TEMPLATE_BUTTON_TEXT_MAX} characters.` };
+    if (/\{\{/.test(text) || /\{\{/.test(url)) return { ok: false, error: "A button cannot take a value: Chanlytics sends the message and nothing else, and WhatsApp would refuse every send." };
+    let parsed: URL | null = null;
+    try { parsed = new URL(url); } catch { parsed = null; }
+    if (!parsed || !/^https?:$/.test(parsed.protocol)) return { ok: false, error: "The button needs a web address to open, starting with https://." };
+    button = { text, url };
+  }
   const warnings: string[] = [];
   if (/^\s*\{\{\d+\}\}/.test(body) || /\{\{\d+\}\}\s*$/.test(body)) warnings.push("WhatsApp often rejects a message that starts or ends with a value; put words around it.");
   if (d.category === "marketing" && !/stop/i.test(body + " " + footer)) warnings.push("A marketing message should say how to opt out, such as “Reply STOP to opt out”.");
   if (/\n{3,}/.test(body)) warnings.push("More than one blank line in a row is usually rejected.");
-  return { ok: true, value: { name, language: d.language, category: d.category as TemplateCategoryChoice, body, footer: footer || null, examples }, warnings };
+  return { ok: true, value: { name, language: d.language, category: d.category as TemplateCategoryChoice, body, footer: footer || null, examples, button }, warnings };
 }
 
 /** The components Meta's create call takes, from a checked draft. */
@@ -110,6 +134,10 @@ export function templateComponents(v: TemplateDraft): Array<Record<string, unkno
   if (v.examples.length) body.example = { body_text: [v.examples] };
   const out: Array<Record<string, unknown>> = [body];
   if (v.footer) out.push({ type: "FOOTER", text: v.footer });
+  // Meta's order: BODY, FOOTER, BUTTONS. A static URL button carries no
+  // parameter, so a template with one sends exactly as `sendTemplate` sends
+  // every other: the body alone.
+  if (v.button) out.push({ type: "BUTTONS", buttons: [{ type: "URL", text: v.button.text, url: v.button.url }] });
   return out;
 }
 
