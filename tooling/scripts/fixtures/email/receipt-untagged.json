@@ -1,0 +1,14 @@
+{
+  "created_at": "2026-09-17T17:00:52.850Z",
+  "data": {
+    "created_at": "2026-09-17T17:00:52.686Z",
+    "email_id": "00000000-0000-4000-8000-000000000000",
+    "from": "A Business <sender@example.com>",
+    "message_id": "<010001a0b05060f2-00000000-0000-0000-0000-000000000000-000000@email.amazonses.com>",
+    "subject": "A transactional email the platform sent",
+    "to": [
+      "someone@example.com"
+    ]
+  },
+  "type": "email.sent"
+}
