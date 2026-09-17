@@ -236,13 +236,27 @@ export async function POST(request: Request): Promise<Response> {
   // A call that began before its caller asked to be erased belongs to the
   // erasure: its events must not make the person again with the call's data,
   // nor mail the owner about them. A call begun after the request is the
-  // person calling back, and is theirs to make. A check that cannot be made
-  // does not skip: the erasure has its own sweep for what lands late.
+  // person calling back, and is theirs to make. A check that cannot be MADE
+  // sends the delivery back rather than proceeding: see below.
   if (db && n.agentId && n.fromE164 && n.startedAtIso) {
     const routedEarly = await resolveChannel(db, "voice", n.agentId).catch(() => null);
-    if (routedEarly && await erasedBeforeCall(db, routedEarly.tenantId, n.fromE164, n.startedAtIso).catch(() => false)) {
-      console.log("retell_call_skipped_erased", JSON.stringify({ call: n.retellCallId, tenant: routedEarly.tenantId, event }));
-      return json(200, { ok: true, skipped: "erased" });
+    if (routedEarly) {
+      // A read that FAILED is not "nobody asked to be forgotten". The comment
+      // above once promised a late sweep to catch what this let through; there
+      // is no such sweep, so the promise was the only thing standing between a
+      // failed read and an erased person remade from a call's data. 503 instead:
+      // the provider redelivers, and a blip costs a retry rather than a person.
+      let erased: boolean;
+      try {
+        erased = await erasedBeforeCall(db, routedEarly.tenantId, n.fromE164, n.startedAtIso);
+      } catch (e) {
+        console.error("retell_call_erasure_unreadable", JSON.stringify({ call: n.retellCallId, tenant: routedEarly.tenantId, error: e instanceof Error ? e.message : String(e) }));
+        return json(503, { ok: false, error: "erasure_unreadable" });
+      }
+      if (erased) {
+        console.log("retell_call_skipped_erased", JSON.stringify({ call: n.retellCallId, tenant: routedEarly.tenantId, event }));
+        return json(200, { ok: true, skipped: "erased" });
+      }
     }
   }
   // null = no control plane to ask; true = this delivery owns the post-call

@@ -46,6 +46,7 @@ const base = {
   proactive: false,
   pausedUntilMs: null,
   replyMode: "auto",
+  bookingHeld: false,
   sentToday: 0,
   dailyCap: 3,
   nowMs: NOW,
@@ -137,6 +138,25 @@ test("REGRESSION: repeated calls cannot send unlimited templates", () => {
   assert.equal(gate({ sentToday: 9 }).refusal, "daily_cap", "past it");
 });
 
+test("the workspace that confirms its own bookings does not have its link sent for it", () => {
+  // Autonomy -> Booking -> "Ask me first". The text receptionist has obeyed this
+  // row since it existed: layerTwo takes the booking link back out of the
+  // reply and hands the thread to a person. This sender read the REPLY row
+  // instead, so one workspace's two receptionists answered the same request
+  // differently -- the phone agent texting the link the WhatsApp agent had just
+  // been stopped from sending.
+  assert.equal(gate({ bookingHeld: true }).refusal, "booking_needs_a_person");
+  assert.equal(gate({ bookingHeld: true, replyMode: "auto" }).refusal, "booking_needs_a_person",
+    "REGRESSION: a free reply dial is not permission to book");
+  assert.equal(gate({ bookingHeld: true, replyMode: "veto" }).refusal, "booking_needs_a_person");
+  // It is the workspace's own answer about bookings, so it outranks the generic
+  // "automation is off" and is reported as itself: the caller is owed the true
+  // reason, which is that a person will confirm.
+  const said = refusalScript("booking_needs_a_person", "(646) 932-5775");
+  assert.match(said, /confirm/i);
+  assert.match(said, /name/i, "the agent is told to take the caller's name, as the prompt says");
+});
+
 test("consent is reported before every other refusal", () => {
   // All four conditions at once. The reason is logged and shapes what the agent
   // says, so the ordering has to be the one an operator would expect.
@@ -149,7 +169,7 @@ test("consent is reported before every other refusal", () => {
 test("no refusal leaks our internal state to the caller", () => {
   // The agent SPEAKS these. A caller must not be told a colleague is mid-thread
   // with them, nor hear the words for our policy machinery.
-  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "daily_cap"]) {
+  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "booking_needs_a_person", "daily_cap"]) {
     const said = refusalScript(r, "(646) 932-5775");
     assert.ok(said.length > 20, `${r} must say something useful`);
     assert.doesNotMatch(said, /paused|policy_hold|opted_out|daily_cap|rate cap|tenant/i, r);
@@ -157,7 +177,7 @@ test("no refusal leaks our internal state to the caller", () => {
 });
 
 test("every refusal offers the caller a way forward", () => {
-  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "daily_cap"]) {
+  for (const r of ["opted_out", "not_opted_in", "no_marketing_consent", "human_has_it", "policy_hold", "booking_needs_a_person", "daily_cap"]) {
     assert.match(
       refusalScript(r, "(646) 932-5775"),
       /offer|tell the caller|book/i,

@@ -146,7 +146,7 @@ Two gates is not an accident: one exists to produce words for a caller who is wa
 
 ## 6. The gap ledger
 
-Ranked by what it costs a real customer conversation. Each names the evidence, what someone actually experiences, and the shape of the fix.
+Ranked by what it costs a real customer conversation. Each names the evidence, what someone actually experiences, and the shape of the fix. **✅ marks one that has since been closed.**
 
 ### Severity 1 — a customer is failed today
 
@@ -154,7 +154,7 @@ Ranked by what it costs a real customer conversation. Each names the evidence, w
 *What happens:* on every workspace but the salon's, a caller asks for the booking link, Meta rejects an unregistered template, and the agent says **"that number may not have WhatsApp"** — naming the wrong cause to a customer who is on the phone. The core promise of the phone receptionist does not work for a new customer.
 *Fix:* add it to the starter library and seed it in `provision_tenant`, or make `send_booking_link` refuse with an honest sentence when the template is not approved for this workspace.
 
-**G2. Email arrives, the owner is told to reply from the Inbox, and the Inbox cannot.** `email-ingest.ts:86` says "read it and reply from here"; `apps/edge/lib/email.ts:59` says "Reply from the Inbox." `packages/core/src/conversations/reply.ts:82` refuses any contact with no phone number, and `QueuedReply.channel` is typed `"whatsapp" | "sms"` (`reply.ts:38`, `:50`; `verbs.ts:171`).
+**G2. ✅ Email arrives, the owner is told to reply from the Inbox, and the Inbox cannot.** *Closed by the reply slice: `replyToConversation` now carries `channel: "whatsapp" | "sms" | "email"` and takes its recipient from the contact's stored address.* `email-ingest.ts:86` says "read it and reply from here"; `apps/edge/lib/email.ts:59` says "Reply from the Inbox." `packages/core/src/conversations/reply.ts:82` refuses any contact with no phone number, and `QueuedReply.channel` is typed `"whatsapp" | "sms"` (`reply.ts:38`, `:50`; `verbs.ts:171`).
 *What happens:* an `email_review` hold on an email-only person is unanswerable from the product. Its only exits are Resolve or Archive, both of which record a decision claiming the thread was handled.
 *Fix:* this is the reply slice, in flight now. Until it lands the notification copy is ahead of the code — the honest interim wording is "read it and reply from your own mail."
 
@@ -162,7 +162,7 @@ Ranked by what it costs a real customer conversation. Each names the evidence, w
 *And it is reachable by an HR event:* nothing anywhere clears `assignee_user_id` when a membership is deleted (`service.ts:555`), so the thread reads as "theirs" to every remaining member, for ever.
 *Fix:* clear the assignee when a membership is removed; give the sweeper a second limb for a pause long past its time whose escalation is older than some ceiling; or stop treating a stale assignee as a live claim at the wire.
 
-**G4. The Booking autonomy dial is not honoured on the phone.** On text it is enforced twice — in the prompt, and in `layerTwo` (`apps/edge/lib/whatsapp/steps.ts:100-112`), which *strips the booking link out of the reply* and escalates. On voice, `retell-fn.ts:173` reads `rt.policy?.reply?.mode` — the **reply** class, not `booking` — and `retell-availability.ts` reads no policy at all.
+**G4. ✅ The Booking autonomy dial is not honoured on the phone.** On text it is enforced twice — in the prompt, and in `layerTwo` (`apps/edge/lib/whatsapp/steps.ts:100-112`), which *strips the booking link out of the reply* and escalates. On voice, `retell-fn.ts:173` reads `rt.policy?.reply?.mode` — the **reply** class, not `booking` — and `retell-availability.ts` reads no policy at all.
 *What happens:* a workspace that set "Ask me first" on bookings still has its phone agent reading open times aloud and texting the booking link, while its WhatsApp receptionist is being muzzled for the same request.
 *Fix:* read `policy.booking` in both voice endpoints, the way `policyAskClass` does on text.
 
@@ -170,15 +170,15 @@ Ranked by what it costs a real customer conversation. Each names the evidence, w
 
 **G5. Two AI agents can talk to one person at once.** No inbound text path reads `calls`. *Fix:* one read of "is a call live on this contact" in the text road's gate list, holding the reply the way a pause does.
 
-**G6. The runaway guard opens exactly when it is needed.** `retell-fn.ts:210-214` — `countSentToday(...).catch(() => 0)`. A failed count reads as "nothing sent today", so the three-per-day cap that exists because "a voice agent that called its own tool in a loop sent thirty billable templates to one person" stops binding during the database trouble most likely to cause the loop. The same file's door, `deliver.ts:199`, throws on an unreadable read on principle.
+**G6. ✅ The runaway guard opens exactly when it is needed.** `retell-fn.ts:210-214` — `countSentToday(...).catch(() => 0)`. A failed count reads as "nothing sent today", so the three-per-day cap that exists because "a voice agent that called its own tool in a loop sent thirty billable templates to one person" stops binding during the database trouble most likely to cause the loop. The same file's door, `deliver.ts:199`, throws on an unreadable read on principle.
 
-**G7. "We could not check" is read as "nobody" on the voice erasure gate.** `retell-webhook.ts:243` — `erasedBeforeCall(...).catch(() => false)`, against `apps/edge/lib/erased.ts:18`, which states the opposite rule in its own header.
+**G7. ✅ "We could not check" is read as "nobody" on the voice erasure gate.** `retell-webhook.ts:243` — `erasedBeforeCall(...).catch(() => false)`, against `apps/edge/lib/erased.ts:18`, which states the opposite rule in its own header.
 
 **G8. Zero rows updated is read as success in the call path.** `linkCallMessage` and `setCallRecording` (`packages/db/src/repositories/calls.ts:97-124`) update without `.select()`. The second matters: the audio is already in the bucket, the row still says `pending`, so the cron re-downloads and re-uploads it three times and then marks it failed — leaving an orphan object that the purge (which selects `fetch_state = 'stored'`) will never remove. This is the trap the repo names by name elsewhere and avoids everywhere else.
 
 **G9. A replayed `call_analyzed` extends the customer's pause by another full window.** `retell-webhook.ts:322` re-evaluates `Date.now() + pause_hours` outside the notification claim taken at `:365`. Retell retries three times.
 
-**G10. A refused booking link leaves no trace.** `retell-fn.ts:220` logs to stdout. Every other refusal in the system lands somewhere durable — `message.send_blocked`, a recipient's reason, a `send_failed` escalation. "She said she never got the link" has no answer.
+**G10. ✅ A refused booking link leaves no trace.** `retell-fn.ts:220` logs to stdout. Every other refusal in the system lands somewhere durable — `message.send_blocked`, a recipient's reason, a `send_failed` escalation. "She said she never got the link" has no answer.
 
 **G11. The deadman sweep can steal an email in flight.** `sweepUnfinished` (`apps/edge/lib/unfinished.ts:90-140`) claims any inbound customer message with no `processed_at` after three minutes, raises `brain_error` — *"The receptionist never answered this"* — and stamps the row processed. An `email_ingest` job still retrying then finds `processed` true and returns `already_handled` (`email-ingest.ts:121`), so `email_review` is never raised, the owner's email is the wrong one, and `mailboxes.last_received_at` is never stamped. *Fix:* exclude `channel = 'email'` from the sweep, or give it the email words.
 
