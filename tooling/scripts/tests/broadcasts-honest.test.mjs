@@ -797,3 +797,68 @@ test("History says whether a playbook or a person sent each broadcast, and the s
   globalThis.window.__BROADCASTS = broadcastsSurface({ rows: [byHand] });
   assert.equal(byTestId(page({ initialSegment: null, initialRun: null }), "bc-origin-playbook"), null);
 });
+
+test("A message written here can carry a Book now button, and it is the one kind that sends", () => {
+  // For an appointment business the button IS the conversion, and until now one
+  // could only arrive by syncing from WhatsApp Manager -- where it could just as
+  // easily arrive in a shape that cannot be sent at all.
+  const settings = { config: { brain: { business_name: "Luna Studio", booking_link: "https://booksy.com/luna-studio" } } };
+  Object.assign(globalThis.window, { __SETTINGS: settings, __CHANNELS: [{ kind: "whatsapp" }], __TEMPLATES_ALL: [] });
+  const made = [];
+  const keep = globalThis.window.__templates;
+  globalThis.window.__templates = { ...keep, create: async (b) => { made.push(b); return { ok: true, data: { name: b.name } }; } };
+  try {
+    fresh();
+    let tree = globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
+    const set = (id, v) => { byTestId(tree, id).props.onChange({ target: { value: v } }); };
+    set("tpl-name", "spring_offer");
+    set("tpl-body", "Hi {{1}}, 20% off any colour service this week.");
+    seq = 0;
+    tree = globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
+    // The address is the workspace's own, and it is shown rather than typed.
+    assert.ok(textOf(byTestId(tree, "tpl-button")).includes("booksy.com/luna-studio"), textOf(byTestId(tree, "tpl-button")));
+    byTestId(tree, "tpl-button-text").props.onChange({ target: { value: "Book now" } });
+    all(tree, (n) => n.props?.["data-testid"] === "tpl-examples").length;
+    const ex = find(tree, (n) => n.type === "input" && String(n.props?.placeholder || "").includes("what a real value"));
+    if (ex) ex.props.onChange({ target: { value: "Dani" } });
+    seq = 0;
+    tree = globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
+
+    // It is drawn where the customer will see it, before anything is filed.
+    assert.ok(textOf(byTestId(tree, "mp-buttons")).includes("Book now"), "the composer draws its own button");
+
+    return press(byTestId(tree, "tpl-submit")).then(() => {
+      assert.equal(made.length, 1, "it was filed");
+      assert.deepEqual(made[0].button, { text: "Book now", url: "https://booksy.com/luna-studio" });
+      // And what is filed is a template that SENDS: a static button carries no
+      // parameter, so templateBlocked passes it (unlike every shape #646 refuses).
+      const check = contracts.validateTemplateDraft({ name: "spring_offer", language: "en_US", category: "marketing", body: "Hi {{1}}.", examples: ["Dani"], button: made[0].button });
+      assert.ok(check.ok, check.error);
+      const components = contracts.templateComponents(check.value);
+      assert.equal(contracts.templateBlocked({ components }), null, "a static button is sendable");
+      assert.deepEqual(contracts.templateParts(components).buttons, [{ text: "Book now", kind: "url" }], "and it reads back as itself");
+    });
+  } finally {
+    globalThis.window.__templates = keep;
+  }
+});
+
+test("A button cannot take a value, and needs somewhere to go", () => {
+  const base = { name: "offer", language: "en_US", category: "marketing", body: "Hi {{1}}.", examples: ["Dani"] };
+  const err = (button) => contracts.validateTemplateDraft({ ...base, button }).error;
+  // The whole point: a button whose URL takes a value needs a parameter that
+  // `sendTemplate` never sends, so Meta refuses every recipient.
+  assert.match(err({ text: "Book", url: "https://x.example/{{1}}" }), /cannot take a value/);
+  assert.match(err({ text: "Book {{1}}", url: "https://x.example" }), /cannot take a value/);
+  assert.match(err({ text: "", url: "https://x.example" }), /Give the button its words/);
+  assert.match(err({ text: "Book an appointment with us today", url: "https://x.example" }), /under 25 characters/);
+  assert.match(err({ text: "Book", url: "booksy.com/luna" }), /starting with https/);
+  assert.equal(contracts.validateTemplateDraft({ ...base, button: null }).ok, true, "and no button at all is fine");
+
+  // With no booking link on file the composer offers no button, and says why.
+  Object.assign(globalThis.window, { __SETTINGS: { config: { brain: { business_name: "Luna Studio", booking_link: "" } } }, __CHANNELS: [{ kind: "whatsapp" }] });
+  fresh();
+  const tree = globalThis.window.TemplateComposer({ businessName: "Luna Studio", onDone() {}, onCancel() {} });
+  assert.equal(byTestId(tree, "tpl-button-text"), null);
+  assert.ok(textOf(byTestId(tree, "tpl-button-none")).includes("booking link"), textOf(byTestId(tree, "tpl-button-none")));
+});

@@ -9,6 +9,12 @@ const TC_LANGS = [
   { id: "en_US", label: "English (US)" }, { id: "en", label: "English" }, { id: "es", label: "Spanish" },
   { id: "es_MX", label: "Spanish (Mexico)" }, { id: "es_ES", label: "Spanish (Spain)" }, { id: "pt_BR", label: "Portuguese (Brazil)" },
 ];
+// The one address a button may open: what the workspace put in Settings.
+const tcBookingLink = () => {
+  const brain = (window.__SETTINGS && window.__SETTINGS.config && window.__SETTINGS.config.brain) || {};
+  const link = typeof brain.booking_link === "string" ? brain.booking_link.trim() : "";
+  return link || null;
+};
 const tcSlots = (body) => { const s = new Set(); for (const m of String(body || "").matchAll(/\{\{(\d+)\}\}/g)) s.add(Number(m[1])); return [...s].sort((a, b) => a - b); };
 
 // What happened to the starter set, in one line.
@@ -30,6 +36,8 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   const [footer, setFooter] = React.useState("");
   const [examples, setExamples] = React.useState([]);
   const [labels, setLabels] = React.useState([]);
+  // The words on a button under the message. Empty means no button.
+  const [buttonText, setButtonText] = React.useState("");
   const [warnings, setWarnings] = React.useState([]);
   const [drafting, setDrafting] = React.useState(false);
   const [submitting, setSubmitting] = React.useState(false);
@@ -37,6 +45,12 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   // Who may draft or submit: the role store's answer, View-as included.
   const canEdit = !!(window.canDo && window.canDo("approve"));
   const slots = tcSlots(body);
+  // Where a button goes: the workspace's own booking link, the same fact the
+  // starters' booking_link slot is filled from. A button's address is FIXED --
+  // one that took a value would need a parameter `sendTemplate` never sends, and
+  // WhatsApp would refuse every recipient (contracts templateBlocked).
+  const bookingLink = tcBookingLink();
+  const button = bookingLink && buttonText.trim() ? { text: buttonText.trim(), url: bookingLink } : null;
   const exampleFor = (i) => examples[i] || "";
   const previewValues = slots.map((n, i) => exampleFor(i));
   const ready = !!name.trim() && !!body.trim() && slots.every((n, i) => !!exampleFor(i).trim()) && !submitting;
@@ -58,7 +72,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   const submit = async () => {
     if (!window.__templates || !ready || !canEdit) return;
     setSubmitting(true); setError(null);
-    const r = await window.__templates.create({ name: name.trim(), language, category, body, footer: footer.trim() || null, examples: slots.map((n, i) => exampleFor(i).trim()), labels: slots.map((n, i) => (labels[i] || "").trim()) });
+    const r = await window.__templates.create({ name: name.trim(), language, category, body, footer: footer.trim() || null, examples: slots.map((n, i) => exampleFor(i).trim()), labels: slots.map((n, i) => (labels[i] || "").trim()), button });
     setSubmitting(false);
     if (!r.ok) { setError(r.message || "WhatsApp did not accept it."); return; }
     if (onDone) onDone(r.data);
@@ -72,6 +86,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
     setFooter(t.footer || "");
     setExamples(t.slots.map((x) => x.example));
     setLabels(t.slots.map((x) => x.label));
+    setButtonText("");
     setWarnings([]);
     setError(null);
   };
@@ -115,6 +130,12 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
         <label className="bc-var"><span className="bc-var-label">Name (lowercase, underscores)</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="spring_offer" data-testid="tpl-name" /></label>
         <label className="bc-var tpl-body"><span className="bc-var-label">Message — values as {"{{1}}"}, {"{{2}}"} in order</span><textarea rows={4} value={body} onChange={(e) => setBody(e.target.value)} data-testid="tpl-body" /></label>
         <label className="bc-var"><span className="bc-var-label">Footer (optional)</span><input value={footer} onChange={(e) => setFooter(e.target.value)} placeholder={category === "marketing" ? "Reply STOP to opt out" : ""} data-testid="tpl-footer" /></label>
+        <label className="bc-var" data-testid="tpl-button">
+          <span className="bc-var-label">Button (optional){bookingLink ? <> &middot; opens {bookingLink.replace(/^https?:\/\//, "")}</> : null}</span>
+          {bookingLink
+            ? <input value={buttonText} maxLength={25} onChange={(e) => setButtonText(e.target.value)} placeholder="Book now" data-testid="tpl-button-text" />
+            : <span className="bc-excl-hint" data-testid="tpl-button-none">A button needs somewhere to go. Put your booking link in <button type="button" className="cl-bucket-link" onClick={() => window.CHANLY.nav("admin/workspace")}>Settings</button> first.</span>}
+        </label>
         {slots.length > 0 && (
           <div className="bc-vars" data-testid="tpl-examples">
             {slots.map((n, i) => (
@@ -126,7 +147,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
           </div>
         )}
       </div>
-      {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><window.MessagePreview from={businessName} body={body} values={previewValues} footer={footer || null} /></div>}
+      {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><window.MessagePreview from={businessName} body={body} values={previewValues} footer={footer || null} buttons={button ? [{ text: button.text, kind: "url" }] : null} /></div>}
       {warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
       <window.FieldError message={error} testid="tpl-error" />
       <div className="bc-actions">

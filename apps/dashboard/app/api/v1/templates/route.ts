@@ -73,7 +73,7 @@ export const POST = write({
   role: "operator",
   rate: "settings",
   handle: async ({ ctx, req, member }) => {
-    const body = (await jsonBody(req)) as { name?: unknown; language?: unknown; category?: unknown; body?: unknown; footer?: unknown; examples?: unknown; labels?: unknown } | null;
+    const body = (await jsonBody(req)) as { name?: unknown; language?: unknown; category?: unknown; body?: unknown; footer?: unknown; examples?: unknown; labels?: unknown; button?: unknown } | null;
     const check = validateTemplateDraft({
       name: typeof body?.name === "string" ? body.name : "",
       language: typeof body?.language === "string" ? body.language : "",
@@ -81,6 +81,12 @@ export const POST = write({
       body: typeof body?.body === "string" ? body.body : "",
       footer: typeof body?.footer === "string" ? body.footer : null,
       examples: Array.isArray(body?.examples) ? (body.examples as unknown[]).map(String) : [],
+      // One static URL button, its address the workspace's own booking link. The
+      // draft check refuses a value in either half, because a button that takes
+      // one needs a parameter `sendTemplate` never sends.
+      button: body?.button && typeof body.button === "object"
+        ? { text: String((body.button as { text?: unknown }).text ?? ""), url: String((body.button as { url?: unknown }).url ?? "") }
+        : null,
     });
     if (!check.ok) throw new AppError("validation", check.error);
     const v = check.value;
