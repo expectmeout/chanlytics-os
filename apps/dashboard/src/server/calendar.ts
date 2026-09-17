@@ -118,12 +118,15 @@ export function spanFor(from: string | null, days: number, tz: string, now: Date
   return { from: start, days: Math.min(MAX_DAYS, Math.max(1, Math.round(days) || 7)) };
 }
 
-/** People as the matcher wants them: a human-given name (never a phone made words), the E.164, and the thread a link is texted into when they have one. */
-export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> & Partial<Pick<PersonRowDto, "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>): PersonLike {
+/** People as the matcher wants them: a human-given name (never a phone made words), the E.164, the address (00125), and the thread a link is texted into when they have one. */
+export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_profile_name" | "phone_e164"> & Partial<Pick<PersonRowDto, "email" | "has_chat" | "latest_conversation_id" | "latest_wa_inbound_at">>): PersonLike {
   return {
     id: p.id,
     name: p.display_name || p.wa_profile_name || "",
     phone: p.phone_e164,
+    // Optional on the Pick the way personName takes it: a row read before
+    // 00125 carries no address, and no address is no match, never a crash.
+    email: p.email ?? null,
     thread: p.has_chat && p.latest_conversation_id ? p.latest_conversation_id : null,
     waInboundAt: p.latest_wa_inbound_at ?? null,
   };
@@ -191,7 +194,9 @@ async function addPeopleSeen(ctx: Pick<RouteContext, "supabase">, tenantId: stri
       break;
     }
     const out = data as { contact_id: string; existed: boolean };
-    added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone });
+    // No address: the door takes a phone, and nobody is made from an
+    // attendee's address. They match by the number they were created from.
+    added.push({ id: out.contact_id, name: r.name ?? "", phone: r.phone, email: null });
   }
   if (refused) {
     console.error("calendar_people_refused", JSON.stringify({ tenant: tenantId, refused, of: rows.length, added: added.length, first: firstRefusal }));

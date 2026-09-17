@@ -49,6 +49,17 @@ export interface OutboundFacts {
    *  'auto' and 'veto' permit an unattended template send; anything else
    *  holds for a human. */
   replyMode: string;
+  /**
+   * The Autonomy pane's BOOKING row is not on auto.
+   *
+   * A separate answer from `replyMode`, because they are separate rows on that
+   * pane and a workspace sets them independently. The text receptionist has
+   * obeyed this row since it existed -- `layerTwo` takes the booking link back
+   * out of a reply and hands the thread to a person -- while the phone agent
+   * read the REPLY row and sent the link anyway. Same workspace, same request,
+   * two answers.
+   */
+  bookingHeld: boolean;
   /** Voice-initiated sends already made to this thread today. */
   sentToday: number;
   /** The ceiling on those. */
@@ -64,6 +75,11 @@ export type OutboundRefusal =
   | "paused"
   | "human_has_it"
   | "policy_hold"
+  // The workspace confirms bookings itself (Autonomy -> Booking -> Ask me
+  // first). Its own refusal rather than a policy_hold, because the caller is
+  // owed the true reason: a person will confirm, rather than nothing can be
+  // sent automatically at all.
+  | "booking_needs_a_person"
   | "daily_cap"
   // The door's own refusal: the texting line is registered for replies and
   // appointment messages only, so a promotion by text never goes (core deliver).
@@ -93,7 +109,12 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
     return { allowed: false, refusal: "human_has_it" };
   }
 
-  // 3. The workspace turned automation off. 'ask' means a human approves
+  // 3. A booking the workspace confirms itself. Asked before the reply dial:
+  //    "a person confirms your booking" is the true thing to say, and it is
+  //    true even where the receptionist is otherwise free to speak.
+  if (f.bookingHeld) return { allowed: false, refusal: "booking_needs_a_person" };
+
+  // 4. The workspace turned automation off. 'ask' means a human approves
   //    everything, and a send triggered from a phone call is no less automatic
   //    for having been requested out loud. 'veto' is NOT off: it holds a reply
   //    the receptionist composed so a person can redirect it, and a booking
@@ -101,7 +122,7 @@ export function outboundGate(f: OutboundFacts): OutboundDecision {
   //    silently punished the workspaces that chose the middle setting.
   if (f.replyMode !== "auto" && f.replyMode !== "veto") return { allowed: false, refusal: "policy_hold" };
 
-  // 4. Runaway guard. The conversational path caps bot replies per thread per
+  // 5. Runaway guard. The conversational path caps bot replies per thread per
   //    day; nothing capped this one, so a caller who phoned thirty times — or a
   //    voice agent that called its own tool in a loop — sent thirty billable
   //    templates to one person.
@@ -142,6 +163,10 @@ export function refusalScript(refusal: OutboundRefusal, phoneDisplay: string | n
       return phoneDisplay
         ? `I cannot send texts automatically for this business right now. Tell the caller they can book online, or reach the team on ${phoneDisplay}.`
         : "I cannot send texts automatically for this business right now. Tell the caller they can book online, and take their name.";
+    // The same sentence the prompt already gives a workspace on this setting
+    // (contracts policyRules, voice): a person confirms, so take their name.
+    case "booking_needs_a_person":
+      return "This business confirms bookings itself, so I cannot send the booking link. Tell the caller a member of the team will call or text them to confirm, and take their name.";
     case "daily_cap":
       return "I have already texted that number several times today, so I will not send another. Tell the caller to check their WhatsApp for the earlier message.";
   }

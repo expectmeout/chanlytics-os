@@ -16,12 +16,23 @@ import { pg } from "../lib/pg.js";
 import { resolveChannel } from "../lib/workspace/db.js";
 import { loadTenantRuntime } from "../lib/tenant-runtime.js";
 import { openingsData } from "../lib/availability.js";
-import { describeOpenings, filterOpenings, offerFor, offerLead, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/workspace/contracts.js";
+import { describeOpenings, filterOpenings, offerFor, offerLead, policyAskClass, type ConsultRules, type ServiceLike, type ServiceOffer } from "../lib/workspace/contracts.js";
 
 const CANNOT_SEE =
   "I can't see the calendar right now. Offer to text the booking link — it shows the open times — or to have someone call back.";
 const NO_CALENDAR =
   "There is no calendar to check. Offer to text the booking link — it shows the open times.";
+/**
+ * The workspace confirms its own bookings (Autonomy -> Booking -> Ask me first).
+ *
+ * Reading times aloud is the first half of offering a booking, so this tool
+ * obeys that row as the other half does. The text receptionist has: under this
+ * setting `layerTwo` replaces the whole reply with a person will confirm, times
+ * and link and all. The phone agent used to read the openings out regardless,
+ * so one workspace's two receptionists answered the same question differently.
+ */
+const BOOKING_HELD =
+  "This business confirms its own bookings, so do not offer times. Tell the caller a member of the team will call or text them to confirm, and take their name.";
 
 /** The prompt block, folded into one spoken paragraph, after what the service is offered as (offerLead). */
 export function spoken(text: string, offer: ServiceOffer | null): string {
@@ -70,6 +81,10 @@ export async function POST(request: Request): Promise<Response> {
     return json(200, { result: CANNOT_SEE });
   }
   const rt = await loadTenantRuntime(db, routed);
+  if (policyAskClass(rt.policy, "booking") === "booking") {
+    log("retell_availability_booking_held", { tenant: routed.tenantId });
+    return json(200, { result: BOOKING_HELD });
+  }
   if (!rt.calendar?.ical_url) {
     log("retell_availability_no_calendar", { tenant: routed.tenantId });
     return json(200, { result: NO_CALENDAR });

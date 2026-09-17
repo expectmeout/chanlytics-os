@@ -23,9 +23,12 @@ This matters more than any number below, because the same codebase reads as
 either 79% done or 100% done depending on which line you measure to.
 
 **The receptionist product** is the thing a salon pays for: a customer texts or
-phones, an AI answers within seconds, books, reschedules, and hands over what it
-should not decide; an operator watches and takes over. That is the product, and
-"100% in all layers" means *that* product complete, safe and observable.
+phones, an AI answers within seconds, offers the times the calendar has open,
+sends the booking link, and hands over what it should not decide; an operator
+watches and takes over. Booking itself happens in the tool behind the link --
+the receptionist never confirms a slot, and there is no appointments table for
+it to confirm one into. That is the product, and "100% in all layers" means
+*that* product complete, safe and observable.
 
 **The mockup** is the ported HTML artifact in `apps/dashboard/src/legacy` —
 28,061 lines of JSX across 69 files, 50 pages. It contains an entire second

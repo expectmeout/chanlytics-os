@@ -19,6 +19,7 @@ import { agoWords, timezoneCity } from "./time";
 import { DAYS, hoursRuns, type BookingRules, type Closure, type Hours } from "./config";
 import { waWindow } from "./policy";
 import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, localToUtcMs, offerFor, type BookingRulesLike } from "./availability";
+import type { MatchVia } from "./calendar-people";
 import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
 
@@ -29,8 +30,8 @@ export interface CalendarItemDto {
   end: string;
   title: string;
   all_day: boolean;
-  /** The person in People this appointment is for — by a phone in the event, else a whole name in its words; their thread and last WhatsApp message when they have one. */
-  person: { id: string; name: string; via?: "phone" | "name"; thread?: string | null; wa_inbound_at?: string | null } | null;
+  /** The person in People this appointment is for — by a phone in the event, else an address, else a whole name in its words; their thread and last WhatsApp message when they have one. */
+  person: { id: string; name: string; via?: MatchVia; thread?: string | null; wa_inbound_at?: string | null } | null;
   /** The event's own words, plain text. */
   description?: string | null;
   location?: string | null;
@@ -254,7 +255,7 @@ export interface CalendarBlockVM {
   /** "2 – 3:30 PM" */
   time: string;
   /** Who it is for; `threadId` is the Inbox thread a booking link is texted into ("th-…"), `replyOpen` whether a plain text still reaches them. */
-  person: { id: string; name: string; via: "phone" | "name" | null; threadId: string | null; replyOpen: boolean } | null;
+  person: { id: string; name: string; via: MatchVia | null; threadId: string | null; replyOpen: boolean } | null;
   description: string | null;
   location: string | null;
   /** Display-formatted phones (and the same in E.164, for the add), and the emails the event carried. */

@@ -413,6 +413,9 @@ const PaneSetup = () => {
           <h2 className="fl-card-title">Setup</h2>
           <span className="fl-card-sub tabular" data-testid="setup-count">{vm.done} of {vm.total} ready</span>
         </div>
+        <div className="setup-meter" data-testid="setup-meter" aria-hidden="true">
+          <span className="setup-meter-fill" style={{ width: `${vm.total ? Math.round((vm.done / vm.total) * 100) : 0}%` }} />
+        </div>
         <p className="setup-sentence" data-testid="setup-sentence">{vm.readiness.sentence}</p>
         {vm.next && (
           <div className="setup-next">
@@ -454,7 +457,8 @@ const PaneSetup = () => {
                 name={r.title}
                 sentence={r.sentence}
                 quoted={false}
-                status={[r.stateWords, ...r.details]}
+                status={[r.stateWords]}
+                note={r.details.join(" · ")}
                 tone={setupTone(r.state)}
                 cta={r.verb ? { label: r.verb.label, kind: vm.next && vm.next.row === r.id ? "primary" : "ghost", onClick: () => act(r.verb), gate: setupGate(r.verb), busy: pending === r.verb.to } : null}
                 also={r.undo

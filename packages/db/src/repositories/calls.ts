@@ -93,34 +93,54 @@ export async function ingestCall(
   return data as unknown as IngestCallResult;
 }
 
-/** Attach the thread note (call_summary message) back to its call row. */
+/**
+ * Attach the thread note (call_summary message) back to its call row.
+ *
+ * Row-counted, like every other conditional write here: an UPDATE that RLS
+ * excludes or that names a row which is gone reports success and changes
+ * nothing, so "the write failed" and "the write did not happen" have to be
+ * told apart by counting rows rather than by trusting the absence of an error.
+ */
 export async function linkCallMessage(
   db: Db,
   tenantId: string,
   callId: string,
   messageId: string,
 ): Promise<void> {
-  const { error } = await db
+  const { data, error } = await db
     .from("calls")
     .update({ message_id: messageId })
     .eq("id", callId)
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .select("id");
   if (error) console.error("link_call_message_failed", error.message);
+  else if (!data || data.length === 0) console.error("link_call_message_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 
-/** Post-storage-copy state for the recording (private bucket path). */
+/**
+ * Post-storage-copy state for the recording (private bucket path).
+ *
+ * Row-counted, and this is the one where it bites: the audio is already in the
+ * bucket by the time this runs. A write that silently changed nothing leaves
+ * the row saying `pending`, so the sweep fetches the file again, uploads it
+ * again (upsert), three times, and then marks it failed -- and the object it
+ * left behind is invisible to the purge, which only looks at rows that say
+ * `stored`. A row that did not change is now said out loud.
+ */
 export async function setCallRecording(
   db: Db,
   tenantId: string,
   callId: string,
   recording: Record<string, unknown>,
 ): Promise<void> {
-  const { error } = await db
+  const { data, error } = await db
     .from("calls")
     .update({ recording: recording as Json })
     .eq("id", callId)
-    .eq("tenant_id", tenantId);
+    .eq("tenant_id", tenantId)
+    .select("id");
   if (error) console.error("set_call_recording_failed", error.message);
+  else if (!data || data.length === 0) console.error("set_call_recording_noop", JSON.stringify({ tenant: tenantId, call: callId }));
 }
 
 /** The customer's thread gets the call as a message, so history stays in one place. */

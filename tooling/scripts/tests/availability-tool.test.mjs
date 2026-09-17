@@ -19,9 +19,13 @@ import { parseIcs, filterOpenings, freeWindows, localToUtcMs, composeSystemPromp
 const { offerFor, offerLead, needsConsultation } = await import("@chanlytics/contracts");
 import { desiredVoiceShell, availabilityUrl, voiceLlmCreateBody } from "@chanlytics/channels";
 import { readCode } from "./_source.mjs";
+import { fakeDb } from "./_fake-db.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const { spoken, availabilityAnswer } = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
+process.env.RETELL_FN_SECRET = "availability-secret-for-this-file";
+const { setPg } = await import(pathToFileURL(path.join(here, "../../../apps/edge/lib/pg.ts")).href);
+const door = await import(pathToFileURL(path.join(here, "../../../apps/edge/api/retell-availability.ts")).href);
+const { spoken, availabilityAnswer } = door;
 
 const TZ = "America/New_York";
 const ny = (y, m, d, hh, mm = 0) => localToUtcMs(TZ, y, m, d, hh, mm);
@@ -219,4 +223,42 @@ test("RDATE: extra dates join a series, or make one of a single event, and are n
   assert.deepEqual([alone.recurringExpanded, alone.skippedRecurring], [1, 0]);
   const unread = parseIcs(ics(["SUMMARY:Odd", "DTSTART;TZID=America/New_York:20260910T120000", "DTEND;TZID=America/New_York:20260910T130000", "RRULE:FREQ=WEEKLY;BYSETPOS=2", "RDATE;TZID=America/New_York:20260924T120000"]), TZ, { horizon: HORIZON });
   assert.deepEqual([unread.busy.length, unread.skippedRecurring], [1, 1], "a rule that cannot be read keeps its first occurrence and is counted, RDATE or not");
+});
+
+
+/* -------------------------------- the workspace's own answer about booking */
+
+test("a workspace that confirms its own bookings is not given times to read out", async () => {
+  // Reading times aloud is the first half of offering a booking, and the text
+  // receptionist already obeys this row for the whole of it: under "Ask me
+  // first" layerTwo replaces the reply with a person will confirm -- times,
+  // link and all. This tool read the openings out regardless, so one workspace
+  // had two receptionists answering "when are you free?" differently.
+  //
+  // Asked BEFORE the calendar, which is what this world proves: there is no
+  // feed here at all, and the caller still hears the booking answer rather
+  // than "there is no calendar to check".
+  const T = "cccccccc-0000-4000-8000-000000000001";
+  const AGENT = "agent_availability_booking_held";
+  setPg(fakeDb({
+    tenants: [{ id: T, name: "Harbor Moving", timezone: TZ, status: "active" }],
+    tenant_channels: [{ id: "voice-1", tenant_id: T, kind: "voice", external_id: AGENT, number_e164: "+13055550100", status: "active", credentials_ref: null, config: {} }],
+    tenant_config: [{ tenant_id: T, config: {} }],
+    policies: [{ id: "pol-b", tenant_id: T, class: "booking", mode: "ask", limits: {}, subject_type: null, subject_id: null }],
+    google_listings: [],
+  }, {}, { runtime_stamp: () => "stamp-1" }));
+  try {
+    const res = await door.POST(new Request("https://chanlytics-messaging.vercel.app/api/retell-availability", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-fn-secret": process.env.RETELL_FN_SECRET },
+      body: JSON.stringify({ call: { call_id: "call_1", agent_id: AGENT }, args: {} }),
+    }));
+    assert.equal(res.status, 200, "a refusal is still a 200: the agent SPEAKS the result, and an error leaves it silent");
+    const { result } = await res.json();
+    assert.match(result, /confirms its own bookings/i);
+    assert.match(result, /do not offer times/i);
+    assert.doesNotMatch(result, /calendar/i, "asked before the feed, so a workspace with no feed still hears the true reason");
+  } finally {
+    setPg(null);
+  }
 });

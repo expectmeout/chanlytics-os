@@ -155,7 +155,10 @@ export function forgetFeeds(): void {
  * What the calendar says about the person on the line: their next
  * appointment and their last visit, matched by their number first and
  * their name second — the same match the dashboard's board and profile
- * use. Null when there is nothing to say; never throws.
+ * use. The callers behind this — a phone call, a WhatsApp message — know
+ * who they are by their number, so there is no address to match on; the
+ * board and the profile, which read People's own row, have one.
+ * Null when there is nothing to say; never throws.
  */
 export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }, now = new Date()): Promise<string | null> {
   const url = rt.calendar?.ical_url;
@@ -163,7 +166,7 @@ export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; 
   try {
     const feed = await parsedFeed(rt, url, now);
     if (!feed) return null;
-    return describeVisits(visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone }, now.getTime()), rt.timezone, now.getTime());
+    return describeVisits(visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime()), rt.timezone, now.getTime());
   } catch (e) {
     console.error("availability_visits_failed", JSON.stringify({ tenant: rt.tenantId, error: e instanceof Error ? e.message : String(e) }));
     return null;

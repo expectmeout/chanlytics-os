@@ -1,9 +1,14 @@
 # Chanlytics OS
 
 A multi-tenant AI receptionist. Customers text a business's WhatsApp number or
-phone its Retell voice line; an AI answers within seconds, books and reschedules
-appointments, and hands anything it should not decide to a human. The operator
-works from a dashboard that shows what the AI did and lets them take over.
+phone its Retell voice line; an AI answers within seconds, reads the calendar,
+offers the times that are open, sends the business's booking link, and hands
+anything it should not decide to a human. The operator works from a dashboard
+that shows what the AI did and lets them take over.
+
+It does not book. The booking tool behind the link does that, and the
+receptionist is told never to confirm a slot itself: there is no appointments
+table here, and nothing in the product can create, move or cancel one.
 
 **This is live.** One tenant (a real salon) is in production with real customers
 on a real number. Treat every change to `apps/edge` and `packages/channels` as

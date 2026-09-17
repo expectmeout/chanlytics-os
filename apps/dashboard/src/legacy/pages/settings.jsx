@@ -17,6 +17,9 @@ const ST_PERMS = window.ROLE_PERMS || {
   operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false },
   viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
 };
+// A person's own hue, from the address they are known by: the same two letters
+// on the same disc, but one of them is theirs.
+const stHue = (seed) => { const s = String(seed || ""); let h = 0; for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 360; return h; };
 const ST_ROLE_META = {
   owner:    { label: "Owner",    can: "Everything — billing, team, and disconnecting channels" },
   operator: { label: "Operator", can: "Approves decisions and tunes autonomy — not billing or team" },
@@ -142,7 +145,7 @@ const SetToggle = ({ on, onChange, ...rest }) => (
  * than at each call site means a control added to a row tomorrow is named too,
  * and a control that brings its own aria-label keeps it.
  */
-const SetRow = ({ label, hint, children }) => {
+const SetRow = ({ label, hint, note, children }) => {
   const labelId = React.useId();
   const named = React.Children.map(children, (kid) => (
     React.isValidElement(kid) && !kid.props["aria-label"] && !kid.props["aria-labelledby"]
@@ -152,7 +155,18 @@ const SetRow = ({ label, hint, children }) => {
   return (
     <div className="set-row">
       <div className="set-row-info">
-        <span className="set-row-label" id={labelId}>{label}</span>
+        <span className="set-row-label" id={labelId}>
+          {label}
+          {note && (
+            <button
+              type="button"
+              className="set-mark"
+              data-tip={note}
+              aria-label={`About ${label}: ${note}`}
+              onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+            ><Icon name="info" size={12} /></button>
+          )}
+        </span>
         {hint && <span className="set-row-hint">{hint}</span>}
       </div>
       <div className="set-row-control">{named}</div>
@@ -842,7 +856,7 @@ const TeamSection = ({ flash }) => {
         const invite = pending && window.__inviteState ? window.__inviteState(m.expiresAt) : { expired: false, words: "invite pending" };
         return (
           <div key={m.id} className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}>
-            <span className="avatar" aria-hidden="true" style={m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
+            <span className="avatar set-team-face" aria-hidden="true" style={{ "--who-h": stHue(m.email || m.name) }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
             <span className="set-team-body">
               <span className="set-team-name">{m.name}{isMe && <> <span className="set-team-you">You</span></>}</span>
               <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
@@ -1931,7 +1945,13 @@ const WorkspaceData = () => {
             {href && (
               <a className="btn btn-ghost btn-sm" href={href} download data-testid="set-export-all" title="People, conversations, calls and consent history as one JSON file" {...window.gate("export", "download the workspace's data")}><Icon name="external" size={12} /> Download (JSON)</a>
             )}
-            <span className="set-team-mail">People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here.</span>
+            <button
+              type="button"
+              className="set-mark"
+              data-tip="People, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here."
+              aria-label="What the file holds: people, conversations with their messages, calls with their transcripts, and every consent change with who recorded it. Call audio is not included: it is removed on the schedule the privacy policy states, and the transcript is here."
+              onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+            ><Icon name="info" size={12} /></button>
           </span>
         </div>
         <div className="cl-prof-attr">
@@ -2384,14 +2404,24 @@ const PaneAutonomyReal = ({ flash }) => {
           <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         <table className="pol-table">
-          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" title={AUT_MODE_HINT[m]}>{m}</th>)}</tr></thead>
+          <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" data-tip={AUT_MODE_HINT[m]} tabIndex={0}>{m}</th>)}</tr></thead>
           <tbody>
             {rows.map((r) => {
               return (
                 <tr key={r.id} className={r.locked ? "pol-locked" : ""}>
                   <td>
-                    <span className="pol-label">{r.label}</span>
-                    <span className="pol-note">{r.note}</span>
+                    <span className="pol-label">
+                      {r.label}
+                      {r.note && (
+                        <button
+                          type="button"
+                          className="set-mark"
+                          data-tip={r.note}
+                          aria-label={`What each mode does for ${r.label}: ${r.note}`}
+                          onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                        ><Icon name="info" size={12} /></button>
+                      )}
+                    </span>
                     {r.locked && <span className="pol-evidence">Locked by charter — enforced in the database</span>}
                   </td>
                   {MODES.map((m) => (
@@ -2423,7 +2453,7 @@ const PaneAutonomyReal = ({ flash }) => {
           <h2 className="fl-card-title">Reply timing and budget</h2>
           <span className="fl-card-sub">The hold window applies under Veto, and under Auto below the confidence dial.</span>
         </div>
-        <SetRow label="Hold window" hint="How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.">
+        <SetRow label="Hold window" note="How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.">
           <SetSeg
             gate={window.gate("autonomy")}
             value={delayLabel}
@@ -2431,7 +2461,7 @@ const PaneAutonomyReal = ({ flash }) => {
             onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, { replyDelayMs: d[1] }); }}
           />
         </SetRow>
-        <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.">
+        <SetRow label="Send on its own only when it's sure" note="Under Auto, a reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.">
           <SetSeg
             gate={window.gate("autonomy")}
             value={confLabel}
@@ -2439,7 +2469,7 @@ const PaneAutonomyReal = ({ flash }) => {
             onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, { minConfidence: c[1] }); }}
           />
         </SetRow>
-        <SetRow label="Day's model budget" hint="Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.">
+        <SetRow label="Day's model budget" note="Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.">
           <SetSeg
             gate={window.gate("autonomy")}
             value={budgetLabel}
@@ -2767,8 +2797,17 @@ const PaneNotificationsReal = ({ flash }) => {
         {NOTIF_KINDS.map((k) => (
           <div className="set-row" key={k.title}>
             <div className="set-row-info">
-              <span className="set-row-label">{k.title}{k.platform && <span className="pill set-notif-platform">to Chanlytics</span>}</span>
-              <span className="set-row-hint">{k.what}</span>
+              <span className="set-row-label">
+                {k.title}
+                {k.platform && <span className="pill set-notif-platform">to Chanlytics</span>}
+                <button
+                  type="button"
+                  className="set-mark"
+                  data-tip={k.what}
+                  aria-label={`When this is sent: ${k.what}`}
+                  onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+                ><Icon name="info" size={12} /></button>
+              </span>
             </div>
           </div>
         ))}

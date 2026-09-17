@@ -180,7 +180,7 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
       calendar = "ok";
       const index = indexFeed(items);
       for (const r of rows) {
-        const v = visitsIn(index, { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164 }, now.getTime());
+        const v = visitsIn(index, { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164, email: r.email ?? null }, now.getTime());
         visits.set(r.id, { timezone: tz, source: "calendar", state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });
       }
     } else {

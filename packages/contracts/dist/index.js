@@ -3322,7 +3322,7 @@ function personInText(text, people) {
   }
   return best;
 }
-var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || "Unknown";
+var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
 function matchPerson(item, people) {
   const c = extractContacts(item);
   if (c.phones.length) {
@@ -3333,18 +3333,28 @@ function matchPerson(item, people) {
       if (p2) return { id: p2.id, name: labelOf(p2), via: "phone", ...threadOf(p2) };
     }
   }
+  if (c.emails.length) {
+    const byEmail = /* @__PURE__ */ new Map();
+    for (const p2 of people) if (p2.email) byEmail.set(p2.email.toLowerCase(), p2);
+    for (const em of c.emails) {
+      const p2 = byEmail.get(em);
+      if (p2) return { id: p2.id, name: labelOf(p2), via: "email", ...threadOf(p2) };
+    }
+  }
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
   return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
 }
 function indexFeed(items) {
   const byPhone = /* @__PURE__ */ new Map();
+  const byEmail = /* @__PURE__ */ new Map();
   const texts = [];
   for (const it of items) {
     const c = extractContacts(it);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
+    for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
     texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, texts };
+  return { byPhone, byEmail, texts };
 }
 function allVisitsIn(index, person) {
   const out = [];
@@ -3355,6 +3365,7 @@ function allVisitsIn(index, person) {
     out.push({ id: it.uid ? `${it.uid}:${it.start}` : `ev:${it.start}`, start: it.start, end: it.end, title: it.title || "Busy", allDay: it.allDay, via });
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
   const re = nameMatcher(person.name);
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");
@@ -3374,6 +3385,7 @@ function visitsIn(index, person, nowMs) {
     } else if (!last || v.end > last.end) last = v;
   };
   if (person.phone) for (const it of index.byPhone.get(person.phone) ?? []) take(it, "phone");
+  if (person.email) for (const it of index.byEmail.get(person.email.toLowerCase()) ?? []) take(it, "email");
   const re = nameMatcher(person.name);
   if (re) {
     for (const { item, text } of index.texts) if (!seen.has(item) && re.test(text)) take(item, "name");

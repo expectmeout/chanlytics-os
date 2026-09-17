@@ -379,18 +379,16 @@ export async function recordEchoAndPause(
     console.error("record_echo_contact_failed", e instanceof Error ? e.message : e);
     return;
   }
+  // The thread, without moving anything on it yet. Meta redelivers a webhook it
+  // could not deliver for up to seven days, and this used to pause the thread
+  // BEFORE the message insert told it whether the echo was new -- so every
+  // redelivery slid `paused_until` forward by another full pause window, muting
+  // the receptionist for longer than the owner's setting says, with nothing on
+  // any page to explain it. The message is written first now, and its own
+  // uniqueness on (tenant_id, external_id) is what says "seen this already".
   const { data: conv, error: verr } = await db
     .from("conversations")
-    .upsert(
-      {
-        tenant_id: p.tenantId,
-        contact_id: contact.id,
-        state: "needs_human",
-        paused_until: p.pausedUntilIso,
-        last_message_at: new Date().toISOString(),
-      },
-      { onConflict: "tenant_id,contact_id" },
-    )
+    .upsert({ tenant_id: p.tenantId, contact_id: contact.id }, { onConflict: "tenant_id,contact_id" })
     .select("id")
     .single();
   if (verr || !conv) { console.error("record_echo_conv_failed", verr?.message); return; }
@@ -408,6 +406,17 @@ export async function recordEchoAndPause(
     meta: { echo: true },
   });
   if (error && error.code !== "23505") console.error("record_echo_failed", error.message);
+  // An echo we have already stored changes nothing else: the owner spoke once.
+  // An echo carrying no id of its own cannot be told apart from its own replay,
+  // so it still pauses -- a receptionist talking over the owner is the worse of
+  // the two failures, and it is what this function exists to prevent.
+  if (error?.code === "23505" && p.externalId) return;
+  const { error: perr } = await db
+    .from("conversations")
+    .update({ state: "needs_human", paused_until: p.pausedUntilIso, last_message_at: new Date().toISOString() })
+    .eq("id", conv.id)
+    .eq("tenant_id", p.tenantId);
+  if (perr) console.error("record_echo_pause_failed", perr.message);
 }
 
 /**
