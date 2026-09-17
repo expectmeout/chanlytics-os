@@ -86,7 +86,7 @@ export async function proxy(request: NextRequest) {
   const moved = canonicalRedirect(request);
   if (moved) return moved;
   // The policy composed in src/csp.ts, on the response so the browser
-  // enforces -- for now, reports -- it. Nothing rides on the request: the
+  // enforces it. Nothing rides on the request: the
   // nonce a request header would carry does not reach the render on Vercel
   // (src/csp.ts says what was tried), so the policy names inline by name.
   const csp = contentSecurityPolicy({

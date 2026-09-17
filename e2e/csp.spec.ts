@@ -26,19 +26,20 @@ async function violationsOn(page: Page, path: string, settle: () => Promise<void
   return seen;
 }
 
-test.describe("Content-Security-Policy, report-only", () => {
-  test("every page carries the policy, with no foreign script origin and no eval, and the enforced frame-ancestors beside it", async ({ page }) => {
+test.describe("Content-Security-Policy, enforced", () => {
+  test("every page carries the policy, with no foreign script origin and no eval, and frame-ancestors beside it", async ({ page }) => {
     const res = await page.goto("/login");
     expect(res).not.toBeNull();
     const headers = res!.headers();
-    const policy = headers["content-security-policy-report-only"];
-    expect(policy, "the report-only policy").toBeTruthy();
-    const scriptSrc = /script-src ([^;]*)/.exec(policy)![1].trim().split(/\s+/);
+    // Two headers of the name arrive (next.config.ts's frame-ancestors, and the proxy's policy); Playwright joins them.
+    const policy = headers["content-security-policy"];
+    expect(policy, "the enforced policy").toBeTruthy();
+    expect(headers["content-security-policy-report-only"], "nothing rides report-only any more").toBeUndefined();
+    const scriptSrc = /script-src ([^;,]*)/.exec(policy)![1].trim().split(/\s+/);
     expect(scriptSrc).toEqual(["'self'", "'unsafe-inline'", "https://connect.facebook.net"]);
     expect(policy).toContain("object-src 'none'");
     expect(policy).toContain("frame-ancestors 'none'");
-    // The enforced header next.config.ts has always sent, whatever the report-only one says.
-    expect(headers["content-security-policy"]).toContain("frame-ancestors 'none'");
+    expect(policy).toContain("upgrade-insecure-requests");
   });
 
   test("the public pages raise no violation", async ({ page }) => {

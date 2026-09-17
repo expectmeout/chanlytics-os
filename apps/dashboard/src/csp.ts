@@ -37,11 +37,12 @@
  *                standalone harness (Chanlytics.html, never served by the app)
  *                still reaches Google Fonts.
  *
- * Report-only first. The header is Content-Security-Policy-Report-Only until
- * the nightly, which walks every page signed in, has run clean of violations
- * (e2e/csp.spec.ts reads the console); then the middleware flips the name and
- * nothing else. next.config.ts keeps its enforced `frame-ancestors 'none'`
- * whatever this says, so clickjacking never waits on the flip.
+ * Enforced since 17 September 2026. It rode the report-only header first,
+ * until the nightly, which walks every page signed in, ran clean of
+ * violations (e2e/csp.spec.ts reads the console; run 35170328083 was the
+ * clean one); then the proxy flipped the name and nothing else. next.config.ts
+ * keeps its own enforced `frame-ancestors 'none'` beside this one, so
+ * clickjacking never waited on the flip.
  */
 export interface CspInputs {
   /** NEXT_PUBLIC_SUPABASE_URL; its origin is allowed over https and wss. */
@@ -88,5 +89,5 @@ export function contentSecurityPolicy(o: CspInputs): string {
   return parts.join("; ");
 }
 
-/** The header the policy rides on while it only reports; the proxy flips to the enforcing name when the nightly is clean. */
-export const CSP_HEADER = "content-security-policy-report-only";
+/** The header the policy rides on. Flip back to "content-security-policy-report-only" to observe without blocking. */
+export const CSP_HEADER = "content-security-policy";

@@ -53,5 +53,7 @@ test("no Supabase URL, or a malformed one, allows no Supabase origin rather than
   const dev = directives(contentSecurityPolicy({ supabaseUrl: "https://x.supabase.co", dev: true }));
   assert.ok(dev["script-src"].includes("'unsafe-eval'"), "fast refresh needs it");
   assert.ok(!("upgrade-insecure-requests" in dev), "a laptop is http");
-  assert.equal(CSP_HEADER, "content-security-policy-report-only", "report-only until the nightly walks every page clean");
+  assert.equal(CSP_HEADER, "content-security-policy", "enforced: the nightly walked every page clean on 17 September 2026 (run 35170328083)");
+  const enforced = directives(contentSecurityPolicy({ supabaseUrl: "https://x.supabase.co", reportOnly: false }));
+  assert.ok("upgrade-insecure-requests" in enforced, "and upgrade-insecure-requests rides again on the enforcing header");
 });
