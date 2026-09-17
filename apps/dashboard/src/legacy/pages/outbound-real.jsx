@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, PolicyChip, Confirm, EmptyState, FailedRead */
+/* global React, Icon, PolicyChip, Confirm, EmptyState, FailedRead */
 // Campaigns › Playbooks, real: a standing rule that sends one approved
 // template to newly eligible people who said yes, under the workspace's
 // autonomy mode. Same chrome as the seeded Outbound page (outbound.jsx);
@@ -27,14 +27,13 @@ const PB_NONE = [];
 // The hours a run may start at: the sending hours the clock publishes (contracts SENDING_HOURS_WORDS).
 const pbHours = () => { const h = window.__clock && window.__clock.hours; return h ? Array.from({ length: h.max - h.min + 1 }, (_, i) => h.min + i) : []; };
 const PB_FILTERS = [
-  { id: "all", label: "All" },
-  { id: "running", label: "Running" },
-  { id: "approval", label: "Needs you" },
-  { id: "paused", label: "Paused" },
+  { id: "all", label: "All", words: "in all" },
+  { id: "running", label: "Running", words: "running" },
+  { id: "approval", label: "Needs you", words: "waiting on you" },
+  { id: "paused", label: "Paused", words: "paused" },
 ];
 // The Autonomy row a class runs under, in the matrix's own words (the playbooks surface carries them).
 const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWords && window.__PLAYBOOKS.classWords[cls]) || {}).name || cls;
-const pbRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
 const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
@@ -46,12 +45,18 @@ const pbFooter = (t) => { const s = t && window.__starters ? window.__starters.b
 // What a slot shows in a preview: what a real person would see (contracts exampleParams), in the composer and on a card alike.
 const PB_EXAMPLES = { visit_when: "tomorrow at 2:00 PM", visit_service: "a consultation" };
 const pbExample = (kind, businessName) => (kind === "first_name" ? "Dani" : kind === "business_name" ? (businessName || "the business") : kind === "booking_link" ? "your booking link" : (PB_EXAMPLES[kind] || ""));
-// A card's message: its template among the approved, with the playbook's own values in the slots; null when it is not among them.
+// A card's message: its template among the approved, with the playbook's own
+// values in the slots; null when it is not among them. The body and the values
+// stay apart -- the preview marks what fills per person, and `words` is the same
+// thing joined up, for the one line a closed card shows.
 const pbMessage = (p, templates, businessName) => {
   const t = templates.find((x) => x.id === p.template_id) || null;
   if (!t) return null;
   const values = (p.params || PB_NONE).map((s) => (s && s.kind === "text" ? s.value : s && s.kind ? pbExample(s.kind, businessName) : String(s ?? "")));
-  return { template: t, words: pbRender(t.body_preview, values) };
+  // No fallback: message-preview.jsx is loaded before every page, in both lists,
+  // and a quiet `String(body)` here would put raw {{1}} on a card rather than
+  // the words -- which is what a test that had not loaded it drew.
+  return { template: t, body: t.body_preview, values, words: window.mpFill(t.body_preview, values) };
 };
 // When a run a person asked for really goes (broadcasts-real.jsx bcWhenWords). An edge older than the dashboard gives no time back, and nothing claims one.
 // What a reply is, in the one window's words (contracts REPLY_WINDOW_WORDS, on the surface).
@@ -127,7 +132,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? textOf(i).trim() : { kind: srcOf(i) }));
   const monthly = trigger === "everyone_monthly";
   const ready = !!trig && !!tpl && filled.every((v) => String(v).trim()) && !busy;
-  const preview = tpl ? pbRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
+  const shown = previewValues.map((v) => String(v).trim());
 
   const save = async () => {
     if (!window.__playbooks || !ready) return;
@@ -214,7 +219,9 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           ))}
         </div>
       )}
-      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.WaBubble from={data.businessName} body={preview} footer={pbFooter(tpl)} /></div>}
+      {/* No stamp: a playbook knows the hour it runs at, not the instant its
+          next run lands, and the Clock row below says the hour in words. */}
+      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} footer={pbFooter(tpl)} /></div>}
       <div className="bc-row">
         <span className="bc-row-label">Clock</span>
         <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
@@ -332,8 +339,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
 
       {message && (
         <div className="ob-words" data-testid="pb-words">
-          {wordsOpen && window.WaBubble
-            ? <window.WaBubble from={surface.businessName} body={message.words} footer={pbFooter(message.template)} />
+          {wordsOpen && window.MessagePreview
+            ? <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} footer={pbFooter(message.template)} compact />
             : <span className="ob-words-line">“{message.words}”</span>}
           <button className="cl-bucket-link" aria-expanded={wordsOpen} onClick={() => setWordsOpen((o) => !o)} data-testid="pb-words-toggle">{wordsOpen ? "Show less" : "Show the whole message"}</button>
         </div>
@@ -438,31 +445,41 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
 
   return (
     <div className="reports" data-testid="playbooks-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Playbooks</div>
-          <div className="cl-page-sub">
-            Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.
-          </div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label="Running" value={running} meta={waiting ? `${waiting} waiting on you` : "on your clock"} />
-          <StatCell label="Sent" value={sent} meta="by every run so far" />
-          <StatCell label="Replies" tip={pbReplyTip()} value={replied} meta="answered in the Inbox" />
-        </StatStrip>
-      </div>
-
-      <div className="cl-controls">
-        <div className="cl-controls-right" style={{ marginLeft: 0 }}>
-          <div className="fleet-filter">
-            {PB_FILTERS.map((f) => (
-              <button key={f.id} className={`fleet-filter-chip ${filter === f.id ? "active" : ""}`} onClick={() => setFilter(f.id)}>
-                {f.label}
-                <span className="fleet-filter-count tabular">{f.id === "all" ? rows.length : rows.filter((p) => pbStatus(p) === f.id).length}</span>
+      {/* One line above the cards, the way Today, Reports and People say their
+          numbers (#556, #557, #558). It was a page title the top bar already
+          showed, a two-line sub-headline, a three-cell stat strip and a row of
+          four filter chips -- about 467px of a phone before the first playbook,
+          and the chips filtered nothing at the one to four playbooks a salon
+          runs. Every filter is still here: a count is its own tap, and pressing
+          the one in force clears it, as the People line's does. */}
+      <div className="cm-standing" data-testid="pb-standing">
+        <span className="cm-standing-lead" data-tip="Standing rules your receptionist runs — one approved template to newly eligible people who said yes, on your clock, under Settings › Autonomy. Replies land in the Inbox.">
+          {rows.length === 0 ? "No playbook yet" : `${rows.length} ${rows.length === 1 ? "playbook" : "playbooks"}`}
+        </span>
+        {PB_FILTERS.filter((f) => f.id !== "all").map((f) => {
+          const n = rows.filter((p) => pbStatus(p) === f.id).length;
+          if (n === 0) return null;
+          return (
+            <span className="cm-standing-part" key={f.id}>
+              <span className="cm-standing-dot" aria-hidden="true">·</span>
+              <button
+                type="button"
+                className={`cm-standing-tap ${filter === f.id ? "on" : ""}${f.id === "approval" ? " needs" : ""}`}
+                aria-pressed={filter === f.id}
+                onClick={() => setFilter(filter === f.id ? "all" : f.id)}
+                data-testid={`pb-filter-${f.id}`}
+              >
+                <span className="tabular">{n}</span> {f.words}
               </button>
-            ))}
-          </div>
-        </div>
+            </span>
+          );
+        })}
+        {sent > 0 && (
+          <span className="cm-standing-part">
+            <span className="cm-standing-dot" aria-hidden="true">·</span>
+            <span className="tabular" data-tip={pbReplyTip()}>{sent} sent, {replied} {replied === 1 ? "reply" : "replies"}</span>
+          </span>
+        )}
       </div>
 
       <div className="rp-body">

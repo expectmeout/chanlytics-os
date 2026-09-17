@@ -290,11 +290,22 @@ function slotWords(kind: string | undefined, label: string, example: string | nu
   return example;
 }
 
-/** The message as a customer would read it: the business's own name and booking link, and a blank for what it has not given. */
-export function starterPreview(s: StarterTemplate, language: string, businessName?: string | null, bookingLink?: string | null): string {
+/**
+ * One filled value per slot, in order -- the words alone, before they are put
+ * back into the body. A preview that draws the message as a chat marks what
+ * fills per person, and it cannot mark anything once the values have been
+ * substituted into a string, so the values are decided here and the two
+ * preview functions below are the same thing joined up.
+ */
+export function starterPreviewValues(s: StarterTemplate, language: string, businessName?: string | null, bookingLink?: string | null): string[] {
   const t = starterText(s, language);
   const own: OwnFacts = { business_name: businessName, booking_link: bookingLink };
-  return fill(t.body, t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example));
+  return t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example);
+}
+
+/** The message as a customer would read it: the business's own name and booking link, and a blank for what it has not given. */
+export function starterPreview(s: StarterTemplate, language: string, businessName?: string | null, bookingLink?: string | null): string {
+  return fill(starterText(s, language).body, starterPreviewValues(s, language, businessName, bookingLink));
 }
 
 /**
@@ -304,7 +315,7 @@ export function starterPreview(s: StarterTemplate, language: string, businessNam
  * example (defaultSlotKinds), and the words follow slotWords. A slot with
  * nothing to show stays a slot.
  */
-export function templatePreview(t: { name: string; language?: string | null; body_preview: string | null; variables: unknown }, own: OwnFacts = {}): string {
+export function templatePreviewValues(t: { name: string; language?: string | null; body_preview: string | null; variables: unknown }, own: OwnFacts = {}): string[] {
   const vars = Array.isArray(t.variables) ? (t.variables as VariableLike[]) : [];
   const kinds = defaultSlotKinds(t);
   const labels = slotLabels(t);
@@ -316,7 +327,11 @@ export function templatePreview(t: { name: string; language?: string | null; bod
     const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
     if (words !== null) values[at] = words;
   });
-  return fill(String(t.body_preview ?? ""), values);
+  return values;
+}
+
+export function templatePreview(t: { name: string; language?: string | null; body_preview: string | null; variables: unknown }, own: OwnFacts = {}): string {
+  return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
 
 export const TEMPLATE_TITLE_MAX = 60;

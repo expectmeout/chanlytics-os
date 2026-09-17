@@ -126,7 +126,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   assert.ok(s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'), "one card per message: the starters, then what the workspace wrote");
   assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
-  assert.ok(s.includes("<window.WaBubble from={bizName || \"Your business\"} body={body} footer={footer} />"), "the card is the message as the customer sees it");
+  assert.ok(s.includes("<window.MessagePreview from={bizName || \"Your business\"} body={body} values={values} footer={footer} compact />"), "the card is the message as the customer sees it");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/app-shell.jsx").includes('page === "messages"') && readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes('messages: "channel-messages"') && !readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("TemplatesCard"), "Integrations points at Messages (the WhatsApp row's verb) and lists no template");
   const tabs = readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx");
@@ -136,16 +136,17 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(b.includes('data-testid="bc-add-starters"') && b.includes("{bcTitle(t.name)}"));
   assert.ok(b.includes("const srcOf = (i) => ((sources[tplId] || defaults)[i] || \"text\");"), "a starter's slots come filled in");
-  assert.ok(b.includes("<window.WaBubble") && b.includes('data-testid="bc-preview"'), "the preview is the message as the customer sees it");
+  assert.ok(b.includes("<window.MessagePreview") && b.includes('data-testid="bc-preview"'), "the preview is the message as the customer sees it");
+  assert.ok(b.includes("<window.PreviewStepper"), "and it walks the real people the count is a length of, not an example");
   assert.ok(!b.includes('<span className="bc-row-label">Template</span>'), "the row label fits");
   const p = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
   assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("if (starterRow) setTplId(starterRow.id);"), "the trigger's starter is picked for you");
-  assert.ok(p.includes("{pbTitle(t.name)}") && p.includes("<window.WaBubble"));
+  assert.ok(p.includes("{pbTitle(t.name)}") && p.includes("<window.MessagePreview"));
   const t = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
-  assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.WaBubble = WaBubble;") && t.includes("window.starterWords = starterWords;"));
+  assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.starterWords = starterWords;") && !t.includes("WaBubble"));
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");
-  assert.ok(css.includes(".wa-bubble {") && css.includes(".tpl-starter-row {"));
+  assert.ok(css.includes(".mp-bubble {") && css.includes(".tpl-starter-row {"));
 });
 
 test("the library's order, what a composer opens on, and each slot's words", () => {

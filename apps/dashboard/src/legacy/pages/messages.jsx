@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
+/* global React, Icon, Confirm, EmptyState, FailedRead */
 // Campaigns › Messages: what the receptionist and the campaigns send on
 // WhatsApp, shown as the customer sees it. One card per message — the
 // starter set in the library's order, then what the workspace wrote or
@@ -57,7 +57,13 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
   const row = cur ? cur.row : null;
   const starterText = g.starter && S ? S.text(g.starter, langId) : null;
   const own = tplOwn();
-  const body = !S ? "" : row ? S.rowPreview(row, own) : g.starter ? S.preview(g.starter, langId, own.business_name, own.booking_link) : "";
+  // The body with its slots still in it, and the words that fill them: the
+  // preview marks what varies per person, which a filled string cannot.
+  const body = row ? row.body_preview || "" : starterText ? starterText.body : "";
+  const values = !S ? null : row ? S.rowValues(row, own) : g.starter ? S.starterValues(g.starter, langId, own.business_name, own.booking_link) : null;
+  // A footer is a starter's: `public.templates` has no column for one, so a
+  // template written here or synced from WhatsApp Manager has none on file and
+  // the preview shows none rather than inventing the line.
   const footer = starterText ? starterText.footer : null;
   const closeMenu = () => { setMenu(false); setRenaming(false); setArm(false); };
   // The playbooks that send the template in view, found the way a run finds it: by name and language. Null: not read.
@@ -89,13 +95,21 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           return <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>;
         })}
       </div>
-      <window.WaBubble from={bizName || "Your business"} body={body} footer={footer} />
+      <window.MessagePreview from={bizName || "Your business"} body={body} values={values} footer={footer} compact />
       <div className="msg-card-foot">
         {row
           ? <span className="msg-card-meta">{row.name}{row.category ? ` · ${row.category}` : ""}{row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}{row.meta_status === "rejected" && row.rejected_reason ? ` · rejected: ${String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}` : ""}</span>
           : <span className="msg-card-meta">Not on WhatsApp in {cur ? cur.lang.label : "this language"} yet — the words WhatsApp would review</span>}
         {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
         {row && row.quality && <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />}
+        {/* What sends it. The card worked this out already -- it is how a delete
+            knows to refuse -- and then showed it only inside that refusal, so
+            the page that exists to hold the messages could not say which of
+            them anything uses. Null pbRows: the playbooks were not read, and
+            "nothing sends it" would be a claim rather than a reading. */}
+        {row && pbRows && (users.length > 0
+          ? <button className="cl-bucket-link" onClick={() => window.CHANLY.nav(users.length === 1 ? `outbound/${users[0].id}` : "outbound")} data-testid="template-users">Sent by {users.length === 1 ? quoted([users[0].name]) : `${users.length} playbooks`}{sending.length === 0 ? " · paused" : ""}</button>
+          : <span className="msg-card-meta" data-testid="template-users">No playbook sends it</span>)}
         <span className="msg-card-spacer" />
         {row && canAct && !menu && <button className="cl-bucket-link" onClick={() => setMenu(true)} aria-label={`More for ${g.title}`} data-testid="template-menu">···</button>}
       </div>
@@ -149,14 +163,14 @@ const MessagesReal = () => {
   if (templates === undefined) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div></div></div>
+        <div className="cm-standing">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div>
       </div>
     );
   }
   if (templates === null) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cl-head"><div className="cl-head-titles"><div className="cl-page-title">Messages</div><div className="cl-page-sub">Couldn&rsquo;t be loaded right now</div></div></div>
+        <div className="cm-standing">Your messages couldn&rsquo;t be loaded right now</div>
         <div className="rp-body">
           <FailedRead kind="card" what="your messages" body="The receptionist keeps sending; this page just can't show them at the moment." surface="settings" testid="messages-failed" />
         </div>
@@ -209,18 +223,31 @@ const MessagesReal = () => {
 
   return (
     <div className="reports" data-testid="messages-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Messages</div>
-          <div className="cl-page-sub">
-            What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way. A marketing template can only go to people who said yes to offers.
-          </div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label="Approved" value={approved} meta={lastSync ? `synced ${tplAgo(lastSync)}` : "never synced"} />
-          <StatCell label="In review" value={pending} meta="with WhatsApp" />
-          <StatCell label="Not yet added" value={missingTotal} meta={missingTotal ? "one tap each" : "every starter, both languages"} />
-        </StatStrip>
+      {/* One line above the messages, the way Today, Reports and People say their
+          numbers (#556, #557, #558). The page whose whole job is to show the
+          messages opened with a title the top bar already showed, a sub-headline
+          that ran to six lines at 390px and a three-cell stat strip: about 590px
+          of a phone, and not one message card on the first screen. */}
+      <div className="cm-standing" data-testid="messages-standing">
+        <span className="cm-standing-lead" data-tip="What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way. A marketing template can only go to people who said yes to offers.">
+          {shown.length === 0 ? "No message on file yet" : `${shown.length} ${shown.length === 1 ? "message" : "messages"}`}
+        </span>
+        {shown.length > 0 && (
+          <span className="cm-standing-part">
+            <span className="cm-standing-dot" aria-hidden="true">·</span>
+            <span className="tabular">{approved} approved{pending ? `, ${pending} in review with WhatsApp` : ""}</span>
+          </span>
+        )}
+        {missingTotal > 0 && (
+          <span className="cm-standing-part">
+            <span className="cm-standing-dot" aria-hidden="true">·</span>
+            <span className="tabular">{missingTotal} of the starter set not added</span>
+          </span>
+        )}
+        <span className="cm-standing-part">
+          <span className="cm-standing-dot" aria-hidden="true">·</span>
+          <span>{lastSync ? `synced ${tplAgo(lastSync)}` : "never synced from WhatsApp"}</span>
+        </span>
       </div>
 
       <div className="cl-controls">

@@ -98,4 +98,46 @@ test.describe("Phone shell on a real workspace", () => {
     await page.getByTestId("cv-back").click();
     await expect(page.locator(".cv-list")).toBeVisible();
   });
+  /**
+   * Broadcasts had no phone case at all, and its primary control was off the
+   * screen: .bc-actions is a flex row with no wrap, its children need 491px, the
+   * page column is 283px, and .main-scroll is overflow-x: hidden -- so "Send
+   * now" sat 208px past the right edge with no scrollbar to reach it. A case
+   * that only looks for the button would have passed the whole time.
+   */
+  test("Campaigns: every control on Broadcasts is inside the screen, and the page opens on the work", async ({ page }) => {
+    await page.goto("/#/broadcasts");
+    await page.waitForLoadState("networkidle");
+    const composer = page.getByTestId("bc-composer");
+    await expect(composer).toBeVisible();
+    const width = page.viewportSize()?.width ?? 390;
+    for (const el of await composer.getByRole("button").all()) {
+      const box = await el.boundingBox();
+      if (!box) continue;
+      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+    }
+    // Nothing scrolls sideways: the row wraps rather than being clipped.
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
+    // The work first: one line of numbers, and no page title under a top bar
+    // that already says Broadcasts.
+    await expect(page.getByTestId("bc-standing")).toBeVisible();
+    await expect(page.locator(".ct-h2")).toHaveCount(0);
+    const line = await page.getByTestId("bc-standing").boundingBox();
+    const first = await composer.boundingBox();
+    expect(line && first && first.y - line.y < 120, "the composer follows the line, not a header block").toBe(true);
+  });
+
+  test("Campaigns: Send now asks before it sends", async ({ page }) => {
+    await page.goto("/#/broadcasts");
+    await page.waitForLoadState("networkidle");
+    const send = page.getByTestId("bc-send");
+    test.skip(!(await send.isEnabled().catch(() => false)), "nothing approved to send in this workspace");
+    await send.click();
+    await expect(page.getByTestId("bc-send-confirm")).toBeVisible();
+    await expect(page.getByTestId("bc-send-yes")).toBeVisible();
+    // Nothing has gone: the question can be dismissed and the button comes back.
+    await page.getByTestId("bc-send-no").click();
+    await expect(page.getByTestId("bc-send")).toBeVisible();
+  });
 });

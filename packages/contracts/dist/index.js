@@ -5749,12 +5749,15 @@ function slotWords(kind, label, example, own) {
   }
   return example;
 }
-function starterPreview(s, language, businessName, bookingLink) {
+function starterPreviewValues(s, language, businessName, bookingLink) {
   const t = starterText(s, language);
   const own = { business_name: businessName, booking_link: bookingLink };
-  return fill(t.body, t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example));
+  return t.slots.map((x) => slotWords(x.kind, x.label, x.example, own) ?? x.example);
 }
-function templatePreview(t, own = {}) {
+function starterPreview(s, language, businessName, bookingLink) {
+  return fill(starterText(s, language).body, starterPreviewValues(s, language, businessName, bookingLink));
+}
+function templatePreviewValues(t, own = {}) {
   const vars = Array.isArray(t.variables) ? t.variables : [];
   const kinds = defaultSlotKinds(t);
   const labels = slotLabels(t);
@@ -5766,7 +5769,10 @@ function templatePreview(t, own = {}) {
     const words = slotWords(kind, label, typeof v?.example === "string" && v.example ? v.example : null, own);
     if (words !== null) values[at2] = words;
   });
-  return fill(String(t.body_preview ?? ""), values);
+  return values;
+}
+function templatePreview(t, own = {}) {
+  return fill(String(t.body_preview ?? ""), templatePreviewValues(t, own));
 }
 var TEMPLATE_TITLE_MAX = 60;
 function templateTitle(name, title) {
@@ -5870,148 +5876,6 @@ function slotToWrite(t) {
   const at2 = inboxSlots(t).findIndex((s) => s.kind === "text" || s.kind === "visit_when" || s.kind === "visit_service");
   if (at2 < 0) return null;
   return slotLabels({ name: t.name, language: t.language ?? "en_US", variables: t.variables })[at2] ?? `Value ${at2 + 1}`;
-}
-
-// src/broadcasts.ts
-var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
-var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
-var BROADCAST_STATE_LABELS = {
-  pending_approval: "Needs you",
-  scheduled: "Scheduled",
-  sending: "Sending",
-  sent: "Sent",
-  canceled: "Canceled",
-  failed: "Failed"
-};
-var BROADCAST_CHUNK = 25;
-var BROADCAST_GAP_MS = 300;
-var BROADCAST_MAX_RECIPIENTS = 2e3;
-var BROADCAST_PARAM_MAX = 1024;
-var BROADCAST_SCHEDULE_MAX_DAYS = 30;
-var BROADCAST_NAME_MAX = 80;
-var REPLY_WINDOW_HOURS = 72;
-var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
-var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
-var AUDIENCE_KINDS = ["everyone", "list", "saved"];
-var EVERYONE_LABEL = "Everyone who said yes";
-function eligibleFor(rows, kind, id, savedIds, purpose) {
-  let pool = rows;
-  if (kind === "list") {
-    const l = PEOPLE_LISTS.find((x) => x.id === id);
-    if (!l) return [];
-    pool = rows.filter(l.test);
-  } else if (kind === "saved") {
-    if (!savedIds) return [];
-    pool = rows.filter((r) => savedIds.has(r.id));
-  }
-  return pool.filter((r) => mayReceive(r, purpose));
-}
-function renderTemplate(body, params) {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
-    const v = params[Number(n) - 1];
-    return typeof v === "string" && v !== "" ? v : m;
-  });
-}
-function cleanParam(raw) {
-  if (typeof raw !== "string") return null;
-  const v = raw.trim();
-  if (!v || v.length > BROADCAST_PARAM_MAX) return null;
-  if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
-  return v;
-}
-function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title) {
-  const day = clockDate(now.getTime(), tz, now.getTime());
-  return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
-}
-var BROADCAST_FAILURE_WORDS = {
-  paused: "the workspace was paused",
-  template_not_approved: "WhatsApp no longer approves its template",
-  wire_unavailable: "WhatsApp could not be reached",
-  run_interrupted: "its send stopped partway and did not start again"
-};
-function broadcastFailureWords(failure) {
-  if (!failure) return "no reason was recorded";
-  return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
-}
-function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
-  const ms2 = Date.parse(iso);
-  return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
-}
-function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
-  const c = d.counts;
-  const attempted = c.sent + c.skipped + c.failed;
-  return {
-    ...d,
-    stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
-    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
-    deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
-    readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
-    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
-    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
-    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null
-  };
-}
-var OUTCOME_UNKNOWN = "outcome_unknown";
-var HELD_REASONS = {
-  opted_out: "asked to stop",
-  not_opted_in: "no recorded yes",
-  // The reason the send job writes when the OTHER yes is the missing one. It was
-  // added to the wire (00095) and not to these words, so the owner read the raw
-  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
-  // distinction it draws is the entire point of the split, so it is the last one
-  // that should have arrived untranslated.
-  no_marketing_consent: "no yes to offers",
-  no_phone: "no number",
-  // The number is on file but no thread answers to it on this line: a stored
-  // number that does not normalise, or one no contact row matches.
-  no_thread: "no thread for that number",
-  human_has_it: "a person had the thread",
-  paused: "the workspace was paused",
-  superseded_by_human: "a person answered first",
-  sms_carries_no_promotions: "no offers by text",
-  email_marketing_disabled: "no offers by email yet",
-  email_suppressed: "their email address stopped accepting mail",
-  recipient_changed: "their email address changed",
-  erased: "deleted",
-  send_failed: "WhatsApp refused",
-  missing_value: "a value was missing",
-  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
-  // this object opaque to the bundler, which then carries the whole map into
-  // every package that imports anything from here. core-broadcast.test.mjs
-  // holds the two spellings together.
-  outcome_unknown: "a run that did not finish"
-};
-function emptyAudienceRefusal(purpose) {
-  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
-}
-var LIMIT_TIERS = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
-function dailyLimit(tier) {
-  if (!tier) return null;
-  const n = LIMIT_TIERS[String(tier).toUpperCase()];
-  return typeof n === "number" ? n : null;
-}
-function numberHealth(n) {
-  const q = String(n.quality ?? "").toUpperCase();
-  const ev = String(n.event ?? "").toUpperCase();
-  const limit = dailyLimit(n.limit);
-  const limitWords = limit === null ? "daily limit not reported yet" : limit === Number.POSITIVE_INFINITY ? "no daily limit" : `up to ${limit.toLocaleString("en-US")} new conversations a day`;
-  if (q === "RED" || ev === "FLAGGED") {
-    return { canSend: false, tone: "danger", limitPerDay: limit, label: `WhatsApp flagged this number's quality \xB7 ${limitWords}`, refusal: "WhatsApp flagged this number's quality. Sending more marketing now risks the number; wait for it to recover." };
-  }
-  if (q === "YELLOW" || ev === "DOWNGRADE") return { canSend: true, tone: "warn", limitPerDay: limit, label: `Number quality: medium \xB7 ${limitWords}`, refusal: null };
-  if (q === "GREEN" || ev === "UNFLAGGED" || ev === "UPGRADE") return { canSend: true, tone: "ok", limitPerDay: limit, label: `Number quality: good \xB7 ${limitWords}`, refusal: null };
-  return { canSend: true, tone: "unknown", limitPerDay: limit, label: `Number quality not reported yet \xB7 ${limitWords}`, refusal: null };
-}
-function overLimitRefusal(h, audience) {
-  if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
-  return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
 
 // src/templates.ts
@@ -6131,6 +5995,171 @@ function resolveParams(specs, f) {
 }
 function exampleParams(specs, businessName) {
   return resolveParams(specs, { firstName: "Dani", businessName, bookingLink: "your booking link", visitWhen: "tomorrow at 2:00 PM", visitService: "a consultation" });
+}
+
+// src/broadcasts.ts
+var BROADCAST_STATES = ["pending_approval", "scheduled", "sending", "sent", "canceled", "failed"];
+var RECIPIENT_STATES = ["queued", "sent", "skipped", "failed"];
+var BROADCAST_STATE_LABELS = {
+  pending_approval: "Needs you",
+  scheduled: "Scheduled",
+  sending: "Sending",
+  sent: "Sent",
+  canceled: "Canceled",
+  failed: "Failed"
+};
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+var BROADCAST_MAX_RECIPIENTS = 2e3;
+var BROADCAST_PARAM_MAX = 1024;
+var BROADCAST_SCHEDULE_MAX_DAYS = 30;
+var BROADCAST_NAME_MAX = 80;
+var REPLY_WINDOW_HOURS = 72;
+var REPLY_WINDOW_MS = REPLY_WINDOW_HOURS * 36e5;
+var REPLY_WINDOW_WORDS = `within ${REPLY_WINDOW_HOURS / 24} days`;
+var AUDIENCE_KINDS = ["everyone", "list", "saved"];
+var EVERYONE_LABEL = "Everyone who said yes";
+function eligibleFor(rows, kind, id, savedIds, purpose) {
+  let pool = rows;
+  if (kind === "list") {
+    const l = PEOPLE_LISTS.find((x) => x.id === id);
+    if (!l) return [];
+    pool = rows.filter(l.test);
+  } else if (kind === "saved") {
+    if (!savedIds) return [];
+    pool = rows.filter((r) => savedIds.has(r.id));
+  }
+  return pool.filter((r) => mayReceive(r, purpose));
+}
+function previewPerson(r, refusal) {
+  return { id: r.id, label: r.name, firstName: firstNameOf(r.givenName, r.waName), refusal };
+}
+function audiencePreview(rows, kind, id, savedIds, purpose, limit = 5) {
+  let pool = rows;
+  if (kind === "list") {
+    const l = PEOPLE_LISTS.find((x) => x.id === id);
+    pool = l ? rows.filter(l.test) : [];
+  } else if (kind === "saved") {
+    pool = savedIds ? rows.filter((r) => savedIds.has(r.id)) : [];
+  }
+  const sending = pool.filter((r) => mayReceive(r, purpose));
+  const held = pool.filter((r) => !mayReceive(r, purpose));
+  const named = sending.filter((r) => firstNameOf(r.givenName, r.waName) !== null);
+  const unnamed = sending.filter((r) => firstNameOf(r.givenName, r.waName) === null);
+  const order = [...named.slice(0, 1), ...unnamed.slice(0, 1), ...named.slice(1), ...unnamed.slice(1)];
+  const people = order.slice(0, limit).map((r) => previewPerson(r, null));
+  for (const r of held.slice(0, 2)) {
+    const why = !r.phone ? "No phone number on file, so nothing can be sent." : PURPOSE_REFUSALS[mayMessageFor({ consent: r.consent.state, dnc: r.consent.dnc, marketing_consent: r.consent.marketing }, purpose, { proactive: true }).reason ?? ""] ?? "Held back.";
+    people.push(previewPerson(r, why));
+  }
+  return { people, sending: sending.length, held: held.length };
+}
+function renderTemplate(body, params) {
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n) => {
+    const v = params[Number(n) - 1];
+    return typeof v === "string" && v !== "" ? v : m;
+  });
+}
+function cleanParam(raw) {
+  if (typeof raw !== "string") return null;
+  const v = raw.trim();
+  if (!v || v.length > BROADCAST_PARAM_MAX) return null;
+  if (/[\n\r\t]/.test(v) || /\s{4,}/.test(v)) return null;
+  return v;
+}
+function broadcastName(templateName, tz, now = /* @__PURE__ */ new Date(), title) {
+  const day = clockDate(now.getTime(), tz, now.getTime());
+  return `${templateTitle(templateName, title)} \xB7 ${day}`.slice(0, BROADCAST_NAME_MAX);
+}
+var BROADCAST_FAILURE_WORDS = {
+  paused: "the workspace was paused",
+  template_not_approved: "WhatsApp no longer approves its template",
+  wire_unavailable: "WhatsApp could not be reached",
+  run_interrupted: "its send stopped partway and did not start again"
+};
+function broadcastFailureWords(failure) {
+  if (!failure) return "no reason was recorded";
+  return BROADCAST_FAILURE_WORDS[failure] ?? "it could not finish";
+}
+function whenLabel(iso, tz, now = /* @__PURE__ */ new Date()) {
+  const ms2 = Date.parse(iso);
+  return Number.isFinite(ms2) ? clockWhen(ms2, tz, now.getTime()) : "";
+}
+function toBroadcastVM(d, tz, now = /* @__PURE__ */ new Date()) {
+  const c = d.counts;
+  const attempted = c.sent + c.skipped + c.failed;
+  return {
+    ...d,
+    stateLabel: BROADCAST_STATE_LABELS[d.state] ?? d.state,
+    when: whenLabel(d.finished_at ?? d.started_at ?? d.scheduled_for, tz, now),
+    deliveredPct: c.sent > 0 ? Math.round(c.delivered / c.sent * 100) : null,
+    readPct: c.sent > 0 ? Math.round(c.read / c.sent * 100) : null,
+    open: d.state === "scheduled" || d.state === "sending" || d.state === "pending_approval",
+    progress: d.recipient_count > 0 ? Math.min(1, attempted / d.recipient_count) : 0,
+    failureLabel: d.state === "failed" ? broadcastFailureWords(d.failure) : null
+  };
+}
+var OUTCOME_UNKNOWN = "outcome_unknown";
+var HELD_REASONS = {
+  opted_out: "asked to stop",
+  not_opted_in: "no recorded yes",
+  // The reason the send job writes when the OTHER yes is the missing one. It was
+  // added to the wire (00095) and not to these words, so the owner read the raw
+  // enum `no_marketing_consent` on the broadcast's own detail pane -- and the
+  // distinction it draws is the entire point of the split, so it is the last one
+  // that should have arrived untranslated.
+  no_marketing_consent: "no yes to offers",
+  no_phone: "no number",
+  // The number is on file but no thread answers to it on this line: a stored
+  // number that does not normalise, or one no contact row matches.
+  no_thread: "no thread for that number",
+  human_has_it: "a person had the thread",
+  paused: "the workspace was paused",
+  superseded_by_human: "a person answered first",
+  sms_carries_no_promotions: "no offers by text",
+  email_marketing_disabled: "no offers by email yet",
+  email_suppressed: "their email address stopped accepting mail",
+  recipient_changed: "their email address changed",
+  erased: "deleted",
+  send_failed: "WhatsApp refused",
+  missing_value: "a value was missing",
+  // Spelled out rather than computed from OUTCOME_UNKNOWN: a computed key makes
+  // this object opaque to the bundler, which then carries the whole map into
+  // every package that imports anything from here. core-broadcast.test.mjs
+  // holds the two spellings together.
+  outcome_unknown: "a run that did not finish"
+};
+function emptyAudienceRefusal(purpose) {
+  return purpose === "marketing" ? "Nobody there has said yes to offers yet \u2014 that is a separate answer from saying yes to messages, and only it puts somebody on a promotional broadcast. Record it under \u201COffers and news\u201D on a person's profile, or get their yes with the phrase and QR on this page." : "Nobody there has said yes to messages yet. Even a reminder about their own visit needs their recorded yes. Record it on a person's profile, or get their yes with the phrase and QR on this page.";
+}
+var LIMIT_TIERS = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
+function dailyLimit(tier) {
+  if (!tier) return null;
+  const n = LIMIT_TIERS[String(tier).toUpperCase()];
+  return typeof n === "number" ? n : null;
+}
+function numberHealth(n) {
+  const q = String(n.quality ?? "").toUpperCase();
+  const ev = String(n.event ?? "").toUpperCase();
+  const limit = dailyLimit(n.limit);
+  const limitWords = limit === null ? "daily limit not reported yet" : limit === Number.POSITIVE_INFINITY ? "no daily limit" : `up to ${limit.toLocaleString("en-US")} new conversations a day`;
+  if (q === "RED" || ev === "FLAGGED") {
+    return { canSend: false, tone: "danger", limitPerDay: limit, label: `WhatsApp flagged this number's quality \xB7 ${limitWords}`, refusal: "WhatsApp flagged this number's quality. Sending more marketing now risks the number; wait for it to recover." };
+  }
+  if (q === "YELLOW" || ev === "DOWNGRADE") return { canSend: true, tone: "warn", limitPerDay: limit, label: `Number quality: medium \xB7 ${limitWords}`, refusal: null };
+  if (q === "GREEN" || ev === "UNFLAGGED" || ev === "UPGRADE") return { canSend: true, tone: "ok", limitPerDay: limit, label: `Number quality: good \xB7 ${limitWords}`, refusal: null };
+  return { canSend: true, tone: "unknown", limitPerDay: limit, label: `Number quality not reported yet \xB7 ${limitWords}`, refusal: null };
+}
+function overLimitRefusal(h, audience) {
+  if (h.limitPerDay === null || audience <= h.limitPerDay) return null;
+  return `This number can start up to ${h.limitPerDay.toLocaleString("en-US")} new conversations a day; this audience is ${audience.toLocaleString("en-US")}. Send to a smaller list or split it.`;
 }
 
 // src/playbooks.ts
@@ -9635,6 +9664,7 @@ export {
   askJump,
   askUndoOpen,
   attentionRow,
+  audiencePreview,
   autoReplyBell,
   autoReplyCandidates,
   billingAccountDto,
@@ -9959,6 +9989,7 @@ export {
   starterForTrigger,
   starterIndex,
   starterPreview,
+  starterPreviewValues,
   starterText,
   stateLabel,
   stateOf,
@@ -9968,6 +9999,7 @@ export {
   templateComponents,
   templateNameOk,
   templatePreview,
+  templatePreviewValues,
   templateTitle,
   tenantStatusFor,
   textingTermsMetadata,

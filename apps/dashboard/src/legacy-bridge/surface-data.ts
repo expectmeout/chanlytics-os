@@ -195,7 +195,7 @@ import {
   type BookingReportVM,
   type CalendarVM,
 } from "@chanlytics/contracts";
-import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, eligibleFor, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
+import { BROADCAST_CHUNK, BROADCAST_SCHEDULE_MAX_DAYS, EVERYONE_LABEL, HELD_REASONS, OFFERS_BY_WHATSAPP_NOTE, REPLY_WINDOW_WORDS, OFFERS_OPT_IN_PHRASES, audiencePreview, formatPhoneDisplay, numberHealth, optInLink, toBroadcastVM, purposeOfTemplate, type AudienceKind, type AudiencePreview, type BroadcastVM, type NumberHealth, type SendPurpose } from "@chanlytics/contracts";
 import { PLAYBOOK_TRIGGERS, nextRunLabel, scheduleLine, triggerOf, type PlaybookDto } from "@chanlytics/contracts";
 
 /**
@@ -718,6 +718,17 @@ export interface AudienceOption {
    * purpose of the template actually selected.
    */
   counts: Record<SendPurpose, number>;
+  /**
+   * A handful of the people the count is a length of, per purpose, so the
+   * composer can show one of them at a time beside the message.
+   *
+   * The chip said `23` and nothing else, so the last thing an owner saw before
+   * an irreversible send was a number -- not that three of the twenty-three have
+   * no first name on file and open with "Hi there", and not which two are in the
+   * list but held back. The rows are already in hand here; this is the same
+   * pass, keeping a few of them instead of only counting.
+   */
+  preview: Record<SendPurpose, AudiencePreview>;
   hint: string;
 }
 
@@ -796,21 +807,25 @@ export const broadcastsOverride: SurfaceOverride = {
     const rows = everyone.map((r) => toPersonRowVM(r, tz, now));
     // Both purposes, for every audience, so picking a template re-reads a number
     // rather than recomputing a list. Two passes over the people already in hand.
-    const countsFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null): Record<SendPurpose, number> => ({
-      conversational: eligibleFor(rows, kind, id, ids, "conversational").length,
-      marketing: eligibleFor(rows, kind, id, ids, "marketing").length,
+    const previewFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null): Record<SendPurpose, AudiencePreview> => ({
+      conversational: audiencePreview(rows, kind, id, ids, "conversational"),
+      marketing: audiencePreview(rows, kind, id, ids, "marketing"),
     });
+    const optionFor = (kind: AudienceKind, id: string | null, ids: Set<string> | null) => {
+      const preview = previewFor(kind, id, ids);
+      return { counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }, preview };
+    };
     const audiences: AudienceOption[] = [
-      { kind: "everyone", id: null, label: EVERYONE_LABEL, counts: countsFor("everyone", null, null), hint: "Everyone with a number whose yes covers the message you pick" },
+      { kind: "everyone", id: null, label: EVERYONE_LABEL, ...optionFor("everyone", null, null), hint: "Everyone with a number whose yes covers the message you pick" },
       // The calendar lists are audiences only when there is a calendar to read them
       // from. The three consent lists are never audiences: each is a restatement of
       // the eligibility filter this list is already crossed with, so picking one
       // would read as narrowing while changing nothing.
       ...PEOPLE_LISTS.filter((l) => l.id !== "opted_in" && l.id !== "offers_ok" && l.id !== "opted_out" && (!l.needsCalendar || people.calendar?.state === "ok")).map((l) => ({
-        kind: "list" as const, id: l.id, label: l.label, counts: countsFor("list", l.id, null), hint: `${l.label} — of those whose yes covers this message`,
+        kind: "list" as const, id: l.id, label: l.label, ...optionFor("list", l.id, null), hint: `${l.label} — of those whose yes covers this message`,
       })),
       ...(saved instanceof Error ? [] : saved.lists.map((s) => ({
-        kind: "saved" as const, id: s.id, label: s.name, counts: countsFor("saved", null, new Set(s.ids)), hint: "A list kept by hand — of those whose yes covers this message",
+        kind: "saved" as const, id: s.id, label: s.name, ...optionFor("saved", null, new Set(s.ids)), hint: "A list kept by hand — of those whose yes covers this message",
       }))),
     ];
     if (saved instanceof Error) console.error("broadcasts_lists_fetch_failed", saved.message);

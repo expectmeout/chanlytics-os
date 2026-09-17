@@ -1485,6 +1485,27 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ct-ghost:hover { color: var(--ink-muted); border-color: var(--ink-faint); }
 .ct-week-foot { display: inline-flex; align-items: center; gap: 6px; font-size: 11px; color: var(--ink-dim); line-height: 1.5; }
 .ct-week-foot .icon { color: var(--ink-faint); flex-shrink: 0; }
+/* ---- The Campaigns standing line ----
+   One line above the work on all three tabs, the way Today, Reports, People and
+   the Calendar say their numbers. What it replaces, measured at 390px: Playbooks
+   opened with a title the top bar already showed, a two-line sub-headline, a
+   three-cell stat strip and a row of four filter chips (~467px before the first
+   card); Broadcasts with an h2, a three-line sub and a stat strip (~384px before
+   the composer); Messages with a six-line sub and a strip (~590px, and not one
+   message card on the first screen of the page that exists to show them).
+   The sentences those headers carried are on the line's first phrase, one hover
+   or tap away, and the numbers are in Reports > Campaigns where a chart is. */
+.cm-standing { display: flex; align-items: center; flex-wrap: wrap; gap: 0 6px; padding: 2px 0 12px; font-size: var(--text-sm); color: var(--ink-dim); }
+.cm-standing-lead { color: var(--ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+.cm-standing-part { display: inline-flex; align-items: center; gap: 6px; }
+.cm-standing-dot { color: var(--ink-faint); }
+/* A count that is also its filter, as the People line's "needs you" is. */
+.cm-standing-tap { min-height: 28px; padding: 0 6px; margin-left: -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--ink-dim); cursor: pointer; }
+.cm-standing-tap:hover { background: var(--bg-hover); color: var(--ink); }
+.cm-standing-tap.on { background: var(--bg-hover); color: var(--ink); }
+.cm-standing-tap.needs { color: var(--warn-ink); }
+.cm-standing-tap.needs.on { color: var(--ink); }
+
 .bc-composer { background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 16px; display: flex; flex-direction: column; gap: 12px; }
 .bc-row { display: flex; align-items: flex-start; gap: 12px; }
 .bc-row-label { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); width: 26px; padding-top: 6px; flex-shrink: 0; }
@@ -1498,6 +1519,15 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .bc-actions { display: flex; align-items: center; gap: 6px; }
 .bc-actions-spacer { flex: 1; }
 .bc-actions .btn:disabled { opacity: 0.45; cursor: default; }
+/* The Campaigns note line. It lived in people.css, at 10.5px in --ink-faint -- the
+   token whose own comment says "placeholder" -- and it carries every refusal on this
+   surface: the number over its daily limit, the list nobody has said yes on, a
+   template WhatsApp no longer approves. A refusal read at 2.3:1 beside a chunking
+   note at the same weight, so the two looked alike and neither looked urgent.
+   One class, three tones: a note is quiet, a refusal is not. */
+.bc-excl-hint { font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); align-self: center; }
+.bc-excl-hint.warn { color: var(--warn-ink); }
+.bc-excl-hint.danger { color: var(--danger-ink); }
 .bc-sched { display: flex; align-items: center; gap: 10px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 14px; }
 .bc-sched-main { flex: 1; min-width: 0; }
 .bc-sched-name { font-size: 13px; font-weight: 500; color: var(--ink); display: block; }
@@ -1894,10 +1924,48 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 
 /* ---- The message as the customer sees it, and the starter set ---- */
 .bc-preview-wrap { display: flex; margin-bottom: 8px; }
-.wa-bubble { position: relative; max-width: 460px; padding: 8px 12px 18px; background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 12px 12px 12px 3px; font-size: 13px; line-height: 1.5; color: var(--ink); white-space: pre-wrap; word-break: break-word; }
-.wa-bubble-from { font-size: 11px; font-weight: 600; color: var(--accent); margin-bottom: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.wa-bubble-foot { margin-top: 6px; font-size: 11px; color: var(--ink-faint); }
-.wa-bubble-time { position: absolute; right: 10px; bottom: 4px; font-size: 10px; color: var(--ink-faint); }
+
+/* ---- The message as the customer receives it (components/message-preview.jsx) ----
+   What `.wa-bubble` was: --bg-sunken on --bg-raised, which is a 3% step on white
+   and reads as a disabled input; 460px wide where a real bubble is about 300;
+   the notch on the BOTTOM-left, which is the corner WhatsApp gives a message the
+   customer SENDS; the business's name inside the bubble in --accent, whose token
+   says "used ONLY for live/active agent state, never decorative" -- and which is
+   WhatsApp's group-chat treatment, not a 1:1 chat's; and the literal word "now"
+   on a send that goes out on Tuesday.
+   The frame is this product's own surfaces in both themes: no borrowed green, no
+   device bezel, no invented status bar. */
+.mp { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+.mp-frame { margin: 0; max-width: 340px; border: 1px solid var(--line-strong); border-radius: var(--radius-xl); overflow: hidden; background: var(--bg-sunken); }
+.mp-compact .mp-frame { max-width: 268px; }
+.mp-head { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: var(--bg-raised); border-bottom: 1px solid var(--line); }
+.mp-avatar { flex-shrink: 0; width: 28px; height: 28px; border-radius: var(--radius-full); background: var(--bg-active); color: var(--ink-muted); display: inline-flex; align-items: center; justify-content: center; font-size: 10.5px; font-weight: var(--weight-semibold); }
+.mp-who { display: flex; flex-direction: column; min-width: 0; }
+.mp-name { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-kind { font-size: 10.5px; color: var(--ink-dim); }
+.mp-thread { display: flex; flex-direction: column; gap: 8px; padding: 12px 10px 16px; }
+.mp-day { align-self: center; padding: 2px 10px; border-radius: var(--radius-full); background: var(--bg); border: 1px solid var(--line); font-size: 10px; font-weight: var(--weight-medium); letter-spacing: var(--tracking-wide); text-transform: uppercase; color: var(--ink-dim); }
+/* Incoming: the notch is the TOP-left corner. */
+.mp-bubble { align-self: flex-start; position: relative; max-width: 272px; padding: 8px 11px 18px; background: var(--bg-raised); border-radius: var(--radius-xs) var(--radius-lg) var(--radius-lg) var(--radius-lg); box-shadow: var(--shadow-sm); font-size: var(--text-sm); color: var(--ink); transition: opacity var(--duration-fast) var(--ease-out); }
+.mp-body { display: block; line-height: var(--leading-normal); white-space: pre-wrap; word-break: break-word; }
+/* What fills per person, so the eye can see what varies. A neutral tint, not the
+   accent: the accent means a live agent here and nothing else. */
+.mp-slot { background: var(--bg-active); border-radius: var(--radius-xs); padding: 0 2px; box-decoration-break: clone; -webkit-box-decoration-break: clone; }
+.mp-link { color: var(--info-ink); text-decoration: none; word-break: break-all; }
+.mp-link:hover { text-decoration: underline; }
+.mp-foot { display: block; margin-top: 6px; font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+.mp-stamp { position: absolute; right: 10px; bottom: 4px; font-size: 10px; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.mp-held .mp-bubble { opacity: 0.45; }
+.mp-mark { align-self: flex-start; display: inline-flex; align-items: center; gap: 5px; padding: 4px 9px; border-radius: var(--radius-full); background: var(--bg-raised); border: 1px solid var(--warn); font-size: var(--text-xs); font-weight: var(--weight-medium); color: var(--warn-ink); }
+.mp-step { display: flex; align-items: center; gap: 8px; max-width: 340px; }
+.mp-step-btn { flex-shrink: 0; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border-radius: var(--radius-full); border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-muted); }
+.mp-step-btn:hover { color: var(--ink); border-color: var(--ink-faint); }
+.mp-step-back .icon { transform: scaleX(-1); }
+.mp-step-who { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; text-align: center; }
+.mp-step-name { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mp-step-pos { font-size: var(--text-xs); color: var(--ink-dim); }
+.mp-note { margin: 0; max-width: 340px; font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); }
+.mp-note.warn { color: var(--warn-ink); }
 .tpl-starters { display: flex; flex-direction: column; gap: 6px; padding: 12px 0 4px; border-top: 1px solid var(--line); margin-top: 8px; }
 .tpl-starter-row { display: flex; align-items: center; gap: 10px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .tpl-starter-row:last-of-type { border-bottom: none; }
@@ -2013,7 +2081,8 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .msg-lang .dot.danger { background: var(--danger); }
 .msg-lang .dot.plain { background: var(--ink-faint); }
 .msg-lang-missing { font-size: 11px; color: var(--ink-dim); }
-.msg-card .wa-bubble { max-width: none; }
+.msg-card .mp-frame { max-width: none; }
+.msg-card .mp-bubble { max-width: 300px; }
 .msg-card-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11px; color: var(--ink-dim); margin-top: auto; }
 .msg-card-meta { min-width: 0; }
 .msg-card-spacer { flex: 1; }

@@ -71,6 +71,7 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 const { Confirm, MoreMenu, StatePill } = globalThis.window;
 Object.assign(globalThis, { Confirm, MoreMenu, StatePill });
 

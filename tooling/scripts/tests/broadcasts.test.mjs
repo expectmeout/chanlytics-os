@@ -264,8 +264,11 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   // count depends on the purpose of the template the composer has selected, which
   // the surface cannot know when it loads. A single count computed here promised an
   // audience the route would then refuse.
-  assert.ok(s.includes('conversational: eligibleFor(rows, kind, id, ids, "conversational").length'));
-  assert.ok(s.includes('marketing: eligibleFor(rows, kind, id, ids, "marketing").length'));
+  // One pass per purpose now keeps a few of the rows as well as counting them, so
+  // the composer can show one of the people the number is a length of.
+  assert.ok(s.includes('conversational: audiencePreview(rows, kind, id, ids, "conversational")'));
+  assert.ok(s.includes('marketing: audiencePreview(rows, kind, id, ids, "marketing")'));
+  assert.ok(s.includes("counts: { conversational: preview.conversational.sending, marketing: preview.marketing.sending }"), "the chip's number is the length of the list the preview walks -- never a second count");
   assert.ok(s.includes(".map((t) => ({ ...t, purpose: purposeOfTemplate(t.category) }))"), "the purpose is stamped by the bridge, never decided in a .jsx");
   assert.ok(s.includes('.filter((t) => t.channel === "whatsapp" && t.meta_status === "approved")'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("installBroadcasts();"));

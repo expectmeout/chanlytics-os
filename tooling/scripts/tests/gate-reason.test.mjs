@@ -76,6 +76,7 @@ globalThis.window = {
   clearInterval() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip", "MoreMenu"]) globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
@@ -233,7 +234,6 @@ test("REGRESSION (C17, C21): a viewer on Messages finds New message where it alw
     __CHANNELS: [{ kind: "whatsapp", status: "active", number: "+1 305" }],
     __starters: undefined,
     __SETTINGS: { config: { brain: { business_name: "Melany's Beauty Salon" } } },
-    WaBubble: () => null,
     addEventListener: (name) => listening.push(name),
   });
   try {

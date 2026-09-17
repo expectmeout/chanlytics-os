@@ -140,6 +140,7 @@ Object.assign(globalThis.window, {
   __surfaceState: () => "live",
   __DEMO_MODE: false,
 });
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
@@ -311,7 +312,8 @@ test("REGRESSION (C15): the sending hours and the pace are the published ones --
     const tree = page({ initialSegment: null, initialRun: null });
     assert.ok(textOf(find(tree, (n) => n.props?.className === "bc-meta")).includes("sent 10 at a time"), "REGRESSION: '25 at a time' in the page");
     toasts.length = 0;
-    await press(byTestId(tree, "bc-send"));
+    press(byTestId(tree, "bc-send"));
+    await press(byTestId(again({ initialSegment: null, initialRun: null }), "bc-send-yes"));
     assert.ok(textOf(toasts.at(-1).msg).includes("sending now, 10 at a time"), textOf(toasts.at(-1).msg));
 
     globalThis.window.__PLAYBOOKS = playbooksSurface();
@@ -400,4 +402,153 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
 
   tree = armed(undefined);
   assert.ok(textOf(byTestId(tree, "template-delete-confirm")).includes("couldn't check which playbooks send it"), "a playbooks read that has not landed is said");
+});
+
+test("Send now asks before it sends, and the question names the template, its language, the count and the list", async () => {
+  const sent = [];
+  const en = templateRow({ id: "tpl-en", name: "winback_offer", language: "en_US", purpose: "marketing", body_preview: "Hi {{1}}, come back to {{2}}." });
+  const es = templateRow({ id: "tpl-es", name: "winback_offer", language: "es", purpose: "marketing", body_preview: "Hola {{1}}, vuelve a {{2}}." });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [en, es], number: healthyNumber });
+  globalThis.window.__broadcasts.send = async (body) => { sent.push(body); return { ok: true, data: { id: "b-new", name: "Win-back", recipient_count: 2, scheduled_for: new Date().toISOString(), moved_from: null } }; };
+
+  let tree = page({ initialSegment: null, initialRun: null });
+  press(byTestId(tree, "bc-send"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.equal(sent.length, 0, "one press sends nothing -- it was the only act here that could not be taken back and the only one that did not ask");
+  const q = textOf(byTestId(tree, "bc-send-confirm"));
+  // A workspace holding the starter set in both languages has two rows per name
+  // and the chips read the same over each, so the question names the one it means.
+  assert.ok(q.includes("(English)"), q);
+  assert.ok(q.includes("Win-back"), q);
+  assert.ok(/to \d+ (person|people) on/.test(q), q);
+  assert.ok(q.includes("cannot be taken back"), q);
+
+  toasts.length = 0;
+  await press(byTestId(tree, "bc-send-yes"));
+  assert.equal(sent.length, 1, "and the Yes sends it");
+  // The receipt's one door out, in the verb the row itself uses: a message
+  // already delivered stays delivered, so it is not offered as an Undo.
+  assert.equal(toasts.at(-1).action.label, "Stop it");
+  assert.equal(toasts.at(-1).links[0].to, "broadcasts/run:b-new");
+});
+
+test("The preview is the message as the customer receives it: the name in the chat header, what fills per person marked, a link drawn as one, and the hour it really goes", () => {
+  const tpl = templateRow({ id: "tpl-1", name: "winback_offer", purpose: "marketing", body_preview: "Hi {{1}}, book at booksy.com/luna and we'll take it from there.", variables: [{ position: 1, label: "First name", example: "Dani" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [tpl], number: healthyNumber, businessName: "Luna Studio" });
+  const tree = page({ initialSegment: null, initialRun: null });
+  const preview = byTestId(tree, "bc-preview");
+  assert.ok(preview, "the composer draws one");
+
+  // The business's name is the chat header. Inside the bubble it is WhatsApp's
+  // GROUP-chat treatment, which a broadcast never is -- and it was drawn there
+  // in --accent, the token reserved for a live agent.
+  const head = find(preview, (n) => n.props?.className === "mp-head");
+  assert.ok(textOf(head).includes("Luna Studio"), textOf(head));
+  assert.ok(textOf(head).includes("Business account"), textOf(head));
+  const bubble = find(preview, (n) => n.props?.className === "mp-bubble");
+  assert.ok(!textOf(find(bubble, (n) => n.props?.className === "mp-body")).startsWith("Luna Studio"), "not a line inside the bubble");
+
+  // What fills per person is marked, so the eye can see what varies. A string
+  // cannot be marked, which is why the three local renderers could not do this.
+  const slots = all(preview, (n) => n.props?.className === "mp-slot");
+  assert.equal(slots.length, 1, "one slot, one mark");
+  assert.equal(textOf(slots[0]), "Dani");
+
+  // The booking link is the pixel the message exists for; it was drawn as prose.
+  const link = find(preview, (n) => n.props?.className === "mp-link");
+  assert.ok(link && textOf(link) === "booksy.com/luna", "the link is a link");
+
+  // The stamp is the hour it really goes -- it was the literal word "now" on a
+  // send that could be scheduled for Tuesday.
+  const stamp = textOf(find(preview, (n) => n.props?.className === "mp-stamp"));
+  assert.notEqual(stamp, "now");
+  assert.equal(stamp, globalThis.window.__clock.time(globalThis.window.__clock.nextOpen(Date.now()).at), stamp);
+
+  // A slot nobody has filled stays a hole rather than quietly reading as words.
+  assert.deepEqual(globalThis.window.mpParts("Hi {{1}}.", []).map((p) => p.text), ["Hi ", "{{1}}", "."]);
+});
+
+test("Messages says what sends each message -- the card worked it out to refuse a delete and then showed it only there", () => {
+  let tree = messages({
+    __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })],
+    __PLAYBOOKS: { rows: [playbook({ id: "pb-1", name: "Win-back", template_name: "offer", template_language: "en_US", state: "running" })] },
+  });
+  const users = byTestId(tree, "template-users");
+  assert.ok(textOf(users).includes("Win-back"), textOf(users));
+  press(users);
+  assert.equal(went.at(-1), "outbound/pb-1", "and it opens that playbook's card");
+
+  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: { rows: [] } });
+  assert.equal(textOf(byTestId(tree, "template-users")).trim(), "No playbook sends it");
+
+  // A playbooks read that has not landed is not "nothing sends it".
+  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US" })], __PLAYBOOKS: undefined });
+  assert.equal(byTestId(tree, "template-users"), null, "an unread list makes no claim");
+});
+
+/**
+ * A person as GET contacts returns them, through the same view model the bridge
+ * builds audiences from -- not a shape invented here, because a made-up fixture
+ * field is how a page passes a test while production stays wrong.
+ */
+const contact = (over = {}) => ({
+  id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani", phone_e164: "+17865550181",
+  consent: "opted_in", consent_source: "reply", consent_updated_at: iso(-30 * D), dnc: false, marketing_consent: "opted_in", channels: ["whatsapp"],
+  conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
+  latest_conversation_id: "cv1", latest_state: "open", latest_paused_until: null, latest_assignee_user_id: null, latest_snooze_until: null,
+  latest_wa_inbound_at: iso(-2 * H), last_message_at: iso(-2 * H), last_message_direction: "inbound", last_message_sender: "customer",
+  last_inbound_text: "See you Saturday", last_inbound_at: iso(-2 * H),
+  last_call_at: null, last_inbound_call_at: null, last_inbound_call_summary: null, call_count: 0, call_seconds: 0,
+  first_contact_at: iso(-60 * D), earliest_row_at: iso(-60 * D), has_backfill: false, has_chat: true, queued_reply_at: null,
+  effective_reply_mode: "auto", visits: null, ...over,
+});
+
+test("The composer shows one of the real people at a time, and the two nobody had ever been shown: the one with no name, and the one held back", () => {
+  const rows = [
+    contact({ id: "c1", display_name: "Daniela R.", wa_profile_name: "Dani" }),
+    // Only a number on file. The wire greets them "Hi there" (resolveParams) and
+    // the composer had no way to show it before the send went.
+    contact({ id: "c2", display_name: null, wa_profile_name: null }),
+    contact({ id: "c3", display_name: "Marco Ortiz", wa_profile_name: "Marco" }),
+    // In the list, not in the send.
+    contact({ id: "c4", display_name: "Tomás Ruiz", wa_profile_name: "Tomás", consent: "opted_out", marketing_consent: "opted_out" }),
+  ].map((c) => contracts.toPersonRowVM(c, ZONE, new Date(NOW)));
+  const pv = contracts.audiencePreview(rows, "everyone", null, null, "marketing");
+  assert.equal(pv.sending, 3);
+  assert.equal(pv.held, 1);
+  // An ordinary person first, then the one with no name -- the case worth seeing.
+  // The name a human typed wins over the WhatsApp profile name, as at the wire.
+  assert.equal(pv.people[0].firstName, "Daniela");
+  assert.equal(pv.people[1].firstName, null);
+  assert.equal(pv.people.at(-1).refusal, contracts.PURPOSE_REFUSALS.opted_out, "the reason is the one the wire would give");
+
+  const tpl = templateRow({ id: "tpl-1", name: "winback_offer", purpose: "marketing", body_preview: "Hi {{1}}, come back to us.", variables: [{ position: 1, label: "First name", example: "Dani" }] });
+  globalThis.window.__BROADCASTS = broadcastsSurface({
+    templates: [tpl], number: healthyNumber,
+    audiences: [{ kind: "everyone", id: null, label: "Everyone who said yes", counts: { marketing: pv.sending, conversational: pv.sending }, preview: { marketing: pv, conversational: pv } }],
+  });
+
+  let tree = page({ initialSegment: null, initialRun: null });
+  const step = byTestId(tree, "mp-step");
+  assert.ok(step, "an audience chip showed a count and never a person");
+  assert.ok(textOf(step).includes("Daniela R."), textOf(step));
+  assert.ok(textOf(step).includes("1 of 3"), textOf(step));
+  assert.ok(textOf(byTestId(tree, "bc-preview")).includes("Hi Daniela"), "the slot takes THEIR name");
+
+  // The next one has no name on file: the message opens "Hi there", and the page
+  // says why rather than leaving it to be discovered after the send.
+  press(find(step, (n) => n.props?.["aria-label"] === "The next person"));
+  tree = again({ initialSegment: null, initialRun: null });
+  assert.ok(textOf(byTestId(tree, "bc-preview")).includes("Hi there"), textOf(byTestId(tree, "bc-preview")));
+  assert.ok(textOf(byTestId(tree, "mp-note")).includes("Hi there"), textOf(byTestId(tree, "mp-note")));
+
+  // And the last is in the list but held back: drawn as not sent, with the reason.
+  // Two more steps: Daniela, the one with no name, Marco, then Tomás.
+  for (let i = 0; i < 2; i += 1) {
+    press(find(byTestId(tree, "mp-step"), (n) => n.props?.["aria-label"] === "The next person"));
+    tree = again({ initialSegment: null, initialRun: null });
+  }
+  assert.ok(byTestId(tree, "mp-held"), "the bubble is marked Not sent");
+  assert.ok(textOf(byTestId(tree, "mp-note")).includes("asked to stop"), textOf(byTestId(tree, "mp-note")));
+  assert.equal(textOf(find(byTestId(tree, "mp-step"), (n) => String(n.props?.className || "").startsWith("mp-step-pos"))), "held back", "and its place in the walk says so rather than counting them into the send");
 });

@@ -140,6 +140,7 @@ globalThis.window = {
   clearTimeout() {},
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 globalThis.StatePill = globalThis.window.StatePill;
 await import("../../../apps/dashboard/src/legacy/pages/conversations.jsx");
 const { OutcomePill } = globalThis.window;
@@ -448,7 +449,6 @@ const mountMessages = (over) => {
   Object.assign(globalThis.window, {
     __TEMPLATES_ALL: [], __CHANNELS: [], __ME: { role: "owner" }, __starters: undefined,
     __SETTINGS: { config: { brain: { business_name: "Melany's Beauty Salon", booking_link: "https://booksy.com/melany" } } },
-    WaBubble: (p) => ({ type: "wa-bubble", props: { children: [p.body] } }),
   }, over);
   cells = []; seq = 0;
   return globalThis.window.MessagesPage();

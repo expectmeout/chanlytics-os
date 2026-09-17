@@ -10,19 +10,6 @@ const TC_LANGS = [
   { id: "es_MX", label: "Spanish (Mexico)" }, { id: "es_ES", label: "Spanish (Spain)" }, { id: "pt_BR", label: "Portuguese (Brazil)" },
 ];
 const tcSlots = (body) => { const s = new Set(); for (const m of String(body || "").matchAll(/\{\{(\d+)\}\}/g)) s.add(Number(m[1])); return [...s].sort((a, b) => a - b); };
-const tcRender = (body, values) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (values[Number(n) - 1] || m));
-
-// The message as the customer will see it: the business's name above, the
-// words, the footer under — the way WhatsApp draws a template. One
-// component for the Broadcasts composer, the playbook composer and here.
-const WaBubble = ({ from, body, footer }) => (
-  <div className="wa-bubble" data-testid="wa-bubble">
-    {from ? <div className="wa-bubble-from">{from}</div> : null}
-    <div className="wa-bubble-body">{body}</div>
-    {footer ? <div className="wa-bubble-foot">{footer}</div> : null}
-    <div className="wa-bubble-time">now</div>
-  </div>
-);
 
 // What happened to the starter set, in one line.
 const starterWords = (d) => {
@@ -51,7 +38,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
   const canEdit = !!(window.canDo && window.canDo("approve"));
   const slots = tcSlots(body);
   const exampleFor = (i) => examples[i] || "";
-  const preview = tcRender(body, slots.map((n, i) => exampleFor(i)));
+  const previewValues = slots.map((n, i) => exampleFor(i));
   const ready = !!name.trim() && !!body.trim() && slots.every((n, i) => !!exampleFor(i).trim()) && !submitting;
 
   const draft = async () => {
@@ -139,7 +126,7 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
           </div>
         )}
       </div>
-      {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><WaBubble from={businessName} body={preview} footer={footer} /></div>}
+      {body && <div className="bc-preview-wrap" data-testid="tpl-preview"><window.MessagePreview from={businessName} body={body} values={previewValues} footer={footer || null} /></div>}
       {warnings.length > 0 && <div className="bc-excl-hint" data-testid="tpl-warnings">{warnings.join(" ")}</div>}
       <window.FieldError message={error} testid="tpl-error" />
       <div className="bc-actions">
@@ -152,5 +139,4 @@ const TemplateComposer = ({ onDone, onCancel, businessName = "" }) => {
 };
 
 window.TemplateComposer = TemplateComposer;
-window.WaBubble = WaBubble;
 window.starterWords = starterWords;

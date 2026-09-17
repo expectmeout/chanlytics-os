@@ -140,6 +140,7 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
 const { installPolicyStore } = await import("../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
 installPolicyStore(globalThis.window);
@@ -359,7 +360,7 @@ test("REGRESSION (C10): a card shows the words its runs send -- it named the tem
   assert.ok(textOf(words).includes("Hi Dani, it's been a while at Northside Studio. Come back for 10% off this week."), textOf(words));
   press(byTestId(tree, "pb-words-toggle"));
   tree = redraw(playbook());
-  assert.ok(byTestId(byTestId(tree, "pb-words"), "wa-bubble"), "the whole message, as the customer sees it");
+  assert.ok(byTestId(byTestId(tree, "pb-words"), "message-preview"), "the whole message, as the customer sees it");
 
   globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: [] });
   tree = card(playbook());

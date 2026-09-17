@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
+/* global React, Icon, Confirm, EmptyState, FailedRead */
 // Campaigns › Broadcasts, real: one approved template to the people who said
 // yes. Same chrome as the seeded page (broadcasts.jsx); every number is a
 // row's. Nothing here scores, estimates or invents: no credits, no revenue,
@@ -20,11 +20,15 @@ const useBroadcasts = () => {
   return window.__BROADCASTS;
 };
 
-const bcRender = (body, params) => String(body || "").replace(/\{\{(\d+)\}\}/g, (m, n) => (params[Number(n) - 1] || m));
 const bcKey = (a) => `${a.kind}:${a.id || ""}`;
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const bcTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const bcIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
+// The language a row goes out in, as a person reads it. A workspace holding the
+// starter set in both languages has two rows per name, and the chips said the
+// same words over each -- so the question asked before a send names the one it
+// means. Empty when the library is not read: a guess is worse than nothing here.
+const bcLangWords = (t) => (t && window.__starters && window.__starters.langWords ? ` (${window.__starters.langWords(t.language)})` : "");
 // The library's order: starters first, then templates written here, then the rest.
 const bcOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 // What a broadcast opens on: the quick note when the workspace holds it, else the first.
@@ -247,20 +251,39 @@ const bcWhenNote = (at, maxDays) => {
 };
 window.bcWhenNote = bcWhenNote;
 
-// The history's numbers -- sent, delivered, replies -- over the rows the route
-// returned. Past fifty broadcasts the route says older ones exist (more), and
-// the numbers say they are the latest fifty rather than reading as everything.
+// The history in ONE LINE above the work, the way Today, Reports and People say
+// their numbers (#556, #557, #558). It was a three-cell stat strip under a page
+// title the top bar already showed and a two-line sub-headline: 384px of a phone
+// before the composer, and every number in it is also in Reports > Campaigns,
+// which is where a number that wants a chart belongs.
+// Past fifty broadcasts the route says older ones exist (more), and the line
+// says its numbers are the latest fifty rather than reading as everything.
 const BcHistoryStats = ({ rows, more, replyWindow = null }) => {
   const history = (rows || []).filter((r) => !r.open);
   const messages = history.reduce((a, r) => a + r.counts.sent, 0);
   const delivered = history.reduce((a, r) => a + r.counts.delivered, 0);
-  const scope = more ? " · latest 50 broadcasts" : "";
+  const replied = history.reduce((a, r) => a + r.counts.replied, 0);
+  const sent = history.filter((r) => r.state === "sent").length;
+  const dot = <span className="cm-standing-dot" aria-hidden="true">·</span>;
   return (
-    <StatStrip>
-      <StatCell label="Sent" value={history.filter((r) => r.state === "sent").length} meta={`${messages.toLocaleString()} messages${scope}`} />
-      <StatCell label="Delivered" tip="Delivered or read, over sent — WhatsApp's own receipts" value={messages ? `${Math.round((delivered / messages) * 100)}%` : "—"} meta={`from WhatsApp receipts${scope}`} />
-      <StatCell label="Replies" tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"} value={history.reduce((a, r) => a + r.counts.replied, 0)} meta={`answered in the Inbox${scope}`} accent />
-    </StatStrip>
+    <div className="cm-standing" data-testid="bc-standing">
+      <span className="cm-standing-lead" data-tip="One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.">
+        {sent === 0 ? "Nothing sent yet" : `${sent} ${sent === 1 ? "broadcast" : "broadcasts"} sent`}
+      </span>
+      {messages > 0 && (
+        <span className="cm-standing-part">
+          {dot}
+          <span className="tabular" data-tip="Delivered or read, over sent — WhatsApp's own receipts">{messages.toLocaleString()} {messages === 1 ? "message" : "messages"}, {Math.round((delivered / messages) * 100)}% delivered</span>
+        </span>
+      )}
+      {messages > 0 && (
+        <span className="cm-standing-part">
+          {dot}
+          <span className="tabular" data-tip={replyWindow ? `Threads that heard from the customer ${replyWindow} of a broadcast` : "Threads that heard from the customer after a broadcast"}>{replied} {replied === 1 ? "reply" : "replies"} in the Inbox</span>
+        </span>
+      )}
+      {more && <span className="cm-standing-part">{dot}<span>the latest 50 broadcasts</span></span>}
+    </div>
   );
 };
 window.BcHistoryStats = BcHistoryStats;
@@ -295,6 +318,12 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const [name, setName] = React.useState("");
   const [whenAt, setWhenAt] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  // Which of the audience's people the preview is showing.
+  const [who, setWho] = React.useState(0);
+  // Whether Send now has been pressed once and is asking. A question about one
+  // template and one audience cannot be answered for another, so changing either
+  // puts the button back.
+  const [armed, setArmed] = React.useState(false);
   // The broadcast open on the page is the one its link names (broadcasts/run:<id>); pressing a row follows that link.
   const openId = initialRun;
   const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
@@ -316,6 +345,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     const d = bcDefault(templates);
     if (!templates.some((t) => t.id === tplId) && d) setTplId(d.id);
   }, [templates, tplId]);
+  // The armed question names a template and an audience: change either and it is
+  // no longer the question that was asked.
+  React.useEffect(() => { setArmed(false); setWho(0); }, [tplId, aud]);
 
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   // The template comes BEFORE the counts now, because the counts depend on it.
@@ -349,7 +381,25 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const previewValues = vars.map((v, i) => (srcOf(i) === "text" ? (typed[i].trim() || `[${labels[i]}]`) : exampleOf(srcOf(i))));
   const specs = vars.map((v, i) => (srcOf(i) === "text" ? typed[i].trim() : { kind: srcOf(i) }));
   const ready = !!tpl && !!active && activeCount > 0 && filled.every((v) => String(v).trim()) && !busy && numberOk && !overLimit;
-  const preview = tpl ? bcRender(tpl.body_preview, previewValues.map((v) => String(v).trim())) : "";
+  const shown = previewValues.map((v) => String(v).trim());
+  // Who the preview is drawing it for. The bridge keeps a handful of the rows the
+  // count is a length of; a surface cached before they were published has none,
+  // and then the composer shows the example values as it always did.
+  const sample = (active && active.preview && active.preview[purpose]) || null;
+  const people = sample ? sample.people : BC_NONE;
+  const person = people.length ? people[Math.min(who, people.length - 1)] : null;
+  // What this person really reads. A first-name slot takes THEIR name, and the
+  // words the wire uses when nobody has one -- "Hi there" (contracts
+  // resolveParams) -- had never been shown to anybody before a send.
+  const forPerson = !person ? shown : vars.map((v, i) => (srcOf(i) === "first_name" ? (person.firstName || "there") : shown[i]));
+  const noName = !!person && !person.refusal && !person.firstName;
+  const personNote = !person ? null
+    : person.refusal ? person.refusal
+    : noName ? "No first name on file, only a number — the message opens “Hi there”."
+    : null;
+  // When the message really lands, for the stamp on it: the box's time, or now,
+  // moved to the next nine o'clock exactly as the route moves it (bcWhenNote).
+  const goesAt = window.__clock ? window.__clock.nextOpen(whenAt === null ? Date.now() : whenAt).at : null;
   // A surface cached before the ceiling was published carries none; the route's is thirty days.
   const maxDays = data.scheduleMaxDays || 30;
   const whenNote = bcWhenNote(whenAt, maxDays);
@@ -369,6 +419,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
       name: name.trim() || null,
     });
     setBusy(false);
+    setArmed(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setName("");
     setWhenAt(null);
@@ -376,7 +427,16 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
     const words = bcWhenWords(r.data);
-    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</> });
+    // The one door out, offered where the send is announced rather than 400px
+    // down the page. It is not an Undo and is not called one: a message already
+    // out stays out, which is what the row's own Stop says, so the toast carries
+    // the same verb and the same promise. A scheduled run has sent nothing yet.
+    const waits = words !== "sending now";
+    flash({
+      msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</>,
+      action: canSend ? { label: waits ? "Cancel it" : "Stop it", onClick: () => cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: waits ? "scheduled" : "sending" }) } : null,
+      links: [{ label: "See who", to: `broadcasts/run:${r.data.id}` }],
+    });
   };
   const addStarters = async () => {
     if (!window.__templates || !window.__templates.addStarters || addingStarters) return;
@@ -409,13 +469,6 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
 
   return (
     <div className="bc-page" data-testid="broadcasts-real">
-      <header className="ct-head">
-        <div>
-          <h2 className="ct-h2">Broadcasts</h2>
-          <p className="ct-sub">One approved template to the people who said yes. Replies land in the Inbox, where the receptionist answers them.</p>
-        </div>
-      </header>
-
       {/* A run the list does not hold -- older than its newest fifty -- opens here, first, where its link lands. */}
       {openId && !rows.some((r) => r.id === openId) && (
         <section className="ct-section bc-run-solo" id={`bc-run-${openId}`} data-testid="bc-run-solo">
@@ -496,7 +549,19 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             ))}
           </div>
         )}
-        {tpl && <div className="bc-preview-wrap" data-testid="bc-preview"><window.WaBubble from={data.businessName} body={preview} footer={bcFooter(tpl)} /></div>}
+        {tpl && (
+          <div className="bc-preview-wrap" data-testid="bc-preview">
+            <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} footer={bcFooter(tpl)} at={goesAt} held={person ? person.refusal : null}>
+              <window.PreviewStepper
+                people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
+                index={Math.min(who, Math.max(people.length - 1, 0))}
+                onStep={setWho}
+                note={personNote}
+                tone={person && (person.refusal || noName) ? "warn" : null}
+              />
+            </window.MessagePreview>
+          </div>
+        )}
         <div className="bc-meta">
           <Icon name="shield" size={11} />
           <span>
@@ -523,8 +588,23 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
           <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
-          <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>
-          <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => submit(false)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>
+          {/* Schedule stays one press: a scheduled run is cancelled from the row above,
+              and nothing has left. Send now does not -- it is the only act on this
+              surface that cannot be taken back, and it was the only one that was not
+              armed, while Stop, Skip and both Deletes each ask first. */}
+          {!armed && <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>}
+          {!armed && <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => setArmed(true)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>}
+          {armed && tpl && active && (
+            <Confirm
+              question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
+              detail={`It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
+              yes="Yes, send it"
+              busy={busy}
+              onYes={() => submit(false)}
+              onNo={() => setArmed(false)}
+              testid="bc-send"
+            />
+          )}
         </div>
         <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
         {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}

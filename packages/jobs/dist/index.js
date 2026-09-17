@@ -9282,26 +9282,6 @@ var WHEN32 = { kind: "visit_when", label: "When", example: "tomorrow at 2:00 PM"
 var SERVICE22 = { kind: "visit_service", label: "Service", example: "a consultation" };
 var WHEN_ES22 = { ...WHEN32, label: "Cu\xE1ndo", example: "ma\xF1ana a las 2:00 PM" };
 var SERVICE_ES22 = { ...SERVICE22, label: "Servicio", example: "una consulta" };
-var BROADCAST_CHUNK = 25;
-var BROADCAST_GAP_MS = 300;
-var REPLY_WINDOW_HOURS22 = 72;
-var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * 36e5;
-var REPLY_WINDOW_WORDS22 = `within ${REPLY_WINDOW_HOURS22 / 24} days`;
-function renderTemplate(body, params) {
-  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
-    const v = params[Number(n2) - 1];
-    return typeof v === "string" && v !== "" ? v : m;
-  });
-}
-var OUTCOME_UNKNOWN = "outcome_unknown";
-var LIMIT_TIERS22 = {
-  TIER_50: 50,
-  TIER_250: 250,
-  TIER_1K: 1e3,
-  TIER_10K: 1e4,
-  TIER_100K: 1e5,
-  TIER_UNLIMITED: Number.POSITIVE_INFINITY
-};
 function parseParamSpec(raw) {
   if (typeof raw === "string") {
     const m = /^@(first_name|business_name|booking_link|visit_when|visit_service)$/.exec(raw.trim());
@@ -9342,6 +9322,26 @@ function resolveParams(specs, f) {
     }
   });
 }
+var BROADCAST_CHUNK = 25;
+var BROADCAST_GAP_MS = 300;
+var REPLY_WINDOW_HOURS22 = 72;
+var REPLY_WINDOW_MS22 = REPLY_WINDOW_HOURS22 * 36e5;
+var REPLY_WINDOW_WORDS22 = `within ${REPLY_WINDOW_HOURS22 / 24} days`;
+function renderTemplate(body, params) {
+  return String(body ?? "").replace(/\{\{(\d+)\}\}/g, (m, n2) => {
+    const v = params[Number(n2) - 1];
+    return typeof v === "string" && v !== "" ? v : m;
+  });
+}
+var OUTCOME_UNKNOWN = "outcome_unknown";
+var LIMIT_TIERS22 = {
+  TIER_50: 50,
+  TIER_250: 250,
+  TIER_1K: 1e3,
+  TIER_10K: 1e4,
+  TIER_100K: 1e5,
+  TIER_UNLIMITED: Number.POSITIVE_INFINITY
+};
 var DAY_MS522 = 864e5;
 var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS22 = {
