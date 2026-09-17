@@ -646,6 +646,13 @@
       "rate": null,
       "spend": false
     },
+    "POST platform/waitlist/invited": {
+      "kind": "write",
+      "scope": "platform",
+      "role": null,
+      "rate": "platform_waitlist_invited",
+      "spend": false
+    },
     "PUT playbooks/[id]": {
       "kind": "write",
       "scope": "row",

@@ -1,5 +1,5 @@
 import { read, platform } from "@/server/route";
-import { platformHealth, platformOverview } from "@/server/platform";
+import { platformHealth, platformOverview, platformWaitlist } from "@/server/platform";
 
 /**
  * GET /api/v1/platform/overview — every workspace, for the back office.
@@ -16,18 +16,23 @@ import { platformHealth, platformOverview } from "@/server/platform";
  * of it -- so a route cannot reach them without passing it.
  */
 /**
- * The platform's own health rides on this read rather than a route of its own.
+ * The platform's own health and the waiting list ride on this read rather than
+ * routes of their own.
  *
  * It is the same question — the state of the platform — asked by the same
  * person through the same door, and the page that shows the workspaces is the
  * page that should say whether the machinery under them is running. A second
  * endpoint would mean a second round trip on open, a policy entry and a client
  * key, to answer half of what this one already answers.
+ *
+ * The waiting list is here for the same reason and one more: the people on it
+ * have no workspace, so they appear on no other surface in this product. This
+ * is the only page they can be on.
  */
 export const GET = read({
   scope: platform,
   handle: async ({ office }) => {
-    const [tenants, health] = await Promise.all([platformOverview(office), platformHealth(office)]);
-    return { tenants, health };
+    const [tenants, health, queue] = await Promise.all([platformOverview(office), platformHealth(office), platformWaitlist(office)]);
+    return { tenants, health, queue };
   },
 });
