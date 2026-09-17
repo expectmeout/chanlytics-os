@@ -23,7 +23,16 @@ const PLATFORM_GLYPH = {
   paused: "pause", test: "bolt",
 };
 
-const when = (iso) => (iso ? new Date(iso).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }) : "—");
+// Every time on this page belongs to the workspace being LOOKED AT, not to the
+// one you are signed in to: window.__clock speaks for the latter, and this is
+// the one surface that crosses that line. P.clock is the same contracts clock
+// it wraps, called with the zone the header names -- so the page still keeps
+// no calendar of its own.
+const pfClock = () => window.__platform.clock;
+const when = (iso, tz) => (iso ? pfClock().dateYear(Date.parse(iso), tz) : "—");
+const pfTime = (iso, tz) => pfClock().time(Date.parse(iso), tz);
+const pfKey = (iso, tz) => pfClock().dayKey(Date.parse(iso), tz);
+const pfDay = (iso, tz) => pfClock().dayLabel(Date.parse(iso), tz, Date.now());
 // A Setup row's tone is its state's own (contracts/tone.ts), as the owner's page draws it.
 const setupTone = (state) => (window.__chrome && window.__chrome.state ? window.__chrome.state("setup", state).tone : "plain");
 
@@ -43,6 +52,14 @@ const PlatformLine = ({ line, tenantId, onDone, flash }) => {
   const [arm, setArm] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
   const actions = P.actions(line);
+  // What KIND of filing this is, read once and behind the mark. Where it
+  // stopped is not in here: with the error, it is the diagnosis somebody opened
+  // this workspace for, and it stays on the row.
+  const aside = [
+    line.reg_mock ? "Rehearsal filing" : "",
+    line.reg_sole_prop ? "Sole proprietor" : "",
+    line.step ? `Step ${line.step}` : "",
+  ].filter(Boolean).join(" · ");
 
   const run = async (a) => {
     setBusy(true);
@@ -60,15 +77,24 @@ const PlatformLine = ({ line, tenantId, onDone, flash }) => {
   return (
     <div className="set-row" data-testid={`platform-line-${line.id}`}>
       <div className="set-row-info">
-        <span className="set-row-label">{P.number(line.e164)} · {line.kind}</span>
-        <span className="set-row-hint">
-          voice {line.voice_state} · texting {line.sms_state}
-          {line.reg_step ? ` · stopped at ${line.reg_step}` : ""}
-          {line.reg_mock ? " · rehearsal filing" : ""}
-          {line.reg_sole_prop ? " · sole proprietor" : ""}
-          {line.step ? ` · step ${line.step}` : ""}
-          {line.last_error ? ` — ${line.last_error}` : ""}
+        <span className="set-row-label">{P.number(line.e164)}<span className="pf-line-kind">{line.kind}</span></span>
+        <span className="pf-line-states">
+          <span className="pf-state"><span className="pf-state-of">voice</span>{line.voice_state || "—"}</span>
+          <span className="pf-state"><span className="pf-state-of">texting</span>{line.sms_state || "—"}</span>
+          {line.reg_step && <span className="pf-state pf-state-stuck"><span className="pf-state-of">stopped at</span>{line.reg_step}</span>}
+          {aside && (
+            <button
+              type="button"
+              className="set-mark"
+              data-tip={aside}
+              aria-label={`What else is on this line: ${aside}`}
+              onClick={(e) => { if (window.__tip) window.__tip.show(e.currentTarget); }}
+            ><Icon name="info" size={12} /></button>
+          )}
         </span>
+        {line.last_error && (
+          <span className="pf-line-error"><Icon name="alert" size={11} />{line.last_error}</span>
+        )}
         {arm && (
           <Confirm block question={P.warning(arm)} detail={arm.sentence} yes={`Yes, ${arm.label.toLowerCase()}`} no="Not now" danger={!!arm.permanent} busy={busy} onYes={() => run(arm)} onNo={() => setArm(null)} testid={`platform-${arm.action}`} />
         )}
@@ -100,11 +126,13 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
   // them is recorded against the person who pressed it.
   const vm = P.steps({ ...detail.setup, later: [] });
   const lines = (detail.setup.lines && detail.setup.lines.rows) || [];
+  // Every stamp on this card is this workspace's, and the header names the zone.
+  const tz = detail.tenant.timezone;
   return (
     <section className="fl-card set-card" data-testid="platform-detail">
       <div className="fl-card-head">
         <h2 className="fl-card-title">{detail.tenant.name}</h2>
-        <span className="fl-card-sub">{detail.tenant.slug} · {detail.tenant.timezone} · since {when(detail.tenant.created_at)}</span>
+        <span className="fl-card-sub">{detail.tenant.slug} · {tz} · since {when(detail.tenant.created_at, tz)}</span>
         <button className="cl-bucket-link" onClick={onClose} data-testid="platform-close">Close</button>
       </div>
 
@@ -112,9 +140,12 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
         <div className="set-row-info">
           <span className="set-row-label">What their Setup says</span>
           <span className="set-row-hint">{vm.readiness.sentence} · {vm.done} of {vm.total} done.</span>
+          <div className="setup-meter" aria-hidden="true">
+            <span className="setup-meter-fill" style={{ width: `${vm.total ? Math.round((vm.done / vm.total) * 100) : 0}%` }} />
+          </div>
         </div>
       </div>
-      <div className="cl-attn-list" data-testid="platform-setup-rows">
+      <div className="cl-attn-list setup-rows" data-testid="platform-setup-rows">
         {vm.rows.map((r) => (
           <window.AttnRow
             key={r.id}
@@ -150,13 +181,19 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
           <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Nothing recorded for this workspace yet.</span></div></div>
         ) : (
           <ul className="pf-events" data-testid="platform-events">
-            {detail.events.map((e, i) => (
-              <li key={`${e.created_at}-${i}`}>
-                <span className="pf-when">{when(e.created_at)}</span>
-                <span className="pf-kind">{e.kind}</span>
-                <span className="pf-cat">{e.category}{e.subject_type ? ` · ${e.subject_type}` : ""}</span>
-              </li>
-            ))}
+            {detail.events.map((e, i) => {
+              const opens = i === 0 || pfKey(e.created_at, tz) !== pfKey(detail.events[i - 1].created_at, tz);
+              return (
+                <React.Fragment key={`${e.created_at}-${i}`}>
+                  {opens && <li className="pf-day">{pfDay(e.created_at, tz)}</li>}
+                  <li className="pf-event">
+                    <span className="pf-when">{pfTime(e.created_at, tz)}</span>
+                    <span className="pf-said">{P.words(e.kind, {})}</span>
+                    <span className="pf-kind">{e.kind}</span>
+                  </li>
+                </React.Fragment>
+              );
+            })}
           </ul>
         )}
       </div>
@@ -253,7 +290,7 @@ const PanePlatform = () => {
         )}
         <div className="set-row">
           <div className="set-row-info">
-            <span className="set-row-hint">Sorted by who needs a person, not by name: work down the page. This list changes nothing; open a workspace and its lines can be retried, resent to the carriers, or handed back — each one asks twice, and each is recorded against you.</span>
+            <span className="set-row-hint">Sorted by who needs a person, not by name: work down the page.</span>
           </div>
           <input
             className="biz-input pf-find"
@@ -263,6 +300,7 @@ const PanePlatform = () => {
             data-testid="platform-find"
           />
         </div>
+        <p className="pf-warn"><Icon name="shield" size={11} />This list changes nothing; open a workspace and its lines can be retried, resent to the carriers, or handed back — each one asks twice, and each is recorded against you.</p>
         <div className="cl-attn-list" data-testid="platform-rows">
           {shown.length === 0 && (q || !problem) && (
             <div className="set-row"><div className="set-row-info"><span className="set-row-hint">{q ? `Nothing matches “${find}”.` : "No workspaces yet."}</span></div></div>
@@ -276,7 +314,8 @@ const PanePlatform = () => {
                 name={r.name}
                 meta={`${r.slug} · ${r.members} in it · ${r.age}`}
                 sentence={r.sentence}
-                status={[v.label, r.facts.paying, r.facts.answering, `texting ${r.facts.texting}`, `heard ${r.facts.heard}`]}
+                status={[v.label]}
+                note={[r.facts.paying, r.facts.answering, `texting ${r.facts.texting}`, `heard ${r.facts.heard}`].join(" · ")}
                 tone={v.tone}
                 cta={{ label: openId === r.tenantId ? "Close" : "Open", kind: "ghost", onClick: () => setOpenId(openId === r.tenantId ? null : r.tenantId) }}
                 onOpen={() => setOpenId(openId === r.tenantId ? null : r.tenantId)}

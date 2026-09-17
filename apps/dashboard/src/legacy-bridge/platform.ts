@@ -14,7 +14,8 @@
 import {
   platformRows, platformSummary, platformNumber, setupSteps,
   platformLineActions, platformActionWarning,
-  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, platformHealthWords,
+  PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, platformHealthWords, activityWords,
+  clockTime, clockDateYear, clockDayLabel, zoneDayKey,
   type PlatformTenantDto, type SetupDto, type PlatformLineAction, type PlatformHealth,
 } from "@chanlytics/contracts";
 import { api } from "./api";
@@ -43,6 +44,24 @@ export interface PlatformApi {
   healthWords: typeof platformHealthWords;
   /** One workspace: its identity, the Setup its owner sees, and what has happened lately. */
   one(tenantId: string): Promise<{ ok: boolean; detail: PlatformTenantDetail | null; message: string }>;
+  /**
+   * An event kind in an owner's words (the same function the activity log
+   * runs). The trail selects no payload, so this is called with none: the
+   * sentence for the kind alone, and the raw kind stays beside it for support.
+   */
+  words: typeof activityWords;
+  /**
+   * The clock, for a zone this page is GIVEN rather than the one it is in.
+   * window.__clock speaks for the signed-in workspace, and this is the one
+   * surface that looks at somebody else's: the same contracts functions it
+   * wraps, called with the zone the header names.
+   */
+  clock: {
+    time: typeof clockTime;
+    dateYear: typeof clockDateYear;
+    dayLabel: typeof clockDayLabel;
+    dayKey: typeof zoneDayKey;
+  };
   /** The judgement and the words. Pure, from contracts. */
   rows: typeof platformRows;
   summary: typeof platformSummary;
@@ -114,6 +133,8 @@ export function installPlatform(win: Window = window): void {
     },
     rows: platformRows,
     healthWords: platformHealthWords,
+    words: activityWords,
+    clock: { time: clockTime, dateYear: clockDateYear, dayLabel: clockDayLabel, dayKey: zoneDayKey },
     summary: platformSummary,
     verdicts: PLATFORM_VERDICTS,
     quietDays: PLATFORM_QUIET_DAYS,

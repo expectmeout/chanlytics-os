@@ -30,6 +30,7 @@ import {
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
   platformLineActions, platformActionWarning, EVENT_KINDS,
   platformHealthOf, platformHealthWords,
+  activityWords, clockTime, clockDateYear, clockDayLabel, zoneDayKey,
 } from "@chanlytics/contracts";
 
 const clock = (sweep, healthy, detail = null) => ({ sweep, healthy, detail, last_request_at: null, status_code: null, scheduled: true, alerted_at: null });
@@ -844,6 +845,10 @@ function api(tenants, detail = null, calls = []) {
     steps: setupSteps,
     actions: platformLineActions,
     warning: platformActionWarning,
+    words: activityWords,
+    // A zone the page is GIVEN, not the one it is in: the same contracts
+    // functions the bridge hands over.
+    clock: { time: clockTime, dateYear: clockDateYear, dayLabel: (ms, tz) => clockDayLabel(ms, tz, NOW), dayKey: zoneDayKey },
     act: async (action, tenantId, lineId) => { calls.push(`act:${action}:${tenantId}:${lineId}`); return { ok: true, message: "Done." }; },
   };
 }
@@ -870,9 +875,13 @@ test("the list is the contract's judgement, in the row grammar the rest of the a
   assert.equal(rows[0].props.status[0], "Broken");
   assert.equal(rows[0].props.tone, "danger");
   assert.equal(rows[1].props.tone, "ok", "the verdict speaks the six tones now; a live workspace is ok, not blank");
-  // The four facts are all on the row, so the answer is on the page rather than
-  // one click away.
-  assert.match(rows[1].props.status.join(" · "), /active · phone \+ WhatsApp · texting On · heard 1d ago/);
+  // The verdict is the row; the four facts are behind its mark. They were
+  // printed on every line so the answer was on the page rather than one click
+  // away -- Ruben changed that call on 17 Sep, looking at five facts per row on
+  // a page of twenty workspaces. They are one hover, focus or tap away now, and
+  // the mark carries them on its aria-label for a reader that never hovers.
+  assert.deepEqual(rows[1].props.status, ["Live"], "the verdict leads alone");
+  assert.match(rows[1].props.note, /active · phone \+ WhatsApp · texting On · heard 1d ago/);
   assert.match(textOf(byId(page.tree, "platform-summary")), /2 workspaces · 1 live · 1 on us/);
 });
 

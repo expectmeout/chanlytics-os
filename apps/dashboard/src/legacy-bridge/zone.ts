@@ -14,6 +14,7 @@
 import {
   DEFAULT_TIMEZONE,
   clockDateYear,
+  clockDayLabel,
   clockStamp,
   clockTime,
   clockWhen,
@@ -64,6 +65,8 @@ export interface PageClock {
   when: (atMs: number) => string;
   /** "Sep 6, 2026" */
   dateYear: (atMs: number) => string;
+  /** A day above the rows that belong to it: "Today · Sep 4" · "Yesterday · Sep 3" · "Sep 2". */
+  dayLabel: (atMs: number) => string;
   /** The business's day: "2026-09-06". */
   dayKey: (atMs: number) => string;
   /** A datetime-local box's value for an instant, by the workspace's clock. */
@@ -93,6 +96,7 @@ export function pageClock(win: Window = window): PageClock {
     stamp: (atMs) => clockStamp(atMs, zone(), Date.now()),
     when: (atMs) => clockWhen(atMs, zone(), Date.now()),
     dateYear: (atMs) => clockDateYear(atMs, zone()),
+    dayLabel: (atMs) => clockDayLabel(atMs, zone(), Date.now()),
     dayKey: (atMs) => zoneDayKey(atMs, zone()),
     inputValue: (atMs) => zonedInputValue(atMs, zone()),
     fromInput: (value) => fromZonedInput(value, zone()),

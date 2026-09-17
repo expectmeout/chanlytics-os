@@ -16,7 +16,8 @@ export interface ActivityFilters {
   person?: string;
   kind?: string;
   day?: string;
-  offset?: number;
+  /** Where the last page ended, as that page's `next_cursor` gave it. */
+  cursor?: string;
 }
 
 export const activity = {
@@ -25,7 +26,7 @@ export const activity = {
   // read leaves the log readable.
   list: async (f: ActivityFilters = {}): Promise<ApiResult<ActivityPageDto>> => {
     const [r] = await Promise.all([
-      api()("GET activity", { query: { ...(f.person ? { person: f.person } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.day ? { day: f.day } : {}), ...(f.offset ? { offset: f.offset } : {}) } }),
+      api()("GET activity", { query: { ...(f.person ? { person: f.person } : {}), ...(f.kind ? { kind: f.kind } : {}), ...(f.day ? { day: f.day } : {}), ...(f.cursor ? { cursor: f.cursor } : {}) } }),
       workspaceZone().catch(() => null),
     ]);
     return r;
