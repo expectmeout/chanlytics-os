@@ -110,6 +110,14 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
     dq = dq.in("subject_id", subjects);
     eq = eq.in("subject_id", subjects);
   }
+  // The roster goes out WITH the ledgers rather than after them. It used to
+  // wait for the merge to know whether any row had a member on it, which put a
+  // whole round trip end to end on a page that nearly always has one -- and on
+  // the page a person is already waiting in front of. It is only awaited where
+  // it was before, so a roster that refuses still refuses the read; the catch
+  // is for the case where no row names a member and nothing awaits it at all.
+  const roster = teamRoster(sb, tenantId);
+  roster.catch(() => {});
   const [decisions, events] = await Promise.all([dq, eq]);
   if (decisions.error) throw new Error(decisions.error.message);
   if (events.error) throw new Error(events.error.message);
@@ -137,7 +145,7 @@ export async function activityLog(ctx: RouteContext, tenantId: string, f: Activi
   const actors: Record<string, string> = {};
   const ids = new Set(page.map((r) => r.actor_user_id).filter((id): id is string => !!id));
   if (ids.size) {
-    const { members } = await teamRoster(sb, tenantId);
+    const { members } = await roster;
     for (const m of members) if (ids.has(m.userId)) actors[m.userId] = m.displayName?.trim() || m.email || "A member";
   }
   const last = page[page.length - 1];

@@ -19,6 +19,7 @@ import {
   type PlatformTenantDto, type SetupDto, type PlatformLineAction, type PlatformHealth,
 } from "@chanlytics/contracts";
 import { api } from "./api";
+import { readCache } from "./read-cache";
 
 export interface PlatformEventVM {
   kind: string;
@@ -37,13 +38,25 @@ export interface PlatformTenantDetail {
   events: PlatformEventVM[];
 }
 
+type OverviewAnswer = { ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; message: string };
+type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
+/** Both reads, kept for the tab: the list is re-read on every visit, and a workspace on every Open. */
+const overviews = readCache<OverviewAnswer>("platform-overview", (r) => r.ok);
+const details = readCache<DetailAnswer>("platform-detail", (r) => r.ok);
+
 export interface PlatformApi {
   /** Every workspace, as facts, and whether the machinery under them is running. `ok: false` is the ordinary answer for anybody who is not an admin. */
   list(): Promise<{ ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; message: string }>;
   /** One sentence for the health card. Pure, from contracts. */
   healthWords: typeof platformHealthWords;
   /** One workspace: its identity, the Setup its owner sees, and what has happened lately. */
-  one(tenantId: string): Promise<{ ok: boolean; detail: PlatformTenantDetail | null; message: string }>;
+  one(tenantId: string): Promise<DetailAnswer>;
+  /** What this tab already holds, if anything: what the first paint draws. */
+  peekList(): OverviewAnswer | null;
+  peekOne(tenantId: string): DetailAnswer | null;
+  /** Read ahead of the click -- the rail's tab, and a row's Open under the pointer. */
+  warmList(): void;
+  warmOne(tenantId: string): void;
   /**
    * An event kind in an owner's words (the same function the activity log
    * runs). The trail selects no payload, so this is called with none: the
@@ -88,21 +101,31 @@ declare global {
 
 export function installPlatform(win: Window = window): void {
   win.__platform = {
-    async list() {
+    list: () => overviews.through("all", async () => {
       const r = await api()("GET platform/overview");
       if (!r.ok) return { ok: false, tenants: [], health: null, message: r.message };
       // `health` rides on this read rather than a route of its own: the same
       // question, the same door, and the page that lists the workspaces is the
       // one that should say whether the machinery under them is running.
       return { ok: true, tenants: r.data.tenants, health: r.data.health ?? null, message: "" };
-    },
-    async one(tenantId) {
+    }),
+    one: (tenantId) => details.through(tenantId, async () => {
       const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
       if (!r.ok) return { ok: false, detail: null, message: r.message };
       return { ok: true, detail: r.data, message: "" };
-    },
+    }),
+    peekList: () => overviews.peek("all"),
+    peekOne: (tenantId) => details.peek(tenantId),
+    warmList: () => overviews.warm("all", () => win.__platform!.list()),
+    // A pointer resting on a row's Open is the whole warning you get that it is
+    // about to be pressed, and this read is the one that makes that click wait.
+    warmOne: (tenantId) => details.warm(tenantId, () => win.__platform!.one(tenantId)),
     async act(action, tenantId, lineId) {
       const r = await api()(`POST platform/lines/${action}`, { body: { tenant_id: tenantId, line_id: lineId } });
+      // Whatever the edge answered, the line was touched: neither the list's
+      // verdicts nor that workspace's rows can be trusted to describe it now.
+      overviews.clear();
+      details.clear();
       if (!r.ok) return { ok: false, message: r.message };
       // The edge's own words when it refused. `already_registered`,
       // `the line is answering, not failed` -- these are facts about the line,

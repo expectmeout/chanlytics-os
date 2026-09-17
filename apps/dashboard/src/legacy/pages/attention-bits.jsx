@@ -33,6 +33,8 @@ const AttnRow = ({
   cta = null,
   also = null,
   onOpen = () => {},
+  /** A pointer or the keyboard has reached this row: whoever drew it may read ahead. */
+  onHover = null,
   testid = "attention-row",
   ctaTestid = "attention-cta",
 }) => (
@@ -41,6 +43,8 @@ const AttnRow = ({
     role="button"
     tabIndex={0}
     onClick={onOpen}
+    onPointerEnter={onHover || undefined}
+    onFocus={onHover || undefined}
     // Its own Enter and Space only: a key pressed on a button inside the row is that button's.
     onKeyDown={(e) => { if (e.target === e.currentTarget && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); onOpen(); } }}
     data-testid={testid}
