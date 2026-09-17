@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { REPLY_MAX_ANY } from "@chanlytics/contracts";
 import { replyToConversation } from "@chanlytics/core";
 import { write } from "@/server/route";
 import { conversationScope } from "@/server/verbs";
@@ -19,10 +20,16 @@ import { replyPorts } from "@/server/core-ports";
  * `.strict()` on the template so a stray field is a 400 here rather than
  * something silently ignored on the way to Meta. route() judges the body only
  * after the role, so a viewer learns nothing from the shape of a refusal.
+ *
+ * The length each wire takes is the verb's to enforce, because only it knows
+ * which wire the reply goes out on (contracts REPLY_LIMITS, asked before
+ * anything is queued); the bound here is the longest any of them takes.
  */
 const ReplyBody = z
   .object({
-    text: z.string().max(4096, "WhatsApp refuses a message over 4096 characters.").optional(),
+    text: z.string().max(REPLY_MAX_ANY, "That reply is longer than any channel can carry.").optional(),
+    // Email only: the address the operator agreed to, when it is not the one the person last wrote from (core reply.ts).
+    email_to: z.string().max(320).optional(),
     template: z
       .object({
         name: z.string().min(1).max(512),

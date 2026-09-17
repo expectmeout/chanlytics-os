@@ -64,10 +64,13 @@ test("inside the window: the words go as they are; the thread is paused and clai
   assert.deepEqual(r, { message_id: "m1", status: "queued", cancelable_until: iso(NOW + SEND_GRACE_MS), window_open: true, withdrawn_drafts: 1, decision_id: "d1" });
 });
 
-test("inside the window, empty text is refused; on the texting line a text over 1600 characters is refused; both before anything is touched", async () => {
+test("inside the window, empty text is refused; a reply longer than its wire takes is refused in that wire's words; all before anything is touched", async () => {
   const empty = fakes();
   await refused(replyToConversation(empty.ports, cmd({ body: { text: "  " } })), "validation", /required/);
   assert.deepEqual(empty.ops(), []);
+  const wa = fakes();
+  await refused(replyToConversation(wa.ports, cmd({ body: { text: "x".repeat(4097) } })), "validation", /WhatsApp refuses a message over 4096/);
+  assert.deepEqual(wa.ops(), [], "REGRESSION guard: one over the limit was once stored, reported queued, and failed fifteen seconds later");
   const sms = fakes({ replyChannel: "sms" });
   await refused(replyToConversation(sms.ports, cmd({ body: { text: "x".repeat(1601) } })), "validation", /1600/);
   assert.deepEqual(sms.ops(), []);
@@ -171,4 +174,74 @@ test("a replay: the same key and intent inside the window returns the stored rec
   const noKey = fakes();
   await replyToConversation(noKey.ports, cmd());
   assert.ok(!noKey.ops().includes("storeReceipt"), "no key, nothing stored");
+});
+
+/* ------------------------------------------------------------------ email
+ * A reply by email: where it goes is the address on the person's page, what it
+ * leaves as is frozen before anything is claimed, and its row is born with both.
+ */
+const ADDRESS = "ana@example.com";
+const PARENT = { messageId: "m0", from: "Ana@Example.com", rfcMessageId: "<q1@customer.example>", references: ["<q0@customer.example>"], subject: "Quote for Saturday" };
+const FROZEN = { request: { to: [ADDRESS], subject: "Re: Quote for Saturday", idempotency_key: "id-1" }, subject: "Re: Quote for Saturday" };
+const byEmail = (over = {}) => conv({ phone_e164: null, last_wa_inbound_at: null, email: ADDRESS, email_suppressed_at: null, ...over });
+/** The flat fakes, plus email's port group logged the same way. */
+function emailFakes(over = {}, email = {}) {
+  const f = fakes({ replyChannel: "email", ...over });
+  const answers = { parent: PARENT, freeze: FROZEN, ...email };
+  f.ports.email = { newId: () => "id-1" };
+  for (const [name, answer] of Object.entries(answers)) {
+    f.ports.email[name] = async (...args) => { f.log.push([`email.${name}`, ...args]); return typeof answer === "function" ? answer(...args) : answer; };
+  }
+  return f;
+}
+
+test("a reply by email goes to the address on the person's page; its request is frozen before the thread is claimed, and the row is born with its id and that request", async () => {
+  const { ports, log, ops } = emailFakes({ queue: (row) => row.id });
+  const r = await replyToConversation(ports, cmd({ conv: byEmail(), body: { text: "We can do Saturday at 9." } }));
+  assert.deepEqual(ops(), ["email.parent", "email.freeze", "claimForReply", "withdrawDrafts", "queue", "schedule", "record", "resolveEscalation"], "no mirror to pause: this person has no number");
+  assert.deepEqual(log[1], ["email.freeze", { tenantId: "t1", messageId: "id-1", to: ADDRESS, parent: PARENT, body: "We can do Saturday at 9." }]);
+  const row = log[4][1];
+  assert.deepEqual([row.id, row.channel, row.type, row.body], ["id-1", "email", "text", "We can do Saturday at 9."]);
+  assert.deepEqual(row.meta, { email: { subject: "Re: Quote for Saturday", to: [ADDRESS], parent_id: "m0", in_reply_to: "<q1@customer.example>", request: FROZEN.request } });
+  assert.deepEqual(log[5][3], { message_id: "id-1", conversation_id: "c1", to_email: ADDRESS, body: "We can do Saturday at 9." }, "an address never travels as to_phone");
+  assert.equal(r.window_open, true, "email has no window");
+
+  const both = emailFakes();
+  await replyToConversation(both.ports, cmd({ conv: byEmail({ phone_e164: "+15550000001" }) }));
+  assert.deepEqual(both.ops().slice(0, 3), ["email.parent", "email.freeze", "pauseBot"], "a person with a number too has a mirror, and a person answering them pauses it");
+});
+
+test("an email reply that cannot go is refused in words before anything is touched: no address, a stopped address, no email to answer, no mailbox, too long", async () => {
+  const none = emailFakes();
+  await refused(replyToConversation(none.ports, cmd({ conv: byEmail({ email: null }) })), "conflict", /no email address on their page/);
+  const stopped = emailFakes();
+  await refused(replyToConversation(stopped.ports, cmd({ conv: byEmail({ email_suppressed_at: iso(NOW) }) })), "conflict", /has stopped/);
+  const orphan = emailFakes({}, { parent: null });
+  await refused(replyToConversation(orphan.ports, cmd({ conv: byEmail() })), "conflict", /no email from this person/);
+  const unset = emailFakes({}, { freeze: null });
+  await refused(replyToConversation(unset.ports, cmd({ conv: byEmail() })), "conflict", /no email address to send from/);
+  const long = emailFakes();
+  await refused(replyToConversation(long.ports, cmd({ conv: byEmail(), body: { text: "x".repeat(20001) } })), "validation", /20,000/);
+  for (const f of [none, stopped, orphan, unset, long]) assert.deepEqual(f.ops().filter((o) => !o.startsWith("email.")), [], "nothing claimed, queued or scheduled");
+  // It never crosses wires: a person with a number and no address is not texted instead.
+  const crossed = emailFakes();
+  await refused(replyToConversation(crossed.ports, cmd({ conv: byEmail({ email: null, phone_e164: "+15550000001" }) })), "conflict", /no email address/);
+  assert.deepEqual(crossed.ops(), []);
+});
+
+test("when the address on their page is not the one they wrote from, the operator is told where the reply will go and agrees by value; nothing is sent until they do", async () => {
+  const elsewhere = { ...PARENT, from: "ana.personal@example.com" };
+  const asked = emailFakes({}, { parent: elsewhere });
+  await assert.rejects(replyToConversation(asked.ports, cmd({ conv: byEmail() })), (e) =>
+    e.code === "conflict" && e.status === 409 && e.details?.confirm_email_to === ADDRESS
+    && /came from ana\.personal@example\.com/.test(e.message) && /will go to ana@example\.com/.test(e.message));
+  assert.deepEqual(asked.ops(), ["email.parent"]);
+
+  const stale = emailFakes({}, { parent: elsewhere });
+  await assert.rejects(replyToConversation(stale.ports, cmd({ conv: byEmail(), body: { text: "Hi", email_to: "old@example.com" } })), (e) => e.details?.confirm_email_to === ADDRESS, "agreeing to an address that is no longer theirs is asked again");
+
+  const agreed = emailFakes({}, { parent: elsewhere });
+  const r = await replyToConversation(agreed.ports, cmd({ conv: byEmail(), body: { text: "Hi", email_to: ADDRESS } }));
+  assert.equal(r.status, "queued");
+  assert.equal(agreed.log.find((l) => l[0] === "email.freeze")[1].to, ADDRESS, "to the page's address, never the header's");
 });

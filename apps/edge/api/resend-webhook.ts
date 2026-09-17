@@ -1,6 +1,6 @@
 /**
- * Chanlytics Messaging -- Resend's webhook: a received email, and (when sends
- * exist) what became of the ones we sent.
+ * Chanlytics Messaging -- Resend's webhook: a received email, and what became
+ * of the ones we sent.
  *
  * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What an event means is decided by
  * planResendEvent (lib/email-ingress.ts), which runs over a database in memory
@@ -10,9 +10,10 @@
  * The received event is a pointer, so nothing is fetched or judged in this
  * request: each mailbox the delivery names gets one email_ingest job, once,
  * however often Resend redelivers (the ledger's unique index, 00127), and the
- * job does the rest under the ledger's lease and retries. Resend is answered
- * 200 only once the jobs are written; a database that is down is a 503, so the
- * delivery comes back.
+ * job does the rest under the ledger's lease and retries. A receipt is applied
+ * here, in the request (lib/email-receipts.ts says why that is safe). Resend is
+ * answered 200 only once the work is written; a database that is down is a
+ * 503, so the delivery comes back.
  *
  * Email is off on a deployment that names no EMAIL_DOMAIN: 404, the door does
  * not exist there.
@@ -22,6 +23,7 @@ import { pg } from "../lib/pg.js";
 import { logger, errField } from "../lib/log.js";
 import { emailDomain } from "../lib/email.js";
 import { planResendEvent } from "../lib/email-ingress.js";
+import { applyEmailReceipt } from "../lib/email-receipts.js";
 import { emitEvent, type Json } from "../lib/workspace/db.js";
 import { scheduleJobOnce } from "../lib/workspace/jobs.js";
 
@@ -62,6 +64,18 @@ export async function POST(request: Request): Promise<Response> {
   if (verdict.kind === "refuse") {
     L.warn(verdict.log);
     return json(verdict.status, { ok: false, error: verdict.status === 401 ? "unauthorized" : "bad_request" });
+  }
+
+  if (verdict.kind === "receipt") {
+    const r = verdict.receipt;
+    try {
+      const outcome = await applyEmailReceipt(db, r, new Date().toISOString());
+      L.info("email_receipt", { type: r.type, tenant: r.tenantId, message: r.messageId, outcome });
+    } catch (e) {
+      L.error("email_receipt_not_applied", { type: r.type, tenant: r.tenantId, message: r.messageId, error: errField(e) });
+      return json(503, { ok: false, error: "database_unavailable" });
+    }
+    return json(200, { ok: true });
   }
 
   if (verdict.unroutable > 0 && Date.now() - lastUnroutableRow >= UNROUTABLE_ROW_MS) {

@@ -146,7 +146,7 @@ function intentHash(text: string): string {
 async function runVerb(
   thread: RealThread,
   verb: InboxVerb,
-  payload?: { text?: string; until?: string; template?: { name: string; language: string } },
+  payload?: { text?: string; until?: string; template?: { name: string; language: string }; emailTo?: string },
   refresh = true,
 ): Promise<VerbResult> {
   // A replayed send must return the ORIGINAL result, never a second message.
@@ -198,7 +198,10 @@ async function runVerb(
         : local("No open escalation on this thread.");
       break;
     case "reply":
-      result = await api()("POST conversations/[id]/reply", { params: { id }, body: { text: payload?.text ?? "" }, idempotencyKey: sendKey, refresh });
+      // `emailTo` is the operator's yes to where an email reply goes, when the server asked (Refusal.confirmEmailTo).
+      result = await api()("POST conversations/[id]/reply", {
+        params: { id }, body: { text: payload?.text ?? "", ...(payload?.emailTo ? { email_to: payload.emailTo } : {}) }, idempotencyKey: sendKey, refresh,
+      });
       break;
     case "reply-template":
       // Refuse in the browser rather than sending a request the server must

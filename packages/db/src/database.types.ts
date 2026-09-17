@@ -3169,6 +3169,18 @@ export type Database = {
         Args: { p_tenant_id: string; p_what: string }
         Returns: Json
       }
+      stamp_email_sent: {
+        Args: {
+          p_message_id: string
+          p_provider_id: string
+          p_rfc_message_id: string
+          p_tenant_id: string
+        }
+        Returns: {
+          conversation_id: string
+          status: string
+        }[]
+      }
       sweep_health: {
         Args: never
         Returns: {

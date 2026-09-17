@@ -394,18 +394,30 @@ test("email's three refusals, each a fact about the person or the product, asked
   }
 });
 
-test("email's wire sends the frozen request and nothing it assembled: none, or one naming another recipient, is a failure and no send", async () => {
-  assert.equal(emailSender(null), null, "no provider key: the channel exists and this runtime cannot send on it");
-  const send = emailSender({ apiKey: "test-key" });
+test("email's wire is one workspace's: it sends the frozen request and nothing it assembled, and only as the mailbox it was bound to", async () => {
+  // The mailbox the fixture's identity comes from, with a rotated-out reply route still routing.
+  const AS = { address: "bestmovers@mail.chanlytics.com", replyRoutes: ["r+abcdefghijklmnopqrstuvwx@mail.chanlytics.com", "r+zyxwvutsrqponmlkjihgfedc@mail.chanlytics.com"] };
+  assert.equal(emailSender(null, AS), null, "no provider key: the channel exists and this runtime cannot send on it");
+  assert.equal(emailSender({ apiKey: "test-key" }, null), null, "no mailbox: this workspace has no email line");
+  const send = emailSender({ apiKey: "test-key" }, AS);
   const real = globalThis.fetch;
   const posted = [];
   globalThis.fetch = async (url, init) => { posted.push({ url, init }); return new Response(JSON.stringify({ id: "re_9" }), { status: 200 }); };
+  const refused = (errorBody) => ({ ok: false, wamid: null, status: 0, errorBody });
   try {
-    assert.deepEqual(await send(ADDRESS, { body: "hi" }), { ok: false, wamid: null, status: 0, errorBody: "no_frozen_request" });
-    assert.deepEqual(await send("someone.else@example.com", { body: "hi", email: frozen() }), { ok: false, wamid: null, status: 0, errorBody: "request_names_another_recipient" });
-    assert.equal(posted.length, 0, "neither reached the provider");
+    assert.deepEqual(await send(ADDRESS, { body: "hi" }), refused("no_frozen_request"));
+    assert.deepEqual(await send("someone.else@example.com", { body: "hi", email: frozen() }), refused("request_names_another_recipient"));
+    // The provider key is every workspace's. What stops one business's row leaving as another is this.
+    const another = { fromName: "Best Movers", fromAddress: "melanys@mail.chanlytics.com", replyTo: AS.replyRoutes[0] };
+    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen({ identity: another }) }), refused("request_leaves_as_another_sender"));
+    const elsewhere = { fromName: "Best Movers", fromAddress: AS.address, replyTo: "r+aaaaaaaaaaaaaaaaaaaaaaaa@mail.chanlytics.com" };
+    assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen({ identity: elsewhere }) }), refused("request_leaves_as_another_sender"), "answers would route to somebody else");
+    assert.equal(posted.length, 0, "none of them reached the provider");
+
     assert.deepEqual(await send(ADDRESS, { body: "hi", email: frozen() }), { ok: true, wamid: "re_9", status: 200 });
-    assert.equal(posted.length, 1);
+    const rotated = { fromName: "Best Movers", fromAddress: AS.address, replyTo: AS.replyRoutes[1] };
+    assert.equal((await send(ADDRESS, { body: "hi", email: frozen({ identity: rotated }) })).ok, true, "a request frozen before a rotation still leaves");
+    assert.equal(posted.length, 2);
   } finally { globalThis.fetch = real; }
 });
 

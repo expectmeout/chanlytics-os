@@ -159,6 +159,21 @@ export function replyWindow(
   return replyChannel === "sms" || replyChannel === "email" ? { open: true, closesAtIso: null } : waWindow(lastWaInboundAtIso, now);
 }
 
+/**
+ * How long one reply may be on each wire, and the sentence for one that is
+ * longer. WhatsApp's and the carriers' limits are theirs; email's is ours, the
+ * same bound an email taken in is kept to. Asked before anything is queued: a
+ * reply over WhatsApp's limit was once stored, reported queued, and failed
+ * fifteen seconds later as an escalation and an alert.
+ */
+export const REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 20000, refusal: "An email reply can be at most 20,000 characters." },
+} as const;
+/** The longest reply any wire takes: what a route may accept before it knows the wire. */
+export const REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
+
 /* ----------------------------- live calls -------------------------------- */
 
 /**

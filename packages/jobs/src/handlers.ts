@@ -6,7 +6,7 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { parseTenantConfig, type JobKind } from "@chanlytics/contracts";
-import { classifyReceived, emailPlainText, messageIdsIn, type ReceivedEmail } from "@chanlytics/channels";
+import { classifyReceived, emailPlainText, isEmailRequest, messageIdsIn, type ReceivedEmail } from "@chanlytics/channels";
 import { deliver, eraseBlobThread, ingestEmail, provisionLine, type EmailIngestPorts, type IncomingEmail, sendBroadcastBatch, sendQueued, templatePurpose, type EraseThreadCommand, type SendQueuedCommand, type Wire } from "@chanlytics/core";
 import { ingestInboundEmail, mailboxById, markProcessed, resolveOutboundTarget, sentEmailWithMessageId, stampMailboxReceived, type Database, type Json } from "@chanlytics/db";
 import { upsertEscalation, type EscalationOutcome } from "./escalate";
@@ -116,7 +116,7 @@ async function countRecipients(db: SupabaseClient<Database>, tenantId: string, b
   return count ?? 0;
 }
 
-/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone, body?, template? } */
+/** outbound_send: core's sendQueued, over this runtime's ports. payload: { message_id, conversation_id, to_phone | to_email, body?, template? } */
 async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
   await sendQueued(
     {
@@ -124,9 +124,13 @@ async function outboundSend(ctx: JobContext, job: ClaimedJob): Promise<void> {
       // so a read that failed and a message that is gone stay separable; the
       // verb turns the error into the job's loud failure.
       queued: async (id) => {
-        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
+        const { data, error } = await ctx.db.from("messages").select("id, status, body, template_name, channel, sender, meta").eq("id", id).eq("tenant_id", job.tenant_id).maybeSingle();
         if (error) throw new Error(error.message);
-        return data;
+        if (!data) return null;
+        // The request an email was queued with (core reply.ts). meta is JSON, so its shape is checked, not assumed:
+        // a row without a sendable one reaches the wire with none and fails there by name.
+        const request = (data.meta as { email?: { request?: unknown } } | null)?.email?.request;
+        return { status: data.status, body: data.body, channel: data.channel, sender: data.sender, email: isEmailRequest(request) ? request : null };
       },
       purposeOf: (template) => templatePurpose(ctx.db, job.tenant_id, template),
       deliver: (d) => deliver({ db: ctx.db, wire: ctx.wire }, d),

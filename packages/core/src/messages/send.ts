@@ -3,7 +3,8 @@ import type { SendQueuedPorts } from "./ports";
 
 export interface SendQueuedCommand {
   tenantId: string;
-  payload: { message_id: string; conversation_id: string; to_phone: string; body?: string; template?: { name: string; language: string; params: string[] } };
+  /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
+  payload: { message_id: string; conversation_id: string; to_phone?: string; to_email?: string; body?: string; template?: { name: string; language: string; params: string[] } };
 }
 
 /**
@@ -33,11 +34,14 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
   // loudly, leaving the customer un-messaged rather than reached over the
   // wrong wire.
   const channel = (msg.channel ?? "whatsapp") as Channel;
+  const to = channel === "email" ? p.to_email : p.to_phone;
+  // A job that does not say where its words go was scheduled wrongly: it fails, and the tick settles the row and tells the owner.
+  if (!to) throw new Error(`outbound_send: message ${p.message_id} goes out by ${channel} and the job names no ${channel === "email" ? "address" : "number"}`);
   const out = await ports.deliver({
     tenantId: cmd.tenantId,
     conversationId: p.conversation_id,
     contactId: null,
-    to: p.to_phone,
+    to,
     channel,
     // Read from the ROW, not hardcoded: under a veto window the receptionist's
     // own reply travels this path, and stamping every send "human" would make
@@ -47,6 +51,8 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     proactive: false,
     body: p.body ?? msg.body ?? "",
     template: p.template,
+    // The request the row was queued with, sent as it was frozen. A row without one fails at the wire, by name.
+    ...(msg.email ? { email: msg.email } : {}),
     messageId: p.message_id,
   });
   if (out.outcome !== "failed") return;
@@ -69,8 +75,11 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     out.reason === "no_credentials" ? notConnected
     : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line`
     : out.reason === "wire_unreadable" ? "the thread could not be read at the wire"
+    // Status 0 is no answer at all: the network failed, or the email wire refused a request it will not send
+    // (deliver.ts emailSender). The row keeps which; "HTTP 0" told an owner nothing.
+    : out.status === 0 ? "it never reached the provider"
     : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
-  await ports.alert(`Reply delivery failed: ${p.to_phone}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
+  await ports.alert(`Reply delivery failed: ${to}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
 }

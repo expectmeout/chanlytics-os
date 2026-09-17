@@ -165,6 +165,8 @@ export const EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */

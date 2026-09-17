@@ -6,11 +6,12 @@
  * session role's grants.
  */
 import crypto from "node:crypto";
-import type { Json } from "@chanlytics/db";
+import { lastInboundEmail, type Json } from "@chanlytics/db";
 import type { CancelSendPorts, EscalationPorts, ReplyPorts, ReplyReceipt, ThreadPorts } from "@chanlytics/core";
 import type { RouteContext } from "./with-route";
 import { cancelPendingAiReply, pauseMsFor, recordDecision, replyChannelOf, resolveOpenEscalation } from "./verbs";
 import { cancelKindFor, mirrorBlobPause, schedule } from "./service";
+import { freezeReply } from "./email";
 
 /**
  * True iff a row changed. An UPDATE that RLS or a vanished row excludes
@@ -63,6 +64,11 @@ export function replyPorts(ctx: RouteContext): ReplyPorts {
   return {
     pauseMs, pauseBot, withdrawDrafts, record, resolveEscalation, now,
     replyChannel: (conv) => replyChannelOf(ctx, conv),
+    email: {
+      parent: (conv) => lastInboundEmail(ctx.supabase, conv.tenant_id, conv.id),
+      freeze: (input) => freezeReply(ctx, input),
+      newId: () => crypto.randomUUID(),
+    },
     priorReceipt: async (tenantId, key) => {
       const { data, error } = await ctx.supabase
         .from("idempotency_keys")

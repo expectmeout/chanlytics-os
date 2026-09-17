@@ -90,6 +90,8 @@ var EVENT_KINDS = [
   "contact.named",
   "contact.noted",
   "contact.email_set",
+  /** A person's address stopped being sent to: a permanent bounce, a complaint, or the provider's own list (00126). The reason, never the address. */
+  "contact.email_suppressed",
   /** An inbound the router could not place on any workspace. */
   "ingest.unroutable",
   /** A reply skipped because its veto window had already been spent. */
@@ -238,6 +240,12 @@ var BrainOutputSchema = z2.object({
   language: z2.enum(BRAIN_LANGUAGES).catch("other")
 });
 var WA_WINDOW_MS = 24 * 3600 * 1e3;
+var REPLY_LIMITS = {
+  whatsapp: { max: 4096, refusal: "WhatsApp refuses a message over 4096 characters." },
+  sms: { max: 1600, refusal: "A text can be at most 1600 characters." },
+  email: { max: 2e4, refusal: "An email reply can be at most 20,000 characters." }
+};
+var REPLY_MAX_ANY = Math.max(...Object.values(REPLY_LIMITS).map((l) => l.max));
 var CALL_HEARTBEAT_MS = 10 * 60 * 1e3;
 var RETENTION_DAYS = {
   /** Call audio in the private media bucket. The transcript and the summary stay with the call (api/cron/calls). */
@@ -1041,6 +1049,49 @@ async function stampMailboxReceived(db, mailboxId, at) {
   const { error } = await db.from("mailboxes").update({ last_received_at: at, last_error: null }).eq("id", mailboxId);
   if (error) console.error("mailbox_stamp_failed", error.message);
 }
+async function mailboxOfTenant(db, tenantId) {
+  const { data, error } = await db.from("mailboxes").select("*").eq("tenant_id", tenantId).maybeSingle();
+  if (error) throw new Error(`mailbox: ${error.message}`);
+  return data;
+}
+async function lastInboundEmail(db, tenantId, conversationId) {
+  const { data, error } = await db.from("messages").select("id, meta").eq("tenant_id", tenantId).eq("conversation_id", conversationId).eq("channel", "email").eq("direction", "inbound").order("channel_ts", { ascending: false, nullsFirst: false }).limit(1).maybeSingle();
+  if (error) throw new Error(`email: cannot read the email being answered: ${error.message}`);
+  if (!data) return null;
+  const e = data.meta?.email ?? {};
+  const str = (v) => typeof v === "string" && v ? v : null;
+  return {
+    messageId: data.id,
+    from: str(e.from),
+    rfcMessageId: str(e.message_id),
+    references: Array.isArray(e.references) ? e.references.filter((r) => typeof r === "string") : [],
+    subject: str(e.subject)
+  };
+}
+async function stampEmailSent(db, p) {
+  const { data, error } = await db.rpc("stamp_email_sent", {
+    p_tenant_id: p.tenantId,
+    p_message_id: p.messageId,
+    p_provider_id: p.providerId,
+    p_rfc_message_id: p.rfcMessageId
+  });
+  if (error) throw new Error(`stamp_email_sent: ${error.message}`);
+  const row = data?.[0];
+  return row ? { status: row.status, conversationId: row.conversation_id } : null;
+}
+async function recordEmailStatus(db, p) {
+  const { error } = await db.from("messages").update({ status: p.status, ...p.error ? { error: p.error } : {} }).eq("id", p.messageId).eq("tenant_id", p.tenantId).eq("channel", "email").eq("direction", "outbound");
+  if (error && !/monotone|terminal/.test(error.message)) throw new Error(`email receipt: cannot move message ${p.messageId}: ${error.message}`);
+}
+async function suppressEmailOf(db, p) {
+  if (!p.addresses.length) return null;
+  const sent = await db.from("messages").select("contact_id").eq("id", p.messageId).eq("tenant_id", p.tenantId).maybeSingle();
+  if (sent.error) throw new Error(`email receipt: cannot read who message ${p.messageId} went to: ${sent.error.message}`);
+  if (!sent.data?.contact_id) return null;
+  const { data, error } = await db.from("contacts").update({ email_suppressed_at: p.at, email_suppressed_reason: p.reason }).eq("id", sent.data.contact_id).eq("tenant_id", p.tenantId).in("email", p.addresses).is("email_suppressed_at", null).select("id");
+  if (error) throw new Error(`email receipt: cannot stop sends to the address: ${error.message}`);
+  return data?.[0]?.id ?? null;
+}
 
 // src/repositories/routing.ts
 var POS_TTL_MS = 5 * 60 * 1e3;
@@ -1367,10 +1418,12 @@ export {
   ingestCall,
   ingestInbound,
   ingestInboundEmail,
+  lastInboundEmail,
   linkCallMessage,
   listPolicies,
   mailboxById,
   mailboxFor,
+  mailboxOfTenant,
   markProcessed,
   pauseConversation,
   personReplyMode,
@@ -1379,6 +1432,7 @@ export {
   readThreadState,
   recordCallNote,
   recordEchoAndPause,
+  recordEmailStatus,
   recordOutbound,
   recordStatusByExternalId,
   resolveChannel,
@@ -1388,6 +1442,8 @@ export {
   setCallRecording,
   setPersonReplyMode,
   setPolicyMode,
+  stampEmailSent,
   stampMailboxReceived,
-  subscribeMessagesInserts
+  subscribeMessagesInserts,
+  suppressEmailOf
 };

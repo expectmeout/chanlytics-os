@@ -216,6 +216,12 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (!window.__inboxVerb) return Promise.resolve(false);
     ownVerbsRef.current += 1;
     return window.__inboxVerb(t, verb, payload).finally(() => { ownVerbsRef.current -= 1; }).then((r) => {
+      // An email reply whose address is not the one they wrote from waits on a yes: the server says where it will
+      // go, and the yes is the same words sent again naming that address. The composer keeps the words meanwhile.
+      if (!r.ok && r.confirmEmailTo && verb === "reply") {
+        ppFlash({ tone: "warn", msg: <>{r.message}</>, ms: 20000, action: { label: `Send to ${r.confirmEmailTo}`, onClick: () => realVerb(t, verb, { ...payload, emailTo: r.confirmEmailTo }, okMsg, undoable).then((ok) => { if (ok) window.dispatchEvent(new CustomEvent("inbox:reply-sent", { detail: { threadId: t.id } })); }) } });
+        return false;
+      }
       if (!r.ok) { ppFlash({ tone: "danger", msg: <>{r.message}</> }); return false; }
       const mid = undoable && r.data && r.data.message_id;
       // The receipt says exactly how long the send can still be stopped; the

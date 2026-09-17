@@ -170,34 +170,23 @@ RLS: members read, the service role writes, and the routes that change the sende
 
 ## 7. Outbound: the wire
 
-**The port stays; the payload carries an envelope the server built.**
+**The port stays; the payload carries the request the server built and froze.**
 
 ```ts
 // packages/core/src/deliver.ts
 export type Channel = "whatsapp" | "sms" | "email";
 
-/** What one email reply is a reply to. Built by the server from stored rows, never from model output. */
-export interface EmailEnvelope {
-  subject: string;
-  /** The Chanlytics message being answered, and its RFC id and chain when it has them. */
-  parentMessageId: string;
-  inReplyTo: string | null;
-  references: string[];
-  /** Who wrote the words, which decides Auto-Submitted. */
-  actor: "ai" | "human";
-}
-
 export interface WirePayload {
   body: string;
   template?: TemplateSend;
-  /** Required on the email wire and refused at runtime when absent; meaningless elsewhere. */
-  email?: EmailEnvelope;
+  /** The request an email leaves as (channels EmailRequest), frozen when the message was queued. Refused at the wire when absent; meaningless elsewhere. */
+  email?: EmailRequest;
 }
 ```
 
-`buildReplyEnvelope(parent, contact, tenantId)` in `packages/core/src/messages/email-reply.ts` is the only constructor: it refuses a parent from another workspace or another contact, derives `Re: <parent subject>` without stacking prefixes, carries the parent's `References` plus its Message-ID, and takes the recipient from the contact's stored address, not from the parent's headers. A reply whose recipient differs from the parent's sender is a confirmation in the Inbox, not a silent send. No reply-all: other participants are kept on the row for the owner to see.
+As built, the constructor is split where the architecture ratchet puts it (a core verb imports no provider). `buildEmailRequest` in `packages/channels/src/email.ts` is the only constructor of a request: `Re: <parent subject>` without stacking prefixes, the parent's `References` plus its Message-ID, the recipient it is handed. The JUDGEMENT is the reply verb's (`shapeEmailReply` in `packages/core/src/conversations/reply.ts`): the recipient is the address on the person's page, never the parent's headers; the parent is read inside this workspace and this conversation only (`lastInboundEmail`), so another workspace's or another person's message cannot be returned; a suppressed address, a missing address and a workspace with no mailbox are each refused in words before anything is claimed. A reply whose recipient differs from the parent's sender is a confirmation in the Inbox, not a silent send: the refusal carries `confirm_email_to`, and the same words sent again with `email_to` set to that value are the yes, by value, so an address that changed again in between is asked about again. No reply-all: other participants are kept on the row for the owner to see. A person's own reply carries no composed signature: what they typed is what is sent, as on every other wire.
 
-**`emailSender(mailbox): Sender | null`** (`packages/channels/src/email-resend.ts`, the HTTP; `packages/channels/src/email.ts`, the pure request builder):
+**`emailSender(cfg, sendsAs): Sender | null`** (`packages/core/src/deliver.ts`; `packages/channels/src/email-resend.ts`, the HTTP; `packages/channels/src/email.ts`, the pure request builder). The provider key is the deployment's, so the wire is bound to ONE workspace's mailbox (`sendsAs`: its address, and every reply route that still routes to it) and refuses a frozen request that would leave as anybody else, the promise the WhatsApp wire keeps by taking credentials from the tenant and never from the environment. A workspace with no mailbox has no email line (`null`, the dispatcher's `no_credentials`).
 
 - From: `own_from` while `own_sending = 'on'`, else the hosted address; `from_name` as the display name. While `held`, the sender is `null` and the dispatcher's existing `no_credentials` failure surfaces it; nothing falls back.
 - Reply-To: the reply-token address in hosted mode; the business address in own-domain mode once forwarding is verified.
@@ -215,7 +204,7 @@ if (d.channel === "email" && f.contact.email_suppressed_at) return "email_suppre
 
 Marketing by email does not exist until a release of its own delivers opt-out handling and consent rules; it is refused at the door, not hidden in a menu. `outbound_send` on an email row stays under `SPEAKS_TO_A_PERSON` (`ledger.ts:57`): a run that died mid-send is not replayed blindly. Within Resend's 24 hours the frozen request and its key make one bounded retry safe; after that the row is reconciled against receipts, or a person looks.
 
-**Receipts** arrive at the one webhook door (§8) and are handled inline, the `sms-status.ts` way, because they are small, idempotent and resolved by tag: `email.sent` stores Resend's id and the RFC Message-ID; `email.delivered` moves the row; `email.delivery_delayed` is interim; `email.bounced` (permanent), `email.complained` and `email.suppressed` write `contacts.email_suppressed_at` and `email_suppressed_reason` (`hard_bounce`, `complaint`, `provider`) for the address that was the target, and only `bounced` and `failed` move the row to `failed`. A complaint after delivery leaves the row delivered. A corrected address clears the suppression, because it is a different address. A `429` is read for its kind: a rate limit waits out `retry-after` inside the job's deadline, an exhausted quota is a hold the operator is paged about.
+**Receipts** arrive at the one webhook door (§8) and are handled inline, the `sms-status.ts` way, because they are small, idempotent and resolved by tag (`apps/edge/lib/email-receipts.ts`). EVERY receipt stores Resend's id and the RFC Message-ID, in one statement (`stamp_email_sent`, so it cannot overwrite the status stamp `messages_guard` writes into the same JSON column), which makes the ids order-proof; none of them says `sent`, which stays the send's own word (`deliver.ts` reads a queued row it did not change as a cancel that won). `email.delivered` moves the row; `email.delivery_delayed` is interim; a bounce the provider calls permanent, `email.complained` and `email.suppressed` write `contacts.email_suppressed_at` and `email_suppressed_reason` (`hard_bounce`, `complaint`, `provider`) for the address that was the target, when it is still the person's; `bounced`, `failed` and `suppressed` move the row to `failed` (a send the provider suppressed never left), and because a reply that never arrived is a customer with no answer, the thread is flagged `send_failed` in words that say what to do, BEFORE the row fails, so a flag that could not be written sends the receipt back and a redelivered receipt flags nothing twice. A complaint after delivery leaves the row delivered. A corrected address clears the suppression, because it is a different address. A `429` is read for its kind: a rate limit waits out `retry-after` inside the job's deadline, an exhausted quota is a hold the operator is paged about.
 
 ## 8. Inbound: the door, the job, the road
 
@@ -225,7 +214,7 @@ Marketing by email does not exist until a release of its own delivers opt-out ha
 
 1. Read the raw body, bounded at 256 KB (the event is metadata). Verify the Svix signature over `id.timestamp.body` with Web Crypto, constant-time, timestamp within five minutes: the house pattern the Meta, Twilio and Retell doors use (`packages/channels/src/email.ts` `verifyResendWebhook`), pure and tested against signed samples. A failure is 401 and one `webhook.auth` row a minute at most, as `retell-webhook.ts:177-194` does.
 2. Dispatch by type. Receipt types: §7, inline, 503 when the database is down. `email.received`: step 3.
-3. Resolve each recipient address to a mailbox. For each, insert one `email_ingest` job with `{ mailbox_id, received_id }`, unique on that pair, so a replayed webhook inserts nothing and a delivery to two workspaces inserts two. No match: 200 and a counted, rate-limited `email.unroutable` event, not a row per hostile message.
+3. Resolve each recipient address to a mailbox. The recipients are the event's `received_for` (the envelope: who Resend accepted the email FOR, which is what a forward and a blind copy arrive under, and which the sender's own To and Cc cannot rewrite); an event without it is read by its To, Cc and Bcc. For each, insert one `email_ingest` job with `{ mailbox_id, received_id }`, unique on that pair, so a replayed webhook inserts nothing and a delivery to two workspaces inserts two. No match: 200 and a counted, rate-limited `email.unroutable` event, not a row per hostile message.
 4. 200 once the jobs are written; 503 when they cannot be.
 
 ### The job
@@ -331,7 +320,7 @@ Each phase is one plan to completion, merged on green and seen live before the n
 |---|---|---|
 | **E0 Provider proof** | Fixtures from real mail, committed: a direct send, a Gmail forward, a Workspace routed copy, an auto-reply, a reply to our send. Settles which field is the authoritative recipient, what authentication evidence Resend exposes, the RFC Message-ID on the sent event, tag round-trip on receipts, receipt ordering. The trust policy in §8 is written from these, not before | `mail.chanlytics.com` added to Resend for sending and receiving, its DNS records published, the webhook endpoint and its secret |
 | **E1 Identity** | `contacts.email` with its door, trigger, digest and search; the person's page sets it; the phone-assumption audit closed | nothing |
-| **E2 + E3 The round trip** | In slices, each merged inert while the deployment names no `EMAIL_DOMAIN`: the wire and the mailbox (#608); intake, which keeps every email for a person and answers none (the door, `email_ingest` with resumption, the claim a message makes, the Inbox's email bubble); the reply from the Inbox with its frozen request, receipts and suppression, Setup and Settings; and last the receptionist's draft, which waits on E0 because whose email it may draft for is the trust policy E0 writes | `EMAIL_DOMAIN` and `RESEND_WEBHOOK_SECRET` on the edge, then the flag on for the test workspace, then for one real one |
+| **E2 + E3 The round trip** | In slices, each merged inert while the deployment names no `EMAIL_DOMAIN`: the wire and the mailbox (#608); intake, which keeps every email for a person and answers none (the door, `email_ingest` with resumption, the claim a message makes, the Inbox's email bubble; #609); the reply from the Inbox with its frozen request, the wire bound to the workspace's mailbox, receipts and suppression; the mailbox as the owner's to make (its routes, Setup's row, Settings › Channels › Email); and last the receptionist's draft, which waits on E0 because whose email it may draft for is the trust policy E0 writes | `EMAIL_DOMAIN` on the edge and the dashboard, `RESEND_WEBHOOK_SECRET` on the edge, then a mailbox for the test workspace, then for one real one |
 | **E4 Own domain, assisted** | Domain binding, records, verification, the outside-mailbox test, forwarding's nonce test, hold on failure, the explicit hosted switch | the first customer who wants it |
 | **Later, one at a time** | Reminders by email; veto and auto; one real lead source from a real customer's samples; owner copies; Gmail send-only; mailbox sync for one provider | a customer's need |
 
@@ -349,15 +338,15 @@ Console work, Ruben's, before E0 can run:
 
 | Kind | Names |
 |---|---|
-| Env (edge) | `EMAIL_DOMAIN`, `RESEND_WEBHOOK_SECRET` |
+| Env | `EMAIL_DOMAIN` (edge and dashboard, the same value: a reply is queued by the dashboard with the request it leaves as, which names the workspace's address), `RESEND_WEBHOOK_SECRET` (edge) |
 | Job kinds | `email_ingest` |
 | Refusals | `email_marketing_disabled`, `email_suppressed` |
 | Escalation reasons | `email_review`, `email_draft` |
-| Event kinds | `contact.email_set`, `email.received`, `email.unroutable`, `email.suppressed`, `mailbox.forwarding_verified`, `mailbox.domain_verified`, `mailbox.domain_held` |
+| Event kinds | `contact.email_set`, `contact.email_suppressed` (the reason, never the address), `ingest.unroutable` with `channel: "email"`; later `mailbox.forwarding_verified`, `mailbox.domain_verified`, `mailbox.domain_held` |
 | Edge door | `api/resend-webhook.ts` |
 | Edge libs | `lib/email-ingress.ts`, `lib/email-domain.ts` |
 | Channels | `email.ts` (pure), `email-resend.ts` (HTTP), `email-domain.ts` (pure plan) |
-| Core | `messages/email-reply.ts` (`buildReplyEnvelope`) |
+| Core | `messages/email-ingest.ts` (`ingestEmail`); the email half of `conversations/reply.ts` (`shapeEmailReply`, `EmailReplyPorts`) |
 | Contracts | `email-address.ts`, `reply-mode.ts`; additions to `enums.ts`, `people.ts`, `setup.ts`, `viewmodels.ts`, `erasure.ts` |
 | Tables | `mailboxes`; columns on `contacts` |
 | Routes | `mailboxes` (create, update, domain, test, rotate-token); `contacts/[id]/details` accepts `email` |

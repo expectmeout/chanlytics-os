@@ -13,9 +13,9 @@
  * address to be written to, so nothing arrives and nothing is answered.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import type { Database } from "./workspace/db.js";
+import { mailboxOfTenant, type Database } from "./workspace/db.js";
 import { emailSender, type Sender } from "./workspace/core.js";
-import { fetchReceivedEmail } from "./workspace/channels.js";
+import { fetchReceivedEmail, sendsAs } from "./workspace/channels.js";
 import type { JobContext } from "./workspace/jobs.js";
 import { erasedBeforeEmail } from "./erased.js";
 import { notify, type NotifyMessage } from "./notify.js";
@@ -29,11 +29,21 @@ export function emailDomain(): string | null {
   return /^[a-z0-9.-]+\.[a-z]{2,}$/.test(d) ? d : null;
 }
 
-/** undefined: no email on this runtime. null: email is on and there is no provider key. */
-export function emailWire(): Sender | null | undefined {
-  if (!emailDomain()) return undefined;
+/**
+ * One workspace's email wire. undefined: no email on this runtime. null: email
+ * is on and this workspace cannot send, because the deployment holds no
+ * provider key or the workspace has no mailbox. Otherwise a wire that sends
+ * only as that mailbox: the provider key is shared by every workspace, so what
+ * keeps one business's email from leaving as another's is this binding, the
+ * way the WhatsApp wire is bound to the tenant's own credentials.
+ */
+export async function emailWireFor(db: Db, tenantId: string): Promise<Sender | null | undefined> {
+  const domain = emailDomain();
+  if (!domain) return undefined;
   const apiKey = process.env.RESEND_API_KEY;
-  return emailSender(apiKey ? { apiKey } : null);
+  if (!apiKey) return null;
+  const mailbox = await mailboxOfTenant(db, tenantId);
+  return emailSender({ apiKey }, mailbox ? sendsAs(mailbox, domain) : null);
 }
 
 type EmailWaiting = Parameters<NonNullable<JobContext["email"]>["tell"]>[1];

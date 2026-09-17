@@ -1,5 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { EmailRequest, SendResult, ResendConfig, WaConfig } from '@chanlytics/channels';
+import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig } from '@chanlytics/channels';
 import { SendPurpose, DecisionSubject, DecisionVerb, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass } from '@chanlytics/contracts';
 import { Json, Database } from '@chanlytics/db';
 
@@ -77,11 +77,14 @@ type Wire = Partial<Record<Channel, Sender | null>>;
  */
 declare function whatsappSender(cfg: WaConfig | null): Sender | null;
 /**
- * Email's wire. It sends the frozen request and nothing it assembled itself: a
- * delivery without one, or one addressed to somebody other than `to`, is a
- * failure the caller hears about, never a send to a guessed address.
+ * Email's wire, bound to ONE workspace's mailbox. It sends the frozen request
+ * and nothing it assembled itself: a delivery without one, one addressed to
+ * somebody other than `to`, or one that would leave as another workspace, is a
+ * failure the caller hears about, never a send. The provider key is the
+ * deployment's; `as` is what makes the wire this workspace's, and a workspace
+ * with no mailbox has no email line (null, like a number with no credentials).
  */
-declare function emailSender(cfg: ResendConfig | null): Sender | null;
+declare function emailSender(cfg: ResendConfig | null, as: EmailSendsAs | null): Sender | null;
 interface Delivery {
     tenantId: string;
     conversationId: string;
@@ -314,6 +317,12 @@ interface ReplyBody {
         language: string;
         params?: string[];
     };
+    /**
+     * Email only: the address the operator was shown and agreed to, when the
+     * address on the person's page is not the one they last wrote from. Agreed by
+     * value, so an address that changed again in between is asked about again.
+     */
+    email_to?: string;
 }
 /** `decision_id` is the ledger row, for an undo to name; absent on a receipt stored before it was kept. */
 interface ReplyReceipt {
@@ -333,24 +342,34 @@ interface ReplyThread extends Pick<Thread, "id" | "tenant_id" | "phone_e164"> {
     /** The names on file, for a template that opens with their first name. */
     display_name?: string | null;
     wa_profile_name?: string | null;
+    /** The address on the person's page, and whether it has stopped being sent to (00125, 00126). */
+    email?: string | null;
+    email_suppressed_at?: string | null;
 }
 interface QueuedReply {
     tenant_id: string;
     conversation_id: string;
     contact_id: string | null;
-    channel: "whatsapp" | "sms";
+    channel: "whatsapp" | "sms" | "email";
     sent_by: string;
     type: "template" | "text";
     body: string;
     template_name: string | null;
     template_vars: Json | null;
     content_hash: string;
+    /** An email's row is born with its id and its frozen request: the request is tagged with the id and sent under it. */
+    id?: string;
+    meta?: Json;
 }
+/** An address never travels in a field the send path reads as a phone number: an email's is `to_email`. */
 type SendPayload = {
     message_id: string;
     conversation_id: string;
-    to_phone: string;
 } & ({
+    to_phone: string;
+} | {
+    to_email: string;
+}) & ({
     body: string;
 } | {
     template: {
@@ -359,12 +378,50 @@ type SendPayload = {
         params: string[];
     };
 });
+/** The email a reply answers, as the thread stores it. */
+interface EmailParentFacts {
+    /** The stored message. */
+    messageId: string;
+    /** The address it came from, as its header spelled it. */
+    from: string | null;
+    /** Its own Message-ID and the chain it carried, for threading in the customer's mail client. */
+    rfcMessageId: string | null;
+    references: string[];
+    subject: string | null;
+}
+/**
+ * Email's half of a reply. The verb decides who it goes to and whether a
+ * person must agree first; what it leaves AS is the adapter's, which knows the
+ * workspace's mailbox and the deployment's mail domain (channels
+ * buildEmailRequest, the one constructor of a request).
+ */
+interface EmailReplyPorts {
+    /** The person's latest email on this thread; null when it holds none. Read inside this workspace and this conversation only. */
+    parent(conv: {
+        id: string;
+        tenant_id: string;
+    }): Promise<EmailParentFacts | null>;
+    /** The request this reply leaves as, frozen, and the subject it carries; null when the workspace has no mailbox to send from. */
+    freeze(input: {
+        tenantId: string;
+        messageId: string;
+        to: string;
+        parent: EmailParentFacts;
+        body: string;
+    }): Promise<{
+        request: Json;
+        subject: string;
+    } | null>;
+    /** The row's id before the row exists. */
+    newId(): string;
+}
 interface ReplyPorts extends Pick<ThreadPorts, "pauseMs" | "pauseBot" | "withdrawDrafts" | "record" | "resolveEscalation" | "now"> {
-    /** Where the person last wrote: a text has no 24-hour window and no templates. */
+    /** Where the person last wrote: a text and an email have no 24-hour window and no templates. */
     replyChannel(conv: {
         id: string;
         tenant_id: string;
-    }): Promise<"whatsapp" | "sms">;
+    }): Promise<"whatsapp" | "sms" | "email">;
+    email: EmailReplyPorts;
     /** The receipt stored under this caller's key, with when and for which intent it was stored. */
     priorReceipt(tenantId: string, key: string): Promise<{
         response: ReplyReceipt;
@@ -431,7 +488,8 @@ interface SendQueuedPorts {
         status: string;
         body: string | null;
         channel: string | null;
-        sender: string | null;
+        sender: string | null; /** The frozen request, on an email's row. */
+        email?: Delivery["email"] | null;
     } | null>;
     /** Which yes this send needs: the template's category as Meta has it, read now; unreadable throws. */
     purposeOf(template: {
@@ -563,10 +621,12 @@ interface BroadcastBatchCommand {
 
 interface SendQueuedCommand {
     tenantId: string;
+    /** `to_phone` on a phone's wire, `to_email` on email's: an address never travels in a field read as a number. */
     payload: {
         message_id: string;
         conversation_id: string;
-        to_phone: string;
+        to_phone?: string;
+        to_email?: string;
         body?: string;
         template?: {
             name: string;
@@ -1084,4 +1144,4 @@ interface PlaybookInput {
  */
 declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
-export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, type IncomingEmail, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, ingestEmail, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };
+export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, type IncomingEmail, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, ingestEmail, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };

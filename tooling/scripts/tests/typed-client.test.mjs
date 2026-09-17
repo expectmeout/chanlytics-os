@@ -100,6 +100,11 @@ test("A5: a refusal carries what the server counted and named -- the wait, a for
   assert.deepEqual([f.title, f.fields], ["Check the details", { email: "Write the whole address, like ana@example.com." }]);
   const owner = harness(refusal(403, "forbidden", "Only an owner can do this.", { needs: "owner" }));
   assert.equal((await owner.api("POST billing/sync")).title, "Owner only");
+  // An email reply that waits on a yes names the address it will go to; the page sends the same words again with it.
+  const held = harness(refusal(409, "conflict", "Their last email came from b@example.com, and the address on their page is a@example.com. This reply will go to a@example.com.", { confirm_email_to: "a@example.com" }));
+  const h = await held.api("POST conversations/[id]/reply", { params: { id: C1 }, body: { text: "x" } });
+  assert.deepEqual([h.code, h.confirmEmailTo], ["conflict", "a@example.com"]);
+  assert.equal("confirmEmailTo" in (await owner.api("POST billing/sync")), false, "on that refusal and no other");
   const slow = harness(() => { const e = new Error("The operation was aborted due to timeout"); e.name = "TimeoutError"; throw e; });
   const s = await slow.api("PUT settings", { body: { config: {}, version: 1 } });
   assert.deepEqual([s.code, s.title, s.message], ["timeout", "No answer in time", "Chanlytics took too long to answer — this may still go through, so check before trying again."], "REGRESSION: a timeout said 'Network error — nothing was changed.' of a write the server may still be making");

@@ -272,7 +272,14 @@ export function addressOf(header: string | null | undefined): { address: string;
 export interface EmailReceivedEvent {
   type: "email.received";
   receivedId: string;
-  /** Every address the delivery names, lower-cased: to, cc and bcc, because a forward or a blind copy lands in any of them. */
+  /**
+   * The addresses this delivery was made to, lower-cased. `received_for` is the
+   * envelope: who the provider accepted the email FOR, which is what a forward
+   * and a blind copy arrive under, and which the sender's own To and Cc lines
+   * cannot rewrite. When an event carries it, nothing else routes. An event
+   * without it is read by its To, Cc and Bcc, which can only name more of the
+   * platform's own addresses than the envelope did, never somebody else's.
+   */
   recipients: string[];
 }
 
@@ -287,7 +294,8 @@ export function emailReceivedEventFrom(payload: unknown): EmailReceivedEvent | n
   if (!p || p.type !== "email.received" || !p.data || typeof p.data !== "object") return null;
   const id = p.data.email_id ?? p.data.id;
   if (typeof id !== "string" || !id) return null;
-  const recipients = [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
+  const envelope = addressesOf(p.data.received_for);
+  const recipients = envelope.length ? envelope : [...addressesOf(p.data.to), ...addressesOf(p.data.cc), ...addressesOf(p.data.bcc)];
   return { type: "email.received", receivedId: id, recipients: [...new Set(recipients)] };
 }
 
@@ -370,4 +378,125 @@ export function classifyReceived(e: Pick<ReceivedEmail, "headers" | "from">): Em
   if (auto.startsWith("auto-replied") || "x-autoreply" in h || "x-autorespond" in h || /^auto[_-]?reply$/i.test((h.precedence ?? "").trim())) return "auto_reply";
   if ((auto && auto !== "no") || /^(bulk|list|junk)$/i.test((h.precedence ?? "").trim()) || "list-id" in h || "list-unsubscribe" in h) return "automated";
   return "person";
+}
+
+/* ---------------------------------------------------------------- receipts
+ *
+ * What became of an email we sent, as the provider's signed events say it.
+ * Every one of them carries the provider's id, the Message-ID it minted and the
+ * tags the request left with, so a receipt names its row by itself, in any
+ * order, without a lookup by provider id (buildEmailRequest).
+ */
+
+export type EmailReceiptType = "sent" | "delivered" | "delivery_delayed" | "bounced" | "complained" | "failed" | "suppressed";
+const RECEIPT_TYPES: ReadonlySet<string> = new Set<EmailReceiptType>(["sent", "delivered", "delivery_delayed", "bounced", "complained", "failed", "suppressed"]);
+
+export interface EmailReceipt {
+  type: EmailReceiptType;
+  /** The provider's id for the email. */
+  providerId: string;
+  /** The Message-ID it left with, as a header carries it. */
+  rfcMessageId: string | null;
+  /** Who it was addressed to, lower-cased. */
+  to: string[];
+  /** The row and the workspace the request was tagged with; null on an email that was not a workspace's (a platform notification). */
+  messageId: string | null;
+  tenantId: string | null;
+  /** The provider's own account of a bounce, a failure or a suppression. Kept on the row as the provider's words, never shown as ours. */
+  detail: { kind: string | null; subKind: string | null; message: string | null };
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Tags as the webhook carries them (a map) or as the request sent them (a list of pairs): one reader for both. */
+function tagOf(tags: unknown, name: string): string | null {
+  const v = Array.isArray(tags)
+    ? (tags.find((t) => (t as { name?: unknown } | null)?.name === name) as { value?: unknown } | undefined)?.value
+    : tags && typeof tags === "object" ? (tags as Record<string, unknown>)[name] : undefined;
+  return typeof v === "string" && UUID.test(v) ? v.toLowerCase() : null;
+}
+
+/** A receipt, or null for any other event or shape. */
+export function emailReceiptFrom(payload: unknown): EmailReceipt | null {
+  const p = payload as { type?: unknown; data?: Record<string, unknown> } | null;
+  if (!p || typeof p.type !== "string" || !p.type.startsWith("email.") || !p.data || typeof p.data !== "object") return null;
+  const type = p.type.slice("email.".length);
+  if (!RECEIPT_TYPES.has(type)) return null;
+  const d = p.data;
+  if (typeof d.email_id !== "string" || !d.email_id) return null;
+  const str = (v: unknown): string | null => (typeof v === "string" && v.trim() ? v.trim() : null);
+  const said = (d.bounce ?? d.failed ?? d.suppressed ?? {}) as Record<string, unknown>;
+  return {
+    type: type as EmailReceiptType,
+    providerId: d.email_id,
+    rfcMessageId: messageIdHeader(str(d.message_id)),
+    to: addressesOf(d.to),
+    messageId: tagOf(d.tags, "cl_message"),
+    tenantId: tagOf(d.tags, "cl_tenant"),
+    detail: { kind: str(said.type) ?? str(said.reason), subKind: str(said.subType), message: str(said.message) },
+  };
+}
+
+/** Why an address stopped being sent to (00126's CHECK). */
+export type EmailSuppressionReason = "hard_bounce" | "complaint" | "provider";
+
+export interface EmailReceiptEffect {
+  /** Where the row moves, when it moves. Forward only and terminal kept: messages_guard's rule, not this function's. */
+  status: "delivered" | "failed" | null;
+  /** What the row keeps about a failure. */
+  error: { provider: EmailReceiptType; kind: string | null; sub_kind: string | null; message: string | null } | null;
+  /** The address stops being sent to. About the ADDRESS, so it is kept apart from the row's own fate. */
+  suppress: EmailSuppressionReason | null;
+}
+
+/**
+ * What one receipt changes.
+ *
+ * A bounce fails the row, and stops the address only when the provider calls it
+ * permanent: a full mailbox is not a dead one. A complaint arrives after
+ * delivery, so the row stays delivered and the address stops. A send the
+ * provider suppressed never left, so it failed, and the address is on the
+ * provider's list whatever ours says. `sent` and `delivery_delayed` move
+ * nothing: the first is the send's own word to say (deliver.ts), the second is
+ * interim.
+ */
+export function emailReceiptEffect(r: EmailReceipt): EmailReceiptEffect {
+  const error = { provider: r.type, kind: r.detail.kind, sub_kind: r.detail.subKind, message: r.detail.message };
+  switch (r.type) {
+    case "delivered": return { status: "delivered", error: null, suppress: null };
+    case "bounced": return { status: "failed", error, suppress: /^permanent$/i.test(r.detail.kind ?? "") ? "hard_bounce" : null };
+    case "failed": return { status: "failed", error, suppress: null };
+    case "suppressed": return { status: "failed", error, suppress: "provider" };
+    case "complained": return { status: null, error: null, suppress: "complaint" };
+    default: return { status: null, error: null, suppress: null };
+  }
+}
+
+/** The addresses one workspace's email may leave as and be answered at: what the wire holds a frozen request to. */
+export interface EmailSendsAs {
+  /** The From address. */
+  address: string;
+  /** Every Reply-To that still routes to this workspace: the live reply route, and the rotated-out one until it is revoked. */
+  replyRoutes: string[];
+}
+
+/** What a mailbox row sends as, on the deployment's mail domain. */
+export function sendsAs(mailbox: { local_part: string; reply_token: string; reply_token_prev: string | null }, domain: string): EmailSendsAs {
+  return {
+    address: hostedAddress(mailbox.local_part, domain),
+    replyRoutes: [mailbox.reply_token, mailbox.reply_token_prev].filter((t): t is string => !!t).map((t) => replyRouteAddress(t, domain)),
+  };
+}
+
+/**
+ * Does this frozen request leave as this workspace and nobody else? The
+ * request is JSON on a row; the wire is bound to a workspace's mailbox. A
+ * request whose From or Reply-To is another's is refused rather than sent, the
+ * same promise the WhatsApp wire keeps by taking its credentials from the
+ * tenant and never from the environment.
+ */
+export function requestLeavesAs(request: EmailRequest, as: EmailSendsAs): boolean {
+  return addressOf(request.from)?.address === as.address
+    && request.reply_to.length === 1
+    && as.replyRoutes.includes(request.reply_to[0].trim().toLowerCase());
 }

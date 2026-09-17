@@ -18,7 +18,7 @@ import { authorizeCron } from "../../lib/cron-auth.js";
 import { alertFor } from "../../lib/job-alert.js";
 import { waCredentialsForTenant } from "../../lib/tenant-runtime.js";
 import { smsSenderForTenant } from "../../lib/sms.js";
-import { emailWire, emailIntake } from "../../lib/email.js";
+import { emailWireFor, emailIntake } from "../../lib/email.js";
 import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
@@ -61,12 +61,12 @@ export async function POST(request: Request): Promise<Response> {
           // TENANT's WhatsApp credentials, never the environment's (a second
           // business's reply must not leave from the first one's number), and
           // the texting line's sender when the workspace has one. Null on
-          // either is a refusal at the door, not a guess. Email's wire is the
-          // deployment's (one provider key, one mail domain) and is bound only
-          // where email is on; whose identity an email carries was decided when
-          // its request was frozen, from that workspace's own mailbox.
+          // either is a refusal at the door, not a guess. Email's provider key
+          // is the deployment's, so its wire is bound to the tenant's MAILBOX:
+          // it sends a frozen request only when that request leaves as this
+          // workspace, and a workspace without a mailbox has no email line.
           const line = await smsSenderForTenant(db, job.tenant_id);
-          const email = emailWire();
+          const email = await emailWireFor(db, job.tenant_id);
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
           const intake = emailIntake(db);
           const wire = {
