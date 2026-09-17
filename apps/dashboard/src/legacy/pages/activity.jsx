@@ -121,7 +121,7 @@ const PaneActivity = () => {
         {!st.loading && st.rows.length === 0 && !st.error && <EmptyState kind="line" title="Nothing here for that." action={kind || day || person ? { label: "Clear the filters", onClick: () => { setKind(""); setKindTyped(""); setDay(""); setPerson(null); } } : null} />}
       </div>
       {st.hasMore && <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.rows.length, true)} data-testid="act-more">{st.loading ? "Loading…" : "Show more"}</button>}
-      <p className="set-card-foot">Model usage, webhook receipts and unplaced messages are kept but not listed here; name a kind to see them.</p>
+      <p className="set-card-foot">Model usage, webhook receipts and unplaced messages are kept. Name a kind to see them.</p>
     </section>
   );
 };

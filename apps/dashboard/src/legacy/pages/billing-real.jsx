@@ -117,7 +117,7 @@ const PaneBillingReal = ({ flash }) => {
 
       {subscribed && (
         <section className="fl-card set-card" data-testid="billing-invoices">
-          <div className="fl-card-head"><span className="fl-card-title">Invoices</span><span className="fl-card-sub">As Stripe lists them; each opens on Stripe&rsquo;s page</span></div>
+          <div className="fl-card-head"><span className="fl-card-title">Invoices</span><span className="fl-card-sub">Each one opens on Stripe&rsquo;s page.</span></div>
           {invoices === null ? (
             <div className="set-row">
               <div className="set-row-info"><span className="set-row-hint">The last twelve, when you ask.</span></div>

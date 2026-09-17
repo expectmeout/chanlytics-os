@@ -211,7 +211,7 @@ const PaneIntegrationsReal = () => {
             </React.Fragment>
           ))}
           {g === "connected" && list.some((r) => r.kind === "google_listing") && (
-            <p className="set-card-foot">The public listing is read once a day: Google shows the five reviews it finds most relevant and counts every rating. The Business Profile, connected, carries every review and the replies you send from Reports.</p>
+            <p className="set-card-foot">The public listing is read once a day: Google shows five reviews and counts every rating. Connect the Business Profile for all of them, and for the replies you send from Reports.</p>
           )}
         </section>
       ))}

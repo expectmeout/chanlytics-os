@@ -574,10 +574,10 @@ const PaneProfile = ({ flash }) => {
         {/* The avatar, the name, the address and the role pill were a block above rows that
             say the same four things -- and the sidebar's own footer says three of them a third
             time. The rows carry them once, each with what it is for. */}
-        <SetRow label="Your name" hint="How your team sees you — clear it and your email stands in">
+        <SetRow label="Your name" hint="How your team sees you. Clear it and your email stands in.">
           <YourName flash={flash} />
         </SetRow>
-        <SetRow label="Signed in as" hint={<>Your password is set from the sign-in page — <a className="lm-link" href="/reset-password">choose a new one</a> and we&rsquo;ll email you a code</>}>
+        <SetRow label="Signed in as" hint={<>Your password is set from the sign-in page. <a className="lm-link" href="/reset-password">Choose a new one</a> and we&rsquo;ll email you a code.</>}>
           <span className="set-me-static">{words.email || "—"}</span>
         </SetRow>
         {role && (
@@ -590,7 +590,7 @@ const PaneProfile = ({ flash }) => {
           /auth/signout revokes them all (S20). */}
       <section className="fl-card set-card">
         <div className="fl-card-head"><span className="fl-card-title">Signing out</span></div>
-        <SetRow label="Sign out everywhere" hint="Ends your session on every device at once, this one included — what someone who has lost a laptop expects">
+        <SetRow label="Sign out everywhere" hint="Ends your session on every device, this one included.">
           <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
             <Icon name="logout" size={12} /> Sign out everywhere
           </button>
@@ -1421,7 +1421,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-sec">
         <SetSectionHead
           title="Who you are"
-          hint={creating ? "Required — the receptionist introduces itself with these" : "What it calls you, and where it sends people"}
+          hint={creating ? "Required: it introduces itself with these" : "What it calls you, and where it sends people"}
         />
         <div className="set-ident">
           <label className="set-ident-row">
@@ -1524,7 +1524,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         </div>
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Where you are" hint="Given when someone asks how to find you" />
+        <SetSectionHead title="Where you are" hint="Given when someone asks how to find you." />
         <input
           className="set-input"
           value={address}
@@ -1536,7 +1536,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         />
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Website" hint="Optional — given when someone asks" />
+        <SetSectionHead title="Website" hint="Optional. Given when someone asks." />
         <input
           className="set-input"
           value={website}
@@ -1555,7 +1555,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-sec">
         <SetSectionHead
           title="When you are open"
-          hint={openDays ? `${openDays} ${openDays === 1 ? "day" : "days"} a week` : "Not set — it cannot answer this yet"}
+          hint={openDays ? `${openDays} ${openDays === 1 ? "day" : "days"} a week` : "Not set, so it cannot answer this yet"}
         />
         <div className="set-hours">
           {SET_DAYS.map(([d, label], i) => (
@@ -1620,7 +1620,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-sec">
         <SetSectionHead
           title="Days you are closed"
-          hint={upcomingCount ? `${upcomingCount} still ahead` : "Holidays and one-off closures"}
+          hint={upcomingCount ? `${upcomingCount} still ahead` : "Holidays and one-off closures."}
         />
         {closures.length > 0 && (
           <div className="set-svc-head set-closure-head">
@@ -1664,7 +1664,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         </div>
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Calendar it may look at" hint="Read-only — so it can say which times are open before sending the link" />
+        <SetSectionHead title="Calendar it may look at" hint="Read-only, so it can say which times are open before sending the link." />
         <input
           className="set-input"
           value={icalUrl}
@@ -1703,7 +1703,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-group">
         <div className="set-group-head"><span className="set-group-name">What you offer</span><span className="set-group-hint">What can be booked, and the rules for offering it.</span></div>
       <div className="set-sec">
-        <SetSectionHead title="What you offer" hint="Names and rough timings — a price only if you can state it flatly" />
+        <SetSectionHead title="What you offer" hint="Names and rough timings. A price only if you can state it flatly." />
         {services.length > 0 && (
           <div className="set-svc-head">
             <span>Service</span><span>Takes</span><span>Price</span><span />
@@ -1723,7 +1723,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         <button type="button" className="btn btn-sm" onClick={() => setServices((l) => [...l, { name: "" }])}><Icon name="plus" size={12} /> Add a service</button>
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Booking rules" hint="How open times are offered — the receptionist never books; it sends the link" />
+        <SetSectionHead title="Booking rules" hint="How open times are offered. It never books; it sends the link." />
         <div className="set-br-grid">
           <label className="set-br-field"><span className="set-br-label">Least notice (hours)</span><input className="set-input" inputMode="numeric" value={leadHours} placeholder="2" aria-label="Least notice in hours" onChange={(e) => { setLeadHours(e.target.value.replace(/[^0-9]/g, "")); clearProblem("lead"); }} {...problemProps("lead")} />{problemLine("lead")}</label>
           <label className="set-br-field"><span className="set-br-label">Slot length (minutes)</span><input className="set-input" inputMode="numeric" value={slotMin} placeholder="30" aria-label="Slot length in minutes" onChange={(e) => { setSlotMin(e.target.value.replace(/[^0-9]/g, "")); clearProblem("slot"); }} {...problemProps("slot")} />{problemLine("slot")}</label>
@@ -1739,7 +1739,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
       <div className="set-group">
         <div className="set-group-head"><span className="set-group-name">How it answers</span><span className="set-group-hint">The voice, the limits, and everything that fits no field.</span></div>
       <div className="set-sec">
-        <SetSectionHead title="Languages" hint="It answers in whichever of these the customer uses" />
+        <SetSectionHead title="Languages" hint="It answers in whichever of these a customer uses." />
         {/* ONE control. This was a grid of every language we could think of --
             most of them off, all of them shouting for attention -- and then a
             SECOND control underneath to add one that was not in the grid. Two
@@ -1781,7 +1781,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         )}
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Rules it always follows" hint="These stay in force whatever else you write below" />
+        <SetSectionHead title="Rules it always follows" hint="These hold whatever else you write below." />
         {[
           ["never_quote_prices", "Never quote or confirm a price", "It offers a consult or the booking link instead"],
           ["never_confirm_booking", "Never confirm an appointment itself", "Booking happens on your link or with your staff"],
@@ -1821,11 +1821,11 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         </div>
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Hand over to a person when" hint="One per line" />
+        <SetSectionHead title="Hand over to a person when" hint="One per line." />
         <textarea className="set-input set-textarea" rows={3} value={escalate} onChange={(e) => setEscalate(e.target.value)} placeholder={"They ask for the owner by name\nThey are unhappy about a previous visit"} aria-label="Escalation triggers" />
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Other things it should know" hint="One topic each — parking, gift cards, a second location. Both receptionists say these." />
+        <SetSectionHead title="Other things it should know" hint="One topic each: parking, gift cards, a second location. Both receptionists say these." />
         {notes.map((n, i) => (
           <div key={i} className="set-note-row">
             <input className="set-input" value={n.title || ""} placeholder="Gift cards" aria-label="Note title" onChange={(e) => { setNote(i, "title", e.target.value); clearProblem(`note-${i}`); }} {...problemProps(`note-${i}`)} />
@@ -1839,7 +1839,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         )}
       </div>
       <div className="set-sec">
-        <SetSectionHead title="Anything else it should know" hint={draft0.carried ? "Optional" : "Optional — written in your own words"} />
+        <SetSectionHead title="Anything else it should know" hint={draft0.carried ? "Optional" : "Optional, in your own words"} />
         {/* Text nobody here wrote sat under "written in your own words" (S4): say where it came from, and which wins. */}
         {draft0.carried && (
           <span className="set-sec-hint" data-testid="biz-extra-carried">Carried over from the instructions your receptionist followed before this form. Trim what the fields above now cover — where the two disagree about the address, hours or services, the fields win.</span>
@@ -1859,7 +1859,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
         {problemLine("extra")}
       </div>
       <div className="set-sec" data-testid="biz-fallbacks">
-        <SetSectionHead title="When it can't answer" hint="Sent in your name. {business}, {booking link} and {phone} are filled in as each goes out" />
+        <SetSectionHead title="When it can't answer" hint="Sent in your name. {business}, {booking link} and {phone} are filled in as each goes out." />
         <div className="set-fallbacks">
           {FALLBACK_ROWS.map(({ key, label, when }) => {
             const text = fallbacks[key];
@@ -1923,7 +1923,7 @@ const WorkspaceData = () => {
   const href = window.__href ? window.__href("GET export") : null;
   return (
     <section className="fl-card set-card" data-testid="set-data">
-      <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep" />
+      <SetSectionHead title="Your data" hint="Everything this workspace holds, in one file you keep." />
       <div className="cl-prof-attr-list">
         <div className="cl-prof-attr">
           <span className="cl-prof-attr-key">Download everything</span>
@@ -2054,7 +2054,11 @@ const PaneWorkspace = ({ flash }) => {
         {real
           ? <FactRow label="Name" fact={F.business_name} />
           : <div className="cl-prof-attr"><span className="cl-prof-attr-key">Name</span><span className="cl-prof-attr-val">Serenity Spa</span></div>}
-        <div className="cl-prof-attr"><span className="cl-prof-attr-key">Workspace</span><span className="cl-prof-attr-val">{real ? ((ws && ws.name) || "—") : "Chanlytics Sales · Professional"}</span></div>
+        {/* The workspace's own name, only when it is not the business's. They are two
+            fields and they are usually the same word, and the row said it twice. */}
+        {(!real || !ws || ws.name !== (F.business_name && F.business_name.value)) && (
+          <div className="cl-prof-attr"><span className="cl-prof-attr-key">Workspace</span><span className="cl-prof-attr-val">{real ? ((ws && ws.name) || "—") : "Chanlytics Sales · Professional"}</span></div>
+        )}
         <div className="cl-prof-attr"><span className="cl-prof-attr-key">Hours</span>
           <span className="cl-prof-attr-val" style={{ display: "inline-flex", alignItems: "center", gap: 8 }}>
             {real
@@ -2377,7 +2381,7 @@ const PaneAutonomyReal = ({ flash }) => {
       <section className="fl-card set-card">
         <div className="fl-card-head">
           <span className="fl-card-title">Policy matrix</span>
-          <span className="fl-card-sub">What the receptionist may do without you — every row here is one the receptionist consults</span>
+          <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         <table className="pol-table">
           <thead><tr><th>Action class</th>{MODES.map((m) => <th key={m} className="pol-mode" title={AUT_MODE_HINT[m]}>{m}</th>)}</tr></thead>
@@ -2417,9 +2421,9 @@ const PaneAutonomyReal = ({ flash }) => {
       <section className="fl-card set-card">
         <div className="fl-card-head">
           <span className="fl-card-title">Reply timing and budget</span>
-          <span className="fl-card-sub">The hold window applies under Veto, and under Auto for a reply below the confidence dial; the budget stops the receptionist for the day</span>
+          <span className="fl-card-sub">The hold window applies under Veto, and under Auto below the confidence dial.</span>
         </div>
-        <SetRow label="Hold window" hint="The receptionist writes its reply and waits this long before sending, so you can stop or change it from the Inbox. A booking link a caller asks for on the phone is texted right away — there is nothing to hold.">
+        <SetRow label="Hold window" hint="How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.">
           <SetSeg
             gate={window.gate("autonomy")}
             value={delayLabel}
@@ -2427,7 +2431,7 @@ const PaneAutonomyReal = ({ flash }) => {
             onChange={(v) => { const d = AUT_DELAYS.find((x) => x[0] === v); if (d && reply) put(reply, undefined, { replyDelayMs: d[1] }); }}
           />
         </SetRow>
-        <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply the receptionist is less sure about than this waits in the hold window for you instead of going straight out. Off sends everything, and so does a reply with no confidence on record.">
+        <SetRow label="Send on its own only when it's sure" hint="Under Auto, a reply less certain than this waits in the hold window instead of going out. Off sends everything, and so does a reply with no confidence on record.">
           <SetSeg
             gate={window.gate("autonomy")}
             value={confLabel}
@@ -2435,7 +2439,7 @@ const PaneAutonomyReal = ({ flash }) => {
             onChange={(v) => { const c = AUT_CONF.find((x) => x[0] === v); if (c && reply) put(reply, undefined, { minConfidence: c[1] }); }}
           />
         </SetRow>
-        <SetRow label="Day's model budget" hint="Model tokens the receptionist may use in a rolling 24 hours, in and out. Over it, it stops answering for the day and each new message lands in Needs you. Off is no budget.">
+        <SetRow label="Day's model budget" hint="Model tokens it may spend in a rolling 24 hours, in and out. Over the budget it stops answering for the day, and every new message lands in Needs you.">
           <SetSeg
             gate={window.gate("autonomy")}
             value={budgetLabel}
@@ -2642,16 +2646,16 @@ const PaneNotifications = () => {
 // sends, and nothing else. No toggle is offered that no code reads.
 
 const NOTIF_KINDS = [
-  { title: "A customer needs a person", what: "The receptionist stopped on a WhatsApp thread and someone is waiting. The alert carries their message." },
-  { title: "Still waiting", what: "Nobody has answered a customer for a while after a handoff." },
-  { title: "After every phone call", what: "A summary of the call: who, how long, how it went." },
-  { title: "A reply failed to send", what: "The receptionist wrote an answer and the channel refused it." },
+  { title: "A customer needs a person", what: "It stopped on a thread and someone is waiting. The alert carries their message." },
+  { title: "Still waiting", what: "Nobody has answered a customer since a handoff." },
+  { title: "After every phone call", what: "Who called, how long, how it went." },
+  { title: "A reply failed to send", what: "It wrote an answer and the channel refused it." },
   // The last two are platform alerts: a switched-off number has no workspace
   // to address, and a stalled sweep belongs to nobody's workspace. They go to
   // Chanlytics. Listing them beside "goes to each of these addresses" without
   // saying so promised an owner an email they will never receive.
-  { title: "Messages arriving for a switched-off number", what: "Someone is texting a channel this workspace has disabled. Goes to Chanlytics, not to the addresses above — a switched-off number has no workspace to alert.", platform: true },
-  { title: "Background checks", what: "When the watchdog that re-checks unanswered threads stops running, and when it recovers. Goes to Chanlytics, not to the addresses above.", platform: true },
+  { title: "Messages arriving for a switched-off number", what: "Someone is texting a channel this workspace switched off. Goes to Chanlytics, not to the addresses above: a switched-off number has no workspace to alert.", platform: true },
+  { title: "Background checks", what: "When the watchdog over unanswered threads stops, and when it recovers. Goes to Chanlytics, not to the addresses above.", platform: true },
 ];
 
 const PaneNotificationsReal = ({ flash }) => {
@@ -2704,7 +2708,7 @@ const PaneNotificationsReal = ({ flash }) => {
       <section className="fl-card set-card" data-testid="notif-recipients">
         <div className="fl-card-head">
           <span className="fl-card-title">Who gets alerted</span>
-          <span className="fl-card-sub">Each alert below goes to each of these addresses, except the two marked for Chanlytics</span>
+          <span className="fl-card-sub">Every alert below goes to each of these, except the two marked for Chanlytics.</span>
         </div>
         {emails.length === 0 && (
           <div className="set-row">
@@ -2758,7 +2762,7 @@ const PaneNotificationsReal = ({ flash }) => {
       <section className="fl-card set-card" data-testid="notif-kinds">
         <div className="fl-card-head">
           <span className="fl-card-title">What you'll get</span>
-          <span className="fl-card-sub">The alerts the receptionist actually sends — by email, as they happen</span>
+          <span className="fl-card-sub">By email, the moment it happens.</span>
         </div>
         {NOTIF_KINDS.map((k) => (
           <div className="set-row" key={k.title}>
@@ -2775,9 +2779,9 @@ const PaneNotificationsReal = ({ flash }) => {
         <ul className="st-bullets">
           {/* The bell's device alerts are real (notifications.ts: a browser notification while the app is open in the
               background), so "push notifications are not built" denied a switch one click away (S20). */}
-          <li><Icon name="check" size={11} /><span>By email, the moment it happens. While Chanlytics is open in your browser, that browser can alert you too when something needs you — switch alerts on from the bell. There are no text-message alerts.</span></li>
+          <li><Icon name="check" size={11} /><span>Your browser can alert you too while Chanlytics is open in it — switch alerts on from the bell.</span></li>
           <li><Icon name="check" size={11} /><span>Sent from {notif.from ? <b>{notif.from}</b> : "the Chanlytics alert address"}{notif.from ? "" : " until your own sending domain is verified"}.</span></li>
-          <li><Icon name="check" size={11} /><span>No daily brief or weekly report goes out yet; Today is the brief.</span></li>
+          <li><Icon name="check" size={11} /><span>No text-message alerts, and no daily or weekly digest. Today is the brief.</span></li>
         </ul>
       </section>
     </>
