@@ -4834,7 +4834,7 @@ function todayLeaks(reports, people, max = TODAY_LEAK_MAX) {
     });
   }
   const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
-  if (reports && a && a.none > 0) {
+  if (reports && a && a.none >= 2) {
     found.set("unanswered", {
       id: "unanswered",
       tone: "danger",
@@ -4846,7 +4846,7 @@ function todayLeaks(reports, people, max = TODAY_LEAK_MAX) {
   }
   const yes = list("opted_in");
   const offers = list("offers_ok");
-  if (yes && offers && yes.count > 0 && offers.count === 0) {
+  if (yes && offers && yes.count >= 3 && offers.count === 0) {
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",

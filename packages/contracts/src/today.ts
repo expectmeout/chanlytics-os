@@ -1209,7 +1209,10 @@ export function todayLeaks(
   }
 
   const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
-  if (reports && a && a.none > 0) {
+  // Two, not one: a single message nobody answered can be a wrong number or a
+  // STOP, and this rule has no act to offer, only a door to Reports where the
+  // tile already prints the figure. Two is a pattern.
+  if (reports && a && a.none >= 2) {
     found.set("unanswered", {
       id: "unanswered",
       tone: "danger",
@@ -1224,7 +1227,8 @@ export function todayLeaks(
   // nobody can be mailed reads as a broken composer one screen later.
   const yes = list("opted_in");
   const offers = list("offers_ok");
-  if (yes && offers && yes.count > 0 && offers.count === 0) {
+  // Three, for the same reason: one person who said yes is not yet a list.
+  if (yes && offers && yes.count >= 3 && offers.count === 0) {
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",

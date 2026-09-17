@@ -63,6 +63,29 @@ test("small numbers never fire: two people who did not book is a quiet week", ()
   assert.ok(!todayLeaks(noCal, people(), 4).some((l) => l.id === "never-booked"), "no calendar is not a leak, it is a setup step");
 });
 
+test("every rule has a floor, and each floor is a number somebody chose", () => {
+  const ids = (r, pl = people()) => todayLeaks(r, pl, 4).map((l) => l.id);
+  // One message nobody answered can be a wrong number or a STOP, and this rule
+  // has no act to offer -- only a door to Reports, where the tile prints the
+  // figure already. Two is a pattern.
+  const one = reports({ vm: { answered: { totals: { in: 21, ai: 19, you: 1, none: 1 } } } });
+  assert.ok(!ids(one).includes("unanswered"));
+  const two = reports({ vm: { answered: { totals: { in: 21, ai: 18, you: 1, none: 2 } } } });
+  assert.ok(ids(two).includes("unanswered"));
+
+  // One person who said yes is not yet a list nobody can mail.
+  const healthy = reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } });
+  const few = [list("opted_in", "Said yes to messages", 2, act("Get their yes to offers", "broadcasts")), list("offers_ok", "Can receive offers", 0, null)];
+  assert.ok(!ids(healthy, { lists: few }).includes("unreachable"));
+  few[0].count = 3;
+  assert.ok(ids(healthy, { lists: few }).includes("unreachable"));
+
+  // Four people gone quiet is a slow week; five is a list to reach.
+  const quiet = (n) => ({ lists: [list("quiet", "Quiet 30+ days", n, act("Reach out", "broadcasts/quiet"))] });
+  assert.ok(!ids(healthy, quiet(4)).includes("quiet"));
+  assert.ok(ids(healthy, quiet(5)).includes("quiet"));
+});
+
 test("some booked, but few: the sentence changes and the number is theirs", () => {
   const some = reports({ vm: { answered: { totals: { in: 21, ai: 21, you: 0, none: 0 } } }, booking: { present: true, headline: "3 of 18 booked", sub: "", pct: 17, asked: 18, booked: 3 } });
   const [one] = todayLeaks(some, people());

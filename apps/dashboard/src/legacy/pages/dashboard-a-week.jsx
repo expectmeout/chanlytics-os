@@ -86,12 +86,15 @@ const TodayPulse = () => {
       {hasRecap && Recap && <Recap />}
       {vm && view && (
         <div className="tw-period">
-          <div className="tw-seg" role="tablist" aria-label="What to count">
+          {/* A filter, not a tab set: the flipped surfaces all say aria-pressed
+              on a plain button, and a tab with no panel, no aria-controls and no
+              arrow keys is worse than no role at all. */}
+          <div className="tw-seg" role="group" aria-label="What to count">
             {vm.views.map((v) => (
               <button
                 key={v.id}
-                role="tab"
-                aria-selected={v.id === view.id}
+                type="button"
+                aria-pressed={v.id === view.id}
                 className={`tw-seg-btn ${v.id === view.id ? "active" : ""}`}
                 onClick={() => setPick(v.id)}
                 data-testid={`today-week-view-${v.id}`}
