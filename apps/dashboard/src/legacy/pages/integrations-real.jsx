@@ -13,7 +13,7 @@
 const VERB_TESTID = { "verb:google-check": "google-check", "verb:google-connect": "google-connect", "verb:google-disconnect": "google-disconnect", "verb:whatsapp-connect": "connect-whatsapp-btn", messages: "channel-messages" };
 const mayPress = (verb) => !!verb && !!window.canDo && (verb.who === "owner" ? window.canDo("team") : window.canDo("approve"));
 // What a connection's verb does, for the gate's sentence (contracts refusal.ts roleGate).
-const VERB_DOING = { "verb:google-check": "read Google again", "verb:google-connect": "connect Google", "verb:google-disconnect": "disconnect Google", "verb:whatsapp-connect": "connect WhatsApp", "verb:business-record": "fill in the business record" };
+const VERB_DOING = { "verb:google-check": "read Google again", "verb:google-connect": "connect Google", "verb:google-disconnect": "disconnect Google", "verb:whatsapp-connect": "connect WhatsApp", "verb:business-record": "fill in the business record", "verb:email-setup": "set up email" };
 
 // The connected account's locations, for the owner to choose among when
 // Google returned more than one on Maps.
@@ -55,6 +55,62 @@ const GoogleChoose = ({ busy, setBusy, flash, onDisconnect }) => {
       )}
       {/* It asks first, through the row's own Confirm, as the row's Disconnect does. It disconnected at once (S17). */}
       {owner && <button className="cl-bucket-link" onClick={onDisconnect} disabled={busy} data-testid="google-choose-disconnect">Disconnect instead</button>}
+    </div>
+  );
+};
+
+/**
+ * The workspace's email address: chosen once, and the name beside it. The row's verb opens this; it is the row's
+ * own body, like the business record. What may be typed is contracts' to say (window.__mailbox), so the sentence
+ * under a box before the press is the one the route would give after it; whether an address is free is the
+ * server's, and its refusal lands under the same box.
+ */
+const EmailSetupForm = ({ email, businessName, flash, onClose }) => {
+  const API = window.__mailbox;
+  const mailbox = email.mailbox;
+  const [local, setLocal] = React.useState(() => (mailbox ? "" : (API.suggestLocalPart(businessName) || "")));
+  const [name, setName] = React.useState(() => (mailbox ? mailbox.from_name : (businessName || "")));
+  const [problems, setProblems] = React.useState({});
+  const [busy, setBusy] = React.useState(false);
+  const save = async () => {
+    const found = {};
+    const localProblem = mailbox ? null : API.whyNotALocalPart(local);
+    const nameProblem = API.whyNotAFromName(name);
+    if (localProblem) found.local = localProblem;
+    if (nameProblem) found.name = nameProblem;
+    setProblems(found);
+    if (localProblem || nameProblem) return;
+    setBusy(true);
+    const r = mailbox ? await API.rename(mailbox.id, name) : await API.create({ localPart: local, fromName: name });
+    setBusy(false);
+    // A taken address is the one refusal an owner causes by typing: it belongs under the box, not in a toast.
+    if (!r.ok) { if (r.code === "conflict" && !mailbox) setProblems({ local: r.message }); else flash(window.refusalToast(r, "Not saved")); return; }
+    flash({ msg: mailbox ? <>Customers now see {name.trim()} beside your address</> : <>{r.data.mailbox.address} is yours — emails to it arrive in your Inbox</> });
+    onClose();
+  };
+  return (
+    <div className="set-row set-row-stack biz" data-testid="email-setup">
+      <div className="biz-fields">
+        {!mailbox && (
+          <label className="biz-field" data-testid="email-local">
+            <span className="biz-label">The address customers write to</span>
+            <span className="biz-affix">
+              <input className={`biz-input${problems.local ? " biz-bad" : ""}`} value={local} placeholder="yourbusiness" autoCapitalize="none" autoCorrect="off" spellCheck={false} disabled={busy} aria-invalid={problems.local ? true : undefined} aria-describedby={problems.local ? "email-local-problem" : "email-local-hint"} onChange={(e) => setLocal(e.target.value)} />
+              <span className="biz-affix-text">@{email.domain}</span>
+            </span>
+            {problems.local ? <window.FieldError id="email-local-problem" message={problems.local} testid="email-local-problem" /> : <span className="biz-hint" id="email-local-hint">It cannot be changed later: it goes on business cards and into customers' address books.</span>}
+          </label>
+        )}
+        <label className="biz-field" data-testid="email-name">
+          <span className="biz-label">The name customers see beside it</span>
+          <input className={`biz-input${problems.name ? " biz-bad" : ""}`} value={name} disabled={busy} aria-invalid={problems.name ? true : undefined} aria-describedby={problems.name ? "email-name-problem" : undefined} onChange={(e) => setName(e.target.value)} />
+          {problems.name ? <window.FieldError id="email-name-problem" message={problems.name} testid="email-name-problem" /> : null}
+        </label>
+      </div>
+      <div className="bc-chips">
+        <button className="btn btn-primary btn-sm" onClick={save} disabled={busy} data-testid="email-save" {...window.gate("team", "set up email")}>{busy ? "Saving…" : mailbox ? "Save" : "Use this address"}</button>
+        <button className="btn btn-sm" onClick={onClose} disabled={busy}>Cancel</button>
+      </div>
     </div>
   );
 };
@@ -110,6 +166,8 @@ const PaneIntegrationsReal = () => {
   }, []);
   const [busy, setBusy] = React.useState(false);
   const [arm, setArm] = React.useState(null);
+  // The email row's form, open only once its verb is pressed.
+  const [emailOpen, setEmailOpen] = React.useState(false);
   // What the browser came back from Google with, said once.
   const [note, setNote] = React.useState(() => {
     const o = window.__google ? window.__google.outcome() : null;
@@ -137,6 +195,7 @@ const PaneIntegrationsReal = () => {
     lineRequestedAt: S ? S.dto.requests.line : null,
     google: G ? { ready: G.dto.ready, listing: G.dto.listing, connection: G.dto.connection } : null,
     calendar: S ? S.dto.calendar : null,
+    email: S ? S.dto.email : null,
   }, Date.now());
 
   const run = async (r) => {
@@ -168,6 +227,9 @@ const PaneIntegrationsReal = () => {
       case "verb:business-record":
         // The form is the row's own body; the verb only points at it.
         document.querySelector('[data-testid="business-record"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+        return;
+      case "verb:email-setup":
+        setEmailOpen((o) => !o);
         return;
       default:
         return;
@@ -208,6 +270,9 @@ const PaneIntegrationsReal = () => {
               <ConnectionRow r={r} run={run} busy={busy} arm={arm} setArm={setArm} confirm={confirm} />
               {r.body === "google_choose" && <GoogleChoose busy={busy} setBusy={setBusy} flash={flash} onDisconnect={() => setArm({ kind: r.kind, what: "disconnect" })} />}
               {r.body === "business_record" && <window.BusinessRecordForm line={ownLine} flash={flash} />}
+              {r.body === "email_setup" && emailOpen && S && S.dto.email && (
+                <EmailSetupForm email={S.dto.email} businessName={S.dto.business.name} flash={flash} onClose={() => setEmailOpen(false)} />
+              )}
             </React.Fragment>
           ))}
           {g === "connected" && list.some((r) => r.kind === "google_listing") && (

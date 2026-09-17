@@ -92,6 +92,7 @@ export const ROUTES = {
   "POST lines/register": { method: "POST", path: "/api/v1/lines/register" },
   "POST lines/retry": { method: "POST", path: "/api/v1/lines/retry" },
   "POST lines/search": { method: "POST", path: "/api/v1/lines/search" },
+  "POST mailboxes": { method: "POST", path: "/api/v1/mailboxes" },
   "POST messages/[id]/cancel-send": { method: "POST", path: "/api/v1/messages/[id]/cancel-send" },
   "POST messages/[id]/steer": { method: "POST", path: "/api/v1/messages/[id]/steer" },
   "POST platform/lines/refile": { method: "POST", path: "/api/v1/platform/lines/refile" },
@@ -117,6 +118,7 @@ export const ROUTES = {
   "PUT contacts/marketing-consent": { method: "PUT", path: "/api/v1/contacts/marketing-consent" },
   "PUT contacts/notes": { method: "PUT", path: "/api/v1/contacts/notes" },
   "PUT contacts/receptionist": { method: "PUT", path: "/api/v1/contacts/receptionist" },
+  "PUT mailboxes/[id]": { method: "PUT", path: "/api/v1/mailboxes/[id]" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
   "PUT playbooks/[id]": { method: "PUT", path: "/api/v1/playbooks/[id]" },
@@ -219,6 +221,7 @@ export type Routes = {
   "POST lines/register": typeof import("../../app/api/v1/lines/register/route").POST;
   "POST lines/retry": typeof import("../../app/api/v1/lines/retry/route").POST;
   "POST lines/search": typeof import("../../app/api/v1/lines/search/route").POST;
+  "POST mailboxes": typeof import("../../app/api/v1/mailboxes/route").POST;
   "POST messages/[id]/cancel-send": typeof import("../../app/api/v1/messages/[id]/cancel-send/route").POST;
   "POST messages/[id]/steer": typeof import("../../app/api/v1/messages/[id]/steer/route").POST;
   "POST platform/lines/refile": typeof import("../../app/api/v1/platform/lines/refile/route").POST;
@@ -244,6 +247,7 @@ export type Routes = {
   "PUT contacts/marketing-consent": typeof import("../../app/api/v1/contacts/marketing-consent/route").PUT;
   "PUT contacts/notes": typeof import("../../app/api/v1/contacts/notes/route").PUT;
   "PUT contacts/receptionist": typeof import("../../app/api/v1/contacts/receptionist/route").PUT;
+  "PUT mailboxes/[id]": typeof import("../../app/api/v1/mailboxes/[id]/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;
   "PUT playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").PUT;

@@ -61,6 +61,7 @@ const WORDS: Record<string, string> = {
   "business.recorded": "The business record was saved", "platform.acted": "Chanlytics acted on the workspace",
   "google.linked": "A Google listing was linked", "google.unlinked": "The Google listing was unlinked", "google.reviews": "New Google reviews were read",
   "google.connected": "Google Business Profile was connected", "google.disconnected": "Google Business Profile was disconnected", "google.replied": "A Google review was answered",
+  "mailbox.created": "The workspace's email address was set up", "mailbox.renamed": "The name on the workspace's email changed",
   "workspace.created": "The workspace was created", "settings.changed": "Settings changed", "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed", "billing.paused": "Billing paused the workspace", "billing.resumed": "Billing resumed the workspace",
   "ingest.allowlist_skip": "A message was skipped by the allowlist", "ingest.unreachable_sender": "A sender could not be answered",

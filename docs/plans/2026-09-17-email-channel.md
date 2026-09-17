@@ -158,7 +158,7 @@ Generated types are regenerated with the migration and committed with it, or CI 
 | `reply_mode` | `draft`, `veto`, `auto`; default `draft` |
 | `last_error`, timestamps | as `lines` |
 
-RLS: members read, the service role writes, and the routes that change the sender identity or the dial are owner-only. No Vault functions: every launch workspace sends through the platform's Resend key, which stays where the platform's secrets already live. Per-workspace credentials arrive with the native connection that needs them.
+RLS: members read, and nothing a session holds writes a column of the table. An owner's two acts go through definer doors (00129), the shape every other thing a person does to their own workspace's rows takes here: `create_mailbox` (once per workspace; the reply route's token is minted by the database, so no caller ever chooses one) and `rename_mailbox` (the name beside the address). The address itself is changed by nobody: it is printed on business cards and sits in customers' address books, and a second one is a routing decision, not an edit. What may be an address is said before the insert by `packages/contracts/src/mailbox.ts` and held by the table; a database test runs the two lists against each other. The columns above the table builds today are the ones something reads: `local_part`, the two tokens, `from_name`, `reply_mode`, `last_received_at`, `last_error`; the own-domain columns arrive with E4. No Vault functions: every launch workspace sends through the platform's Resend key, which stays where the platform's secrets already live. Per-workspace credentials arrive with the native connection that needs them.
 
 **One subdomain.** `EMAIL_DOMAIN=mail.chanlytics.com` on the edge, verified in Resend for sending and enabled for receiving, with Resend's MX as that subdomain's only MX. The root `chanlytics.com` keeps Google's. Bounces return to the return-path subdomain Resend assigns, not to the receiving address, so one subdomain does both jobs without a loop.
 
@@ -259,9 +259,9 @@ A lead notification is tested before the generic automated rule, because a marke
 - **View model.** `viewmodels.ts:580` becomes a map over channels instead of a third nested ternary. An email entry carries `subject`, its participants, and "context missing" when its parent is unknown. `surface-data.ts:307` adds `email: "Email"`; the two `channelIcon` copies (`inbox-thread.jsx:269,590`) learn `email`.
 - **The draft.** Shows the subject and recipient the server built, the email it answers when there is more than one chain, and states that are true: waiting for you, sending, accepted by the provider, delivered, held, suppressed. "Sent" is never said of a queued job.
 - **People.** The address on the person's page, settable there; `PersonChannel` gains `"email"` when the person has email messages; suppressed addresses say why.
-- **Setup.** One row, `email`, in `setup.ts` beside `whatsapp`; the back office reads the same row.
-- **Settings › Channels › Email.** The identity in use, forwarding's state and last arrival, the dial with the workspace policy that caps it visible beside it, the connection test, the explicit hosted switch.
-- **Routes.** `POST mailboxes`, `PUT mailboxes/[id]` (owner), `POST mailboxes/[id]/domain`, `POST mailboxes/[id]/test`, `POST mailboxes/[id]/rotate-token`; `PUT contacts/[id]/details` accepts `email`. Each declared in `route-policy.json`.
+- **Setup.** One row, `email`, in `setup.ts` beside `whatsapp`, from `SetupDto.email` (whether this deployment has the channel, its domain, the workspace's mailbox); never required; absent where the deployment has no email, because a row must never draw a verb that cannot work. The back office reads the same row.
+- **Connections › Email** (the product's name for Settings › Channels). As built: the row that used to say "Later" is the address once the workspace has one, and the form that makes one where the deployment has the channel (the address offered from the business's name, judged under its own box by the same rules the route uses, a taken address said there too). It says the receptionist does not answer email yet, in the one sentence Setup uses. Forwarding's state, the dial with the workspace policy that caps it, the connection test and the explicit hosted switch arrive with what they describe: the dial with the receptionist's draft, the rest with E4.
+- **Routes.** `POST mailboxes`, `PUT mailboxes/[id]` (owner; the name only); `PUT contacts/[id]/details` accepts `email`. Each declared in `route-policy.json`. `POST mailboxes/[id]/domain` and `/test` are E4's. `rotate-token` waits for its first need: the token is in every reply's Reply-To, so it is no secret, and what rotating answers is spam to a reply route; the table already holds the grace alias a rotation needs.
 
 ## 11. Channel choice, reminders and outreach
 
@@ -320,7 +320,7 @@ Each phase is one plan to completion, merged on green and seen live before the n
 |---|---|---|
 | **E0 Provider proof** | Fixtures from real mail, committed: a direct send, a Gmail forward, a Workspace routed copy, an auto-reply, a reply to our send. Settles which field is the authoritative recipient, what authentication evidence Resend exposes, the RFC Message-ID on the sent event, tag round-trip on receipts, receipt ordering. The trust policy in §8 is written from these, not before | `mail.chanlytics.com` added to Resend for sending and receiving, its DNS records published, the webhook endpoint and its secret |
 | **E1 Identity** | `contacts.email` with its door, trigger, digest and search; the person's page sets it; the phone-assumption audit closed | nothing |
-| **E2 + E3 The round trip** | In slices, each merged inert while the deployment names no `EMAIL_DOMAIN`: the wire and the mailbox (#608); intake, which keeps every email for a person and answers none (the door, `email_ingest` with resumption, the claim a message makes, the Inbox's email bubble; #609); the reply from the Inbox with its frozen request, the wire bound to the workspace's mailbox, receipts and suppression; the mailbox as the owner's to make (its routes, Setup's row, Settings › Channels › Email); and last the receptionist's draft, which waits on E0 because whose email it may draft for is the trust policy E0 writes | `EMAIL_DOMAIN` on the edge and the dashboard, `RESEND_WEBHOOK_SECRET` on the edge, then a mailbox for the test workspace, then for one real one |
+| **E2 + E3 The round trip** | In slices, each merged inert while the deployment names no `EMAIL_DOMAIN`: the wire and the mailbox (#608); intake, which keeps every email for a person and answers none (the door, `email_ingest` with resumption, the claim a message makes, the Inbox's email bubble; #609); the reply from the Inbox with its frozen request, the wire bound to the workspace's mailbox, receipts and suppression (#612); the mailbox as the owner's to make (00129's doors, its two routes, Setup's row, the Connections row and its form); and last the receptionist's draft, which waits on E0 because whose email it may draft for is the trust policy E0 writes | `EMAIL_DOMAIN` on the edge and the dashboard, `RESEND_WEBHOOK_SECRET` on the edge, then a mailbox for the test workspace, then for one real one |
 | **E4 Own domain, assisted** | Domain binding, records, verification, the outside-mailbox test, forwarding's nonce test, hold on failure, the explicit hosted switch | the first customer who wants it |
 | **Later, one at a time** | Reminders by email; veto and auto; one real lead source from a real customer's samples; owner copies; Gmail send-only; mailbox sync for one provider | a customer's need |
 
@@ -342,14 +342,14 @@ Console work, Ruben's, before E0 can run:
 | Job kinds | `email_ingest` |
 | Refusals | `email_marketing_disabled`, `email_suppressed` |
 | Escalation reasons | `email_review`, `email_draft` |
-| Event kinds | `contact.email_set`, `contact.email_suppressed` (the reason, never the address), `ingest.unroutable` with `channel: "email"`; later `mailbox.forwarding_verified`, `mailbox.domain_verified`, `mailbox.domain_held` |
+| Event kinds | `contact.email_set`, `contact.email_suppressed` (the reason, never the address), `mailbox.created`, `mailbox.renamed` (who, never the address), `ingest.unroutable` with `channel: "email"`; later `mailbox.forwarding_verified`, `mailbox.domain_verified`, `mailbox.domain_held` |
 | Edge door | `api/resend-webhook.ts` |
 | Edge libs | `lib/email-ingress.ts`, `lib/email-domain.ts` |
 | Channels | `email.ts` (pure), `email-resend.ts` (HTTP), `email-domain.ts` (pure plan) |
 | Core | `messages/email-ingest.ts` (`ingestEmail`); the email half of `conversations/reply.ts` (`shapeEmailReply`, `EmailReplyPorts`) |
 | Contracts | `email-address.ts`, `reply-mode.ts`; additions to `enums.ts`, `people.ts`, `setup.ts`, `viewmodels.ts`, `erasure.ts` |
 | Tables | `mailboxes`; columns on `contacts` |
-| Routes | `mailboxes` (create, update, domain, test, rotate-token); `contacts/[id]/details` accepts `email` |
+| Routes | `mailboxes` (create, rename; domain and test with E4); `contacts/[id]/details` accepts `email` |
 
 ## Appendix B: what this plan does not build
 

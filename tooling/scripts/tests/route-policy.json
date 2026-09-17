@@ -541,6 +541,20 @@
       "rate": "lines_search",
       "spend": false
     },
+    "PUT mailboxes/[id]": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
+    "POST mailboxes": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "settings",
+      "spend": false
+    },
     "PUT me": {
       "kind": "write",
       "scope": "account",

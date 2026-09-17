@@ -102,7 +102,10 @@ var EVENT_KINDS = [
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected"
+  "channel.connected",
+  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
+  "mailbox.created",
+  "mailbox.renamed"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [

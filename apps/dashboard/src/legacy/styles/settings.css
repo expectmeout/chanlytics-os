@@ -1104,6 +1104,12 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .biz-input:focus-visible { outline: none; box-shadow: var(--focus-ring); border-color: var(--accent); }
 .biz-input:disabled { opacity: 0.6; }
 .biz-bad { border-color: var(--danger); }
+/* A box whose value is half of something: the address before the @, with the rest said beside it rather than typed.
+   An input's automatic minimum is its twenty-character default, which pushed the rest onto a line of its own on a
+   phone: the box gives way instead, down to twelve characters, and only then does the rest wrap. */
+.biz-affix { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; min-width: 0; }
+.biz-affix .biz-input { flex: 1 1 12ch; width: auto; min-width: 0; }
+.biz-affix-text { font-size: var(--set-label); color: var(--ink-muted); overflow-wrap: anywhere; }
 .biz-hint { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-dim); text-wrap: pretty; }
 
 /* The fork: which of the two carrier registrations this business is on. Two

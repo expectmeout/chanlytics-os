@@ -102,6 +102,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lines/forwarding/test": setup,
   "POST setup/request": setup,
   "PUT business-record": setup,
+  "POST mailboxes": setup,
+  "PUT mailboxes/[id]": setup,
   "POST billing/resume": billing,
   "POST billing/sync": billing,
   "POST google/link": google,
