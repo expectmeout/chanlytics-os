@@ -1780,7 +1780,9 @@
 .pl-standing-total { color: var(--ink); font-weight: 500; font-variant-numeric: tabular-nums; }
 .pl-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .pl-standing-dot { color: var(--ink-faint); }
-.pl-standing-needs { min-height: 28px; padding: 0 6px; margin-left: -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--danger); cursor: pointer; font-variant-numeric: tabular-nums; }
+/* Both sides, for the reason .cm-standing-tap gives: -6px on the left alone left
+   12px of ink between "need a person" and the dot after it, against 6 before. */
+.pl-standing-needs { min-height: 28px; padding: 0 6px; margin: 0 -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--danger); cursor: pointer; font-variant-numeric: tabular-nums; }
 .pl-standing-needs:hover { background: var(--bg-hover); }
 .pl-standing-needs.on { background: var(--bg-hover); color: var(--ink); }
 .pl-standing-reached { font-variant-numeric: tabular-nums; }

@@ -1528,7 +1528,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .cm-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .cm-standing-dot { color: var(--ink-faint); }
 /* A count that is also its filter, as the People line's "needs you" is. */
-.cm-standing-tap { min-height: 28px; padding: 0 6px; margin-left: -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--ink-dim); cursor: pointer; }
+/* The bleed is on BOTH sides. With `margin-left` alone the padding cancelled
+   the flex gap on the left and ADDED to it on the right, so measured glyph to
+   glyph every dot after a tap sat 12px away while every dot before one sat at
+   6 -- the line looked kerned by hand. Broadcasts and Messages, which have no
+   taps, were even at 6 throughout, which is what made Playbooks look wrong
+   beside them. */
+.cm-standing-tap { min-height: 28px; padding: 0 6px; margin: 0 -6px; border: none; border-radius: var(--radius-sm); background: none; font: inherit; color: var(--ink-dim); cursor: pointer; }
 .cm-standing-tap:hover { background: var(--bg-hover); color: var(--ink); }
 .cm-standing-tap.on { background: var(--bg-hover); color: var(--ink); }
 .cm-standing-tap.needs { color: var(--warn-ink); }

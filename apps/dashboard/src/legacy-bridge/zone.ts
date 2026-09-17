@@ -24,6 +24,7 @@ import {
   timezoneCity,
   zoneDayKey,
   zonedInputValue,
+  fmtDay,
 } from "@chanlytics/contracts";
 import { read } from "./api";
 
@@ -67,6 +68,12 @@ export interface PageClock {
   dateYear: (atMs: number) => string;
   /** A day above the rows that belong to it: "Today · Sep 4" · "Yesterday · Sep 3" · "Sep 2". */
   dayLabel: (atMs: number) => string;
+  /**
+   * A DAY KEY ("2026-08-25") as words: "Aug 25". A run's day is a calendar day,
+   * not an instant, so it is not put through a zone -- it was printed raw on a
+   * playbook's card and in every row of its history.
+   */
+  dayWords: (day: string) => string;
   /** The business's day: "2026-09-06". */
   dayKey: (atMs: number) => string;
   /** A datetime-local box's value for an instant, by the workspace's clock. */
@@ -97,6 +104,7 @@ export function pageClock(win: Window = window): PageClock {
     when: (atMs) => clockWhen(atMs, zone(), Date.now()),
     dateYear: (atMs) => clockDateYear(atMs, zone()),
     dayLabel: (atMs) => clockDayLabel(atMs, zone(), Date.now()),
+    dayWords: (day) => fmtDay(day),
     dayKey: (atMs) => zoneDayKey(atMs, zone()),
     inputValue: (atMs) => zonedInputValue(atMs, zone()),
     fromInput: (value) => fromZonedInput(value, zone()),
