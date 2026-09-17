@@ -1496,6 +1496,13 @@ function writtenChannelOf(channel) {
   return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
 }
 var THREAD_CHANNEL_WORDS = { whatsapp: "WhatsApp", phone: "Phone", sms: "Text", email: "Email" };
+function threadChannelOf(messages) {
+  const written = [...messages].reverse().find((m) => m.type !== "call_summary");
+  return written ? writtenChannelOf(written.channel) : "phone";
+}
+function threadChannelWords(messages) {
+  return THREAD_CHANNEL_WORDS[threadChannelOf(messages)];
+}
 function emailSubjectOf(m) {
   const email = m.meta?.email;
   return typeof email?.subject === "string" && email.subject.trim() ? email.subject.trim() : null;
@@ -1868,10 +1875,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     answeredBy: lastAuthor ? lastAuthor.kind : null,
     // The wire the conversation's last written words travelled. A thread with
     // nothing but a call note is the phone, which is what it looks like.
-    channel: (() => {
-      const written = [...dto.messages].reverse().find((m) => m.type !== "call_summary");
-      return written ? writtenChannelOf(written.channel) : "phone";
-    })(),
+    channel: threadChannelOf(dto.messages),
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
@@ -4488,7 +4492,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       warn: waitedMs > 30 * 6e4,
       // her own words, never a generated characterization of them
       quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
-      meta: conv ? contactMeta(conv) : "WhatsApp",
+      meta: conv ? contactMeta(conv, threadChannelWords(conv.messages)) : "WhatsApp",
       windowNote: closes ? `Reply window closes ${closes}` : null,
       to: `inbox/th-${e.conversation_id}`
     };
@@ -4715,7 +4719,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       kind: "handoff",
       who,
       initials: initialsOf(who),
-      channel: "WhatsApp",
+      channel: conv ? threadChannelWords(conv.messages) : "WhatsApp",
       when: `waited ${formatWaited(waitedMs)}`,
       sentence: quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason),
       quoted: !!quote,
@@ -10361,6 +10365,8 @@ export {
   textingTermsVM,
   textingWords,
   themeButtonWords,
+  threadChannelOf,
+  threadChannelWords,
   threadStanding,
   tidyCallSummary,
   timezoneCity,

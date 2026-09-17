@@ -19,6 +19,7 @@ import {
   spokenDuration,
   contactName,
   contactMeta,
+  threadChannelWords,
   messageText,
   ESCALATION_REASON_LABELS,
   DISCONNECTION_LABELS,
@@ -117,7 +118,10 @@ export interface TodayQueueRowVM {
   kind: "handoff" | "callback" | "window" | "call";
   who: string;
   initials: string;
-  channel: "WhatsApp" | "Phone";
+  /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is
+   *  what let every escalation row be hard-coded to WhatsApp: the type could
+   *  not have held an email even if the code had tried to put one there. */
+  channel: "WhatsApp" | "Phone" | "Text" | "Email";
   /** "waited 2h" · "closes 5:10 PM · in 40m" · "2:14 PM · 1:35". */
   when: string;
   sentence: string;
@@ -348,7 +352,7 @@ export function toTodayVM(
       warn: waitedMs > 30 * 60000,
       // her own words, never a generated characterization of them
       quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
-      meta: conv ? contactMeta(conv) : "WhatsApp",
+      meta: conv ? contactMeta(conv, threadChannelWords(conv.messages)) : "WhatsApp",
       windowNote: closes ? `Reply window closes ${closes}` : null,
       to: `inbox/th-${e.conversation_id}`,
     };
@@ -701,7 +705,7 @@ export function toTodayVM(
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
     const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     queueAll.push({
-      id: `q-${e.id}`, kind: "handoff", who, initials: initialsOf(who), channel: "WhatsApp",
+      id: `q-${e.id}`, kind: "handoff", who, initials: initialsOf(who), channel: conv ? threadChannelWords(conv.messages) : "WhatsApp",
       when: `waited ${formatWaited(waitedMs)}`,
       sentence: quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!quote,
       status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${since}`, ...(closes ? [`reply window closes ${closes}`] : [])],

@@ -79,10 +79,24 @@ test("never verified says so, and so does a status this code has never heard of"
 });
 
 test("a domain that WAS verified and stopped is its own kind: somebody's mail is being lost now", () => {
+  // temporary_failure is the ONE status a domain reaches only from working.
   assert.deepEqual(judge(domain({ status: "temporary_failure" })), { kind: "stopped", status: "temporary_failure" });
-  assert.deepEqual(judge(domain({ status: "failed" })), { kind: "stopped", status: "failed" });
   const { body } = describeMailDomainTrouble({ kind: "stopped", status: "temporary_failure" }, OURS);
   assert.match(body, /WITHOUT a bounce/, "the silence is the point of this one");
+});
+
+test("REGRESSION: a domain the provider gave up on is not told it used to work", () => {
+  // `failed` was grouped with temporary_failure as "was verified and stopped".
+  // The provider gives it for "the records stayed unseen for 72 hours", which a
+  // domain reaches from either direction -- and Chanlytics' own mail domain sat
+  // at `failed` having never verified once, so the first alarm anybody would
+  // have received said a domain that never worked had stopped working.
+  assert.deepEqual(judge(domain({ status: "failed" })), { kind: "given_up", status: "failed" });
+  const { subject, body } = describeMailDomainTrouble({ kind: "given_up", status: "failed" }, OURS);
+  assert.match(subject, /"failed"/);
+  assert.doesNotMatch(body, /was verified|stopped being seen/, "it does not claim a history it cannot know");
+  assert.match(body, /will not fix itself/, "the fact that matters: the provider stopped looking");
+  assert.match(body, /verify the domain again/, "and what a person has to do about it");
 });
 
 test("one half verified and the other not", () => {
