@@ -15,6 +15,7 @@ import { activateOverride, type SurfaceOverride } from "./surface-data";
 import { ApiError } from "../client/api";
 import { cachedTenant, clearSurfaceCache, snapshotSurface } from "./surface-cache";
 import { isSurfaceReady, setConnection, setStatus } from "./surface-status";
+import { routeSurfaceFor } from "./surface-registry";
 import { feedWatch, REALTIME_GRACE_MS, subscribesToRealtime, wantsRefresh } from "./surface-realtime";
 import { getActiveWorkspace, signInHref } from "./workspace";
 
@@ -50,6 +51,49 @@ export async function refreshSurfaces(overrides: SurfaceOverride[]): Promise<voi
 /** The shell's Retry: every surface the running runner holds, read again now. */
 export async function refreshAllSurfaces(): Promise<void> {
   await refreshSurfaces(activeOverrides);
+}
+
+/**
+ * How many surfaces boot at once.
+ *
+ * Every surface used to boot in one Promise.all. On the salon's workspace that
+ * is 23 requests fired in the same millisecond, and the last of them answered
+ * 7.8 SECONDS after the page loaded -- `settings` alone took 7,450ms. The
+ * endpoints are not slow: measured one at a time on the same tab the same
+ * minute, `settings` answers in 488ms and five together finish in 568ms. The
+ * whole of that 7.8s was twenty-three cold functions competing.
+ *
+ * Four lanes is enough to keep the connection busy and few enough that nothing
+ * starves. Everything still boots, and no surface is dropped or deferred to a
+ * later trip -- they queue instead of stampeding.
+ */
+const BOOT_LANES = 4;
+
+/** Run `work` over `items`, at most `lanes` at a time, in order. */
+async function inLanes<T>(items: readonly T[], lanes: number, work: (item: T) => Promise<void>): Promise<void> {
+  const queue = items.slice();
+  const lane = async (): Promise<void> => {
+    for (;;) {
+      const next = queue.shift();
+      if (next === undefined) return;
+      await work(next);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(lanes, queue.length) }, lane));
+}
+
+/**
+ * The surface the address is asking for, so it takes the first lane.
+ *
+ * Loading twelve surfaces nobody is looking at ahead of the one they are is
+ * backwards. Parsed the way the shell parses it (app-shell.jsx parseHash), and
+ * undefined for a route that owns no surface -- which costs nothing, because
+ * the order is only a preference.
+ */
+function surfaceOnScreen(win: Window): string | undefined {
+  const raw = (win.location.hash || "#/today").replace(/^#[/]?/, "");
+  const [page, param] = raw.split("/");
+  return routeSurfaceFor(page || "today", param || null);
 }
 
 let runnerSeq = 0;
@@ -176,9 +220,13 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   // guess at; and it does not guess: an unnamed read from an account in two
   // workspaces is refused (plan 3.4).
   const workspaceFirst = getActiveWorkspace() ? null : overrides.find((o) => o.key === "workspace") ?? null;
+  // The one the address is asking for goes first; the rest follow it through
+  // four lanes rather than all at once.
+  const wanted = surfaceOnScreen(window);
+  const queued = [...overrides].sort((a, b) => Number(b.key === wanted) - Number(a.key === wanted));
   const booted = workspaceFirst
-    ? boot(workspaceFirst).then(() => Promise.all(overrides.filter((o) => o !== workspaceFirst).map(boot)))
-    : Promise.all(overrides.map(boot));
+    ? boot(workspaceFirst).then(() => inLanes(queued.filter((o) => o !== workspaceFirst), BOOT_LANES, boot))
+    : inLanes(queued, BOOT_LANES, boot);
   void booted.then(() => {
     if (cancelled) return;
     if (guardTenant()) return;
