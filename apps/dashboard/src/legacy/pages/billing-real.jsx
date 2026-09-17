@@ -76,6 +76,11 @@ const PaneBillingReal = ({ flash }) => {
     if (!r.ok) flash({ tone: "danger", msg: <>{r.message}</> });
   };
   const subscribed = vm.mode === "stripe" && vm.status !== "none";
+  // From the price Stripe states, not from splitting the sentence contracts builds out of it.
+  const price = api.words.price(B.dto.price);
+  const product = B.dto.price?.product_name || null;
+  const acct = B.dto.account;
+  const brand = acct?.card_brand ? acct.card_brand.charAt(0).toUpperCase() + acct.card_brand.slice(1) : null;
 
   return (
     <>
@@ -85,7 +90,8 @@ const PaneBillingReal = ({ flash }) => {
             Billing
             {vm.testMode && <span className="pill pill-warn" style={{ marginLeft: 8 }} data-testid="billing-test-mode">Test mode</span>}
           </h2>
-          <span className="fl-card-sub">{vm.plan || (vm.mode === "direct" ? "An arrangement made with Chanlytics" : "How this workspace pays")}</span>
+          <span className="fl-card-sub">{product || (vm.mode === "direct" ? "An arrangement made with Chanlytics" : "How this workspace pays")}</span>
+          {price && <span className="set-price" data-testid="billing-price">{price.split(" ")[0]}<span className="set-price-per">{price.slice(price.indexOf(" "))}</span></span>}
         </div>
         {note && (
           <div className="set-row">
@@ -110,6 +116,18 @@ const PaneBillingReal = ({ flash }) => {
             {subscribed && <button className="cl-bucket-link" disabled={!!busy} onClick={sync} data-testid="billing-sync" {...window.gate("approve", "read Stripe again")}>{busy === "sync" ? "Refreshing…" : "Refresh"}</button>}
           </div>
         </div>
+        {brand && acct?.card_last4 && (
+          <div className="set-row" data-testid="billing-method">
+            <div className="set-row-info set-method">
+              <span className="set-card-chip" aria-hidden="true">{brand}</span>
+              <span className="set-method-body">
+                <span className="set-row-label">&bull;&bull;&bull;&bull; {acct.card_last4}</span>
+                <span className="set-row-hint">Stripe holds it. Chanlytics sees the brand and the last four digits, nothing else.</span>
+              </span>
+            </div>
+            {/* No Change here: Manage billing above opens the same Stripe portal, and one door is one door. */}
+          </div>
+        )}
         {vm.mode === "stripe" && !owner && (
           <div className="set-row"><div className="set-row-info"><span className="set-row-hint">{window.gateTitle("billing", "start or manage the subscription")}</span></div></div>
         )}

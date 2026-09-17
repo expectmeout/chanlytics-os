@@ -121,7 +121,7 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
   const primary = r.state === "none" || r.state === "waiting_you";
   return (
     <div className="set-int-row" data-testid={`connection-${r.kind}`} data-state={r.state}>
-      <span className={`st-tile ${r.group === "connected" ? "installed " : ""}set-int-tile`}><Icon name={r.icon} size={14} /></span>
+      <span className={`st-tile ${r.group === "connected" ? "installed " : ""}set-int-tile`} data-kind={r.kind}><Icon name={r.icon} size={15} /></span>
       <span className="set-team-body">
         <span className="set-team-name">{r.title}{r.detail ? <span className="dim"> · {r.detail}</span> : null}</span>
         <span className="set-team-mail">{r.sentence}</span>
@@ -136,6 +136,13 @@ const ConnectionRow = ({ r, run, busy, arm, setArm, confirm }) => {
       <span className="set-int-actions">
         {r.kind === "google_listing" && owner && !armed && (r.state === "connected" || r.state === "attention") && (
           <button className="cl-bucket-link" onClick={() => setArm({ kind: r.kind, what: "remove" })} disabled={busy} data-testid="google-remove">Remove</button>
+        )}
+        {!r.verb && !armed && r.state === "later" && (
+          <button
+            className="btn btn-sm"
+            data-testid={`connection-${r.kind}-later`}
+            {...(window.gatedProps ? window.gatedProps("Not built yet. When it is, this row is where you connect it.") : { disabled: true })}
+          >Connect</button>
         )}
         {/* A verb the role may not press stays on the row and says why (window.gate);
             it used to be hidden, with no word. A page to open is anyone's to open. */}
