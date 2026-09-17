@@ -1,18 +1,27 @@
 /**
  * The Content-Security-Policy, composed once and read by the middleware.
  *
- * Pure: a nonce and the Supabase origin in, one header value out, so a test
- * reads the policy without a request and the middleware cannot compose it
- * differently on two paths.
+ * Pure: the Supabase origin in, one header value out, so a test reads the
+ * policy without a request and the proxy cannot compose it differently on two
+ * paths.
  *
  * What it allows, and why each origin is there:
  *
- *   script-src   the app's own bundles, each inline script by this request's
- *                nonce (Next attaches it to its own), and, under
- *                'strict-dynamic', whatever a trusted script loads -- which is
- *                how Meta's Embedded Signup SDK arrives (whatsapp-connect.ts
- *                creates its <script>). Never 'unsafe-inline': that is the
- *                directive a policy exists to withhold.
+ *   script-src   the app's own bundles and Meta's SDK host (the Embedded
+ *                Signup SDK, whatsapp-connect.ts), and 'unsafe-inline' for the
+ *                inline scripts Next streams its pages with. NOT a nonce,
+ *                though a nonce is what a policy exists to carry: Next takes
+ *                the nonce from the request's content-security-policy header,
+ *                and on Vercel that header, set by the proxy, does not reach
+ *                the render -- a custom header set beside it does (x-nonce
+ *                arrived, verified 17 Sep 2026 on the login page), the
+ *                policy-named ones do not, and the same build started on a
+ *                laptop nonces every script. Without the nonce, every inline
+ *                script Next streams would be refused, so inline is allowed by
+ *                name, and what the policy still withholds is every foreign
+ *                script origin and eval. The road back to a nonce is Vercel's
+ *                self-fetch pattern (kb/guide/csp-nonces-with-cdn-cache), the
+ *                day it is worth its cost.
  *   style-src    'unsafe-inline', deliberately. The ported mockup sets styles
  *                as attributes on thousands of elements; an attribute cannot
  *                carry a nonce, and a policy that forbade them would take the
@@ -35,8 +44,6 @@
  * whatever this says, so clickjacking never waits on the flip.
  */
 export interface CspInputs {
-  /** This request's nonce, base64 -- the middleware mints one per request. */
-  nonce: string;
   /** NEXT_PUBLIC_SUPABASE_URL; its origin is allowed over https and wss. */
   supabaseUrl?: string | null;
   /** A development server needs eval for React's fast refresh; production never does. */
@@ -62,7 +69,7 @@ export function contentSecurityPolicy(o: CspInputs): string {
   const supabaseWs = supabase ? supabase.replace(/^https:/, "wss:") : null;
   const directives: Array<[string, string[]]> = [
     ["default-src", ["'self'"]],
-    ["script-src", ["'self'", `'nonce-${o.nonce}'`, "'strict-dynamic'", ...(o.dev ? ["'unsafe-eval'"] : []), META[0]]],
+    ["script-src", ["'self'", "'unsafe-inline'", ...(o.dev ? ["'unsafe-eval'"] : []), META[0]]],
     ["style-src", ["'self'", "'unsafe-inline'"]],
     ["font-src", ["'self'"]],
     ["img-src", ["'self'", "data:", "blob:", ...(supabase ? [supabase] : []), GOOGLE_PHOTOS]],
@@ -81,5 +88,5 @@ export function contentSecurityPolicy(o: CspInputs): string {
   return parts.join("; ");
 }
 
-/** The header the policy rides on while it only reports; the middleware flips to the enforcing name when the nightly is clean. */
+/** The header the policy rides on while it only reports; the proxy flips to the enforcing name when the nightly is clean. */
 export const CSP_HEADER = "content-security-policy-report-only";
