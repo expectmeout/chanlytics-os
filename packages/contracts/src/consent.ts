@@ -167,7 +167,7 @@ export function consentChangeOf(e: { id: string; subject_id: string | null; crea
  * can change on a live template.
  *
  * FAILS CLOSED, and this is the whole subtlety. `templates.category` is NULL for
- * exactly the rows most likely to matter: `booking_link_v1` was seeded by hand
+ * exactly the rows most likely to matter: `booking_link` was seeded by hand
  * before the column existed, any workspace that has never run a template sync
  * has NULL throughout, and the mapper returns null for anything Meta names that
  * we do not recognise. Written the obvious way -- `category === 'marketing'` --

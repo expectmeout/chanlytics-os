@@ -13,8 +13,9 @@ import {
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 
-test("seven starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
-  assert.deepEqual(STARTER_TEMPLATES.map((s) => s.key), ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "visit_reminder", "after_visit", "quick_note"]);
+test("eight starters, each in English and Spanish, each passing the hand-written check with no warnings", () => {
+  assert.deepEqual(STARTER_TEMPLATES.map((s) => s.key), ["winback_offer", "welcome_new", "save_our_number", "monthly_offer", "visit_reminder", "after_visit", "quick_note", "booking_link"],
+    "booking_link is LAST on purpose: the order is what a composer opens on, and this is the one a caller asks for out loud rather than one anybody broadcasts");
   assert.deepEqual(STARTER_LANGUAGES.map((l) => l.id), ["en_US", "es"]);
   for (const s of STARTER_TEMPLATES) {
     assert.equal(s.name, s.key, "the name is the key");
@@ -49,8 +50,9 @@ test("one starter per playbook trigger, one for any broadcast; titles for people
   assert.equal(starterByName("nope"), null);
   assert.equal(templateTitle("winback_offer"), "Win-back");
   assert.equal(templateTitle("approval_confirmation"), "Approval confirmation");
-  assert.equal(templateTitle("booking_link_v1"), "Booking link", "a version suffix is not a word");
-  assert.equal(templateTitle("booking_link_v1", "Thanks for reaching out"), "Thanks for reaching out", "the workspace's own words win");
+  assert.equal(templateTitle("booking_link"), "Booking link", "the starter's own title");
+  assert.equal(templateTitle("spring_offer_v2"), "Spring offer", "a version suffix is not a word");
+  assert.equal(templateTitle("booking_link", "Thanks for reaching out"), "Thanks for reaching out", "the workspace's own words win");
   assert.equal(templateTitle("winback_offer", "   "), "Win-back", "an empty title is no title");
   assert.equal(templateTitle(""), "");
   assert.equal(
@@ -99,7 +101,8 @@ test("a slot's source: a starter's own, or a guess from the label and the exampl
   assert.equal(guessSlotKind("Value 1", "Dani"), "text", "a bare value with a name-like example is still a guess we do not make");
   assert.equal(guessSlotKind("The offer", "20% off"), "text");
   assert.deepEqual(defaultSlotKinds({ name: "monthly_offer", variables: [{ position: 1 }, { position: 2 }, { position: 3 }, { position: 4 }] }), ["first_name", "business_name", "text", "booking_link"]);
-  assert.deepEqual(defaultSlotKinds({ name: "booking_link_v1", variables: [{ position: 1, label: "Business name", example: "Melany's" }, { position: 2, label: "Booking link", example: "booksy.com/melanys" }] }), ["business_name", "booking_link"]);
+  assert.deepEqual(defaultSlotKinds({ name: "reservar_ahora", variables: [{ position: 1, label: "Business name", example: "Melany's" }, { position: 2, label: "Booking link", example: "booksy.com/melanys" }] }), ["business_name", "booking_link"], "a name we did not write is read off its own labels");
+  assert.deepEqual(defaultSlotKinds({ name: "booking_link", variables: [{ position: 1 }, { position: 2 }, { position: 3 }] }), ["first_name", "business_name", "booking_link"], "and one we did carries the shape we wrote");
   assert.deepEqual(defaultSlotKinds({ name: "hello_world", variables: [] }), []);
   assert.deepEqual(defaultParamSpecs({ name: "quick_note", variables: [1, 2, 3] }), [{ kind: "first_name" }, { kind: "business_name" }, { kind: "text", value: "" }]);
 });
@@ -148,22 +151,22 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
 test("the library's order, what a composer opens on, and each slot's words", () => {
   const rows = [
     { name: "hello_world", category: "utility", source: "meta" },
-    { name: "booking_link_v1", category: "marketing", source: "meta" },
+    { name: "booking_link", category: "marketing", source: "meta" },
     { name: "quick_note", category: "marketing", source: "chanlytics" },
     { name: "approval_request", category: "marketing", source: "meta" },
     { name: "spring_offer", category: "marketing", source: "chanlytics" },
     { name: "winback_offer", category: "marketing", source: "chanlytics" },
   ];
-  assert.deepEqual(rows.slice().sort(compareTemplates).map((r) => r.name), ["winback_offer", "quick_note", "spring_offer", "approval_request", "booking_link_v1", "hello_world"], "starters in the library's order, then written here, then the rest — marketing before utility");
+  assert.deepEqual(rows.slice().sort(compareTemplates).map((r) => r.name), ["winback_offer", "quick_note", "booking_link", "spring_offer", "approval_request", "hello_world"], "starters in the library's order, then written here, then the rest — marketing before utility");
   assert.equal(defaultTemplate(rows, null).name, "quick_note", "a broadcast opens on the quick note");
   assert.equal(defaultTemplate(rows, "quiet_30").name, "winback_offer", "a playbook opens on its trigger's starter");
   assert.equal(defaultTemplate(rows, "new_week").name, "winback_offer", "without the trigger's starter, the first in order");
   assert.equal(defaultTemplate([], null), null);
   assert.deepEqual(slotLabels({ name: "monthly_offer", language: "en_US", variables: [{ position: 1 }, { position: 2 }, { position: 3 }, { position: 4 }] }), ["First name", "Business name", "The offer", "Booking link"]);
   assert.deepEqual(slotLabels({ name: "monthly_offer", language: "es", variables: [] }), ["Nombre", "Nombre del negocio", "La oferta", "Enlace de reservas"]);
-  assert.deepEqual(slotLabels({ name: "booking_link_v1", variables: [{ position: 1, label: "Business name" }, { position: 2, label: "Value 2" }] }), ["Business name", "Value 2"]);
+  assert.deepEqual(slotLabels({ name: "booking_link", variables: [{ position: 1, label: "Business name" }, { position: 2, label: "Value 2" }] }), ["Business name", "Value 2"]);
   assert.equal(starterIndex("welcome_new"), 1);
-  assert.equal(starterIndex("nope"), 7);
+  assert.equal(starterIndex("nope"), 8, "a name we did not write sorts after every one we did");
 });
 
 test("hidden from the composers: the door, the routes, the sync's first sight, the card", () => {

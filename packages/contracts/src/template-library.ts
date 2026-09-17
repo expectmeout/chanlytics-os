@@ -202,6 +202,40 @@ export const STARTER_TEMPLATES: readonly StarterTemplate[] = [
       },
     },
   },
+  {
+    // The one a caller asks for OUT LOUD, mid-call: the phone agent texts it
+    // when somebody wants to book (edge retell-fn.ts).
+    //
+    // UTILITY, and that is the whole point of writing it down here. It answers
+    // a request the person just made, so it needs no separate yes to offers --
+    // and because the category is Meta's own word for that, purposeOfTemplate
+    // reads it correctly and nothing has to override the purpose at a call
+    // site. The row this replaces was hand-written straight into one
+    // workspace's database, marked approved, with no meta_id: an approval Meta
+    // had never given, so every send of it failed, and it failed for every
+    // other workspace by not existing at all.
+    key: "booking_link",
+    name: "booking_link",
+    title: "Booking link",
+    purpose: "for a caller who asks to book",
+    category: "utility",
+    trigger: null,
+    texts: {
+      en_US: {
+        // The first name every starter opens with, and here it is usually
+        // "there": the phone agent texts somebody whose name nobody has yet,
+        // and resolveParams says so rather than leaving a gap.
+        body: "Hi {{1}}, it's {{2}}. Here's the link to book your appointment: {{3}} — pick any time that suits you.",
+        footer: null,
+        slots: [FIRST, BUSINESS, LINK],
+      },
+      es: {
+        body: "Hola {{1}}, te escribimos de {{2}}. Aquí tienes el enlace para reservar tu cita: {{3}} — elige la hora que mejor te venga.",
+        footer: null,
+        slots: [FIRST_ES, BUSINESS_ES, LINK_ES],
+      },
+    },
+  },
 ];
 
 export function starterByName(name: string | null | undefined): StarterTemplate | null {
@@ -417,6 +451,28 @@ export function defaultTemplate<T extends { name: string; category?: string | nu
 }
 
 /** Each slot's words for a person: a starter's own labels, else the labels the row carries, else "Value n". */
+/**
+ * The template this workspace may text somebody who asked to book.
+ *
+ * Three things at once, and none of them a name: APPROVED, because a row
+ * asserting an approval Meta never gave is the defect this replaces; fillable
+ * from the workspace's own facts, because the server fills the slots and never
+ * asks a caller for words; and carrying the booking link, which is what makes
+ * it the booking template rather than any other. A workspace with none has
+ * none, and is owed that answer rather than a send that fails at Meta.
+ */
+export function bookingTemplate<T extends { name: string; language: string; meta_status?: string | null; variables: unknown }>(
+  templates: readonly T[],
+): T | null {
+  const usable = templates.filter(
+    (t) => t.meta_status === "approved" && !slotToWrite(t) && defaultSlotKinds(t).includes("booking_link"),
+  );
+  // The starter first when the workspace has it, so a business that took the
+  // one we wrote gets the words we wrote; otherwise their own, in the order
+  // the rest of the product lists templates.
+  return usable.find((t) => t.name === "booking_link") ?? usable.slice().sort(compareTemplates)[0] ?? null;
+}
+
 export function slotLabels(t: { name: string; language?: string | null; variables: unknown }): string[] {
   const vars = Array.isArray(t.variables) ? (t.variables as VariableLike[]) : [];
   const s = starterByName(t.name);
