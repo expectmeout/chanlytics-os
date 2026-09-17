@@ -191,7 +191,7 @@ const PaneIntegrationsReal = () => {
       {groups.map(({ g, rows: list }) => (
         <section key={g} className="fl-card set-card set-conn" data-testid={`connections-${g}`}>
           <div className="fl-card-head">
-            <span className="fl-card-title">{W[g].title}</span>
+            <h2 className="fl-card-title">{W[g].title}</h2>
             <span className="fl-card-sub">{list.length ? W[g].sub(list) : "nothing yet"}</span>
           </div>
           {note && list.some((r) => r.kind === "google_profile") && (

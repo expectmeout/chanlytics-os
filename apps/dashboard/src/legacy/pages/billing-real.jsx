@@ -30,7 +30,7 @@ const PaneBillingReal = ({ flash }) => {
   if (B === undefined) {
     return (
       <section className="fl-card set-card" data-testid="billing-loading">
-        <div className="fl-card-head"><span className="fl-card-title">Billing</span></div>
+        <div className="fl-card-head"><h2 className="fl-card-title">Billing</h2></div>
         <div className="set-row"><div className="set-row-info"><span className="set-row-hint">Reading your billing…</span></div></div>
       </section>
     );
@@ -81,10 +81,10 @@ const PaneBillingReal = ({ flash }) => {
     <>
       <section className="fl-card set-card" data-testid="billing-real">
         <div className="fl-card-head">
-          <span className="fl-card-title">
+          <h2 className="fl-card-title">
             Billing
             {vm.testMode && <span className="pill pill-warn" style={{ marginLeft: 8 }} data-testid="billing-test-mode">Test mode</span>}
-          </span>
+          </h2>
           <span className="fl-card-sub">{vm.plan || (vm.mode === "direct" ? "An arrangement made with Chanlytics" : "How this workspace pays")}</span>
         </div>
         {note && (
@@ -117,7 +117,7 @@ const PaneBillingReal = ({ flash }) => {
 
       {subscribed && (
         <section className="fl-card set-card" data-testid="billing-invoices">
-          <div className="fl-card-head"><span className="fl-card-title">Invoices</span><span className="fl-card-sub">Each one opens on Stripe&rsquo;s page.</span></div>
+          <div className="fl-card-head"><h2 className="fl-card-title">Invoices</h2><span className="fl-card-sub">Each one opens on Stripe&rsquo;s page.</span></div>
           {invoices === null ? (
             <div className="set-row">
               <div className="set-row-info"><span className="set-row-hint">The last twelve, when you ask.</span></div>

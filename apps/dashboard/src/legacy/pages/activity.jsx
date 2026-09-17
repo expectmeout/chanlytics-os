@@ -83,7 +83,7 @@ const PaneActivity = () => {
   return (
     <section className="fl-card set-card" data-testid="set-activity">
       <div className="fl-card-head">
-        <span className="fl-card-title">Activity</span>
+        <h2 className="fl-card-title">Activity</h2>
         <span className="fl-card-sub">What happened, and who did it · newest first</span>
       </div>
       {/* The three filters are the settings input: they had no class, so they were the browser's own boxes. */}

@@ -201,7 +201,7 @@ const PolicyMatrix = () => {
   return (
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">Policy matrix</span>
+        <h2 className="fl-card-title">Policy matrix</h2>
         <span className="fl-card-sub">What agents may do, per action class — the ruleset the backend enforces</span>
       </div>
       <table className="pol-table">
@@ -570,7 +570,7 @@ const PaneProfile = ({ flash }) => {
   return (
     <>
       <section className="fl-card set-card" data-testid="set-profile">
-        <div className="fl-card-head"><span className="fl-card-title">You</span></div>
+        <div className="fl-card-head"><h2 className="fl-card-title">You</h2></div>
         {/* The avatar, the name, the address and the role pill were a block above rows that
             say the same four things -- and the sidebar's own footer says three of them a third
             time. The rows carry them once, each with what it is for. */}
@@ -589,7 +589,7 @@ const PaneProfile = ({ flash }) => {
       {/* Named for what it does. "This device" sat over a sign-out that ends every session on every device:
           /auth/signout revokes them all (S20). */}
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Signing out</span></div>
+        <div className="fl-card-head"><h2 className="fl-card-title">Signing out</h2></div>
         <SetRow label="Sign out everywhere" hint="Ends your session on every device, this one included.">
           <button className="btn btn-sm" onClick={signOut} data-testid="set-profile-signout">
             <Icon name="logout" size={12} /> Sign out everywhere
@@ -787,7 +787,7 @@ const TeamSection = ({ flash }) => {
   return (
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">Team</span>
+        <h2 className="fl-card-title">Team</h2>
         <span className="fl-card-sub">
           {teamUnavailable
             ? "Couldn't be loaded"
@@ -805,8 +805,8 @@ const TeamSection = ({ flash }) => {
 
       {isOwner && (
         <div className="set-viewas">
-          <span className="set-viewas-label">View as</span>
-          <div className="cl-tabs">
+          <span className="set-viewas-label" id="set-viewas-label">View as</span>
+          <div className="cl-tabs" role="group" aria-labelledby="set-viewas-label">
             {["owner", "operator", "viewer"].map(r => (
               <button key={r} className={`cl-tab ${myRole === r ? "active" : ""}`} onClick={() => S.setViewAs(r === "owner" ? null : r)}>{ST_ROLE_META[r].label}</button>
             ))}
@@ -842,9 +842,9 @@ const TeamSection = ({ flash }) => {
         const invite = pending && window.__inviteState ? window.__inviteState(m.expiresAt) : { expired: false, words: "invite pending" };
         return (
           <div key={m.id} className={`set-team-row ${pending ? "pending" : ""} ${invite.expired ? "expired" : ""}`}>
-            <span className="avatar" style={pending ? { background: "var(--ink-faint)" } : m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
+            <span className="avatar" aria-hidden="true" style={m.role === "owner" ? undefined : { background: "var(--ink-muted)" }}>{m.displayName !== undefined ? window.__identity.initials(m.displayName, m.email) : stInitials(m.name)}</span>
             <span className="set-team-body">
-              <span className="set-team-name">{m.name}{isMe && <span className="set-team-you">You</span>}</span>
+              <span className="set-team-name">{m.name}{isMe && <> <span className="set-team-you">You</span></>}</span>
               <span className="set-team-mail">{[m.sub !== undefined ? m.sub : m.email, pending ? invite.words : ""].filter(Boolean).join(" · ")}</span>
               {armRemove === m.id && (
                 <Confirm
@@ -951,7 +951,7 @@ const SET_LANGS = ["English", "Spanish", "Portuguese", "French", "Haitian Creole
 
 const SetSectionHead = ({ title, hint }) => (
   <div className="set-sec-head">
-    <span className="set-sec-title">{title}</span>
+    <h3 className="set-sec-title">{title}</h3>
     {hint && <span className="set-sec-hint">{hint}</span>}
   </div>
 );
@@ -1408,7 +1408,7 @@ const BusinessEditor = ({ settings, onDone, flash }) => {
   return (
     <section className="fl-card set-card set-editor">
       <div className="fl-card-head">
-        <span className="fl-card-title">{creating ? "Set up your receptionist" : "Your business"}</span>
+        <h2 className="fl-card-title">{creating ? "Set up your receptionist" : "Your business"}</h2>
         <span className="fl-card-sub">
           {creating ? "The three things it cannot answer anyone without" : "Both agents answer from these"}
         </span>
@@ -2003,7 +2003,7 @@ const PaneWorkspace = ({ flash }) => {
     return (
       <>
         <section className="fl-card set-card">
-          <div className="fl-card-head"><span className="fl-card-title">Business</span></div>
+          <div className="fl-card-head"><h2 className="fl-card-title">Business</h2></div>
           <FailedRead kind="card" title={W.title} body={W.body} testid="settings-broken">
             <ul className="set-broken-issues">{settings.broken.issues.map((i) => <li key={i}>{i}</li>)}</ul>
             {repairAsked
@@ -2025,7 +2025,7 @@ const PaneWorkspace = ({ flash }) => {
   <>
     <FactConflicts />
     <section className="fl-card set-card">
-      <div className="fl-card-head"><span className="fl-card-title">Business</span>
+      <div className="fl-card-head"><h2 className="fl-card-title">Business</h2>
         {/* Who last changed it and when, from the row itself (00085): the one
             audit question a workspace with three people eventually asks. */}
         {real && window.__lastChanged && window.__lastChanged() ? <span className="fl-card-sub">{window.__lastChanged()}</span> : null}
@@ -2144,7 +2144,7 @@ const PromptPreview = () => {
   return (
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">What your receptionist is told</span>
+        <h2 className="fl-card-title">What your receptionist is told</h2>
         <button className="btn btn-ghost btn-sm" onClick={() => setOpen(!open)}>
           <Icon name={open ? "chevron-up" : "chevron-down"} size={11} /> {open ? "Hide" : "Show"}
         </button>
@@ -2237,7 +2237,7 @@ const PaneAutonomy = ({ flash }) => {
 
       <section className="fl-card set-card">
         <div className="fl-card-head">
-          <span className="fl-card-title">Defaults for every agent</span>
+          <h2 className="fl-card-title">Defaults for every agent</h2>
           <span className="fl-card-sub">Per-agent rules in Fleet override these</span>
         </div>
         <SetRow label="Quiet hours" hint="Outreach and bells pause — safe FAQ replies still send, so the <1 min SLA holds">
@@ -2258,7 +2258,7 @@ const PaneAutonomy = ({ flash }) => {
       </section>
       <section className="fl-card set-card">
         <div className="fl-card-head">
-          <span className="fl-card-title">Per-segment guardrails</span>
+          <h2 className="fl-card-title">Per-segment guardrails</h2>
           <span className="fl-card-sub">Rules that follow the list, not the agent</span>
         </div>
         {(window.SEG_GUARDRAILS || []).map(g => {
@@ -2277,7 +2277,7 @@ const PaneAutonomy = ({ flash }) => {
         })}
       </section>
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">Never crossed, regardless of autonomy</span></div>
+        <div className="fl-card-head"><h2 className="fl-card-title">Hard limits</h2><span className="fl-card-sub">Never crossed, regardless of autonomy</span></div>
         <ul className="st-bullets">
           <li><Icon name="check" size={11} /><span>Complaints, medical topics, and HR-sensitive threads always escalate</span></li>
           <li><Icon name="check" size={11} /><span>No agent contacts a client who asked to stop</span></li>
@@ -2380,7 +2380,7 @@ const PaneAutonomyReal = ({ flash }) => {
     <>
       <section className="fl-card set-card">
         <div className="fl-card-head">
-          <span className="fl-card-title">Policy matrix</span>
+          <h2 className="fl-card-title">Policy matrix</h2>
           <span className="fl-card-sub">What it may do without you. Every row is one it consults before acting.</span>
         </div>
         <table className="pol-table">
@@ -2420,7 +2420,7 @@ const PaneAutonomyReal = ({ flash }) => {
 
       <section className="fl-card set-card">
         <div className="fl-card-head">
-          <span className="fl-card-title">Reply timing and budget</span>
+          <h2 className="fl-card-title">Reply timing and budget</h2>
           <span className="fl-card-sub">The hold window applies under Veto, and under Auto below the confidence dial.</span>
         </div>
         <SetRow label="Hold window" hint="How long a reply waits before it sends, so you can stop or change it from the Inbox. A booking link asked for on the phone goes out at once.">
@@ -2450,7 +2450,7 @@ const PaneAutonomyReal = ({ flash }) => {
       </section>
 
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">Hard limits</span><span className="fl-card-sub">{hard.sub}</span></div>
+        <div className="fl-card-head"><h2 className="fl-card-title">Hard limits</h2><span className="fl-card-sub">{hard.sub}</span></div>
         <ul className="st-bullets">
           <li><Icon name="check" size={11} /><span>Never messages a customer who asked to stop</span></li>
           <li><Icon name="check" size={11} /><span>Refunds, rates and negotiation always go to you — locked in the database</span></li>
@@ -2505,7 +2505,7 @@ const PaneIntegrations = ({ flash }) => {
   return (
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">Connected services</span>
+        <h2 className="fl-card-title">Connected services</h2>
         <span className="fl-card-sub">
           {healthy === items.length ? `${items.length} of ${items.length} healthy` : `${healthy} of ${items.length} healthy · 1 needs attention`}
         </span>
@@ -2558,7 +2558,7 @@ const PaneMemory = ({ flash }) => {
   return (
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">What your agents remember</span>
+        <h2 className="fl-card-title">What your agents remember</h2>
         <button className="btn btn-sm" onClick={() => window.askAbout({
           prompt: "Teach the agents something new",
           answer: "Tell me the rule or fact — a price, a client preference, a policy — and I'll store it in AI memory with provenance, so every agent applies it and you can see its impact.",
@@ -2616,7 +2616,7 @@ const PaneNotifications = () => {
   })();
   return (
     <section className="fl-card set-card">
-      <div className="fl-card-head"><span className="fl-card-title">When to interrupt you</span></div>
+      <div className="fl-card-head"><h2 className="fl-card-title">When to interrupt you</h2></div>
       <SetRow label="Approval requests" hint="Push the moment an agent pauses something">
         <SetToggle on={n.approvals} onChange={set("approvals")} />
       </SetRow>
@@ -2707,7 +2707,7 @@ const PaneNotificationsReal = ({ flash }) => {
     <>
       <section className="fl-card set-card" data-testid="notif-recipients">
         <div className="fl-card-head">
-          <span className="fl-card-title">Who gets alerted</span>
+          <h2 className="fl-card-title">Who gets alerted</h2>
           <span className="fl-card-sub">Every alert below goes to each of these, except the two marked for Chanlytics.</span>
         </div>
         {emails.length === 0 && (
@@ -2761,7 +2761,7 @@ const PaneNotificationsReal = ({ flash }) => {
 
       <section className="fl-card set-card" data-testid="notif-kinds">
         <div className="fl-card-head">
-          <span className="fl-card-title">What you'll get</span>
+          <h2 className="fl-card-title">What you'll get</h2>
           <span className="fl-card-sub">By email, the moment it happens.</span>
         </div>
         {NOTIF_KINDS.map((k) => (
@@ -2775,7 +2775,7 @@ const PaneNotificationsReal = ({ flash }) => {
       </section>
 
       <section className="fl-card set-card">
-        <div className="fl-card-head"><span className="fl-card-title">How</span></div>
+        <div className="fl-card-head"><h2 className="fl-card-title">How</h2></div>
         <ul className="st-bullets">
           {/* The bell's device alerts are real (notifications.ts: a browser notification while the app is open in the
               background), so "push notifications are not built" denied a switch one click away (S20). */}
@@ -2832,7 +2832,7 @@ const PaneBilling = ({ flash }) => {
   return (
   <>
     <section className="fl-card set-card">
-      <div className="fl-card-head"><span className="fl-card-title">Plan & credits</span>
+      <div className="fl-card-head"><h2 className="fl-card-title">Plan & credits</h2>
         <button className="btn btn-ghost btn-sm" onClick={() => window.askAbout({
           prompt: "What plan am I on?",
           answer: `${BILLING.plan} — ${BILLING.agentsIncluded} agents included, ${BILLING.creditsTotal.toLocaleString()} credits per cycle${BILLING.topup ? ` (+${BILLING.topup.toLocaleString()} topped up)` : ""}, renewing ${BILLING.renews}. You've used ${BILLING.creditsUsed.toLocaleString()} (${usedPct}%, ${ahead ? "ahead of" : "on"} pace). Plan changes take effect immediately.`,
@@ -2875,7 +2875,7 @@ const PaneBilling = ({ flash }) => {
 
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">Spend by agent</span>
+        <h2 className="fl-card-title">Spend by agent</h2>
         <span className="fl-card-sub">this cycle · same numbers as Reports</span>
       </div>
       {agents.map(a => (
@@ -2893,7 +2893,7 @@ const PaneBilling = ({ flash }) => {
 
     <section className="fl-card set-card">
       <div className="fl-card-head">
-        <span className="fl-card-title">Invoices</span>
+        <h2 className="fl-card-title">Invoices</h2>
         <span className="fl-card-sub">receipts land at sales@chanlytics.com</span>
       </div>
       {INVOICES.map(inv => (
@@ -2936,7 +2936,7 @@ const PaneSoon = ({ which, onTab }) => {
   const m = SET_SOON[which];
   return (
     <section className="fl-card set-card" data-testid={`soon-${which}`}>
-      <div className="fl-card-head"><span className="fl-card-title">{m.title}</span><span className="fl-card-sub">{m.chip}</span></div>
+      <div className="fl-card-head"><h2 className="fl-card-title">{m.title}</h2><span className="fl-card-sub">{m.chip}</span></div>
       <div className="set-row">
         <div className="set-row-info"><span className="set-row-hint">{m.body}</span></div>
         {m.action && (
