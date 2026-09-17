@@ -1498,6 +1498,15 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .bc-actions { display: flex; align-items: center; gap: 6px; }
 .bc-actions-spacer { flex: 1; }
 .bc-actions .btn:disabled { opacity: 0.45; cursor: default; }
+/* The Campaigns note line. It lived in people.css, at 10.5px in --ink-faint -- the
+   token whose own comment says "placeholder" -- and it carries every refusal on this
+   surface: the number over its daily limit, the list nobody has said yes on, a
+   template WhatsApp no longer approves. A refusal read at 2.3:1 beside a chunking
+   note at the same weight, so the two looked alike and neither looked urgent.
+   One class, three tones: a note is quiet, a refusal is not. */
+.bc-excl-hint { font-size: var(--text-xs); line-height: var(--leading-snug); color: var(--ink-dim); align-self: center; }
+.bc-excl-hint.warn { color: var(--warn-ink); }
+.bc-excl-hint.danger { color: var(--danger-ink); }
 .bc-sched { display: flex; align-items: center; gap: 10px; background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md); padding: 12px 14px; }
 .bc-sched-main { flex: 1; min-width: 0; }
 .bc-sched-name { font-size: 13px; font-weight: 500; color: var(--ink); display: block; }

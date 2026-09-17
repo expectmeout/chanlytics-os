@@ -25,6 +25,11 @@ const bcKey = (a) => `${a.kind}:${a.id || ""}`;
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const bcTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const bcIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
+// The language a row goes out in, as a person reads it. A workspace holding the
+// starter set in both languages has two rows per name, and the chips said the
+// same words over each -- so the question asked before a send names the one it
+// means. Empty when the library is not read: a guess is worse than nothing here.
+const bcLangWords = (t) => (t && window.__starters && window.__starters.langWords ? ` (${window.__starters.langWords(t.language)})` : "");
 // The library's order: starters first, then templates written here, then the rest.
 const bcOrder = (a, b) => (window.__starters ? window.__starters.compare(a, b) : 0);
 // What a broadcast opens on: the quick note when the workspace holds it, else the first.
@@ -295,6 +300,10 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const [name, setName] = React.useState("");
   const [whenAt, setWhenAt] = React.useState(null);
   const [busy, setBusy] = React.useState(false);
+  // Whether Send now has been pressed once and is asking. A question about one
+  // template and one audience cannot be answered for another, so changing either
+  // puts the button back.
+  const [armed, setArmed] = React.useState(false);
   // The broadcast open on the page is the one its link names (broadcasts/run:<id>); pressing a row follows that link.
   const openId = initialRun;
   const openRun = (id) => window.CHANLY.nav(id ? `broadcasts/run:${id}` : "broadcasts");
@@ -316,6 +325,9 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     const d = bcDefault(templates);
     if (!templates.some((t) => t.id === tplId) && d) setTplId(d.id);
   }, [templates, tplId]);
+  // The armed question names a template and an audience: change either and it is
+  // no longer the question that was asked.
+  React.useEffect(() => { setArmed(false); }, [tplId, aud]);
 
   const active = audiences.find((a) => bcKey(a) === aud) || audiences[0] || null;
   // The template comes BEFORE the counts now, because the counts depend on it.
@@ -369,6 +381,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
       name: name.trim() || null,
     });
     setBusy(false);
+    setArmed(false);
     if (!r.ok) { flash({ tone: "danger", msg: <>{r.message}</> }); return; }
     setName("");
     setWhenAt(null);
@@ -376,7 +389,16 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     // Outside nine to twenty by the business's clock the send moved to the next
     // nine o'clock: the receipt says when it really goes (bcWhenWords).
     const words = bcWhenWords(r.data);
-    flash({ msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</> });
+    // The one door out, offered where the send is announced rather than 400px
+    // down the page. It is not an Undo and is not called one: a message already
+    // out stays out, which is what the row's own Stop says, so the toast carries
+    // the same verb and the same promise. A scheduled run has sent nothing yet.
+    const scheduled = r.data.state === "scheduled" && words !== "sending now";
+    flash({
+      msg: <><b>{r.data.name || "Broadcast"}</b> · {n} {n === 1 ? "person" : "people"} — {words === "sending now" && data.chunk ? `sending now, ${data.chunk} at a time` : words}</>,
+      action: canSend ? { label: scheduled ? "Cancel it" : "Stop it", onClick: () => cancel({ id: r.data.id, name: r.data.name || "Broadcast", state: scheduled ? "scheduled" : "sending" }) } : null,
+      links: [{ label: "See who", to: `broadcasts/run:${r.data.id}` }],
+    });
   };
   const addStarters = async () => {
     if (!window.__templates || !window.__templates.addStarters || addingStarters) return;
@@ -523,8 +545,23 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
         <div className="bc-actions">
           <input className="bc-subject" type="text" placeholder="Name this broadcast (optional)" value={name} onChange={(e) => setName(e.target.value)} maxLength={80} style={{ flex: 1 }} />
           <BcWhenBox at={whenAt} maxDays={maxDays} onChange={setWhenAt} />
-          <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>
-          <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => submit(false)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>
+          {/* Schedule stays one press: a scheduled run is cancelled from the row above,
+              and nothing has left. Send now does not -- it is the only act on this
+              surface that cannot be taken back, and it was the only one that was not
+              armed, while Stop, Skip and both Deletes each ask first. */}
+          {!armed && <button className="btn btn-sm" disabled={!ready || !whenNote.ok} onClick={() => submit(true)} {...window.gate("approve", "schedule a broadcast")}>Schedule</button>}
+          {!armed && <button className="btn btn-primary btn-sm" disabled={!ready} onClick={() => setArmed(true)} data-testid="bc-send" {...window.gate("approve", "send a broadcast")}>Send now</button>}
+          {armed && tpl && active && (
+            <Confirm
+              question={`Send “${bcTitle(tpl.name)}”${bcLangWords(tpl)} to ${activeCount} ${activeCount === 1 ? "person" : "people"} on “${active.label}”?`}
+              detail={`It goes out now${data.chunk ? `, ${data.chunk} at a time` : ""}. A message already delivered cannot be taken back.`}
+              yes="Yes, send it"
+              busy={busy}
+              onYes={() => submit(false)}
+              onNo={() => setArmed(false)}
+              testid="bc-send"
+            />
+          )}
         </div>
         <div id="bc-when-note" className={`bc-excl-hint${whenNote.tone === "warn" ? " bc-when-note-warn" : ""}`} data-testid="bc-when-note">{whenNote.words}</div>
         {/* Stop, Skip and Cancel stay with the roles that may press them; the page says why once, in the gate's words. */}

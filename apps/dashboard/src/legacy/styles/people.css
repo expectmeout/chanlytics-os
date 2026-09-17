@@ -927,7 +927,6 @@
   color: var(--ink-muted);
 }
 .bc-chip.bc-excl:hover { color: var(--danger); border-color: var(--danger); }
-.bc-excl-hint { font-size: 10.5px; color: var(--ink-faint); align-self: center; }
 .bc-sched-seg {
   display: inline-flex;
   align-items: center;

@@ -522,3 +522,50 @@
   .cl-prof-rail { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .cl-prof-rail-note { grid-column: 1 / -1; }
 }
+
+/* ====================================================================
+   Campaigns on a phone (Playbooks, Broadcasts, Messages).
+
+   This surface had three declarations in this file -- .bc-comp, and the
+   history table's sideways scroll -- and nothing else, while the Calendar
+   has forty and the Inbox thirty. What that cost, measured at a 375px
+   viewport with this stylesheet loaded:
+
+     .bc-actions   display:flex, no flex-wrap
+     children      491px of minimum width (the name field cannot go under
+                   160px; the datetime box is flex: 0 0 auto)
+     container     283px
+     .main-scroll  overflow-x: hidden
+
+   -- so "Send now", the last child and the page's whole purpose, sat 208px
+   past the right edge with no scrollbar to reach it. The primary action of
+   Broadcasts could not be pressed on a phone.
+
+   .bc-page also kept the 28px --gutter-page at every width while .rp-body
+   drops to 16, so two tabs of one nav item had different page edges.
+   ==================================================================== */
+@media (max-width: 720px) {
+  .bc-page { --gutter-page: 16px; }
+
+  /* The send row wraps: the name on its own line, the time on its own line,
+     then the two buttons sharing the last one. */
+  .bc-actions { flex-wrap: wrap; }
+  .bc-actions .bc-subject,
+  .bc-actions .bc-subject[type="datetime-local"] { flex: 1 1 100%; width: 100%; min-width: 0; }
+  .bc-actions .btn { flex: 1 1 auto; justify-content: center; }
+  .bc-actions .confirm { flex: 1 1 100%; }
+
+  /* A 26px uppercase label column is 8% of the page and the words overflow it
+     anyway ("SEND", "CLOCK"): the label goes above its row. */
+  .bc-row { flex-direction: column; gap: 6px; }
+  .bc-row-label { width: auto; padding-top: 0; }
+  .tpl-row { flex-direction: column; gap: 6px; }
+  .tpl-row .bc-row-label { padding-top: 0; }
+
+  /* A slot's source and its value stack rather than sharing 302px. */
+  .bc-var-row { flex-wrap: wrap; }
+  .bc-var-row .tpl-select, .bc-var-row input { flex: 1 1 100%; }
+
+  /* The QR and the wording it explains stopped being side by side. */
+  .bc-optin-body { flex-wrap: wrap; }
+}
