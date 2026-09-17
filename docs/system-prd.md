@@ -397,7 +397,7 @@ sequenceDiagram
 
 A recording reaches a browser only through `/api/v1/calls/:id/recording`, as a five-minute signed URL. The provider's unsigned URL is never stored on a row, because `calls` is in the realtime publication and every column reaches every member's browser.
 
-> **Δ2 · Closed (16 September)** PR #479 merged: an empty Retell function secret opens none of the three doors (the tool calls, the call start, the availability tool), each probed from outside and refusing with 401. What remains is the call webhook's `?key=` fallback: PR #573 retires it (the signature becomes the only credential, provisioning writes a bare `webhook_url`, the converger strips a leftover key) and is held until a real delivery shows `sig: true` and the agents are converged.
+> **Δ2 · Closed (17 September)** PR #479 merged: an empty Retell function secret opens none of the three doors (the tool calls, the call start, the availability tool), each probed from outside and refusing with 401. The call webhook's `?key=` fallback followed in PR #573, in the order the door's own comment prescribed: the badged key was set, 142 of 143 deliveries then verified by signature, both live agents were converged onto a bare `webhook_url` (dry run, then apply and publish; the salon's line went v6 → v7), and only then did the door stop reading a key. Probed from outside after the deploy: an unsigned delivery and one carrying `?key=` alike refuse with 401.
 
 ## S-07 · Channels: SMS, lines and carrier registration
 
@@ -918,7 +918,7 @@ The redlines in one place: where the built system departs from a plan, or where 
 | Δ | Sheet | Note | Decision with |
 |---|---|---|---|
 | 1 | S-04 | Closed: production sign-up runs on the waitlist posture (`SIGNUP_CODE`) | Done |
-| 2 | S-06 | Closed: PR #479 merged, the three Retell doors refuse an empty secret. Follow-on: PR #573 retires the call webhook's `?key=` fallback, held for one signed delivery and a converge | Engineering |
+| 2 | S-06 | Closed: PR #479 merged, the three Retell doors refuse an empty secret; PR #573 (17 September) retired the call webhook's `?key=` fallback after 142 signed deliveries and a converge of both agents onto a bare URL | Engineering |
 | 3 | S-07 | The sole-proprietor verification-code leg waits on one real filing | Ruben |
 | 4 | S-07 | The live campaign's opt-in message names the old workspace; the replace door files a new one at a second vetting fee | Ruben |
 | 5 | S-07 | Closed: PR #530 merged after migration 00123 reached production | Done |
