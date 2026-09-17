@@ -146,3 +146,37 @@ test("the summary counts messages and calls separately", () => {
     assert.ok(route.includes("if (!(await ports.wake(conv.id)))"), "and refuses when no row changed (run in core-thread-verbs.test.mjs)");
   });
 }
+
+test("REGRESSION: the row and every bubble say which wire the words travelled, not WhatsApp for all of them", () => {
+  // This surface drew `channel: "whatsapp"` for the conversation and for every
+  // message that was not a call note. So a TEXT conversation -- live since the
+  // SMS channel shipped -- has been labelled WhatsApp here the whole time, and
+  // an email one would have been too. The Inbox has read the column since I1;
+  // these two view models had drifted apart.
+  const texted = toConversationVM(conv([
+    msg({ id: "m1", channel: "sms", body: "can you fit me in?" }),
+    msg({ id: "m2", channel: "sms", direction: "outbound", sender: "ai", body: "Tuesday at 2 works.", status: "sent", created_at: "2026-08-27T12:00:41Z" }),
+  ]), ZONE, NOW);
+  assert.equal(texted.channel, "sms");
+  assert.deepEqual(texted.messages.map((m) => m.channel), ["sms", "sms"]);
+
+  // One person, one thread, two wires: each bubble is its own.
+  const both = toConversationVM(conv([
+    msg({ id: "m1", channel: "whatsapp", body: "hi" }),
+    msg({ id: "m2", channel: "email", body: "following up by email", created_at: "2026-08-27T12:05:00Z" }),
+  ]), ZONE, NOW);
+  assert.deepEqual(both.messages.map((m) => m.channel), ["whatsapp", "email"]);
+  assert.equal(both.channel, "email", "the row takes the last written wire, which is where a reply would go");
+
+  // A call note is still the phone, and a thread that is nothing but calls is
+  // the phone rather than a WhatsApp conversation with no WhatsApp in it.
+  const calls = toConversationVM(conv([
+    msg({ id: "m1", channel: "voice", type: "call_summary", sender: "system", body: "Called about a quote." }),
+  ]), ZONE, NOW);
+  assert.equal(calls.channel, "phone");
+  assert.deepEqual(calls.messages.map((m) => m.channel), ["phone"]);
+
+  // A row written before the column existed reads as WhatsApp, which is what it was.
+  const legacy = toConversationVM(conv([msg({ id: "m1", channel: null })]), ZONE, NOW);
+  assert.equal(legacy.channel, "whatsapp");
+});

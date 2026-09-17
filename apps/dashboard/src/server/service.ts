@@ -34,7 +34,7 @@ export async function schedule(
 }
 
 /**
- * Who is speaking on a thread right now (00130).
+ * Who is speaking on a thread right now (00132).
  *
  * On the service client for the same reason a job is: the column grant fences
  * these columns off from a member's own session, so the claim is the database's

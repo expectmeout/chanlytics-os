@@ -179,7 +179,7 @@ export interface DeliverPorts {
 interface WireFacts {
   pausedUntil: string | null;
   /**
-   * Who is SPEAKING on this thread right now, and until when (00130).
+   * Who is SPEAKING on this thread right now, and until when (00132).
    *
    * Not `assignee_user_id`, which says who is responsible and may outlive the
    * exchange -- reading that as a live hold is how a thread taken over and
@@ -261,7 +261,7 @@ function refusalFor(d: Delivery, f: WireFacts, nowMs: number): DeliveryRefusal |
   // and it respects the pause like the machine it is.
   if (kind === "reply") return null;
   if (f.tenantStatus === "paused") return "paused";
-  // Is somebody speaking on this thread right now (00130)? A person who took it
+  // Is somebody speaking on this thread right now (00132)? A person who took it
   // over, or a call in progress. It is asked as a LIVE fact with an expiry,
   // never as "does a column name somebody": the assignee it used to read is
   // never cleared, so a thread taken over one Tuesday refused every draft

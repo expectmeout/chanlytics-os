@@ -628,8 +628,8 @@ declare function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean;
 interface ConversationMessageVM {
     from: "client" | "agent";
     /** Where it happened. A call note is not a WhatsApp bubble, and the
-     *  viewer must not draw it as one. */
-    channel: "whatsapp" | "phone";
+     *  viewer must not draw it as one -- and neither is a text or an email. */
+    channel: "whatsapp" | "sms" | "email" | "phone";
     at: string;
     text: string;
     /** The attachment, when the message is one. */
@@ -668,7 +668,8 @@ interface ConversationVM {
     threadId: string;
     /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
     answeredBy: MessageAuthor["kind"] | null;
-    channel: "whatsapp";
+    /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
+    channel: "whatsapp" | "sms" | "email" | "phone";
     agent: {
         glyph: string;
         name: string;

@@ -1820,7 +1820,12 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
   const whoShort = isIdentifierName(who) ? who : who.split(" ")[0] || who;
   const msgs = dto.messages.map((m) => ({
     from: m.sender === "customer" ? "client" : "agent",
-    channel: m.type === "call_summary" ? "phone" : "whatsapp",
+    // The row's own channel, not an assumption. Every bubble on this surface
+    // was drawn as WhatsApp -- so a text conversation, live since the SMS
+    // channel shipped, has been labelled WhatsApp on the Conversations page
+    // this whole time, and an email one would be too. The Inbox has read the
+    // column since I1 (toInboxThreadVM); these two view models had drifted.
+    channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
     at: bubbleTime(messageAt(m), tz, now),
     text: messageText(m),
     ...mediaVM(m) ? { media: mediaVM(m) } : {},
@@ -1850,7 +1855,12 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
     threadId: `th-${dto.id}`,
     answeredBy: lastAuthor ? lastAuthor.kind : null,
-    channel: "whatsapp",
+    // The wire the conversation's last written words travelled. A thread with
+    // nothing but a call note is the phone, which is what it looks like.
+    channel: (() => {
+      const written = [...dto.messages].reverse().find((m) => m.type !== "call_summary");
+      return written ? writtenChannelOf(written.channel) : "phone";
+    })(),
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
@@ -3576,7 +3586,9 @@ var REASON_SHORT = {
   opt_out: "asked to stop",
   state_unavailable: "memory was unavailable",
   stale: "message arrived late",
-  callback: "needs a call back"
+  callback: "needs a call back",
+  budget: "the day\u2019s model budget is spent",
+  paused: "billing is paused"
 };
 function reasonShort(reason) {
   if (!reason) return "";
