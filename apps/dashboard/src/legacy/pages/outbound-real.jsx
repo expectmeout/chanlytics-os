@@ -268,7 +268,6 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
   const [sure, setSure] = React.useState(false);
   // Skip asks first, as it does on Broadcasts, with a question of its own apart from the delete's.
   const [skipSure, setSkipSure] = React.useState(false);
-  const [wordsOpen, setWordsOpen] = React.useState(false);
   const V = window.__playbooks;
   const waiting = p.totals.waiting;
   const status = pbStatus(p);
@@ -312,57 +311,53 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
       <div className="ob-head">
         <div className="ob-titles">
           <span className="ob-name">{p.name}</span>
-          <span className="ob-meta">
-            <Icon name="bolt" size={11} /> {p.triggerLabel} — {p.triggerHint}
-            <span className="fl-head-dot" />
-            <span>{p.schedule}</span>
-          </span>
         </div>
         <StatePill kind="playbook" value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"} />
-      </div>
-
-      <div className="ob-row">
-        <button className="ob-audience" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)}>
-          <Icon name="sparkle" size={12} />
-          {pbPeople(p.candidates)} on the list said yes
-          <Icon name="arrow-right" size={10} />
-        </button>
-        {/* Which message, and in which language. The language was in a data-tip,
-            which no finger reaches, on a card whose whole job is to say what a
-            standing rule sends. */}
-        <span className="ob-audience ob-audience-event" data-tip="The WhatsApp template its runs send">
-          <Icon name="chat" size={12} />
-          {pbTitle(p.template_name)}
-          <span className="bc-chip-count">{pbLangWords(p.template_language)}</span>
-        </span>
         <PolicyChip cls={p.policy_class} />
-        <span className="ob-note">next run {p.next}{p.last_run_for ? ` · last ran ${p.last_run_for}` : " · has not run yet"}</span>
       </div>
 
-      {message && (
-        <div className="ob-words" data-testid="pb-words">
-          {wordsOpen && window.MessagePreview
-            ? <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} footer={pbFooter(message.template)} compact />
-            : <span className="ob-words-line">“{message.words}”</span>}
-          <button className="cl-bucket-link" aria-expanded={wordsOpen} onClick={() => setWordsOpen((o) => !o)} data-testid="pb-words-toggle">{wordsOpen ? "Show less" : "Show the whole message"}</button>
+      {/* The message first, beside what the rule does with it.
+          The card led with the trigger, the schedule, the audience, the template's
+          NAME and the next run -- five chips and a meta line -- and the thing that
+          actually reaches a customer was two clamped lines at 12px in --ink-muted,
+          under a "Show the whole message" toggle. A playbook IS a message, a list
+          and a clock; the message goes first and the rest is one sentence. */}
+      <div className="ob-body">
+        {message && (
+          <div className="ob-words" data-testid="pb-words">
+            <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} footer={pbFooter(message.template)} compact />
+            {/* Which message this is, captioning the message itself, and in which
+                language -- that was a data-tip on a chip, and no finger reaches one.
+                It opens Messages, where the same template is renamed or replaced. */}
+            <button type="button" className="ob-words-name" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-template-name">
+              {pbTitle(p.template_name)} <span className="dim">&middot; {pbLangWords(p.template_language)}</span>
+            </button>
+          </div>
+        )}
+        <div className="ob-facts">
+          <p className="ob-sentence">
+            Goes to {p.triggerHint} &mdash;{" "}
+            <button className="ob-link" data-tip={trig && trig.kind === "visit" ? "Everyone with a recorded yes — the day's visits are picked from them · click to open them in People" : "The list this playbook watches — before the gap and the week's breath · click to open it in People"} onClick={() => window.CHANLY.nav(listRoute)} data-testid="pb-audience">
+              {pbPeople(p.candidates)} on the list said yes
+            </button>. {p.schedule}. Next run <b>{p.next}</b>{p.last_run_for ? <>, last ran {p.last_run_for}</> : <>, and it has not run yet</>}.
+          </p>
+          {templateGone && (
+            <p className="bc-excl-hint warn" data-testid="pb-template-gone">Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the playbook sends another.</p>
+          )}
+          {/* What its runs earned, as ONE sentence rather than five numbers with
+              dots between them. Numbers read as a sentence here the way they do on
+              Today, Reports and People; each run below still says its own. */}
+          {p.totals.runs > 0 && (
+            <p className="ob-sentence ob-sentence-dim" data-testid="pb-results">
+              <span className="tabular">{p.totals.runs}</span> {p.totals.runs === 1 ? "run" : "runs"} so far:{" "}
+              <span className="tabular">{p.totals.sent}</span> sent,{" "}
+              <span className="tabular" data-tip="WhatsApp's own receipts">{p.totals.delivered}</span> delivered,{" "}
+              <span className="tabular" data-tip={pbReplyTip()}>{p.totals.replied}</span> wrote back{p.totals.held > 0 ? <>, <span className="tabular">{p.totals.held}</span> held back</> : null}.
+            </p>
+          )}
         </div>
-      )}
-      {templateGone && (
-        <div className="bc-excl-hint" data-testid="pb-template-gone">Its message is no longer approved by WhatsApp, so its runs are skipped until it is approved again or the playbook sends another.</div>
-      )}
+      </div>
 
-      {p.totals.runs > 0 && (
-        <div className="ob-results" data-testid="pb-results">
-          <span className="ob-stat"><strong className="tabular">{p.totals.runs}</strong> {p.totals.runs === 1 ? "run" : "runs"}</span>
-          <span className="fl-head-dot" />
-          <span className="ob-stat"><strong className="tabular">{p.totals.sent}</strong> sent</span>
-          <span className="fl-head-dot" />
-          <span className="ob-stat" data-tip="WhatsApp's own receipts"><strong className="tabular">{p.totals.delivered}</strong> delivered</span>
-          <span className="fl-head-dot" />
-          <span className="ob-stat" data-tip={pbReplyTip()}><strong className="tabular">{p.totals.replied}</strong> replied</span>
-          {p.totals.held > 0 && <><span className="fl-head-dot" /><span className="ob-stat"><strong className="tabular">{p.totals.held}</strong> held back</span></>}
-        </div>
-      )}
       {/* The runs themselves, newest first, from the same rows the totals are
           summed over -- every run, not the recent fifty broadcasts of any kind. */}
       {p.totals.history && p.totals.history.length > 0 && (

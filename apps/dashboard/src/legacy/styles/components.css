@@ -1373,9 +1373,13 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 
 
 /* ---------- Campaigns: Outbound ---------- */
-.ob-card { display: flex; flex-direction: column; gap: 10px; }
-.ob-card.is-approval { border-left: 2px solid var(--accent); }
-.ob-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.ob-card { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+/* A run waiting on a person. It was a 2px accent stripe down the left edge --
+   the one decorative use of the token reserved for live agent state, and the
+   shape every admin UI reaches for. A tint and a border say it without it. */
+.ob-card.is-approval { background: var(--warn-soft); border-color: var(--warn); }
+.ob-head { display: flex; align-items: center; gap: var(--space-2); }
+.ob-head .ob-titles { flex: 1; min-width: 0; }
 .ob-titles { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ob-name { font-size: 13.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.005em; }
 .ob-meta { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-dim); flex-wrap: wrap; }
@@ -1390,15 +1394,39 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 }
 .ob-audience:hover { color: var(--ink); border-color: var(--ink-faint); }
 .ob-note { font-size: 11.5px; color: var(--ink-dim); font-style: italic; }
+/* The seeded Outbound page still draws its results this way; the real card says
+   the same numbers as a sentence (.ob-sentence-dim). */
 .ob-results { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 11.5px; color: var(--ink-muted); padding-top: 8px; border-top: 1px solid var(--line); }
 .ob-stat strong { color: var(--ink); font-weight: 500; }
 .ob-stat.ok strong { color: var(--ok); }
 .ob-progress { flex: 1; min-width: 80px; height: 4px; border-radius: 2px; background: var(--bg-sunken); border: 1px solid var(--line); overflow: hidden; }
 .ob-progress-fill { display: block; height: 100%; background: var(--accent); opacity: 0.6; transition: width 0.5s var(--ease-out); }
 .ob-actions { display: flex; gap: 6px; flex-wrap: wrap; }
-/* A card's message: two lines at rest, the whole bubble on a press. Its runs: each one a door to itself. */
-.ob-words { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
-.ob-words-line { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; max-width: 68ch; font-size: 12px; line-height: 1.45; color: var(--ink-muted); }
+/* ---- A playbook is a message, a list and a clock ----
+   The card led with the trigger, the schedule, the audience, the template's NAME
+   and the next run -- five chips and a meta line -- and the message itself was
+   two clamped lines at 12px in --ink-muted behind a "Show the whole message"
+   toggle: the least prominent thing on a card whose subject it is. The message
+   is the left column now and everything else is a sentence beside it.
+   The column is the preview's own width plus its gutter, so the two never fight;
+   under that it stacks, which is where a phone always is. */
+.ob-body { display: grid; grid-template-columns: 268px minmax(0, 1fr); gap: var(--space-5); align-items: start; }
+.ob-words { display: flex; flex-direction: column; align-items: flex-start; gap: var(--space-2); min-width: 0; }
+.ob-words-name { font-size: var(--text-xs); color: var(--ink-muted); background: none; border: none; padding: 0; cursor: pointer; text-align: left; }
+.ob-words-name:hover { color: var(--ink); }
+.ob-words-name .dim { color: var(--ink-dim); }
+.ob-facts { display: flex; flex-direction: column; gap: var(--space-2); min-width: 0; }
+/* 68ch, the measure the clamped line used: on a 1280 page the facts column is
+   782px, which is about 120 characters -- half again past where the eye stops
+   tracking a line reliably. */
+.ob-sentence { margin: 0; max-width: 68ch; font-size: var(--text-base); line-height: var(--leading-relaxed); color: var(--ink-muted); }
+.ob-sentence b { color: var(--ink); font-weight: var(--weight-medium); }
+.ob-sentence-dim { font-size: var(--text-sm); color: var(--ink-dim); }
+/* A word inside a sentence that opens something, drawn as the sentence plus an
+   underline -- never a button shape mid-sentence. */
+.ob-link { font: inherit; color: var(--ink); background: none; border: none; padding: 0; cursor: pointer; border-bottom: 1px solid var(--line-strong); }
+.ob-link:hover { border-bottom-color: var(--ink); }
+@container (max-width: 640px) { .ob-body { grid-template-columns: minmax(0, 1fr); } }
 .ob-history { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .ob-history .ob-history-row { display: inline-flex; align-items: center; gap: 4px; margin-top: 0; padding: 2px 0; text-align: left; border-radius: var(--radius-sm); }
 .ob-history-row .icon { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }

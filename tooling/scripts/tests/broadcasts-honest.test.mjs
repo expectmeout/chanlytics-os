@@ -603,12 +603,18 @@ test("One chip per message, its languages inside it -- the starter set in two dr
 });
 
 test("A playbook's card says which message it sends AND in which language -- the language was in a data-tip, which no finger reaches", () => {
-  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  // The card draws the message it sends, so its template has to be among the
+  // approved ones the surface carries -- an empty list is "no longer approved".
+  const es = templateRow({ id: "tpl-1", name: "winback_offer", language: "es", body_preview: "Hola {{1}}." });
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: [es] });
   fresh();
-  const card = globalThis.window.PlaybookCard({ p: playbook({ template_language: "es" }), canAct: true, onEdit() {}, flash() {} });
-  const chip = find(card, (n) => String(n.props?.className || "").includes("ob-audience-event"));
-  assert.ok(textOf(chip).includes("Spanish"), textOf(chip));
-  assert.ok(!String(chip.props["data-tip"]).includes("es"), "and not only on hover");
+  const card = globalThis.window.PlaybookCard({ p: playbook({ template_id: "tpl-1", template_language: "es" }), canAct: true, onEdit() {}, flash() {} });
+  const caption = byTestId(card, "pb-template-name");
+  assert.ok(caption, "the message is captioned with the message it is");
+  assert.ok(textOf(caption).includes("Spanish"), textOf(caption));
+  assert.equal(caption.props["data-tip"], undefined, "and not only on hover");
+  press(caption);
+  assert.equal(went.at(-1), "messages", "and it opens where that message is kept");
 });
 
 test("The template a composer opens on does not depend on the order the rows arrived in", () => {
