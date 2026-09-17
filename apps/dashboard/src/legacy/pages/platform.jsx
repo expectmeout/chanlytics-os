@@ -126,11 +126,13 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
   // them is recorded against the person who pressed it.
   const vm = P.steps({ ...detail.setup, later: [] });
   const lines = (detail.setup.lines && detail.setup.lines.rows) || [];
+  // Every stamp on this card is this workspace's, and the header names the zone.
+  const tz = detail.tenant.timezone;
   return (
     <section className="fl-card set-card" data-testid="platform-detail">
       <div className="fl-card-head">
         <h2 className="fl-card-title">{detail.tenant.name}</h2>
-        <span className="fl-card-sub">{detail.tenant.slug} · {detail.tenant.timezone} · since {when(detail.tenant.created_at, detail.tenant.timezone)}</span>
+        <span className="fl-card-sub">{detail.tenant.slug} · {tz} · since {when(detail.tenant.created_at, tz)}</span>
         <button className="cl-bucket-link" onClick={onClose} data-testid="platform-close">Close</button>
       </div>
 
@@ -180,11 +182,10 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
         ) : (
           <ul className="pf-events" data-testid="platform-events">
             {detail.events.map((e, i) => {
-              const tz = detail.tenant.timezone;
               const opens = i === 0 || pfKey(e.created_at, tz) !== pfKey(detail.events[i - 1].created_at, tz);
               return (
                 <React.Fragment key={`${e.created_at}-${i}`}>
-                  {opens && <li className="pf-day" aria-hidden="true">{pfDay(e.created_at, tz)}</li>}
+                  {opens && <li className="pf-day">{pfDay(e.created_at, tz)}</li>}
                   <li className="pf-event">
                     <span className="pf-when">{pfTime(e.created_at, tz)}</span>
                     <span className="pf-said">{P.words(e.kind, {})}</span>
