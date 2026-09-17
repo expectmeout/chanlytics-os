@@ -629,3 +629,23 @@ test("The template a composer opens on does not depend on the order the rows arr
   // And the order IS total: two rows of one name never compare equal.
   assert.notEqual(contracts.compareTemplates(row("winback_offer", "en_US"), row("winback_offer", "es")), 0);
 });
+
+test("A message says its state once, and a refusal is a line rather than a hover", () => {
+  // The language button switched the language AND carried that language's status
+  // as a dot plus words, so the control you press to read the Spanish version was
+  // the only place its approval was written -- and a rejection's reason was a
+  // `title=`, which a touch screen has no way to show at all.
+  let tree = messages({ __TEMPLATES_ALL: [
+    templateRow({ id: "t-en", name: "offer", language: "en_US", meta_status: "approved" }),
+    templateRow({ id: "t-es", name: "offer", language: "es", meta_status: "pending" }),
+  ] });
+  const langs = all(tree, (n) => n.props?.["data-testid"] === "template-lang");
+  assert.equal(langs.length, 2);
+  for (const l of langs) assert.ok(!/approved|review/i.test(textOf(l)), `a language button says a language, not a state: ${textOf(l)}`);
+  assert.ok(textOf(byTestId(tree, "template-status")).length > 0, "the state of the language in view, once, beside the title");
+
+  tree = messages({ __TEMPLATES_ALL: [templateRow({ name: "offer", language: "en_US", meta_status: "rejected", rejected_reason: "ABUSIVE_CONTENT" })] });
+  const said = textOf(byTestId(tree, "template-rejected"));
+  assert.ok(said.includes("abusive content"), said);
+  assert.ok(said.includes("send it back"), "and what to do about it");
+});
