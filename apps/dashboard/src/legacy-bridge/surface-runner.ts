@@ -220,10 +220,14 @@ export function startSurfaces(overrides: SurfaceOverride[]): () => void {
   // guess at; and it does not guess: an unnamed read from an account in two
   // workspaces is refused (plan 3.4).
   const workspaceFirst = getActiveWorkspace() ? null : overrides.find((o) => o.key === "workspace") ?? null;
-  // The one the address is asking for goes first; the rest follow it through
-  // four lanes rather than all at once.
+  // Who you are, then what you are looking at, then the rest -- through four
+  // lanes rather than all at once. Identity leads even on a workspace page,
+  // where it does not BLOCK the others: the shell reads __ME to decide what a
+  // role may see, so letting it queue behind three strangers would draw the
+  // nav for the wrong role and then correct it.
   const wanted = surfaceOnScreen(window);
-  const queued = [...overrides].sort((a, b) => Number(b.key === wanted) - Number(a.key === wanted));
+  const rank = (o: SurfaceOverride) => (o.key === "workspace" ? 0 : o.key === wanted ? 1 : 2);
+  const queued = [...overrides].sort((x, y) => rank(x) - rank(y));
   const booted = workspaceFirst
     ? boot(workspaceFirst).then(() => inLanes(queued.filter((o) => o !== workspaceFirst), BOOT_LANES, boot))
     : inLanes(queued, BOOT_LANES, boot);

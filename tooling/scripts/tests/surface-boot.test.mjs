@@ -117,3 +117,16 @@ test("a route with no surface of its own changes nothing: the order is only a pr
   stop();
   assert.deepEqual([...order].sort(), [...keys].sort(), "all of them, and none twice");
 });
+
+test("identity leads even on a workspace page, where nothing waits for it", async () => {
+  // The shell reads __ME to decide what a role may see. Queued behind three
+  // strangers it would draw the nav for the wrong role and then correct it.
+  const keys = ["today", "inbox", "people", "calendar", "reports", "workspace", "settings"];
+  const { order, overrides } = crowd(keys, { hash: "#/reports" });
+  const stop = startSurfaces(overrides);
+  await settle(60);
+  stop();
+  assert.equal(order[0], "workspace", "who you are, first");
+  assert.equal(order[1], "reports", "then what you are looking at");
+  assert.equal(new Set(order).size, keys.length, "and the rest still boot");
+});
