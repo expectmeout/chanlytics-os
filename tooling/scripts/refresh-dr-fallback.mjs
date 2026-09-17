@@ -23,7 +23,12 @@
  *   node tooling/scripts/refresh-dr-fallback.mjs
  *   node tooling/scripts/refresh-dr-fallback.mjs --apply
  *
- * Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment.
+ * Needs SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY in the environment -- or,
+ * on a laptop that holds no key, --from <file>: the tenant_config row as JSON
+ * ({ config, version, updated_at }), which the CLI's linked read produces
+ * without one:
+ *
+ *   npx supabase db query --linked "select row_to_json(r) from (select config, version, updated_at from tenant_config where tenant_id = '<id>') r"
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -41,10 +46,11 @@ const APPLY = process.argv.includes("--apply");
  */
 const TENANT = process.env.DR_TENANT_ID || "6a4405d1-1e68-4fcd-bc55-eef0df8e689a";
 
+const FROM = (() => { const i = process.argv.indexOf("--from"); return i >= 0 ? process.argv[i + 1] : null; })();
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-if (!URL_ || !KEY) {
-  console.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are needed to read the live config.");
+if (!FROM && (!URL_ || !KEY)) {
+  console.error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are needed to read the live config, or --from <file> holding the row.");
   process.exit(1);
 }
 
@@ -78,8 +84,9 @@ function renderBrain(brain) {
   return out;
 }
 
-const db = createClient(URL_, KEY, { auth: { persistSession: false } });
-const { data, error } = await db.from("tenant_config").select("config, version, updated_at").eq("tenant_id", TENANT).single();
+const { data, error } = FROM
+  ? { data: JSON.parse(fs.readFileSync(FROM, "utf8")), error: null }
+  : await createClient(URL_, KEY, { auth: { persistSession: false } }).from("tenant_config").select("config, version, updated_at").eq("tenant_id", TENANT).single();
 if (error) { console.error(`reading the live config: ${error.message}`); process.exit(1); }
 
 const brain = data.config?.brain;
