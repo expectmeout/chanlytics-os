@@ -122,6 +122,25 @@ test("a conversation already in the queue above is not said again here", () => {
   assert.equal(noQueue.groups[0].title, "2 conversations need you");
 });
 
+test("REGRESSION: the DERIVED \"needs you\" row is dropped too -- it is the one a real workspace has", () => {
+  // A kept row carries `about`; a derived one is computed from the Inbox this
+  // browser holds and carries nothing but its key. dedupeFeed drops the KEPT
+  // row while a derived one stands, so on the salon’s own workspace every row
+  // about a queued conversation arrived in the form this test uses -- and the
+  // first cut of this rule, which read `about` alone, matched none of them.
+  // Today printed Zoe, Daniela and Emily at the top of the page and again here.
+  const derived = (cv) => ({ id: `needs:th-${cv}`, key: `needs:th-${cv}`, kind: "needs_you", title: "Zoe Martin needs you", message: "", tone: "warn", icon: "alert", unread: true, about: null });
+  const rows = [derived("cv-1"), derived("cv-2"), bell("n:9", "review", "1 new rating on Google", "ok")];
+  const out = todayAwayGrouped(rows, ["cv-1", "cv-2"]);
+  assert.deepEqual(out.groups.map((g) => g.row.id), ["n:9"], "REGRESSION: a conversation in the queue was said twice on one page");
+  assert.equal(out.total, 1);
+  // Not in the queue: it belongs here, and it is still never grouped -- a
+  // conversation waiting for a person is one person, not a count.
+  const still = todayAwayGrouped(rows, ["cv-1"]);
+  assert.deepEqual(still.groups.map((g) => g.row.id), ["needs:th-cv-2", "n:9"]);
+  assert.ok(still.groups.every((g) => g.title === null));
+});
+
 test("twelve calls from the same line are one row that says twelve, and the warning nobody could see comes first", () => {
   const rows = [
     ...Array.from({ length: 12 }, (_, i) => bell(`c${i}`, "call", `+1 (929) 370-9606 phoned · ${i} s`)),
@@ -167,8 +186,8 @@ test("read rows are not away rows, the cap counts groups, and an empty bell says
 
 test("a row the bell keyed rather than numbered still carries its id through a group", () => {
   const rows = [
-    { key: "needs:th-1", kind: "call", title: "a", message: "", tone: "", icon: "phone", unread: true },
-    { key: "needs:th-2", kind: "call", title: "b", message: "", tone: "", icon: "phone", unread: true },
+    { key: "bell:1", kind: "call", title: "a", message: "", tone: "", icon: "phone", unread: true },
+    { key: "bell:2", kind: "call", title: "b", message: "", tone: "", icon: "phone", unread: true },
   ];
-  assert.deepEqual(todayAwayGrouped(rows).groups[0].ids, ["needs:th-1", "needs:th-2"]);
+  assert.deepEqual(todayAwayGrouped(rows).groups[0].ids, ["bell:1", "bell:2"]);
 });

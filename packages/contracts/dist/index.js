@@ -4210,6 +4210,153 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   };
 }
 
+// src/notifications.ts
+var DAY_MS4 = 24 * 3600 * 1e3;
+function buildNotificationFeed(input) {
+  const { now } = input;
+  const items = [];
+  for (const t of input.threads ?? []) {
+    if (!t.real) continue;
+    if (t.needsYou) {
+      const at2 = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : t.lastAtMs ?? now);
+      items.push({
+        key: `needs:${t.id}`,
+        kind: "needs_you",
+        at: at2,
+        title: `${t.who} needs you`,
+        message: t.preview ? `They wrote: \u201C${t.preview}\u201D` : "Flagged for a person.",
+        to: `inbox/${t.id}`,
+        icon: "inbox",
+        tone: "warn",
+        action: "Open in Inbox"
+      });
+    }
+    if (t.veto && t.veto.endsAtMs > now) {
+      const held = t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
+      items.push({
+        key: `draft:${t.veto.messageId}`,
+        kind: "held_draft",
+        at: t.veto.endsAtMs - t.veto.window * 1e3,
+        title: `A reply to ${t.who} is waiting for you`,
+        message: `${held} \xB7 \u201C${t.veto.draft.slice(0, 90)}${t.veto.draft.length > 90 ? "\u2026" : ""}\u201D`,
+        to: `inbox/${t.id}`,
+        icon: "clock",
+        tone: "",
+        action: "Review"
+      });
+    }
+  }
+  for (const c of input.calls ?? []) {
+    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
+    if (now - c.startedAtMs > DAY_MS4) continue;
+    items.push({
+      key: `call:${c.callId}`,
+      kind: "missed_call",
+      at: c.startedAtMs,
+      title: `Missed call \xB7 ${c.who}`,
+      message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
+      to: `conversations/${c.cvId}`,
+      icon: "phone",
+      tone: "warn",
+      action: "See the call"
+    });
+  }
+  for (const i of input.invites ?? []) {
+    const at2 = Date.parse(i.created_at);
+    items.push({
+      key: `invite:${i.id}`,
+      kind: "invite",
+      at: Number.isNaN(at2) ? now : at2,
+      title: `Invitation pending \xB7 ${i.email}`,
+      message: "They have not accepted yet.",
+      // Invitations live on the Team pane since Team split from Workspace;
+      // the row's own button says "Team", so its door must open Team.
+      to: "admin/team",
+      icon: "users",
+      tone: "",
+      action: "Team"
+    });
+  }
+  return items.sort((a, b) => b.at - a.at);
+}
+var EMPTY_READ_STATE = { seenAt: 0, read: [], dismissed: [], alerts: false };
+function applyReadState(items, state) {
+  const read = new Set(state.read);
+  const gone = new Set(state.dismissed);
+  return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
+}
+function agoLabel(atMs, now) {
+  return agoShort(atMs, now);
+}
+var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"];
+var SERVER_LOOK = {
+  handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
+  number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
+  calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
+  /** A review on Google: good news with somewhere to read it. */
+  review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
+  /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
+  billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
+  alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
+};
+var ROUTE_VERBS = [
+  [/^admin\/setup/, "Open Setup"],
+  [/^admin\/integrations/, "Open Connections"],
+  [/^admin\/workspace/, "Open Business"],
+  [/^admin\/notifications/, "Open Notifications"],
+  [/^admin\/billing/, "Open Billing"],
+  [/^inbox/, "Open the Inbox"],
+  [/^conversations\/phone/, "Open the calls"],
+  [/^live/, "Open Live"],
+  [/^outbound/, "Open Playbooks"],
+  [/^broadcasts/, "Open Broadcasts"],
+  [/^calendar/, "Open Calendar"],
+  [/^clients/, "Open People"],
+  [/^reports/, "Open Reports"],
+  [/^today/, "Open Today"]
+];
+function verbForRoute(route) {
+  if (!route) return null;
+  const hit = ROUTE_VERBS.find(([re]) => re.test(route));
+  return hit ? hit[1] : null;
+}
+var SERVER_KEY_PREFIX = "n:";
+var NEEDS_KEY_PREFIX = "needs:th-";
+function conversationOfNeedsKey(key) {
+  return key.startsWith(NEEDS_KEY_PREFIX) ? key.slice(NEEDS_KEY_PREFIX.length) : null;
+}
+function serverNotificationRows(dto) {
+  if (!dto) return [];
+  const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
+  return dto.notifications.filter((n) => !n.dismissed).map((n) => {
+    const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
+    const at2 = Date.parse(n.created_at);
+    return {
+      key: `${SERVER_KEY_PREFIX}${n.id}`,
+      kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
+      at: at2,
+      title: n.title,
+      message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
+      to: n.route ?? look.to,
+      icon: look.icon,
+      tone: look.tone,
+      action: verbForRoute(n.route) ?? look.action,
+      unread: at2 > seen && !n.read,
+      about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
+    };
+  });
+}
+function dedupeFeed(rows) {
+  const covered = new Set(rows.flatMap((r) => r.kind === "needs_you" ? [conversationOfNeedsKey(r.key)] : []).filter((id) => !!id));
+  return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
+}
+
 // src/today.ts
 var TODAY_QUEUE_MAX = 6;
 var CHANNEL_LABEL = { whatsapp: "WhatsApp", voice: "Phone line" };
@@ -4881,8 +5028,13 @@ var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
 function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const covered = new Set(inQueue);
-  const fresh = rows.filter((r) => r.unread && !(r.about && r.about.type === "conversation" && covered.has(r.about.id)));
   const idOf = (r) => r.id ?? r.key ?? "";
+  const aboutQueued = (r) => {
+    if (r.about && r.about.type === "conversation" && covered.has(r.about.id)) return true;
+    const cv = conversationOfNeedsKey(idOf(r));
+    return cv !== null && covered.has(cv);
+  };
+  const fresh = rows.filter((r) => r.unread && !aboutQueued(r));
   const order = [];
   const byKind = /* @__PURE__ */ new Map();
   for (const r of fresh) {
@@ -4910,149 +5062,6 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const shown = sorted.slice(0, max);
   const stoodFor = shown.reduce((n, g) => n + g.count, 0);
   return { groups: shown, more: Math.max(0, fresh.length - stoodFor), total: fresh.length };
-}
-
-// src/notifications.ts
-var DAY_MS4 = 24 * 3600 * 1e3;
-function buildNotificationFeed(input) {
-  const { now } = input;
-  const items = [];
-  for (const t of input.threads ?? []) {
-    if (!t.real) continue;
-    if (t.needsYou) {
-      const at2 = t.escalatedAtMs ?? (typeof t.waitingMin === "number" ? now - t.waitingMin * 6e4 : t.lastAtMs ?? now);
-      items.push({
-        key: `needs:${t.id}`,
-        kind: "needs_you",
-        at: at2,
-        title: `${t.who} needs you`,
-        message: t.preview ? `They wrote: \u201C${t.preview}\u201D` : "Flagged for a person.",
-        to: `inbox/${t.id}`,
-        icon: "inbox",
-        tone: "warn",
-        action: "Open in Inbox"
-      });
-    }
-    if (t.veto && t.veto.endsAtMs > now) {
-      const held = t.veto.why?.heldFor === "low_confidence" ? "Not sure enough to send alone" : "Waiting in the hold window";
-      items.push({
-        key: `draft:${t.veto.messageId}`,
-        kind: "held_draft",
-        at: t.veto.endsAtMs - t.veto.window * 1e3,
-        title: `A reply to ${t.who} is waiting for you`,
-        message: `${held} \xB7 \u201C${t.veto.draft.slice(0, 90)}${t.veto.draft.length > 90 ? "\u2026" : ""}\u201D`,
-        to: `inbox/${t.id}`,
-        icon: "clock",
-        tone: "",
-        action: "Review"
-      });
-    }
-  }
-  for (const c of input.calls ?? []) {
-    if (!c.missed || c.live || typeof c.startedAtMs !== "number") continue;
-    if (now - c.startedAtMs > DAY_MS4) continue;
-    items.push({
-      key: `call:${c.callId}`,
-      kind: "missed_call",
-      at: c.startedAtMs,
-      title: `Missed call \xB7 ${c.who}`,
-      message: c.number ? `${c.number} \u2014 the call never connected.` : "The call never connected.",
-      to: `conversations/${c.cvId}`,
-      icon: "phone",
-      tone: "warn",
-      action: "See the call"
-    });
-  }
-  for (const i of input.invites ?? []) {
-    const at2 = Date.parse(i.created_at);
-    items.push({
-      key: `invite:${i.id}`,
-      kind: "invite",
-      at: Number.isNaN(at2) ? now : at2,
-      title: `Invitation pending \xB7 ${i.email}`,
-      message: "They have not accepted yet.",
-      // Invitations live on the Team pane since Team split from Workspace;
-      // the row's own button says "Team", so its door must open Team.
-      to: "admin/team",
-      icon: "users",
-      tone: "",
-      action: "Team"
-    });
-  }
-  return items.sort((a, b) => b.at - a.at);
-}
-var EMPTY_READ_STATE = { seenAt: 0, read: [], dismissed: [], alerts: false };
-function applyReadState(items, state) {
-  const read = new Set(state.read);
-  const gone = new Set(state.dismissed);
-  return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
-}
-function agoLabel(atMs, now) {
-  return agoShort(atMs, now);
-}
-var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
-var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"];
-var SERVER_LOOK = {
-  handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-  deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-  call: { icon: "phone", tone: "", action: "Open the calls", to: "conversations/phone" },
-  number: { icon: "shield", tone: "warn", action: "Open Connections", to: "admin/integrations" },
-  sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
-  job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
-  playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
-  calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
-  /** A review on Google: good news with somewhere to read it. */
-  review: { icon: "star", tone: "ok", action: "Open Reports", to: "reports" },
-  /** The subscription: a trial starting or ending, a card declined, the receptionist paused or back. */
-  billing: { icon: "money", tone: "warn", action: "Open Billing", to: "admin/billing" },
-  alert: { icon: "bell", tone: "", action: "Open Today", to: "today" }
-};
-var ROUTE_VERBS = [
-  [/^admin\/setup/, "Open Setup"],
-  [/^admin\/integrations/, "Open Connections"],
-  [/^admin\/workspace/, "Open Business"],
-  [/^admin\/notifications/, "Open Notifications"],
-  [/^admin\/billing/, "Open Billing"],
-  [/^inbox/, "Open the Inbox"],
-  [/^conversations\/phone/, "Open the calls"],
-  [/^live/, "Open Live"],
-  [/^outbound/, "Open Playbooks"],
-  [/^broadcasts/, "Open Broadcasts"],
-  [/^calendar/, "Open Calendar"],
-  [/^clients/, "Open People"],
-  [/^reports/, "Open Reports"],
-  [/^today/, "Open Today"]
-];
-function verbForRoute(route) {
-  if (!route) return null;
-  const hit = ROUTE_VERBS.find(([re]) => re.test(route));
-  return hit ? hit[1] : null;
-}
-var SERVER_KEY_PREFIX = "n:";
-function serverNotificationRows(dto) {
-  if (!dto) return [];
-  const seen = dto.seen_at ? Date.parse(dto.seen_at) : 0;
-  return dto.notifications.filter((n) => !n.dismissed).map((n) => {
-    const look = SERVER_LOOK[n.kind] ?? SERVER_LOOK.alert;
-    const at2 = Date.parse(n.created_at);
-    return {
-      key: `${SERVER_KEY_PREFIX}${n.id}`,
-      kind: SERVER_NOTIFICATION_KINDS.includes(n.kind) ? n.kind : "alert",
-      at: at2,
-      title: n.title,
-      message: n.body.split("\n").find((l) => l.trim())?.trim().slice(0, 160) ?? "",
-      to: n.route ?? look.to,
-      icon: look.icon,
-      tone: look.tone,
-      action: verbForRoute(n.route) ?? look.action,
-      unread: at2 > seen && !n.read,
-      about: n.subject_type && n.subject_id ? { type: n.subject_type, id: n.subject_id } : null
-    };
-  });
-}
-function dedupeFeed(rows) {
-  const covered = new Set(rows.filter((r) => r.kind === "needs_you" && r.key.startsWith("needs:th-")).map((r) => r.key.slice("needs:th-".length)));
-  return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
 }
 
 // src/ask.ts
@@ -9856,6 +9865,7 @@ export {
   MESSAGE_TYPES,
   MOCK_TEXTING_SENTENCE,
   MODE_WORDS,
+  NEEDS_KEY_PREFIX,
   NEEDS_TITLE,
   NEW_WINDOW_MS,
   NoteSchema,
@@ -10057,6 +10067,7 @@ export {
   consentSourceLabel,
   contactMeta,
   contactName,
+  conversationOfNeedsKey,
   coversSpan,
   dailyLimit,
   dataSentences,
