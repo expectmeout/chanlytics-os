@@ -12,7 +12,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate, stateOf } from "@chanlytics/contracts";
+import { ROLE_PERMS, roleGate, stateOf, clockStamp, clockTime, clockDateYear, clockDayLabel, zoneDayKey } from "@chanlytics/contracts";
 
 const TID = "t-studio";
 
@@ -113,12 +113,21 @@ Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   CHANLY: { nav() {}, R: { admin: (pane) => `admin/${pane}` } },
   __chrome: { state: stateOf },
-  __clock: {
-    stamp: () => "2:00 PM",
-    time: () => "2:00 PM",
-    dayKey: (ms) => new Date(ms).toISOString().slice(0, 10),
-    dateYear: (ms) => { const d = new Date(ms); return `${["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][d.getUTCMonth()]} ${d.getUTCDate()}, ${d.getUTCFullYear()}`; },
-  },
+  // The real clock (contracts clock.ts), pinned to a zone and a now, rather
+  // than lookalikes: hand-written ones answered three of its methods and the
+  // page threw the first time it asked for a fourth.
+  __clock: (() => {
+    const TZ = "America/New_York";
+    const NOW = Date.parse("2026-09-17T18:00:00Z");
+    return {
+      zone: () => TZ,
+      stamp: (ms) => clockStamp(ms, TZ, NOW),
+      time: (ms) => clockTime(ms, TZ),
+      dayKey: (ms) => zoneDayKey(ms, TZ),
+      dateYear: (ms) => clockDateYear(ms, TZ),
+      dayLabel: (ms) => clockDayLabel(ms, TZ, NOW),
+    };
+  })(),
   __href: (key) => `/api/v1/${key.split(" ")[1]}?workspace=studio`,
   __saveSettings: (config, version, accepted) => { saved.push({ config, version }); accepted(); return Promise.resolve({ ok: true }); },
   __identity: {

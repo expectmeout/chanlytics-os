@@ -259,6 +259,11 @@
    log. The day is said once above the rows that belong to it; a row says the
    time, what kind of thing it was, what happened, and where to go for it. */
 .act-list { display: flex; flex-direction: column; }
+/* Said whenever the log is being read, so narrowing it does not leave the old
+   rows on screen with nothing to say they are stale. */
+.act-reading { padding: 8px 0 2px; font-size: var(--set-hint); color: var(--ink-dim); }
+.act-more { display: flex; align-items: center; gap: 10px; padding-top: 10px; }
+.act-so-far { font-size: var(--set-hint); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
 .act-day {
   padding: 16px 0 6px;
   font-size: var(--set-hint);
@@ -1358,16 +1363,103 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .biz-answer { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 
 /* The back office. Borrows the settings card and the attention row wholesale --
-   the only new shapes are the find box and the event trail. */
+   the only new shapes are the find box, a line's two states, and the trail. */
 .pf-find { max-width: 220px; }
-.pf-events {
-  display: flex; flex-direction: column; gap: 2px;
-  margin: 0; padding: 0; list-style: none;
-  font-size: 10.5px; line-height: 1.5; color: var(--ink-dim);
-  max-height: 260px; overflow-y: auto;
+/* What this page can do sits directly above rows whose Open reveals a button
+   that hands a customer’s number back for good. It is not a footnote. */
+.pf-warn {
+  display: flex; align-items: baseline; gap: 7px;
+  margin: 0 0 4px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+  font-size: var(--set-hint); line-height: 1.5;
+  color: var(--ink-muted);
+  max-width: 68ch; text-wrap: pretty;
 }
-.pf-events li { display: grid; grid-template-columns: 116px 1fr auto; gap: 10px; align-items: baseline; }
-.pf-when { font-variant-numeric: tabular-nums; color: var(--ink-faint); }
-/* The confirmation under a line, leading with what it spends. */
-.pf-kind { color: var(--ink-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pf-cat { color: var(--ink-faint); }
+.pf-warn .icon { flex: none; align-self: center; color: var(--ink-dim); }
+
+[data-testid="platform-rows"] .cl-attn-sentence {
+  white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty;
+}
+
+/* ---- One line, on a workspace support has opened -----------------------
+   It was a single grey run-on: two states, where it stopped, whether the
+   filing is a rehearsal, whether it is a sole proprietor, the step number
+   and the provider's error, in one sentence. The two states are what the
+   page is opened for, the error is why, and the rest reads once. */
+.pf-line-kind {
+  margin-left: 8px;
+  font-size: var(--set-hint);
+  font-weight: 400;
+  color: var(--ink-dim);
+}
+.pf-line-states { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.pf-state {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  padding: 1px 7px;
+  border-radius: var(--radius-full);
+  background: var(--bg-sunken);
+  font-size: var(--set-hint);
+  color: var(--ink);
+}
+.pf-state-of { color: var(--ink-dim); }
+/* Where a registration stopped is half the diagnosis, so it is marked as one. */
+.pf-state-stuck { background: var(--warn-soft); color: var(--warn-ink); }
+.pf-state-stuck .pf-state-of { color: inherit; opacity: 0.75; }
+/* The provider's own words. It is the reason somebody opened this workspace,
+   so it keeps a line and a colour rather than trailing an em dash. */
+/* The provider’s words take the row, not the half of it left over beside four
+   buttons: this is the sentence somebody opened the workspace to read. */
+[data-testid^="platform-line-"] { flex-wrap: wrap; align-items: flex-start; gap: 0; }
+[data-testid^="platform-line-"] .set-row-info { flex: 1 1 100%; }
+[data-testid^="platform-line-"] .bc-chips { flex: 1 1 100%; margin-top: 12px; }
+.pf-line-error {
+  display: flex; align-items: baseline; gap: 6px;
+  margin-top: 8px;
+  font-size: var(--set-hint);
+  line-height: 1.5;
+  color: var(--danger-ink);
+  text-wrap: pretty;
+}
+.pf-line-error .icon { flex: none; align-self: center; }
+
+/* ---- What has happened ------------------------------------------------
+   Forty rows at 10.5px, each printing its own date in the READER's zone,
+   with the raw kind as the only words. It reads like the activity log now:
+   the day once, the time, what happened -- and the kind stays beside it,
+   because the kind is what support searches for. */
+.pf-events {
+  display: flex; flex-direction: column;
+  margin: 0; padding: 0; list-style: none;
+  font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted);
+  max-height: 340px; overflow-y: auto;
+}
+.pf-day { padding: 13px 0 4px; font-weight: 600; color: var(--ink-dim); }
+.pf-events > .pf-day:first-child { padding-top: 2px; }
+.pf-event {
+  display: grid;
+  grid-template-columns: 58px minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: baseline;
+  padding: 5px 0;
+  border-top: 1px solid var(--line);
+}
+.pf-day + .pf-event { border-top: 0; }
+.pf-when { font-variant-numeric: tabular-nums; color: var(--ink-dim); white-space: nowrap; }
+.pf-said { color: var(--ink); text-wrap: pretty; }
+.pf-kind {
+  justify-self: end;
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+  background: var(--bg-sunken);
+  border-radius: var(--radius-xs);
+  padding: 1px 5px;
+  white-space: nowrap;
+}
+@media (max-width: 640px) {
+  /* The sentence takes the width; the kind sits under it with the time. */
+  .pf-event { grid-template-columns: 58px minmax(0, 1fr); row-gap: 2px; }
+  .pf-said { grid-column: 2 / -1; }
+  .pf-kind { grid-row: 2; grid-column: 2; justify-self: start; }
+}

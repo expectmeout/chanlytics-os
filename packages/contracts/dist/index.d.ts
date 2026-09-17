@@ -7785,10 +7785,15 @@ interface ActivityPageDto {
     rows: ActivityRowDto[];
     /** Member id → the name to show (their name, else the address they signed in with). */
     actors: Record<string, string>;
+    /**
+     * Where this page ended, not how far down it started: `next_cursor` is
+     * `"<created_at>|<row id>"` and is what asks for the page behind it. An
+     * offset made every page read the whole log above it (server/activity.ts).
+     */
     page: {
-        offset: number;
         limit: number;
         has_more: boolean;
+        next_cursor: string | null;
     };
     /** The kinds the page may filter by, both ledgers', for the picker. */
     kinds: string[];

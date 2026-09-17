@@ -86,7 +86,7 @@ test("owners read both ledgers newest first, the noise left out, the actors name
   assert.deepEqual(r.actors, { "u-ada": "Ada", "u-bo": "bo@example.com" }, "a name, else the address");
   assert.equal(r.rows[1].text, "Exported data · everyone as a CSV · 5 rows");
   assert.equal(r.rows[3].text, "A customer wrote");
-  assert.deepEqual(r.page, { offset: 0, limit: 100, has_more: false });
+  assert.deepEqual(r.page, { limit: 100, has_more: false, next_cursor: "2026-09-10T10:00:00Z|e-e4" }, "a page hands back where it ended, not how far down it started");
   assert.ok(r.kinds.includes("export") && r.kinds.includes("broadcast.sent"));
   await assert.rejects(route.GET.run(get(), ctxFor(tables("operator"), rpcs)), (e) => e.status === 403);
 });
@@ -107,7 +107,7 @@ test("filters: a kind by name (noise included when asked), a person with their t
   await assert.rejects(route.GET.run(get("&person=not-a-uuid"), ctxFor(tables(), rpcs)), (e) => e.code === "validation");
 });
 
-test("a page is cut after the merge: the hundred-and-first row is on the next page", async () => {
+test("a page is cut after the merge, and the next one starts from the cursor rather than counting back to the top", async () => {
   const t = tables();
   t.events = Array.from({ length: 130 }, (_, i) => ({ id: `x${i}`, tenant_id: A, kind: "message.received", subject_type: "message", subject_id: `m${i}`, data: {}, created_at: new Date(Date.UTC(2026, 8, 1, 0, i)).toISOString() }));
   t.decisions = [];
@@ -115,7 +115,31 @@ test("a page is cut after the merge: the hundred-and-first row is on the next pa
   assert.equal(first.rows.length, 100);
   assert.equal(first.page.has_more, true);
   assert.equal(first.rows[0].id, "e-x129");
-  const second = await route.GET.run(get("&offset=100"), ctxFor(t, rpcs));
-  assert.deepEqual(second.rows.map((r) => r.id).slice(0, 2), ["e-x29", "e-x28"]);
+  assert.equal(first.page.next_cursor, `${first.rows[99].at}|e-x30`, "where this page ended");
+
+  const second = await route.GET.run(get(`&cursor=${encodeURIComponent(first.page.next_cursor)}`), ctxFor(t, rpcs));
+  assert.deepEqual(second.rows.map((r) => r.id).slice(0, 2), ["e-x29", "e-x28"], "straight on from it, with no row repeated");
+  assert.equal(second.rows.length, 30);
   assert.equal(second.page.has_more, false);
+});
+
+test("rows written in the same instant survive the page edge: the cursor carries the row, not only the clock", async () => {
+  // Every row at one timestamp, so created_at alone cannot say where the page
+  // ended. A cursor of the instant alone would drop the 100 rows behind it.
+  const t = tables();
+  const same = "2026-09-01T00:00:00Z";
+  t.events = Array.from({ length: 130 }, (_, i) => ({ id: `x${String(i).padStart(3, "0")}`, tenant_id: A, kind: "message.received", subject_type: "message", subject_id: `m${i}`, data: {}, created_at: same }));
+  t.decisions = [];
+  const first = await route.GET.run(get(), ctxFor(t, rpcs));
+  assert.equal(first.rows.length, 100);
+  assert.equal(first.page.has_more, true);
+  const second = await route.GET.run(get(`&cursor=${encodeURIComponent(first.page.next_cursor)}`), ctxFor(t, rpcs));
+  const seen = new Set([...first.rows, ...second.rows].map((r) => r.id));
+  assert.equal(second.rows.length, 30, "the thirty behind the edge, none of them lost");
+  assert.equal(seen.size, 130, "and none of them read twice");
+});
+
+test("a cursor that is not one is refused, like every other filter", async () => {
+  await assert.rejects(route.GET.run(get("&cursor=100"), ctxFor(tables(), rpcs)), (e) => e.code === "validation");
+  await assert.rejects(route.GET.run(get("&cursor=2026-09-01T00:00:00Z"), ctxFor(tables(), rpcs)), (e) => e.code === "validation", "an instant with no row is half a cursor");
 });

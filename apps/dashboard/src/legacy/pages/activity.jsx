@@ -13,16 +13,9 @@
 const ACT_MS = (iso) => { const ms = iso ? Date.parse(iso) : NaN; return Number.isNaN(ms) ? null : ms; };
 const ACT_TIME = (iso) => { const ms = ACT_MS(iso); return ms === null ? "—" : window.__clock.time(ms); };
 const ACT_DAY_KEY = (iso) => { const ms = ACT_MS(iso); return ms === null ? "?" : window.__clock.dayKey(ms); };
-// "Today" · "Yesterday" · "Sep 16" · "Dec 30, 2025" — the year only when it is not this one.
-const ACT_DAY = (iso) => {
-  const ms = ACT_MS(iso);
-  if (ms === null) return "Undated";
-  const c = window.__clock, now = Date.now(), key = c.dayKey(ms), today = c.dayKey(now);
-  if (key === today) return "Today";
-  if (key === c.dayKey(now - 86400000)) return "Yesterday";
-  const full = c.dateYear(ms);
-  return key.slice(0, 4) === today.slice(0, 4) ? full.replace(/,\s*\d{4}$/, "") : full;
-};
+// "Today · Sep 17" · "Yesterday · Sep 16" · "Sep 15", as the product words a day
+// above the rows that belong to it (contracts clockDayLabel).
+const ACT_DAY = (iso) => { const ms = ACT_MS(iso); return ms === null ? "Undated" : window.__clock.dayLabel(ms); };
 
 // What kind of thing happened, as a glyph: an event's family (message.sent →
 // message) or a decision's verb. A kind nothing here names gets a plain dot,
@@ -79,7 +72,7 @@ const PaneActivity = () => {
   const [person, setPerson] = React.useState(null); // { id, name }
   const [personQ, setPersonQ] = React.useState("");
   const [matches, setMatches] = React.useState([]);
-  const [st, setSt] = React.useState({ loading: true, rows: [], actors: {}, kinds: [], hasMore: false, error: null });
+  const [st, setSt] = React.useState({ loading: true, rows: [], actors: {}, kinds: [], next: null, hasMore: false, error: null });
   // On a phone the three boxes stand between a reader and the log, so they wait
   // behind one control until asked for. On a desktop the control is not drawn.
   const [asking, setAsking] = React.useState(false);
@@ -87,16 +80,19 @@ const PaneActivity = () => {
   // Each read is numbered, and an answer that is not the latest one asked for lands nowhere: a slow first page cannot
   // replace the filter picked after it.
   const asked = React.useRef(0);
-  const load = React.useCallback(async (offset = 0, append = false) => {
+  // A page asks for what is BEHIND the last row it was given, so reading the
+  // tenth page costs what the first one did. It used to ask by offset, which
+  // made the route read the whole log above the page and throw it away.
+  const load = React.useCallback(async (cursor = null, append = false) => {
     if (!A) return;
     const mine = ++asked.current;
     setSt((c) => ({ ...c, loading: true, error: null }));
-    const r = await A.list({ kind: kind || undefined, day: day || undefined, person: person ? person.id : undefined, offset: offset || undefined });
+    const r = await A.list({ kind: kind || undefined, day: day || undefined, person: person ? person.id : undefined, cursor: cursor || undefined });
     if (mine !== asked.current) return;
     if (!r.ok) { setSt((c) => ({ ...c, loading: false, error: r.message || "Could not be read right now." })); return; }
-    setSt((c) => ({ loading: false, error: null, rows: append ? [...c.rows, ...r.data.rows] : r.data.rows, actors: { ...c.actors, ...r.data.actors }, kinds: r.data.kinds, hasMore: r.data.page.has_more }));
+    setSt((c) => ({ loading: false, error: null, rows: append ? [...c.rows, ...r.data.rows] : r.data.rows, actors: { ...c.actors, ...r.data.actors }, kinds: r.data.kinds, next: r.data.page.next_cursor, hasMore: r.data.page.has_more }));
   }, [A, kind, day, person]);
-  React.useEffect(() => { if (may) load(0, false); }, [load, may]);
+  React.useEffect(() => { if (may) load(null, false); }, [load, may]);
   const chooseKind = (typed) => setKind(typed.trim());
   const narrowed = [kind, day, person].filter(Boolean).length;
   React.useEffect(() => {
@@ -120,6 +116,16 @@ const PaneActivity = () => {
       </section>
     );
   }
+  // Where the day turns: the heading each row opens, or nothing when the row
+  // above it was on the same day.
+  const opens = [];
+  let sameAs = null;
+  for (const r of st.rows) {
+    const key = ACT_DAY_KEY(r.at);
+    opens.push(key === sameAs ? null : ACT_DAY(r.at));
+    sameAs = key;
+  }
+
   return (
     <section className="fl-card set-card" data-testid="set-activity">
       <div className="fl-card-head">
@@ -165,20 +171,27 @@ const PaneActivity = () => {
             </span>
           )}
       </div>
-      {st.error && <FailedRead kind="line" what="the activity log" why={st.error} onRetry={() => load(0, false)} busy={st.loading} testid="act-failed" />}
-      {st.loading && st.rows.length === 0 && !st.error && <div className="cl-prof-aut-hint" role="status" data-testid="act-loading">Reading the activity log…</div>}
+      {st.error && <FailedRead kind="line" what="the activity log" why={st.error} onRetry={() => load(null, false)} busy={st.loading} testid="act-failed" />}
+      {/* Said whenever it is reading, not only on the first read: narrowing the
+          log left the old rows on screen with nothing saying they were stale. */}
+      {st.loading && !st.error && <div className="act-reading" role="status" data-testid="act-loading">Reading the activity log…</div>}
       <div className="act-list" data-testid="act-rows">
         {st.rows.map((r, i) => (
           <React.Fragment key={r.id}>
-            {(i === 0 || ACT_DAY_KEY(r.at) !== ACT_DAY_KEY(st.rows[i - 1].at)) && (
-              <div className="act-day">{ACT_DAY(r.at)}</div>
-            )}
+            {opens[i] && <div className="act-day">{opens[i]}</div>}
             <ActivityRow r={r} actors={st.actors} />
           </React.Fragment>
         ))}
         {!st.loading && st.rows.length === 0 && !st.error && <EmptyState kind="line" title="Nothing here for that." action={kind || day || person ? { label: "Clear the filters", onClick: () => { setKind(""); setKindTyped(""); setDay(""); setPerson(null); } } : null} />}
       </div>
-      {st.hasMore && <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.rows.length, true)} data-testid="act-more">{st.loading ? "Loading…" : "Show more"}</button>}
+      {st.hasMore && (
+        <div className="act-more">
+          <button className="btn btn-ghost btn-sm" disabled={st.loading} onClick={() => load(st.next, true)} data-testid="act-more">
+            {st.loading ? "Reading…" : "Show more"}
+          </button>
+          <span className="act-so-far">{st.rows.length} so far</span>
+        </div>
+      )}
       <p className="set-card-foot">Model usage, webhook receipts and unplaced messages are kept. Name a kind to see them.</p>
     </section>
   );
