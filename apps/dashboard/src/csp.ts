@@ -89,5 +89,6 @@ export function contentSecurityPolicy(o: CspInputs): string {
   return parts.join("; ");
 }
 
-/** The header the policy rides on. Flip back to "content-security-policy-report-only" to observe without blocking. */
-export const CSP_HEADER = "content-security-policy";
+export type CspHeaderName = "content-security-policy" | "content-security-policy-report-only";
+/** The header the policy rides on. Flip back to the report-only name to observe without blocking; the proxy reads the name, nothing else changes. */
+export const CSP_HEADER: CspHeaderName = "content-security-policy";
