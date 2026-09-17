@@ -132,3 +132,107 @@ test("erase_contact refuses a caller with no session", { skip }, async () => {
   assert.notEqual(error, null, "a callerless erase must be refused");
   assert.match(error.message, /Sign in required|permission|not found/i);
 });
+
+/**
+ * The ledger keeps the record, not the person.
+ *
+ * 00027 held events out of the erasure because "every key is a count or an
+ * enum". Three doors written since put a person's own words in one: 00053 and
+ * apps/edge/lib/calendar-people.ts write the appointment `title`, and 00054
+ * wrote the `name` itself. 00130 scrubs them on erasure and stops the name
+ * door writing more.
+ *
+ * This reads EVERY event the contact has, not the two kinds 00130 names. A
+ * fourth door that puts a name in some new kind is exactly the gap this
+ * migration closes, and it should fail here rather than sit quietly.
+ */
+const PHONE_LEDGER = "+15550117743";
+
+test("erasing a contact takes their name out of the events ledger", { skip }, async () => {
+  const tenantId = await smokeTenantId();
+  const actor = "00000000-0000-0000-0000-0000000000aa";
+  let id = null;
+  try {
+    const { data: contact, error: cErr } = await db
+      .from("contacts")
+      .insert({ tenant_id: tenantId, phone_e164: PHONE_LEDGER, display_name: "Ledger Probe" })
+      .select("id")
+      .single();
+    assert.equal(cErr, null, cErr?.message);
+    id = contact.id;
+
+    // The three payload shapes the three doors actually write, plus one kind
+    // that must survive untouched.
+    const ev = (kind, data) => ({
+      tenant_id: tenantId, kind, category: "contact",
+      subject_type: "contact", subject_id: id, data,
+    });
+    const { error: eErr } = await db.from("events").insert([
+      ev("contact.named", { name: "Ledger Probe", by: actor }),
+      ev("contact.added", { source: "manual", title: "Colour, Ledger P.", by: actor }),
+      ev("contact.added", { source: "calendar", title: "Balayage — Ledger",
+                            uid: "evt_9f3a@example.com", start: "2026-09-20T14:00:00Z" }),
+      ev("contact.consent_changed", { from: "unknown", to: "opted_in", by: actor }),
+    ]);
+    assert.equal(eErr, null, eErr?.message);
+
+    // The erasure. erase_contact reads auth.uid(), which the service role does
+    // not have — but the scrub hangs off erased_at (00130, the way 00101 and
+    // 00125 hang off it), so setting the tombstone IS the thing under test.
+    const { error: uErr } = await db
+      .from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    assert.equal(uErr, null, uErr?.message);
+
+    const { data: after, error: rErr } = await db
+      .from("events").select("kind, data").eq("tenant_id", tenantId).eq("subject_id", id);
+    assert.equal(rErr, null, rErr?.message);
+    assert.equal(after.length, 4, "the ledger keeps its rows: a scrub is not a delete");
+
+    // The headline: nothing an erased person can be recognised by, in any kind.
+    for (const e of after) {
+      for (const key of ["name", "title", "uid", "start"]) {
+        assert.ok(
+          !(key in e.data),
+          `an erased contact's ${e.kind} event still carries "${key}": ${JSON.stringify(e.data)}`,
+        );
+      }
+    }
+
+    // An allow-list, not a drop-list: what the event needs to stay a record
+    // survived, and every scrubbed row says when it was scrubbed.
+    const added = after.filter((e) => e.kind === "contact.added");
+    assert.equal(added.length, 2);
+    assert.deepEqual(added.map((e) => e.data.source).sort(), ["calendar", "manual"],
+      "where a person came from is not identifying, and the profile reads it");
+    for (const e of after.filter((e) => e.kind !== "contact.consent_changed")) {
+      assert.ok(e.data.scrubbed_at, `${e.kind} was rewritten without a stamp`);
+    }
+
+    // The audit trails 00130 deliberately does not touch.
+    const consent = after.find((e) => e.kind === "contact.consent_changed");
+    assert.deepEqual(
+      { from: consent.data.from, to: consent.data.to, by: consent.data.by },
+      { from: "unknown", to: "opted_in", by: actor },
+      "the consent history is evidence and must survive the erasure intact",
+    );
+
+    // Idempotent: erasing again rewrites nothing and loses nothing.
+    await db.from("contacts").update({ erased_at: new Date().toISOString() }).eq("id", id);
+    const { data: twice } = await db
+      .from("events").select("kind, data").eq("tenant_id", tenantId).eq("subject_id", id);
+    assert.equal(twice.length, 4);
+    assert.deepEqual(
+      twice.map((e) => e.data.scrubbed_at ?? null).sort(),
+      after.map((e) => e.data.scrubbed_at ?? null).sort(),
+      "a second erasure must not re-stamp rows that were already scrubbed",
+    );
+  } finally {
+    // The tombstone has no phone left, so the phone-keyed cleanup cannot find
+    // it. Clean by id.
+    if (id) {
+      await db.from("events").delete().eq("subject_id", id);
+      await db.from("decisions").delete().eq("subject_id", id);
+      await db.from("contacts").delete().eq("id", id);
+    }
+  }
+});
