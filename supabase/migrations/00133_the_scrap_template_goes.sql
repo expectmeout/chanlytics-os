@@ -1,5 +1,13 @@
 -- The scrap template goes.
 --
+-- RENUMBERED twice, 00131 -> 00133, and the second time is the interesting
+-- one: two sessions hit the same collision within the hour and both moved
+-- their file to 00131 to escape it. A number nobody owns is not a number
+-- anybody can take. See migrations.test.mjs, which now fails a tree with two
+-- files on one version -- because the CLI keys applied migrations by version,
+-- so a replay runs the first and skips the second IN SILENCE, and a green
+-- build tells you nothing about the statements that never ran.
+--
 -- 00004 wrote one template row straight into one workspace's database:
 --
 --   insert into templates (tenant_id, channel, name, language, meta_status, ...)
