@@ -346,6 +346,12 @@ shape Resend changes fails a test rather than a customer's thread.
   the inbound fixtures need mail from outside.
 - **The door is inert in production, proven by the provider.** Resend's own
   delivery attempts answer `404 {"ok":false,"error":"email_off"}`.
+- **Mail to the domain is ACCEPTED AND DROPPED while it is unverified.** A
+  message sent to the receiving address from an outside Workspace account got no
+  bounce and never appeared as a received email: Resend's MX takes delivery and
+  discards it until the domain finishes verifying. Nothing goes missing today
+  because no address has been published, and no address should be published
+  until the domain reads `verified`.
 
 **Still open, and what each blocks.** All of these need one real inbound, which
 needs the domain fully verified (its DKIM and SPF were still `pending` at the
