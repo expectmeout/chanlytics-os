@@ -90,20 +90,18 @@ const HeroBrief = () => {
   return window.TODAY_DATA ? <TodayStanding vm={window.TODAY_DATA} /> : <HeroBriefSeed />;
 };
 
-// The day so far, UNDER the work it explains: its numbers in one sentence, then the lines that are not numbers --
-// what Setup still wants, a review that landed, a reply that never reached anyone, what ran, what you sent.
-const TodayRecap = () => {
-  const [, force] = React.useState(0);
-  React.useEffect(() => {
-    const bump = () => force((n) => n + 1);
-    const names = ["surface:today", "surface:calendar", "surface:people"];
-    names.forEach((n) => window.addEventListener(n, bump));
-    return () => names.forEach((n) => window.removeEventListener(n, bump));
-  }, []);
-  return window.TODAY_DATA ? <TodayRecapReal vm={window.TODAY_DATA} /> : null;
-};
-
-const TodayRecapReal = ({ vm }) => {
+// The day so far — under the work it explains, and INSIDE the card that
+// carries the period. Its numbers in one sentence, then the lines that are
+// not numbers: what Setup still wants, a review that landed, a reply that
+// never reached anyone, what ran, what you sent.
+//
+// It was a card of its own, with its own header and its own "Open Reports"
+// button, sitting directly above a second card with the same button — to say
+// "Nothing has come in yet today." One header now, and the label rides the
+// sentence so nobody reads the day's numbers as the period's.
+const TodayRecapBody = () => {
+  const vm = window.TODAY_DATA;
+  if (!vm) return null;
   const { recap, quiet } = vm;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const C = window.__CALENDAR;
@@ -112,12 +110,12 @@ const TodayRecapReal = ({ vm }) => {
   const dayLine = window.__today && window.__today.dayLine ? window.__today.dayLine(C ? C.vm : null, P ? P.aggregates : null) : null;
   const said = [recap ? recap.line : "", dayLine].filter(Boolean).join(" ");
   return (
-    <section className="tsec today-recap" data-testid="today-recap">
-      <div className="tsec-head">
-        <span className="tsec-title">{recap ? recap.label : "Today so far"}</span>
-        <button className="btn btn-ghost btn-sm" onClick={() => nav("reports")}>Open Reports <Icon name="arrow-right" size={11} /></button>
-      </div>
-      {said && <p className="today-recap-line" data-testid="today-recap-line">{said}</p>}
+    <div className="today-recap" data-testid="today-recap">
+      {said && (
+        <p className="today-recap-line" data-testid="today-recap-line">
+          <b className="today-recap-when">{recap ? recap.label : "Today so far"}</b> {said}
+        </p>
+      )}
       <div className="brief-beats today-recap-beats">
         {quiet && (
           <div className="brief-beat">
@@ -157,7 +155,7 @@ const TodayRecapReal = ({ vm }) => {
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
 };
 
@@ -340,4 +338,4 @@ const BriefBeats = ({ forecast, waiting }) => {
   );
 };
 
-Object.assign(window, { HeroBrief, TodayRecap });
+Object.assign(window, { HeroBrief, TodayRecapBody });

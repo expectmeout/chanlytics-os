@@ -1,8 +1,13 @@
-/* global React, HeroBrief, TodayRecap, AgentCommand, TodayDay, TodayWeek, TodayAway, TodayJourney, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
+/* global React, HeroBrief, AgentCommand, TodayDay, TodayLeaks, TodayPulse, TodayAway, TodayJourney, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
 // Dashboard — Operator's brief.
-// Composition: HeroBrief → (AgentCommand + TodayDay) → TodayWeek → (TodayAway + TodayJourney);
+// Composition: HeroBrief → (AgentCommand + TodayDay) → TodayLeaks → TodayPulse → (TodayAway + TodayJourney);
 // the seeded panels below stay demo-only.
 // The Ask overlay and ⌘K are owned by the app shell; the dock's "Listen in" opens it via onAsk.
+//
+// The order is the argument: the work first (a phone puts nothing above it),
+// then the one band that says what the work does not, then how the day and
+// the period are going, then the two lists. Analysis never outranks a person
+// who has been waiting eleven days.
 
 const DashboardA = ({ onAsk = () => {} }) => (
   <div className="dash-a-v2">
@@ -18,10 +23,11 @@ const DashboardA = ({ onAsk = () => {} }) => (
       {window.__DEMO_MODE && <NowPlayingRail />}
     </div>
 
-    {/* The day so far, under the work it explains: it was a strip of stat cards above everything. */}
-    <TodayRecap />
+    {/* Two pages read together: the only place on Today that puts two numbers beside each other. */}
+    <TodayLeaks />
 
-    <TodayWeek />
+    {/* The day so far and the period, in one card with one header — they were two, with the same button twice. */}
+    <TodayPulse />
 
     {!window.__DEMO_MODE && (
       <div className="dash-a-v2-core">
