@@ -31,6 +31,7 @@ import {
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { reasonShort } from "./people";
+import { conversationOfNeedsKey } from "./notifications";
 
 export interface MetricsSummaryDto {
   workspace: { name: string; timezone: string; status: string };
@@ -1318,8 +1319,20 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   max = 5,
 ): { groups: Array<AwayGroupVM<T>>; more: number; total: number } {
   const covered = new Set(inQueue);
-  const fresh = rows.filter((r) => r.unread && !(r.about && r.about.type === "conversation" && covered.has(r.about.id)));
   const idOf = (r: T) => r.id ?? r.key ?? "";
+  // A row about a conversation says so in two different ways, and only one of
+  // them is `about`. A KEPT row (the edge wrote it) carries the subject; a
+  // DERIVED one is computed from the Inbox this browser holds and carries
+  // nothing but its key. On a real workspace the derived row is the one that
+  // survives -- dedupeFeed drops the kept row while it stands -- so reading
+  // `about` alone found none of them, and Today printed the three
+  // conversations at the top of the page again, here, as three more rows.
+  const aboutQueued = (r: T) => {
+    if (r.about && r.about.type === "conversation" && covered.has(r.about.id)) return true;
+    const cv = conversationOfNeedsKey(idOf(r));
+    return cv !== null && covered.has(cv);
+  };
+  const fresh = rows.filter((r) => r.unread && !aboutQueued(r));
 
   const order: string[] = [];
   const byKind = new Map<string, T[]>();

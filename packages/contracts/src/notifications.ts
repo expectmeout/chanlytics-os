@@ -252,6 +252,20 @@ export function verbForRoute(route: string | null | undefined): string | null {
 export const SERVER_KEY_PREFIX = "n:";
 
 /**
+ * A DERIVED "needs you" row's key: this prefix plus the thread's own id, which
+ * for a real workspace is "th-" plus the conversation's. So the conversation a
+ * derived row is about is its key with this prefix taken off — the only handle
+ * such a row has, because it carries no `about` (nothing wrote it down; it is
+ * computed from the Inbox the browser is already holding).
+ */
+export const NEEDS_KEY_PREFIX = "needs:th-";
+
+/** The conversation a derived "needs you" row stands for, or null. */
+export function conversationOfNeedsKey(key: string): string | null {
+  return key.startsWith(NEEDS_KEY_PREFIX) ? key.slice(NEEDS_KEY_PREFIX.length) : null;
+}
+
+/**
  * The kept rows as the bell shows them: dismissed ones gone, unread decided
  * by the person's seen moment and their own read mark — the same on every
  * device, because both live on the server.
@@ -288,6 +302,6 @@ export function serverNotificationRows(dto: NotificationsDto | null | undefined)
  * row remains as the record.
  */
 export function dedupeFeed(rows: NotificationRow[]): NotificationRow[] {
-  const covered = new Set(rows.filter((r) => r.kind === "needs_you" && r.key.startsWith("needs:th-")).map((r) => r.key.slice("needs:th-".length)));
+  const covered = new Set(rows.flatMap((r) => (r.kind === "needs_you" ? [conversationOfNeedsKey(r.key)] : [])).filter((id): id is string => !!id));
   return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
 }
