@@ -38,6 +38,25 @@ import type { loadTenantNotifications as loadFn } from "./tenant-runtime.js";
 
 type Db = SupabaseClient<Database>;
 
+/**
+ * The channels whose intake runs INSIDE the webhook, and whose unfinished work
+ * is therefore this sweep's to find.
+ *
+ * A watchdog may notice work that was abandoned. It must not declare somebody
+ * else's work finished -- and stamping `processed_at` is exactly that
+ * declaration. Email's intake is a job with its own lease, its own retries and
+ * its own settlement (jobs settle.ts), so a row it is still working on is not
+ * abandoned; it is in progress. This sweep used to claim those rows three
+ * minutes in, flag the thread `brain_error` with the words "The receptionist
+ * never answered this", and mark them handled -- after which the retrying job
+ * read `processed` and stopped, so `email_review` was never raised and the
+ * mailbox's last-received stamp never moved.
+ *
+ * A new channel is excluded by construction, which is the safe direction: a
+ * channel is added here only once somebody decides this sweep owns it.
+ */
+const INLINE_INTAKE = ["whatsapp", "sms"] as const;
+
 /** A customer's message older than this with no processed_at stamp was never finished with. */
 export const UNANSWERED_INBOUND_AFTER_MS = 3 * 60_000;
 /** A queued reply older than this with no live job is nobody's. */
@@ -92,6 +111,7 @@ export async function sweepUnfinished(p: UnfinishedPorts): Promise<UnfinishedSum
     .select("id, tenant_id, conversation_id, body, created_at, meta")
     .eq("direction", "inbound")
     .eq("sender", "customer")
+    .in("channel", INLINE_INTAKE as unknown as string[])
     .gt("created_at", iso(now - LOOKBACK_MS))
     .lt("created_at", iso(now - UNANSWERED_INBOUND_AFTER_MS))
     .is("meta->>processed_at", null)

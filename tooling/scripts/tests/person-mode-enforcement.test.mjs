@@ -70,8 +70,7 @@ test("the reason exists everywhere a reason is read", () => {
   assert.ok(sql.includes("'person_hold'"), "the CHECK admits it, or the insert fails with nobody told");
 });
 
-test("the escalation upsert reports how it landed", () => {
-  const jobs = readCode("packages/jobs/src/escalate.ts");
-  assert.ok(jobs.includes('export type EscalationOutcome = "opened" | "refreshed" | "failed";'));
-  assert.ok(jobs.includes('return "refreshed";'));
-});
+// How the upsert reports what it did is proved against Postgres now, in
+// escalation-outcome.db.test.mjs: one open row per thread is a UNIQUE INDEX,
+// and what it does under a second insert is the whole mechanism. Reading the
+// type's own text back to itself proved only that somebody had typed it.
