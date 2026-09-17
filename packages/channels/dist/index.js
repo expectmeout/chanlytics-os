@@ -86,7 +86,10 @@ var EVENT_KINDS = [
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected"
+  "channel.connected",
+  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
+  "mailbox.created",
+  "mailbox.renamed"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;

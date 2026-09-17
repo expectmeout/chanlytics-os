@@ -4,6 +4,7 @@ export * from "./envelope";
 export * from "./errors";
 export * from "./phone";
 export * from "./email-address";
+export * from "./mailbox";
 export * from "./enums";
 export * from "./consent";
 export * from "./viewmodels";

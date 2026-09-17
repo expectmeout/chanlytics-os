@@ -2812,6 +2812,14 @@ type Database = {
                     isSetofReturn: true;
                 };
             };
+            create_mailbox: {
+                Args: {
+                    p_from_name: string;
+                    p_local_part: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             create_person: {
                 Args: {
                     p_display_name: string;
@@ -3052,6 +3060,10 @@ type Database = {
                 };
                 Returns: Json;
             };
+            mint_reply_token: {
+                Args: never;
+                Returns: string;
+            };
             note_sweep_backlog: {
                 Args: {
                     p_remaining: number;
@@ -3254,6 +3266,13 @@ type Database = {
                     p_secret: Json;
                 };
                 Returns: string;
+            };
+            rename_mailbox: {
+                Args: {
+                    p_from_name: string;
+                    p_mailbox_id: string;
+                };
+                Returns: Json;
             };
             report_series: {
                 Args: {

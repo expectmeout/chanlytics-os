@@ -330,6 +330,56 @@ test("REGRESSION (S17): 'Disconnect instead' asks first, as the row's own Discon
   assert.deepEqual(done, ["disconnect"], "and Yes disconnects, once");
 });
 
+test("the email row's form: offered from the business's name, judged under its own box before anything is asked, a taken address said there too, and closed by the yes", async () => {
+  asRole("owner");
+  const { installMailbox } = await import("../../../apps/dashboard/src/legacy-bridge/mailbox.ts");
+  installMailbox(globalThis.window);
+  const asked = [];
+  let answer = { ok: false, code: "conflict", status: 409, title: "Not possible right now", message: "That address is taken. Try another.", retryAfterS: null, fields: null };
+  Object.assign(globalThis.window.__mailbox, { create: async (input) => { asked.push(input); return answer; } });
+  const email = { ready: true, domain: "mail.chanlytics.com", mailbox: null };
+  Object.assign(globalThis.window, {
+    __CHANNELS: [], __GOOGLE: null,
+    __SETUP: { dto: { business: { name: "Best Movers" }, lines: { rows: [], ready: false }, requests: { line: null }, calendar: null, email } },
+    __connections: { rows: connectionRows, groupWords: CONNECTION_GROUP_WORDS },
+    __waConnect: { config: async () => null },
+    refusalToast: (r) => ({ tone: "danger", msg: r.message }),
+  });
+  let tree = render(Connections);
+  assert.equal(byTestId(tree, "email-setup"), null, "the form waits for its verb");
+  press(byTestId(tree, "connection-email-verb"));
+  tree = settle(Connections);
+  const box = () => find(byTestId(tree, "email-local"), (n) => n.type === "input");
+  assert.equal(box().props.value, "best-movers", "an address to start from, never a blank box");
+  assert.match(textOf(byTestId(tree, "email-local")), /@mail\.chanlytics\.com/);
+  assert.match(textOf(byTestId(tree, "email-local")), /cannot be changed later/);
+
+  box().props.onChange({ target: { value: "best movers" } });
+  tree = settle(Connections);
+  press(byTestId(tree, "email-save"));
+  await flush();
+  tree = settle(Connections);
+  assert.match(textOf(byTestId(tree, "email-local-problem")), /letters, numbers and hyphens only/);
+  assert.equal(box().props["aria-invalid"], true);
+  assert.deepEqual(asked, [], "nothing is asked about what the rules already refuse");
+
+  box().props.onChange({ target: { value: "bestmovers" } });
+  tree = settle(Connections);
+  press(byTestId(tree, "email-save"));
+  await flush();
+  tree = settle(Connections);
+  assert.deepEqual(asked, [{ localPart: "bestmovers", fromName: "Best Movers" }]);
+  assert.equal(textOf(byTestId(tree, "email-local-problem")), "That address is taken. Try another.", "said under the box that caused it, not in a toast");
+
+  answer = { ok: true, data: { mailbox: { id: "mb1", address: "bestmovers2@mail.chanlytics.com", from_name: "Best Movers", last_received_at: null } } };
+  box().props.onChange({ target: { value: "bestmovers2" } });
+  tree = settle(Connections);
+  press(byTestId(tree, "email-save"));
+  await flush();
+  tree = settle(Connections);
+  assert.equal(byTestId(tree, "email-setup"), null, "the form closes; the row repaints from Setup's re-read");
+});
+
 /* ------------------------------ the attention row ------------------------------ */
 
 test("REGRESSION (S23): the attention row's buttons say they are busy and take no second press while their verb is on its way", async () => {

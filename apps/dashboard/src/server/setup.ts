@@ -44,6 +44,7 @@ import { teamRoster } from "./service";
 import { linesFor, linesStatus } from "./lines";
 import { listingFor, connectionFor, googleReadiness } from "./google";
 import { billingFor, billingReadiness } from "./billing";
+import { emailSetupFor } from "./email";
 
 /**
 /**
@@ -92,7 +93,7 @@ export async function setupDtoFor(
   now = new Date(),
 ): Promise<SetupDto> {
 
-  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady, activations] = await Promise.all([
+  const [cfgRow, channels, lastMsg, lastCall, templates, calendar, team, yes, offersYes, requested, lineRows, lineStatus, listing, google, connection, billingRow, billingReady, activations, email] = await Promise.all([
     getTenantConfig(supabase, tenantId),
     supabase.from("tenant_channels").select("kind, status, number_e164, config, created_at").eq("tenant_id", tenantId),
     supabase.from("messages").select("channel_ts, created_at").eq("tenant_id", tenantId).eq("direction", "inbound").eq("channel", "whatsapp")
@@ -126,6 +127,8 @@ export async function setupDtoFor(
     billingReadiness(),
     // The owner's own act, per capability (00108).
     supabase.from("capability_activations").select("capability, activated_at, activated_by, deactivated_at").eq("tenant_id", tenantId),
+    // Whether this deployment has email, and the workspace's mailbox when it has one. No query at all where it is off.
+    emailSetupFor(supabase, tenantId),
   ]);
   if (channels.error) throw new Error(channels.error.message);
   if (lastMsg.error) throw new Error(lastMsg.error.message);
@@ -196,6 +199,7 @@ export async function setupDtoFor(
         lastInboundAt: lastCall.data?.started_at ?? null,
       },
     },
+    email,
     templates: {
       approved: approved.length,
       pending: pending.length,

@@ -23,6 +23,7 @@ import { listingLine, type SetupGoogleFacts } from "./google";
 import { dayWords, trialWords, maySpend, billingDoorOpen, BILLING_TEST_MODE_CLAUSE, type SetupBillingFacts } from "./billing";
 import { SOLE_PROP_LIMITS } from "./registration-path";
 import { capabilityStatus, type ActivationRecord, type CapabilityStatus } from "./capabilities";
+import { EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 
 export interface SetupDto {
   business: {
@@ -40,6 +41,8 @@ export interface SetupDto {
     whatsapp: { present: boolean; active: boolean; number: string | null; quality: string | null; lastInboundAt: string | null };
     voice: { present: boolean; active: boolean; number: string | null; lastInboundAt: string | null };
   };
+  /** Email: whether this deployment has the channel, and the workspace's mailbox when it has one (mailbox.ts). Absent reads as off. */
+  email?: EmailSetupDto;
   templates: { approved: number; pending: number; startersApproved: number };
   calendar: { state: "ok" | "unavailable" | "none"; problem?: string | null };
   team: { members: number; invitesOpen: number; alertEmails: number };
@@ -589,6 +592,25 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
     row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: `${waNum ?? "Your number"} is connected but switched off.`, details: [], verb: { label: "Open Connections", to: "admin/integrations" } });
   } else {
     row({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
+  }
+
+  // Email — an address customers write to, answered from the Inbox. Absent until this deployment has the
+  // channel: a row must never draw a verb that cannot work. Never required: a workspace answers without it.
+  if (i.email?.ready) {
+    const mb = i.email.mailbox;
+    row(mb
+      ? {
+          id: "email", icon: "mail", title: "Email", state: "ready", required: false,
+          sentence: `Customers write to ${mb.address}, and their emails arrive in your Inbox.`,
+          details: [mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet", EMAIL_ELSEWHERE_SENTENCE],
+          verb: { label: "Open the Inbox", to: "inbox" },
+        }
+      : {
+          id: "email", icon: "mail", title: "Email", state: "not_started", required: false,
+          sentence: "Give customers an address to write to. Their emails arrive in your Inbox, and you reply from there.",
+          details: [EMAIL_NOT_ANSWERED_SENTENCE],
+          verb: { label: "Choose the address", to: "admin/integrations" },
+        });
   }
 
   // 6. Calendar — what is taken, so the receptionist offers real times.

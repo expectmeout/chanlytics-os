@@ -151,6 +151,49 @@ function whyNotAnEmail(raw) {
   return "That is not an email address anyone can be reached at.";
 }
 
+// src/mailbox.ts
+var MAILBOX_RESERVED = /* @__PURE__ */ new Set([
+  "r",
+  "postmaster",
+  "abuse",
+  "mailer-daemon",
+  "noreply",
+  "no-reply",
+  "admin",
+  "administrator",
+  "support",
+  "security",
+  "billing",
+  "hello",
+  "hi"
+]);
+var MAILBOX_LOCAL_PART_MAX = 40;
+var MAILBOX_FROM_NAME_MAX = 80;
+function normalizeLocalPart(typed) {
+  return typed.trim().toLowerCase();
+}
+function whyNotALocalPart(typed) {
+  const s = normalizeLocalPart(typed);
+  if (!s) return "Write the part before the @, like your business's name.";
+  if (s.length > MAILBOX_LOCAL_PART_MAX) return `Keep it to ${MAILBOX_LOCAL_PART_MAX} characters or fewer.`;
+  if (!/^[a-z0-9-]+$/.test(s)) return "Use letters, numbers and hyphens only: no spaces, dots or other marks.";
+  if (s.startsWith("-") || s.endsWith("-")) return "Start and end with a letter or a number.";
+  if (MAILBOX_RESERVED.has(s)) return `\u201C${s}\u201D is kept for the mail system. Choose something that names your business.`;
+  return null;
+}
+function whyNotAFromName(typed) {
+  const s = typed.trim();
+  if (!s) return "Write the name customers should see, usually your business's.";
+  if (s.length > MAILBOX_FROM_NAME_MAX) return `Keep it to ${MAILBOX_FROM_NAME_MAX} characters or fewer.`;
+  return null;
+}
+function suggestLocalPart(businessName) {
+  const s = (businessName ?? "").normalize("NFKD").replace(/\p{M}+/gu, "").toLowerCase().replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, MAILBOX_LOCAL_PART_MAX).replace(/-+$/g, "");
+  return s && whyNotALocalPart(s) === null ? s : null;
+}
+var EMAIL_NOT_ANSWERED_SENTENCE = "The receptionist does not answer email yet: every email waits for you in the Inbox.";
+var EMAIL_ELSEWHERE_SENTENCE = "Replies you send from another mail app do not show here.";
+
 // src/enums.ts
 var TENANT_STATUSES = ["active", "paused", "test"];
 var MEMBERSHIP_ROLES = ["owner", "operator", "viewer"];
@@ -273,7 +316,10 @@ var EVENT_KINDS = [
   "broadcast.sent",
   "playbook.run",
   /** A WhatsApp number connected through Embedded Signup (admin/whatsapp/connect). */
-  "channel.connected"
+  "channel.connected",
+  /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
+  "mailbox.created",
+  "mailbox.renamed"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -7472,6 +7518,28 @@ function setupSteps(i, nowMs = Date.now()) {
   } else {
     row2({ id: "whatsapp", icon: "chat", title: "WhatsApp", state: "waiting_you", required: !answering, sentence: "Connect the WhatsApp number customers write to.", details: ["A new number, or the WhatsApp Business app you already use"], verb: { label: "Connect", to: "admin/integrations" } });
   }
+  if (i.email?.ready) {
+    const mb = i.email.mailbox;
+    row2(mb ? {
+      id: "email",
+      icon: "mail",
+      title: "Email",
+      state: "ready",
+      required: false,
+      sentence: `Customers write to ${mb.address}, and their emails arrive in your Inbox.`,
+      details: [mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet", EMAIL_ELSEWHERE_SENTENCE],
+      verb: { label: "Open the Inbox", to: "inbox" }
+    } : {
+      id: "email",
+      icon: "mail",
+      title: "Email",
+      state: "not_started",
+      required: false,
+      sentence: "Give customers an address to write to. Their emails arrive in your Inbox, and you reply from there.",
+      details: [EMAIL_NOT_ANSWERED_SENTENCE],
+      verb: { label: "Choose the address", to: "admin/integrations" }
+    });
+  }
   row2(i.calendar.state === "ok" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "ready", required: false, sentence: `${CALENDAR_FEED_WORDS.ok} \u2014 the receptionist offers times from it.`, details: [], verb: { label: "Open Calendar", to: "calendar" } } : i.calendar.state === "unavailable" ? { id: "calendar", icon: "calendar", title: "Calendar", state: "waiting_you", required: false, sentence: `Your calendar could not be read. ${i.calendar.problem ? `${i.calendar.problem} ` : ""}Check the address in Settings \u203A Business.`, details: [], verb: { label: "Check the address", to: "admin/workspace" } } : { id: "calendar", icon: "calendar", title: "Calendar", state: "not_started", required: false, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken.", details: [], verb: { label: "Paste the address", to: "admin/workspace" } });
   {
     const t = i.team;
@@ -8024,7 +8092,15 @@ function connectionRows(i, nowMs = Date.now()) {
     out.push(row({ kind: "calendar", icon: "calendar", title: "Calendar", detail: null, state: "none", stateWords: CALENDAR_FEED_WORDS.none, sentence: "Paste your calendar's iCal address so the receptionist knows what is taken. Two-way sync with Google Calendar comes later.", verb: { label: "Paste the address", to: "admin/workspace", who: "owner" } }));
   }
   out.push(row({ kind: "instagram", icon: "instagram", title: "Instagram", detail: null, state: "later", stateWords: "Later", sentence: "Direct messages, answered by the receptionist like WhatsApp.", verb: null }));
-  out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "later", stateWords: "Later", sentence: "An address the receptionist answers.", verb: null }));
+  const mailbox = i.email?.mailbox ?? null;
+  if (mailbox) {
+    const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: mailbox.address, state: "connected", stateWords: "On", sentence: `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`, verb: { label: "Change the name", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
+  } else if (i.email?.ready) {
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "none", stateWords: "Not set up", sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`, verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
+  } else {
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "later", stateWords: "Later", sentence: "An address customers write to, answered from your Inbox.", verb: null }));
+  }
   out.push(row({ kind: "deposits", icon: "money", title: "Deposits", detail: null, state: "later", stateWords: "Later", sentence: "Deposits and payments taken by the receptionist.", verb: null }));
   return out.sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
 }
@@ -8419,6 +8495,8 @@ var WORDS = {
   "google.connected": "Google Business Profile was connected",
   "google.disconnected": "Google Business Profile was disconnected",
   "google.replied": "A Google review was answered",
+  "mailbox.created": "The workspace's email address was set up",
+  "mailbox.renamed": "The name on the workspace's email changed",
   "workspace.created": "The workspace was created",
   "settings.changed": "Settings changed",
   "policy.changed": "An autonomy setting changed",
@@ -9233,6 +9311,8 @@ export {
   DISCONNECTION_LABELS,
   DISPLAY_NAME_MAX,
   E164,
+  EMAIL_ELSEWHERE_SENTENCE,
+  EMAIL_NOT_ANSWERED_SENTENCE,
   EMPTY_READ_STATE,
   ERROR_CODES,
   ESCALATION_REASONS,
@@ -9262,6 +9342,9 @@ export {
   LINE_STEP_WORDS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
+  MAILBOX_FROM_NAME_MAX,
+  MAILBOX_LOCAL_PART_MAX,
+  MAILBOX_RESERVED,
   MARKETING_OPT_IN_PATTERN,
   MAX_CLOSURES,
   MAX_INTERVALS_PER_DAY,
@@ -9601,6 +9684,7 @@ export {
   nextRunLabel,
   nextThemePref,
   normalizeEmail,
+  normalizeLocalPart,
   normalizeNavigate,
   normalizePhone,
   notFoundPageMetadata,
@@ -9736,6 +9820,7 @@ export {
   stateLabel,
   stateOf,
   stateTone,
+  suggestLocalPart,
   telHref,
   templateComponents,
   templateNameOk,
@@ -9802,7 +9887,9 @@ export {
   whenLabel,
   whisperText,
   whyCannotSpend,
+  whyNotAFromName,
   whyNotAHandoff,
+  whyNotALocalPart,
   whyNotAPhone,
   whyNotAnEmail,
   windowFor,

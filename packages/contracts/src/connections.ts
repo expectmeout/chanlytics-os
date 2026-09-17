@@ -20,6 +20,7 @@ import { agoWords } from "./time";
 import { checkedWords, connectionWords, listingLine } from "./google";
 import { formatPhoneDisplay } from "./phone";
 import { CALENDAR_FEED_WORDS } from "./calendar";
+import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 
 export type ConnectionKind = "whatsapp" | "phone" | "sms" | "google_listing" | "google_profile" | "calendar" | "instagram" | "email" | "deposits";
 export const CONNECTION_KINDS: readonly ConnectionKind[] = ["whatsapp", "phone", "sms", "google_profile", "google_listing", "calendar", "instagram", "email", "deposits"];
@@ -54,7 +55,7 @@ export interface ConnectionRow {
   sentence: string;
   verb: ConnectionVerb | null;
   /** The page's own hook for the parts a row cannot say in one line: a choice of locations, a form. */
-  body: "google_choose" | "business_record" | null;
+  body: "google_choose" | "business_record" | "email_setup" | null;
 }
 
 export interface ConnectionInputs {
@@ -71,6 +72,8 @@ export interface ConnectionInputs {
     connection: GoogleConnectionDto | null;
   } | null;
   calendar: { state: "ok" | "unavailable" | "none" } | null;
+  /** Email as Setup is told it (mailbox.ts); null or absent while Setup has not been read, or on a deployment without it. */
+  email?: EmailSetupDto | null;
 }
 
 const TONE: Record<ConnectionState, ConnectionTone> = {
@@ -264,7 +267,18 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
   }
 
   out.push(row({ kind: "instagram", icon: "instagram", title: "Instagram", detail: null, state: "later", stateWords: "Later", sentence: "Direct messages, answered by the receptionist like WhatsApp.", verb: null }));
-  out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "later", stateWords: "Later", sentence: "An address the receptionist answers.", verb: null }));
+  // Email: the workspace's address when it has one, the form that makes one when this deployment has the
+  // channel, and "later" where it does not. The receptionist does not answer email yet, and the row says so
+  // rather than promising what Connections used to ("an address the receptionist answers").
+  const mailbox = i.email?.mailbox ?? null;
+  if (mailbox) {
+    const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: mailbox.address, state: "connected", stateWords: "On", sentence: `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`, verb: { label: "Change the name", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
+  } else if (i.email?.ready) {
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "none", stateWords: "Not set up", sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`, verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
+  } else {
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "later", stateWords: "Later", sentence: "An address customers write to, answered from your Inbox.", verb: null }));
+  }
   out.push(row({ kind: "deposits", icon: "money", title: "Deposits", detail: null, state: "later", stateWords: "Later", sentence: "Deposits and payments taken by the receptionist.", verb: null }));
 
   return out.sort((a, b) => ORDER[a.kind] - ORDER[b.kind]);
