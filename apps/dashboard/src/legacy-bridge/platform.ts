@@ -122,10 +122,8 @@ export function installPlatform(win: Window = window): void {
     warmOne: (tenantId) => details.warm(tenantId, () => win.__platform!.one(tenantId)),
     async act(action, tenantId, lineId) {
       const r = await api()(`POST platform/lines/${action}`, { body: { tenant_id: tenantId, line_id: lineId } });
-      // Whatever the edge answered, the line was touched: neither the list's
-      // verdicts nor that workspace's rows can be trusted to describe it now.
-      overviews.clear();
-      details.clear();
+      // Both caches are already dropped by the write itself: every write
+      // clears every on-demand answer, in one place (legacy-bridge/api.ts).
       if (!r.ok) return { ok: false, message: r.message };
       // The edge's own words when it refused. `already_registered`,
       // `the line is answering, not failed` -- these are facts about the line,

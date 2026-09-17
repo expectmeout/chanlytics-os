@@ -113,7 +113,7 @@ const ClientDecisionRow = ({ client, onOpen }) => {
     : { label: "Open", kind: "ghost" };
 
   return (
-    <div className="cl-decision" onClick={() => onOpen(c.id)} role="button">
+    <div className="cl-decision" onClick={() => onOpen(c.id)} onPointerEnter={() => window.__warmPerson && window.__warmPerson(c.id)} role="button">
       <div className="cl-decision-l">
         <div className="cl-mini-avatar" data-priority={c.priority}>{c.initials}</div>
         <TempPill value={c.temp} />
@@ -268,6 +268,7 @@ const ClientsTable = ({ clients, sortBy, sortDir, onSort, selected, onToggle, on
               key={c.id}
               className={selected.has(c.id) ? "checked" : ""}
               onClick={() => onOpen(c.id)}
+              onPointerEnter={() => window.__warmPerson && window.__warmPerson(c.id)}
             >
               <td className="shrink" onClick={(e) => { e.stopPropagation(); onToggle(c.id); }}>
                 <input type="checkbox" className="cl-row-checkbox" checked={selected.has(c.id)} readOnly />

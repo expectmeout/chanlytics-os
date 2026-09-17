@@ -110,3 +110,12 @@ test("a log paged deep does not evict its own head", async () => {
   assert.deepEqual(c.peek("page-0").rows, [0], "the head survives");
   assert.equal(c.peek("page-1"), null, "the oldest one goes instead");
 });
+
+test("a \"not in your workspace\" is never held: it is the one answer that changes the moment somebody is added", async () => {
+  // The person cache is built with exactly this rule (legacy-bridge/people-detail.ts).
+  const c = readCache("person", (vm) => vm !== null);
+  await c.through("p-1", async () => null);
+  assert.equal(c.peek("p-1"), null, "asking again asks the server, not the memory");
+  await c.through("p-1", async () => ({ name: "Ana" }));
+  assert.deepEqual(c.peek("p-1"), { name: "Ana" }, "and once they exist, they are held");
+});
