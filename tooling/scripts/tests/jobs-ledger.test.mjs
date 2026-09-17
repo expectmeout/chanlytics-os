@@ -243,5 +243,14 @@ test("the owner reads what the writes returned, not what they meant to do", () =
   assert.match(saySettled([{ what: "broadcast", changed: true, reached: 12, remaining: 30 }]), /the 12 it had already reached still got it, and 30 did not/);
   assert.match(saySettled([{ what: "message", changed: false, error: "permission denied" }]), /could not be updated \(permission denied\)/);
   assert.equal(saySettled([{ what: "message", changed: false }]), null, "a row that moved on by itself is nothing to report");
+  // An email that was never stored has no thread to flag, so the alert says
+  // where it WAS said -- and says the plain thing when the mailbox could not
+  // be marked either, rather than claiming a mark that did not happen.
+  assert.match(saySettled([{ what: "email", changed: false, mailbox: "marked" }]), /never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in/);
+  for (const m of [{}, { mailbox: "gone" }, { mailbox: "failed" }]) {
+    assert.match(saySettled([{ what: "email", changed: false, ...m }]), /never stored, so there is nothing to flag for a person/, JSON.stringify(m));
+  }
+  assert.match(saySettled([{ what: "email", changed: true, flagged: "opened", mailbox: "marked" }]), /in the Inbox and flagged for a person/, "the thread is the news when there is one");
+  assert.match(saySettled([{ what: "email", changed: false, error: "statement timeout" }]), /could not be flagged for a person \(statement timeout\)/);
   assert.equal(saySettled([]), null);
 });

@@ -602,7 +602,15 @@ export function setupSteps(i: SetupInputs, nowMs = Date.now()): SetupVM {
       ? {
           id: "email", icon: "mail", title: "Email", state: "ready", required: false,
           sentence: `Customers write to ${mb.address}, and their emails arrive in your Inbox.`,
-          details: [mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet", EMAIL_ELSEWHERE_SENTENCE],
+          // Still "ready": Setup answers whether the channel is set up, and it
+          // is. That an email could not be taken in is a detail here and the
+          // row's whole state on Connections, which answers whether it is
+          // WORKING. Two questions, two answers, one fact under both.
+          details: [
+            ...(mb.last_error ? [mb.last_error] : []),
+            mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet",
+            EMAIL_ELSEWHERE_SENTENCE,
+          ],
           verb: { label: "Open the Inbox", to: "inbox" },
         }
       : {

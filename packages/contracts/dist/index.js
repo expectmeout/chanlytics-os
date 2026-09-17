@@ -7691,7 +7691,15 @@ function setupSteps(i, nowMs = Date.now()) {
       state: "ready",
       required: false,
       sentence: `Customers write to ${mb.address}, and their emails arrive in your Inbox.`,
-      details: [mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet", EMAIL_ELSEWHERE_SENTENCE],
+      // Still "ready": Setup answers whether the channel is set up, and it
+      // is. That an email could not be taken in is a detail here and the
+      // row's whole state on Connections, which answers whether it is
+      // WORKING. Two questions, two answers, one fact under both.
+      details: [
+        ...mb.last_error ? [mb.last_error] : [],
+        mb.last_received_at ? `Last email ${agoWords(Date.parse(mb.last_received_at), nowMs)}` : "Nothing received yet",
+        EMAIL_ELSEWHERE_SENTENCE
+      ],
       verb: { label: "Open the Inbox", to: "inbox" }
     } : {
       id: "email",
@@ -8259,7 +8267,8 @@ function connectionRows(i, nowMs = Date.now()) {
   const mailbox = i.email?.mailbox ?? null;
   if (mailbox) {
     const last = mailbox.last_received_at ? ` Last email ${agoWords(Date.parse(mailbox.last_received_at), nowMs)}.` : "";
-    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: mailbox.address, state: "connected", stateWords: "On", sentence: `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`, verb: { label: "Change the name", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
+    const working = `Customers write to this address and you reply from the Inbox, as ${mailbox.from_name}.${last}`;
+    out.push(row({ kind: "email", icon: "mail", title: "Email", detail: mailbox.address, state: mailbox.last_error ? "attention" : "connected", stateWords: mailbox.last_error ? "Waiting on us" : "On", sentence: mailbox.last_error ? `${mailbox.last_error} ${working}` : working, verb: { label: "Change the name", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
   } else if (i.email?.ready) {
     out.push(row({ kind: "email", icon: "mail", title: "Email", detail: null, state: "none", stateWords: "Not set up", sentence: `Give customers an address to write to. ${EMAIL_NOT_ANSWERED_SENTENCE}`, verb: { label: "Choose the address", to: "verb:email-setup", who: "owner" }, body: "email_setup" }));
   } else {

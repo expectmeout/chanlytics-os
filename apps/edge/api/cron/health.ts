@@ -9,9 +9,11 @@
  * a human, for the same reason the deadman alert lives in the edge — notify()
  * owns who may be told what.
  *
- * It also pages the platform for two conditions no sweep row can show: due
- * jobs nobody is claiming, and WhatsApp messages Meta accepted that have had
- * no receipt for six hours (lib/receipts-watch.ts).
+ * It also pages the platform for three conditions no sweep row can show: due
+ * jobs nobody is claiming, WhatsApp messages Meta accepted that have had no
+ * receipt for six hours (lib/receipts-watch.ts), and the mail domain no longer
+ * being verified (lib/mail-domain.ts) -- the one of the three that our own
+ * rows cannot show at all.
  *
  * Called by pg_cron via pg_net at :13 and :43, same Vault secret as the two
  * sweeps it watches. The offset is deliberate: on the :00/:30 grid every tick
@@ -27,6 +29,8 @@ import { pageOperator } from "../../lib/page-operator.js";
 import { logger } from "../../lib/log.js";
 import { chooseSweepAlerts, describeSweepTrouble, type SweepHealthRow } from "../../lib/sweep-health.js";
 import { whatsappWithoutReceipts, describeSilentReceipts } from "../../lib/receipts-watch.js";
+import { checkMailDomain, describeMailDomainTrouble } from "../../lib/mail-domain.js";
+import { emailDomain } from "../../lib/email.js";
 
 export const config = { maxDuration: 60 };
 
@@ -105,11 +109,24 @@ export async function POST(request: Request): Promise<Response> {
     await pageOperator({ db }, "whatsapp_no_receipt", page.subject, page.body);
   }
 
+  // The mail domain every workspace's address is on, asked of the provider:
+  // when it stops being verified, mail is dropped with no bounce and nothing
+  // on our side changes, so there is no row to read and this is the only way
+  // to find out. Email off on this deployment checks nothing.
+  const mailDomain = emailDomain();
+  const mail = await checkMailDomain({ domain: mailDomain, apiKey: process.env.RESEND_API_KEY });
+  if (mail.error) L.error("mail_domain_unreadable", { domain: mailDomain, error: mail.error });
+  if (mail.trouble && mailDomain) {
+    const page = describeMailDomainTrouble(mail.trouble, mailDomain);
+    await pageOperator({ db }, "mail_domain", page.subject, page.body);
+  }
+
   L.info("sweep_health_checked", {
     broken: plan.broken.length,
     alerted: delivered ? plan.alert.length : 0,
     recovered: plan.recovered.length,
     unreceipted,
+    mail_domain: mail.trouble?.kind ?? mail.skipped ?? (mail.error ? "unreadable" : "ok"),
   });
 
   // ALWAYS 200, even when a sweep is broken. This route's own response is

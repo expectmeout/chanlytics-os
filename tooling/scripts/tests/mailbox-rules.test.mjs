@@ -11,7 +11,7 @@ import {
 } from "@chanlytics/contracts";
 
 const NOW = Date.parse("2026-09-17T15:00:00Z");
-const MAILBOX = { id: "mb1", address: "bestmovers@mail.chanlytics.com", from_name: "Best Movers", last_received_at: new Date(NOW - 2 * 3_600_000).toISOString() };
+const MAILBOX = { id: "mb1", address: "bestmovers@mail.chanlytics.com", from_name: "Best Movers", last_received_at: new Date(NOW - 2 * 3_600_000).toISOString(), last_error: null };
 
 test("what may be an address: letters, numbers and hyphens, a letter or number at each end, forty at most, and not a word the mail system owns", () => {
   for (const ok of ["bestmovers", "best-movers", "b", "a1", "melanys-beauty-salon", "  BestMovers  ", "x".repeat(40)]) assert.equal(whyNotALocalPart(ok), null, ok);
@@ -82,4 +82,32 @@ test("Setup: no row where the deployment has no email; never required; the same 
   const before = setupSteps(bare(undefined), NOW);
   const after = setupSteps(bare({ ready: true, domain: "mail.chanlytics.com", mailbox: null }), NOW);
   assert.equal(after.readiness.answering, before.readiness.answering, "email does not decide whether the receptionist answers");
+});
+
+/**
+ * An email that could not be taken in. The mailbox carries the sentence (jobs
+ * settle.ts writes it, db stampMailboxReceived clears it on the next email in),
+ * and the two surfaces read the same fact for their two different questions.
+ */
+const TROUBLE = "An email could not be taken in. Anything since then is in your Inbox as usual.";
+
+test("a mailbox that could not take an email in says so on Connections, and keeps the verb it had", () => {
+  const hurt = connections({ ready: true, domain: "mail.chanlytics.com", mailbox: { ...MAILBOX, last_error: TROUBLE } });
+  assert.deepEqual([hurt.state, hurt.stateWords, hurt.detail], ["attention", "Waiting on us", MAILBOX.address]);
+  assert.equal(hurt.sentence, `${TROUBLE} Customers write to this address and you reply from the Inbox, as Best Movers. Last email 2h ago.`);
+  assert.deepEqual(hurt.verb, { label: "Change the name", to: "verb:email-setup", who: "owner" },
+    "it is ours to fix: the owner is told, not given a job");
+  // Nothing wrong reads exactly as it did before there was a column to read.
+  const well = connections({ ready: true, domain: "mail.chanlytics.com", mailbox: MAILBOX });
+  assert.deepEqual([well.state, well.stateWords], ["connected", "On"]);
+  assert.doesNotMatch(well.sentence, /could not be taken in/);
+});
+
+test("Setup keeps saying the channel is set up, because it is, and carries the trouble as a detail", () => {
+  const hurt = setupRow({ ready: true, domain: "mail.chanlytics.com", mailbox: { ...MAILBOX, last_error: TROUBLE } });
+  assert.equal(hurt.state, "ready", "Setup answers whether it is SET UP; Connections answers whether it is working");
+  assert.deepEqual(hurt.details, [TROUBLE, "Last email 2h ago", EMAIL_ELSEWHERE_SENTENCE]);
+  // A mailbox with trouble and nothing ever received still says both things.
+  const never = setupRow({ ready: true, domain: "mail.chanlytics.com", mailbox: { ...MAILBOX, last_received_at: null, last_error: TROUBLE } });
+  assert.deepEqual(never.details, [TROUBLE, "Nothing received yet", EMAIL_ELSEWHERE_SENTENCE]);
 });

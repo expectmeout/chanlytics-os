@@ -34,6 +34,13 @@ export interface Settled {
   changed: boolean;
   /** A message that never left flagged its thread for a person: a new hold, or the one already open (I5). */
   flagged?: EscalationOutcome;
+  /**
+   * An email intake that died marked the workspace's mailbox. Absent when the
+   * job named no mailbox; "gone" when no such mailbox is this workspace's any
+   * more; "failed" when the write itself did not land. Said rather than
+   * swallowed, and none of the three costs anybody their escalation.
+   */
+  mailbox?: "marked" | "gone" | "failed";
   /** Why nothing could be written, when nothing could be. Never swallowed. */
   error?: string;
   /**
@@ -64,10 +71,46 @@ const EMAIL_UNFINISHED =
   "An email arrived and could not be taken in — the receptionist does not answer email, and this one did not finish being filed either. Read it here and reply from the Inbox.";
 const MAY_HAVE_SENT = "the run that was sending this did not finish";
 
+/**
+ * What the MAILBOX carries after an intake died, which is a different reader
+ * from the thread's. It is shown on Connections and Setup, so it is a sentence
+ * for the owner and never a provider's error text: the reason the job failed
+ * is on the job, where a person at Chanlytics reads it. The next email that is
+ * taken in clears it (db stampMailboxReceived), so it says what is true now.
+ */
+const MAILBOX_INTAKE_FAILED = "An email could not be taken in. Anything since then is in your Inbox as usual.";
+
 function idFrom(payload: unknown, key: string): string | null {
   if (typeof payload !== "object" || payload === null) return null;
   const v = (payload as Record<string, unknown>)[key];
   return typeof v === "string" ? v : null;
+}
+
+/**
+ * The workspace's mailbox says its last intake failed.
+ *
+ * Best effort by design, and deliberately not fatal: the thread's hold is the
+ * durable half of a dead intake, and a mailbox row that could not be marked
+ * must never cost a customer that. A job carrying no mailbox_id is not one
+ * this can speak for.
+ */
+async function noteMailboxTrouble(db: Db, tenantId: string, mailboxId: string | null): Promise<{ mailbox?: "marked" | "gone" | "failed" }> {
+  if (!mailboxId) return {};
+  // The rows are COUNTED. An update that matched nothing comes back without an
+  // error -- a mailbox deleted since the webhook, or one that is not this
+  // workspace's -- and reporting that as a mark would be this file telling the
+  // same kind of lie it exists to stop.
+  const { data, error } = await db
+    .from("mailboxes")
+    .update({ last_error: MAILBOX_INTAKE_FAILED })
+    .eq("id", mailboxId)
+    .eq("tenant_id", tenantId)
+    .select("id");
+  if (error) {
+    console.error("mailbox_trouble_not_marked", error.message);
+    return { mailbox: "failed" };
+  }
+  return { mailbox: data && data.length > 0 ? "marked" : "gone" };
 }
 
 /** How many fresh runs this job is already the result of. Absent reads as none. */
@@ -163,6 +206,12 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
     // and the job's own alert is then the true and only signal.
     const receivedId = idFrom(job.payload, "received_id");
     if (!receivedId) return [{ what: "email", changed: false, error: "no received_id on the job" }];
+    // The mailbox is told either way, and FIRST: it is the one thing that is
+    // there whether or not the email got as far as being stored, so an intake
+    // that died before it could make a thread still leaves a mark the owner
+    // sees. It is cleared by the next email that is taken in, so a workspace
+    // whose mail is flowing does not carry an old failure.
+    const mailbox = await noteMailboxTrouble(db, job.tenant_id, idFrom(job.payload, "mailbox_id"));
     const { data, error } = await db
       .from("messages")
       .select("conversation_id")
@@ -170,13 +219,13 @@ export async function settleJob(db: Db, job: TerminalJob, certain: boolean): Pro
       .eq("channel", "email")
       .eq("external_id", receivedId)
       .maybeSingle();
-    if (error) return [{ what: "email", changed: false, error: error.message }];
+    if (error) return [{ what: "email", changed: false, ...mailbox, error: error.message }];
     const conversationId = (data as { conversation_id?: string | null } | null)?.conversation_id ?? null;
-    if (!conversationId) return [{ what: "email", changed: false }];
+    if (!conversationId) return [{ what: "email", changed: false, ...mailbox }];
     // The same hold the intake would have raised, in words that say what
     // actually happened rather than blaming the receptionist for not answering.
     const flagged = await upsertEscalation(db, job.tenant_id, conversationId, "email_review", EMAIL_UNFINISHED);
-    return [{ what: "email", changed: true, flagged }];
+    return [{ what: "email", changed: true, flagged, ...mailbox }];
   }
 
   if (job.kind === "broadcast_send") {
@@ -272,6 +321,12 @@ export function saySettled(results: Settled[]): string | null {
       lines.push(`The broadcast could not be handed to a fresh run (${r.notResumed}), so it has been marked failed; the ${r.reached ?? "people"} it had already reached still got it${typeof r.remaining === "number" ? `, and ${r.remaining} did not` : ""}.`);
     } else if (r.changed && r.what === "email") {
       lines.push("The email it was taking in is in the Inbox and flagged for a person, so nobody has to find it.");
+    } else if (r.what === "email") {
+      // Nothing was stored, so there is no thread this could be held against:
+      // the mailbox is the only place in the product it can be said at all.
+      lines.push(r.mailbox === "marked"
+        ? "The email it was taking in was never stored, so there is no thread to flag; the workspace's mailbox now says an email could not be taken in."
+        : "The email it was taking in was never stored, so there is nothing to flag for a person.");
     } else if (r.changed) {
       lines.push(r.what === "message"
         ? "The message has been marked failed, so it is no longer shown as on its way."

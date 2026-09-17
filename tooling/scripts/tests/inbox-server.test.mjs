@@ -115,7 +115,7 @@ test("a send job that died flags the thread for a person, as a failed delivery d
   assert.equal(escalations.length, 1, "a message that had already gone out is not a failure");
 });
 
-test("an email intake that died leaves the email flagged for a person, and says nothing about one it never stored", async () => {
+test("an email intake that died leaves the email flagged for a person, and marks the mailbox whether or not there is a thread", async () => {
   // The deadman sweep used to cover this by accident and wrongly -- it claimed
   // the row, called it a receptionist that never answered, and marked it
   // handled, after which the retrying job read `processed` and stopped. It no
@@ -126,20 +126,36 @@ test("an email intake that died leaves the email flagged for a person, and says 
     { id: "m1", tenant_id: A, conversation_id: uuid(3), channel: "email", external_id: "rcv_stored", status: "received" },
   ];
   const escalations = [];
-  const db = fakeDb({ messages, escalations });
+  const mailboxes = [{ id: "mb-1", tenant_id: A, local_part: "bestmovers", from_name: "Best Movers", last_received_at: null, last_error: null }];
+  const db = fakeDb({ messages, escalations, mailboxes });
   const intake = (receivedId) => ({ id: `job-${receivedId}`, kind: "email_ingest", tenant_id: A, payload: { mailbox_id: "mb-1", received_id: receivedId } });
 
-  assert.deepEqual(await settleJob(db, intake("rcv_stored"), true), [{ what: "email", changed: true, flagged: "opened" }]);
+  assert.deepEqual(await settleJob(db, intake("rcv_stored"), true), [{ what: "email", changed: true, flagged: "opened", mailbox: "marked" }]);
   assert.equal(escalations.length, 1);
   assert.deepEqual([escalations[0].conversation_id, escalations[0].reason], [uuid(3), "email_review"]);
   assert.match(escalations[0].details, /could not be taken in/);
   assert.match(escalations[0].details, /reply from the Inbox/i, "what the person is to do, not who to blame");
 
-  // Died before it stored anything: there is no thread to flag, and the job's
-  // own alert is then the true and only signal. Inventing a hold here would
-  // mean inventing a conversation to hang it on.
-  assert.deepEqual(await settleJob(db, intake("rcv_never_stored"), true), [{ what: "email", changed: false }]);
+  // Died before it stored anything: there is no thread to flag, and inventing
+  // a hold would mean inventing a conversation to hang it on. The MAILBOX is
+  // there either way, so that is where it is said -- and it is what the owner
+  // reads on Connections.
+  mailboxes[0].last_error = null;
+  assert.deepEqual(await settleJob(db, intake("rcv_never_stored"), true), [{ what: "email", changed: false, mailbox: "marked" }]);
   assert.equal(escalations.length, 1, "nothing invented");
+  assert.match(mailboxes[0].last_error, /could not be taken in/);
+  assert.doesNotMatch(mailboxes[0].last_error, /job|lease|error/i, "a sentence for the owner, never the job's own reason");
+
+  // The job says which mailbox; a mailbox that is not this workspace's is not
+  // marked, and does not report that it was.
+  assert.deepEqual(await settleJob(db, { ...intake("rcv_never_stored"), tenant_id: uuid(9) }, true),
+    [{ what: "email", changed: false, mailbox: "gone" }]);
+  assert.deepEqual(await settleJob(db, { ...intake("rcv_never_stored"), payload: { received_id: "rcv_never_stored" } }, true),
+    [{ what: "email", changed: false }], "a job naming no mailbox speaks for none");
+
+  // A mailbox that could not be written costs nobody their escalation.
+  const hurt = fakeDb({ messages, escalations: [], mailboxes }, { "mailboxes.update": { message: "deadlock detected" } });
+  assert.deepEqual(await settleJob(hurt, intake("rcv_stored"), true), [{ what: "email", changed: true, flagged: "opened", mailbox: "failed" }]);
 
   assert.deepEqual(await settleJob(db, { ...intake("x"), payload: { mailbox_id: "mb-1" } }, true),
     [{ what: "email", changed: false, error: "no received_id on the job" }]);
