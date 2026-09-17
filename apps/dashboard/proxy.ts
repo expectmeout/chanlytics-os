@@ -103,6 +103,9 @@ export async function proxy(request: NextRequest) {
   // still found no script nonced in production, so the nonce rides under the
   // name Next reads first as well; the browser sees only the response header.
   requestHeaders.set("content-security-policy", csp);
+  // The documented custom header too, so the render can tell a header the
+  // platform dropped by name from an override that never arrived at all.
+  requestHeaders.set("x-nonce", nonce);
   const nextWithPolicy = () => {
     const r = NextResponse.next({ request: { headers: requestHeaders } });
     r.headers.set(CSP_HEADER, csp);
