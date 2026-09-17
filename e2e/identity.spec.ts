@@ -27,10 +27,12 @@ test.describe("identity on a real workspace", () => {
       // the assertion that follows would otherwise read "Expected 400,
       // Received 429" and send whoever is on the failure hunting a validation
       // bug that does not exist.
-      expect(
-        r.status,
+      // Not a failure of the product but of the run's timing, so the spec steps aside with the reason rather
+      // than painting the night red: four nightlies inside one hour did exactly that on 17 September 2026.
+      test.skip(
+        r.status === 429,
         "rate limited: profile_set allows 10 name changes an hour and this spec spends 4 per run, so the suite cannot judge the product when it is run repeatedly inside that window",
-      ).not.toBe(429);
+      );
       return r;
     };
     try {
