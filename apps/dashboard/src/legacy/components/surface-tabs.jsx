@@ -21,10 +21,17 @@ const ST_GROUPS = {
       // the demo keeps the seeded Segments page behind the seeded rail's own doors.
     ],
   },
-  conversations: {
-    match: ["conversations", "live"],
+  // One door over one table. inboxOverride and conversationsOverride both read
+  // GET conversations (surface-data.ts:261, :400) — the Inbox is the subset that
+  // waits on a decision, Conversations is all of them plus the calls. They were
+  // two nav items, so an owner who could not tell them apart checked both.
+  inbox: {
+    match: ["inbox", "conversations", "live"],
     tabs: [
-      { id: "conversations", label: "All", to: "conversations" },
+      // The same count the sidebar badge and the phone tab show, from the one
+      // rule that owns it (ixWaitsOnYou) — never a second reading of it.
+      { id: "inbox", label: "Needs you", to: "inbox", badge: () => (window.sbNeedsCount ? window.sbNeedsCount() : 0) || null, tip: "Waiting on a decision from you" },
+      { id: "conversations", label: "Conversations", to: "conversations", tip: "Every chat and call, answered or not" },
       // pulse is demo-only: it advertised a call in progress for an invented
       // caller, always on, beside the REAL Conversations tab.
       // With the bridge running the pulse is the real thing: a call in
@@ -63,7 +70,9 @@ const ST_GROUPS = {
 const SurfaceTabs = ({ page, param, onNavigate }) => {
   const [, stBump] = React.useReducer(n => n + 1, 0);
   React.useEffect(() => {
-    const evs = ["live:ended", "surface:live", "inbox:decisions", "leads:verdict"];
+    // inbox:counts too: the Needs-you tab carries the badge, and the count moves
+    // when Today publishes the real one or a decision lands.
+    const evs = ["live:ended", "surface:live", "inbox:counts", "inbox:decisions", "leads:verdict"];
     evs.forEach(e => window.addEventListener(e, stBump));
     return () => evs.forEach(e => window.removeEventListener(e, stBump));
   }, []);

@@ -433,7 +433,7 @@ test("REGRESSION (A7): a link to a chat opens that chat -- the shell handed the 
   try {
     const chat = pageAt("#/conversations/c-9");
     assert.equal(chat.props.initialId, "c-9", "REGRESSION: a chat's id was dropped, and the page opened someone else's");
-    assert.equal(chat.title, "Rosa Díaz · Conversations · Chanlytics");
+    assert.equal(chat.title, "Rosa Díaz · Conversations · Inbox · Chanlytics", "Conversations is a view of the Inbox, so the trail says so");
     assert.equal(pageAt("#/conversations/cv-4").props.initialId, "cv-4", "a call's id still opens it");
     const phone = pageAt("#/conversations/phone").props;
     assert.deepEqual([phone.channel, phone.initialId], ["phone", null], "a channel is a filter, not an id");
@@ -612,6 +612,42 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
   } finally {
     delete win.__DEMO_MODE;
   }
+});
+
+test("Conversations and Live are views of the Inbox: the strip is drawn over all three, the rail lights one item, and the trail starts at the Inbox", () => {
+  win.INBOX_DATA = { THREADS: [] };
+  win.ixRouteThread = (id) => ({ id, who: null });
+  globalThis.ConversationsPage = "ConversationsPage";
+  globalThis.LiveMonitorPage = "LiveMonitorPage";
+  const at = (hash) => {
+    const { tree, title } = mount(hash);
+    return {
+      title,
+      tabs: find(tree, (n) => n.type === "SurfaceTabs"),
+      nav: find(tree, (n) => n.type === "Sidebar").props.active,
+    };
+  };
+
+  const inbox = at("#/inbox");
+  assert.equal(inbox.nav, "inbox");
+  assert.equal(inbox.tabs.props.page, "inbox", "REGRESSION: the strip skipped the Inbox, so its views had no way back to it");
+
+  const all = at("#/conversations");
+  assert.equal(all.nav, "conversations", "the shell still names the route");
+  assert.equal(all.tabs.props.page, "conversations");
+  assert.equal(all.title, "Conversations · Inbox · Chanlytics", "REGRESSION: the trail led with Conversations, a place the nav no longer has");
+
+  const calls = at("#/conversations/phone");
+  assert.equal(calls.title, "Calls · Conversations · Inbox · Chanlytics", "a channel is a view of a view");
+
+  const live = at("#/live");
+  assert.equal(live.nav, "live");
+  assert.equal(live.tabs.props.page, "live");
+  assert.equal(live.title, "Live · Inbox · Chanlytics", "REGRESSION: Live hung off a nav item that is gone");
+
+  delete win.ixRouteThread;
+  delete globalThis.ConversationsPage;
+  delete globalThis.LiveMonitorPage;
 });
 
 test("a list's own route lands on People with that list picked, and the address is replaced so Back leaves People -- the Lists page folded into People", () => {

@@ -11,10 +11,16 @@ const NAV_PRIMARY = [
   { id: "inbox",    icon: "inbox",    label: "Inbox",       urgent: true },
 ];
 
-// Flat nav — merged surfaces are views (SurfaceTabs), not places
+// Flat nav — merged surfaces are views (SurfaceTabs), not places.
+//
+// Conversations is NOT an item here. It and the Inbox read the SAME table:
+// surface-data.ts inboxOverride (:261) and conversationsOverride (:400) each
+// await read("GET conversations") — the Inbox joins escalations, Conversations
+// joins calls. Two nav items over one dataset asked the owner to guess which
+// one held a message, so they checked both. One door, three views, in the
+// SurfaceTabs strip: Needs you · Conversations · Live.
 const NAV_WORK = [
   { id: "people",        icon: "users",    label: "People" },
-  { id: "conversations", icon: "chat",     label: "Conversations" },
   { id: "calendar",      icon: "calendar", label: "Calendar" },
   { id: "campaigns",     icon: "bolt",     label: "Campaigns" },
 ];
@@ -368,7 +374,8 @@ const Sidebar = ({
   // Route id -> flat nav id (merged surfaces highlight their group)
   const groupMap = {
     people: ["clients", "leads", "segments", "pipeline"],
-    conversations: ["conversations", "live", "calls", "chats", "email"],
+    // Conversations and Live highlight the Inbox: they are its views, not their own place.
+    inbox: ["inbox", "conversations", "live", "calls", "chats", "email"],
     campaigns: ["outbound", "content", "broadcasts", "messages"],
     agents: ["fleet", "store", "studio", "tasks"],
   };
