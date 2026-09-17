@@ -18,7 +18,7 @@ import { agoWords, timezoneCity } from "./time";
  */
 import { DAYS, hoursRuns, type BookingRules, type Closure, type Hours } from "./config";
 import { waWindow } from "./policy";
-import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, localToUtcMs, offerFor, type BookingRulesLike } from "./availability";
+import { BOOKING_DEFAULTS, clockInZone, closedOn, dayInZone, dayIntervals, dayPlusInZone, localToUtcMs, offerFor, type BookingRulesLike } from "./availability";
 import type { MatchVia } from "./calendar-people";
 import type { FeedFailure } from "./feed-url";
 import { formatPhoneDisplay } from "./phone";
@@ -472,7 +472,7 @@ export function toCalendarVM(dto: CalendarWeekDto, now = new Date()): CalendarVM
   // How far ahead the receptionist offers: the days freeWindows walks, today and max_days_ahead - 1 after it.
   // A day past the last of them has no open times however free it is, and says so rather than looking booked (C1).
   const offerDays = { ...BOOKING_DEFAULTS, ...(dto.rules ?? {}) }.max_days_ahead;
-  const offerUntil = dayInZone(tz, nowMs + (offerDays - 1) * 86_400_000).key;
+  const offerUntil = dayPlusInZone(tz, nowMs, offerDays - 1).key;
 
   // The grid's hours: the business's own, an hour of air on each side.
   let start = 24;

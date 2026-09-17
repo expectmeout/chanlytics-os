@@ -12,6 +12,7 @@
 import type { SchemaSet } from "./schema-sets";
 import { z } from "zod";
 import type { NotificationItem } from "./notifications";
+import { dayPlusInZone } from "./availability";
 
 /* ------------------------------------------------------------------ limits */
 
@@ -761,7 +762,13 @@ function dayKey(atMs: number, tz: string | null | undefined): string {
 
 /** The day a question names: a weekday key, "today"/"tomorrow" as a date, or nothing. */
 export function dayFromQuestion(q: string, now: number, tz?: string | null): string | null {
-  if (/\b(tomorrow|mañana)\b/i.test(q)) return dayKey(now + 86_400_000, tz);
+  // Tomorrow is the next DAY, which is not "now plus 24 hours" on the two
+  // days a year the clock moves (availability dayPlusInZone). A zone we
+  // cannot use falls back the way dayKey does.
+  if (/\b(tomorrow|mañana)\b/i.test(q)) {
+    try { if (tz) return dayPlusInZone(tz, now, 1).key; } catch { /* an unusable zone falls through */ }
+    return dayKey(now + 86_400_000, tz);
+  }
   if (/\b(today|hoy)\b/i.test(q)) return dayKey(now, tz);
   for (const [re, key] of DAY_WORDS) if (re.test(q)) return key;
   return null;

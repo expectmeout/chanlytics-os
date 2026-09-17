@@ -108,6 +108,43 @@ export function dayInZone(tz: string, atMs: number): { key: string; weekday: str
   return { key: `${p.y}-${pad(p.m)}-${pad(p.d)}`, weekday: p.weekday, y: p.y, m: p.m, d: p.d };
 }
 
+/** Days since epoch for a calendar date, for stepping and week arithmetic. */
+const dayNumber = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 86400000);
+
+/** The weekday keys in the order getUTCDay() numbers them, which is Sunday first. */
+const WEEKDAY_KEYS = ["sun", "mon", "tue", "wed", "thu", "fri", "sat"] as const;
+
+/**
+ * The local day `days` after the one `atMs` falls on -- BY THE CALENDAR, not by
+ * the clock.
+ *
+ * THE DEFECT THIS EXISTS FOR. Every one of these used to be written as
+ * `dayInZone(tz, now + n * 86_400_000)`: add a fixed number of milliseconds,
+ * then ask which local day that landed on. Two days a year that is not the
+ * next day. On 8 March 2026 New York loses an hour, so a customer asking at
+ * 23:30 the night before was offered 9 March next and **8 March was never
+ * offered at all**; on 1 November it gains one, so a read at 00:30 emitted
+ * 1 November twice and lost a day off the far end of the horizon. Nobody sees
+ * an error: the receptionist simply says the wrong days out loud.
+ *
+ * A calendar day is a count of days, so it is counted in days. The date is
+ * read in the business's zone, stepped over UTC midnights (which never shift),
+ * and handed back as a date -- no instant is carried across the boundary, so
+ * there is nothing for an hour to move. The RRULE expander below has always
+ * stepped this way, which is why a weekly appointment stays at 2 PM across a
+ * change and the offered days did not. `calendar.ts shiftKey` is the twin that
+ * steps a DATE to a date; this is the one that starts from an instant, which
+ * is where reading "now" went wrong.
+ */
+export function dayPlusInZone(tz: string, atMs: number, days: number): { key: string; weekday: string; y: number; m: number; d: number } {
+  const from = dayInZone(tz, atMs);
+  if (days === 0) return from;
+  const at = new Date((dayNumber(from.y, from.m, from.d) + days) * 86400000);
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const y = at.getUTCFullYear(), m = at.getUTCMonth() + 1, d = at.getUTCDate();
+  return { key: `${y}-${pad(m)}-${pad(d)}`, weekday: WEEKDAY_KEYS[at.getUTCDay()], y, m, d };
+}
+
 /* ------------------------------------------------------------ the feed */
 
 /** iCal TEXT escapes: \, \; \n and \\. */
@@ -240,9 +277,6 @@ function parseRule(value: string, fallbackTz: string): Rule | null {
   }
   return { freq, interval, count: count && count > 0 ? count : null, until, byday, bymonthday };
 }
-
-/** Days since epoch for a calendar date, for stepping and week arithmetic. */
-const dayNumber = (y: number, m: number, d: number) => Math.floor(Date.UTC(y, m - 1, d) / 86400000);
 
 /**
  * The occurrences of a recurring event, as [start, end] instants inside the
@@ -526,8 +560,7 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
   const busy = input.busy.map((b) => ({ start: b.start - bufferMs, end: b.end + bufferMs })).sort((a, b) => a.start - b.start);
   const out: Opening[] = [];
   for (let offset = 0; offset < rules.max_days_ahead; offset++) {
-    const at = input.now.getTime() + offset * 86400_000;
-    const day = dayInZone(input.tz, at);
+    const day = dayPlusInZone(input.tz, input.now.getTime(), offset);
     if (closedOn(input.closures, day.key)) continue;
     const ranges = dayIntervals(input.hours?.[day.weekday]);
     const windows: Array<{ start: number; end: number }> = [];
@@ -548,7 +581,11 @@ export function freeWindows(input: FreeWindowsInput): Opening[] {
       out.push({
         key: day.key,
         weekday: day.weekday,
-        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" }).format(new Date(at)),
+        // Noon on that local day: an instant the day owns whichever way the
+        // clock moved, where midnight on a spring-forward day may not exist
+        // and 1 AM on an autumn one happens twice.
+        label: new Intl.DateTimeFormat("en-US", { timeZone: input.tz, weekday: "long", month: "long", day: "numeric" })
+          .format(new Date(localToUtcMs(input.tz, day.y, day.m, day.d, 12, 0))),
         windows,
       });
     }
