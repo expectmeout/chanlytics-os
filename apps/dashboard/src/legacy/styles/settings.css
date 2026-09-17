@@ -313,6 +313,10 @@
   border-radius: var(--radius-sm);
 }
 .act-row:hover { background: var(--bg-hover); }
+/* The time clears 4.5 on a card, and the hover tint under it costs 0.5 of
+   that. It darkens with the row it belongs to rather than the tint being
+   watered down: the row a pointer is on is the one worth reading anyway. */
+.act-row:hover .act-when { color: var(--ink-muted); }
 /* One segment of spine per row: contiguous rows draw a line, and the heading
    that opens the next day leaves the gap between them. No row hairlines --
    the spine is what separates a log, and both at once is a cage. */
