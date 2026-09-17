@@ -70,8 +70,8 @@ Stages 1–5 are the *way in*, and each channel built its own. Stage 10 is the *
 | **7 Answer** | brain + `steps.ts` layer two + hold plan | identical, plus the A2P footer | the Retell agent, live on the call | **never** — by design, until the drafting slice |
 | **8 Hold** | `upsertEscalation` | same | same (`callback`, `policy_block`) | same (`email_review`), and it **throws** if the flag fails so the job retries |
 | **9 Act** | none — the model pastes the booking URL into its words | same | four tools: `check_availability`, `send_booking_link`, `transfer_to_staff`, `end_call` | none |
-| **10 Deliver** | `deliver()` | `deliver()` | `deliver()`, after the second gate | typed for it; **no caller constructs an email `Delivery`** |
-| **11 Account** | receipts inline, 200 always | own signed door, **503** so Twilio redelivers | cron sweeps re-ingest and re-fetch | **nothing** — only `email.received` is recognised |
+| **10 Deliver** | `deliver()` | `deliver()` | `deliver()`, after the second gate | `deliver()`, with the frozen request read at the wire |
+| **11 Account** | receipts inline, 200 always | own signed door, **503** so Twilio redelivers | cron sweeps re-ingest and re-fetch | all seven receipt types, inline at the same door |
 
 Three things fall out of that table.
 
@@ -79,7 +79,7 @@ Three things fall out of that table.
 
 **The way in was built four times.** Three of the four now have the door/judgement split — a route that is only the wire, and a pure function that decides. WhatsApp, the oldest and busiest, is the one that never got it.
 
-**Email is the best-designed channel and the least finished.** Its intake is a correct rewrite of everything SMS learned the hard way. Its outbound half is architecture with no caller: on `main`, `buildEmailRequest` and `hostedIdentity` are written, tested, and reached by nothing.
+**Email is the best-designed channel, and it is now finished in code.** *(Corrected: this paragraph said its outbound half was "architecture with no caller". That stopped being true while this document sat still.)* `buildEmailRequest` and `hostedIdentity` are called from `apps/dashboard/src/server/email.ts:35`; receipts, suppression writes, the mailbox doors, the Setup row, the Connections card and the Inbox composer all landed. For a contact with an address and no number the whole chain has a caller — arrives, stored, flagged, shown, answered, sent, accounted for. What is left is not code: `EMAIL_DOMAIN` and `RESEND_WEBHOOK_SECRET` are unset in production, so none of it has ever run.
 
 ---
 
@@ -150,7 +150,7 @@ Ranked by what it costs a real customer conversation. Each names the evidence, w
 
 ### Severity 1 — a customer is failed today
 
-**G1. The voice booking link works on one workspace.** `booking_link_v1` is inserted by `supabase/migrations/00004_inbox.sql:63` for `where slug = 'melanys-beauty-salon'` and nowhere else. It is not in the starter library (`packages/contracts/src/template-library.ts` ships seven templates; this is not one) and `00017_provision_tenant.sql` does not create it. `retell-fn.ts` sends that template name regardless, and `deliver()` on this path never checks `templates.meta_status`.
+**G1. ✅ The voice booking link works on one workspace.** `booking_link_v1` is inserted by `supabase/migrations/00004_inbox.sql:63` for `where slug = 'melanys-beauty-salon'` and nowhere else. It is not in the starter library (`packages/contracts/src/template-library.ts` ships seven templates; this is not one) and `00017_provision_tenant.sql` does not create it. `retell-fn.ts` sends that template name regardless, and `deliver()` on this path never checks `templates.meta_status`.
 *What happens:* on every workspace but the salon's, a caller asks for the booking link, Meta rejects an unregistered template, and the agent says **"that number may not have WhatsApp"** — naming the wrong cause to a customer who is on the phone. The core promise of the phone receptionist does not work for a new customer.
 *Fix:* add it to the starter library and seed it in `provision_tenant`, or make `send_booking_link` refuse with an honest sentence when the template is not approved for this workspace.
 

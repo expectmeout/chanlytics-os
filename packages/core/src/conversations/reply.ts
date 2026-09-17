@@ -247,7 +247,7 @@ export async function replyToConversation(ports: ReplyPorts, cmd: ReplyCommand):
     if (phone) await ports.pauseBot(conv.tenant_id, phone, 0);
     throw new AppError("conflict", "Could not take this thread over just now, so nothing was sent. Try again.", 409);
   }
-  // Who is speaking now (00130), taken before the drafts go: the wire asks
+  // Who is speaking now (00132), taken before the drafts go: the wire asks
   // this, and between the claim and the withdrawal a draft can still reach it.
   await ports.takeControl(conv.tenant_id, conv.id, cmd.userId, Math.min(PERSON_CONTROL_MAX_S, Math.max(1, Math.round((pauseUntil - now) / 1000))));
   // The operator is REPLACING the receptionist's held reply, not queueing

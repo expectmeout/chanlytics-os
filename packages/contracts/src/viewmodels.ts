@@ -79,8 +79,8 @@ export function isOptedOut(dto: Pick<ConversationDto, "contact">): boolean {
 export interface ConversationMessageVM {
   from: "client" | "agent";
   /** Where it happened. A call note is not a WhatsApp bubble, and the
-   *  viewer must not draw it as one. */
-  channel: "whatsapp" | "phone";
+   *  viewer must not draw it as one -- and neither is a text or an email. */
+  channel: "whatsapp" | "sms" | "email" | "phone";
   at: string;
   text: string;
   /** The attachment, when the message is one. */
@@ -133,7 +133,8 @@ export interface ConversationVM {
   threadId: string;
   /** Who sent the last message that reached them, when it was ours; null when they wrote last. */
   answeredBy: MessageAuthor["kind"] | null;
-  channel: "whatsapp";
+  /** The wire this conversation's words travelled: the last written one, or the phone when that is all there is. */
+  channel: "whatsapp" | "sms" | "email" | "phone";
   agent: { glyph: string; name: string };
   at: string;
   outcome: "escalated" | "handled" | "open";
@@ -878,7 +879,12 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
   // two had been canceled before it ever left.
   const msgs = dto.messages.map((m): ConversationMessageVM => ({
     from: m.sender === "customer" ? "client" : "agent",
-    channel: m.type === "call_summary" ? "phone" : "whatsapp",
+    // The row's own channel, not an assumption. Every bubble on this surface
+    // was drawn as WhatsApp -- so a text conversation, live since the SMS
+    // channel shipped, has been labelled WhatsApp on the Conversations page
+    // this whole time, and an email one would be too. The Inbox has read the
+    // column since I1 (toInboxThreadVM); these two view models had drifted.
+    channel: m.type === "call_summary" ? "phone" : writtenChannelOf(m.channel),
     at: bubbleTime(messageAt(m), tz, now),
     text: messageText(m),
     ...(mediaVM(m) ? { media: mediaVM(m) as MediaVM } : {}),
@@ -926,7 +932,12 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     // The Inbox's id for this conversation (toInboxThreadVM): the door from a transcript to its thread.
     threadId: `th-${dto.id}`,
     answeredBy: lastAuthor ? lastAuthor.kind : null,
-    channel: "whatsapp",
+    // The wire the conversation's last written words travelled. A thread with
+    // nothing but a call note is the phone, which is what it looks like.
+    channel: (() => {
+      const written = [...dto.messages].reverse().find((m) => m.type !== "call_summary");
+      return written ? writtenChannelOf(written.channel) : "phone";
+    })(),
     agent: AGENT,
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a

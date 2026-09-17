@@ -327,7 +327,7 @@ export async function POST(request: Request): Promise<Response> {
           if (msgId) await linkCallMessage(db, routed.tenantId, res.call_id, msgId);
         }
 
-        // The hold this call has on the caller's thread (00130), taken at the
+        // The hold this call has on the caller's thread (00132), taken at the
         // inbound door so the text receptionist does not answer the same person
         // while they are on the phone. A call that is over lets it go; a call
         // still running renews it, which is what keeps a long one from lapsing

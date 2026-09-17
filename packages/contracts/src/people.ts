@@ -213,6 +213,8 @@ const REASON_SHORT: Record<string, string> = {
   state_unavailable: "memory was unavailable",
   stale: "message arrived late",
   callback: "needs a call back",
+  budget: "the day’s model budget is spent",
+  paused: "billing is paused",
 };
 
 export function reasonShort(reason: string | null | undefined): string {

@@ -34,7 +34,7 @@ export function threadPorts(ctx: RouteContext): ThreadPorts {
     wake: (id) => changed(ctx.supabase.from("conversations").update({ state: "open", snooze_until: null }).eq("id", id).eq("state", "snoozed").select("id")),
     archive: (id) => changed(ctx.supabase.from("conversations").update({ state: "archived", paused_until: null, assignee_user_id: null }).eq("id", id).select("id")),
     // Control is written by the service role -- the column grant fences these
-    // columns off from a member's own session (00130), exactly as it fences the
+    // columns off from a member's own session (00132), exactly as it fences the
     // ledger -- so it goes the way scheduling a job goes.
     takeControl: (tenantId, id, userId, seconds) => takeThreadControl(tenantId, id, userId, seconds),
     letControlGo: (tenantId, id, userId) => letThreadControlGo(tenantId, id, userId),

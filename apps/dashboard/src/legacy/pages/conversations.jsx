@@ -5,8 +5,11 @@
 
 const { useState: useCvState, useMemo: useCvMemo, useEffect: useCvEffect } = React;
 
-const CV_ICON = { phone: "phone", sms: "chat", whatsapp: "chat", instagram: "instagram", mail: "mail" };
-const CV_LABEL = { phone: "Phone", sms: "SMS", whatsapp: "WhatsApp", instagram: "Instagram", mail: "Email" };
+// Keyed on what the view model says (writtenChannelOf): "email", not "mail".
+// The maps carried "mail" while nothing ever sent it, so the day a real email
+// conversation arrived it would have fallen through to the default glyph.
+const CV_ICON = { phone: "phone", sms: "chat", whatsapp: "chat", instagram: "instagram", email: "mail" };
+const CV_LABEL = { phone: "Phone", sms: "Text", whatsapp: "WhatsApp", instagram: "Instagram", email: "Email" };
 
 // The row's outcome as the one pill draws it. The words a page knows better
 // stay here (which channel answered, what you chose); the tones are the map's,
@@ -412,8 +415,11 @@ const CvViewer = ({ c, onBack = null, notice = null }) => {
               <div key={i} className={`tl-msg ${m.from === "client" ? "client" : "agent"}${m.channel === "phone" ? " note" : ""}${m.reachedCustomer === false ? " undelivered" : ""}`}>
                 <div className="tl-msg-bubble">
                   <div className="tl-msg-meta">
-                    <Icon name={m.channel === "phone" ? "phone" : CV_ICON[c.channel]} size={10} />
-                    <span>{m.channel === "phone" ? "Phone · call note" : CV_LABEL[c.channel]}</span>
+                    {/* The MESSAGE's own wire, not the conversation's: one thread
+                        carries a person's WhatsApp and their email, and each bubble
+                        says which it was. */}
+                    <Icon name={m.channel === "phone" ? "phone" : CV_ICON[m.channel] ?? CV_ICON[c.channel]} size={10} />
+                    <span>{m.channel === "phone" ? "Phone · call note" : CV_LABEL[m.channel] ?? CV_LABEL[c.channel]}</span>
                     <span className="tl-msg-time tabular">{m.at}</span>
                     {/* Who sent it, in the words the Inbox says (contracts messageAuthor). */}
                     {m.by && <span className="cv-msg-status">· by {m.by}</span>}

@@ -36,7 +36,7 @@ export interface ThreadPorts {
   /** archived; pause and assignee cleared. True iff a row changed. */
   archive(conversationId: string): Promise<boolean>;
   /**
-   * The live hold on the thread, taken for this person (00130).
+   * The live hold on the thread, taken for this person (00132).
    *
    * Apart from `claim`, which records who is RESPONSIBLE: this says who is
    * speaking now, and it expires. A person's hold outranks a call's and is

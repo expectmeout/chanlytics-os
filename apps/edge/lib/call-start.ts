@@ -86,7 +86,7 @@ export interface CallStart {
   /**
    * The thread this caller already has, when they have one.
    *
-   * The door takes the live hold on it (00130) so the text receptionist does
+   * The door takes the live hold on it (00132) so the text receptionist does
    * not answer the same person on WhatsApp while they are on the phone with
    * us. A first-time caller has no thread yet -- readLeadContext is read-only
    * on purpose -- so there is nothing to hold and nothing to collide with.

@@ -84,7 +84,7 @@ export async function POST(request: Request): Promise<Response> {
     ]).finally(() => clearTimeout(timer));
   }
 
-  // A call in progress holds the caller's thread (00130), so the text
+  // A call in progress holds the caller's thread (00132), so the text
   // receptionist does not answer the same person on WhatsApp while they are on
   // the phone with us -- two of our own agents, one customer, the same minute.
   // Only a caller we already know has a thread to hold; a first-time caller has
