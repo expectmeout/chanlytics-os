@@ -15,8 +15,8 @@ import {
   platformRows, platformSummary, platformNumber, setupSteps,
   platformLineActions, platformActionWarning,
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, platformHealthWords, activityWords,
-  clockTime, clockDateYear, clockDayLabel, zoneDayKey,
-  type PlatformTenantDto, type SetupDto, type PlatformLineAction, type PlatformHealth,
+  platformQueue, clockTime, clockDateYear, clockDayLabel, zoneDayKey,
+  type PlatformTenantDto, type SetupDto, type PlatformLineAction, type PlatformHealth, type PlatformQueue,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { readCache } from "./read-cache";
@@ -38,17 +38,25 @@ export interface PlatformTenantDetail {
   events: PlatformEventVM[];
 }
 
-type OverviewAnswer = { ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; message: string };
+type OverviewAnswer = { ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; queue: PlatformQueue | null; message: string };
 type DetailAnswer = { ok: boolean; detail: PlatformTenantDetail | null; message: string };
 /** Both reads, kept for the tab: the list is re-read on every visit, and a workspace on every Open. */
 const overviews = readCache<OverviewAnswer>("platform-overview", (r) => r.ok);
 const details = readCache<DetailAnswer>("platform-detail", (r) => r.ok);
 
 export interface PlatformApi {
-  /** Every workspace, as facts, and whether the machinery under them is running. `ok: false` is the ordinary answer for anybody who is not an admin. */
-  list(): Promise<{ ok: boolean; tenants: PlatformTenantDto[]; health: PlatformHealth | null; message: string }>;
+  /** Every workspace, as facts, whether the machinery under them is running, and who is waiting to get in. `ok: false` is the ordinary answer for anybody who is not an admin. */
+  list(): Promise<OverviewAnswer>;
   /** One sentence for the health card. Pure, from contracts. */
   healthWords: typeof platformHealthWords;
+  /** The waiting list as rows and a sentence. Pure, from contracts. */
+  queue: typeof platformQueue;
+  /**
+   * Record that somebody on the list was invited. IT SENDS NOTHING: there is
+   * one shared sign-up code, so the invitation is a mail a person writes, and
+   * this is the stamp that takes them out of the queue.
+   */
+  markInvited(id: string): Promise<{ ok: boolean; message: string }>;
   /** One workspace: its identity, the Setup its owner sees, and what has happened lately. */
   one(tenantId: string): Promise<DetailAnswer>;
   /** What this tab already holds, if anything: what the first paint draws. */
@@ -103,11 +111,11 @@ export function installPlatform(win: Window = window): void {
   win.__platform = {
     list: () => overviews.through("all", async () => {
       const r = await api()("GET platform/overview");
-      if (!r.ok) return { ok: false, tenants: [], health: null, message: r.message };
+      if (!r.ok) return { ok: false, tenants: [], health: null, queue: null, message: r.message };
       // `health` rides on this read rather than a route of its own: the same
       // question, the same door, and the page that lists the workspaces is the
       // one that should say whether the machinery under them is running.
-      return { ok: true, tenants: r.data.tenants, health: r.data.health ?? null, message: "" };
+      return { ok: true, tenants: r.data.tenants, health: r.data.health ?? null, queue: r.data.queue ?? null, message: "" };
     }),
     one: (tenantId) => details.through(tenantId, async () => {
       const r = await api()("GET platform/tenants/[id]", { params: { id: tenantId } });
@@ -152,8 +160,21 @@ export function installPlatform(win: Window = window): void {
       }
       return { ok: true, message: "Done. This page will show it on the next read." };
     },
+    async markInvited(id) {
+      const r = await api()("POST platform/waitlist/invited", { body: { id } });
+      // Whether it was this press or somebody else's, the queue on screen is
+      // now one row out of date.
+      overviews.clear();
+      if (!r.ok) return { ok: false, message: r.message };
+      // "already" is not a failure: two people working down the same list is
+      // how this is used, and the second one is owed the truth.
+      return r.data.outcome === "already"
+        ? { ok: true, message: "Somebody had already marked them." }
+        : { ok: true, message: "Marked. They are off the list." };
+    },
     rows: platformRows,
     healthWords: platformHealthWords,
+    queue: platformQueue,
     words: activityWords,
     clock: { time: clockTime, dateYear: clockDateYear, dayLabel: clockDayLabel, dayKey: zoneDayKey },
     summary: platformSummary,

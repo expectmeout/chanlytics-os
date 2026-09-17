@@ -514,3 +514,101 @@ export function platformActionWarning(a: PlatformLineActionVM): string {
   const parts = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
   return parts.length ? parts.join(" ") : "Nothing is spent, and it can be done again.";
 }
+
+/* --------------------------------------------------------------- the queue
+ *
+ * People who asked for a workspace while sign-up was closed (00088). They are
+ * not customers and have no workspace, so they appear nowhere else in this
+ * product at all -- which is how a table with a writer and no reader went
+ * unnoticed long enough for the writer to be broken too.
+ *
+ * The queue is drained BY A PERSON, and the product sends nothing: there is one
+ * shared sign-up code, so an invitation is an email somebody writes. The row's
+ * stamp records that they did. Saying that plainly is the whole design: a
+ * button that looked like it sent something would leave people waiting for a
+ * mail nobody ever wrote.
+ */
+
+/** One person waiting, as the back office is told about them. */
+export interface WaitingPersonDto {
+  id: string;
+  email: string;
+  /** What they said they run. Optional on the form, so often null. */
+  business: string | null;
+  /** The page they came from, when it said. */
+  source: string | null;
+  created_at: string;
+}
+
+export interface PlatformQueue {
+  /** Oldest first: the order they are invited in. Null when the queue could not be READ, which is not an empty queue. */
+  waiting: WaitingPersonDto[] | null;
+  /** How many are waiting in total; the list above is capped. Null when it could not be read. */
+  total: number | null;
+}
+
+export interface WaitingRowVM {
+  id: string;
+  email: string;
+  /** "Melany's Beauty Salon · from the pricing page", or whichever half they gave. */
+  detail: string | null;
+  /** "asked 3d ago" */
+  waited: string;
+}
+
+export interface PlatformQueueVM {
+  rows: WaitingRowVM[];
+  /** One line for the card: how many, how long the first has waited, or that nobody is waiting. */
+  sentence: string;
+  /** True when the queue could not be read. An empty list and an unreadable one must never look the same. */
+  unreadable: boolean;
+  /** What the product does about any of this, said where the button is: nothing. */
+  note: string;
+}
+
+/**
+ * How many of the queue the page draws. A hundred is more than a person works
+ * through in a sitting, and the sentence says how many there are in total, so
+ * the cap costs nobody a fact -- only a scroll.
+ */
+export const QUEUE_SHOWN = 100;
+
+/** Said next to the only action there is, because the action is not what it looks like. */
+export const QUEUE_SENDS_NOTHING =
+  "Chanlytics sends no invitations. Write to them yourself, then mark it here so the queue moves.";
+
+/** Where they came from, in as few words as the row gave us. */
+function waitingDetail(r: WaitingPersonDto): string | null {
+  const from = r.source ? sourceWords(r.source) : null;
+  return [r.business?.trim() || null, from].filter(Boolean).join(" · ") || null;
+}
+
+/** A referer is a URL; what is worth reading off it is the host and the path, and never the query. */
+function sourceWords(source: string): string | null {
+  const s = source.trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    const path = u.pathname.replace(/\/+$/, "");
+    return `from ${u.host}${path && path !== "/" ? path : ""}`;
+  } catch {
+    return `from ${s.slice(0, 60)}`;
+  }
+}
+
+export function platformQueue(q: PlatformQueue, nowMs = Date.now()): PlatformQueueVM {
+  const note = QUEUE_SENDS_NOTHING;
+  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
+  const rows = q.waiting.map((r) => ({
+    id: r.id,
+    email: r.email,
+    detail: waitingDetail(r),
+    waited: `asked ${agoWords(Date.parse(r.created_at), nowMs)}`,
+  }));
+  const total = q.total ?? rows.length;
+  const oldest = q.waiting[0];
+  const sentence = total === 0
+    ? "Nobody is waiting."
+    : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` · showing the first ${rows.length}` : ""}.`;
+  return { rows, sentence, unreadable: false, note };
+}

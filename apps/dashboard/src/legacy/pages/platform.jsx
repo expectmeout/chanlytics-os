@@ -201,6 +201,50 @@ const PlatformDetail = ({ detail, onClose, onChanged, flash }) => {
   );
 };
 
+/**
+ * One person waiting. The only action arms first, like every other action on
+ * this page -- and unlike them it is not undoable from here, so a mis-click
+ * leaves somebody waiting for a mail nobody will write.
+ */
+const WaitingRow = ({ row, P, onDone, flash }) => {
+  const [arm, setArm] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const run = async () => {
+    setBusy(true);
+    const r = await Promise.resolve().then(() => P.markInvited(row.id)).catch(() => ({ ok: false, message: "That did not go through." }));
+    setBusy(false);
+    setArm(false);
+    flash({ tone: r.ok ? "ok" : "danger", msg: <>{r.message}</> });
+    if (r.ok) onDone();
+  };
+  return (
+    <div className="set-row" data-testid="platform-queue-row">
+      <div className="set-row-info">
+        <span className="set-row-label">{row.email}</span>
+        <span className="set-row-hint">{[row.detail, row.waited].filter(Boolean).join(" · ")}</span>
+        {arm && (
+          <Confirm
+            block
+            question="Mark them as invited?"
+            detail="Nothing is sent. This only records that somebody wrote to them, and takes them off the list."
+            yes="Yes, mark them"
+            no="Not now"
+            busy={busy}
+            onYes={run}
+            onNo={() => setArm(false)}
+            testid="platform-queue-invited"
+          />
+        )}
+      </div>
+      {!arm && (
+        <button className="btn btn-sm" onClick={() => setArm(true)} disabled={busy} data-testid="platform-queue-mark">
+          Mark as invited
+        </button>
+      )}
+    </div>
+  );
+};
+
 const PanePlatform = () => {
   const P = React.useMemo(() => window.__platform, []);
   const [toastNode, flash] = window.usePPToast();
@@ -208,6 +252,7 @@ const PanePlatform = () => {
   const held = P && P.peekList ? P.peekList() : null;
   const [tenants, setTenants] = React.useState(held && held.ok ? held.tenants : null);
   const [health, setHealth] = React.useState(held && held.ok ? held.health : null);
+  const [queue, setQueue] = React.useState(held && held.ok ? held.queue : null);
   const [problem, setProblem] = React.useState(null);
   const [find, setFind] = React.useState("");
   const [openId, setOpenId] = React.useState(null);
@@ -223,10 +268,11 @@ const PanePlatform = () => {
     // A read that throws is a failed read like any other, not a page left reading for ever.
     const r = await Promise.resolve().then(() => P.list()).catch(() => ({ ok: false, message: "" }));
     setBusy(false);
-    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); return; }
+    if (!r.ok) { setProblem(r.message || "Could not be read right now."); setTenants([]); setHealth(null); setQueue(null); return; }
     setProblem(null);
     setTenants(r.tenants);
     setHealth(r.health);
+    setQueue(r.queue);
   }, [P]);
 
   React.useEffect(() => { load(); }, [load]);
@@ -252,6 +298,7 @@ const PanePlatform = () => {
 
   const rows = P.rows(tenants);
   const summary = P.summary(rows);
+  const waiting = queue ? P.queue(queue) : null;
   const q = find.trim().toLowerCase();
   const shown = q ? rows.filter((r) => r.name.toLowerCase().includes(q) || r.slug.includes(q)) : rows;
 
@@ -281,6 +328,37 @@ const PanePlatform = () => {
                 </div>
               ))}
             </div>
+          )}
+        </section>
+      )}
+      {/* Who is knocking. These people have no workspace, so this is the only
+          surface in the product they appear on at all -- which is how a table
+          with a writer and no reader went unnoticed long enough for the writer
+          to be broken too (nothing was ever written to it; the upsert named a
+          conflict target Postgres does not have, and the error said "unique"
+          so it was swallowed as a duplicate).
+
+          The card is one line when nobody is waiting, so it costs nothing to
+          have above the workspaces, and the workspaces are still the work. */}
+      {waiting && (
+        <section className="fl-card set-card" data-testid="platform-queue">
+          <div className="fl-card-head">
+            <h2 className="fl-card-title">Waiting to get in</h2>
+            <span className="fl-card-sub" data-testid="platform-queue-words">{waiting.sentence}</span>
+          </div>
+          {waiting.rows.length > 0 && (
+            <>
+              <div className="set-row">
+                <div className="set-row-info">
+                  <span className="set-row-hint" data-testid="platform-queue-note">{waiting.note}</span>
+                </div>
+              </div>
+              <div className="cl-attn-list" data-testid="platform-queue-rows">
+                {waiting.rows.map((w) => (
+                  <WaitingRow key={w.id} row={w} P={P} onDone={load} flash={flash} />
+                ))}
+              </div>
+            </>
           )}
         </section>
       )}
@@ -362,3 +440,6 @@ window.PanePlatform = PanePlatform;
 // state, so it is worth being able to drive on its own rather than only through
 // the pane that contains it.
 window.PlatformLine = PlatformLine;
+// The same, for the same reason: it holds the arm-then-confirm state for the
+// one action on this page that nobody can undo.
+window.PlatformWaitingRow = WaitingRow;

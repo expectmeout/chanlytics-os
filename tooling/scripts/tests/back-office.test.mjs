@@ -29,7 +29,7 @@ import {
   platformRows, platformSummary, platformNumber, textingWords,
   PLATFORM_VERDICTS, PLATFORM_QUIET_DAYS, PLATFORM_NEW_DAYS, setupSteps,
   platformLineActions, platformActionWarning, EVENT_KINDS,
-  platformHealthOf, platformHealthWords,
+  platformHealthOf, platformHealthWords, platformQueue, QUEUE_SENDS_NOTHING,
   activityWords, clockTime, clockDateYear, clockDayLabel, zoneDayKey,
 } from "@chanlytics/contracts";
 
@@ -77,6 +77,7 @@ test("a backlog that could not be READ is never mistaken for a backlog of zero",
 import { readCode, readRaw } from "./_source.mjs";
 import { fakeDb } from "./_fake-db.mjs";
 import { setupDtoFor } from "../../../apps/dashboard/src/server/setup.ts";
+import { platformWaitlist, platformWaitlistInvited } from "../../../apps/dashboard/src/server/platform.ts";
 
 const NOW = Date.parse("2026-09-09T18:00:00Z");
 const DAY = 86_400_000;
@@ -850,6 +851,10 @@ function api(tenants, detail = null, calls = []) {
     // functions the bridge hands over.
     clock: { time: clockTime, dateYear: clockDateYear, dayLabel: (ms, tz) => clockDayLabel(ms, tz, NOW), dayKey: zoneDayKey },
     act: async (action, tenantId, lineId) => { calls.push(`act:${action}:${tenantId}:${lineId}`); return { ok: true, message: "Done." }; },
+    // The queue, as the bridge hands it over: the contract's own view model,
+    // read at the fixtures' NOW rather than at this machine's.
+    queue: (q) => platformQueue(q, NOW),
+    markInvited: async (id) => { calls.push(`invited:${id}`); return { ok: true, message: "Marked. They are off the list." }; },
   };
 }
 
@@ -1130,3 +1135,189 @@ test("the back office does not tell the reader it changes nothing, in the file t
   assert.ok(audit !== -1 && edge !== -1 && audit < edge, "attribution is written before the action, not after it");
 });
 
+
+/* -------------------------------------------------------------------------- *
+ * The people who are not workspaces yet.
+ *
+ * `public.waitlist` (00088) had a writer and no reader anywhere in the product
+ * — which is how it went unnoticed that the writer did not work either. These
+ * people have no workspace, so the back office is the only surface they can
+ * appear on at all. waitlist.db.test.mjs proves the writing; this proves what
+ * is made of it.
+ * -------------------------------------------------------------------------- */
+
+const waiting = (over = {}) => ({
+  id: "w1", email: "ana@example.com", business: "Melany's Beauty Salon",
+  source: "https://chanlytics.com/pricing?utm_source=x", created_at: ago(3), ...over,
+});
+
+test("the queue says how many and how long, and an unreadable queue is not an empty one", () => {
+  const empty = platformQueue({ waiting: [], total: 0 }, NOW);
+  assert.equal(empty.sentence, "Nobody is waiting.");
+  assert.deepEqual(empty.rows, []);
+  assert.equal(empty.unreadable, false);
+
+  // The answer a queue must never give by accident.
+  const blind = platformQueue({ waiting: null, total: null }, NOW);
+  assert.equal(blind.unreadable, true);
+  assert.match(blind.sentence, /could not be read/);
+  assert.doesNotMatch(blind.sentence, /Nobody/, "REGRESSION: a failed read must never read as an empty list");
+
+  const two = platformQueue({ waiting: [waiting(), waiting({ id: "w2", created_at: ago(1) })], total: 2 }, NOW);
+  assert.match(two.sentence, /^2 waiting, the first since 3d ago\.$/);
+  // Capped: the list is the first hundred and the sentence still counts them all.
+  const many = platformQueue({ waiting: [waiting()], total: 140 }, NOW);
+  assert.match(many.sentence, /140 waiting.*showing the first 1\./);
+});
+
+test("a row says who they are and where they came from, and never the query string", () => {
+  const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
+  assert.equal(row.email, "ana@example.com");
+  assert.equal(row.detail, "Melany's Beauty Salon · from chanlytics.com/pricing");
+  assert.equal(row.waited, "asked 3d ago");
+
+  // Whichever half they gave, and nothing when they gave neither.
+  assert.equal(platformQueue({ waiting: [waiting({ business: null })], total: 1 }, NOW).rows[0].detail, "from chanlytics.com/pricing");
+  assert.equal(platformQueue({ waiting: [waiting({ source: null })], total: 1 }, NOW).rows[0].detail, "Melany's Beauty Salon");
+  assert.equal(platformQueue({ waiting: [waiting({ business: "  ", source: "" })], total: 1 }, NOW).rows[0].detail, null);
+  // A referer that is not a URL is still shown, bounded, rather than dropped.
+  assert.equal(platformQueue({ waiting: [waiting({ business: null, source: "an email signature" })], total: 1 }, NOW).rows[0].detail, "from an email signature");
+});
+
+test("the only action says what it does not do", () => {
+  // A button that looked like it sent something would leave people waiting for
+  // a mail nobody ever wrote. There is one shared sign-up code; an invitation
+  // is a mail a person writes.
+  assert.match(QUEUE_SENDS_NOTHING, /sends no invitations/i);
+  assert.match(QUEUE_SENDS_NOTHING, /Write to them yourself/);
+  assert.equal(platformQueue({ waiting: [waiting()], total: 1 }, NOW).note, QUEUE_SENDS_NOTHING);
+});
+
+test("the queue is read through the one door, still-waiting only, oldest first", async () => {
+  const rows = [
+    { id: "w2", email: "bea@example.com", business: null, source: null, created_at: ago(1), invited_at: null },
+    { id: "w3", email: "cass@example.com", business: null, source: null, created_at: ago(9), invited_at: ago(8) },
+    { id: "w1", email: "ana@example.com", business: "Salon", source: null, created_at: ago(3), invited_at: null },
+  ];
+  const q = await platformWaitlist({ db: fakeDb({ waitlist: rows }) });
+  assert.deepEqual(q.waiting.map((r) => r.email), ["ana@example.com", "bea@example.com"], "invited is out of the queue; oldest first");
+  assert.equal(q.total, 2);
+  // What the read SELECTS -- and so what reaches a browser -- is proved in
+  // waitlist.db.test.mjs: this double hands back whole rows whatever is asked
+  // for, and an assertion about projection here would pass on either.
+});
+
+test("a queue that could not be read answers null, not empty, and does not throw", async () => {
+  const q = await platformWaitlist({ db: fakeDb({ waitlist: [] }, { "waitlist.select": { message: "permission denied" } }) });
+  assert.deepEqual(q, { waiting: null, total: null }, "the back office is opened when things are wrong; this must not take the page with it");
+});
+
+test("marking somebody invited is conditional on them still waiting, and records who", async () => {
+  const rows = [{ id: "w1", email: "ana@example.com", business: null, source: null, created_at: ago(3), invited_at: null, invited_by: null }];
+  const office = { db: fakeDb({ waitlist: rows }) };
+  const ctx = { userId: "u-admin", email: "ruben@rjcapital.io" };
+
+  assert.equal(await platformWaitlistInvited(office, ctx, "w1"), "marked");
+  assert.ok(rows[0].invited_at, "the stamp that takes them out of the queue");
+  assert.equal(rows[0].invited_by, "u-admin", "the column the table was given for exactly this");
+
+  // Two admins working down the same list is how this is used. The second one
+  // is owed the truth, not a failure and not a second stamp.
+  const firstStamp = rows[0].invited_at;
+  assert.equal(await platformWaitlistInvited(office, ctx, "w1"), "already");
+  assert.equal(rows[0].invited_at, firstStamp, "the row is somebody else's now and is left exactly as they left it");
+  assert.equal(await platformWaitlistInvited(office, ctx, "w-nobody"), "already");
+});
+
+test("the page draws who is waiting, and says the product sends nothing", async () => {
+  const calls = [];
+  globalThis.window.__platform = {
+    ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })], null, calls),
+    list: async () => ({
+      ok: true,
+      tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })],
+      health: null,
+      queue: { waiting: [waiting(), waiting({ id: "w2", email: "bea@example.com", business: null, source: null, created_at: ago(1) })], total: 2 },
+      message: "",
+    }),
+  };
+  const page = mount(Pane);
+  await page.settle();
+
+  assert.match(textOf(byId(page.tree, "platform-queue-words")), /2 waiting, the first since 3d ago/);
+  assert.match(textOf(byId(page.tree, "platform-queue-note")), /sends no invitations/i);
+  const rows = [];
+  walk(page.tree, (n) => { if (n.props?.["data-testid"] === "platform-queue-row") rows.push(n); });
+  assert.equal(rows.length, 2);
+  assert.match(textOf(rows[0]), /ana@example\.com/);
+  assert.match(textOf(rows[0]), /Melany's Beauty Salon · from chanlytics\.com\/pricing · asked 3d ago/);
+  assert.match(textOf(rows[1]), /bea@example\.com asked 1d ago/, "the halves they did not give leave no separator hanging");
+  assert.doesNotMatch(textOf(rows[1]), / · /, "nor an empty one");
+});
+
+test("marking somebody invited is never one click, and says what it does not do", async () => {
+  // Driven on its own, the way the line row is: it holds the arm-then-confirm
+  // state, and a harness that re-invokes nested components cannot drive one
+  // from outside.
+  const calls = [];
+  globalThis.window.__platform = api([], null, calls);
+  let reloaded = 0;
+  const said = [];
+  const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
+  const view = mount(globalThis.window.PlatformWaitingRow, {
+    row, P: globalThis.window.__platform, onDone: () => { reloaded += 1; }, flash: (t) => said.push(t),
+  });
+
+  assert.match(textOf(view.tree), /ana@example\.com/);
+  await view.press(byId(view.tree, "platform-queue-mark").props.onClick);
+  assert.deepEqual(calls.filter((c) => c.startsWith("invited:")), [], "arming is not doing");
+
+  const confirm = byId(view.tree, "platform-queue-invited-confirm");
+  assert.ok(confirm, "it asks");
+  assert.match(textOf(confirm), /Nothing is sent/, "and the question says what it is not");
+  assert.equal(byId(view.tree, "platform-queue-mark"), null, "the button is gone while the question stands");
+
+  await view.press(byId(view.tree, "platform-queue-invited-yes").props.onClick);
+  assert.deepEqual(calls.filter((c) => c.startsWith("invited:")), ["invited:w1"]);
+  assert.equal(reloaded, 1, "the queue on screen is a row out of date, so the page reads again");
+  assert.equal(said.length, 1, "and the person who pressed it is told what happened");
+});
+
+test("a mark that did not go through is said, and changes nothing on the page", async () => {
+  let reloaded = 0;
+  const said = [];
+  const [row] = platformQueue({ waiting: [waiting()], total: 1 }, NOW).rows;
+  const view = mount(globalThis.window.PlatformWaitingRow, {
+    row,
+    P: { markInvited: async () => ({ ok: false, message: "That could not be recorded, so it was not done." }) },
+    onDone: () => { reloaded += 1; },
+    flash: (t) => said.push(t),
+  });
+  await view.press(byId(view.tree, "platform-queue-mark").props.onClick);
+  await view.press(byId(view.tree, "platform-queue-invited-yes").props.onClick);
+  assert.equal(reloaded, 0, "nothing is re-read, because nothing happened");
+  assert.equal(said.length, 1);
+  assert.equal(said[0].tone, "danger");
+});
+
+test("a queue that could not be read says so on the page, and never draws an empty list", async () => {
+  globalThis.window.__platform = {
+    ...api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]),
+    list: async () => ({ ok: true, tenants: [live({ tenant_id: "a", slug: "all-good", name: "All Good" })], health: null, queue: { waiting: null, total: null }, message: "" }),
+  };
+  const page = mount(Pane);
+  await page.settle();
+  assert.match(textOf(byId(page.tree, "platform-queue-words")), /could not be read/);
+  assert.equal(byId(page.tree, "platform-queue-rows"), null, "nothing is drawn, because nothing is known");
+  assert.equal(byId(page.tree, "platform-queue-mark"), null);
+});
+
+test("a deployment whose overview predates the queue draws no card at all", async () => {
+  // The page and the API ship separately. A payload without `queue` is a client
+  // reading an older server, and an absent queue is not an empty one.
+  globalThis.window.__platform = api([live({ tenant_id: "a", slug: "all-good", name: "All Good" })]);
+  const page = mount(Pane);
+  await page.settle();
+  assert.equal(byId(page.tree, "platform-queue"), null);
+  assert.ok(byId(page.tree, "platform-overview"), "and the workspaces are still there");
+});
