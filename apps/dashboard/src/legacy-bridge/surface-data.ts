@@ -231,6 +231,16 @@ export interface ApprovedTemplate {
    * back to the starter library, which knows its own five.
    */
   footer?: string | null;
+  /** A text heading above the words; null when there is none, or it is a picture. */
+  header?: string | null;
+  /** The buttons under the message, as the customer sees them. */
+  buttons?: { text: string; kind: "url" | "reply" | "call" }[];
+  /**
+   * Why this product cannot send it, in the owner's words; null when it can.
+   * `sendTemplate` puts one component on the wire -- the body -- so a template
+   * needing a value anywhere else is refused BY META for every recipient.
+   */
+  blocked?: string | null;
 }
 
 /** Every template with its status, for Settings; the composer keeps ApprovedTemplate. */

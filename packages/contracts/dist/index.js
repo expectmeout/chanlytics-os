@@ -5809,6 +5809,81 @@ function templateFooter(t) {
   const s = starterByName(t.name);
   return s ? starterText(s, t.language ?? "en_US").footer ?? null : null;
 }
+var partOf = (components, type) => {
+  if (!Array.isArray(components)) return null;
+  for (const c of components) {
+    if (c && typeof c === "object" && String(c.type ?? "").toUpperCase() === type) return c;
+  }
+  return null;
+};
+var textOf = (part) => {
+  const t = part && typeof part.text === "string" ? part.text.trim() : "";
+  return t || null;
+};
+var BUTTON_KIND = { URL: "url", QUICK_REPLY: "reply", PHONE_NUMBER: "call" };
+function templateParts(components) {
+  const header = partOf(components, "HEADER");
+  const buttons = [];
+  const holder = partOf(components, "BUTTONS");
+  const list = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list) {
+    if (!b || typeof b !== "object") continue;
+    const kind = BUTTON_KIND[String(b.type ?? "").toUpperCase()];
+    const text = typeof b.text === "string" ? b.text.trim() : "";
+    if (kind && text) buttons.push({ text, kind });
+  }
+  return {
+    // A picture heading is not words and is not drawn as any.
+    header: header && String(header.format ?? "TEXT").toUpperCase() === "TEXT" ? textOf(header) : null,
+    footer: footerOf(components),
+    buttons
+  };
+}
+function templateBlocked(t) {
+  if (typeof t.blocked === "string") return t.blocked.trim() || null;
+  if (t.blocked === null) return null;
+  const components = t.components;
+  if (!Array.isArray(components)) return null;
+  const header = partOf(components, "HEADER");
+  if (header) {
+    const format = String(header.format ?? "TEXT").toUpperCase();
+    if (format !== "TEXT") return format === "IMAGE" ? "a picture for a heading" : `a ${format.toLowerCase()} for a heading`;
+    if (/\{\{\d+\}\}/.test(String(header.text ?? ""))) return "a heading that takes a value";
+  }
+  const holder = partOf(components, "BUTTONS");
+  const list = holder && Array.isArray(holder.buttons) ? holder.buttons : [];
+  for (const b of list) {
+    if (!b || typeof b !== "object") continue;
+    const button = b;
+    const type = String(button.type ?? "").toUpperCase();
+    if (!(type in BUTTON_KIND)) return "a button Chanlytics cannot fill";
+    if (type === "URL" && /\{\{\d+\}\}/.test(String(button.url ?? ""))) return "a button that takes a value";
+  }
+  return null;
+}
+var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+function blockedWords(reasons) {
+  const seen = /* @__PURE__ */ new Map();
+  for (const r of reasons) seen.set(r, (seen.get(r) ?? 0) + 1);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
+}
+function sendableTemplates(list) {
+  const sendable = [];
+  const blocked = [];
+  for (const t of list) (templateBlocked(t) ? blocked : sendable).push(t);
+  if (blocked.length === 0) return { sendable, blocked, why: null };
+  const n = blocked.length;
+  const reasons = blocked.map((t) => templateBlocked(t));
+  const words = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
+  const many = COUNT_WORDS[n] ?? String(n);
+  const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
+  return {
+    sendable,
+    blocked,
+    why: `${lead} can't go out from here \u2014 ${words}. ${n === 1 ? "It still works" : "They still work"} in WhatsApp Manager.`
+  };
+}
 var TEMPLATE_TITLE_MAX = 60;
 function templateTitle(name, title) {
   const given = typeof title === "string" ? title.replace(/\s+/g, " ").trim() : "";
@@ -10035,6 +10110,7 @@ export {
   scopeFromRoute,
   seasonHorizon,
   sendFailureIsOurs,
+  sendableTemplates,
   serverNotificationRows,
   setupRoute,
   setupSteps,
@@ -10073,9 +10149,11 @@ export {
   stateTone,
   suggestLocalPart,
   telHref,
+  templateBlocked,
   templateComponents,
   templateFooter,
   templateNameOk,
+  templateParts,
   templatePreview,
   templatePreviewValues,
   templateTitle,

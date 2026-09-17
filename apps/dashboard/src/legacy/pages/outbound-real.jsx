@@ -78,7 +78,12 @@ const pbSentWhen = (d) => (d && d.scheduled_for && window.bcWhenWords ? window.b
 const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
-  const templates = React.useMemo(() => (data.templates || PB_NONE).slice().sort(pbOrder), [data.templates]);
+  // As on Broadcasts: a template this product cannot put on the wire is not
+  // offered, rather than offered and refused by Meta for every recipient.
+  const offered = React.useMemo(() => (window.__starters && window.__starters.sendable
+    ? window.__starters.sendable((data.templates || PB_NONE).slice().sort(pbOrder))
+    : { sendable: (data.templates || PB_NONE).slice().sort(pbOrder), blocked: PB_NONE, why: null }), [data.templates]);
+  const templates = offered.sendable;
   const triggers = data.triggers || PB_NONE;
   // What fills a slot, in the composers' words (contracts PARAM_SOURCE_LABELS); a visit's are offered for a visit trigger only (below).
   const SRC = (window.__starters && window.__starters.sources) || { text: "Type it" };
@@ -184,6 +189,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           <window.TemplateChips templates={templates} value={tplId} onPick={(id) => { setPicked(true); setTplId(id); }} testid="pb-template" />
         </div>
       </div>
+      {offered.why && <div className="bc-excl-hint warn" data-testid="pb-blocked">{offered.why}</div>}
       {starter && (
         <div className="cl-prof-aut-hint" data-testid="pb-starter">
           {starterRow
@@ -225,7 +231,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
       )}
       {/* No stamp: a playbook knows the hour it runs at, not the instant its
           next run lands, and the Clock row below says the hour in words. */}
-      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} footer={pbFooter(tpl)} /></div>}
+      {tpl && <div className="bc-preview-wrap" data-testid="pb-preview"><window.MessagePreview from={data.businessName} body={tpl.body_preview} values={shown} header={tpl.header} footer={pbFooter(tpl)} buttons={tpl.buttons} /></div>}
       <div className="bc-row">
         <span className="bc-row-label">Clock</span>
         <div className="bc-chips" style={{ flexWrap: "wrap", alignItems: "center", gap: 10 }}>
@@ -331,7 +337,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
       <div className="ob-body">
         {message && (
           <div className="ob-words" data-testid="pb-words">
-            <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} footer={pbFooter(message.template)} compact />
+            <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} header={message.template.header} footer={pbFooter(message.template)} buttons={message.template.buttons} compact />
             {/* Which message this is, captioning the message itself, and in which
                 language -- that was a data-tip on a chip, and no finger reaches one.
                 It opens Messages, where the same template is renamed or replaced. */}

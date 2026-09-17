@@ -67,6 +67,7 @@ const mpLinked = (text, keyer) => {
   return out;
 };
 
+const MP_BUTTON_ICON = { url: "external", reply: "chat", call: "phone" };
 const mpInitials = (name) => (window.__identity && window.__identity.initials ? window.__identity.initials(name) : String(name || "").trim().slice(0, 2).toUpperCase());
 
 // `at` is when the message really goes, in ms. Null means the page does not know
@@ -80,16 +81,19 @@ const mpDay = (at) => (at === null || at === undefined || !window.__clock ? null
  *   from     the business's name (never a sample filed with Meta)
  *   body     the template's body, slots and all
  *   values   one filled value per slot, in order; a missing one stays a hole
+ *   header   a text heading above the words, or null
  *   footer   the line under the words, or null
+ *   buttons  the buttons under it: [{ text, kind: url|reply|call }]
  *   at       when it really goes, in ms; null draws no time
  *   held     why this person is not sent to, or null
  *   compact  a narrower frame, for a card or a row
  */
-const MessagePreview = ({ from, body, values = null, footer = null, at = null, held = null, compact = false, children = null, testid = null }) => {
+const MessagePreview = ({ from, body, values = null, header = null, footer = null, buttons = null, at = null, held = null, compact = false, children = null, testid = null }) => {
   const parts = React.useMemo(() => mpParts(body, values), [body, values]);
   const stamp = mpStamp(at);
   const day = mpDay(at);
   const words = mpFill(body, values);
+  const rows = Array.isArray(buttons) ? buttons : [];
   let seq = 0;
   const key = () => `l${seq++}`;
   return (
@@ -106,7 +110,9 @@ const MessagePreview = ({ from, body, values = null, footer = null, at = null, h
           {day && <span className="mp-day">{day}</span>}
           {/* One label for a screen reader, so the preview is heard as a preview
               and not as the page telling the operator something. */}
-          <div className="mp-bubble" role="img" aria-label={`Preview — ${from || "your business"} sends: ${words}${footer ? `. ${footer}` : ""}`}>
+          <div className="mp-bubble" role="img" aria-label={`Preview — ${from || "your business"} sends: ${header ? `${header}. ` : ""}${words}${footer ? `. ${footer}` : ""}${rows.length ? `. Buttons: ${rows.map((b) => b.text).join(", ")}` : ""}`}>
+            {/* WhatsApp draws a text heading in bold at the top of the bubble. */}
+            {header && <span className="mp-header" aria-hidden="true">{header}</span>}
             <span className="mp-body" aria-hidden="true">
               {parts.map((p, i) => (p.kind === "slot"
                 ? <span key={i} className="mp-slot">{mpLinked(p.text, key)}</span>
@@ -115,6 +121,18 @@ const MessagePreview = ({ from, body, values = null, footer = null, at = null, h
             {footer && <span className="mp-foot" aria-hidden="true">{footer}</span>}
             {stamp && <span className="mp-stamp" aria-hidden="true">{stamp}</span>}
           </div>
+          {/* Under the bubble, divided, the way WhatsApp draws them. For an
+              appointment business the "Book now" button IS the message, and it
+              was the one part of it the operator could not see. */}
+          {rows.length > 0 && (
+            <div className="mp-buttons" aria-hidden="true" data-testid="mp-buttons">
+              {rows.map((b, i) => (
+                <span key={i} className="mp-button">
+                  <Icon name={MP_BUTTON_ICON[b.kind] || "external"} size={11} />{b.text}
+                </span>
+              ))}
+            </div>
+          )}
           {held && (
             <span className="mp-mark" data-testid="mp-held">
               <Icon name="x" size={11} /> Not sent

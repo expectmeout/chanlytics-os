@@ -687,3 +687,75 @@ test("A template written here keeps its footer everywhere, not only while it is 
   const s = globalThis.window.__starters.list[0];
   assert.equal(globalThis.window.__starters.footer({ name: s.name, language: "es", footer: null }), s.texts.es.footer);
 });
+
+test("A template this product cannot send is not offered, and its card says why", () => {
+  // `sendTemplate` (packages/channels) puts ONE component on the wire -- the body --
+  // and `variablesOf` counts only the BODY's slots. So a template whose heading is a
+  // picture, or which takes a value in a heading or a button, passed the composer's
+  // "every slot filled" check, enrolled its recipients, and was then refused BY META
+  // for every one of them. The owner saw a broadcast that delivered to nobody.
+  const parts = (components) => ({ ...contracts.templateParts(components), blocked: contracts.templateBlocked({ components }) });
+  const plain = templateRow({ id: "t-ok", name: "offer", purpose: "marketing", body_preview: "Hi {{1}}.", variables: [{ position: 1, label: "First name", example: "Dani" }], ...parts([{ type: "BODY", text: "Hi {{1}}." }]) });
+  const picture = templateRow({ id: "t-img", name: "spring_poster", source: "meta", purpose: "marketing", body_preview: "Hi {{1}}.", variables: [{ position: 1, label: "First name", example: "Dani" }], ...parts([{ type: "HEADER", format: "IMAGE" }, { type: "BODY", text: "Hi {{1}}." }]) });
+
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [plain, picture], number: healthyNumber });
+  const tree = page({ initialSegment: null, initialRun: null });
+  const chips = all(tree, (n) => n.props?.["data-testid"] === "bc-template");
+  assert.equal(chips.length, 1, `only what can go on the wire: ${chips.map(textOf).join(" | ")}`);
+  const why = textOf(byTestId(tree, "bc-blocked"));
+  assert.ok(why.includes("a picture for a heading"), why);
+  assert.ok(why.includes("WhatsApp Manager"), "and where it does still work");
+
+  // Playbooks refuses the same one.
+  globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: [plain, picture] });
+  fresh();
+  globalThis.window.OutboundPage({});
+  globalThis.window.dispatchEvent({ type: "playbooks:new" });
+  seq = 0;
+  const pb = globalThis.window.OutboundPage({});
+  assert.equal(all(pb, (n) => n.props?.["data-testid"] === "pb-template").length, 1);
+  assert.ok(textOf(byTestId(pb, "pb-blocked")).includes("a picture for a heading"));
+
+  // And the library says why rather than leaving it looking available.
+  const card = messages({ __TEMPLATES_ALL: [picture] });
+  assert.ok(textOf(byTestId(card, "template-blocked")).includes("a picture for a heading"), textOf(byTestId(card, "template-blocked")));
+
+  // Every shape the wire cannot carry, each named. The page above proves one of
+  // them reaches the picker; these prove the rule itself, one case at a time.
+  const blocked = (components) => contracts.templateBlocked({ components });
+  assert.equal(blocked([{ type: "HEADER", format: "IMAGE" }, { type: "BODY", text: "Hi." }]), "a picture for a heading");
+  assert.equal(blocked([{ type: "HEADER", format: "VIDEO" }, { type: "BODY", text: "Hi." }]), "a video for a heading");
+  assert.equal(blocked([{ type: "HEADER", format: "TEXT", text: "{{1}} is back" }, { type: "BODY", text: "Hi." }]), "a heading that takes a value");
+  assert.equal(blocked([{ type: "BODY", text: "Hi." }, { type: "BUTTONS", buttons: [{ type: "URL", text: "Book", url: "https://x.example/{{1}}" }] }]), "a button that takes a value");
+  assert.equal(blocked([{ type: "BODY", text: "Hi." }, { type: "BUTTONS", buttons: [{ type: "COPY_CODE", text: "Copy" }] }]), "a button Chanlytics cannot fill");
+  // And every shape it CAN: a static heading, a static link, a quick reply, a call.
+  assert.equal(blocked([{ type: "HEADER", format: "TEXT", text: "This week" }, { type: "BODY", text: "Hi." }]), null);
+  assert.equal(blocked([{ type: "BODY", text: "Hi." }, { type: "BUTTONS", buttons: [{ type: "URL", text: "Book", url: "https://x.example/book" }, { type: "QUICK_REPLY", text: "No" }, { type: "PHONE_NUMBER", text: "Call" }] }]), null);
+  assert.equal(blocked([{ type: "BODY", text: "Hi." }]), null);
+  assert.equal(blocked(null), null, "a row with no components on file makes no claim");
+});
+
+test("The preview draws the heading and the buttons, which are the message too", () => {
+  // For an appointment business the "Book now" button IS the message, and it was
+  // the one part of it the operator could not see: `body_preview` is the BODY
+  // component alone, so a heading and a button were drawn as nothing at all.
+  const components = [
+    { type: "HEADER", format: "TEXT", text: "This week at Luna Studio" },
+    { type: "BODY", text: "Hi {{1}}, 20% off any colour service." },
+    { type: "FOOTER", text: "Reply STOP to opt out" },
+    { type: "BUTTONS", buttons: [{ type: "URL", text: "Book now", url: "https://booksy.com/luna" }, { type: "QUICK_REPLY", text: "Not now" }] },
+  ];
+  const tpl = templateRow({ id: "t-rich", name: "offer", purpose: "marketing", body_preview: "Hi {{1}}, 20% off any colour service.", variables: [{ position: 1, label: "First name", example: "Dani" }], ...contracts.templateParts(components), blocked: contracts.templateBlocked({ components }) });
+  assert.equal(tpl.blocked, null, "static heading and static buttons carry no parameter, so this one sends");
+
+  globalThis.window.__BROADCASTS = broadcastsSurface({ templates: [tpl], number: healthyNumber });
+  const preview = byTestId(page({ initialSegment: null, initialRun: null }), "bc-preview");
+  assert.ok(textOf(find(preview, (n) => n.props?.className === "mp-header")).includes("This week at Luna Studio"));
+  const buttons = byTestId(preview, "mp-buttons");
+  assert.ok(buttons, "the buttons are drawn");
+  assert.equal(all(buttons, (n) => n.props?.className === "mp-button").length, 2);
+  assert.ok(textOf(buttons).includes("Book now") && textOf(buttons).includes("Not now"), textOf(buttons));
+  // A screen reader hears the whole message, not the words alone.
+  const said = String(find(preview, (n) => n.props?.className === "mp-bubble").props["aria-label"]);
+  assert.ok(said.includes("This week at Luna Studio") && said.includes("Book now"), said);
+});

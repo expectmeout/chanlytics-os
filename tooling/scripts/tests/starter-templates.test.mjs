@@ -126,7 +126,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   for (const id of ["starters", "starter-add", "starter-add-all", "template-lang", "template-menu"]) assert.ok(s.includes(`data-testid="${id}"`), id);
   assert.ok(s.includes('data-testid={g.starter ? "starter-row" : "custom-row"}'), "one card per message: the starters, then what the workspace wrote");
   assert.ok(s.includes('const TPL_SAMPLES = new Set(["hello_world"]);') && s.includes("!TPL_SAMPLES.has(t.name)"), "Meta's sample is never shown");
-  assert.ok(s.includes("<window.MessagePreview from={bizName || \"Your business\"} body={body} values={values} footer={footer} compact />"), "the card is the message as the customer sees it");
+  assert.ok(s.includes("<window.MessagePreview") && s.includes("header={row ? row.header : null}") && s.includes("buttons={row ? row.buttons : null}"), "the card is the WHOLE message as the customer sees it: its heading and its buttons too");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/app-shell.jsx").includes('page === "messages"') && readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/messages.jsx";'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes('messages: "channel-messages"') && !readCode("apps/dashboard/src/legacy/pages/integrations-real.jsx").includes("TemplatesCard"), "Integrations points at Messages (the WhatsApp row's verb) and lists no template");
   const tabs = readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx");

@@ -300,7 +300,14 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
   const audiences = data.audiences || BC_NONE;
   // Null: the templates read failed -- its own state, never "no template yet".
   const templatesRead = data.templates !== null;
-  const templates = React.useMemo(() => (data.templates || BC_NONE).slice().sort(bcOrder), [data.templates]);
+  // Only what this product can actually put on the wire. `sendTemplate` sends the
+  // body alone, so a template needing a value in a heading or a button is refused
+  // by Meta for EVERY recipient -- and the composer used to offer it, pass its own
+  // "every slot filled" check, and enrol them all.
+  const offered = React.useMemo(() => (window.__starters && window.__starters.sendable
+    ? window.__starters.sendable((data.templates || BC_NONE).slice().sort(bcOrder))
+    : { sendable: (data.templates || BC_NONE).slice().sort(bcOrder), blocked: BC_NONE, why: null }), [data.templates]);
+  const templates = offered.sendable;
   const [aud, setAud] = React.useState(() => {
     const first = audiences.find((a) => (a.kind === "saved" || a.kind === "list") && a.id === initialSegment) || audiences[0];
     return first ? bcKey(first) : "everyone:";
@@ -524,6 +531,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
             onDone={(made) => { setComposing(false); flash({ msg: <><b>{made.name}</b> submitted — WhatsApp reviews it; it appears here once approved</> }); }}
           />
         )}
+        {offered.why && <div className="bc-excl-hint warn" data-testid="bc-blocked">{offered.why}</div>}
         {tpl && vars.length > 0 && (
           <div className="bc-vars" data-testid="bc-vars">
             {vars.map((v, i) => (
@@ -551,7 +559,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
         )}
         {tpl && (
           <div className="bc-preview-wrap" data-testid="bc-preview">
-            <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} footer={bcFooter(tpl)} at={goesAt} held={person ? person.refusal : null}>
+            <window.MessagePreview from={data.businessName} body={tpl.body_preview} values={forPerson} header={tpl.header} footer={bcFooter(tpl)} buttons={tpl.buttons} at={goesAt} held={person ? person.refusal : null}>
               <window.PreviewStepper
                 people={people.map((x, i) => ({ label: x.label, position: x.refusal ? "held back" : `${i + 1} of ${sample.sending}` }))}
                 index={Math.min(who, Math.max(people.length - 1, 0))}
