@@ -8498,6 +8498,37 @@ function platformActionWarning(a) {
   const parts2 = [a.cost, a.permanent ? "This cannot be undone." : null].filter(Boolean);
   return parts2.length ? parts2.join(" ") : "Nothing is spent, and it can be done again.";
 }
+var QUEUE_SHOWN = 100;
+var QUEUE_SENDS_NOTHING = "Chanlytics sends no invitations. Write to them yourself, then mark it here so the queue moves.";
+function waitingDetail(r) {
+  const from = r.source ? sourceWords(r.source) : null;
+  return [r.business?.trim() || null, from].filter(Boolean).join(" \xB7 ") || null;
+}
+function sourceWords(source) {
+  const s = source.trim();
+  if (!s) return null;
+  try {
+    const u = new URL(s);
+    const path = u.pathname.replace(/\/+$/, "");
+    return `from ${u.host}${path && path !== "/" ? path : ""}`;
+  } catch {
+    return `from ${s.slice(0, 60)}`;
+  }
+}
+function platformQueue(q, nowMs = Date.now()) {
+  const note = QUEUE_SENDS_NOTHING;
+  if (!q.waiting) return { rows: [], sentence: "The waiting list could not be read just now.", unreadable: true, note };
+  const rows = q.waiting.map((r) => ({
+    id: r.id,
+    email: r.email,
+    detail: waitingDetail(r),
+    waited: `asked ${agoWords(Date.parse(r.created_at), nowMs)}`
+  }));
+  const total = q.total ?? rows.length;
+  const oldest = q.waiting[0];
+  const sentence = total === 0 ? "Nobody is waiting." : `${total} waiting${oldest ? `, the first since ${agoWords(Date.parse(oldest.created_at), nowMs)}` : ""}${total > rows.length ? ` \xB7 showing the first ${rows.length}` : ""}.`;
+  return { rows, sentence, unreadable: false, note };
+}
 
 // src/consent-page.ts
 function policyLinks(f) {
@@ -9645,6 +9676,8 @@ export {
   PURPOSE_REFUSALS,
   PendingWorkspaceSchema,
   PolicyLimitsSchema,
+  QUEUE_SENDS_NOTHING,
+  QUEUE_SHOWN,
   QUIET_AFTER_MS,
   RATE_HITS_RETENTION_HOURS,
   RECENT_MAX,
@@ -9979,6 +10012,7 @@ export {
   platformHealthWords,
   platformLineActions,
   platformNumber,
+  platformQueue,
   platformRows,
   platformSummary,
   playbooksStillSending,

@@ -130,18 +130,35 @@ export async function signUp(input: SignupInput & { password: string }): Promise
  * A repeat submission is the same person being impatient, so it updates what
  * they told us and leaves their place in the queue alone -- their created_at is
  * their position, and losing it would punish them for asking twice.
+ *
+ * THE DEFECT THIS WAS. It was one `upsert` with `onConflict: "email"`, and the
+ * error it got back was tested with `/duplicate|unique/i`. The table's only
+ * unique index is on `lower(email)` -- an EXPRESSION, which PostgREST cannot
+ * name in an ON CONFLICT clause -- so every call came back 42P10, "there is no
+ * unique or exclusion constraint matching the ON CONFLICT specification". That
+ * sentence contains the word "unique", so it was swallowed as a duplicate, the
+ * route logged `waitlist_join` and the page said "you are on the list".
+ * Nobody was ever on it. The lesson is the narrow one: match the CODE.
  */
 export async function joinWaitlist(input: { email: string; name?: string; source?: string }): Promise<void> {
   const db = serviceDb();
-  const { error } = await db
-    .from("waitlist")
-    .upsert(
-      { email: input.email, business: input.name ?? null, source: input.source ?? null },
-      { onConflict: "email", ignoreDuplicates: false },
-    );
-  // A duplicate is not a failure the person should ever see: they asked twice,
-  // and both times the answer is "you are on the list".
-  if (error && !/duplicate|unique/i.test(error.message)) throw new Error(`waitlist: ${error.message}`);
+  // Lower-cased HERE rather than trusted from the caller. The unique index is
+  // on lower(email), so this is the spelling that decides whether two
+  // submissions are one person -- and the row has to be STORED in it for the
+  // repeat below to find itself with an ordinary equality.
+  const email = input.email.trim().toLowerCase();
+  const said = { business: input.name ?? null, source: input.source ?? null };
+  const { error } = await db.from("waitlist").insert({ email, ...said });
+  if (!error) return;
+  if (error.code !== "23505") throw new Error(`waitlist: ${error.message}`);
+  // They asked twice, which is not a failure they should ever see. Their place
+  // in the queue is left alone and only what they told us moves; a row already
+  // invited is left entirely alone, because a repeat is not a re-join.
+  const { error: again } = await db.from("waitlist").update(said).eq("email", email).is("invited_at", null);
+  // Best effort, and deliberately not fatal: the durable half -- that they are
+  // on the list -- is already true, and telling them otherwise would be the
+  // second lie this function has told.
+  if (again) console.error("waitlist_repeat_not_updated", JSON.stringify({ error: again.message }));
 }
 
 /**

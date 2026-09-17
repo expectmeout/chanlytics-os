@@ -27,7 +27,7 @@ import "server-only";
 import { createServiceClient } from "@chanlytics/db";
 import type { Database } from "@chanlytics/db";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { AppError, platformHealthOf, type PlatformHealth, type PlatformTenantDto, type SweepHealthRow } from "@chanlytics/contracts";
+import { AppError, platformHealthOf, QUEUE_SHOWN, type PlatformHealth, type PlatformQueue, type PlatformTenantDto, type SweepHealthRow } from "@chanlytics/contracts";
 import type { RouteContext } from "./with-route";
 
 let svc: SupabaseClient<Database> | null = null;
@@ -127,6 +127,52 @@ export async function platformHealth(office: BackOffice, now = new Date()): Prom
   const rows = (!health.error && Array.isArray(health.data) ? health.data : []) as SweepHealthRow[];
   const due = !backlog.error && typeof backlog.data === "number" ? backlog.data : null;
   return platformHealthOf(rows, due, now);
+}
+
+/**
+ * The people waiting for a workspace, oldest first.
+ *
+ * Read on `office.db`. `public.waitlist` is deny-all with no policies (00088):
+ * nobody on it has a workspace to be scoped to, so there is no membership that
+ * could make a row legitimately readable by a session, and the service-role
+ * client is the only thing that can see it at all.
+ *
+ * NOT FATAL, and null is not empty. The back office is opened when something is
+ * wrong, so a read that failed must not take the page down with it -- and it
+ * must not come back as "nobody is waiting" either, which is the one answer a
+ * queue must never give by accident.
+ */
+export async function platformWaitlist(office: BackOffice, limit = QUEUE_SHOWN): Promise<PlatformQueue> {
+  const { data, error, count } = await office.db
+    .from("waitlist")
+    .select("id, email, business, source, created_at", { count: "exact" })
+    .is("invited_at", null)
+    .order("created_at", { ascending: true })
+    .limit(limit);
+  if (error) {
+    console.error("platform_waitlist_unreadable", JSON.stringify({ error: error.message }));
+    return { waiting: null, total: null };
+  }
+  return { waiting: data ?? [], total: count ?? (data ?? []).length };
+}
+
+/**
+ * Somebody was invited. The product sent nothing and says so (QUEUE_SENDS_NOTHING):
+ * this records that a person did, which is what takes the row out of the queue.
+ *
+ * Conditional on the row still waiting, so two admins working the same list do
+ * not both claim it, and the row count says which of them this was. `invited_by`
+ * is the attribution the table was given a column for.
+ */
+export async function platformWaitlistInvited(office: BackOffice, ctx: RouteContext, id: string): Promise<"marked" | "already"> {
+  const { data, error } = await office.db
+    .from("waitlist")
+    .update({ invited_at: new Date().toISOString(), invited_by: ctx.userId })
+    .eq("id", id)
+    .is("invited_at", null)
+    .select("id");
+  if (error) throw new AppError("internal", "That could not be recorded, so it was not done. Try again in a moment.", 503);
+  return data && data.length > 0 ? "marked" : "already";
 }
 
 /** One workspace's identity, for the detail view's heading. */

@@ -115,6 +115,13 @@ export const RATE = {
   platform_line_retry: { limit: 30, windowMs: 3_600_000, noun: "line retries for other workspaces" },
   platform_line_refile: { limit: 20, windowMs: 3_600_000, noun: "registrations resent for other workspaces" },
   platform_line_release: { limit: 5, windowMs: 3_600_000, noun: "numbers handed back" },
+  /**
+   * Marking somebody on the waiting list as invited. Generous, because working
+   * down a queue is exactly this action repeated -- it costs nothing, sends
+   * nothing and can be undone by nobody, so the ceiling is here to stop a loop
+   * rather than to ration a support shift.
+   */
+  platform_waitlist_invited: { limit: 200, windowMs: 3_600_000, noun: "people marked as invited" },
   profile_set: { limit: 10, windowMs: 3_600_000, noun: "name changes" },
   /** A stranger at the door: per network they came from and per address they typed. */
   signup_ip: { limit: 5, windowMs: 3_600_000, noun: "sign-ups" },

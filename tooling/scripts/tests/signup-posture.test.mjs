@@ -51,19 +51,22 @@ test("the waitlist branch creates nothing, and returns before it could", () => {
   assert.ok(route.indexOf('takeRate(`ip:') < route.indexOf('if (posture === "waitlist")'));
 });
 
-test("the queue is idempotent by address, and keeps a person's place", () => {
-  const server = readCode("apps/dashboard/src/server/signup.ts");
-  assert.ok(server.includes("export async function joinWaitlist("));
-  assert.ok(server.includes('onConflict: "email"'), "one row per address");
-  assert.ok(server.includes("ignoreDuplicates: false"), "a repeat updates what they told us");
-  // created_at is their position in the queue. Losing it would punish somebody
-  // for asking twice.
-  assert.ok(!/created_at/.test(server.slice(server.indexOf("joinWaitlist"), server.indexOf("notifyPlatformSignup"))),
-    "a repeat never rewrites created_at");
-  assert.ok(server.includes("if (error && !/duplicate|unique/i.test(error.message))"),
-    "a duplicate is never shown to the person: they asked twice, and both times the answer is yes");
-});
-
+/**
+ * THE TEST THAT WAS HERE PINNED THE DEFECT.
+ *
+ * It read `signup.ts` and asserted that it contained `onConflict: "email"` and
+ * `if (error && !/duplicate|unique/i.test(error.message))` -- the two lines
+ * that between them meant NOBODY WAS EVER PUT ON THE LIST. The table's unique
+ * index is on `lower(email)`, an expression PostgREST cannot name in an ON
+ * CONFLICT clause, so every call came back 42P10 whose message contains the
+ * word "unique" and was swallowed as a duplicate. A test that reads source can
+ * say the code is the code; it cannot say the code works, and here it spent
+ * months asserting that a broken statement was the right one.
+ *
+ * What replaces it runs against Postgres, where the expression index and the
+ * error it raises actually exist: tooling/scripts/tests/waitlist.db.test.mjs.
+ * It fails against the previous build, all five cases.
+ */
 test("the page is told which posture to render, and older clients still work", () => {
   const route = readCode("apps/dashboard/app/api/v1/signup/route.ts");
   assert.ok(route.includes("ok({ posture, open: posture !== \"waitlist\", code_required: posture === \"invite\" })"));
