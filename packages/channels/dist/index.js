@@ -1535,7 +1535,7 @@ var VOICE_LLM_DEFAULTS = {
   start_speaker: "agent"
 };
 var VOICE_AGENT_DEFAULTS = {
-  voice_id: "11labs-Andrea",
+  voice_id: "minimax-Tamsin",
   language: ["en-US", "es-ES", "fr-FR", "de-DE", "hi-IN", "ru-RU", "pt-PT", "ja-JP", "it-IT", "nl-NL"],
   end_call_after_silence_ms: 3e4,
   max_call_duration_ms: 36e5,
