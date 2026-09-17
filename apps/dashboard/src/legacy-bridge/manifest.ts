@@ -19,6 +19,7 @@ import "@/legacy/components/shortcuts.jsx";
 import "@/legacy/components/topbar.jsx";
 import "@/legacy/components/data-bits.jsx";
 import "@/legacy/components/message-preview.jsx";
+import "@/legacy/components/template-chips.jsx";
 import "@/legacy/data/constants.jsx";
 import "@/legacy/data/dashboard-data.jsx";
 import "@/legacy/data/inbox-data.jsx";

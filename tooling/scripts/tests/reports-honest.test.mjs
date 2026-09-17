@@ -126,6 +126,7 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
+await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],

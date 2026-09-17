@@ -141,6 +141,7 @@ globalThis.React = {
 globalThis.ReactDOM = { createPortal: (node) => node };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
+await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill", "PolicyChip", "Confirm"]) globalThis[k] = globalThis.window[k];
 const { installPolicyStore } = await import("../../../apps/dashboard/src/legacy-bridge/policy-store.ts");
 installPolicyStore(globalThis.window);
@@ -358,9 +359,12 @@ test("REGRESSION (C10): a card shows the words its runs send -- it named the tem
   const words = byTestId(tree, "pb-words");
   assert.ok(words, "REGRESSION: the template's name, and no words");
   assert.ok(textOf(words).includes("Hi Dani, it's been a while at Northside Studio. Come back for 10% off this week."), textOf(words));
-  press(byTestId(tree, "pb-words-toggle"));
-  tree = redraw(playbook());
+  // The whole message, with no press. It was two clamped lines behind a "Show the
+  // whole message" toggle, under the trigger, the schedule, the audience, the
+  // template's name and the next run -- the least prominent thing on a card whose
+  // subject it is.
   assert.ok(byTestId(byTestId(tree, "pb-words"), "message-preview"), "the whole message, as the customer sees it");
+  assert.equal(byTestId(tree, "pb-words-toggle"), null, "and nothing to press to see it");
 
   globalThis.window.__PLAYBOOKS = playbooksSurface({ templates: [] });
   tree = card(playbook());
@@ -432,4 +436,30 @@ test("REGRESSION (C7): Run now says when the run really goes -- it said 'sending
   await press(byTestId(card(playbook()), "pb-run-now"));
   said = textOf(toasts.at(-1).msg);
   assert.ok(!/\bnow\b/.test(said), said);
+});
+
+test("A card says what its runs earned as one sentence, and nothing when it has not run", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  // Five numbers with dots between them became a sentence, the way Today,
+  // Reports and People say theirs; each run below still says its own.
+  const words = textOf(byTestId(card(playbook()), "pb-results")).replace(/\s+/g, " ").trim();
+  assert.equal(words, "2 runs so far: 6 sent, 4 delivered, 1 wrote back.");
+  // A held-back count only when there is one to say.
+  const held = textOf(byTestId(card(playbook({ totals: { ...playbook().totals, held: 3 } })), "pb-results"));
+  assert.ok(held.includes("3 held back"), held);
+  // And a playbook that has never run claims no numbers at all.
+  assert.equal(byTestId(card(playbook({ totals: { ...playbook().totals, runs: 0 } })), "pb-results"), null);
+});
+
+test("A card leads with what it sends, not with how it is configured", () => {
+  globalThis.window.__PLAYBOOKS = playbooksSurface();
+  const tree = card(playbook());
+  // The trigger, the schedule, the audience and the next run were five chips and
+  // a meta line above the message; they are one sentence beside it now.
+  const facts = textOf(find(tree, (n) => String(n.props?.className || "") === "ob-sentence")).replace(/\s+/g, " ");
+  for (const part of ["Goes to", "on the list said yes", "Next run"]) assert.ok(facts.includes(part), facts);
+  assert.equal(find(tree, (n) => String(n.props?.className || "").includes("ob-audience")), null, "no chip row above the message");
+  // The audience is still a door to the people it means.
+  press(byTestId(tree, "pb-audience"));
+  assert.match(went.at(-1), /^clients\/seg:/);
 });

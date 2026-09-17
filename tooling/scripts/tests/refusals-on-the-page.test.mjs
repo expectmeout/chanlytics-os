@@ -52,6 +52,7 @@ globalThis.window = {
 };
 await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/components/message-preview.jsx");
+await import("../../../apps/dashboard/src/legacy/components/template-chips.jsx");
 for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError", "PolicyChip"]) globalThis[k] = globalThis.window[k];
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);

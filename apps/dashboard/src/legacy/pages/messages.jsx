@@ -1,4 +1,4 @@
-/* global React, Icon, Confirm, EmptyState, FailedRead */
+/* global React, Icon, Confirm, EmptyState, FailedRead, StatePill */
 // Campaigns › Messages: what the receptionist and the campaigns send on
 // WhatsApp, shown as the customer sees it. One card per message — the
 // starter set in the library's order, then what the workspace wrote or
@@ -11,9 +11,6 @@
 // window.__templates and the surface is re-fetched, so the cards are the
 // server's.
 
-// A template's state at Meta, in the product's tones and words (contracts/tone.ts):
-// a rejection is a failure, a review is in progress, a pause is a warning.
-const tplStatus = (t) => (window.__chrome && window.__chrome.state ? window.__chrome.state("template", t.meta_status) : { label: t.meta_status, tone: "plain" });
 const tplAgo = (iso) => {
   if (!iso) return null;
   const diff = Math.max(0, Date.now() - new Date(iso).getTime());
@@ -79,26 +76,36 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
     <article className={"msg-card" + (row && row.hidden_at ? " is-hidden" : "")} data-testid={g.starter ? "starter-row" : "custom-row"}>
       <div className="msg-card-head">
         <span className="msg-card-title">{g.title}</span>
+        {row && <StatePill kind="template" value={row.meta_status} testid="template-status" />}
         <span className="msg-card-purpose">{g.purpose}</span>
       </div>
+      {/* A refusal was a `title=` on the language button and a tail on the meta
+          line: 10px, and on a touch screen nowhere at all. It is the row's own
+          line now, in the tone of a refusal. */}
+      {row && row.meta_status === "rejected" && row.rejected_reason && (
+        <p className="bc-excl-hint danger" data-testid="template-rejected">WhatsApp refused this one: {String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}. Change the words and send it back.</p>
+      )}
+      {/* One control, one job. A language button switched the language AND carried
+          that language's status as a dot plus words, so the thing you press to
+          read the Spanish version was also the only place its approval was
+          written. The languages are a toggle; the status of the one in view is a
+          pill beside the title, where a state is said everywhere else. */}
       <div className="msg-card-langs">
-        {g.rows.map(({ lang, row: r }) => {
-          if (r) {
-            const st = tplStatus(r);
-            return (
-              <button key={lang.id} className={`msg-lang ${lang.id === langId ? "active" : ""}`} onClick={() => { setLangId(lang.id); closeMenu(); }} title={r.meta_status === "rejected" && r.rejected_reason ? `Rejected: ${String(r.rejected_reason).toLowerCase().replace(/_/g, " ")}` : `${lang.label} · ${st.label}`} data-testid="template-lang">
-                <span className={`dot ${st.tone}`} />{lang.label} · {st.label}
-              </button>
-            );
-          }
-          if (!g.starter) return null;
-          return <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>;
-        })}
+        <span className="msg-langs" role="group" aria-label={`Language for ${g.title}`}>
+          {g.rows.filter(({ row: r }) => r).map(({ lang }) => (
+            <button key={lang.id} type="button" className={`msg-lang ${lang.id === langId ? "active" : ""}`} aria-pressed={lang.id === langId} onClick={() => { setLangId(lang.id); closeMenu(); }} data-testid="template-lang">
+              {lang.label}
+            </button>
+          ))}
+        </span>
+        {g.rows.filter(({ row: r, lang }) => !r && g.starter && lang).map(({ lang }) => (
+          <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>
+        ))}
       </div>
       <window.MessagePreview from={bizName || "Your business"} body={body} values={values} footer={footer} compact />
       <div className="msg-card-foot">
         {row
-          ? <span className="msg-card-meta">{row.name}{row.category ? ` · ${row.category}` : ""}{row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}{row.meta_status === "rejected" && row.rejected_reason ? ` · rejected: ${String(row.rejected_reason).toLowerCase().replace(/_/g, " ")}` : ""}</span>
+          ? <span className="msg-card-meta">{row.name}{row.category ? ` · ${row.category}` : ""}{row.source === "chanlytics" ? " · made here" : " · from WhatsApp Manager"}</span>
           : <span className="msg-card-meta">Not on WhatsApp in {cur ? cur.lang.label : "this language"} yet — the words WhatsApp would review</span>}
         {/* The rating WhatsApp gives the template in view, as of the last sync; nothing when none was synced. */}
         {row && row.quality && <StatePill kind="template_quality" value={String(row.quality).toUpperCase()} testid="template-quality" />}

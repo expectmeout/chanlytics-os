@@ -134,7 +134,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   for (const f of ["outbound-real", "broadcasts-real", "messages"]) assert.ok(!readCode(`apps/dashboard/src/legacy/pages/${f}.jsx`).includes("CampaignsTabs"), `${f}: one strip, the shell's`);
   assert.ok(s.includes("{tplTitle(t)}") && s.includes('" · made here"'), "a title, with the raw name beside it");
   const b = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
-  assert.ok(b.includes('data-testid="bc-add-starters"') && b.includes("{bcTitle(t.name)}"));
+  assert.ok(b.includes('data-testid="bc-add-starters"'));
   assert.ok(b.includes("const srcOf = (i) => ((sources[tplId] || defaults)[i] || \"text\");"), "a starter's slots come filled in");
   assert.ok(b.includes("<window.MessagePreview") && b.includes('data-testid="bc-preview"'), "the preview is the message as the customer sees it");
   assert.ok(b.includes("<window.PreviewStepper"), "and it walks the real people the count is a length of, not an example");
@@ -142,7 +142,7 @@ test("the pages: titles not names, the starter set in Settings, one click on Bro
   const p = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
   assert.ok(p.includes('data-testid="pb-starter"') && p.includes('data-testid="pb-add-starter"'));
   assert.ok(p.includes("window.__starters.forTrigger(trigger)") && p.includes("if (starterRow) setTplId(starterRow.id);"), "the trigger's starter is picked for you");
-  assert.ok(p.includes("{pbTitle(t.name)}") && p.includes("<window.MessagePreview"));
+  assert.ok(p.includes("<window.TemplateChips") && p.includes("<window.MessagePreview"));
   const t = readCode("apps/dashboard/src/legacy/pages/templates-real.jsx");
   assert.ok(t.includes('data-testid="tpl-start-from"') && t.includes("window.starterWords = starterWords;") && !t.includes("WaBubble"));
   const css = readCode("apps/dashboard/src/legacy/styles/components.css");

@@ -275,9 +275,12 @@ test("the surface and the page: Broadcasts is real, fed by the same rules, and t
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/manifest.ts").includes('import "@/legacy/pages/broadcasts-real.jsx";'));
   assert.ok(readCode("apps/dashboard/src/legacy/pages/broadcasts.jsx").includes("window.BroadcastsSeed = BroadcastsPage;"));
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
-  for (const id of ["broadcasts-real", "bc-audience", "bc-template", "bc-no-template", "bc-preview", "bc-send", "bc-nobody", "bc-open", "bc-history"]) {
+  for (const id of ["broadcasts-real", "bc-audience", "bc-no-template", "bc-preview", "bc-send", "bc-nobody", "bc-open", "bc-history"]) {
     assert.ok(p.includes(`data-testid="${id}"`), id);
   }
+  // The template picker is one component across both composers, so the page
+  // names its chips rather than spelling the attribute.
+  assert.ok(p.includes('<window.TemplateChips templates={templates} value={tplId} onPick={setTplId} testid="bc-template" />'), "bc-template");
   // The empty-audience line names WHICH yes is missing and where to record it. It
   // used to say "said yes to offers" for every template, which for a `utility` one
   // sent the owner to record a consent that message does not need.

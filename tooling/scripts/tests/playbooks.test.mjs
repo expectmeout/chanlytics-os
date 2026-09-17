@@ -149,9 +149,10 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   const reg = readCode("apps/dashboard/src/legacy-bridge/surface-registry.ts");
   assert.ok(reg.includes('outbound: "real"') && reg.includes('outbound: "playbooks"'), "flipped, and the gate waits on its surface");
   const page = readCode("apps/dashboard/src/legacy/pages/outbound-real.jsx");
-  for (const id of ["playbooks-real", "pb-card", "pb-composer", "pb-trigger", "pb-template", "pb-save", "pb-cancel", "pb-run-now", "pb-pause", "pb-approve", "pb-skip", "pb-edit", "pb-delete"]) {
+  for (const id of ["playbooks-real", "pb-card", "pb-composer", "pb-trigger", "pb-save", "pb-cancel", "pb-run-now", "pb-pause", "pb-approve", "pb-skip", "pb-edit", "pb-delete"]) {
     assert.ok(page.includes(`data-testid="${id}"`), id);
   }
+  assert.ok(page.includes('testid="pb-template"') && page.includes("<window.TemplateChips"), "pb-template: the same picker Broadcasts draws");
   assert.ok(page.includes('testid="pb-empty"'), "the empty state, through the one EmptyState, with the verb on it");
   assert.ok(page.includes("window.OutboundPage = (props) =>") && readCode("apps/dashboard/src/legacy/pages/outbound.jsx").includes("window.OutboundSeed = OutboundPage;"));
   assert.ok(!/\$[\d,]+|revenue|Attributed|booked/.test(page.replace(/\/\/[^\n]*/g, "")), "no number the schema has no column for");
