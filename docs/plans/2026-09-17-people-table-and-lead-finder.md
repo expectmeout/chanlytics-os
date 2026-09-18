@@ -678,7 +678,7 @@ Each phase ships on its own and leaves nothing half-wired.
 
 ## 16. Decisions for Ruben
 
-**Decided 18 September.** Ruben agreed to every recommendation below (1–17) and to the external review's verdict, recorded with its fixes in `docs/plans/2026-09-18-lead-finder-review.md`, which PRD v3 folds in. He also decided 18–22 and asked the question 23 answers; 24–29 answer a second external review, verified in the same brief.
+**Decided 18 September.** Ruben agreed to every recommendation below (1–17) and to the external review's verdict, recorded with its fixes in `docs/plans/2026-09-18-lead-finder-review.md`, which PRD v3 folds in. He also decided 18–22 and asked the question 23 answers; 24–29 answer a second external review, verified in the same brief, and a third reading tightened 25, 26, 27 and 29.
 
 1. **Lift the Leads decision for this slice.** Decided 18 September: yes, table first.
 2. **The $5 calibration.** Decided 18 September: approved; about $2.10 used (Appendix C).
@@ -725,14 +725,23 @@ Each phase ships on its own and leaves nothing half-wired.
    - **A · the engine:** data and pipeline (sub-plans 1a–1b), run internally on the labelled set (G2) and the concurrency tests (G3), before any Leads screen is built.
    - **B · the product:** the composer (typing and voice), the plan, the question, results in Qualified / Needs review / Excluded, the peek, drafts, calls, stages, conversion, kept searches, the first day's suggestions, every ending, the guardrails and the phone.
    - **C · after owners use it:** Not a fit that teaches, words to chips, questions about leads in Ask, More like these, targeted enrichment, the scout, more recipes.
-25. **A lead is a place: one physical location.** Recommended. Its identity is the place id. Places at different addresses that share a phone, email or website are related locations of one business, shown together but never merged, because a seller who visits stores calls on each one. The same phone at the same address is a duplicate listing, folded in as a linked place.
-26. **Code decides qualification from Claude's read of each criterion.** Recommended.
-   - The plan lists its criteria, each marked "Claude's read is enough" or "must be seen". "A convenience store" is seen in the listing; "sells medicine" is Claude's read.
+25. **For local-business recipes, a lead is a place: one physical location.** Recommended. Each recipe card names its prospect unit, so Amazon sellers stay sellers. A place's identity is its place id, and shared details are signals, not conclusions:
+   - Two records merge only when the place id is the same, or when the name, the address and the phone all agree (a duplicate listing).
+   - Places that share a phone, email or website but differ otherwise stay separate, each shown as sharing that detail. Nothing claims common ownership: salon suites and medical buildings share a front desk.
+   - "Already yours" follows the same rule. A place already in leads is skipped by its place id; a shared phone or email only marks the new place ("shares a number with Corner Deli, already in your leads"). A place whose phone belongs to someone in People is delivered and marked, and converting it links to that person instead of making a second one.
+   - The test: three stores with different place ids and addresses share one phone, and one is already in the workspace. A new search delivers the other two, each marked as sharing the number; no new person is made for the number, and nothing counts it as three separate contacts.
+26. **Code decides qualification from Claude's read of each criterion, and the owner's words set how sure it must be.** Recommended.
+   - The plan lists its criteria, and the owner's wording sets each one's standard. "Stores that could sell our OTC products" asks for likely buyers, so Claude's read is enough. "Stores that already sell OTC medicine" asks for a fact, so it must be seen. The sentence says which, and Claude never weakens a fact into a likely to reach the count.
+   - When the chosen card cannot see a must-be-seen fact (listings don't show inventory, and targeted research waits for Release C), the planner says so before anything is spent and offers the likely version. The owner chooses.
    - The judge answers each criterion pass, fail or unknown, and cites the facts it used.
-   - Code decides. A required criterion that fails → Excluded. One that is unknown, or only read where it must be seen, or a contact standard not met → Needs review. Everything else → Qualified.
-27. **A monthly searching budget per workspace, beside the allowance.** Recommended. The allowance counts Qualified leads; the budget bounds what searching costs when few places qualify, since an email-checked standard can cost several times a phone standard. The amount is set once §13 is recomputed on the Qualified rule. An owner who reaches it reads one sentence saying what was kept.
+   - Code decides. A required criterion that fails → Excluded. One that is unknown, or only read where it must be seen, or a contact standard not met → Needs review. Everything else → Qualified. A place qualified as a likely buyer is never described as a confirmed one.
+27. **A monthly searching budget per workspace, beside the allowance.** Recommended.
+   - The allowance counts Qualified leads, the value delivered. The budget bounds what searching costs when few places qualify, since an email-checked standard can cost several times a phone standard.
+   - It is reserved and settled like the day caps (E2): what is available is the month's budget minus what was spent and what is reserved. Scraping, judging and checks all draw on it, retries and failed runs included. Unused reservations are released; Undo returns a lead to the allowance, never its searching cost.
+   - The owner sees one unit: leads. Before approval, the plan says how many leads like these this month still covers, with both limits folded in. When the budget is the one that binds, it says why in plain words and offers a smaller search or a phone standard: "Emails for law firms are hard to find, so this month covers about 60 more. Find 60 now?" There is no dollar meter.
+   - The amount is set once §13 is recomputed on the Qualified rule.
 28. **An unapproved source card never runs for an owner**, not even into Needs review. Recommended; this amends 23. A review label covers uncertain leads, not unvetted code, so the scout's probes run on the platform alone.
-29. **The judge's bar before launch (G2).** Recommended: Qualified precision of at least 95%, with the lower end of its 95% interval at 90% or more, on held-out places. It is reported by kind of business, with false exclusions, contact attribution and duplicates beside it.
+29. **The judge's bar before launch (G2).** Recommended: Qualified precision of at least 95%, with the lower end of its 95% interval at 90% or more, on held-out places. It is reported by kind of business, with false exclusions, contact attribution and duplicates beside it. The labels follow the plan's own contract: "a likely buyer" and "confirmed to stock it" are labelled and scored as different promises. Qualified yield, the share sent to Needs review and the cost per Qualified lead are reported beside precision, because a judge that sends nearly everything to review looks precise and is useless.
 
 ## Appendix A: actors and Apify facts used
 
