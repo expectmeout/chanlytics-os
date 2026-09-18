@@ -15,6 +15,12 @@ import {
 } from "@chanlytics/contracts";
 import { readCode } from "./_source.mjs";
 
+/**
+ * The business's own addresses, for the cases below that are not about them:
+ * matching by number, address and name is the same with an empty set. The
+ * cases that ARE about them are at the end of this file.
+ */
+const NO_OWN = new Set();
 const TZ = "America/New_York";
 const ICS = [
   "BEGIN:VCALENDAR",
@@ -69,15 +75,15 @@ test("the feed carries the description, the place and the guests — folded, une
 
 test("phones and emails are found wherever they were written; a date, a time and an order number are not phones; an email's digits are not either", () => {
   const f = feed();
-  const c = extractContacts(f.items.find((i) => i.uid === "b1"));
+  const c = extractContacts(f.items.find((i) => i.uid === "b1"), NO_OWN);
   assert.deepEqual(c.phones, ["+13055550134"]);
   assert.deepEqual(c.emails, ["maria.lopez@gmail.com"]);
-  const g = extractContacts(f.items.find((i) => i.uid === "b2"));
+  const g = extractContacts(f.items.find((i) => i.uid === "b2"), NO_OWN);
   assert.deepEqual(g.emails, ["ana@example.com", "owner@salon.com"]);
   assert.deepEqual(g.names, ["Ruiz, Ana: VIP", "Melany Owner"]);
-  const lunch = extractContacts(f.items.find((i) => i.uid === "b4"));
+  const lunch = extractContacts(f.items.find((i) => i.uid === "b4"), NO_OWN);
   assert.deepEqual(lunch.phones, [], "2026-09-08 14:00 and a bare 12-digit run are not phones");
-  assert.deepEqual(extractContacts({ title: "Call +1 305 555 0134 or 305.555.0199", description: "user2025@x.com 3055550177 ext", location: null, attendees: [] }).phones, ["+13055550134", "+13055550199", "+13055550177"]);
+  assert.deepEqual(extractContacts({ title: "Call +1 305 555 0134 or 305.555.0199", description: "user2025@x.com 3055550177 ext", location: null, attendees: [] }, NO_OWN).phones, ["+13055550134", "+13055550199", "+13055550177"]);
 });
 
 const PEOPLE = [
@@ -98,13 +104,13 @@ test("a name counts only whole and four letters or more; the longest wins; never
 
 test("who it is for: a phone in the event beats the name; a guest's name matches; a name-only match says so", () => {
   const f = feed();
-  const maria = matchPerson(f.items.find((i) => i.uid === "b1"), PEOPLE);
+  const maria = matchPerson(f.items.find((i) => i.uid === "b1"), PEOPLE, NO_OWN);
   assert.deepEqual(maria, { id: "p-maria", name: "Maria Lopez", via: "phone" });
-  const byPhoneOnly = matchPerson({ title: "Balayage", description: "305-555-0199", location: null, attendees: [] }, PEOPLE);
+  const byPhoneOnly = matchPerson({ title: "Balayage", description: "305-555-0199", location: null, attendees: [] }, PEOPLE, NO_OWN);
   assert.deepEqual(byPhoneOnly, { id: "p-num", name: "+1 (305) 555-0199", via: "phone" }, "a person known only by number is still found, and labelled by it");
-  const cut = matchPerson(f.items.find((i) => i.uid === "b2"), [...PEOPLE, { id: "p-vip", name: "Ruiz, Ana: VIP", phone: null }]);
+  const cut = matchPerson(f.items.find((i) => i.uid === "b2"), [...PEOPLE, { id: "p-vip", name: "Ruiz, Ana: VIP", phone: null }], NO_OWN);
   assert.deepEqual(cut, { id: "p-vip", name: "Ruiz, Ana: VIP", via: "name" }, "a guest's name");
-  assert.equal(matchPerson(f.items.find((i) => i.uid === "b4"), PEOPLE), null, "lunch is nobody's");
+  assert.equal(matchPerson(f.items.find((i) => i.uid === "b4"), PEOPLE, NO_OWN), null, "lunch is nobody's");
 });
 
 /**
@@ -162,12 +168,12 @@ test("an address is read after the number and before the name, so a customer boo
   const at = (uid) => g.items.find((i) => i.uid === uid);
   const [sofia, maria, daniela] = GUESTS;
 
-  assert.deepEqual(matchPerson(at("g1"), GUESTS), { id: "p-sofia", name: "Sofia Perez", via: "email" }, "a guest's address, in whatever case it was written");
-  assert.deepEqual(matchPerson(at("g2"), GUESTS), { id: "p-maria2", name: "Maria Lopez", via: "phone" }, "her number and her address both in the event: the number wins");
-  assert.deepEqual(matchPerson(at("g3"), GUESTS), { id: "p-daniela2", name: "Daniela Ruiz", via: "name" }, "a name-only match is what it always was");
-  assert.equal(matchPerson({ title: "Colour touch-up", description: null, location: null, attendees: [{ name: null, email: "someone@else.com" }] }, GUESTS), null, "an address nobody holds is nobody");
+  assert.deepEqual(matchPerson(at("g1"), GUESTS, NO_OWN), { id: "p-sofia", name: "Sofia Perez", via: "email" }, "a guest's address, in whatever case it was written");
+  assert.deepEqual(matchPerson(at("g2"), GUESTS, NO_OWN), { id: "p-maria2", name: "Maria Lopez", via: "phone" }, "her number and her address both in the event: the number wins");
+  assert.deepEqual(matchPerson(at("g3"), GUESTS, NO_OWN), { id: "p-daniela2", name: "Daniela Ruiz", via: "name" }, "a name-only match is what it always was");
+  assert.equal(matchPerson({ title: "Colour touch-up", description: null, location: null, attendees: [{ name: null, email: "someone@else.com" }] }, GUESTS, NO_OWN), null, "an address nobody holds is nobody");
 
-  const index = indexFeed(g.items);
+  const index = indexFeed(g.items, NO_OWN);
   assert.deepEqual(index.byEmail.get("sofia.perez@gmail.com").map((i) => i.uid), ["g1"]);
   assert.equal(index.byEmail.get("owner@salon.com").length, 1, "the owner's own address is indexed like any other; nobody in People holds it");
 
@@ -198,28 +204,28 @@ test("the organiser is not the customer: the owner's own address and name are of
   const ev = g.items.find((i) => i.uid === "g4");
   const people = [...GUESTS, OWNER, ANA];
 
-  const c = extractContacts(ev);
+  const c = extractContacts(ev, NO_OWN);
   assert.deepEqual(c.emails, ["ana.gomez@gmail.com"], "the organiser's address is off, though it is written as a guest too and in another case");
   assert.deepEqual(c.names, ["Ana Gomez"], "and their name with it: a CN on every event is not a guess at the customer");
 
-  assert.deepEqual(matchPerson(ev, people), { id: "p-ana-g", name: "Ana Gomez", via: "email" }, "the guest is whose appointment it is");
+  assert.deepEqual(matchPerson(ev, people, NO_OWN), { id: "p-ana-g", name: "Ana Gomez", via: "email" }, "the guest is whose appointment it is");
   assert.equal(guessName(ev), "Ana Gomez", "Add to People offers the customer, never the owner");
 
-  const index = indexFeed(g.items);
+  const index = indexFeed(g.items, NO_OWN);
   assert.equal(index.byEmail.get("melany@gmail.com"), undefined, "the organiser is not indexed, so no number of events can add up to a match");
   assert.deepEqual(allVisitsIn(index, OWNER), [], "the owner takes none of the appointments on their own calendar");
   assert.deepEqual(allVisitsIn(index, ANA).map((x) => [x.title, x.via]), [["Gel manicure", "email"]]);
 
-  assert.equal(matchPerson({ title: "Lunch", description: null, location: null, attendees: [], organizer: "melany@gmail.com" }, people), null, "an event that names only the organiser is nobody's");
+  assert.equal(matchPerson({ title: "Lunch", description: null, location: null, attendees: [], organizer: "melany@gmail.com" }, people, NO_OWN), null, "an event that names only the organiser is nobody's");
 });
 
 test("their visits: the next one that has not ended, the latest one that has; the words by the business's clock", () => {
   const f = feed();
-  const v = visitsOf(f.items, PEOPLE[0], NOW);
+  const v = visitsOf(f.items, PEOPLE[0], NOW, NO_OWN);
   assert.equal(v.next?.title, "Maria Lopez - Balayage");
   assert.equal(v.next?.via, "phone");
   assert.equal(v.last, null);
-  const d = visitsOf(f.items, PEOPLE[2], NOW);
+  const d = visitsOf(f.items, PEOPLE[2], NOW, NO_OWN);
   assert.equal(d.next, null);
   assert.equal(d.last?.title, "Daniela Ruiz · Colour");
   assert.equal(visitDay(v.next.start, TZ, NOW), "Tue, Sep 8");
@@ -237,11 +243,11 @@ test("their visits: the next one that has not ended, the latest one that has; th
 
 test("the receptionist's lines: the next appointment, the last visit, the rule that nothing changes here, and a name-only match flagged", () => {
   const f = feed();
-  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW), TZ, NOW);
+  const words = describeVisits(visitsOf(f.items, PEOPLE[0], NOW, NO_OWN), TZ, NOW);
   assert.equal(words, "Their next appointment on the calendar: Tue, Sep 8 · 2:00 – 5:00 PM (Maria Lopez - Balayage). If they ask, confirm it; to change or cancel it, send the booking link — nothing is changed from here.");
-  const byName = describeVisits(visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW), TZ, NOW);
+  const byName = describeVisits(visitsOf(f.items, { id: "x", name: "Maria Lopez", phone: null }, NOW, NO_OWN), TZ, NOW);
   assert.ok(byName.includes("Matched by name only — make sure it is them before confirming details."));
-  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW), TZ, NOW);
+  const last = describeVisits(visitsOf(f.items, PEOPLE[2], NOW, NO_OWN), TZ, NOW);
   assert.equal(last, "Their last visit on the calendar: Aug 20 (Daniela Ruiz · Colour).");
   assert.equal(describeVisits({ next: null, last: null }, TZ, NOW), null, "nothing to say is null, never a sentence");
 });
@@ -297,7 +303,7 @@ test("the wiring: the board and the profile read one match; both receptionists a
   const route = readCode("apps/dashboard/app/api/v1/contacts/[id]/route.ts");
   assert.ok(route.includes("const visits = await personVisits(ctx, tenantId, personLike(row)).catch(") && route.includes("visits: visits ?? undefined,"), "never fatal to the profile");
   const edge = readCode("apps/edge/lib/availability.ts");
-  assert.ok(edge.includes("export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }") && edge.includes("return describeVisits(visitsOf(feed.items, { id: \"caller\", name: who.name ?? \"\", phone: who.phone, email: null }, now.getTime()), rt.timezone, now.getTime());"));
+  assert.ok(edge.includes("export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; name: string | null }") && edge.includes("return describeVisits(visitsOf(feed.items, { id: \"caller\", name: who.name ?? \"\", phone: who.phone, email: null }, now.getTime(), own), rt.timezone, now.getTime());"));
   const wa = readCode("apps/edge/lib/whatsapp/inbound.ts");
   assert.ok(wa.includes("const visits = rt ? await ports.calendar.visits(rt, { phone: e164, name: lead.name }) : null;") && wa.includes("if (visits) leadNote = `${leadNote}\\n${visits}`;"), "WhatsApp: with who they are");
   // Phone: the visits in the caller context, and a call for a switched-off
@@ -426,9 +432,9 @@ test("the profile: Added from your calendar, with the appointment that named the
 test("a feed indexed once matches many people the same way the per-item matcher does: number first, whole name second", async () => {
   const { indexFeed, visitsIn } = await import("@chanlytics/contracts");
   const f = feed();
-  const index = indexFeed(f.items);
+  const index = indexFeed(f.items, NO_OWN);
   for (const p of PEOPLE) {
-    const a = visitsOf(f.items, p, NOW);
+    const a = visitsOf(f.items, p, NOW, NO_OWN);
     const b = visitsIn(index, p, NOW);
     assert.deepEqual(b, a, p.id);
   }
@@ -487,7 +493,7 @@ test("asked, then booked: the report's one conversion line, in words that say wh
 
 test("the wiring: the list and the assistant carry appointments from one parsed feed; the report carries the line; Leads and the Deal board retire into People", () => {
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
-  assert.ok(svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") && svc.includes("export async function peopleVisits(") && svc.includes("const index = indexFeed(feed.parsed.items);"), "one parse, indexed once, for everyone");
+  assert.ok(svc.includes("const parsedFeeds = new Map<string, { text: string; tz: string; parsed: ParsedFeed }>();") && svc.includes("export async function peopleVisits(") && svc.includes("const index = indexFeed(feed.parsed.items, own);"), "one parse, indexed once, for everyone");
   assert.ok(svc.includes("export async function bookingReport(") && svc.includes("bookedAfterAsk("));
   assert.ok(readCode("apps/dashboard/app/api/v1/contacts/route.ts").includes("const out = await withVisits(ctx, tenantId, rows);"), "the list carries visits and the calendar's state, a page at a time");
   const rep = readCode("apps/dashboard/app/api/v1/reports/route.ts");
@@ -652,7 +658,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
 test("every visit, oldest first, for the timeline; the profile reads them as Visited and Booked, and the booking link is one step away", async () => {
   const { allVisitsIn, indexFeed } = await import("@chanlytics/contracts");
   const f = feed();
-  const index = indexFeed(f.items);
+  const index = indexFeed(f.items, NO_OWN);
   const all = allVisitsIn(index, { id: "p", name: "Maria Lopez", phone: "+13055550134" });
   assert.deepEqual(all.map((v) => v.title), ["Maria Lopez - Balayage"]);
   const both = allVisitsIn(index, { id: "q", name: "Daniela Ruiz", phone: null });
@@ -710,4 +716,102 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
   assert.ok(svc.includes("booking_link: pv.bookingLink,") && svc.includes("const bookingLink = cfg?.brain?.booking_link?.trim() || null;"), "the list envelope carries the link");
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes("bookingLink: data.booking_link ?? null,"));
+});
+
+/* -------------------------------------------------------------------------- *
+ * The business's own addresses: never a customer's.
+ *
+ * FOUND LIVE, 18 Sep 2026. The owner wrote to their salon's new email address
+ * to test it -- the first thing anybody does with a new inbox -- and so became
+ * a person in People. Their workspace reads their own Google Calendar, and #626
+ * had taken the ORGANISER off every event, which covered them only where they
+ * were the organiser. On every meeting somebody else had sent them they were a
+ * GUEST, so each became one of their "visits": "Visited · New voicemail
+ * notification received", "Last visit: Today". And the playbooks read visits
+ * the same way, to decide who is thanked after a visit.
+ * -------------------------------------------------------------------------- */
+
+const OWNER_ADDR = "ruben@rjcapital.io";
+const OWNER_URL = "https://calendar.google.com/calendar/ical/ruben%40rjcapital.io/private-0123456789abcdef/basic.ics";
+/** Meetings on the owner's own calendar, organised by other people, with the owner invited. */
+const MEETINGS_ICS = [
+  "BEGIN:VCALENDAR", "VERSION:2.0",
+  "BEGIN:VEVENT", "UID:m1", "DTSTART:20260908T160000Z", "DTEND:20260908T170000Z",
+  "SUMMARY:Amazon Review", "ORGANIZER;CN=Greg Man:mailto:greg@agency.example",
+  "ATTENDEE;CN=Ruben Segura:mailto:ruben@rjcapital.io", "ATTENDEE;CN=Greg Man:mailto:greg@agency.example", "END:VEVENT",
+  "BEGIN:VEVENT", "UID:m2", "DTSTART:20260909T140000Z", "DTEND:20260909T143000Z",
+  "SUMMARY:Meeting with Ruben Segura", "ORGANIZER:mailto:calendly@notify.example",
+  "ATTENDEE;CN=Ruben:mailto:RUBEN@rjcapital.io", "END:VEVENT",
+  // A real appointment: a customer, with the owner copied on it.
+  "BEGIN:VEVENT", "UID:m3", "DTSTART:20260910T180000Z", "DTEND:20260910T190000Z",
+  "SUMMARY:Balayage", "ORGANIZER:mailto:bookings@salon-tool.example",
+  "ATTENDEE;CN=Ana Gomez:mailto:ana.gomez@gmail.com", "ATTENDEE;CN=Ruben:mailto:ruben@rjcapital.io", "END:VEVENT",
+  "END:VCALENDAR",
+].join("\r\n");
+const meetings = () => parseIcs(MEETINGS_ICS, TZ, { horizon: { from: NOW - 90 * 86_400_000, to: NOW + 60 * 86_400_000 } });
+
+test("a Google feed names its owner, and a calendar that is not a person names nobody", async () => {
+  const { calendarOwnerOf } = await import("@chanlytics/contracts");
+  assert.equal(calendarOwnerOf(OWNER_URL), OWNER_ADDR);
+  assert.equal(calendarOwnerOf(OWNER_URL.replace("ruben%40rjcapital.io", "RUBEN%40RJCapital.io")), OWNER_ADDR, "in one spelling");
+  assert.equal(calendarOwnerOf("https://calendar.google.com/calendar/ical/abc123%40group.calendar.google.com/private-x/basic.ics"), null, "a shared calendar is not a person");
+  assert.equal(calendarOwnerOf("https://calendar.google.com/calendar/ical/en.usa%23holiday%40import.calendar.google.com/public/basic.ics"), null, "nor is an imported one");
+  assert.equal(calendarOwnerOf("https://outlook.office365.com/owa/calendar/abc/def/calendar.ics"), null, "another provider's address does not say whose it is");
+  assert.equal(calendarOwnerOf("https://calendar.google.com/calendar/ical/%E0%A4%A/private-x/basic.ics"), null, "an address that does not decode is nobody's");
+  for (const nothing of [null, undefined, ""]) assert.equal(calendarOwnerOf(nothing), null);
+});
+
+test("the business's own addresses: where it is alerted, and whose calendar it reads", async () => {
+  const { ownAddressesOf } = await import("@chanlytics/contracts");
+  assert.deepEqual([...ownAddressesOf({ notifications: { escalation_emails: [" Owner@Salon.example ", "staff@salon.example"] }, calendar: { ical_url: OWNER_URL } })].sort(),
+    ["owner@salon.example", OWNER_ADDR, "staff@salon.example"]);
+  assert.deepEqual([...ownAddressesOf({ calendar: { ical_url: OWNER_URL } })], [OWNER_ADDR], "no alert addresses is still the calendar's owner");
+  assert.deepEqual([...ownAddressesOf(null)], [], "no config is nobody");
+});
+
+test("REGRESSION: the owner invited to meetings on their own calendar is not a customer who visited", async () => {
+  const { indexFeed, allVisitsIn, visitsIn, ownAddressesOf } = await import("@chanlytics/contracts");
+  const own = ownAddressesOf({ calendar: { ical_url: OWNER_URL } });
+  const owner = { id: "p-ruben", name: "", phone: null, email: OWNER_ADDR };
+  const ana = { id: "p-ana", name: "Ana Gomez", phone: null, email: "ana.gomez@gmail.com" };
+  const f = meetings();
+
+  // What it did before: every meeting the owner was a guest on was a visit.
+  assert.equal(allVisitsIn(indexFeed(f.items, NO_OWN), owner).length, 3, "the defect, as it was");
+
+  const index = indexFeed(f.items, own);
+  assert.deepEqual(allVisitsIn(index, owner), [], "none of the meetings on their own calendar is a visit");
+  assert.deepEqual(visitsIn(index, owner, NOW), { next: null, last: null });
+  assert.equal(index.byEmail.get(OWNER_ADDR), undefined, "and the address is not indexed at all");
+  // A customer on an event the owner is copied on is still that customer's.
+  assert.deepEqual(allVisitsIn(index, ana).map((v) => [v.title, v.via]), [["Balayage", "email"]]);
+});
+
+test("a NAMED owner does not take a meeting by the words in its title either", async () => {
+  const { indexFeed, allVisitsIn, ownAddressesOf } = await import("@chanlytics/contracts");
+  const own = ownAddressesOf({ calendar: { ical_url: OWNER_URL } });
+  // The day they give themselves a name on their own page, "Meeting with Ruben
+  // Segura" would match it through the TEXT, which taking the address off the
+  // event does not touch. A namesake who is not the business's shows the route
+  // is live through an index that has already dropped the address...
+  const index = indexFeed(meetings().items, own);
+  const namesake = { id: "p-other", name: "Ruben Segura", phone: null, email: "somebody.else@example.com" };
+  assert.ok(allVisitsIn(index, namesake).some((v) => v.via === "name"), "the name route still finds a person by the title's words");
+  // ...and the owner, named the same, takes nothing: it is the PERSON who is
+  // the business's, not only the address they are held under.
+  const named = { id: "p-ruben", name: "Ruben Segura", phone: null, email: OWNER_ADDR };
+  assert.deepEqual(allVisitsIn(index, named), []);
+});
+
+test("the Calendar never labels an appointment as the owner's, and still finds the customer on it", async () => {
+  const { ownAddressesOf } = await import("@chanlytics/contracts");
+  const own = ownAddressesOf({ notifications: { escalation_emails: [OWNER_ADDR] } });
+  const people = [{ id: "p-ruben", name: "", phone: null, email: OWNER_ADDR }, { id: "p-ana", name: "Ana Gomez", phone: null, email: "ana.gomez@gmail.com" }];
+  const [amazon, meeting, balayage] = ["m1", "m2", "m3"].map((uid) => meetings().items.find((i) => i.uid === uid));
+  assert.equal(matchPerson(amazon, people, own), null, "a meeting the owner was invited to is nobody's appointment");
+  assert.equal(matchPerson(meeting, people, own), null);
+  assert.deepEqual(matchPerson(balayage, people, own), { id: "p-ana", name: "Ana Gomez", via: "email" },
+    "the customer, even with the owner's address listed first on the event");
+  assert.deepEqual(extractContacts(balayage, own).emails, ["ana.gomez@gmail.com"], "the owner's address is not among the event's contacts shown on the board");
+  assert.ok(!extractContacts(balayage, own).names.includes("Ruben"), "nor their name among its guests");
 });

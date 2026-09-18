@@ -76,6 +76,80 @@ function phoneFrom(raw: string): string | null {
 }
 
 /**
+ * THE BUSINESS'S OWN ADDRESSES. Never a customer's, on any calendar event.
+ *
+ * #626 took the calendar's ORGANISER off every event: the owner is on all of
+ * them and is never who the appointment is for. That covered the owner as
+ * organiser and left the owner as GUEST -- which is every meeting somebody
+ * else sent them, and on a personal Google Calendar that is most of them. So
+ * when the owner wrote to their own salon's new address to test it (the first
+ * thing anybody does with a new inbox), they became a person in People, and
+ * every event they were invited to became one of their "visits": "Visited ·
+ * New voicemail notification received", "Last visit: Today". The index's own
+ * comment predicted it: an owner who is in People "would take every
+ * appointment they are a guest on".
+ *
+ * The timeline was the visible half. The worse half was the playbooks, which
+ * read visits the same way to decide who is thanked after a visit and who is
+ * reminded before one: they could have written to the owner, as a customer,
+ * about a meeting on their own calendar.
+ *
+ * Two facts every reader of the calendar already holds say an address is the
+ * business's: it is where the business is ALERTED (notifications
+ * .escalation_emails -- somebody who is told "a customer needs you" is not the
+ * customer), and it is the calendar's own owner (a Google feed names its
+ * calendar, and a primary calendar is named by its owner's address). A
+ * team member who is neither is not covered: the auth table holding members'
+ * addresses is not something the edge can read without a new function, and
+ * this is exact for the case that happened.
+ *
+ * It is a REQUIRED input of every function below that matches a person, so no
+ * reader of the calendar can forget to pass it -- the playbooks, the phone
+ * receptionist and three dashboard reads, and whichever comes next.
+ */
+export type OwnAddresses = ReadonlySet<string>;
+
+/** For a reader that takes only phones from an event, where an address can never become anybody. */
+const NO_OWN_ADDRESSES: OwnAddresses = new Set();
+
+/**
+ * The address a Google Calendar feed belongs to, or null.
+ *
+ * A private feed is https://calendar.google.com/calendar/ical/<id>/private-<key>/basic.ics,
+ * and a primary calendar's id is its owner's address. A secondary calendar is
+ * <hash>@group.calendar.google.com and an imported one @import.calendar.google.com:
+ * calendars, not people, so neither is anybody's address.
+ */
+export function calendarOwnerOf(url: string | null | undefined): string | null {
+  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
+  if (!m) return null;
+  let id: string;
+  try { id = decodeURIComponent(m[1]).trim().toLowerCase(); } catch { return null; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
+  return id;
+}
+
+/** The business's own addresses, from the config every calendar reader already has: where it is alerted, and whose calendar it reads. */
+export function ownAddressesOf(cfg: {
+  notifications?: { escalation_emails?: readonly string[] | null } | null;
+  calendar?: { ical_url?: string | null } | null;
+} | null | undefined): OwnAddresses {
+  const out = new Set<string>();
+  for (const e of cfg?.notifications?.escalation_emails ?? []) {
+    const a = String(e).trim().toLowerCase();
+    if (a) out.add(a);
+  }
+  const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
+  if (owner) out.add(owner);
+  return out;
+}
+
+/** Is this one of the business's own people, by the address they are held under? */
+function isOwn(own: OwnAddresses, p: Pick<PersonLike, "email">): boolean {
+  return !!p.email && own.has(p.email.toLowerCase());
+}
+
+/**
  * The phones, emails and guest names an event carries, wherever they were
  * written -- except the organiser's.
  *
@@ -90,13 +164,17 @@ function phoneFrom(raw: string): string | null {
  * appointment a customer organised themselves, which stays unmatched --
  * matching nobody is the safe way to be wrong; attaching the owner is not.
  */
-export function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">): EventContacts {
+export function extractContacts(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, own: OwnAddresses): EventContacts {
   const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
   const organizer = item.organizer?.toLowerCase() || null;
   const emails = new Set<string>();
   for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
   for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
   if (organizer) emails.delete(organizer);
+  // The business's own addresses come off the same way the organiser's do,
+  // for the same reason: they are on the event because it is the business's
+  // calendar, never because the appointment is for them.
+  for (const a of own) emails.delete(a);
   const phones = new Set<string>();
   // Emails out first: the digits in "maria2026@gmail.com" are not a phone.
   for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
@@ -106,6 +184,7 @@ export function extractContacts(item: Pick<FeedItem, "title" | "description" | "
   const names = new Set<string>();
   for (const a of item.attendees ?? []) {
     if (organizer && a.email?.toLowerCase() === organizer) continue;
+    if (a.email && own.has(a.email.toLowerCase())) continue;
     const n = (a.name ?? "").trim();
     if (n && !EMAIL_RE.test(n)) names.add(n);
     EMAIL_RE.lastIndex = 0;
@@ -141,8 +220,11 @@ export function personInText(text: string, people: PersonLike[]): PersonLike | n
 const labelOf = (p: PersonLike): string => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
 
 /** Who the appointment is for: a phone in the event first, then an address, then a whole name in its title, guests or description. */
-export function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, people: PersonLike[]): PersonMatch | null {
-  const c = extractContacts(item);
+export function matchPerson(item: Pick<FeedItem, "title" | "description" | "location" | "attendees" | "organizer">, everyone: PersonLike[], own: OwnAddresses): PersonMatch | null {
+  const c = extractContacts(item, own);
+  // Not a candidate at all: named or not, the business's own person is never
+  // who an appointment is for, so it cannot be labelled "with" them either.
+  const people = everyone.filter((p) => !isOwn(own, p));
   if (c.phones.length) {
     const byPhone = new Map<string, PersonLike>();
     for (const p of people) if (p.phone) byPhone.set(p.phone, p);
@@ -189,32 +271,35 @@ export interface Visits {
 export interface FeedIndex {
   byPhone: Map<string, FeedItem[]>;
   /**
-   * Lower-cased, as extractContacts gives them — every address the event
-   * carried, the organiser's own among them, because an ICS ATTENDEE does not
-   * say which is which. An address is only a match for the person in People
-   * who holds it, so an owner who is not in People matches nothing; an owner
-   * who IS would take every appointment they are a guest on. Parsing
-   * ORGANIZER and skipping it is the fix if that ever bites.
+   * Lower-cased, as extractContacts gives them: every address the event
+   * carried except the organiser's (#626) and the business's own (`own`). An
+   * owner who is in People used to take every appointment they were a guest
+   * on; the organiser rule covered them as organiser, and `own` as guest.
    */
   byEmail: Map<string, FeedItem[]>;
   texts: Array<{ item: FeedItem; text: string }>;
+  /** The business's own addresses: taken off every event, and a person held under one has no visits. */
+  own: OwnAddresses;
 }
 
-export function indexFeed(items: FeedItem[]): FeedIndex {
+export function indexFeed(items: FeedItem[], own: OwnAddresses): FeedIndex {
   const byPhone = new Map<string, FeedItem[]>();
   const byEmail = new Map<string, FeedItem[]>();
   const texts: FeedIndex["texts"] = [];
   for (const it of items) {
-    const c = extractContacts(it);
+    const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...(byPhone.get(ph) ?? []), it]);
     for (const em of c.emails) byEmail.set(em, [...(byEmail.get(em) ?? []), it]);
     texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, byEmail, texts };
+  return { byPhone, byEmail, texts, own };
 }
 
 /** Every appointment of one person against an indexed feed, oldest first: their number first, their address second, their whole name third. */
 export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
+  // By every route, not only the address: a named owner would otherwise take
+  // "Meeting with Ruben Segura" by the words in its title.
+  if (isOwn(index.own, person)) return [];
   const out: Visit[] = [];
   const seen = new Set<FeedItem>();
   const take = (it: FeedItem, via: MatchVia) => {
@@ -231,6 +316,7 @@ export function allVisitsIn(index: FeedIndex, person: PersonLike): Visit[] {
 
 /** One person's next and last appointment against an indexed feed: their number first, their address second, their whole name third. */
 export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): Visits {
+  if (isOwn(index.own, person)) return { next: null, last: null };
   let next: Visit | null = null;
   let last: Visit | null = null;
   const seen = new Set<FeedItem>();
@@ -249,8 +335,8 @@ export function visitsIn(index: FeedIndex, person: PersonLike, nowMs: number): V
 }
 
 /** One person's next and last appointment in a parsed feed. */
-export function visitsOf(items: FeedItem[], person: PersonLike, nowMs: number): Visits {
-  return visitsIn(indexFeed(items), person, nowMs);
+export function visitsOf(items: FeedItem[], person: PersonLike, nowMs: number, own: OwnAddresses): Visits {
+  return visitsIn(indexFeed(items, own), person, nowMs);
 }
 
 /** ISO or ms → ms. */
@@ -440,7 +526,9 @@ export function peopleFromItems(items: FeedItem[], services: string[], nowMs: nu
   };
   for (const it of items) {
     if (it.end < from || it.start > to) continue;
-    const phones = extractContacts(it).phones;
+    // Phones only: people are made from a number, never an address (create_person),
+    // so the business's own ADDRESSES have nothing to take off here.
+    const phones = extractContacts(it, NO_OWN_ADDRESSES).phones;
     if (!phones.length) continue;
     const name = guessName(it, services);
     for (const phone of phones) {

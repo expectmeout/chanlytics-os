@@ -13,7 +13,7 @@
  * the receptionist says nothing about open times (the link still works),
  * and the failure is logged where the diagnostic can find it.
  */
-import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, feedBodyProblem, seasonHorizon, visitsOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
+import { parseIcs, freeWindows, describeOpenings, describeVisits, feedUrlOk, feedBodyProblem, seasonHorizon, visitsOf, ownAddressesOf, type FeedItem, type Opening, type ParsedFeed } from "./workspace/contracts.js";
 import type { TenantRuntime } from "./tenant-runtime.js";
 
 const CACHE_MS = 5 * 60 * 1000;
@@ -166,7 +166,11 @@ export async function visitsFor(rt: TenantRuntime, who: { phone: string | null; 
   try {
     const feed = await parsedFeed(rt, url, now);
     if (!feed) return null;
-    return describeVisits(visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime()), rt.timezone, now.getTime());
+    // The caller is known by their number, so the business's own ADDRESSES
+    // cannot be theirs -- but they still come off every event, so an owner's
+    // address on an appointment never makes it read as somebody else's.
+    const own = ownAddressesOf({ notifications: rt.notifications, calendar: rt.calendar });
+    return describeVisits(visitsOf(feed.items, { id: "caller", name: who.name ?? "", phone: who.phone, email: null }, now.getTime(), own), rt.timezone, now.getTime());
   } catch (e) {
     console.error("availability_visits_failed", JSON.stringify({ tenant: rt.tenantId, error: e instanceof Error ? e.message : String(e) }));
     return null;

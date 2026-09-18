@@ -337,7 +337,7 @@ test("an owner's read puts the people the feed names in People through the door;
 test("a day carries at most what the board draws; the rest are counted and said", () => {
   const items = [];
   for (let n = 0; n < MAX_ITEMS_PER_DAY + 3; n++) items.push({ start: ny(2026, 9, 8, 9) + n * 60_000, end: ny(2026, 9, 8, 9) + n * 60_000 + 30 * 60_000, title: `e${n}`, allDay: false, uid: `u${n}`, description: null, location: null, attendees: [] });
-  const { days, dropped } = itemsToDays(items, "2026-09-07", 7, TZ, [], []);
+  const { days, dropped } = itemsToDays(items, "2026-09-07", 7, TZ, [], new Set(), []);
   assert.equal(days.find((d) => d.key === "2026-09-08").items.length, MAX_ITEMS_PER_DAY);
   assert.equal(dropped, 3);
   const vm = toCalendarVM({ timezone: TZ, from: "2026-09-07", to: "2026-09-13", feed: { present: true, state: "ok", read_at: NOW.toISOString(), events: 103, recurring_expanded: 0, skipped_recurring: 0, dropped: 3 }, hours: profile.hours, closures: [], rules: null, services: [], booking_link: null, days: days.map((d) => ({ ...d, windows: [] })) }, NOW);
