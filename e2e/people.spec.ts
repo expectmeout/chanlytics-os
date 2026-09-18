@@ -383,5 +383,9 @@ test.describe("People on a real workspace", () => {
     await expect(cursor).toHaveCount(1);
     const head = (await page.locator(".cl-table thead th").first().boundingBox())!;
     expect((await cursor.boundingBox())!.y, "the row K walked up to stops below the header").toBeGreaterThanOrEqual(head.y + head.height - 1);
+    // Three people (the nightly's workspace) never make the box scroll, and then the walk above cannot fail: so the
+    // rule itself is read too. The box's scroll padding is the header's height, whatever the number of rows.
+    const pad = await scroller.evaluate((el) => getComputedStyle(el).scrollPaddingTop);
+    expect(Math.abs(parseFloat(pad) - head.height), `the box's scroll padding (${pad}) is the header's height`).toBeLessThanOrEqual(0.5);
   });
 });
