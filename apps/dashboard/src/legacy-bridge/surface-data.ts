@@ -651,6 +651,11 @@ function publishPeople(): void {
   };
 }
 
+// A save reads nothing back, and People mounted again (Back) reads the view from this copy, so the copy takes each save.
+export function keepSavedView(page: string, view: Record<string, unknown>): void {
+  if (peopleLoaded) peopleLoaded.views[page] = view;
+}
+
 /**
  * The next thousand, appended under the same order, and the surface told:
  * `window.__peopleMore()`. The page shows the button only while the server

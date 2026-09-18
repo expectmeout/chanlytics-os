@@ -338,7 +338,8 @@ test.describe("People on a real workspace", () => {
     await page.getByTestId("column-came_from").click();
     await expect(menu).toBeVisible();
     await expect.poll(headers).not.toContain("came from");
-    await expect.poll(() => saved.some((s) => s.view?.columns?.came_from === false)).toBe(true);
+    // A write the catch-all stopped is the answer the poll shows, so a save that moved fails saying where it went.
+    await expect.poll(() => (stopped.length ? stopped : saved.some((s) => s.view?.columns?.came_from === false)), { message: "the column's save reached the one address answered here" }).toBe(true);
     const last = saved[saved.length - 1];
     expect(typeof last.view?.sortBy, "the sort rides with the columns").toBe("string");
     expect(["asc", "desc"]).toContain(last.view?.sortDir);

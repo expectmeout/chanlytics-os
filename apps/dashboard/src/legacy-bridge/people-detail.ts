@@ -3,6 +3,7 @@ import { api } from "./api";
 import { ApiError, type ApiResult } from "../client/api";
 import { workspaceZone } from "./zone";
 import { readCache } from "./read-cache";
+import { keepSavedView } from "./surface-data";
 
 /**
  * The profile courier: `window.__personDetail(id)`.
@@ -184,9 +185,12 @@ export async function addPerson(body: { phone: string; name?: string }): Promise
  * { sortBy, sortDir, columns })`. Each save replaces the page's whole view
  * (member_view_set, 00113), so a page sends every key it owns. The member's own row, per workspace,
  * so a phone and a laptop show the page the same way. No surface re-read: the
- * view is the caller's own state already.
+ * view is the caller's own state already. The People surface's copy of the
+ * views takes it before the request goes (keepSavedView): People mounted again
+ * on Back read the view from before the save, and the next save wrote it back.
  */
 export async function saveView(page: string, view: Record<string, unknown>): Promise<ApiResult<{ views: Record<string, unknown> }>> {
+  keepSavedView(page, view);
   return api()("PUT views/[page]", { params: { page }, body: { view }, refresh: false });
 }
 

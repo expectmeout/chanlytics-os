@@ -682,6 +682,8 @@ const plViewSaver = () => {
   let next = null;
   const push = (view, retried = false) => {
     if (busy) { next = view; return; }
+    // No door to save through: nothing goes, and nothing is left waiting on a save that never lands.
+    if (typeof window.__saveView !== "function") return;
     busy = true;
     const landed = (r) => {
       busy = false;

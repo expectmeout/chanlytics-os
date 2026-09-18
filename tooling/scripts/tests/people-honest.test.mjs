@@ -81,13 +81,21 @@ const quietly = async (fn) => { const e = console.error; console.error = () => {
 const { peopleOverride } = await quietly(() => import("../../../apps/dashboard/src/legacy-bridge/surface-data.ts"));
 const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
+// The bridge's own save, for a test that goes through it over the wire rather than a stand-in.
+const { saveView } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
 
-/** Everyone over pages of `per`, the saved lists (or their read failing), what a search answers, the calendar's state, the member's saved views and the booking link on file. */
+/** Everyone over pages of `per`, the saved lists (or their read failing), what a search answers, the calendar's state, the member's saved views and the booking link on file; a view saved lands in `viewSaves`. */
 const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null, calendar = "none", views = {}, bookingLink = null } = {}) => {
-  const seen = { offsets: [], queries: [] };
+  const seen = { offsets: [], queries: [], viewSaves: [] };
   const cal = { state: calendar, source: calendar === "ok" ? "Google Calendar" : "your calendar" };
-  globalThis.window.fetch = async (url) => {
+  globalThis.window.fetch = async (url, init = {}) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
+    const saving = u.pathname.match(/^\/api\/v1\/views\/([^/]+)$/);
+    if (saving && init.method === "PUT") {
+      const { view } = JSON.parse(init.body);
+      seen.viewSaves.push({ page: saving[1], view });
+      return json(200, { ok: true, data: { views: { ...views, [saving[1]]: view } } });
+    }
     if (u.pathname === "/api/v1/contacts") {
       const q = u.searchParams.get("q");
       if (q !== null) {
@@ -228,9 +236,9 @@ const settle = async (n = 8) => { for (let i = 0; i < n; i += 1) await tick(); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lists = (over = {}) => ({ create: async () => ({ ok: false, message: "not here" }), rename: async () => ({ ok: true, data: {} }), remove: async () => ({ ok: true, data: {} }), add: async () => ({ ok: true, data: {} }), drop: async () => ({ ok: true, data: {} }), ...over });
 
-/** People published by the real surface over the wire, and a page with nothing drawn yet: no view remembered on this device and none saved over the wire, unless a test gives one. */
+/** People published by the real surface over the wire, and a page with nothing drawn yet: no view remembered on this device and none saved over the wire, unless a test gives one. What the wire saw. */
 const freshPage = async ({ people, lists: saved = [], listsFail = false, calendar = "none", views = {}, bookingLink = null } = {}) => {
-  wire({ people, lists: saved, listsFail, calendar, views, bookingLink });
+  const seen = wire({ people, lists: saved, listsFail, calendar, views, bookingLink });
   await quietly(() => peopleOverride.apply());
   cells = [];
   flashes.length = 0;
@@ -243,6 +251,7 @@ const freshPage = async ({ people, lists: saved = [], listsFail = false, calenda
   delete globalThis.window.__saveView;
   delete globalThis.window.__setPersonConsentMany;
   globalThis.window.__lists = lists();
+  return seen;
 };
 const draw = (props = {}) => { seq = 0; return globalThis.window.ClientsA({ onOpenProfile: (id) => opened.push(id), ...props }); };
 /**
@@ -1096,4 +1105,25 @@ test("with a calendar the menu offers Visits, shown, and the receptionist, hidde
   assert.deepEqual(saves.at(-1).columns, { visits: false, email: true }, "a save while it is down keeps the hidden Visits");
   await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves.at(-1) } });
   assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Offers", "Came from", "Email"], "back up, and Visits is still hidden, as chosen");
+});
+
+test("REGRESSION: Back keeps the columns a member chose -- People mounted again read the surface's view from before the save, and the next save wrote the old columns to the server", async () => {
+  // A member whose view this page has saved before, columns and all.
+  const seen = await freshPage({ people: [person(1), person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
+  // The bridge's own save over the wire, not a stand-in: the save itself keeps the surface's copy in step.
+  globalThis.window.__saveView = saveView;
+  click(byTestId(draw(), "people-columns"));
+  click(byTestId(draw(), "column-came_from"));
+  draw();
+  await settle();
+  assert.deepEqual(seen.viewSaves, [{ page: "people", view: { sortBy: "last", sortDir: "desc", columns: { came_from: false } } }], "the save landed");
+  // A profile opens, so the list goes; Back mounts it again, and it reads the surface as it stands.
+  cells = [];
+  const tree = draw();
+  assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the column the member hid came back");
+  assert.deepEqual(JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).columns, { came_from: false }, "REGRESSION: and this device's copy was written over with the old columns");
+  click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
+  draw();
+  await settle();
+  assert.deepEqual(seen.viewSaves.at(-1), { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } }, "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice");
 });
