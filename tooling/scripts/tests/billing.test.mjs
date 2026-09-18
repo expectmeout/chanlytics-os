@@ -181,7 +181,9 @@ test("the wiring: the migration, the webhook's order, the ops, the routes, the b
   for (const v of ["STRIPE_SECRET_KEY=", "STRIPE_WEBHOOK_SECRET=", "STRIPE_PRICE_ID=", "BILLING_TRIAL_DAYS="]) assert.ok(env.includes(v), v);
   const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
   assert.equal(vercel.functions["api/stripe-webhook.ts"].maxDuration, 30);
-  assert.ok(readCode("apps/edge/lib/notify.ts").includes('"alert", "review", "billing"]'), "the kind is kept, not folded into alert");
+  // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
+  // listed kind is stored as itself is run in notify-transport.test.mjs.
+  assert.ok(readCode("apps/edge/lib/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") && SERVER_NOTIFICATION_KINDS.includes("billing"), "the kind is kept, not folded into alert");
 
   const get = readCode("apps/dashboard/app/api/v1/billing/route.ts");
   assert.ok(get.includes("billingFor(ctx.supabase, member.tenantId), billingReadiness()"));

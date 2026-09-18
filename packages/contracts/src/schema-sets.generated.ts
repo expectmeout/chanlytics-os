@@ -73,7 +73,7 @@ export const SCHEMA_SETS = {
   "messages.type": ["text", "template", "media", "call_summary", "note"],
   "notifications.kind": [
     "handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people",
-    "alert", "review", "billing",
+    "alert", "review", "billing", "template_ready", "template_blocked",
   ],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],

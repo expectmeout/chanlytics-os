@@ -51,5 +51,5 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.
   assert.ok(readCode("apps/edge/lib/job-alert.ts").includes('kind: "job_failed", route: "inbox",'));
-  assert.ok(readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') && readCode("apps/edge/lib/waba-events.ts").includes('kind: "number", route: "admin/integrations",'));
+  assert.ok(readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') && readCode("apps/edge/lib/waba-events.ts").includes("await notify(target, { kind: described.kind, route: described.route,"), "the change decides its kind and its door (describeWabaChange); the sender never re-derives them");
 });

@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayLeaks, todayAwayGrouped, TODAY_LEAK_MAX } from "@chanlytics/contracts";
+import { todayLeaks, todayAwayGrouped, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
 
 const list = (id, label, count, action = null) => ({ id, label, group: "journey", count, action });
 const act = (cta, to, enabled = true) => ({ text: "", cta, to, enabled });
@@ -163,6 +163,38 @@ test("twelve calls from the same line are one row that says twelve, and the warn
   assert.equal(calls.count, 12);
   assert.equal(calls.ids.length, 12, "read and dismiss must reach every row the group swallowed");
   assert.equal(calls.row.id, "c0", "the newest of the group is the one it shows");
+});
+
+test("a template that can be sent does not wear a warning's colour, and neither reads as the number's news", () => {
+  // "Template “save_our_number” approved" arrived as kind "number": a shield,
+  // warn amber, and a door to Connections -- good news about a template,
+  // dressed as bad news about the phone line. Since the away card sorts
+  // warnings first, it also outranked real news and could push a genuine
+  // quality downgrade off the bottom.
+  const dto = (id, kind, title) => ({ id, kind, title, body: "", route: null, subject_type: null, subject_id: null, created_at: "2026-09-17T12:00:00Z", read: false, dismissed: false });
+  const rows = serverNotificationRows({ seen_at: null, notifications: [
+    dto("a", "template_ready", "Template “save_our_number” approved"),
+    dto("b", "template_blocked", "Template “x” rejected"),
+    dto("c", "number", "WhatsApp number: quality rating is now Yellow"),
+  ] });
+  assert.deepEqual(rows.map((r) => [r.kind, r.tone, r.icon, r.to, r.action]), [
+    ["template_ready", "ok", "check", "messages", "Open Templates"],
+    ["template_blocked", "warn", "alert", "messages", "Open Templates"],
+    ["number", "warn", "shield", "admin/integrations", "Open Connections"],
+  ]);
+  // And the away card sorts on that: the downgrade and the rejection above the approval.
+  const { groups } = todayAwayGrouped(rows.map((r) => ({ ...r, id: r.key })), [], 5);
+  assert.deepEqual(groups.map((g) => g.row.kind), ["template_blocked", "number", "template_ready"]);
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"), "the closed list carries them, so serverNotificationRows does not fall back to \"alert\"");
+});
+
+test("several templates at once are one row each way -- a sync can approve a batch", () => {
+  const t = (id, kind, title) => ({ id, kind, title, message: "", tone: kind === "template_ready" ? "ok" : "warn", icon: "check", unread: true, about: null });
+  const ready = todayAwayGrouped([t("1", "template_ready", "a"), t("2", "template_ready", "b"), t("3", "template_ready", "c")]);
+  assert.equal(ready.groups[0].title, "3 templates are ready to send");
+  const blocked = todayAwayGrouped([t("4", "template_blocked", "a"), t("5", "template_blocked", "b")]);
+  assert.equal(blocked.groups[0].title, "2 templates cannot be sent");
+  assert.equal(todayAwayGrouped([t("6", "template_ready", "only one")]).groups[0].title, null, "one is news, not a count");
 });
 
 test("a kind with no noun never groups: a new alert shows itself rather than joining a total", () => {

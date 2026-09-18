@@ -321,7 +321,9 @@ test("the edge library: the key alone on the edge, one check routine, a failed r
   const vercel = JSON.parse(readRaw("apps/edge/vercel.json"));
   assert.equal(vercel.functions["api/admin/google.ts"].maxDuration, 60);
   assert.equal(vercel.functions["api/cron/google.ts"].maxDuration, 60);
-  assert.ok(readCode("apps/edge/lib/notify.ts").includes('"calendar_people", "alert", "review", "billing"]'), "the kind is kept, not folded into alert");
+  // The edge keeps contracts' list rather than a copy (a copy turned 00134's new kinds into "alert"); that every
+  // listed kind is stored as itself is run in notify-transport.test.mjs.
+  assert.ok(readCode("apps/edge/lib/notify.ts").includes("new Set(SERVER_NOTIFICATION_KINDS)") && ["calendar_people", "review"].every((k) => SERVER_NOTIFICATION_KINDS.includes(k)), "the kind is kept, not folded into alert");
   assert.ok(readRaw("apps/edge/.env.example").includes("GOOGLE_PLACES_API_KEY="));
 });
 
