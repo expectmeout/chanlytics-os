@@ -4235,7 +4235,9 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
   const r = row2;
   let rightNow;
-  if (r.open_escalation_reason) {
+  if (isOwned(r, nowMs)) {
+    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
+  } else if (r.open_escalation_reason) {
     const since = r.open_escalation_since ? shortTime(r.open_escalation_since, tz, now) : null;
     rightNow = {
       tone: "escalated",
@@ -4250,8 +4252,6 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     rightNow = { tone: "queued", title: "Reply sending", detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} \u2014 it can still be stopped from the Inbox.`, cta: openThread };
   } else if (base.receptionist.tone === "snoozed") {
     rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`, cta: openThread };
-  } else if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
   } else if (base.consent.state === "opted_out") {
     rightNow = { tone: "silent", title: "Silent, they opted out", detail: "They said stop \u2014 nothing goes out to them until they ask again.", cta: null };
   } else if (["never", "ask"].includes(d.receptionist_mode ?? "") || ["never", "ask"].includes(d.workspace_reply_mode ?? "")) {
