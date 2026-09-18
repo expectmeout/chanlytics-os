@@ -3,6 +3,7 @@ import "./zod-config";
 export * from "./envelope";
 export * from "./errors";
 export * from "./phone";
+export * from "./person-name";
 export * from "./email-address";
 export * from "./mailbox";
 export * from "./enums";

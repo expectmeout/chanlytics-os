@@ -10,7 +10,7 @@
  * Times are written in the business's own zone, once, in the header, so a
  * file read months later still says which clock it used.
  */
-import { whisperText } from "@chanlytics/contracts";
+import { personName, whisperText } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 
 export interface ExportOpts {
@@ -23,9 +23,13 @@ export interface ExportOpts {
 
 type ContactLike = { display_name?: string | null; wa_profile_name?: string | null; phone_e164?: string | null; email?: string | null } | null | undefined;
 
-/** The name a person goes by: what we call them, else what WhatsApp calls them, else the number, else the address. */
+/**
+ * The name a person goes by -- contracts personName, the one rule every
+ * surface reads. This file carried its own copy, which printed the raw
+ * +19293709606 where every page prints +1 (929) 370-9606.
+ */
 export function personLabel(c: ContactLike): string {
-  return c?.display_name || c?.wa_profile_name || c?.phone_e164 || c?.email || "Unknown";
+  return personName(c);
 }
 
 const formatters = new Map<string, Intl.DateTimeFormat>();

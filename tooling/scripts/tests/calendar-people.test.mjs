@@ -672,7 +672,11 @@ test("every visit, oldest first, for the timeline; the profile reads them as Vis
   const closed = toPersonVM(detail_({ has_chat: true, latest_wa_inbound_at: new Date(NOW - 30 * 3_600_000).toISOString() }), TZ, now);
   assert.deepEqual(closed.replyWindow, { open: false, hoursLeft: 0 });
   const page = readCode("apps/dashboard/src/legacy/pages/client-profile.jsx");
-  assert.ok(page.includes('data-testid="text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"') && page.includes("Send the booking-link template"), "inside the window a reply is carried in; outside it the thread offers the template");
+  assert.ok(page.includes('data-testid="text-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'), "the button carries the link into the thread");
+  // The words are the contract's now (people bookingLinkAction), not the page's:
+  // inside the window a reply is carried in, outside it the thread offers the template.
+  assert.deepEqual([chat.bookingLinkAction.label, chat.bookingLinkAction.ready], ["Text the booking link", true]);
+  assert.deepEqual([closed.bookingLinkAction.label, closed.bookingLinkAction.ready], ["Send the booking-link template", false]);
   assert.ok(page.includes(': e.kind === "visit" ? <Icon name="calendar" size={12} />'));
   const composer = readCode("apps/dashboard/src/legacy/pages/inbox-thread.jsx");
   assert.ok(composer.includes('sessionStorage.getItem("chanlytics-compose")') && composer.includes('sessionStorage.removeItem("chanlytics-compose")') && composer.includes("setText((cur) => (cur && cur.trim() ? cur : carried.text));"), "only into an empty composer, only once");

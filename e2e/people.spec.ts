@@ -249,7 +249,7 @@ test.describe("People on a real workspace", () => {
     await expect(page.locator(".cl-prof-name")).toBeVisible();
     const btn = page.getByTestId("text-booking-link");
     await expect(btn).toBeVisible();
-    await expect(btn).toHaveText(/Text the booking link|Send the booking-link template/);
+    await expect(btn).toHaveText(/Text the booking link|Email the booking link|Send the booking-link template/);
     await btn.click();
     await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/inbox\//);
   });

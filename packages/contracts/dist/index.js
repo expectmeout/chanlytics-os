@@ -125,6 +125,11 @@ function formatPhoneDisplay(e164) {
   return `+${digits2.replace(/(\d{1,3})(?=(\d{3})+$)/g, "$1 ").trim()}`;
 }
 
+// src/person-name.ts
+function personName(c) {
+  return c?.display_name || c?.wa_profile_name || formatPhoneDisplay(c?.phone_e164) || c?.email || "Unknown";
+}
+
 // src/email-address.ts
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
@@ -1479,7 +1484,15 @@ function messageStatusLabel(status) {
 function reachedCustomer(status) {
   return status !== "queued" && status !== "failed" && status !== "canceled";
 }
-var AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
+var AGENTS = {
+  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
+  sms: { glyph: "T", name: "Text Receptionist" },
+  email: { glyph: "Y", name: "Your team" },
+  phone: { glyph: "P", name: "Phone Receptionist" }
+};
+function agentFor(channel) {
+  return AGENTS[channel] ?? AGENTS.whatsapp;
+}
 var CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/;
 function shortTime(iso, tz, now) {
   const ms2 = iso ? Date.parse(iso) : Number.NaN;
@@ -1490,7 +1503,7 @@ function bubbleTime(iso, tz, now) {
   return Number.isFinite(ms2) ? clockStamp(ms2, tz, now.getTime()) : "";
 }
 function contactName(dto) {
-  return dto.contact.display_name || dto.contact.wa_profile_name || formatPhoneDisplay(dto.contact.phone_e164) || dto.contact.email || "Unknown";
+  return personName(dto.contact);
 }
 function writtenChannelOf(channel) {
   return channel === "sms" ? "sms" : channel === "email" ? "email" : "whatsapp";
@@ -1693,7 +1706,10 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
       // pane rendered that under every agent row — so a phone call summary was
       // signed "by WhatsApp Receptionist", crediting the wrong assistant with
       // work it did not do. The bubble already knows its own channel.
-      ...m.sender !== "customer" ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph } : {},
+      ...m.sender !== "customer" ? (() => {
+        const a = agentFor(onPhone ? "phone" : writtenChannelOf(m.channel));
+        return { agentName: a.name, agentGlyph: a.glyph };
+      })() : {},
       ...m.sender === "human" ? { byYou: true } : {},
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
       ...m.sender === "human" && messageAuthor(m) ? { byWords: messageAuthor(m).words } : {},
@@ -1763,7 +1779,7 @@ function toInboxThreadVM(dto, escalation, tz, now = /* @__PURE__ */ new Date()) 
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...waitingMin ? { waited: formatWaited(waitingMin * 6e4) } : {},
-    agent: AGENT,
+    agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
@@ -1876,7 +1892,7 @@ function toConversationVM(dto, tz, now = /* @__PURE__ */ new Date()) {
     // The wire the conversation's last written words travelled. A thread with
     // nothing but a call note is the phone, which is what it looks like.
     channel: threadChannelOf(dto.messages),
-    agent: AGENT,
+    agent: agentFor(threadChannelOf(dto.messages)),
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.
@@ -3653,19 +3669,45 @@ function mmss3(ms2) {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
 }
 var capitalize = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
-function personName(r) {
-  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || r.email || "Unknown";
-}
 function channelsOf(r) {
   const set = new Set(r.channels ?? []);
   const wrote = r.message_channels;
-  if (wrote ? wrote.some((c) => c === "whatsapp" || c === "sms") : r.has_chat) set.add("whatsapp");
+  if (wrote ? wrote.includes("whatsapp") : r.has_chat) set.add("whatsapp");
+  if (wrote?.includes("sms")) set.add("sms");
   if (wrote?.includes("email")) set.add("email");
   if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order = ["whatsapp", "voice", "email"];
+  const order = ["whatsapp", "sms", "voice", "email"];
   return order.filter((c) => set.has(c));
 }
-var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", voice: "Phone", email: "Email" };
+function replyChannelOfRow(r) {
+  if (!r.has_chat) return null;
+  const wrote = r.message_channels;
+  if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
+  return "whatsapp";
+}
+function replyChannelOfThreads(conversations) {
+  let latest = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.sender !== "customer" || m.type === "call_summary") continue;
+      const at2 = Date.parse(m.channel_ts ?? m.created_at);
+      if (Number.isFinite(at2) && (!latest || at2 > latest.at)) latest = { at: at2, channel: m.channel };
+    }
+  }
+  return latest ? writtenChannelOf(latest.channel) : null;
+}
+function bookingLinkAction(replyVia, win) {
+  if (replyVia === "Email") return { label: "Email the booking link", title: "Opens the thread with the link ready to send by email", ready: true };
+  if (replyVia === "Text") return { label: "Text the booking link", title: "Opens the thread with the link ready to send as a text", ready: true };
+  if (win && win.open) return { label: "Text the booking link", title: `Opens the thread with the link ready to send \xB7 ${win.hoursLeft}h left in their reply window`, ready: true };
+  return {
+    label: "Send the booking-link template",
+    title: "Their reply window is closed \u2014 the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it",
+    ready: false
+  };
+}
+var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 function personStanding(r, nowMs) {
   return standingOf({
     state: r.latest_state === "snoozed" ? "snoozed" : r.needs_human || r.latest_state === "needs_human" ? "needs_human" : r.latest_state ?? "open",
@@ -3820,10 +3862,18 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} \xB7 ${v.next.title}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} \xB7 ${v.last.title}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    replyWindow: r.has_chat ? (() => {
-      const w = waWindow(r.latest_wa_inbound_at, now);
-      return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
-    })() : null,
+    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
+    // WhatsApp's for everybody, so a person who had only ever emailed was shown
+    // "Closed · template only" -- a template they cannot receive, on a wire
+    // they have never used.
+    ...(() => {
+      const via = replyChannelOfRow(r);
+      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
+      const w = replyWindow(via, r.latest_wa_inbound_at, now);
+      const win = { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
+      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
+    })(),
+    channelWords: channelsOf(r).map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 "),
     askedMs,
     askedNotBooked,
     nextVisitMs,
@@ -4187,7 +4237,10 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     rightNow = { tone: "answering", title: "Answering", detail: "New messages are answered automatically.", cta: base.threadId ? { label: "Open the thread", to: `inbox/${base.threadId}` } : null };
   }
   const firstIsCall = d.calls.some((k) => k.started_at && ts(k.started_at) === base.firstContact.ts);
-  const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
+  const firstWritten = d.conversations.flatMap((c) => c.messages).filter((m) => m.type !== "call_summary").map((m) => ({ at: Date.parse(m.channel_ts ?? m.created_at), channel: m.channel })).filter((m) => Number.isFinite(m.at)).sort((a, b) => a.at - b.at)[0];
+  const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : firstWritten ? REPLY_VIA[writtenChannelOf(firstWritten.channel)] : "WhatsApp";
+  const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+  const exactWindow = via ? replyWindow(via, r.latest_wa_inbound_at, now) : null;
   const lc = base.lastContact;
   const lastMeta = lc.who === "they" ? lc.kind === "call" ? "they phoned" : "they wrote" : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
   const toneWord = { answering: "Answering", escalated: "Waiting", queued: "Queued", snoozed: "Snoozed", paused: "Held for you", silent: "Silent" };
@@ -4210,10 +4263,12 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     v: base.firstContact.ts !== null ? `${base.firstContact.estimate ? "Before " : ""}${clockDateYear(base.firstContact.ts, tz)} \xB7 ${firstChannel}` : "\u2014"
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" \xB7 ") || "\u2014" });
-  if (base.hasChat) {
-    const w = waWindow(r.latest_wa_inbound_at, now);
-    const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
-    about.push({ k: "Reply window", v: w.open ? `Open \xB7 ${hours}h left` : "Closed \xB7 template only" });
+  if (base.hasChat && via && exactWindow) {
+    const hours = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 36e5)) : 0;
+    about.push({
+      k: "Reply window",
+      v: via === "email" ? "None \u2014 replies go by email" : via === "sms" ? "None \u2014 a text can be answered any time" : exactWindow.open ? `Open \xB7 ${hours}h left` : "Closed \xB7 template only"
+    });
   }
   if (d.visits) {
     const v = d.visits;
@@ -4233,6 +4288,10 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
   }
   return {
     ...base,
+    ...via && exactWindow ? (() => {
+      const win = { open: exactWindow.open, hoursLeft: exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 36e5)) : 0 };
+      return { replyVia: REPLY_VIA[via], replyWindow: win, bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
+    })() : {},
     since: base.firstContact.label === "\u2014" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
     metaLine: `${plural(base.threads, "conversation")} \xB7 ${plural(base.calls, "call")}`,
     lastExchange: { customer, reply },
@@ -10083,6 +10142,7 @@ export {
   activityWords,
   addressAlreadyKnown,
   afterPersonRefused,
+  agentFor,
   ago,
   agoLabel,
   agoShort,
@@ -10101,6 +10161,7 @@ export {
   billingDoorOpen,
   billingPill,
   bookedAfterAsk,
+  bookingLinkAction,
   bookingTemplate,
   brainMetaOf,
   broadcastFailureWords,

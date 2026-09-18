@@ -171,8 +171,42 @@ test("a person who only ever wrote by email is not on WhatsApp: the list says wh
   const emailOnly = toPersonRowVM(row({ channels: ["email"], has_chat: true, message_channels: ["email"], call_count: 0, phone_e164: null, email: "ana@example.com" }), ZONE, NOW);
   assert.deepEqual(emailOnly.channels, ["email"], "REGRESSION guard: has_chat alone read as WhatsApp");
   assert.deepEqual(toPersonRowVM(row({ channels: ["whatsapp", "email"], has_chat: true, message_channels: ["email", "whatsapp"], call_count: 2 }), ZONE, NOW).channels, ["whatsapp", "voice", "email"]);
-  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: true, message_channels: ["sms"], call_count: 0 }), ZONE, NOW).channels, ["whatsapp"], "a text shares WhatsApp's glyph, as it always has");
-  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: true, call_count: 0 }), ZONE, NOW).channels, ["whatsapp"], "no message_channels on the row: every written word was WhatsApp's or a text's");
+  // A text is its own wire now. It still wears the chat bubble (ChannelGlyph
+  // draws sms as chat); what changed is the WORD -- a person who had only ever
+  // texted was introduced as "WhatsApp" at the top of their page.
+  const texter = toPersonRowVM(row({ channels: [], has_chat: true, message_channels: ["sms"], call_count: 0 }), ZONE, NOW);
+  assert.deepEqual(texter.channels, ["sms"]);
+  assert.equal(texter.channelWords, "Text");
+  assert.deepEqual(toPersonRowVM(row({ channels: [], has_chat: true, call_count: 0 }), ZONE, NOW).channels, ["whatsapp"], "no message_channels on the row: the old reading, which is the strictest");
+});
+
+test("REGRESSION: a person reached only by email is not held by WhatsApp's window, and their page does not say Phone", () => {
+  // Found live: an email-only person's page said "Phone since Sep 17", "Reply
+  // window: Closed · template only" and offered to "Send the booking-link
+  // template" -- three answers to "which wire is this person on", each wrong,
+  // each derived somewhere different.
+  const emailOnly = toPersonRowVM(row({ channels: ["email"], has_chat: true, message_channels: ["email"], call_count: 0, phone_e164: null, email: "ana@example.com", latest_wa_inbound_at: null }), ZONE, NOW);
+  assert.equal(emailOnly.channelWords, "Email");
+  assert.equal(emailOnly.replyVia, "Email");
+  assert.equal(emailOnly.replyWindow.open, true, "only WhatsApp has a window");
+  assert.deepEqual(emailOnly.bookingLinkAction, { label: "Email the booking link", title: "Opens the thread with the link ready to send by email", ready: true });
+
+  // WhatsApp's own words are unchanged, open and shut.
+  const open = toPersonRowVM(row({ message_channels: ["whatsapp"], latest_wa_inbound_at: iso(2 * 3_600_000) }), ZONE, NOW);
+  assert.equal(open.replyVia, "WhatsApp");
+  assert.equal(open.bookingLinkAction.label, "Text the booking link");
+  assert.equal(open.bookingLinkAction.ready, true);
+  const shut = toPersonRowVM(row({ message_channels: ["whatsapp"], latest_wa_inbound_at: iso(3 * D) }), ZONE, NOW);
+  assert.deepEqual([shut.bookingLinkAction.label, shut.bookingLinkAction.ready], ["Send the booking-link template", false]);
+
+  // A row that cannot tell which wire came last reads WhatsApp's window, the
+  // strictest there is: it may say a reply is held when it is not, never the reverse.
+  const both = toPersonRowVM(row({ message_channels: ["email", "whatsapp"], latest_wa_inbound_at: iso(3 * D) }), ZONE, NOW);
+  assert.equal(both.replyWindow.open, false);
+
+  // Somebody who has only phoned has no reply wire at all.
+  const caller = toPersonRowVM(row({ has_chat: false, message_channels: [], call_count: 2 }), ZONE, NOW);
+  assert.deepEqual([caller.replyVia, caller.replyWindow], [null, null]);
 });
 
 /* ------------------------- lists and aggregates -------------------------- */

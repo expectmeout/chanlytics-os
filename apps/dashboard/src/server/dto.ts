@@ -34,6 +34,8 @@ export interface ConversationRow {
     display_name: string | null;
     wa_profile_name: string | null;
     phone_e164: string | null;
+    /** Selected by CONVERSATION_COLUMNS since email arrived, and dropped here until now (below). */
+    email: string | null;
     consent: string | null;
     dnc: boolean | null;
     marketing_consent: string | null;
@@ -155,6 +157,11 @@ export function toConversationDto(c: ConversationRow, messages: MessageDto[], us
       display_name: c.contacts?.display_name ?? null,
       wa_profile_name: c.contacts?.wa_profile_name ?? null,
       phone_e164: c.contacts?.phone_e164 ?? null,
+      // The select above has asked for the address since email arrived, and this
+      // mapper threw it away: the one field the thread's name falls back to for a
+      // person reached only by email. The Inbox and Conversations called that
+      // person "Unknown" while their own page, read another way, named them.
+      email: c.contacts?.email ?? null,
       consent: c.contacts?.consent ?? null,
       dnc: c.contacts?.dnc ?? false,
       // Yes to offers, for the composer to offer only the templates the reply route sends (I4).
