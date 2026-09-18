@@ -10,6 +10,35 @@
 
 ---
 
+## As built (PR #677, merged 18 September 2026 as 4b58b081; 00138 in production)
+
+The plan below is the record of what was planned. Where the build differs, this list says so; `docs/system-prd.md` and `apps/dashboard/src/legacy/CLAUDE.md` say what the code does.
+- **The migration is 00138.** #675's 00137 reached production first, so an 00136 would have pushed out of order.
+- **A history moved in from before the database** (the receptionist's Blob-era WhatsApp threads, `meta.backfill`) says how it began: 'call' when its first row is a call note, else its wire. 'import' is only the fallback when it names no known wire.
+- **Pinned rules for `came_from`:** a call wins a tie, a dial that never connected is nobody's first word, and the oldest `contact.added` wins.
+- **Words:** "Added by hand", as the profile says, and "Phone", as contracts say it everywhere.
+- **The receptionist's word** is always drawn beside the state when the receptionist is not simply answering. It is hidden past 900px only where its own column shows.
+- **A member's columns apply only on a desktop.** A column turned off is drawn with `pl-col-off` and hidden at `width > 900px`, so phones keep their cards.
+- **Keys:**
+  - A key belongs to where it was pressed (`e.target`).
+  - The page's own menu comes first.
+  - Nothing acts behind another menu or dialog in `.app-root`, and the phone's drawer is a dialog while open.
+  - Radios and held keys are handled.
+  - The `?` sheet lists People's keys.
+- **Views:**
+  - Saves go one at a time, the latest wins, and a failure is retried once.
+  - A column put back to its default drops its key.
+  - A saved view survives Back, a reload (a guarded session-cache re-snapshot), and a read already in flight.
+- **Desktop CSS:**
+  - `(width > 900px)`.
+  - A 39px header (`--pl-head`), with scroll padding for the cursor row and the bulk bar.
+  - The controls row wraps.
+  - The 240px minimum applies only from the fourth row.
+  - The checkbox column is 28px by its natural width.
+  - A dark selected tint.
+- **Tests:** the member's RLS test fails when sign-in fails, and so do the two older DB tests that had the tolerant line.
+- **Phase 1** migrations start at **00139** (00137 and 00138 are taken).
+
 ## Read this first
 
 **The spec** is PRD v2, `cm-leads/docs/plans/2026-09-17-people-table-and-lead-finder.md`: section 14 "Phase 0", with sections 2 and 6. Ruben approved it on 18 September: "the table first, since it improves People as it is today". Phase 0 has no leads, no Apify, no AI, no SQL paging and no words-to-chips; those are Phase 1 or later.
