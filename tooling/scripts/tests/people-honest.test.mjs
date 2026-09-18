@@ -1266,3 +1266,19 @@ test("the table is selecting only while a row it shows is selected -- a selectio
   assert.equal(selecting(tree), true, "a shown row selected: selecting again");
   assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "and the bar counts the one shown");
 });
+
+test("on a desktop the table scrolls in its own box, Person pinned, and the hairline beside it shows once it has scrolled sideways", async () => {
+  await freshPage({ people: [person(1)] });
+  let tree = draw();
+  assert.ok(find(tree, (n) => /\bcl-main-scroll\b/.test(n.props?.className || "") && /\bpl-main\b/.test(n.props.className)), "the page's column is the layout that gives the table its own box");
+  const scroller = (t) => byTestId(t, "people-table-scroll");
+  assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "no hairline at rest");
+  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 120 } });
+  tree = draw();
+  assert.match(scroller(tree).props.className, /\bscrolled\b/, "scrolled sideways: the hairline");
+  scroller(tree).props.onScroll({ currentTarget: { scrollLeft: 0 } });
+  tree = draw();
+  assert.doesNotMatch(scroller(tree).props.className, /\bscrolled\b/, "back at the start: none");
+  assert.match(find(tree, (n) => n.type === "th" && textOf(n).startsWith("Person")).props.className, /\bpl-pin\b/, "Person's heading is pinned");
+  assert.match(find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-name-cell\b/.test(n.props?.className || "")).props.className, /\bpl-pin\b/, "and so are its cells");
+});

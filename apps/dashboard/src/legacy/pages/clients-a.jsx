@@ -1597,6 +1597,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // default (PL_COLUMNS). The menu's open state is the page's, so its one keyboard listener closes it on Esc.
   const [colChoices, setColChoices] = useState(() => plColumnChoices(remembered.columns));
   const [colsOpen, setColsOpen] = useState(false);
+  // Whether the table has scrolled sideways, for the hairline beside Person: kept here so the table stays hookless.
+  const [scrolledX, setScrolledX] = useState(false);
   // A view is the sort and the columns. The strip's tab was remembered too; a view saved before it went carries an
   // attentionTab this ignores, and the next save drops it. Every save sends every key the page owns, because
   // member_view_set replaces the page's whole object (00113): a save of the sort alone would lose the columns.
@@ -1859,7 +1861,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       />
 
       <div className="cl-main">
-        <div className="cl-main-scroll" ref={scrollRef}>
+        <div className="cl-main-scroll pl-main" ref={scrollRef}>
           <PeopleStanding
             agg={agg}
             needsShown={tab === "needs_you"}
@@ -1949,6 +1951,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             onOpen={onOpenProfile}
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
+            scrolled={scrolledX}
+            onScrolled={setScrolledX}
             empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
           />
           {hasMore && (

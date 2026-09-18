@@ -1722,7 +1722,10 @@
 .cl-table th.cl-sel, .cl-table td.cl-sel { width: 28px; padding-right: 0; }
 .cl-check { width: 14px; height: 14px; margin: 0; accent-color: var(--accent); cursor: pointer; opacity: 0.35; transition: opacity 120ms ease; }
 .cl-table tr:hover .cl-check, .cl-check:checked, .cl-table-wrap.selecting .cl-check, .cl-table th .cl-check { opacity: 1; }
-.cl-table tbody tr.selected { background: var(--bg-raised); box-shadow: inset 2px 0 0 var(--accent); }
+/* A picked row: an ink tint that shows in light as in dark. It was --bg-raised on --bg -- white on warm paper, which
+   nobody could see -- with the accent's edge, and the accent is kept for the receptionist's live state. */
+.clients { --pl-selected: oklch(from var(--ink) l c h / 0.07); }
+.cl-table tbody tr.selected { background: var(--pl-selected); }
 .cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
 @keyframes cl-bulk-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .cl-bulk { animation: none; } }
@@ -1789,6 +1792,36 @@
   .cl-table td.cl-came-cell, .cl-table td.cl-email-cell, .cl-table td.cl-lists-cell { display: none; }
   /* Visits and the receptionist share one place on a card; with both columns chosen, the visit keeps it. */
   .cl-table td.cl-visits-cell ~ td.cl-recept-cell { display: none; }
+}
+
+/* ---- On a desktop the People table is its own scroller -----------------------------------------------------
+   The page above it holds still and the table scrolls in its box, both ways: the header sticks to its top, the
+   checkbox and Person to its left, and a hairline shows beside Person once it has scrolled sideways (.scrolled, the
+   page's state). The box used to clip what did not fit (overflow: clip, so that the header could stick to the page),
+   so the columns past its right edge were cut off with no way to reach them. The cells draw the row's lines and its
+   colour (--pl-row), because a pinned cell sits over the others and must paint its own. Phones and tablets keep the
+   cards (max-width: 900px). */
+@media (width > 900px) {
+  .clients .pl-main { display: flex; flex-direction: column; }
+  .clients .pl-main > * { flex: none; }
+  .clients .pl-main > .pl-table-wrap { flex: 0 1 auto; min-height: 240px; display: flex; flex-direction: column; }
+  .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .pl-table { border-collapse: separate; border-spacing: 0; --pl-row: var(--bg); }
+  .pl-table tbody tr:hover { --pl-row: var(--bg-hover); }
+  .pl-table tbody tr.selected { --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--bg); }
+  .pl-table tbody tr.focused { --pl-row: var(--bg-hover); }
+  .pl-table tbody td { border-bottom: 1px solid var(--line); }
+  .pl-table tbody tr:last-child td { border-bottom: none; }
+  .pl-table thead th { z-index: 2; }
+  .pl-table .cl-sel, .pl-table .pl-pin { position: sticky; left: 0; z-index: 1; background: var(--pl-row); }
+  .pl-table thead th.cl-sel, .pl-table thead th.pl-pin { z-index: 3; background: var(--bg-sunken); }
+  /* The checkbox's column is exactly Person's offset: the table squeezed it to 26px and left Person 2px off it. */
+  .pl-table .cl-sel { min-width: 28px; max-width: 28px; }
+  .pl-table .cl-sel + .pl-pin { left: 28px; }
+  .pl-table .pl-pin { border-right: 1px solid transparent; }
+  .pl-table-scroll.scrolled .pl-pin { border-right-color: var(--line); }
+  /* The cursor's edge, on the first cell: a pinned cell paints over the row's own. */
+  .pl-table tbody tr.focused > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
 }
 
 /* ---- Where your attention matters, redrawn to the mockup ------------------
