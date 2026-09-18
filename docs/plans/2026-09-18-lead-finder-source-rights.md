@@ -119,6 +119,33 @@ May Chanlytics, as a paid feature, have a third-party scraper (an actor on Apify
   - Overture's files are public on S3 and read with DuckDB, a Python package of about 20 MB; installing it needs Ruben's yes. Foursquare's needs a free account on its portal (Ruben's to create) or Hugging Face access.
 - **If open data finds materially fewer of the right businesses** (as a working line, under about 70% of what a Google search finds), bring the trade-off back to Ruben with the numbers. A lawyer's opinion is worth paying for at that point.
 
+## Inside Apify only (Ruben, 18 September)
+
+Ruben's constraint: Chanlytics gets leads only through actors on Apify, never from Google Maps or any other source directly. That changes the options, not the reading of the terms.
+
+- **What Apify changes.**
+  - Chanlytics never touches Google; the actor's developer and Apify do the access, from their own servers.
+  - Google's enforcement so far (SerpApi) has gone after the scraping vendor, not its customers.
+  - So the chance of Google pursuing Chanlytics is lower than for a company scraping on its own.
+- **What it does not change.**
+  - Apify's terms and its shared-responsibility model make the customer responsible for complying with the target site's terms and with data-protection law. Apify acts as the customer's processor.
+  - The Maps terms reach anyone acting on a user's behalf, if Chanlytics counts as a user.
+  - The business risks stay: the actor can break or be withdrawn, and a paid product would rest on data collected against Google's terms.
+- **The licensed route exists inside Apify.** Overture-backed actors are on the Store:
+  - `foxlabs/location-intelligence`: Overture's ~76M places by area and category, with phones, emails, websites and socials. About $0.005 a result; updated 7 September 2026.
+  - `datavaultlabs/local-business-lead-intelligence`: Overture discovery plus robots.txt-respecting website enrichment for emails and phones, with lead scores. About $0.004 a result; updated 18 August 2026.
+  - Both are new, with 2–3 users each: the data is licensed, the actors are unproven.
+- **The recommendation, revised for the constraint:**
+  1. Hide the discovery actor behind one source port. The recipe can then run on an Overture actor, on the Google Maps actor, or on a second Google Maps actor (`vortex_data/google-maps`) as a fallback.
+  2. Compare the Google Maps actor and the Overture actors side by side on the same three niches. That costs about $1, from the roughly $2.90 left of the $5 calibration budget Ruben approved.
+  3. If an Overture actor finds at least about 70% of the right businesses the Google Maps actor finds, make it the default: licensed data, the same product.
+  4. If not, the Google Maps actor can be the default only with Ruben's explicit, recorded acceptance of the terms risk above, and with these mitigations:
+     - Facts only: never review text or photos.
+     - Retention limits.
+     - No "Google Maps data" in marketing.
+     - The fallback actor.
+     - A lawyer's opinion before lead packs, or before scaling past the invited pilot.
+
 ## Sources
 
 - Google Terms of Service: https://policies.google.com/terms
@@ -127,6 +154,7 @@ May Chanlytics, as a paid feature, have a third-party scraper (an actor on Apify
 - Places API policies and attributions: https://developers.google.com/maps/documentation/places/web-service/policies
 - google.com robots.txt: https://www.google.com/robots.txt
 - Apify shared responsibility model: https://docs.apify.com/security/shared-responsibility and General Terms: https://docs.apify.com/legal/general-terms-and-conditions
+- Overture-backed actors on Apify: https://apify.com/foxlabs/location-intelligence and https://apify.com/datavaultlabs/local-business-lead-intelligence
 - hiQ v. LinkedIn settlement: https://www.privacyworld.blog/2022/12/linkedins-data-scraping-battle-with-hiq-labs-ends-with-proposed-judgment/
 - Meta v. Bright Data: https://www.fbm.com/publications/major-decision-affects-law-of-scraping-and-online-data-collection-meta-platforms-v-bright-data/
 - X Corp v. Bright Data: https://www.skadden.com/insights/publications/2024/05/district-court-adopts-broad-view
