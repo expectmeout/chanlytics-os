@@ -697,7 +697,7 @@ const plViewSaver = () => {
   };
   return push;
 };
-// A selection as a CSV, in the columns the page shows — nothing the schema does not hold.
+// A selection as a CSV, in its own fixed columns, whatever the Columns menu shows — nothing the schema does not hold.
 // The "Offers" column reads the OFFERS answer. It read `consent.state` -- the
 // conversational one -- so the column titled Offers showed Yes for everybody who
 // had ever texted START, and the composer then refused every one of them.
