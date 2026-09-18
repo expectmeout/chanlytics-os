@@ -28,7 +28,8 @@ async function assertMeasuredOnly(page: Page, where: string) {
     expect(text, `${where} shows an invented person: "${who}"`).not.toContain(who);
   }
   // A customer's own words may name a price ("can you do it for $150?"); the facts and cells may not.
-  for (const cell of await page.locator(".stat-cell, td, .cl-attn-status").allInnerTexts()) expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
+  // A column the member turned off (pl-col-off) is drawn and hidden, and innerText reads a hidden cell's text: only what shows counts.
+  for (const cell of await page.locator(".stat-cell, td:not(.pl-col-off), .cl-attn-status").allInnerTexts()) expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
 }
 
 test.describe("People on a real workspace", () => {
@@ -49,7 +50,8 @@ test.describe("People on a real workspace", () => {
 
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
-    const headers = (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
+    // The headings a desktop shows: a column the member turned off is drawn with pl-col-off and hidden, and innerText would read it.
+    const headers = (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
     const cal = ((await (await apiGet(page, "/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
     // With a calendar connected the outcome takes the receptionist's column; the checkbox and the actions columns have no words. First contact lives in the identity cell.
     // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from ends the default columns.
@@ -329,7 +331,7 @@ test.describe("People on a real workspace", () => {
     });
     await page.goto("/#/clients");
     await page.waitForLoadState("networkidle");
-    const headers = async () => (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
+    const headers = async () => (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
     expect(await headers()).toContain("came from");
     await page.getByTestId("people-columns").click();
     const menu = page.getByTestId("people-columns-menu");

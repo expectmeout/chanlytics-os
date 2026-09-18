@@ -1713,9 +1713,10 @@
 .cl-row-next { color: var(--ok); font-weight: 500; }
 .cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
 /* The receptionist's word beside the state is said once. While its column shows (is-in-column), a desktop leaves the word
-   to that column; on a card Visits takes that column's place, so a card leaves the word to the column's cell only without Visits. */
+   to that column. A card draws the column's cell whatever the member chose, and Visits takes its place, so a card leaves
+   the word to the cell wherever there is no Visits. */
 @media (width > 900px) { .cl-row-recept-mark.is-in-column { display: none; } }
-@media (max-width: 900px) { .cl-table tr:not(:has(> td.cl-visits-cell)) .cl-row-recept-mark.is-in-column { display: none; } }
+@media (max-width: 900px) { .cl-table tr:not(:has(> td.cl-visits-cell)) .cl-row-recept-mark { display: none; } }
 
 /* ---- Selecting people: a quiet checkbox, a bar that says what they can become ---- */
 .cl-main { position: relative; }
@@ -1837,6 +1838,9 @@
   .pl-table-scroll.scrolled .pl-pin { border-right-color: var(--line); }
   /* The cursor's edge, on the first cell: a pinned cell paints over the row's own. */
   .pl-table tbody tr.focused > td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+  /* A column the member turned off: its heading and its cells are drawn, and only here are they hidden. A member's
+     choices are a desktop's; a card keeps the facts it draws by default (plDrawnColumns). */
+  .pl-table th.pl-col-off, .pl-table td.pl-col-off { display: none; }
 }
 
 /* ---- Where your attention matters, redrawn to the mockup ------------------

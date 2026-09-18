@@ -181,6 +181,7 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
+  cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
   useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
   useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },
@@ -575,14 +576,16 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
 
 /* ------------------------- the table, drawn from its columns (Phase 0) ------------------------- */
 
-/** The table's headings as a person reads them: the checkbox's and the actions' empty ones left out, the sort arrow off. */
-const headings = (tree) => all(tree, (n) => n.type === "th").map((th) => textOf(th).replace(/[▲▼]/g, "").trim()).filter(Boolean);
+/** Whether a member turned a column off: drawn, with a mark that only a desktop hides (pl-col-off). */
+const colOff = (n) => /\bpl-col-off\b/.test(String(n.props?.className || ""));
+/** The table's headings as a desktop shows them: those a member turned off, the checkbox's and the actions' empty ones left out, the sort arrow off. */
+const headings = (tree) => all(tree, (n) => n.type === "th" && !colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim()).filter(Boolean);
 /** A person's row, by their id. */
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
 
 test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, Offers, and Came from", async () => {
   // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
-  const sorting = (tree) => all(tree, (n) => n.type === "th" && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
+  const sorting = (tree) => all(tree, (n) => n.type === "th" && !colOff(n) && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
   const oneCellPerHeading = (tree, why) => {
     const heads = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th").length;
     const rows = all(find(tree, (n) => n.type === "tbody"), (n) => n.type === "tr");
@@ -1310,4 +1313,23 @@ test("Person is the cell right after the checkbox, in the header and in every ro
   } finally {
     globalThis.window.__ME = me;
   }
+});
+
+test("REGRESSION: a member's columns are a desktop's, and a phone keeps its cards -- with State and Offers hidden, the cards lost the state and the answer to offers, and no phone can reach the Columns menu to put them back", async () => {
+  const needsYou = person(1, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  const people = [needsYou, person(2)];
+  /** A row's cells as a card draws them: every cell drawn, whatever mark a desktop reads. */
+  const cardCells = (tree, id) => rowOf(tree, id).props.children.filter((k) => k && k.type === "td").map((td) => String(td.props.className).replace(/\s*\bpl-col-off\b/g, "").trim());
+  await freshPage({ people });
+  let tree = draw();
+  const byDefault = ["p1", "p2"].map((id) => cardCells(tree, id));
+  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: { state: false, offers: false } } } });
+  tree = draw();
+  assert.deepEqual(["p1", "p2"].map((id) => cardCells(tree, id)), byDefault, "REGRESSION: each row draws the cells it draws by default, whatever the member chose");
+  assert.deepEqual(headings(tree), ["Person", "Last contact", "Receptionist", "Came from"], "and a desktop leaves State and Offers out");
+  const state = find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
+  assert.ok(colOff(state) && colOff(byTestId(rowOf(tree, "p1"), "row-offers")), "the state and the answer to offers are drawn, marked for a desktop to hide");
+  assert.match(textOf(state), /needs you/i, "and the card still says who needs a person");
+  const offHeadings = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th" && colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
+  assert.deepEqual(offHeadings, ["State", "Offers", "Email", "Lists"], "a heading carries the mark with its cells, so one cell sits under each heading");
 });
