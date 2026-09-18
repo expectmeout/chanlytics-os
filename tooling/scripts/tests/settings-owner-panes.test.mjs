@@ -12,7 +12,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate, stateOf, clockStamp, clockTime, clockDateYear, clockDayLabel, zoneDayKey } from "@chanlytics/contracts";
+import { ROLE_PERMS, roleGate, stateOf, clockStamp, clockTime, clockDateYear, clockDayLabel, zoneDayKey, POLICY_MODES, POLICY_MODE_WORDS } from "@chanlytics/contracts";
+import { installPolicyStore } from "../../../apps/dashboard/src/legacy-bridge/policy-store.ts";
 
 const TID = "t-studio";
 
@@ -369,4 +370,83 @@ test("Activity without its bridge says it cannot be read here, instead of readin
   const tree = settings("activity");
   assert.equal(byTestId(tree, "act-loading"), null, "REGRESSION: it read for ever");
   assert.ok(byTestId(tree, "act-missing"));
+});
+
+/* ------------------------------- Autonomy ------------------------------- */
+// The matrix's columns were the four words the mode is FILED under -- Auto, Veto,
+// Ask, Never -- with the plain sentence for each hidden in a hover the phone
+// cannot trigger. And the money row put a tick under one of them, which stops
+// being true the moment the headings say what a mode does.
+
+/** The autonomy pane over real policy rows, with the store the bridge installs. */
+const autonomy = (rows, over = {}) => {
+  workspace("owner", over);
+  globalThis.window.__POLICIES = { role: "owner", rows };
+  globalThis.window.__hardLimits = (l) => ({ cap: Number(l.max_replies_day) || 20, hours: Number(l.pause_hours) || 4 });
+  globalThis.window.__setPolicy = async () => ({ ok: true });
+  installPolicyStore(globalThis.window);
+  return settings("autonomy");
+};
+const headCells = (tree) => all(tree, (n) => n.props?.className === "pol-mode").map((n) => ({
+  head: textOf(find(n, (k) => k.props?.className === "pol-mode-head")),
+  sub: textOf(find(n, (k) => k.props?.className === "pol-mode-sub")),
+}));
+
+test("the matrix's headings say what the receptionist does, not how the mode is filed", () => {
+  const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
+  assert.deepEqual(
+    headCells(tree).map((c) => c.head),
+    ["Sends it", "Holds it", "Asks you", "Stays quiet"],
+    "REGRESSION: the columns read Auto · Veto · Ask · Never, and a salon owner does not say veto",
+  );
+  assert.deepEqual(headCells(tree).map((c) => c.sub), ["right away", "you can stop it", "nothing sent", "nothing happens"]);
+  // The words are contracts', said once.
+  assert.deepEqual(headCells(tree).map((c) => c.head), POLICY_MODES.map((m) => POLICY_MODE_WORDS[m].head));
+  // No heading names a duration: a reply waits the workspace's hold window and a
+  // playbook run waits thirty minutes, so "30s" would be wrong on four rows.
+  for (const c of headCells(tree)) assert.ok(!/\d/.test(c.head + c.sub), `"${c.head} ${c.sub}" names a number`);
+});
+
+test("a phone names each dot with the same words -- it is a list there, and the headings are hidden", () => {
+  const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
+  const cells = all(tree, (n) => n.props?.className === "pol-cell");
+  const names = [...new Set(cells.map((n) => n.props["data-mode"]))];
+  assert.deepEqual(names, ["Sends it", "Holds it", "Asks you", "Stays quiet"], "REGRESSION: .pol-cell::before printed Auto/Veto/Ask/Never on a phone");
+});
+
+test("a control says what it will do, in the words above it", () => {
+  const tree = autonomy([{ class: "reply", mode: "veto", limits: {} }]);
+  const dots = all(tree, (n) => n.type === "button" && /^Replies to customers: /.test(n.props["aria-label"] || ""));
+  assert.deepEqual(dots.map((d) => d.props["aria-label"]), [
+    "Replies to customers: Sends it", "Replies to customers: Holds it", "Replies to customers: Asks you", "Replies to customers: Stays quiet",
+  ], "REGRESSION: a screen reader heard the filing word");
+  assert.equal(dots[1].props.title, POLICY_MODE_WORDS.veto.does, "the whole sentence is still there, on the control rather than the heading");
+  assert.equal(dots[1].props["aria-pressed"], true, "and the stored mode is still the one shown");
+});
+
+test("the row the charter fixes states its rule instead of ticking a column that would misdescribe it", () => {
+  const tree = autonomy([{ class: "reply", mode: "auto", limits: {} }]);
+  const fixed = find(tree, (n) => n.props?.className === "pol-fixed");
+  assert.ok(fixed, "REGRESSION: money was three dashes and a tick under Never");
+  assert.equal(fixed.props.colSpan, 4, "across every mode column: there is nothing to pick");
+  const words = textOf(fixed);
+  assert.match(words, /always goes to you/i, "the charter's own words (POLICY_CLASS_WORDS.money.note)");
+  assert.match(words, /locked by charter, enforced in the database/);
+  // "Stays quiet · nothing happens" is the one thing money is not: it comes to you.
+  assert.ok(!/Stays quiet/.test(words));
+  const moneyRow = find(tree, (n) => n.type === "tr" && /Refunds/.test(textOf(n)));
+  assert.equal(find(moneyRow, (n) => n.props?.className === "set-mark"), null, "and the note is not also behind an info mark");
+  assert.equal(all(moneyRow, (n) => n.type === "button" && (n.props.className || "").includes("pol-dot")).length, 0, "nothing to press");
+});
+
+test("a class that cannot honour a mode still shows a dash there, and the rest still set", async () => {
+  const put = [];
+  const tree = autonomy([{ class: "faq", mode: "auto", limits: {} }, { class: "reply", mode: "ask", limits: {} }]);
+  globalThis.window.__setPolicy = async (cls, mode) => { put.push([cls, mode]); return { ok: true }; };
+  const faq = find(tree, (n) => n.type === "tr" && /Service/.test(textOf(n)));
+  assert.equal(all(faq, (n) => n.props?.className === "pol-dash").length, 2, "Holds it and Stays quiet are not on offer for a question");
+  const asks = all(faq, (n) => n.type === "button" && n.props["aria-label"] === "Service & pricing questions: Asks you");
+  press(asks[0]);
+  await flush();
+  assert.deepEqual(put, [["faq", "ask"]], "REGRESSION: the heading changed and the stored word went with it");
 });

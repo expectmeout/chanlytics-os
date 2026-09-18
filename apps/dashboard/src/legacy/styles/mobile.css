@@ -395,7 +395,9 @@
      office alone.
      .tq (Setup) is not .fl-card and never had it. */
   .fl-card.set-card:has(table) { overflow-x: auto; }
-  .pol-table { min-width: 520px; }
+  /* 104px a column now the headings are words, not filing labels. Only the back
+     office reaches this rule: under 640px the matrix is a list, not a table. */
+  .pol-table { min-width: 640px; }
   .tb-presence { padding-left: 8px; padding-right: 8px; }
   .bc-comp { white-space: normal; }
   .fl-escalate-route { white-space: normal; }

@@ -70,6 +70,6 @@ test("the wiring: the edge passes the rows to both prompts and checks after gene
   assert.ok(!store.includes("enforced: false"), "no row is stored-but-unenforced any more");
   assert.ok(store.includes('modes: ["Auto", "Ask"]'));
   const pane = readCode("apps/dashboard/src/legacy/pages/settings.jsx");
-  assert.ok(pane.includes("(r.modes && !r.modes.includes(m))") && pane.includes("(r.hints && r.hints[m]) || AUT_MODE_HINT[m]"));
+  assert.ok(pane.includes("r.modes && !r.modes.includes(m)") && pane.includes("(r.hints && r.hints[m]) || polMode(m).does"));
   assert.ok(readCode("supabase/migrations/00056_policy_ask_reason.sql").includes("'policy_ask'"));
 });

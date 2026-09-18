@@ -312,6 +312,16 @@ window.transferGate = () => {
 // ---- Workspace policy (charter matrix) — single source; Settings edits it, Fleet reads it ----
 window.POLICY = window.POLICY || {
   MODES: ["Auto", "Veto", "Ask", "Never"],
+  // Auto/Veto/Ask/Never are how a mode is FILED. What anyone reads is this: a
+  // salon owner does not say "veto". The app replaces the whole store with one
+  // built on contracts' POLICY_MODE_WORDS (legacy-bridge/policy-store.ts); this
+  // copy is the standalone harness's, and says the same thing.
+  WORDS: {
+    Auto:  { head: "Sends it",    sub: "right away",      chip: "sends it",    does: "Sends it right away." },
+    Veto:  { head: "Holds it",    sub: "you can stop it", chip: "holds it",    does: "Writes it, holds it, and sends it unless you stop it." },
+    Ask:   { head: "Asks you",    sub: "nothing sent",    chip: "asks you",    does: "Waits for you. Nothing is sent until you say so." },
+    Never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." },
+  },
   ROWS: [
     { id: "faq",      label: "Service & pricing FAQs",        note: "list prices only",          def: "Auto", chip: "FAQs" },
     { id: "book",     label: "Book · reschedule · remind",    note: "15-min pre-call reminders", def: "Auto", chip: "Booking" },
@@ -335,12 +345,15 @@ const PolicyChip = ({ cls, className = "" }) => {
   }, []);
   const r = cls && window.POLICY.row(cls);
   if (!r) return null;
+  // What the mode DOES, not how it is filed: "Replies · holds it", never
+  // "Replies · Veto". One word map, the matrix's (window.POLICY.WORDS).
+  const polWords = (m) => ((window.POLICY.WORDS || {})[m] || {}).chip || m;
   // TRUST is the mockup's seeded table ("128 auto-sent · 9% edited"). A real
   // workspace has its policies loaded (__POLICIES is set, or null when the read
   // failed) and no such figures, so its chip names the policy instead.
   return (
-    <button className={`pill ${r.locked ? "pill-warn" : ""} pol-chip ${className}`} data-tip={(() => { const t = window.__POLICIES === undefined && window.TRUST && window.TRUST.cls(r.id); return t ? `${r.chip} · ${window.POLICY.modeOf(r.id)} — ${t.sent.toLocaleString()} auto-sent · ${window.TRUST.rate(t)}% edited (30d)` : "Workspace policy — Settings · Autonomy"; })()} onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.admin("autonomy")); }}>
-      {r.locked ? <>Owner-only · {r.chip}</> : <>{r.chip} · {window.POLICY.modeOf(r.id)}</>}
+    <button className={`pill ${r.locked ? "pill-warn" : ""} pol-chip ${className}`} data-tip={(() => { const t = window.__POLICIES === undefined && window.TRUST && window.TRUST.cls(r.id); return t ? `${r.chip} · ${polWords(window.POLICY.modeOf(r.id))} — ${t.sent.toLocaleString()} auto-sent · ${window.TRUST.rate(t)}% edited (30d)` : "Workspace policy — Settings · Autonomy"; })()} onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.admin("autonomy")); }}>
+      {r.locked ? <>Owner-only · {r.chip}</> : <>{r.chip} · {polWords(window.POLICY.modeOf(r.id))}</>}
     </button>
   );
 };

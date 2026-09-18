@@ -2210,6 +2210,12 @@ var POLICY_CLASS_WORDS = {
   money: { name: "Refunds \xB7 rates \xB7 negotiation", short: "Money", note: "always goes to you" }
 };
 var POLICY_MODES = ["auto", "veto", "ask", "never"];
+var POLICY_MODE_WORDS = {
+  auto: { head: "Sends it", sub: "right away", chip: "sends it", does: "Sends it right away." },
+  veto: { head: "Holds it", sub: "you can stop it", chip: "holds it", does: "Writes it, holds it, and sends it unless you stop it." },
+  ask: { head: "Asks you", sub: "nothing sent", chip: "asks you", does: "Waits for you. Nothing is sent until you say so." },
+  never: { head: "Stays quiet", sub: "nothing happens", chip: "stays quiet", does: "Stays out of it entirely." }
+};
 var POLICY_CLASS_MODES = {
   reply: ["auto", "veto", "ask", "never"],
   booking: ["auto", "ask"],
@@ -9912,6 +9918,7 @@ export {
   POLICY_CLASS_MODES,
   POLICY_CLASS_WORDS,
   POLICY_MODES,
+  POLICY_MODE_WORDS,
   PROPOSAL_GATE,
   PROVISIONING_DEADLINE_MS,
   PURPOSE_REFUSALS,
