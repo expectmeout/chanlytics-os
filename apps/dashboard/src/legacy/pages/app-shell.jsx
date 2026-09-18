@@ -773,7 +773,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
 
   return (
     <div className="app-root" data-theme={theme}>
-      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`}>
+      {/* On a phone the sidebar is a drawer. Open, it is a dialog, so a page's keys hold still behind it (People's Esc
+          cleared its selection as the drawer closed). Not aria-modal: it does not move focus into itself. */}
+      <div className={`side-wrap ${navOpen ? "open" : ""} ${sidebar === "rail" ? "rail" : ""}`} role={navOpen ? "dialog" : undefined} aria-label={navOpen ? "Navigation" : undefined}>
         <Sidebar
           active={activeNav}
           badges={{ inbox: inboxNeeds > 0 ? String(inboxNeeds) : null }}

@@ -759,3 +759,18 @@ test("the old route on a cold load: the People surface is still on its way, so t
     delete win.location.replace;
   }
 });
+
+test("REGRESSION: the phone's drawer is a dialog while it is open, named Navigation -- with no role, the Esc that closed it cleared People's selection", () => {
+  // Drawn again with the state the last draw left, as React draws after a press.
+  const redraw = () => { deep = false; seq = 0; const tree = win.ChanlyticsApp({ theme: "dark", themePref: "dark", sidebar: "open", onSidebar() {}, onTheme() {} }); deep = true; return tree; };
+  const wrap = (tree) => find(tree, (n) => /\bside-wrap\b/.test(String(n.props?.className || "")));
+  const closed = mount("#/clients").tree;
+  assert.equal(wrap(closed).props.role, undefined, "the sidebar on a desk, or the drawer shut, is no dialog");
+  assert.equal(wrap(closed).props["aria-label"], undefined);
+  find(closed, (n) => n.type === "Topbar").props.onMenu();
+  const open = redraw();
+  assert.match(String(wrap(open).props.className), /\bopen\b/, "the drawer is open");
+  assert.equal(wrap(open).props.role, "dialog", "REGRESSION: open, it had no role, so People's keys did not hold still behind it");
+  assert.equal(wrap(open).props["aria-label"], "Navigation");
+  assert.equal(wrap(open).props["aria-modal"], undefined, "not modal: it does not move focus into itself");
+});

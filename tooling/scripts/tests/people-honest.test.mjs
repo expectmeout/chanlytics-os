@@ -41,7 +41,10 @@ const person = (i, over = {}) => row({ id: `p${i}`, display_name: `Person ${i}`,
 /* ------------------------------- the window ------------------------------- */
 
 const listeners = {};
-/** What is open over the page, as document.querySelector finds it: nothing, unless a test opens a menu ('[role="menu"]'). */
+/**
+ * What is open over the page, as document.querySelector finds it: nothing, unless a test opens a menu or a dialog
+ * ({ role }) in the app, or one outside it ({ role, inApp: false }), as a browser extension can add and hide.
+ */
 let overlayOpen = null;
 const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 globalThis.localStorage = storage();
@@ -52,7 +55,8 @@ globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
   getElementById: () => null,
-  querySelector: (sel) => (overlayOpen && sel.includes(overlayOpen) ? { overlay: overlayOpen } : null),
+  // A selector's part finds the open element when it names its role, and, for one outside the app, asks for no .app-root.
+  querySelector: (sel) => (overlayOpen && sel.split(",").some((part) => part.includes(`[role="${overlayOpen.role}"]`) && (overlayOpen.inApp !== false || !part.includes(".app-root"))) ? overlayOpen : null),
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
@@ -700,15 +704,21 @@ test("REGRESSION: Esc in a field is the field's, even once the field has gone --
   assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and the selection went with it");
 });
 
-test("REGRESSION: Esc while a menu is open is the menu's -- the Esc that closed a menu cleared the selection, and the rows walked behind it", async () => {
+test("REGRESSION: Esc while a menu or a dialog is open is theirs -- the Esc that closed one cleared the selection, and the rows walked behind it", async () => {
   await freshPage({ people: [person(1), person(2)] });
   byTestId(draw(), "select-all").props.onChange();
   draw();
-  overlayOpen = '[role="menu"]';
-  assert.equal(press("Escape"), false, "a menu closes itself; the page leaves its Esc alone");
-  assert.equal(press("j"), false, "and walks nothing behind it");
-  assert.equal(press("/"), false, "nor goes to the search");
-  assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, "REGRESSION: an Esc that closed a menu cleared the selection");
+  // A menu, then a dialog (Ask, the notifications, the ? sheet, the phone's drawer): the page holds still behind each.
+  for (const role of ["menu", "dialog"]) {
+    overlayOpen = { role };
+    assert.equal(press("Escape"), false, `a ${role} closes itself; the page leaves its Esc alone`);
+    assert.equal(press("j"), false, `and walks nothing behind the ${role}`);
+    assert.equal(press("/"), false, `nor goes to the search behind the ${role}`);
+    assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, `REGRESSION: an Esc that closed a ${role} cleared the selection`);
+  }
+  // A dialog outside the app, one a browser extension added and hid, is not the app's: the page keeps its keys.
+  overlayOpen = { role: "dialog", inApp: false };
+  assert.equal(press("j"), true, "a dialog outside the app does not silence the page");
   overlayOpen = null;
   assert.equal(press("Escape"), true, "with nothing open, Esc clears the selection");
   assert.equal(byTestId(draw(), "bulk-bar"), null);

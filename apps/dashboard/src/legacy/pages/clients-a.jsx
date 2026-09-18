@@ -1468,9 +1468,10 @@ const AddPersonButton = ({ onAdded, flash }) => {
 const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^checkbox$/i.test(el.type || "")) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || !!el.isContentEditable);
 // What Enter and Space press when it has focus, instead of the row under the cursor.
 const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
-// What can be open over the page and has the keys while it is: a menu, the ? sheet, the notifications, a sidebar menu.
-// Not the page's own lists sheet (.pl-sheet), which the listener names apart.
-const PL_OVERLAY = '[role="menu"]:not(.pl-sheet), [role="dialog"]:not(.pl-sheet)';
+// What can be open over the page and has the keys while it is: a menu, Ask, the ? sheet, the notifications, a sidebar
+// menu, the phone's drawer. Only the app's (every one sits inside .app-root), so a hidden dialog a browser extension
+// adds cannot silence the page. Not the page's own lists sheet (.pl-sheet), which the listener names apart.
+const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet), .app-root [role="dialog"]:not(.pl-sheet)';
 
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
