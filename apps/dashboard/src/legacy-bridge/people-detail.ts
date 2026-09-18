@@ -181,7 +181,8 @@ export async function addPerson(body: { phone: string; name?: string }): Promise
 
 /**
  * A page remembering its view in this workspace: `window.__saveView("people",
- * { sortBy, sortDir, attentionTab })`. The member's own row, per workspace,
+ * { sortBy, sortDir, columns })`. Each save replaces the page's whole view
+ * (member_view_set, 00113), so a page sends every key it owns. The member's own row, per workspace,
  * so a phone and a laptop show the page the same way. No surface re-read: the
  * view is the caller's own state already.
  */

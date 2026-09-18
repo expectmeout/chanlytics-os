@@ -306,4 +306,53 @@ test.describe("People on a real workspace", () => {
       if (await words.count()) expect((await words.innerText()).trim()).not.toMatch(/nothing written to quote/);
     }
   });
+
+  test("the Columns menu shows and hides a column and stays open; the view it saves keeps the sort -- the save is intercepted", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    // Registered before the page loads, so no save from this test reaches the member's real view.
+    const saved: Array<{ view?: { sortBy?: unknown; sortDir?: unknown; columns?: Record<string, boolean> } }> = [];
+    await page.route(/\/api\/v1\/views\/people(?:[?#]|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() !== "PUT") { await route.continue(); return; }
+      saved.push(req.postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { views: {} } }) });
+    });
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const headers = async () => (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
+    expect(await headers()).toContain("came from");
+    await page.getByTestId("people-columns").click();
+    const menu = page.getByTestId("people-columns-menu");
+    await expect(menu).toBeVisible();
+    await expect(page.getByTestId("column-name")).toHaveAttribute("aria-disabled", "true");
+    await page.getByTestId("column-came_from").click();
+    await expect(menu).toBeVisible();
+    await expect.poll(headers).not.toContain("came from");
+    await expect.poll(() => saved.some((s) => s.view?.columns?.came_from === false)).toBe(true);
+    const last = saved[saved.length - 1];
+    expect(typeof last.view?.sortBy, "the sort rides with the columns").toBe("string");
+    expect(["asc", "desc"]).toContain(last.view?.sortDir);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+  });
+
+  test("on a desktop the table scrolls sideways under a pinned Person column, with a hairline once it has", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 800 });
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
+    test.skip((await rows.count()) === 0, "this workspace has nobody to show");
+    const scroller = page.getByTestId("people-table-scroll");
+    // Beside the sidebar and the rail the columns are wider than their box; the box used to cut them off.
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the table scrolls sideways at 960px").toBe(true);
+    await expect(scroller).not.toHaveClass(/\bscrolled\b/);
+    const name = rows.first().locator("td.cl-name-cell");
+    const heading = page.locator(".cl-table thead th.pl-pin");
+    const before = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
+    await scroller.evaluate((el) => { el.scrollLeft = 240; });
+    await expect(scroller).toHaveClass(/\bscrolled\b/);
+    const after = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
+    expect(Math.round(after.name.x), "Person stays where it was").toBe(Math.round(before.name.x));
+    expect(Math.round(after.heading.x), "and so does its heading").toBe(Math.round(before.heading.x));
+  });
 });

@@ -1757,6 +1757,12 @@
 .cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-dim); background: var(--bg-raised); }
 /* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
 .cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The Columns menu: a check beside what shows; Person, which always shows, says so and does not press. */
+.pl-cols .more-item[aria-checked="false"] .icon { visibility: hidden; }
+.pl-cols .more-item[aria-disabled="true"] { cursor: default; color: var(--ink-dim); }
+.pl-cols .more-item[aria-disabled="true"]:hover { background: transparent; }
+/* A phone draws cards, not columns. */
+@media (max-width: 900px) { .pl-cols { display: none; } }
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }

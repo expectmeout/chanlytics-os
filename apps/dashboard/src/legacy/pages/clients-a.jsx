@@ -1184,6 +1184,46 @@ const PeopleTable = ({ columns, cell, rows, total, sortBy, sortDir, onSort, onOp
   );
 };
 
+// A saved `columns` value, read with care: only the columns a member may hide, and only true or false. A view is the
+// member's own JSON, and an older page or another device may have written anything into it.
+const plColumnChoices = (raw) => {
+  const out = {};
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
+  for (const c of PL_COLUMNS) if (!c.pinned && !c.fixed && typeof raw[c.key] === "boolean") out[c.key] = raw[c.key];
+  return out;
+};
+// The Columns menu's rows: every column this workspace can show, whether it shows, and Person, which always does.
+const plColumnOptions = (choices, x) => PL_COLUMNS
+  .filter((c) => !c.fixed && (!c.needs || c.needs(x)))
+  .map((c) => ({ key: c.key, label: c.label, on: plShows(c, choices, x), locked: !!c.pinned }));
+
+// Which columns show, as a menu that stays open while they are switched: MoreMenu closes on every item, which is right
+// for an action and wrong for a set of switches. Hookless, with its open state the page's, whose one keyboard listener
+// closes it on Esc; pl-cols-menu keeps it out of PL_OVERLAY, what is open over the page and not the page's. A phone
+// draws cards, not columns, so it is hidden there (clients.css).
+const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick }) => (
+  <div className="more-wrap pl-cols">
+    <button type="button" className="btn btn-ghost btn-sm" aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); onOpenChange(!open); }} data-testid="people-columns">
+      <Icon name="eye" size={12} /> Columns
+    </button>
+    {open && (
+      <>
+        <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); onOpenChange(false); }} />
+        <div className="more-menu align-right pl-cols-menu" role="menu" aria-label="Columns" data-testid="people-columns-menu" onClick={(e) => e.stopPropagation()}>
+          <div className="more-header">Show on the table</div>
+          {options.map((c) => (
+            <button key={c.key} type="button" className="more-item" role="menuitemcheckbox" aria-checked={c.on} aria-disabled={c.locked ? true : undefined} onClick={() => { if (!c.locked) onPick(c.key); }} data-testid={`column-${c.key}`}>
+              <Icon name="check" size={13} />
+              <span className="more-item-label">{c.label}</span>
+              {c.locked && <span className="more-item-meta">Always</span>}
+            </button>
+          ))}
+        </div>
+      </>
+    )}
+  </div>
+);
+
 const PL_NO_SEL = new Set();
 // The batch doors take fifty people at a time (contacts/consent, /receptionist, /notes).
 const PL_BATCH = 50;
@@ -1470,8 +1510,9 @@ const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^checkbox$/i.test
 const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
 // What can be open over the page and has the keys while it is: a menu, Ask, the ? sheet, the notifications, a sidebar
 // menu, the phone's drawer. Only the app's (every one sits inside .app-root), so a hidden dialog a browser extension
-// adds cannot silence the page. Not the page's own lists sheet (.pl-sheet), which the listener names apart.
-const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet), .app-root [role="dialog"]:not(.pl-sheet)';
+// adds cannot silence the page. Not the page's own overlays, the lists sheet (.pl-sheet) and the Columns menu
+// (.pl-cols-menu), which the listener names apart.
+const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu)';
 
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
@@ -1524,18 +1565,24 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
   const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
-  // The strip's tab was remembered too; a view saved before it went carries an
-  // attentionTab this ignores, and the next save drops it.
-  const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir }));
+  // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its
+  // default (PL_COLUMNS). The menu's open state is the page's, so its one keyboard listener closes it on Esc.
+  const [colChoices, setColChoices] = useState(() => plColumnChoices(remembered.columns));
+  const [colsOpen, setColsOpen] = useState(false);
+  // A view is the sort and the columns. The strip's tab was remembered too; a view saved before it went carries an
+  // attentionTab this ignores, and the next save drops it. Every save sends every key the page owns, because
+  // member_view_set replaces the page's whole object (00113): a save of the sort alone would lose the columns.
+  const colKey = JSON.stringify(colChoices);
+  const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir, columns: plColumnChoices(remembered.columns) }));
   React.useEffect(() => {
-    const view = { sortBy, sortDir };
+    const view = { sortBy, sortDir, columns: colChoices };
     plSaveView(view);
     // The workspace's copy, once per change and never for the view it already holds.
     const key = JSON.stringify(view);
     if (key === savedView.current || !window.__saveView) return;
     savedView.current = key;
     window.__saveView("people", view).then((r) => { if (!r.ok) console.error("people_view_not_saved", r.message); });
-  }, [sortBy, sortDir]);
+  }, [sortBy, sortDir, colKey]); // eslint-disable-line react-hooks/exhaustive-deps
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1658,7 +1705,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // The columns this member sees (PL_COLUMNS: Person always, any other as chosen, else by its default), and what a
   // cell needs to draw itself: the booking link, each row's words, the list open for taking people off, their lists.
   const colCtx = { withCalendar };
-  const columns = plVisibleColumns({}, colCtx);
+  const columns = plVisibleColumns(colChoices, colCtx);
+  const colOptions = plColumnOptions(colChoices, colCtx);
+  // Show or hide one column; Person and the row's actions are not the member's to hide.
+  const pickColumn = (key) => setColChoices((ch) => {
+    const c = PL_COLUMNS.find((x) => x.key === key);
+    return c && !c.pinned && !c.fixed ? { ...ch, [key]: !plShows(c, ch, colCtx) } : ch;
+  });
   const listsOf = useMemo(() => {
     const m = {};
     for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
@@ -1742,6 +1795,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     clearSel: () => setSel(new Set()),
     focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
     sheetOpen: listsOpen,
+    menuOpen: colsOpen,
+    closeMenu: () => setColsOpen(false),
   };
 
   return (
@@ -1785,6 +1840,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
                   : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
               )}
+              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} />
               <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
                 <Icon name="sort" size={12} /> {sortLabel}
               </button>

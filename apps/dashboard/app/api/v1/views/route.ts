@@ -3,7 +3,7 @@ import { read, workspace } from "@/server/route";
 /**
  * GET /api/v1/views -- what this member's pages remember in this workspace.
  *
- * { views: { people: { sortBy, sortDir, attentionTab }, ... } }, from the
+ * { views: { people: { sortBy, sortDir, columns }, ... } }, from the
  * member's own membership row (memberships_self_select). Any member: it is
  * their own view. Empty for a member who has changed nothing yet.
  */

@@ -10,7 +10,8 @@ const Body = z.object({ view: z.record(z.string(), z.unknown()) });
  * PUT /api/v1/views/:page -- { view }
  *
  * A page remembering how this member left it, in this workspace: the People
- * page's sort and attention tab today. Any member, one small object, through
+ * page's sort and columns today, sent whole, since a save replaces the page's
+ * view. Any member, one small object, through
  * member_view_set (00113), which judges the caller's own membership. The
  * whole set comes back so the caller holds what the row holds.
  */

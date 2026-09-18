@@ -833,3 +833,105 @@ test("a radio's arrow keys are the radio's; a held x, Space or Enter acts once, 
   assert.equal(press("j", null, { repeat: true }), true);
   assert.equal(cursorRow(draw()), "person-p3");
 });
+
+/** The Columns menu's rows: which column, whether it shows, and whether it is Person's, which always does. */
+const menuItems = (tree) => all(byTestId(tree, "people-columns-menu"), (n) => n.props?.role === "menuitemcheckbox")
+  .map((n) => ({ key: n.props["data-testid"].replace(/^column-/, ""), on: n.props["aria-checked"], locked: n.props["aria-disabled"] === true }));
+
+test("the Columns menu shows and hides columns and stays open while it does; Person always shows; Esc closes it", async () => {
+  await freshPage({ people: [person(1, { came_from: "whatsapp" }), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  let tree = draw();
+  assert.equal(byTestId(tree, "people-columns-menu"), null, "closed until asked");
+  click(byTestId(tree, "people-columns"));
+  tree = draw();
+  assert.deepEqual(menuItems(tree), [
+    { key: "name", on: true, locked: true },
+    { key: "state", on: true, locked: false },
+    { key: "last", on: true, locked: false },
+    { key: "receptionist", on: true, locked: false },
+    { key: "offers", on: true, locked: false },
+    { key: "came_from", on: true, locked: false },
+    { key: "email", on: false, locked: false },
+    { key: "lists", on: false, locked: false },
+  ], "every column this workspace can show; Visits waits for a calendar");
+  click(byTestId(tree, "column-came_from"));
+  tree = draw();
+  assert.ok(byTestId(tree, "people-columns-menu"), "it stays open: MoreMenu closes on every pick");
+  assert.ok(!headings(tree).includes("Came from"), "hidden");
+  click(byTestId(tree, "column-lists"));
+  tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Lists"]);
+  assert.equal(textOf(byTestId(rowOf(tree, "p1"), "row-lists")).trim(), "Regulars", "the lists kept by hand that they are on");
+  click(byTestId(tree, "column-name"));
+  assert.ok(headings(draw()).includes("Person"), "Person cannot be hidden");
+  assert.equal(press("Escape"), true);
+  assert.equal(byTestId(draw(), "people-columns-menu"), null, "Esc closes it");
+});
+
+test("a view keeps its columns with its sort, and every save sends every key -- member_view_set replaces the page's whole object", async () => {
+  await freshPage({ people: [person(1)], views: { people: { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true } } } });
+  const saves = [];
+  globalThis.window.__saveView = async (page, view) => { saves.push([page, view]); return { ok: true, data: { views: { [page]: view } } }; };
+  let tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Email"], "the member's own columns");
+  assert.deepEqual(saves, [], "the view it already holds is not saved again");
+  click(byTestId(tree, "people-columns"));
+  tree = draw();
+  click(byTestId(tree, "column-lists"));
+  tree = draw();
+  assert.deepEqual(saves.at(-1), ["people", { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true, lists: true } }], "a column change keeps the sort");
+  click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
+  draw();
+  assert.deepEqual(saves.at(-1), ["people", { sortBy: "state", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }], "and a new sort keeps the columns");
+});
+
+test("with a calendar the receptionist's word sits beside the state until its own column is shown -- then a desktop says it there, once, and a card keeps it beside the state", async () => {
+  await freshPage({ people: [person(1, { queued_reply_at: iso(H) })], calendar: "ok" });
+  const stateCell = (t) => find(t, (n) => n.type === "td" && /\bcl-state-cell\b/.test(n.props?.className || ""));
+  let tree = draw();
+  assert.match(textOf(stateCell(tree)), /reply queued/, "beside the state");
+  click(byTestId(tree, "people-columns"));
+  tree = draw();
+  click(byTestId(tree, "column-receptionist"));
+  tree = draw();
+  assert.ok(headings(tree).includes("Receptionist"), "in a column of its own");
+  // Controller: after Task 3's review the mark always renders; a class hides it at 901px and up, where the column shows it,
+  // so a phone card (which hides the Receptionist cell beside Visits) still says it.
+  const mark = find(stateCell(tree), (n) => /cl-row-recept-mark/.test(n.props?.className || ""));
+  assert.match(mark?.props?.className || "", /is-in-column/, "beside the state only where its column is off the screen: a card");
+});
+
+test("Esc closes the Columns menu first, and the selection stays; the rows hold still behind it, and the next Esc clears the selection", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  byTestId(draw(), "select-all").props.onChange();
+  click(byTestId(draw(), "people-columns"));
+  assert.ok(byTestId(draw(), "people-columns-menu"), "the menu is open");
+  assert.equal(press("j"), false, "J walks nothing behind the menu");
+  assert.equal(cursorRow(draw()), null);
+  assert.equal(press("Escape"), true, "the menu is the page's own, so its Esc is the page's");
+  let tree = draw();
+  assert.equal(byTestId(tree, "people-columns-menu"), null, "Esc closed the menu");
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
+  assert.equal(press("Escape"), true);
+  tree = draw();
+  assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
+});
+
+test("a saved view's columns are read with care -- only a true or false for a column a member may hide counts, and the next save drops the rest", async () => {
+  // A view is the member's own JSON: an older page or another device may have written anything into it.
+  await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns: { name: false, actions: false, came_from: "no", email: true, bogus: true } } } });
+  const saves = [];
+  globalThis.window.__saveView = async (page, view) => { saves.push([page, view]); return { ok: true, data: { views: { [page]: view } } }; };
+  const tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"], "Person stays, and a word is not a false");
+  assert.ok(find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-actions-cell\b/.test(n.props?.className || "")), "and so do the row's actions");
+  assert.deepEqual(saves, [], "what it could read of the view is what it holds: nothing to save");
+  click(byTestId(tree, "people-columns"));
+  click(byTestId(draw(), "column-lists"));
+  draw();
+  assert.deepEqual(saves.at(-1), ["people", { sortBy: "last", sortDir: "desc", columns: { email: true, lists: true } }], "the next save keeps what it understood");
+  for (const columns of [null, "email", ["email"], 7]) {
+    await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns } } });
+    assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"], `${JSON.stringify(columns)} is no set of columns: the defaults`);
+  }
+});
