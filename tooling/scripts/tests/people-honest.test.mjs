@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONSENT_SOURCES, mayReceive, offersYesRefusal, stateOf, toPersonRowVM } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, SHORTCUTS, mayReceive, offersYesRefusal, shortcutGroups, stateOf, toPersonRowVM } from "@chanlytics/contracts";
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -41,6 +41,8 @@ const person = (i, over = {}) => row({ id: `p${i}`, display_name: `Person ${i}`,
 /* ------------------------------- the window ------------------------------- */
 
 const listeners = {};
+/** What is open over the page, as document.querySelector finds it: nothing, unless a test opens a menu ('[role="menu"]'). */
+let overlayOpen = null;
 const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
 globalThis.localStorage = storage();
 globalThis.sessionStorage = storage();
@@ -50,6 +52,7 @@ globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
   getElementById: () => null,
+  querySelector: (sel) => (overlayOpen && sel.includes(overlayOpen) ? { overlay: overlayOpen } : null),
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
@@ -199,6 +202,8 @@ Object.assign(globalThis.window, {
 });
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
+// The shell's ? sheet, whose Esc is heard before People's.
+await import("../../../apps/dashboard/src/legacy/components/shortcuts.jsx");
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
 const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
@@ -226,6 +231,7 @@ const freshPage = async ({ people, lists: saved = [], listsFail = false, calenda
   opened.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   globalThis.document.activeElement = null;
+  overlayOpen = null;
   globalThis.window.location.hash = "#/clients";
   globalThis.localStorage.removeItem("chanlytics-people-view");
   delete globalThis.window.__saveView;
@@ -233,11 +239,16 @@ const freshPage = async ({ people, lists: saved = [], listsFail = false, calenda
   globalThis.window.__lists = lists();
 };
 const draw = (props = {}) => { seq = 0; return globalThis.window.ClientsA({ onOpenProfile: (id) => opened.push(id), ...props }); };
-/** A key as the window hears it, with focus on `target`; whether the page took it. */
-const press = (key, target = null) => {
-  globalThis.document.activeElement = target;
+/**
+ * A key as the window hears it: pressed in `target`, where focus is unless `focus` says where it went (a field's own
+ * Esc can close the field, and focus with it, before the window hears the key), with `mods`: ctrlKey, metaKey, altKey,
+ * repeat, or defaultPrevented when a listener before the page's took the key. Whether the page took it.
+ */
+const press = (key, target = null, { focus = target, ...mods } = {}) => {
+  globalThis.document.activeElement = focus;
   let taken = false;
-  for (const fn of [...(listeners.keydown || [])]) fn({ key, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, preventDefault() { taken = true; } });
+  const ev = { key, target, metaKey: false, ctrlKey: false, altKey: false, shiftKey: false, repeat: false, defaultPrevented: false, ...mods, preventDefault() { taken = true; ev.defaultPrevented = true; } };
+  for (const fn of [...(listeners.keydown || [])]) fn(ev);
   return taken;
 };
 
@@ -663,4 +674,152 @@ test("the keyboard: J/K and the arrows move, x and Space select, Enter opens, / 
   assert.equal(focusedSearch, 1, "/ puts you in the search box");
   assert.equal(press("j", { tagName: "INPUT", type: "text", isContentEditable: false, closest: () => null }), false, "and a J typed there is a letter");
   assert.equal(press("j", { tagName: "INPUT", type: "checkbox", isContentEditable: false, closest: () => ({}) }), true, "a row's checkbox is not a place to type: after a click on one, J still walks");
+});
+
+/* ------------------------- the keys: where they were pressed, and what is open ------------------------- */
+
+/** An element as a key's target or focus: its tag, its type, and the selectors it matches or sits inside, for `closest`. */
+const element = (tagName, { type = "", within = [] } = {}) => ({ nodeType: 1, tagName, type, isContentEditable: false, closest: (sel) => (within.some((s) => sel.includes(s)) ? {} : null) });
+const BODY = element("BODY");
+/** The row under the keyboard's cursor, by its id. */
+const cursorRow = (tree) => find(tree, (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
+/** The table foot's line of keys, as it reads. */
+const keysLine = (tree) => textOf(find(tree, (n) => n.props?.className === "cl-table-keys"));
+
+test("REGRESSION: Esc in a field is the field's, even once the field has gone -- Esc in the bulk bar's list name cleared the whole selection", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  byTestId(draw(), "select-all").props.onChange();
+  // New list… puts the name box in the bar. Its own Esc closes it (React hears the key before the window does), and
+  // focus goes with it: by the time the page hears the key, focus is on the body.
+  find(draw(), (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "New list…").onClick();
+  byTestId(draw(), "bulk-list-name").props.onKeyDown({ key: "Escape" });
+  const nameBox = element("INPUT", { type: "text", within: ["input", ".cl-bulk"] });
+  assert.equal(press("Escape", nameBox, { focus: BODY }), false, "the page leaves an Esc pressed in a field to the field");
+  const tree = draw();
+  assert.equal(byTestId(tree, "bulk-list-name"), null, "the box closed");
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "REGRESSION: and the selection went with it");
+});
+
+test("REGRESSION: Esc while a menu is open is the menu's -- the Esc that closed a menu cleared the selection, and the rows walked behind it", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  byTestId(draw(), "select-all").props.onChange();
+  draw();
+  overlayOpen = '[role="menu"]';
+  assert.equal(press("Escape"), false, "a menu closes itself; the page leaves its Esc alone");
+  assert.equal(press("j"), false, "and walks nothing behind it");
+  assert.equal(press("/"), false, "nor goes to the search");
+  assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, "REGRESSION: an Esc that closed a menu cleared the selection");
+  overlayOpen = null;
+  assert.equal(press("Escape"), true, "with nothing open, Esc clears the selection");
+  assert.equal(byTestId(draw(), "bulk-bar"), null);
+});
+
+test("REGRESSION: the ? sheet's Esc is its own -- open, Esc closes it and the selection stays; closed, the sheet lets People's Esc through", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  // The shell draws the sheet before any page, so its listener hears a key before People's does; by the time People's
+  // hears it, the sheet has closed. Its hooks sit far past the page's in the stub's one call order.
+  const chrome = globalThis.window.__chrome;
+  globalThis.window.__chrome = { ...chrome, shortcuts: SHORTCUTS, shortcutGroups, typing: () => false };
+  const sheet = () => { seq = 10_000; return globalThis.window.ShortcutsSheet(); };
+  try {
+    assert.equal(sheet(), null, "closed until asked");
+    byTestId(draw(), "select-all").props.onChange();
+    draw();
+    globalThis.window.dispatchEvent(new CustomEvent("shortcuts:open"));
+    assert.ok(byTestId(sheet(), "shortcuts-sheet"), "the sheet is open");
+    assert.equal(press("Escape"), true, "the sheet takes the Esc that closes it");
+    assert.equal(sheet(), null, "and closes");
+    assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, "REGRESSION: the Esc that closed the sheet cleared the selection behind it");
+    assert.equal(press("Escape"), true, "with the sheet closed, Esc is People's");
+    assert.equal(byTestId(draw(), "bulk-bar"), null, "and clears the selection");
+  } finally {
+    globalThis.window.__chrome = chrome;
+  }
+});
+
+test("REGRESSION: Esc clears the selection with focus on a bulk-bar button -- after Export CSV, Take off or Add a note, the foot's esc did nothing", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  byTestId(draw(), "select-all").props.onChange();
+  assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/);
+  const exportCsv = element("BUTTON", { within: ["button", ".cl-bulk"] });
+  assert.equal(press("Escape", exportCsv), true, "REGRESSION: the bar kept Esc from the page");
+  assert.equal(byTestId(draw(), "bulk-bar"), null, "the selection is cleared");
+});
+
+test("a key with a modifier is not the page's: Ctrl-K is Ask's, and Ctrl-J, Ctrl-X, ⌘J and Alt-X move and select nothing", async () => {
+  await freshPage({ people: [person(1), person(2), person(3)] });
+  draw();
+  press("j");
+  draw();
+  press("j");
+  assert.equal(cursorRow(draw()), "person-p2");
+  for (const [key, mod] of [["k", "ctrlKey"], ["j", "ctrlKey"], ["x", "ctrlKey"], ["j", "metaKey"], ["x", "altKey"]]) {
+    assert.equal(press(key, null, { [mod]: true }), false, `${mod} with ${key} is not the page's`);
+  }
+  const tree = draw();
+  assert.equal(cursorRow(tree), "person-p2", "the cursor stayed on Person 2");
+  assert.equal(byTestId(tree, "bulk-bar"), null, "and nobody was selected");
+});
+
+test("Esc closes the phone's lists sheet first, and the selection stays; the next Esc clears it", async () => {
+  await freshPage({ people: [person(1), person(2)], lists: [{ id: "s1", name: "Regulars", ids: ["p1"] }] });
+  byTestId(draw(), "select-all").props.onChange();
+  click(byTestId(draw(), "people-lists-pick"));
+  assert.ok(byTestId(draw(), "people-lists-sheet"), "the sheet is open");
+  press("Escape");
+  let tree = draw();
+  assert.equal(byTestId(tree, "people-lists-sheet"), null, "Esc closed the sheet");
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
+  assert.equal(press("Escape"), true);
+  tree = draw();
+  assert.equal(byTestId(tree, "bulk-bar"), null, "the next Esc clears it");
+});
+
+test("x and Space select nobody for a member who can neither edit lists nor export, and the foot's keys say what the member's keys do", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  assert.equal(keysLine(draw()), "JK move · x selects · esc clears · ↵ opens · / searches", "an owner's foot names every key");
+  await freshPage({ people: [person(1), person(2)] });
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    draw();
+    press("j");
+    const tree = draw();
+    assert.equal(cursorRow(tree), "person-p1", "a viewer walks the rows");
+    assert.equal(press("x"), false, "x selects nobody");
+    assert.equal(press(" "), false, "nor does Space");
+    assert.equal(byTestId(draw(), "bulk-bar"), null);
+    assert.equal(keysLine(tree), "JK move · ↵ opens · / searches", "and the foot does not offer them");
+  } finally {
+    globalThis.window.__ME = me;
+  }
+});
+
+test("/ goes to the search on an empty table too", async () => {
+  await freshPage({ people: [] });
+  const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
+  let focused = 0;
+  box.props.ref.current = { focus: () => { focused += 1; } };
+  assert.equal(press("/"), true);
+  assert.equal(focused, 1, "nobody to walk, and still somewhere to search");
+});
+
+test("a radio's arrow keys are the radio's; a held x, Space or Enter acts once, and a held J walks on", async () => {
+  await freshPage({ people: [person(1), person(2), person(3)] });
+  draw();
+  const radio = element("INPUT", { type: "radio", within: ["input"] });
+  assert.equal(press("ArrowDown", radio), false, "a radio group moves its own choice");
+  assert.equal(cursorRow(draw()), null, "and not the page's cursor");
+  press("j");
+  draw();
+  assert.equal(press("x"), true);
+  draw();
+  assert.equal(press("x", null, { repeat: true }), false, "a held x does not take the row off again");
+  assert.equal(press(" ", null, { repeat: true }), false, "nor does a held Space");
+  assert.equal(press("Enter", null, { repeat: true }), false, "and a held Enter opens nobody");
+  assert.deepEqual(opened, []);
+  assert.match(textOf(byTestId(draw(), "bulk-bar")), /1 selected/, "Person 1 stays selected");
+  assert.equal(press("j", null, { repeat: true }), true, "a held J walks on");
+  assert.equal(press("j", null, { repeat: true }), true);
+  assert.equal(cursorRow(draw()), "person-p3");
 });

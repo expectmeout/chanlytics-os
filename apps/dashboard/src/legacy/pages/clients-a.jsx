@@ -1463,10 +1463,14 @@ const AddPersonButton = ({ onAdded, flash }) => {
   );
 };
 
-// Typing: a field that takes words. A row's checkbox is not one, so after a click on it J, K, x and Esc still work.
-const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^(checkbox|radio)$/i.test(el.type || "")) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || !!el.isContentEditable);
+// Typing: a field that takes words, or a radio, whose arrow keys move its choice. A row's checkbox is not one, so after
+// a click on it J, K, x and Esc still work.
+const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^checkbox$/i.test(el.type || "")) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || !!el.isContentEditable);
 // What Enter and Space press when it has focus, instead of the row under the cursor.
 const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
+// What can be open over the page and has the keys while it is: a menu, the ? sheet, the notifications, a sidebar menu.
+// Not the page's own lists sheet (.pl-sheet), which the listener names apart.
+const PL_OVERLAY = '[role="menu"]:not(.pl-sheet), [role="dialog"]:not(.pl-sheet)';
 
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
@@ -1673,7 +1677,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const shownIds = shown.map((p) => p.id);
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
   // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
-  // while typing, never with a modifier. The cursor's row shows its actions, as a hovered row does (clients.css).
+  // while typing, never with a modifier, never behind a menu or a sheet. The cursor's row shows its actions, as a
+  // hovered row does (clients.css).
   const [cursor, setCursor] = useState(null);
   React.useEffect(() => { setCursor((c) => (c && shownIds.includes(c) ? c : null)); }, [shownIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const moveCursor = (step) => setCursor((c) => {
@@ -1689,24 +1694,32 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => {
     const onKey = (e) => {
       const k = keys.current;
-      const el = document.activeElement;
-      if (!k || plTyping(el) || e.metaKey || e.ctrlKey || e.altKey) return;
-      // The Columns menu is the page's: Esc closes it, and the rows hold still behind it. The phone's lists sheet
-      // listens for its own Esc.
+      // Where the key was pressed, not where focus is now: React hears it first, and a field's own Esc can close the
+      // field and take focus with it, so the body had focus by the time this heard an Esc typed in the list's name.
+      const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
+      // A key an earlier listener took (the ? sheet's Esc) is not the page's.
+      if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
+      // The page's own overlays first. The Columns menu: Esc closes it, and the rows hold still behind it. The phone's
+      // lists sheet listens for its own Esc.
       if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
       if (k.sheetOpen) return;
+      // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
+      // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
+      if (document.querySelector(PL_OVERLAY)) return;
       if (e.key === "/") { e.preventDefault(); k.focusSearch(); return; }
-      // Esc inside the bulk bar or one of its menus is theirs: the menu closes and the selection stays.
+      // Esc clears a selection wherever focus is, a bulk-bar button included.
       if (e.key === "Escape") {
-        if (k.selected && !(el && el.closest && el.closest('.cl-bulk, [role="menu"]'))) { e.preventDefault(); k.clearSel(); }
+        if (k.selected) { e.preventDefault(); k.clearSel(); }
         return;
       }
       if (!k.ids.length) return;
       // Enter and Space on a focused button, link, box, tab or menu item are that control's: they opened the profile
       // under the cursor, or selected its row, instead of pressing what had focus.
-      if ((e.key === "Enter" || e.key === " ") && el && el.closest && el.closest(PL_CONTROL)) return;
+      if ((e.key === "Enter" || e.key === " ") && from && from.closest && from.closest(PL_CONTROL)) return;
       const down = e.key === "ArrowDown" || e.key === "j" || e.key === "J";
       const up = e.key === "ArrowUp" || e.key === "k" || e.key === "K";
+      // A held key walks on; a held x, Space or Enter acts once, so a row is not selected and unselected over and over.
+      if (e.repeat && !(down || up)) return;
       if (down || up) { e.preventDefault(); k.move(down ? 1 : -1); }
       else if (e.key === "Enter" && k.cursor) { e.preventDefault(); k.open(k.cursor); }
       else if ((e.key === " " || e.key === "x" || e.key === "X") && k.cursor && k.canSelect) { e.preventDefault(); k.toggle(k.cursor); }

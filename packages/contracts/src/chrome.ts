@@ -143,7 +143,8 @@ export interface Shortcut {
 
 /**
  * Every shortcut the app answers to, in the order the sheet lists them, under the page that answers it. "/" and J/K
- * were listed for every list, where "/" searches only People and J/K walk only the Inbox (the wiring audit's N17).
+ * were listed for every list (the wiring audit's N17): "/" searches only People, and J/K walk only People's rows and
+ * the Inbox's. People's rows are the keys its table's foot names.
  */
 export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["⌘K"], does: "Ask Chanlytics" },
@@ -152,6 +153,10 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
   { group: "People", keys: ["/"], does: "Search People" },
+  { group: "People", keys: ["J", "K", "↓", "↑"], does: "Next and previous person" },
+  { group: "People", keys: ["X", "Space"], does: "Select the person" },
+  { group: "People", keys: ["↵"], does: "Open their profile" },
+  { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },

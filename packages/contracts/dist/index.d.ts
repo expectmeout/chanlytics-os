@@ -7899,7 +7899,8 @@ interface Shortcut {
 }
 /**
  * Every shortcut the app answers to, in the order the sheet lists them, under the page that answers it. "/" and J/K
- * were listed for every list, where "/" searches only People and J/K walk only the Inbox (the wiring audit's N17).
+ * were listed for every list (the wiring audit's N17): "/" searches only People, and J/K walk only People's rows and
+ * the Inbox's. People's rows are the keys its table's foot names.
  */
 declare const SHORTCUTS: readonly Shortcut[];
 /** The sheet's groups, in order, each with its shortcuts. */

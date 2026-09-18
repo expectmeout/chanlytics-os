@@ -4,10 +4,15 @@
 // field and from the account menu; Escape and the backdrop close it.
 const ShortcutsSheet = () => {
   const [open, setOpen] = React.useState(false);
+  // Whether the sheet is up, for the one listener below.
+  const shown = React.useRef(false);
+  shown.current = open;
   React.useEffect(() => {
     const onOpen = () => setOpen(true);
     const onKey = (e) => {
-      if (e.key === "Escape") { setOpen(false); return; }
+      // An Esc that closes the sheet is taken: this listener hears it before a page's does, and by then the sheet is
+      // gone, so People cleared its selection behind it. An Esc with the sheet closed is left to the page.
+      if (e.key === "Escape") { if (shown.current) { e.preventDefault(); setOpen(false); } return; }
       if (e.key === "?" && !e.metaKey && !e.ctrlKey && !e.altKey && !(window.__chrome && window.__chrome.typing(e.target))) {
         e.preventDefault();
         setOpen((v) => !v);
