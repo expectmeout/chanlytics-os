@@ -1,4 +1,4 @@
--- 00136 · A person says where they came from.
+-- 00138 · A person says where they came from.
 --
 -- People's table gains a "Came from" column (docs/plans/2026-09-18-people-table.md),
 -- and the answer is decided here, once, for every reader of people_list: the

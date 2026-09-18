@@ -1,5 +1,5 @@
 /**
- * People says where each person came from -- decided once, in SQL (00136).
+ * People says where each person came from -- decided once, in SQL (00138).
  *
  * The page, the profile and every other reader of people_list say the same
  * thing because the rule lives in the function: the door that added them wins
