@@ -1,4 +1,4 @@
-/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, ShellStatusBar, CLIENTS, FailedRead */
+/* global React, Icon, AskBar, DashboardA, Inbox, ClientsA, ClientProfile, Sidebar, Topbar, ShellStatusBar, LiveCallBar, CLIENTS, FailedRead */
 // Chanlytics — App Shell
 // The live product frame: hash routing, sidebar click-throughs, page transitions,
 // global Ask Chanlytics (⌘K), and intentional landings for unbuilt surfaces.
@@ -223,19 +223,17 @@ const RouteSkeleton = ({ pane, surface }) => (
 const PHONE_TABS = [
   { id: "home", route: "today", icon: "home", label: "Today" },
   { id: "inbox", route: "inbox", icon: "inbox", label: "Inbox" },
+  // Calendar, not Live. A call is live for minutes a week and holding a slot the
+  // rest of the time; "when is my next opening" is asked between every client.
+  // A call in progress is the shell's own bar while it is happening
+  // (topbar.jsx LiveCallBar) — which is also the only place with room for it to
+  // say who is on the line.
+  { id: "calendar", route: "calendar", icon: "calendar", label: "Calendar" },
   { id: "people", route: "clients", icon: "users", label: "People" },
-  { id: "live", route: "live", icon: "phone", label: "Live" },
 ];
-const liveNow = () => (window.__LIVE && Array.isArray(window.__LIVE.now) ? window.__LIVE.now.filter((c) => c.live).length : 0);
 const PhoneTabs = ({ page, inboxNeeds, onNavigate, onMenu }) => {
-  const [live, setLive] = useShellState(liveNow);
-  useShellEffect(() => {
-    const on = () => setLive(liveNow());
-    window.addEventListener("surface:live", on);
-    return () => window.removeEventListener("surface:live", on);
-  }, []);
   const activeOf = (t) => page === t.route;
-  const badge = (t) => (t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds) : t.id === "live" && live > 0 ? String(live) : null);
+  const badge = (t) => (t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds) : null);
   return (
     <nav className="phone-tabs" aria-label="Main" data-testid="phone-tabs">
       {PHONE_TABS.map((t) => (
@@ -795,6 +793,9 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
           onMenu={() => setNavOpen(true)}
           right={primaryAction}
         />
+        {/* A call happening right now outranks a newer build or a stale surface:
+            it is the one thing on this line that stops being true by itself. */}
+        <LiveCallBar />
         <ShellStatusBar />
         <SurfaceTabs page={page} param={param} onNavigate={navigate} />
         <div key={mountKey} className={`main-scroll route-view ${pane ? "pane" : ""}`}>

@@ -65,6 +65,15 @@ test.describe("Phone shell on a real workspace", () => {
     await page.waitForLoadState("networkidle");
     await expect(page.getByTestId("phone-tabs")).toBeVisible();
     await expect(page.locator(".tb-menu")).toBeHidden();
+    // The four places a thumb reaches, and what is NOT among them: a call is
+    // live for minutes a week, so it is a bar while it is happening rather
+    // than a slot that is empty the rest of the time. Calendar took it.
+    const tabs = page.getByTestId("phone-tabs").getByRole("button");
+    await expect(tabs).toHaveText(["Today", "Inbox", "Calendar", "People", "More"]);
+    await tabs.filter({ hasText: "Calendar" }).click();
+    await expect(page).toHaveURL(/#\/calendar/);
+    await page.goto("/#/inbox");
+    await page.waitForLoadState("networkidle");
     await expect(page.locator(".ix-list")).toBeVisible();
     await expect(page.locator(".ix-thread-pane")).toBeHidden();
     await page.screenshot({ path: "test-results/phone-inbox-list.png" });

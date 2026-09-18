@@ -10,7 +10,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toLiveVM, frameWhisper, frameHandOver } from "@chanlytics/contracts";
+import { toLiveVM, frameWhisper, frameHandOver, liveStillUp, liveBar, fmtClock } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -71,6 +71,8 @@ globalThis.React = {
   useEffect: (fn) => { const k = seq++; if (!(k in cells)) { cells[k] = true; fn(); } },
 };
 globalThis.window = {
+  // The chrome bridge, as installShell publishes it.
+  __chrome: { liveStillUp, liveBar, fmtClock },
   __LIVE: toLiveVM([call()], channels, ZONE, new Date(NOW)),
   __FACTS: { facts: { handoff_number: { value: LINE } } },
   // The client's answers: the route's body under data (client/api.ts). A flat fake hid that the toast read r.line.

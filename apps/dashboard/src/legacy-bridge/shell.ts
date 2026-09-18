@@ -6,7 +6,7 @@
  * sidebar's menus, the shortcuts sheet, the line under the top bar and the
  * tab's name.
  */
-import { THEME_OPTIONS, SHORTCUTS, pageTitle, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, nextThemePref, themeButtonWords, type ShellStatus } from "@chanlytics/contracts";
+import { THEME_OPTIONS, SHORTCUTS, pageTitle, shortcutGroups, shellStatusLine, isTypingTarget, workspaceHotkey, toastShape, stateOf, nextThemePref, themeButtonWords, liveBar, liveStillUp, fmtClock, type ShellStatus } from "@chanlytics/contracts";
 import { clearSurfaceCache } from "./surface-cache";
 import { switchWorkspace } from "./surface-data";
 import { refreshAllSurfaces } from "./surface-runner";
@@ -33,6 +33,11 @@ export interface ChromeWords {
   shortcuts: typeof SHORTCUTS;
   shortcutGroups: typeof shortcutGroups;
   statusLine: typeof shellStatusLine;
+  /** What the shell says across the top while someone is on the phone, and the heartbeat rule under it. */
+  liveBar: typeof liveBar;
+  liveStillUp: typeof liveStillUp;
+  /** Seconds → "m:ss", the clock the Live page already speaks. */
+  fmtClock: typeof fmtClock;
   /** The tab's name: from the crumbs the shell draws, with what needs you counted. */
   title: typeof pageTitle;
   workspaceHotkey: typeof workspaceHotkey;
@@ -111,6 +116,9 @@ export function installShell(win: Window = window): void {
     shortcuts: SHORTCUTS,
     shortcutGroups,
     statusLine: shellStatusLine,
+    liveBar,
+    liveStillUp,
+    fmtClock,
     title: pageTitle,
     workspaceHotkey,
     toast: toastShape,

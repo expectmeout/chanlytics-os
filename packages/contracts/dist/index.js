@@ -3218,6 +3218,26 @@ var mmss2 = (ms2) => {
 function fmtClock(seconds) {
   return mmss2(Math.max(0, seconds) * 1e3);
 }
+function liveStillUp(c, heartbeatMs, nowMs) {
+  if (!c.live) return false;
+  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
+}
+function liveBar(vm, nowMs) {
+  const up = (vm?.now ?? []).filter((c2) => liveStillUp(c2, vm?.heartbeatMs ?? 0, nowMs));
+  if (up.length === 0) return null;
+  if (up.length > 1) {
+    return { callId: null, text: `${up.length} calls on your line now`, sinceMs: null, checking: up.some((c2) => c2.checking) };
+  }
+  const c = up[0];
+  return {
+    callId: c.callId,
+    text: `On the phone now \xB7 ${c.whoShort}`,
+    // A call whose provider has gone quiet gets no running clock: the number
+    // would keep climbing for something that may already have ended.
+    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
+    checking: c.checking
+  };
+}
 function turnsOf(dto) {
   return (dto.transcript_object ?? []).filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected").map((turn) => {
     const start = turn.start ?? turn.words?.[0]?.start;
@@ -10196,6 +10216,8 @@ export {
   lineRetryRefusal,
   lineStuckProvisioning,
   listingLine,
+  liveBar,
+  liveStillUp,
   localDate,
   localHour,
   localToUtcMs,

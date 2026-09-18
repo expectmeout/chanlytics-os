@@ -119,6 +119,59 @@ export function fmtClock(seconds: number): string {
   return mmss(Math.max(0, seconds) * 1000);
 }
 
+/**
+ * Whether a call the last read called live is STILL up, between refreshes.
+ *
+ * `live` is decided when the calls are read; a call the provider stops talking
+ * about does not un-set it, so every reader has to re-apply the heartbeat. Three
+ * did it by hand (the Live page, the tab strip's pulse, the phone tab bar's
+ * count) and they did not agree — the bar counted `live` alone, so its badge
+ * could stay lit for a call nobody had heard from until the next fetch. One
+ * rule, here.
+ */
+export function liveStillUp(c: Pick<LiveCallVM, "live" | "heartbeatAtMs" | "startedAtMs">, heartbeatMs: number, nowMs: number): boolean {
+  if (!c.live) return false;
+  return nowMs - (c.heartbeatAtMs ?? c.startedAtMs ?? 0) < heartbeatMs;
+}
+
+/** What the shell says across the top while someone is on the phone. */
+export interface LiveBarVM {
+  /** The one call to open, or null when there are several and the bar opens the list. */
+  callId: string | null;
+  /** "On the phone now · Dana" or "2 calls on your line now". */
+  text: string;
+  /** How long it has been running, for the bar's clock; null when unknown or several. */
+  sinceMs: number | null;
+  /** Still marked live, but the provider has gone quiet: no clock, and it says so. */
+  checking: boolean;
+}
+
+/**
+ * The live-call bar, or nothing.
+ *
+ * A call in progress is the most time-critical thing the product knows, and it
+ * is true for minutes a week — so it is a bar the shell shows while it is
+ * happening rather than a place in the nav that is empty the rest of the time.
+ * It carries no controls: ending a call and handing it over are decisions with
+ * confirmations, and they belong on Live, which this opens.
+ */
+export function liveBar(vm: LiveVM | null | undefined, nowMs: number): LiveBarVM | null {
+  const up = (vm?.now ?? []).filter((c) => liveStillUp(c, vm?.heartbeatMs ?? 0, nowMs));
+  if (up.length === 0) return null;
+  if (up.length > 1) {
+    return { callId: null, text: `${up.length} calls on your line now`, sinceMs: null, checking: up.some((c) => c.checking) };
+  }
+  const c = up[0];
+  return {
+    callId: c.callId,
+    text: `On the phone now · ${c.whoShort}`,
+    // A call whose provider has gone quiet gets no running clock: the number
+    // would keep climbing for something that may already have ended.
+    sinceMs: c.checking || c.startedAtMs === null ? null : Math.max(0, nowMs - c.startedAtMs),
+    checking: c.checking,
+  };
+}
+
 function turnsOf(dto: CallDto): LiveTurnVM[] {
   return (dto.transcript_object ?? [])
     .filter((turn) => turn.role === "agent" || turn.role === "user" || turn.role === "injected")

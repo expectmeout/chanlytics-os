@@ -527,7 +527,7 @@ const LiveMonitorReal = ({ initialCallId = null }) => {
 
   // The heartbeat rule, re-applied between refreshes: a call nobody has heard
   // from for heartbeatMs stops being live here even before the next fetch.
-  const live = L.now.filter((c) => nowMs - (c.heartbeatAtMs || c.startedAtMs || 0) < L.heartbeatMs);
+  const live = L.now.filter((c) => window.__chrome.liveStillUp(c, L.heartbeatMs, nowMs));
   const recent = L.recent;
   const elapsedOf = (c) => Math.max(0, Math.floor((nowMs - (c.startedAtMs || nowMs)) / 1000));
   const all = [...live, ...recent];
