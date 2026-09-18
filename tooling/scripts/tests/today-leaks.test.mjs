@@ -28,7 +28,7 @@ const reports = (over = {}) => ({
 const people = (over = []) => ({
   lists: over.length ? over : [
     list("asked_never_booked", "Asked, never booked", 17, act("Text the booking link", "broadcasts/asked_never_booked")),
-    list("opted_in", "Said yes to messages", 7, act("Get their yes to offers", "broadcasts")),
+    list("opted_in", "Said yes to messages", 7, act("Get their yes to offers", "broadcasts/get-yes")),
     list("offers_ok", "Can receive offers", 0, act("Broadcast to everyone who said yes", "broadcasts", false)),
     list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet")),
   ],
@@ -97,7 +97,7 @@ test("a list nobody can be mailed, and a list gone quiet -- the two that cost a 
   const out = todayLeaks(quietBooks, people(), 4);
   assert.deepEqual(out.map((l) => l.id), ["unreachable", "quiet"]);
   assert.equal(out[0].text, "7 people have said yes to messages, but nobody has said yes to offers.");
-  assert.deepEqual(out[0].also, { label: "Get their yes to offers", to: "broadcasts" });
+  assert.deepEqual(out[0].also, { label: "Get their yes to offers", to: "broadcasts/get-yes" }, "the door lands on the QR, not on the composer above it");
   assert.equal(out[1].math, "of 28 in People");
   assert.deepEqual(out[1].also, { label: "Reach out", to: "broadcasts/quiet" }, "the list's own step, when the list can run it");
   const held = todayLeaks(quietBooks, { lists: [list("quiet", "Quiet 30+ days", 6, act("Reach out", "broadcasts/quiet", false))] }, 4);

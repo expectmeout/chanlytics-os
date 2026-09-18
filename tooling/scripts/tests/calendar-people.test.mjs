@@ -534,7 +534,7 @@ test("a name the owner gives and notes the receptionist reads: two doors, one ro
 });
 
 test("the journey from visits: Booked this week and Lapsed, in three groups; each list's next step waits for a recorded yes", async () => {
-  const { toPersonRowVM, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, peopleListAction } = await import("@chanlytics/contracts");
+  const { toPersonRowVM, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, peopleListAction, GET_YES_ROUTE } = await import("@chanlytics/contracts");
   const now = new Date(NOW);
   const cal = (v) => ({ timezone: TZ, source: "Google Calendar", state: "ok", next: null, last: null, ...v });
   const soon = { id: "n", start: new Date(NOW + 3 * 86_400_000).toISOString(), end: new Date(NOW + 3 * 86_400_000 + 3_600_000).toISOString(), title: "Cut", all_day: false, via: "phone" };
@@ -565,9 +565,25 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   const yes = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "opted_in" } };
   const talkOnly = { ...lapsed, consent: { ...lapsed.consent, state: "opted_in", marketing: "unknown" } };
   assert.deepEqual(peopleListAction("lapsed", [lapsed, yes]), { text: "1 of 2 on this list said yes to offers — a broadcast reaches them.", cta: "Win them back", to: "broadcasts/lapsed", enabled: true });
-  assert.deepEqual(peopleListAction("lapsed", [lapsed]), { text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts.", cta: "Win them back", to: "broadcasts/lapsed", enabled: false });
-  assert.equal(peopleListAction("lapsed", [talkOnly]).enabled, false, "a yes to messages is not a yes to offers");
+  // Nobody on the list has said yes to offers: the list's own step cannot run, and the step that CAN is the
+  // door to that yes. It printed "The phrase and the QR are on Broadcasts" beside a disabled "Win them back".
+  assert.deepEqual(peopleListAction("lapsed", [lapsed]), { text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.", cta: "Get their yes", to: GET_YES_ROUTE, enabled: true });
+  // A yes to messages is not a yes to offers: the broadcast is still not on offer -- the step is the door
+  // to the SECOND yes, which is precisely what this person has not given.
+  assert.notEqual(peopleListAction("lapsed", [talkOnly]).to, "broadcasts/lapsed", "a yes to messages is not a yes to offers");
+  assert.equal(peopleListAction("lapsed", [talkOnly]).to, GET_YES_ROUTE);
   assert.equal(peopleListAction("lapsed", []).text, "Nobody here right now.");
+  assert.equal(peopleListAction("lapsed", []).enabled, false, "an empty list has nothing to fix, so no door");
+  // Someone here DID say yes to offers and simply has no number: asking them to "get their yes" would ask for an
+  // answer they already gave. The list keeps its own step, waiting, and says what is actually missing.
+  const yesNoNumber = { ...yes, phone: null };
+  const waiting = peopleListAction("lapsed", [yesNoNumber]);
+  assert.equal(waiting.to, "broadcasts/lapsed");
+  assert.equal(waiting.enabled, false);
+  assert.match(waiting.text, /a recorded yes with a number to send to/);
+  // The two doors that said "Broadcasts" and meant the QR go to the QR.
+  assert.equal(peopleListAction("opted_in", [talkOnly]).to, GET_YES_ROUTE);
+  assert.equal(peopleListAction("new_week", [talkOnly]).to, GET_YES_ROUTE);
   assert.deepEqual(peopleListAction("booked_week", [week]), { text: "Their appointments are on the Calendar.", cta: "See the week", to: "calendar", enabled: true });
   assert.equal(peopleListAction("asked_never_booked", [yes]).to, "broadcasts/asked_never_booked");
   assert.equal(peopleListAction("booked", [week]), null, "no step for a fact that needs none");

@@ -8,7 +8,7 @@
  * a broadcast, so the cards and the runs must move together — never a row
  * the page invented while it waited.
  */
-import { PLAYBOOK_REACH_WORDS, playbookReach } from "@chanlytics/contracts";
+import { PLAYBOOK_REACH_DOOR, PLAYBOOK_REACH_WORDS, playbookReach } from "@chanlytics/contracts";
 import { api } from "./api";
 import { playbooksOverride } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
@@ -51,6 +51,7 @@ declare global {
     /** What the next run will actually do -- the card reads it beside the state. */
     __playbookReach?: typeof playbookReach;
     __playbookReachWords?: typeof PLAYBOOK_REACH_WORDS;
+    __playbookReachDoor?: typeof PLAYBOOK_REACH_DOOR;
   }
 }
 
@@ -59,4 +60,5 @@ export function installPlaybooks(): void {
   window.__refreshPlaybooks = refreshPlaybooks;
   window.__playbookReach = playbookReach;
   window.__playbookReachWords = PLAYBOOK_REACH_WORDS;
+  window.__playbookReachDoor = PLAYBOOK_REACH_DOOR;
 }

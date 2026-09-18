@@ -746,10 +746,22 @@ export interface PeopleListAction {
   enabled: boolean;
 }
 
+/**
+ * Where a person's yes to offers is got: Broadcasts' "Get their yes" section,
+ * brought into view -- the QR for the desk, the phrase, the link for a bio, the
+ * paper form.
+ *
+ * Five places said the fix was there -- "The phrase and the QR are on
+ * Broadcasts" -- and none of them went there: two steps opened the TOP of
+ * Broadcasts, where the composer is and the QR is below the fold, and three
+ * printed the sentence beside a disabled button. One route, one spelling.
+ */
+export const GET_YES_ROUTE = "broadcasts/get-yes";
+
 const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean; text?: string }> = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
-  new_week: { cta: "Get their yes", to: "broadcasts", text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts." },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
@@ -758,7 +770,7 @@ const LIST_STEPS: Record<string, { cta: string; to: string; broadcast?: boolean;
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
-  opted_in: { cta: "Get their yes to offers", to: "broadcasts", text: "They answer and hear about their own visits. Offers need a second, separate yes." },
+  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes." },
   // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer
   // opens on Everyone, and the button says so in the composer's words (broadcasts.ts EVERYONE_LABEL). It said
   // "New broadcast" here and "Use in a broadcast" on Lists, and opened an audience with another name.
@@ -794,9 +806,26 @@ export function savedListAction(id: string, members: PersonRowVM[]): PeopleListA
 function broadcastStep(cta: string, to: string, members: PersonRowVM[]): PeopleListAction {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
+    // People on the list, and not one of them has said yes to offers: the
+    // list's own step cannot run, and the thing that CAN is getting that yes.
+    // It printed "The phrase and the QR are on Broadcasts" beside a disabled
+    // "Win them back" -- the answer in words, next to a button that went
+    // nowhere. The button is the door to the answer now. Navigation only: who
+    // may be sent an offer is exactly what it was.
+    //
+    // NOT when someone here already said yes and simply has no number to send
+    // to: sending them to "get their yes" would ask for an answer they gave. That
+    // case keeps the list's own step, waiting, as before.
+    const saidYes = members.some((m) => m.consent.marketing === "opted_in");
+    if (members.length && !saidYes) {
+      return {
+        text: "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer.",
+        cta: "Get their yes", to: GET_YES_ROUTE, enabled: true,
+      };
+    }
     return {
       text: members.length
-        ? "Nobody on this list has said yes to offers yet — a broadcast reaches only that answer. The phrase and the QR are on Broadcasts."
+        ? "Nobody on this list can be sent an offer yet — a broadcast reaches only a recorded yes with a number to send to."
         : "Nobody here right now.",
       cta, to, enabled: false,
     };

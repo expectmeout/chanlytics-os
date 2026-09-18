@@ -3868,10 +3868,11 @@ var PEOPLE_LISTS = [
   { id: "offers_ok", label: "Can receive offers", group: "reach", test: (v) => mayReceive(v, "marketing") },
   { id: "opted_out", label: "Opted out", group: "reach", test: (v) => v.consent.state === "opted_out" }
 ];
+var GET_YES_ROUTE = "broadcasts/get-yes";
 var LIST_STEPS = {
   needs_you: { cta: "Open the Inbox", to: "inbox", text: "Each of them is waiting for a person." },
   waiting_on_you: { cta: "Open the Inbox", to: "inbox", text: "You own these threads, and they wrote last." },
-  new_week: { cta: "Get their yes", to: "broadcasts", text: "Their yes to offers is the phrase and the QR on Broadcasts." },
+  new_week: { cta: "Get their yes", to: GET_YES_ROUTE, text: "Their yes to offers is the phrase and the QR on Broadcasts." },
   booked_week: { cta: "See the week", to: "calendar", text: "Their appointments are on the Calendar." },
   asked_never_booked: { cta: "Text the booking link", to: "broadcasts/asked_never_booked", broadcast: true },
   lapsed: { cta: "Win them back", to: "broadcasts/lapsed", broadcast: true },
@@ -3880,7 +3881,7 @@ var LIST_STEPS = {
   // this list has said yes to hearing from the business, which is not a yes to a
   // promotion. Sending them here with "New broadcast" is what made the empty
   // audience feel like a bug in the composer rather than a missing answer.
-  opted_in: { cta: "Get their yes to offers", to: "broadcasts", text: "They answer and hear about their own visits. Offers need a second, separate yes." },
+  opted_in: { cta: "Get their yes to offers", to: GET_YES_ROUTE, text: "They answer and hear about their own visits. Offers need a second, separate yes." },
   // Broadcasts has no audience for this list: its people are exactly who a broadcast reaches, so the composer
   // opens on Everyone, and the button says so in the composer's words (broadcasts.ts EVERYONE_LABEL). It said
   // "New broadcast" here and "Use in a broadcast" on Lists, and opened an audience with another name.
@@ -3898,8 +3899,17 @@ function savedListAction(id, members) {
 function broadcastStep(cta, to, members) {
   const offersYes = members.filter((m) => mayReceive(m, "marketing")).length;
   if (offersYes === 0) {
+    const saidYes = members.some((m) => m.consent.marketing === "opted_in");
+    if (members.length && !saidYes) {
+      return {
+        text: "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer.",
+        cta: "Get their yes",
+        to: GET_YES_ROUTE,
+        enabled: true
+      };
+    }
     return {
-      text: members.length ? "Nobody on this list has said yes to offers yet \u2014 a broadcast reaches only that answer. The phrase and the QR are on Broadcasts." : "Nobody here right now.",
+      text: members.length ? "Nobody on this list can be sent an offer yet \u2014 a broadcast reaches only a recorded yes with a number to send to." : "Nobody here right now.",
       cta,
       to,
       enabled: false
@@ -6610,6 +6620,9 @@ function playbookReach(p) {
   if (p.candidates > 0) return "sends";
   return p.held > 0 ? "all-heard" : "nobody";
 }
+var PLAYBOOK_REACH_DOOR = {
+  nobody: { label: "Get their yes", to: GET_YES_ROUTE }
+};
 var PLAYBOOK_REACH_WORDS = {
   waiting: null,
   paused: null,
@@ -9881,6 +9894,7 @@ export {
   FORWARDING_MODES,
   FORWARDING_TEST_WINDOW_MS,
   FeaturesConfigSchema,
+  GET_YES_ROUTE,
   GOOGLE_SHOWN_REVIEWS,
   GuardrailsSchema,
   HELD_REASONS,
@@ -9946,6 +9960,7 @@ export {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
+  PLAYBOOK_REACH_DOOR,
   PLAYBOOK_REACH_WORDS,
   PLAYBOOK_STATES,
   PLAYBOOK_TRIGGERS,
