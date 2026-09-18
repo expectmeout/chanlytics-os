@@ -158,15 +158,21 @@
 }
 @media (prefers-reduced-motion: reduce) { .lm-panel { animation: none; } }
 
+/* The head wraps before it squeezes. The titles were `flex: 1` -- a zero basis -- beside controls that
+   would not shrink, so the row never wrapped: the titles got whatever the controls left, and on a phone
+   (or a panel ~430px wide beside the list on a small laptop) the meta line's number and start time fell
+   into columns one word wide. Now the titles claim 260px or the controls take the next line, under the
+   name, where a thumb reaches them. */
 .lm-head {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 12px;
+  gap: 10px 12px;
   padding: 14px 24px;
   border-bottom: 1px solid var(--line);
   flex-shrink: 0;
 }
-.lm-head-titles { flex: 1; min-width: 0; }
+.lm-head-titles { flex: 1 1 260px; min-width: 0; }
 .lm-head-name {
   font-size: 13.5px;
   font-weight: 500;
@@ -176,16 +182,24 @@
   gap: 8px;
   flex-wrap: wrap;
 }
+/* A sentence of facts that wraps between its parts, never inside one: "+1 (646) 555-0123" and "Started
+   2:14 PM · 1:34" each stay on one line. */
 .lm-head-meta {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 2px 6px;
   font-size: 11.5px;
   color: var(--ink-dim);
   margin-top: 3px;
 }
+.lm-head-meta > * { white-space: nowrap; }
 .lm-callid { font-size: 10.5px; color: var(--ink-faint); }
-.lm-head-actions { flex-shrink: 0; }
+/* The controls are a row that can wrap -- the confirmation "End the call? … Yes, end it" is wider than a
+   phone's line. It was an unstyled block of inline buttons that would not shrink, which is what pushed the
+   titles into their column. */
+.lm-head-actions { flex: 0 1 auto; min-width: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.lm-call-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
 
 /* Transcription */
 .lm-transcript-label {

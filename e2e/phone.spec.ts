@@ -137,6 +137,35 @@ test.describe("Phone shell on a real workspace", () => {
     expect(line && first && first.y - line.y < 120, "the composer follows the line, not a header block").toBe(true);
   });
 
+  /**
+   * Live's call panel head wraps before it squeezes. Its titles were `flex: 1` beside controls that would
+   * not shrink, so on a phone the name had ~90px and the meta line's number and start time fell into
+   * columns one word wide. With nobody on the line the panel still opens on the last call, so the head is
+   * there whenever the workspace has had a call at all. Read-only: nothing here is pressed.
+   */
+  test("Live: the call panel's head gives the name the width, and each fact stays on one line", async ({ page }) => {
+    await page.goto("/#/live");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("live-real")).toBeVisible();
+    const head = page.locator(".lm-head").first();
+    test.skip((await head.count()) === 0, "no call on this workspace yet: no panel head to measure");
+    const width = page.viewportSize()?.width ?? 390;
+    const titles = await page.locator(".lm-head-titles").first().boundingBox();
+    expect(titles && titles.width >= Math.min(260, width - 40), `the name and its facts had ${titles?.width}px`).toBe(true);
+    for (const fact of await page.locator(".lm-head-meta > *").all()) {
+      const box = await fact.boundingBox();
+      if (!box || box.height < 4) continue; // the separator dots
+      expect(box.height, `"${(await fact.textContent())?.trim()}" broke across lines`).toBeLessThanOrEqual(24);
+    }
+    for (const el of await page.locator(".lm-head-actions").getByRole("button").all()) {
+      const box = await el.boundingBox();
+      if (!box) continue;
+      expect(box.x + box.width, `${(await el.textContent())?.trim()} runs off a ${width}px screen`).toBeLessThanOrEqual(width + 1);
+    }
+    const over = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    expect(over, "the page scrolls sideways").toBeLessThanOrEqual(1);
+  });
+
   test("Campaigns: Send now asks before it sends", async ({ page }) => {
     await page.goto("/#/broadcasts");
     await page.waitForLoadState("networkidle");
