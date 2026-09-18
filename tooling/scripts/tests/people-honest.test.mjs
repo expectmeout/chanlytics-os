@@ -1166,25 +1166,81 @@ test("a read of People that overlapped no save takes the server's view -- anothe
 
 /* ------------------------- the bulk bar, on the people shown (Phase 0) ------------------------- */
 
+/**
+ * The bar's Export, drawn and its file caught: the harness sets no `__href`, so Export was never drawn here. Each file it
+ * makes lands in `blobs`, and `restore` puts the window back.
+ */
+const catchExports = () => {
+  const blobs = [], was = { url: URL.createObjectURL, make: globalThis.document.createElement };
+  URL.createObjectURL = (b) => { blobs.push(b); return was.url(b); };
+  globalThis.document.createElement = () => ({ click() {}, remove() {} });
+  globalThis.document.body.appendChild = () => {};
+  globalThis.window.__href = () => "";
+  return { blobs, restore: () => { URL.createObjectURL = was.url; globalThis.document.createElement = was.make; delete globalThis.document.body.appendChild; delete globalThis.window.__href; } };
+};
+/** Who is in a file the bar made: each row's first cell, the name, under the heading row. */
+const exportedNames = async (blob) => (await blob.text()).split("\r\n").slice(1).map((line) => /^"([^"]*)"/.exec(line)[1]);
+
 test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh moved out of the view stayed counted, and was written to", async () => {
   const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
   const kept = [{ id: "s1", name: "Regulars", ids: [] }];
   await freshPage({ people: [needs(1), needs(2), person(3)], lists: kept });
   const calls = [];
   globalThis.window.__lists = lists({ add: async (id, ids) => { calls.push(ids); return { ok: true, data: {} }; } });
-  let tree = draw({ initialState: "needs_you" });
-  byTestId(tree, "select-all").props.onChange();
-  tree = draw({ initialState: "needs_you" });
-  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/);
-  // A refresh: Person 2's escalation was resolved on another device, so they leave Needs you.
-  wire({ people: [needs(1), person(2), person(3)], lists: kept });
-  await quietly(() => peopleOverride.apply());
-  tree = draw({ initialState: "needs_you" });
-  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]), ["Select Person 1"], "the view shows one");
-  assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "REGRESSION: the bar counted a person who is not on screen");
-  await find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars").onClick();
-  await settle();
-  assert.deepEqual(calls, [["p1"]], "REGRESSION: the add wrote to a person the view no longer shows");
+  const yeses = [];
+  globalThis.window.__setPersonConsentMany = async (ids) => { yeses.push(ids); return { ok: true, done: ids.length, failed: 0 }; };
+  const { blobs, restore } = catchExports();
+  try {
+    let tree = draw({ initialState: "needs_you" });
+    byTestId(tree, "select-all").props.onChange();
+    tree = draw({ initialState: "needs_you" });
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/);
+    // A refresh: Person 2's escalation was resolved on another device, so they leave Needs you.
+    wire({ people: [needs(1), person(2), person(3)], lists: kept });
+    await quietly(() => peopleOverride.apply());
+    tree = draw({ initialState: "needs_you" });
+    assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]), ["Select Person 1"], "the view shows one");
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "REGRESSION: the bar counted a person who is not on screen");
+    await find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars").onClick();
+    await settle();
+    assert.deepEqual(calls, [["p1"]], "REGRESSION: the add wrote to a person the view no longer shows");
+    // The doors that take fifty at a time (a yes, the receptionist, a note, Take off) share one batch; a yes stands for them.
+    await find(draw({ initialState: "needs_you" }), (n) => n.props?.label === "Record a yes").props.items.find((i) => i.label === "In person").onClick();
+    await settle();
+    assert.deepEqual(yeses, [["p1"]], "REGRESSION: the yes went to a person the view no longer shows");
+    byTestId(draw({ initialState: "needs_you" }), "bulk-export").props.onClick();
+    assert.equal(textOf(flashes.at(-1).msg), "1 exported as a CSV");
+    assert.deepEqual(await exportedNames(blobs.at(-1)), ["Person 1"], "REGRESSION: the file held a person the view no longer shows");
+  } finally {
+    restore();
+  }
+});
+
+test("REGRESSION: a search match past the people loaded is exported with the rest -- the bar counted it and wrote to it, and left it out of the file", async () => {
+  // Past everyone loaded, the server finds Saturday Jones; Person 2 matches by their last words ("Can I move Saturday to 11?").
+  await freshPage({ people: [person(1, { display_name: "Saturday Smith" }), person(2)], lists: [{ id: "s1", name: "Regulars", ids: [] }] });
+  globalThis.window.__PEOPLE.page = { ...globalThis.window.__PEOPLE.page, total: 60000, has_more: true };
+  const far = toPersonRowVM(person(99, { display_name: "Saturday Jones" }), ZONE, new Date());
+  globalThis.window.__peopleSearch = async () => ({ rows: [far], more: false });
+  const calls = [];
+  globalThis.window.__lists = lists({ add: async (id, ids) => { calls.push(ids); return { ok: true, data: {} }; } });
+  const { blobs, restore } = catchExports();
+  try {
+    find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || "")).props.onChange({ target: { value: "saturday" } });
+    draw();
+    await sleep(320);
+    byTestId(draw(), "select-all").props.onChange();
+    const tree = draw();
+    assert.match(textOf(byTestId(tree, "bulk-bar")), /3 selected/, "the two loaded and the one found");
+    byTestId(tree, "bulk-export").props.onClick();
+    assert.equal(textOf(flashes.at(-1).msg), "3 exported as a CSV", "REGRESSION: the file counted only the people loaded");
+    assert.deepEqual((await exportedNames(blobs.at(-1))).sort(), ["Person 2", "Saturday Jones", "Saturday Smith"], "REGRESSION: the person found past the loaded rows was left out of the file");
+    await find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars").onClick();
+    await settle();
+    assert.deepEqual(calls.map((ids) => [...ids].sort()), [["p1", "p2", "p99"]], "and written to with the rest");
+  } finally {
+    restore();
+  }
 });
 
 test("the table is selecting only while a row it shows is selected -- a selection a refresh took off the screen shows no row's box, and draws no bar", async () => {

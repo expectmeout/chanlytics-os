@@ -1271,7 +1271,8 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
   // What is shown and selected, in the order shown. A person the view no longer shows -- a refresh moved them out of
-  // Needs you, say -- is not counted, exported or written to: the bar acted on every loaded row the selection named.
+  // Needs you, say -- is not counted, exported or written to. The bar used to count and write to every id selected,
+  // and export only the loaded ones.
   const picked = rows.filter((p) => sel.has(p.id));
   const ids = picked.map((p) => p.id);
   // Fifty at a press: the batch doors take fifty, and a bigger selection keeps
@@ -1832,6 +1833,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     open: onOpenProfile,
     toggle: toggleSel,
     canSelect: canEditLists || canExport,
+    // sel.size, not the rows shown as the bar counts them: Esc can still drop a selection nobody can see.
     selected: sel.size > 0,
     clearSel: () => setSel(new Set()),
     focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
