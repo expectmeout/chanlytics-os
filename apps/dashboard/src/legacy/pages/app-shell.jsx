@@ -612,15 +612,19 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     // page's own rule (a list or a kept list with this id) and its own label;
     // the demo, its seeded segment.
     const bcRunId = param && param.startsWith("run:") ? param.slice(4) : null;
-    const bcAudience = bcRunId ? null : param;
+    // broadcasts/get-yes lands on the "Get their yes" section: the door every
+    // "nobody has said yes to offers" on People, Today and Playbooks goes through.
+    const bcYes = param === "get-yes";
+    const bcAudience = bcRunId || bcYes ? null : param;
     const bcRun = bcRunId && window.__BROADCASTS ? (window.__BROADCASTS.rows || []).find(r => r.id === bcRunId) : null;
     const bcSeg = bcAudience && (window.__BROADCASTS
       ? (window.__BROADCASTS.audiences || []).find(a => (a.kind === "saved" || a.kind === "list") && a.id === bcAudience)
       : (window.CLIENT_SEGMENTS || []).find(s => s.id === bcAudience));
     activeNav = "broadcasts";
     crumbs = bcRunId ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcRun ? bcRun.name : "Broadcast"]
+      : bcYes ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, "Get their yes"]
       : bcSeg ? ["Campaigns", { label: "Broadcasts", to: "broadcasts" }, bcSeg.label] : ["Campaigns", "Broadcasts"];
-    content = <BroadcastsPage initialSegment={bcAudience} initialRun={bcRunId} />;
+    content = <BroadcastsPage initialSegment={bcAudience} initialRun={bcRunId} initialYes={bcYes} />;
   } else if (page === "studio") {
     activeNav = "studio";
     crumbs = ["Agents", "Studio"];

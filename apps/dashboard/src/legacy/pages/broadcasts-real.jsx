@@ -317,7 +317,7 @@ const BcHistoryStats = ({ rows, more, replyWindow = null, origin = null, onOrigi
 };
 window.BcHistoryStats = BcHistoryStats;
 
-const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
+const BroadcastsReal = ({ initialSegment = null, initialRun = null, initialYes = false }) => {
   const data = useBroadcasts();
   const [toastNode, flash] = window.usePPToast();
   // Who may send, approve or stop: the role store's answer, View-as included.
@@ -374,6 +374,14 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
     const at = el.getBoundingClientRect();
     if (at.top < 0 || at.top > window.innerHeight - 80) el.scrollIntoView({ block: "start" });
   }, [openId]);
+  // broadcasts/get-yes: the section that answers "nobody has said yes to
+  // offers", brought into view -- it sits under the composer, where a person
+  // sent here to find the QR would otherwise have to scroll for it.
+  React.useEffect(() => {
+    if (!initialYes || typeof document === "undefined") return;
+    const el = document.getElementById("bc-optin");
+    if (el && el.scrollIntoView) el.scrollIntoView({ block: "start" });
+  }, [initialYes]);
   // The row whose stop is armed, and the one whose stop is on its way.
   const [armId, setArmId] = React.useState(null);
   const [stopping, setStopping] = React.useState(null);
@@ -656,7 +664,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
       </section>
 
       {data.optIn && data.optIn.link && (
-        <section className="ct-section bc-optin" data-testid="bc-optin">
+        <section id="bc-optin" className="ct-section bc-optin" data-testid="bc-optin">
           <div className="ct-sec-head">
             <span className="ct-sec-title">Get their yes</span>
             <span className="ct-sec-meta">the only way onto a broadcast</span>

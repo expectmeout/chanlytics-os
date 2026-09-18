@@ -41,6 +41,7 @@ const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
 // playbook whose list is empty is not "running" in any sense the owner means.
 const pbReach = (p) => (window.__playbookReach ? window.__playbookReach(p) : "sends");
 const pbReachWords = (r) => (window.__playbookReachWords ? window.__playbookReachWords[r] : null);
+const pbReachDoor = (r) => (window.__playbookReachDoor ? window.__playbookReachDoor[r] || null : null);
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
@@ -296,6 +297,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
   const templateGone = Array.isArray(surface.templates) && !message;
   const reach = pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting });
   const reachWords = pbReachWords(reach);
+  const reachDoor = pbReachDoor(reach);
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
@@ -374,7 +376,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
               // The hour was in bold on its own, which promised a send. It keeps
               // the hour and says what the hour will do.
               : reachWords
-                ? <>Next run {p.next} &mdash; <b>{reachWords}</b>.</>
+                ? <>Next run {p.next} &mdash; <b>{reachWords}</b>.{reachDoor && <>{" "}<button type="button" className="ob-link" onClick={() => window.CHANLY.nav(reachDoor.to)} data-testid="pb-reach-door">{reachDoor.label}</button>.</>}</>
                 : <>Next run <b>{p.next}</b>.</>}
             {p.last_run_for ? <> Last ran {pbDay(p.last_run_for)}.</> : <> It has not run yet.</>}
           </p>

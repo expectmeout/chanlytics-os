@@ -13,8 +13,10 @@ import assert from "node:assert/strict";
 import {
   BROADCAST_STATES, DECISION_SUBJECTS, DECISION_VERBS, PLAYBOOK_BREATH_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS,
   eligibleForPlaybook, localDate, localHour, nextRunLabel, planRun, runDueNow, scheduleLine, toBroadcastVM, triggerOf,
+  PLAYBOOK_REACH_DOOR,
   PLAYBOOK_REACH_WORDS,
   playbookReach,
+  GET_YES_ROUTE,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
@@ -203,6 +205,9 @@ test("what the next run will DO: a playbook running against an empty list is not
   assert.equal(PLAYBOOK_REACH_WORDS.nobody, "nobody to send to");
   assert.equal(PLAYBOOK_REACH_WORDS["all-heard"], "waiting out the week's gap");
   for (const quiet of ["sends", "paused", "waiting"]) assert.equal(PLAYBOOK_REACH_WORDS[quiet], null, `${quiet}: the schedule is the whole truth, so nothing is added`);
+  // "nobody to send to" is fixed by a yes, and the card says where; "waiting out the week's gap" is waited out.
+  assert.deepEqual(PLAYBOOK_REACH_DOOR.nobody, { label: "Get their yes", to: GET_YES_ROUTE });
+  assert.equal(PLAYBOOK_REACH_DOOR["all-heard"], undefined, "nothing to fix, so no door");
 });
 
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {

@@ -12,7 +12,7 @@ import { POLICY_CLASS_WORDS } from "./config";
  */
 import { eligibleFor } from "./broadcasts";
 import { purposeOfPlaybook } from "./consent";
-import type { PersonRowVM } from "./people";
+import { GET_YES_ROUTE, type PersonRowVM } from "./people";
 import type { ParamSpec } from "./templates";
 import { visitStartTime, type VisitDto } from "./calendar-people";
 import { shiftKey, zoneMidnight } from "./calendar";
@@ -254,6 +254,15 @@ export function playbookReach(p: { state: string; candidates: number; held: numb
   if (p.candidates > 0) return "sends";
   return p.held > 0 ? "all-heard" : "nobody";
 }
+
+/**
+ * Where a reach that can be fixed is fixed. "nobody": nobody on the list has
+ * said yes to offers, so getting that yes is the move. "all-heard" is waited
+ * out, not fixed, and gets no door.
+ */
+export const PLAYBOOK_REACH_DOOR: Partial<Record<PlaybookReach, { label: string; to: string }>> = {
+  nobody: { label: "Get their yes", to: GET_YES_ROUTE },
+};
 
 /** The few words beside the state, when the schedule is not the whole truth; null when it is. */
 export const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null> = {

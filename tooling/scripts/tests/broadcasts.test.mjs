@@ -352,6 +352,10 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/surface-data.ts").includes('qrPath: optInLink(wa?.number_e164) ? api().url("GET consent/qr") : null,'));
   const p = readCode("apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
   assert.ok(p.includes('data-testid="bc-optin"') && p.includes('data-testid="bc-optin-copy"') && p.includes('download="say-yes-to-offers.svg"'));
+  // Five places said "the phrase and the QR are on Broadcasts" and none went there: two opened the TOP of the
+  // page, where the composer is and this section is below the fold, and three printed it beside a disabled
+  // button. broadcasts/get-yes lands on the section itself.
+  assert.ok(p.includes('<section id="bc-optin" className="ct-section bc-optin"') && p.includes('document.getElementById("bc-optin")'), "the door lands on the QR, not above it");
 });
 
 test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast) as a card, never sent; nobody without a yes is ever included", async () => {
