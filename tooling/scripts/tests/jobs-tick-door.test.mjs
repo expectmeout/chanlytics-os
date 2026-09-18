@@ -144,7 +144,7 @@ function claimDue(jobs, { p_limit, p_lease_seconds }) {
 function ledger({ faults = {}, claim } = {}) {
   const tables = {
     jobs: [], messages: [], conversations: [], tenant_channels: [], lines: [], tenant_config: [],
-    events: [], escalations: [], notifications: [], operator_pages: [],
+    events: [], escalations: [], notifications: [], operator_pages: [], mailboxes: [],
   };
   const vault = { channels: {}, lines: {} };
   const db = fakeDb(tables, faults, {
@@ -244,7 +244,7 @@ test("a ledger that cannot be claimed from is a 503 carrying the error, said as 
 
   const idle = ledger();
   await listening(async (log) => {
-    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 0, done: 0, failed: 0, gaveUp: 0 }]);
+    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 }]);
     assert.deepEqual(log.said("jobs_tick").map((l) => [l.stream, l.sweep, l.claimed, l.done, l.failed, l.gaveUp]), [["log", "jobs", 0, 0, 0, 0]]);
   });
   assert.deepEqual(asked(idle.db), ["get_cron_sweep_key", "claim_due_jobs"], "the key, then one look at the ledger");
@@ -262,7 +262,7 @@ test("each job leaves on its own workspace's WhatsApp credentials from the vault
   const refused = none.queue({ to: "+13475550103", body: "We open at 9" });
 
   await listening(async (log) => {
-    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 3, done: 3, failed: 0, gaveUp: 0 }], "a refusal at the wire is a job done: its message says why");
+    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0 }], "a refusal at the wire is a job done: its message says why");
     assert.deepEqual(log.said("jobs_tick").map((l) => [l.claimed, l.done]), [[3, 3]]);
   });
 
@@ -289,7 +289,7 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
   const refused = lineless.queue({ channel: "sms", to: "+16465550144", body: "We open at 9" });
 
   await listening(async (log) => {
-    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 3, done: 3, failed: 0, gaveUp: 0 }]);
+    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0 }]);
     assert.deepEqual(log.said("sms_sent").map((l) => [l.tenant_id, l.line_id, l.to_tail]), [[s.T, s.line.id, "0142"], [s.T, s.line.id, "0143"]], "said as the workspace's own line, with tails");
   });
 
@@ -310,6 +310,46 @@ test("a texting workspace's job leaves on its own line: the subaccount's token f
   assert.deepEqual(L.tables.jobs.map((j) => j.state), ["done", "done", "done"]);
 });
 
+/* ------------------------------------------------------------ tried again */
+
+test("an email intake that throws is claimed again five minutes later, then thirty; nobody is told while it is still being tried, and its last failed try tells the owner and marks the mailbox", async () => {
+  // This file's deployment names no EMAIL_DOMAIN, so its runtime holds no email
+  // provider and every intake throws. The stand-in for 18 Sep 2026, when the
+  // key could send mail but not read it, and one throw lost an email for good.
+  const L = ledger();
+  const ws = L.workspace({ whatsapp: false });
+  const mailbox = { id: `mb-${ws.T}`, tenant_id: ws.T, local_part: "salon", last_error: null };
+  L.tables.mailboxes.push(mailbox);
+  const intake = {
+    id: `job-intake-${ws.T}`, tenant_id: ws.T, kind: "email_ingest", payload: { mailbox_id: mailbox.id, received_id: "rcv-1" },
+    due_at: iso(Date.now() - 30_000), state: "scheduled", attempts: 0, lease_until: null, last_error: null,
+  };
+  L.tables.jobs.push(intake);
+  const NOTHING = [200, { ok: true, claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 }];
+
+  await listening(async (log) => {
+    for (const [attempt, minutes] of [[1, 5], [2, 30]]) {
+      const t0 = Date.now();
+      assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 1, done: 0, failed: 0, gaveUp: 0, deferred: 1 }], `try ${attempt}`);
+      const wait = Date.parse(intake.lease_until) - t0;
+      assert.ok(wait >= minutes * 60_000 && wait < minutes * 60_000 + 5_000, `try ${attempt}: claimed again in ${minutes} minutes, not ${wait} ms`);
+      assert.deepEqual([intake.state, intake.attempts, intake.last_error], ["fired", attempt, "email_ingest: this runtime holds no email provider"], "kept, with why on the row");
+      assert.deepEqual(await answer(await knock()), NOTHING, "and not claimed again before its lease ends");
+      assert.equal(mailbox.last_error, null, "the mailbox is not marked while the email is still being tried");
+      assert.deepEqual(L.left().mail, [], "and nobody is told");
+      intake.lease_until = iso(Date.now() - 1_000);
+    }
+    assert.deepEqual(await answer(await knock()), [200, { ok: true, claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0 }], "the third try is the last");
+    assert.deepEqual(log.said("job_deferred").map((l) => [l.kind, l.attempts]), [["email_ingest", 1], ["email_ingest", 2]]);
+  });
+
+  assert.deepEqual([intake.state, intake.attempts], ["failed", 3]);
+  assert.equal(mailbox.last_error, "An email could not be taken in. Anything since then is in your Inbox as usual.");
+  const told = L.left().mail;
+  assert.deepEqual(told.map((m) => m.to), [[ws.owner]], "the owner, once");
+  assert.match(told[0].text, /failed after 3 tries and will not retry on its own/);
+});
+
 /* --------------------------------------------------------- mass failure */
 
 test("ten failures in one heartbeat page the platform once with the counts, failed and given up alike, and nine do not; the next heartbeat's ten are remembered, not paged again", async () => {
@@ -325,10 +365,10 @@ test("ten failures in one heartbeat page the platform once with the counts, fail
   const pages = () => L.left().mail.filter((m) => m.subject.startsWith("[Chanlytics]"));
 
   await listening(async () => {
-    assert.deepEqual(await answer(await beat(4, 5)), [200, { ok: true, claimed: 9, done: 0, failed: 4, gaveUp: 5 }]);
+    assert.deepEqual(await answer(await beat(4, 5)), [200, { ok: true, claimed: 9, done: 0, failed: 4, gaveUp: 5, deferred: 0 }]);
     assert.deepEqual([pages(), L.tables.operator_pages], [[], []], "nine is not the platform's condition");
 
-    assert.deepEqual(await answer(await beat(5, 5)), [200, { ok: true, claimed: 10, done: 0, failed: 5, gaveUp: 5 }], "still 200: the jobs failed, the ledger did not");
+    assert.deepEqual(await answer(await beat(5, 5)), [200, { ok: true, claimed: 10, done: 0, failed: 5, gaveUp: 5, deferred: 0 }], "still 200: the jobs failed, the ledger did not");
     assert.equal(pages().length, 1);
     const [page] = pages();
     assert.equal(page.subject, "[Chanlytics] 10 jobs failed in one heartbeat");
@@ -337,7 +377,7 @@ test("ten failures in one heartbeat page the platform once with the counts, fail
     assert.ok(page.text.includes("from jobs where state = 'failed' order by updated_at desc limit 20;"), "and where to look first");
     assert.deepEqual(L.tables.operator_pages.map((p) => [p.key, p.count, typeof p.alerted_at]), [["jobs_mass_failure", 1, "string"]], "remembered, and stamped as told");
 
-    assert.deepEqual(await answer(await beat(10, 0)), [200, { ok: true, claimed: 10, done: 0, failed: 10, gaveUp: 0 }]);
+    assert.deepEqual(await answer(await beat(10, 0)), [200, { ok: true, claimed: 10, done: 0, failed: 10, gaveUp: 0, deferred: 0 }]);
     assert.equal(pages().length, 1, "one page a window");
     assert.deepEqual(L.tables.operator_pages.map((p) => [p.key, p.count]), [["jobs_mass_failure", 2]], "and the second firing is counted");
   });

@@ -52,7 +52,8 @@ const FETCH_TIMEOUT_MS = 15_000;
  * One received email, by the id its webhook named. `null` is the provider
  * saying it has no such email (404): a fact, and the intake ends. Anything
  * else that is not an email THROWS, because "we could not ask" is not "it is
- * gone": the job fails and the ledger tries again.
+ * gone": the ledger keeps the job and tries it again later (packages/jobs
+ * RETRY_WAITS_MS), and fails it only when the last try throws too.
  */
 export async function fetchReceivedEmail(cfg: ResendConfig, receivedId: string): Promise<ReceivedEmail | null> {
   const r = await fetch(`${RESEND_RECEIVED}/${encodeURIComponent(receivedId)}`, {
