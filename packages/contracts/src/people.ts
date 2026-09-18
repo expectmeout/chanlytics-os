@@ -86,6 +86,9 @@ export interface PersonRowDto {
   /** The wires their written words travelled: whatsapp, sms, email (00127). Absent on a row read before it. */
   message_channels?: string[] | null;
   queued_reply_at: string | null;
+  /** Where they first came from (00138): calendar | lead | manual | import | call | whatsapp | sms | email, or null
+   *  when nothing says. In words through cameFromOf; absent on a row read before the column existed. */
+  came_from?: string | null;
   /** The reply mode in force for this person — their own setting, else the
    *  workspace's. Attached by the API from the policies table; people_list
    *  does not carry it. */
@@ -347,6 +350,34 @@ const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Ema
 
 /** A channel in the owner's words. */
 export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+
+/**
+ * Where a person first came from, as people_list decides it once (00138): the
+ * door that added them (calendar, lead, manual), an imported history (import),
+ * else their first call (call) or the wire of their first message (whatsapp,
+ * sms, email). People's "Came from" column says it in these words; a stored
+ * value is never shown.
+ */
+export type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
+
+/** The words for each, once. The three wires say what a reply on them says (REPLY_VIA). */
+export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: "Phone call",
+  calendar: "Your calendar",
+  manual: "Added by you",
+  import: "Imported history",
+  lead: "A lead you found",
+};
+
+/** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
+export function cameFromOf(r: { came_from?: string | null }): { key: PersonCameFrom; label: string } | null {
+  const k = r.came_from;
+  if (!k || !Object.prototype.hasOwnProperty.call(PERSON_CAME_FROM_WORDS, k)) return null;
+  return { key: k as PersonCameFrom, label: PERSON_CAME_FROM_WORDS[k as PersonCameFrom] };
+}
 
 type StandingRow = Pick<PersonRowDto, "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason">;
 
@@ -664,6 +695,8 @@ export interface PersonRowVM {
   lastContact: PersonLastContact;
   receptionist: PersonReceptionist;
   firstContact: PersonFirstContact;
+  /** Where they first came from, in words (cameFromOf); null when nothing says. */
+  cameFrom: { key: PersonCameFrom; label: string } | null;
   consent: PersonConsent;
   /** The customer's last words, verbatim. */
   quote: string | null;
@@ -755,6 +788,7 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     lastContact: last,
     receptionist: receptionistOf(r, tz, nowMs),
     firstContact: first,
+    cameFrom: cameFromOf(r),
     consent,
     quote: r.last_inbound_text?.trim() || null,
     callSummary: r.last_inbound_call_summary?.trim() || null,

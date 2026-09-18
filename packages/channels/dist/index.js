@@ -599,6 +599,17 @@ var WEEK_MS2 = 7 * DAY_MS3;
 var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
+var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CAME_FROM_WORDS = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: "Phone call",
+  calendar: "Your calendar",
+  manual: "Added by you",
+  import: "Imported history",
+  lead: "A lead you found"
+};
 var DAY_MS4 = 24 * 3600 * 1e3;
 var ASK_CAPS = {
   threads: 20,
