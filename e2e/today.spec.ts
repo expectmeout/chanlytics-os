@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
+import { expectAwayAddsUp, expectNoQueueRepeat, expectWarningsFirst } from "./signals";
 
 /**
  * Today on a real workspace: the hero says what is happening, and everything
@@ -72,9 +73,8 @@ test.describe("Today on a real workspace", () => {
     await expect(week).toBeVisible();
     await expect(week.locator(".rp2-tile")).toHaveCount(6);
     for (const v of await week.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+|\d+%|—|\d+s|\d+m( \d{2}s)?|\d+h \d{2}m)$/);
-    await expect(week).toContainText(/^Last (7|30|90) days/);
-    await expect(week.getByTestId("today-week-campaigns")).toBeVisible();
-    await expect(week.getByTestId("today-week-booking")).toBeVisible();
+    await expect(week.locator(".tsec-head .tsec-sub")).toContainText(/^Last (7|30|90) days · /);
+    for (const id of ["conversations", "campaigns", "booking"]) await expect(week.getByTestId(`today-week-view-${id}`)).toBeVisible();
     await expect(week.getByRole("button", { name: /Open Reports/ })).toBeVisible();
     // The journey: People's lists with counts; a row opens its list.
     const journey = page.getByTestId("today-journey");
@@ -92,5 +92,35 @@ test.describe("Today on a real workspace", () => {
     const n = await away.getByTestId("today-away-row").count();
     if (n === 0) await expect(away.getByTestId("today-away-empty")).toBeVisible();
     else await expect(away.getByRole("button", { name: "Mark all read" })).toBeVisible();
+  });
+
+  test("how it's going: the day and the period in one card, one door to Reports, and three reads that each show their own numbers", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const week = page.getByTestId("today-week");
+    await expect(week).toBeVisible();
+    // It was two cards with the same button twice: the day so far lives inside
+    // the period's card now, and there is one way to Reports.
+    await expect(week.getByTestId("today-recap")).toHaveCount(1);
+    await expect(page.getByTestId("today-recap")).toHaveCount(1);
+    await expect(week.getByRole("button", { name: /Open Reports/ })).toHaveCount(1);
+    // Three reads behind one control. A filter, not a tab set: aria-pressed,
+    // exactly one at a time, and each read shows its tiles or says why it has none.
+    for (const id of ["conversations", "campaigns", "booking"]) {
+      const control = week.getByTestId(`today-week-view-${id}`);
+      await control.click();
+      await expect(control).toHaveAttribute("aria-pressed", "true");
+      await expect(week.locator('.tw-seg [aria-pressed="true"]')).toHaveCount(1);
+      await expect(week.getByTestId(`today-week-tiles-${id}`).or(week.getByTestId("today-week-note"))).toBeVisible();
+    }
+  });
+
+  test("while you were away: nothing waiting in the queue is said twice, the count adds up, and a warning is never below good news", async ({ page }) => {
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    await expect(page.getByTestId("today-queue")).toBeVisible();
+    await expectNoQueueRepeat(page);
+    await expectAwayAddsUp(page);
+    await expectWarningsFirst(page);
   });
 });

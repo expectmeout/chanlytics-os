@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import { TenantConfigWriteSchema } from "@chanlytics/contracts";
-import { converge, verify, SLUG, CALL_ID, PEOPLE, ALERT_INBOX, channelExternalId } from "../e2e-workspace.mjs";
+import { converge, verify, SLUG, CALL_ID, PEOPLE, ALERT_INBOX, channelExternalId, SAID_YES_TO_MESSAGES, SAID_YES_TO_OFFERS } from "../e2e-workspace.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(
@@ -69,7 +69,7 @@ test("converging twice leaves one workspace in one state: nothing is duplicated"
   assert.equal(w.users.length, 2, "two test users, made once");
   assert.deepEqual(of(w.t, "memberships", T).map((m) => m.role).sort(), ["operator", "owner"]);
   assert.deepEqual(of(w.t, "contacts", T).map((c) => c.phone_e164).sort(), PEOPLE.map((p) => p.phone).sort());
-  assert.equal(of(w.t, "contact_identities", T).length, 2);
+  assert.equal(of(w.t, "contact_identities", T).length, PEOPLE.length);
   assert.equal(of(w.t, "conversations", T).length, 1);
   assert.deepEqual(of(w.t, "messages", T).map((m) => `${m.sender}:${m.status}`).sort(), ["ai:delivered", "customer:received"]);
   assert.equal(of(w.t, "calls", T).length, 1);
@@ -103,6 +103,37 @@ test("every row it writes is one the production sweeps leave alone", async () =>
   for (const table of ["jobs", "escalations", "lines", "playbooks", "broadcasts", "google_connections", "google_listings"]) {
     assert.equal(of(w.t, table, T).length, 0, `no ${table}`);
   }
+});
+
+test("the people said yes to messages and nobody to offers: the state Today's band, People's steps and the QR's door exist to answer", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const people = of(w.t, "contacts", T);
+  assert.ok(people.length >= 3, "a list the product calls a list starts at three (todayLeaks' floor)");
+  for (const p of people) {
+    assert.equal(p.consent, SAID_YES_TO_MESSAGES);
+    assert.equal(p.consent_source, "in_person", "a source the People page can name");
+    assert.equal(p.consent_updated_at, new Date(NOW - 7 * 86_400_000).toISOString(), "dated from the run, so every night is the same week");
+    assert.equal(p.marketing_consent, SAID_YES_TO_OFFERS);
+    assert.equal(p.marketing_consent, "unknown", "nobody said yes to offers, so no promotional send has an audience");
+  }
+  assert.deepEqual(await verify(w.db, T, w.users.find((u) => u.email === OWNER).id), [], "the seeded state passes its own check");
+});
+
+test("a spec that recorded a yes to offers is put back, and verify() names the drift before any spec reads it", async () => {
+  const w = world();
+  const { tenantId: T } = await run(w);
+  const owner = w.users.find((u) => u.email === OWNER).id;
+  const [robin, casey] = of(w.t, "contacts", T);
+  // What a spec -- or a person poking at the nightly's workspace -- could leave: an offers yes, a withdrawn yes.
+  robin.marketing_consent = "opted_in";
+  casey.consent = "opted_out";
+  const said = await verify(w.db, T, owner);
+  assert.ok(said.includes("someone in the workspace has said yes to offers"), said.join(" | "));
+  assert.ok(said.includes("fewer than three people have said yes to messages"), said.join(" | "));
+  await run(w, { now: NOW + 86_400_000 });
+  assert.deepEqual(await verify(w.db, T, owner), [], "the next run puts both back");
+  assert.ok(of(w.t, "contacts", T).every((p) => p.consent === SAID_YES_TO_MESSAGES && p.marketing_consent === SAID_YES_TO_OFFERS));
 });
 
 test("the one alert address is Resend's test inbox: a failed reply's alert goes there by the edge's own rule, and the deadman has someone to tell", async () => {
@@ -165,7 +196,7 @@ test("what the specs leave behind is put back", async () => {
 
   await run(w, { now: NOW + 3_600_000 });
 
-  assert.deepEqual(of(w.t, "contacts", T).map((c) => c.display_name).sort(), ["Casey Example", "Robin Example"]);
+  assert.deepEqual(of(w.t, "contacts", T).map((c) => c.display_name).sort(), PEOPLE.map((p) => p.name).sort());
   assert.equal(of(w.t, "conversations", T).length, 1);
   assert.equal(of(w.t, "messages", T).length, 2);
   assert.equal(of(w.t, "ask_threads", T).length, 0);
