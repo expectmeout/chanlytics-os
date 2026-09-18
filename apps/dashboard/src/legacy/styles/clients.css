@@ -1714,7 +1714,7 @@
 .cl-row-recept-mark { margin-left: 6px; font-size: 10.5px; color: var(--ink-faint); white-space: nowrap; }
 /* The receptionist's word beside the state is said once. While its column shows (is-in-column), a desktop leaves the word
    to that column; on a card Visits takes that column's place, so a card leaves the word to the column's cell only without Visits. */
-@media (min-width: 901px) { .cl-row-recept-mark.is-in-column { display: none; } }
+@media (width > 900px) { .cl-row-recept-mark.is-in-column { display: none; } }
 @media (max-width: 900px) { .cl-table tr:not(:has(> td.cl-visits-cell)) .cl-row-recept-mark.is-in-column { display: none; } }
 
 /* ---- Selecting people: a quiet checkbox, a bar that says what they can become ---- */

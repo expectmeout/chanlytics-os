@@ -593,17 +593,18 @@ test("a row with a thread offers the booking link on file; with none on file, on
 });
 
 test("the receptionist's word is beside the state whether or not its column shows, marked when it does, so a card never loses it", async () => {
-  // A reply is queued, so the receptionist is not simply answering: it has a word to say.
+  // A reply is queued, so the receptionist is not simply answering: it has a word to say. Person 2's is simply answering.
   const queued = person(1, { queued_reply_at: iso(H) });
-  const markOf = (tree) => {
-    const state = find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || "")));
-    return find(state, (n) => /\bcl-row-recept-mark\b/.test(String(n.props?.className || "")));
-  };
+  const stateCell = (tree, id) => find(rowOf(tree, id), (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || "")));
+  const isMark = (n) => /\bcl-row-recept-mark\b/.test(String(n.props?.className || ""));
+  const markOf = (tree) => find(stateCell(tree, "p1"), isMark);
   const inColumn = (mark) => /\bis-in-column\b/.test(String(mark.props.className));
-  await freshPage({ people: [queued] });
-  let mark = markOf(draw());
+  await freshPage({ people: [queued, person(2)] });
+  const tree = draw();
+  let mark = markOf(tree);
   assert.equal(mark && textOf(mark), "reply queued", "without a calendar the Receptionist column shows, and the word is beside the state too");
   assert.equal(inColumn(mark), true, "marked as said in its column, which the stylesheet leaves to say it where that column is on screen");
+  assert.ok(stateCell(tree, "p2") && !find(stateCell(tree, "p2"), isMark), "a receptionist simply answering has no word beside the state");
   await freshPage({ people: [queued], calendar: "ok" });
   mark = markOf(draw());
   assert.equal(mark && textOf(mark), "reply queued", "with a calendar the Receptionist column is hidden, and the word is beside the state");
