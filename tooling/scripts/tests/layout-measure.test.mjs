@@ -58,6 +58,12 @@ test("Setup shares the settings column with the cards above and below it", () =>
   assert.match(settings, /\.set-card, \.setup-rows \{ max-width: var\(--measure-prose\); \}/,
     "the cards and the Setup rows are one column, not two widths on one page");
 
+  // A Setup row prints its sentence WHOLE, at every width, and always did.
+  // Today's queue rows now clamp to two lines, which needs display:-webkit-box
+  // -- and these would have inherited the ceiling with it.
+  assert.match(settings, /.setup-rows .cl-attn-sentence {[^}]*display: block; -webkit-line-clamp: none; }/,
+    "a Setup row keeps every line it had");
+
   // A phone gets the sentence wrapped instead of truncated; that predates this
   // and must survive it.
   assert.ok(

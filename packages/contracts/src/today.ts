@@ -32,6 +32,7 @@ import {
 import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { reasonShort } from "./people";
+import { clipAtWord } from "./viewmodels";
 import { conversationOfNeedsKey } from "./notifications";
 
 export interface MetricsSummaryDto {
@@ -137,6 +138,17 @@ export interface TodayQueueRowVM {
 
 /** Six rows on Today; the rest is a count for the Inbox link. */
 export const TODAY_QUEUE_MAX = 6;
+
+/**
+ * How much of a customer's own words a queue row carries.
+ *
+ * It was a bare `.slice(0, 110)`: a hard cut mid-word, with nothing to say a
+ * cut had happened, at a length the row could not have shown anyway. The row's
+ * line is the only thing that knows how wide it is, so it does the truncating
+ * now -- two lines with a real ellipsis -- and this is only a ceiling on what
+ * the view model carries, set well past what two lines can draw.
+ */
+export const QUOTE_MAX = 240;
 
 export interface TodayVM {
   standing: {
@@ -351,7 +363,7 @@ export function toTodayVM(
       waited: formatWaited(waitedMs),
       warn: waitedMs > 30 * 60000,
       // her own words, never a generated characterization of them
-      quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
+      quote: lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "",
       meta: conv ? contactMeta(conv, threadChannelWords(conv.messages)) : "WhatsApp",
       windowNote: closes ? `Reply window closes ${closes}` : null,
       to: `inbox/th-${e.conversation_id}`,
@@ -700,7 +712,7 @@ export function toTodayVM(
       continue;
     }
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
-    const quote = lastCustomer ? messageText(lastCustomer).slice(0, 110) : "";
+    const quote = lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "";
     const who = conv ? contactName(conv) : "Unknown";
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
     const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
@@ -723,7 +735,7 @@ export function toTodayVM(
     queueAll.push({
       id: `q-w-${c.id}`, kind: "window", who, initials: initialsOf(who), channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
-      sentence: last ? messageText(last).slice(0, 110) : "They wrote last, and the free reply window is closing.", quoted: !!last,
+      sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
       status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
       cta: { label: "Open thread", to: `inbox/th-${c.id}` }, also: null,
       // After every escalation (which waited ≥ 0), the soonest to close first.

@@ -1180,7 +1180,7 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .setup-rows .cl-attn-avatar { width: var(--set-lead); height: var(--set-lead); border-radius: 10px; }
 .setup-rows .cl-attn-body { gap: 3px; }
 .setup-rows .cl-attn-name { font-size: var(--set-label); line-height: 1.35; }
-.setup-rows .cl-attn-sentence { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; }
+.setup-rows .cl-attn-sentence { font-size: var(--set-hint); line-height: 1.5; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; display: block; -webkit-line-clamp: none; }
 .setup-rows .cl-attn-status { font-size: var(--text-xs); line-height: 1.5; white-space: normal; overflow: visible; text-overflow: clip; text-wrap: pretty; }
 /* One act carries the accent: the next step. Everything else on the list is a
    door to somewhere, and a door is a quiet word -- fifteen bordered buttons down

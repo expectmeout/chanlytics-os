@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM } from "@chanlytics/contracts";
+import { toTodayVM, QUOTE_MAX } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 // 10:00 in New York on Sunday 6 September 2026.
@@ -103,7 +103,33 @@ test("the wiring: one row component for People and Today, the queue in the comma
   assert.ok(brief.includes("<RunsDone nav={nav} />") && brief.includes('data-testid="brief-run-done"'), "what went out today stays a receipt in the hero");
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
   assert.ok(css.includes(".tq-live {") && css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
-  assert.ok(readRaw("apps/dashboard/src/legacy/styles/clients.css").includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
+  const attn = readRaw("apps/dashboard/src/legacy/styles/clients.css");
+  assert.ok(attn.includes(".cl-attn-acts { display: inline-flex; align-items: center; gap: 6px; }"));
+  // The line a person decides from gets TWO lines, with a real ellipsis past
+  // them; one line cut 23% off a call-back summary at 1440, including who the
+  // caller had asked to speak to.
+  assert.ok(attn.includes("-webkit-line-clamp: 2;") && !attn.includes(".cl-attn-sentence { font-size: 12px; color: var(--ink-muted); line-height: 1.35; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }"), "two lines, not one");
+});
+
+test("REGRESSION: a long message is cut at a word with an ellipsis, not mid-word at a length the row could not draw", () => {
+  // It was a bare .slice(0, 110): a hard stop mid-word, nothing to say a cut had
+  // happened, and at a length two lines of the row can draw twice over. The row
+  // is the only thing that knows how wide it is, so it truncates; this is a
+  // ceiling on what the view model carries.
+  const long = "I booked for Saturday but can you do it for one hundred and fifty dollars? my friend got that price last month and she said you would honour it for me as well, please let me know before tomorrow because I need to tell my sister whether we are both coming or not";
+  assert.ok(long.length > QUOTE_MAX, "the fixture is longer than the ceiling");
+  const vm = toTodayVM(metrics(), [{ ...conversations[0], messages: [msg("m1", "customer", long, "2026-09-06T13:00:00Z")] }], [{ id: "e1", reason: "non_text", details: null, state: "open", created_at: "2026-09-06T12:00:00Z", conversation_id: "cv1" }], [], NOW);
+  const row = vm.queue.rows.find((r) => r.kind === "handoff");
+  assert.ok(row.quoted, "it is the customer's own words");
+  assert.ok(row.sentence.endsWith("…"), `REGRESSION: a silent cut — ${row.sentence.slice(-30)}`);
+  assert.ok(!/\s…$/.test(row.sentence), "and it does not end on a space before the ellipsis");
+  assert.ok(row.sentence.length <= QUOTE_MAX + 1, "the ceiling holds");
+  assert.ok(long.startsWith(row.sentence.slice(0, -1)), "everything before the ellipsis is what they wrote");
+  assert.ok(row.sentence.length > 110, "and it is no longer cut at a length the row can draw twice over");
+
+  const short = "Can I move Saturday to 11?";
+  const whole = toTodayVM(metrics(), [{ ...conversations[0], messages: [msg("m1", "customer", short, "2026-09-06T13:00:00Z")] }], [{ id: "e1", reason: "non_text", details: null, state: "open", created_at: "2026-09-06T12:00:00Z", conversation_id: "cv1" }], [], NOW);
+  assert.equal(whole.queue.rows.find((r) => r.kind === "handoff").sentence, short, "what fits is printed whole, with no ellipsis");
 });
 
 test("REGRESSION: the queue names the wire the thread is actually on", () => {
