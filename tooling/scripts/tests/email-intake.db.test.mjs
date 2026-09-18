@@ -66,6 +66,32 @@ test("the ledger holds one intake per received email per mailbox: a replayed web
   assert.equal(otherKind, null, "the rule is email_ingest's alone");
 });
 
+test("a failed intake no longer holds its email: replaying the webhook schedules a fresh job, which holds it as any live intake does", { skip }, async () => {
+  // 18 Sep 2026: an intake failed with 401 while the deployment's key could
+  // send mail but not read it. 00127's index counted the failed row, so the
+  // webhook's replay was told "already taken in" and the email could not be
+  // brought back (00135). Keys of this run's own: the index spans the table.
+  const [mailboxId, receivedId] = [`mb-f-${stamp}`, `rcv-f-${stamp}`];
+  const job = () => scheduleJobOnce(db, { tenantId, kind: "email_ingest", dueAt: new Date(Date.now() + 86_400_000), payload: { mailbox_id: mailboxId, received_id: receivedId } });
+  const rows = async () => (await db.from("jobs").select("id, state").eq("tenant_id", tenantId).eq("kind", "email_ingest").eq("payload->>received_id", receivedId).order("created_at")).data;
+  // Through jobs_guard's own moves: scheduled -> fired -> failed | done.
+  const move = async (id, ...states) => {
+    for (const state of states) assert.equal((await db.from("jobs").update({ state }).eq("id", id)).error, null, `-> ${state}`);
+  };
+
+  assert.equal(await job(), "scheduled");
+  const [first] = await rows();
+  await move(first.id, "fired");
+  assert.equal(await job(), "already_scheduled", "a running intake still holds the email");
+  await move(first.id, "failed");
+  assert.equal(await job(), "scheduled", "REGRESSION: a failed intake held its email for ever, and the replay was told it was already taken in");
+  assert.equal(await job(), "already_scheduled", "the fresh intake holds the email, as any live one does");
+  const [, second] = await rows();
+  await move(second.id, "fired", "done");
+  assert.equal(await job(), "already_scheduled", "an email that was taken in is never taken in twice");
+  assert.deepEqual((await rows()).map((r) => r.state), ["failed", "done"]);
+});
+
 test("a person who arrives by email is made once, under their address, and the address is on their own row; a replay is the same message", { skip }, async () => {
   const first = await ingestInboundEmail(db, email("rcv-10", "ana@example.com"));
   assert.deepEqual([first.is_new, first.processed], [true, false]);
