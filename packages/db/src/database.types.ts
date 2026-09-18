@@ -3175,6 +3175,7 @@ export type Database = {
         Args: {
           p_consent: string
           p_contact_id: string
+          p_message_id?: string
           p_note?: string
           p_source: string
         }
@@ -3185,6 +3186,7 @@ export type Database = {
           p_consent: string
           p_contact_id: string
           p_evidence?: Json
+          p_message_id?: string
           p_note?: string
           p_source: string
           p_tenant_id: string

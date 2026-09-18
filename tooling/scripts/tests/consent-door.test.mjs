@@ -190,6 +190,10 @@ function mount(props) {
       await new Promise((r) => setImmediate(r));
       tree = draw();
     },
+    type(node, value) {
+      node.props.onChange({ target: { value } });
+      tree = draw();
+    },
   };
 }
 
@@ -228,6 +232,9 @@ test("an ask asks HOW before it writes anything, and a yes carries its source", 
   assert.ok(byId(m.tree, "t-how"), "it asks how instead");
 
   await m.click(byLabel(m.tree, "Sign-up form"));
+  assert.deepEqual(wrote, [], "a form waits for the note that says which (00137)");
+  m.type(byId(m.tree, "t-note"), "Slip 12");
+  await m.click(byId(m.tree, "t-note-save"));
   assert.deepEqual(wrote, [{ consent: "opted_in", source: "form" }], "and the source rides with it");
   assert.equal(byId(m.tree, "t-how"), null, "the ask closes after it lands");
 });
@@ -282,6 +289,8 @@ test("THE DEFECT: each ask writes the column it is labelled for", async () => {
   const offers = askFor("Offers and news", "marketing", "unknown");
   await offers.click(byLabel(offers.tree, "Yes"));
   await offers.click(byLabel(offers.tree, "Sign-up form"));
+  offers.type(byId(offers.tree, "marketing-note"), "Slip 12");
+  await offers.click(byId(offers.tree, "marketing-note-save"));
 
   assert.deepEqual(calls, [
     { purpose: "conversational", consent: "opted_in", source: "in_person" },

@@ -101,6 +101,8 @@ export interface ConsentBody {
   consent: "opted_in" | "opted_out" | "unknown";
   source?: string;
   note?: string;
+  /** The message they said it in, when the source is their own message (00137): one person's, so never a batch's. */
+  message_id?: string;
 }
 
 /** One transport, the route chosen by purpose, so neither answer can be posted to the other's door by a typo in a page. */

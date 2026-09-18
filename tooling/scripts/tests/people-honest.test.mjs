@@ -492,3 +492,54 @@ test("REGRESSION: on a list, the Offers column shows the answer about offers -- 
   const offers = all(tree, (n) => n.props?.["data-testid"] === "row-offers").map((td) => textOf(td).trim()).sort();
   assert.deepEqual(offers, ["Not asked", "Yes"], `the cells: ${offers}`);
 });
+
+test("a selection's yes on a sign-up form is recorded with the note that says which slips, and their own message is not offered for many", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  const sent = [];
+  globalThis.window.__setPersonConsentMany = async (ids, body) => { sent.push(["visit", [...ids].sort(), body]); return { ok: true, done: ids.length, failed: 0 }; };
+  globalThis.window.__setPersonMarketingConsentMany = async (ids, body) => { sent.push(["offers", [...ids].sort(), body]); return { ok: true, done: ids.length, failed: 0 }; };
+  try {
+    let tree = draw();
+    byTestId(tree, "select-all").props.onChange();
+    const menu = () => find(draw(), (n) => n.props?.label === "Record a yes");
+    assert.deepEqual(
+      menu().props.items.map((i) => i.header || i.label),
+      ["Yes to messages about their visit…", "In person", "On the phone", "Sign-up form", "Yes to offers and news…", "Sign-up form"],
+      "their own message names one message, so a selection is not offered it",
+    );
+    await menu().props.items.find((i) => i.label === "Sign-up form").onClick();
+    tree = draw();
+    assert.deepEqual(sent, [], "REGRESSION: thirty slips were recorded with nothing to say which");
+    const note = byTestId(tree, "bulk-form-note");
+    assert.ok(note, "the form asks which slips");
+    assert.equal(byTestId(tree, "bulk-form-save").props.disabled, true, "and will not record without saying");
+    note.props.onChange({ target: { value: "  slips from Saturday " } });
+    tree = draw();
+    await byTestId(tree, "bulk-form-save").props.onClick();
+    await settle();
+    assert.deepEqual(sent, [["visit", ["p1", "p2"], { consent: "opted_in", source: "form", note: "slips from Saturday" }]]);
+    tree = draw();
+    assert.equal(byTestId(tree, "bulk-form-note"), null, "the step closes once it lands");
+
+    // Offers, by Enter; and Escape leaves without a word sent.
+    await menu().props.items.filter((i) => i.label === "Sign-up form")[1].onClick();
+    tree = draw();
+    byTestId(tree, "bulk-form-note").props.onChange({ target: { value: "offers slips" } });
+    tree = draw();
+    byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Enter" });
+    await settle();
+    assert.deepEqual(sent.at(-1), ["offers", ["p1", "p2"], { consent: "opted_in", source: "form", note: "offers slips" }]);
+    await menu().props.items.find((i) => i.label === "Sign-up form").onClick();
+    tree = draw();
+    byTestId(tree, "bulk-form-note").props.onKeyDown({ key: "Escape" });
+    assert.equal(byTestId(draw(), "bulk-form-note"), null, "Escape closes the step");
+    assert.equal(sent.length, 2, "and sends nothing");
+
+    // The spoken ways still record at once, with the source and nothing else.
+    await menu().props.items.find((i) => i.label === "In person").onClick();
+    await settle();
+    assert.deepEqual(sent.at(-1)[2], { consent: "opted_in", source: "in_person" });
+  } finally {
+    delete globalThis.window.__setPersonMarketingConsentMany;
+  }
+});

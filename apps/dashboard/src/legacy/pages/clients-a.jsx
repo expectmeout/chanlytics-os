@@ -1225,13 +1225,13 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   // Each door checked before it is called (Window contracts): the menu below only
   // gates on the conversational one, and a missing global inside `run` would leave
   // `busy` set for good.
-  const yes = (purpose, source) => {
+  const yes = (purpose, source, note = null) => {
     const send = purpose === "marketing" ? window.__setPersonMarketingConsentMany : window.__setPersonConsentMany;
     if (!send) { flash({ msg: <>That answer cannot be recorded here.</> }); return; }
     return run(
     () => send(
       batch,
-      { consent: "opted_in", source: source.id },
+      note ? { consent: "opted_in", source: source.id, note } : { consent: "opted_in", source: source.id },
     ),
     (r) => (
       <>
@@ -1246,6 +1246,18 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const isOwner = !!(window.__ME && window.__ME.role === "owner");
   const [noting, setNoting] = React.useState(false);
   const [note, setNote] = React.useState("");
+  // A yes on sign-up forms waits for the note that says which forms: a stack of
+  // signed slips is attested by it. The spoken ways are recorded at once.
+  const [slips, setSlips] = React.useState(null);
+  const [slipsNote, setSlipsNote] = React.useState("");
+  const yesBy = (purpose, s) => (s.id === "form" ? () => { setSlips({ purpose, source: s }); setSlipsNote(""); } : () => yes(purpose, s));
+  const closeSlips = () => { setSlips(null); setSlipsNote(""); };
+  const recordSlips = () => {
+    const line = slipsNote.trim();
+    if (!line || !slips || busy) return;
+    closeSlips();
+    return yes(slips.purpose, slips.source, line);
+  };
   const receptionist = async (m) => {
     setBusy(true);
     const r = await window.__setPersonReceptionistMany(batch, m.id);
@@ -1298,7 +1310,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           <Icon name="x" size={11} /> Take off {activeSaved.name}
         </button>
       )}
-      {canEdit && window.__setPersonConsentMany && sources.length > 0 && (
+      {canEdit && window.__setPersonConsentMany && sources.length > 0 && !slips && (
         <MoreMenu
           btnClass="btn btn-sm"
           label="Record a yes"
@@ -1306,12 +1318,19 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
           gated={busy ? "One moment — the last change is still saving" : null}
           items={[
             { header: "Yes to messages about their visit…" },
-            ...sources.map((s) => ({ label: s.label, icon: "check", onClick: () => yes("conversational", s) })),
+            ...sources.map((s) => ({ label: s.label, icon: "check", onClick: yesBy("conversational", s) })),
             ...(window.__setPersonMarketingConsentMany && offersSources.length > 0
-              ? [{ header: "Yes to offers and news…" }, ...offersSources.map((s) => ({ label: s.label, icon: "tag", onClick: () => yes("marketing", s) }))]
+              ? [{ header: "Yes to offers and news…" }, ...offersSources.map((s) => ({ label: s.label, icon: "tag", onClick: yesBy("marketing", s) }))]
               : []),
           ]}
         />
+      )}
+      {canEdit && slips && (
+        <span className="cl-bulk-naming">
+          <input autoFocus value={slipsNote} placeholder="Which slips, e.g. Saturday's" maxLength={200} disabled={busy} aria-label="Which forms they signed" data-testid="bulk-form-note" onChange={(e) => setSlipsNote(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") recordSlips(); if (e.key === "Escape") closeSlips(); }} />
+          <button className="btn btn-sm btn-primary" disabled={busy || !slipsNote.trim()} onClick={recordSlips} data-testid="bulk-form-save">Record</button>
+          <button className="btn btn-ghost btn-sm" disabled={busy} onClick={closeSlips}>Cancel</button>
+        </span>
       )}
       {canEdit && isOwner && window.__setPersonReceptionistMany && (
         <MoreMenu

@@ -1,4 +1,4 @@
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, offersYesRefusal, type SendPurpose } from "@chanlytics/contracts";
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, OWN_MESSAGE_REFUSALS, offersYesRefusal, type SendPurpose } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { recordDecision } from "@/server/verbs";
 
@@ -38,6 +38,9 @@ export function consentSourceOf(consent: string, source: string | undefined, pur
   if (typeof s !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((k) => k.id === s))) {
     throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
   }
+  // Their own message names the one message it was given in (00137), and one
+  // message is not every person's: that answer is recorded on a person's page.
+  if (s === "customer_message") throw new AppError("validation", OWN_MESSAGE_REFUSALS.batch);
   // A yes to OFFERS is written or it is not recorded. The database refuses a
   // spoken one as well (00100); asking here first hands the person a sentence
   // instead of the database's, before any row is touched.
