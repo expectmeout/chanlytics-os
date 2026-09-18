@@ -1127,3 +1127,39 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   await settle();
   assert.deepEqual(seen.viewSaves.at(-1), { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } }, "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice");
 });
+
+test("REGRESSION: a save made while People is being read is not undone by the read -- the read brought the old view back, Back showed the column again, and the next sort saved the old columns", async () => {
+  const seen = await freshPage({ people: [person(1), person(2)], views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
+  globalThis.window.__saveView = saveView;
+  click(byTestId(draw(), "people-columns"));
+  // A read of People goes out (a new message, the tab shown again, a load), and the server answers it with the view
+  // it held before the save below.
+  const reading = peopleOverride.apply();
+  click(byTestId(draw(), "column-came_from"));
+  draw();
+  await reading;
+  await settle();
+  assert.deepEqual(seen.viewSaves.map((s) => s.view.columns), [{ came_from: false }], "the save went while the read was out");
+  cells = [];
+  const tree = draw();
+  assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the read put the column back");
+  click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
+  draw();
+  await settle();
+  assert.deepEqual(seen.viewSaves.at(-1).view, { sortBy: "state", sortDir: "desc", columns: { came_from: false } }, "REGRESSION: and the next sort saved the old columns");
+});
+
+test("a read of People that overlapped no save takes the server's view -- another device's change shows", async () => {
+  const people = [person(1), person(2)];
+  await freshPage({ people, views: { people: { sortBy: "last", sortDir: "desc", columns: {} } } });
+  globalThis.window.__saveView = saveView;
+  click(byTestId(draw(), "people-columns"));
+  click(byTestId(draw(), "column-came_from"));
+  draw();
+  await settle();
+  // Later, on another device, the member shows Email and sorts by name; this tab reads People again.
+  wire({ people, views: { people: { sortBy: "name", sortDir: "asc", columns: { email: true } } } });
+  await peopleOverride.apply();
+  cells = [];
+  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"], "the other device's columns, not this tab's last save");
+});

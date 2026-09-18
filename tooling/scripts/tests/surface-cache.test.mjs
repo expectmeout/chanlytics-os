@@ -19,8 +19,8 @@ const json = (status, body) => new Response(JSON.stringify(body), { status, head
 globalThis.sessionStorage = storage();
 globalThis.localStorage = storage();
 globalThis.document = { visibilityState: "hidden", addEventListener() {}, removeEventListener() {} };
-/** This member's views as the server holds them, and every view saved to it. */
-const server = { views: { people: { sortBy: "last", sortDir: "desc", columns: {} } }, saved: [] };
+/** This member's views as the server holds them (a read always answers with these), every view saved to it, and while `held`, a save's reply waits for it. */
+const server = { views: { people: { sortBy: "last", sortDir: "desc", columns: {} } }, saved: [], held: null };
 globalThis.window = {
   location: { pathname: "/w/salon", search: "", hash: "#/clients", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
   sessionStorage: globalThis.sessionStorage,
@@ -38,6 +38,7 @@ globalThis.window = {
     if (u.pathname === "/api/v1/views/people" && init.method === "PUT") {
       const { view } = JSON.parse(init.body);
       server.saved.push(view);
+      if (server.held) await server.held;
       return json(200, { ok: true, data: { views: { ...server.views, people: view } } });
     }
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
@@ -57,6 +58,24 @@ const peopleRead = async ({ cachedFor = null } = {}) => {
   await peopleOverride.apply();
   if (cachedFor) snapshotSurface(peopleOverride.key, peopleOverride.globals, cachedFor);
 };
+
+// First in the file on purpose: each file runs in a process of its own, so People has not been read yet, as straight after F5.
+test("REGRESSION: straight after F5 a save made while the load read is out survives the read -- the page is usable from the cache before it lands, and the read brought the old view back", async () => {
+  // The last session's People, in the tab's cache, painted before anything is read.
+  globalThis.window.__PEOPLE = { views: { people: server.views.people } };
+  snapshotSurface(peopleOverride.key, peopleOverride.globals, TID);
+  delete globalThis.window.__PEOPLE;
+  hydrateSurfaceCache();
+  const reading = peopleOverride.apply();
+  const saving = saveView("people", HIDDEN);
+  assert.deepEqual(globalThis.window.__PEOPLE.views.people, HIDDEN, "People mounted again before the read lands (Back) has the view");
+  assert.deepEqual(cachedPeopleView(), HIDDEN, "and so does a second F5");
+  await saving;
+  await reading;
+  assert.deepEqual(globalThis.window.__PEOPLE.views.people, HIDDEN, "REGRESSION: the read landed with the server's older view, and it stood");
+  snapshotSurface(peopleOverride.key, peopleOverride.globals, TID);
+  assert.deepEqual(cachedPeopleView(), HIDDEN, "and the runner caches what the read left");
+});
 
 test("REGRESSION: a reload keeps the view a member saved -- the tab's cached People still held the view from before the save, so F5 put the old columns back", async () => {
   await peopleRead({ cachedFor: TID });
@@ -89,4 +108,36 @@ test("a cache of another workspace is left as it is: a save here writes nothing 
   assert.ok(before, "cached, under the other workspace");
   await saveView("people", HIDDEN);
   assert.equal(globalThis.sessionStorage.getItem(CACHE), before, "not a byte of it changed");
+});
+
+test("a save still waiting on its reply when a read of People begins is not undone by the read -- the server can answer the read before it takes the save", async () => {
+  await peopleRead();
+  const LISTS = { sortBy: "name", sortDir: "asc", columns: { lists: true } };
+  let reply;
+  server.held = new Promise((r) => { reply = r; });
+  try {
+    const saving = saveView("people", LISTS);
+    const reading = peopleOverride.apply();
+    reply();
+    await saving;
+    await reading;
+  } finally {
+    server.held = null;
+  }
+  assert.deepEqual(globalThis.window.__PEOPLE.views.people, LISTS, "the read began while the save waited, so the save stands");
+});
+
+test("with no workspace active, a save writes nothing into the cache -- not even into an entry that carries no workspace", async () => {
+  await peopleRead();
+  // Cached before any workspace was known, so the entry names none.
+  snapshotSurface(peopleOverride.key, peopleOverride.globals, null);
+  const before = globalThis.sessionStorage.getItem(CACHE);
+  const active = globalThis.window.__ACTIVE_WORKSPACE;
+  delete globalThis.window.__ACTIVE_WORKSPACE;
+  try {
+    await saveView("people", HIDDEN);
+    assert.equal(globalThis.sessionStorage.getItem(CACHE), before, "not a byte of it changed");
+  } finally {
+    globalThis.window.__ACTIVE_WORKSPACE = active;
+  }
 });

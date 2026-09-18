@@ -188,10 +188,16 @@ export async function addPerson(body: { phone: string; name?: string }): Promise
  * view is the caller's own state already. The People surface's copy of the
  * views takes it before the request goes (keepSavedView): People mounted again
  * on Back read the view from before the save, and the next save wrote it back.
+ * The copy is told when the reply lands, so a read of People that went out
+ * before then keeps the view rather than the server's older answer.
  */
 export async function saveView(page: string, view: Record<string, unknown>): Promise<ApiResult<{ views: Record<string, unknown> }>> {
-  keepSavedView(page, view);
-  return api()("PUT views/[page]", { params: { page }, body: { view }, refresh: false });
+  const landed = keepSavedView(page, view);
+  try {
+    return await api()("PUT views/[page]", { params: { page }, body: { view }, refresh: false });
+  } finally {
+    landed();
+  }
 }
 
 export async function setPersonConsentMany(ids: string[], body: ConsentBody): Promise<ManyResult> {
