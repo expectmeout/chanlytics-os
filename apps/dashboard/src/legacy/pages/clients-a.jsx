@@ -1270,8 +1270,10 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const [busy, setBusy] = React.useState(false);
   const [naming, setNaming] = React.useState(false);
   const [name, setName] = React.useState("");
-  const ids = [...sel];
+  // What is shown and selected, in the order shown. A person the view no longer shows -- a refresh moved them out of
+  // Needs you, say -- is not counted, exported or written to: the bar acted on every loaded row the selection named.
   const picked = rows.filter((p) => sel.has(p.id));
+  const ids = picked.map((p) => p.id);
   // Fifty at a press: the batch doors take fifty, and a bigger selection keeps
   // the rest selected, said so. The people past fifty used to be dropped
   // without a word.
@@ -1384,7 +1386,7 @@ const PeopleBulkBar = ({ sel, rows, saved, savedRead = true, canEdit, canExport,
   const offersSources = (window.__offersYesSources || []).filter((s) => s.id !== "customer_message");
   return (
     <div className="cl-bulk" role="toolbar" aria-label="Selected people" data-testid="bulk-bar">
-      <span className="cl-bulk-count"><b>{sel.size}</b> selected</span>
+      <span className="cl-bulk-count"><b>{ids.length}</b> selected</span>
       {canEdit && window.__lists && !naming && (
         <MoreMenu
           btnClass="btn btn-sm"
@@ -1955,7 +1957,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             </div>
           )}
         </div>
-        {sel.size > 0 && <PeopleBulkBar sel={sel} rows={rows} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} />}
+        {/* The bar counts, and acts on, the people shown and selected. */}
+        {shown.some((p) => sel.has(p.id)) && <PeopleBulkBar sel={sel} rows={shown} saved={saved} savedRead={people.savedRead !== false} canEdit={canEditLists} canExport={canExport} onClear={() => setSel(new Set())} onKeep={(rest) => setSel(new Set(rest))} flash={plFlash} activeSaved={activeSaved || null} />}
         {/* The phone's rail, as a sheet (the rail itself is not drawn under 720px). Last in the tree, after everything
             whose state a stub React keys by order. */}
         {listsOpen && (

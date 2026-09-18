@@ -1163,3 +1163,50 @@ test("a read of People that overlapped no save takes the server's view -- anothe
   cells = [];
   assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from", "Email"], "the other device's columns, not this tab's last save");
 });
+
+/* ------------------------- the bulk bar, on the people shown (Phase 0) ------------------------- */
+
+test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh moved out of the view stayed counted, and was written to", async () => {
+  const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  const kept = [{ id: "s1", name: "Regulars", ids: [] }];
+  await freshPage({ people: [needs(1), needs(2), person(3)], lists: kept });
+  const calls = [];
+  globalThis.window.__lists = lists({ add: async (id, ids) => { calls.push(ids); return { ok: true, data: {} }; } });
+  let tree = draw({ initialState: "needs_you" });
+  byTestId(tree, "select-all").props.onChange();
+  tree = draw({ initialState: "needs_you" });
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/);
+  // A refresh: Person 2's escalation was resolved on another device, so they leave Needs you.
+  wire({ people: [needs(1), person(2), person(3)], lists: kept });
+  await quietly(() => peopleOverride.apply());
+  tree = draw({ initialState: "needs_you" });
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]), ["Select Person 1"], "the view shows one");
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "REGRESSION: the bar counted a person who is not on screen");
+  await find(tree, (n) => n.props?.label === "Add to list").props.items.find((i) => i.label === "Regulars").onClick();
+  await settle();
+  assert.deepEqual(calls, [["p1"]], "REGRESSION: the add wrote to a person the view no longer shows");
+});
+
+test("the table is selecting only while a row it shows is selected -- a selection a refresh took off the screen shows no row's box, and draws no bar", async () => {
+  const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  // `selecting` on the table's wrap is what shows every row's box (clients.css).
+  const selecting = (tree) => /\bselecting\b/.test(String(find(tree, (n) => /\bpl-table-wrap\b/.test(String(n.props?.className || ""))).props.className));
+  await freshPage({ people: [needs(1), needs(2), person(3)] });
+  let tree = draw({ initialState: "needs_you" });
+  assert.equal(selecting(tree), false, "nobody selected");
+  byTestId(rowOf(tree, "p2"), "row-select").props.onChange();
+  tree = draw({ initialState: "needs_you" });
+  assert.equal(selecting(tree), true, "Person 2 is shown and selected");
+  // A refresh: Person 2's escalation was resolved on another device, so they leave Needs you, and the one person
+  // selected is not on screen.
+  wire({ people: [needs(1), person(2), person(3)] });
+  await quietly(() => peopleOverride.apply());
+  tree = draw({ initialState: "needs_you" });
+  assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "row-select").map((n) => n.props["aria-label"]), ["Select Person 1"], "the view shows one");
+  assert.equal(selecting(tree), false, "a selection nobody can see does not put the table in selecting mode");
+  assert.equal(byTestId(tree, "bulk-bar"), null, "nor draws a bar with nobody on screen to act on");
+  byTestId(rowOf(tree, "p1"), "row-select").props.onChange();
+  tree = draw({ initialState: "needs_you" });
+  assert.equal(selecting(tree), true, "a shown row selected: selecting again");
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "and the bar counts the one shown");
+});
