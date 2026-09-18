@@ -1282,3 +1282,32 @@ test("on a desktop the table scrolls in its own box, Person pinned, and the hair
   assert.match(find(tree, (n) => n.type === "th" && textOf(n).startsWith("Person")).props.className, /\bpl-pin\b/, "Person's heading is pinned");
   assert.match(find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-name-cell\b/.test(n.props?.className || "")).props.className, /\bpl-pin\b/, "and so are its cells");
 });
+
+test("Person is the cell right after the checkbox, in the header and in every row -- its pin sits at the checkbox's width, 28px, beside it", async () => {
+  // clients.css pins Person with `.cl-sel + .pl-pin { left: 28px }`: that holds only while Person follows the checkbox.
+  const cells = (tr) => tr.props.children.filter((k) => k && (k.type === "th" || k.type === "td"));
+  const lines = (tree) => [find(find(tree, (n) => n.type === "thead"), (n) => n.type === "tr"), ...all(find(tree, (n) => n.type === "tbody"), (n) => n.type === "tr")].map(cells);
+  const is = (cell, cls) => new RegExp(`\\b${cls}\\b`).test(String(cell.props.className || ""));
+  for (const calendar of ["none", "ok"]) {
+    await freshPage({ people: [person(1), person(2), person(3)], calendar });
+    const drawn = lines(draw());
+    assert.equal(drawn.length, 4, "the header and three rows");
+    for (const line of drawn) {
+      assert.ok(is(line[0], "cl-sel"), `the checkbox first (calendar ${calendar})`);
+      assert.ok(is(line[1], "pl-pin"), `then Person, pinned beside it (calendar ${calendar})`);
+      assert.equal(line.filter((c) => is(c, "pl-pin")).length, 1, "and nothing else pinned");
+    }
+  }
+  // A member who can neither edit lists nor export has no checkbox: Person is the first cell, pinned at 0.
+  await freshPage({ people: [person(1), person(2)] });
+  const me = globalThis.window.__ME;
+  globalThis.window.__ME = { role: "viewer" };
+  try {
+    for (const line of lines(draw())) {
+      assert.ok(is(line[0], "pl-pin"), "Person first");
+      assert.ok(!line.some((c) => is(c, "cl-sel")), "and no checkbox before it");
+    }
+  } finally {
+    globalThis.window.__ME = me;
+  }
+});

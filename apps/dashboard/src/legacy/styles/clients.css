@@ -1725,6 +1725,8 @@
 /* A picked row: an ink tint that shows in light as in dark. It was --bg-raised on --bg -- white on warm paper, which
    nobody could see -- with the accent's edge, and the accent is kept for the receptionist's live state. */
 .clients { --pl-selected: oklch(from var(--ink) l c h / 0.07); }
+/* On dark paper 7% of the ink sat within a shade of a hovered row and the cursor's; 12% stands apart from both. */
+[data-theme="dark"] .clients { --pl-selected: oklch(from var(--ink) l c h / 0.12); }
 .cl-table tbody tr.selected { background: var(--pl-selected); }
 .cl-bulk { position: absolute; left: 50%; bottom: 64px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 8px 10px 8px 14px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--bg-raised); box-shadow: 0 12px 32px rgba(0, 0, 0, 0.28); z-index: 5; animation: cl-bulk-in 160ms ease-out; white-space: nowrap; }
 @keyframes cl-bulk-in { from { opacity: 0; transform: translate(-50%, 6px); } to { opacity: 1; transform: translate(-50%, 0); } }
@@ -1804,19 +1806,32 @@
 @media (width > 900px) {
   .clients .pl-main { display: flex; flex-direction: column; }
   .clients .pl-main > * { flex: none; }
-  .clients .pl-main > .pl-table-wrap { flex: 0 1 auto; min-height: 240px; display: flex; flex-direction: column; }
-  .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; }
+  .clients .pl-main > .pl-table-wrap { flex: 0 1 auto; display: flex; flex-direction: column; }
+  /* A short window leaves the box 240px once it holds more than three rows. A shorter table fits its own height: a
+     floor under one person, or nobody, was a gap inside the box. */
+  .clients .pl-main > .pl-table-wrap:has(tbody > tr:nth-child(4)) { min-height: 240px; }
+  /* The header is --pl-head tall, and a row scrolled to (J, K, Tab, Shift+Tab) stops below it, not under it; with
+     people selected, above the bulk bar that floats over the box's bottom edge too. */
+  .pl-table-scroll { flex: 1 1 auto; min-height: 0; overflow: auto; --pl-head: 39px; scroll-padding-top: var(--pl-head); }
+  .pl-table-wrap.selecting .pl-table-scroll { scroll-padding-bottom: 32px; }
   .pl-table { border-collapse: separate; border-spacing: 0; --pl-row: var(--bg); }
   .pl-table tbody tr:hover { --pl-row: var(--bg-hover); }
   .pl-table tbody tr.selected { --pl-row: linear-gradient(var(--pl-selected), var(--pl-selected)), var(--bg); }
   .pl-table tbody tr.focused { --pl-row: var(--bg-hover); }
   .pl-table tbody td { border-bottom: 1px solid var(--line); }
   .pl-table tbody tr:last-child td { border-bottom: none; }
-  .pl-table thead th { z-index: 2; }
-  .pl-table .cl-sel, .pl-table .pl-pin { position: sticky; left: 0; z-index: 1; background: var(--pl-row); }
+  /* One line each, so no heading grows past --pl-head. */
+  .pl-table thead th { z-index: 2; height: var(--pl-head); white-space: nowrap; }
+  /* An empty table's headings may wrap: it has no row to scroll to under them, and on one line each they made it wider
+     than its box (72px at 960px), with its one sentence off-centre. */
+  .pl-table:has(tbody .empty) thead th { white-space: normal; }
+  /* A pinned cell changes colour with its row: the row fades in 80ms. */
+  .pl-table .cl-sel, .pl-table .pl-pin { position: sticky; left: 0; z-index: 1; background: var(--pl-row); transition: background-color 80ms; }
   .pl-table thead th.cl-sel, .pl-table thead th.pl-pin { z-index: 3; background: var(--bg-sunken); }
-  /* The checkbox's column is exactly Person's offset: the table squeezed it to 26px and left Person 2px off it. */
-  .pl-table .cl-sel { min-width: 28px; max-width: 28px; }
+  /* The checkbox's column is Person's offset, 28px, by what it holds: 12px of padding, the 14px box and these 2px.
+     Its width of 28px alone was squeezed to the 26px of its content, and a cell's min- and max-width are undefined in
+     CSS, so neither can be what holds it. */
+  .pl-table .cl-check { margin-right: 2px; }
   .pl-table .cl-sel + .pl-pin { left: 28px; }
   .pl-table .pl-pin { border-right: 1px solid transparent; }
   .pl-table-scroll.scrolled .pl-pin { border-right-color: var(--line); }

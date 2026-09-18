@@ -367,5 +367,21 @@ test.describe("People on a real workspace", () => {
     const after = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
     expect(Math.round(after.name.x), "Person stays where it was").toBe(Math.round(before.name.x));
     expect(Math.round(after.heading.x), "and so does its heading").toBe(Math.round(before.heading.x));
+    // K past the top: the row the cursor walks up to stops below the sticky header, not under it. The box's
+    // scroll-padding-top is the header's height (--pl-head), so a taller header shows here as a row under it.
+    await page.evaluate(() => { const el = document.activeElement as HTMLElement | null; if (el && el.blur) el.blur(); });
+    const target = Math.min(3, (await rows.count()) - 1);
+    for (let i = 0; i <= target; i += 1) await page.keyboard.press("j");
+    await expect(page.locator(".cl-table tbody tr.focused")).toHaveCount(1);
+    // The row above the cursor goes up out of the box, as far as the box scrolls.
+    await scroller.evaluate((el, above) => {
+      const row = el.querySelectorAll("tbody tr")[above];
+      if (row) el.scrollTop += row.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+    }, Math.max(0, target - 1));
+    await page.keyboard.press("k");
+    const cursor = page.locator(".cl-table tbody tr.focused");
+    await expect(cursor).toHaveCount(1);
+    const head = (await page.locator(".cl-table thead th").first().boundingBox())!;
+    expect((await cursor.boundingBox())!.y, "the row K walked up to stops below the header").toBeGreaterThanOrEqual(head.y + head.height - 1);
   });
 });
