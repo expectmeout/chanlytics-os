@@ -1076,7 +1076,10 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   // line runs -- so every real profile threw the moment its person loaded (#313).
   const who = first === "them" ? "This person" : first;
   // The one line under the name: their channels, their number (unless the number is their name) and since when.
-  const channelWords = p.channels.map((c) => (c === "whatsapp" ? "WhatsApp" : "Phone")).join(" · ");
+  // The contract's words (contracts PERSON_CHANNEL_WORDS). This line made its own
+  // two-way copy -- WhatsApp, else "Phone" -- so an email-only person was
+  // introduced as "Phone since Sep 17".
+  const channelWords = p.channelWords;
   const sinceWords = p.since ? p.since.charAt(0).toLowerCase() + p.since.slice(1) : "";
   // Each part keeps its words together, so a narrow screen breaks the line between parts, never inside "Sep 3".
   const idLine = [channelWords, phoneOnly ? null : p.phone, sinceWords].filter(Boolean);
@@ -1159,18 +1162,18 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
                     type="button"
                     className="btn btn-sm"
                     data-testid="text-booking-link"
-                    title={p.replyWindow && p.replyWindow.open ? `Opens the thread with the link ready to send · ${p.replyWindow.hoursLeft}h left in their reply window` : "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it"}
+                    title={p.bookingLinkAction.title}
                     onClick={() => {
                       // Inside the 24-hour window a plain reply is allowed: the
                       // composer opens with the link ready. Outside it the thread
                       // offers the approved template; nothing is sent from here.
-                      if (p.replyWindow && p.replyWindow.open) {
+                      if (p.bookingLinkAction.ready) {
                         try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.openThread.replace(/^inbox\//, ""), text: `Here's the link to book your appointment: ${p.bookingLink}` })); } catch { /* nothing to carry */ }
                       }
                       window.CHANLY.nav(p.openThread);
                     }}
                   >
-                    <Icon name="calendar" size={12} /> {p.replyWindow && p.replyWindow.open ? "Text the booking link" : "Send the booking-link template"}
+                    <Icon name="calendar" size={12} /> {p.bookingLinkAction.label}
                   </button>
                 )}
               </div>

@@ -154,12 +154,30 @@ export interface ConversationVM {
 import { whisperText } from "./whisper";
 import { replyWhy, type ReplyWhyVM } from "./brain";
 import { formatPhoneDisplay } from "./phone";
+import { personName } from "./person-name";
 import { isOptedOutContact } from "./consent";
 import { replyWindow, isLiveCall } from "./policy";
 import { callOutcomeOf, callOutcomeWords, tidyCallSummary } from "./call-words";
 import { RECORDING_PURGED_WORDS } from "./retention";
 
-const AGENT = { glyph: "W", name: "WhatsApp Receptionist" };
+/**
+ * Who answers a thread on each wire, as the chip under a row names it.
+ *
+ * It was one constant, "WhatsApp Receptionist", on every row and every thread
+ * whatever wire it was on -- so an email thread credited a receptionist that
+ * does not answer email at all. On email it is the team, in the words the
+ * thread already signs a person's reply with ("by your team"). On the phone
+ * the call view models name their own.
+ */
+const AGENTS = {
+  whatsapp: { glyph: "W", name: "WhatsApp Receptionist" },
+  sms: { glyph: "T", name: "Text Receptionist" },
+  email: { glyph: "Y", name: "Your team" },
+  phone: { glyph: "P", name: "Phone Receptionist" },
+} as const;
+export function agentFor(channel: "whatsapp" | "sms" | "email" | "phone"): { glyph: string; name: string } {
+  return AGENTS[channel] ?? AGENTS.whatsapp;
+}
 const CALL_NOTE_PREFIX = /^\[voice call note [^\]]*\]\s*(Caller phoned the (?:salon|business) line\.\s*)?(Summary:\s*)?/; // trade-word: the older notes said "salon"; the newer say "business"
 
 /**
@@ -185,13 +203,7 @@ function bubbleTime(iso: string, tz: string, now: Date): string {
 /** The display name for a contact, without building a whole thread viewmodel
  *  to read one field (Today was doing exactly that per open escalation). */
 export function contactName(dto: ConversationDto): string {
-  return (
-    dto.contact.display_name ||
-    dto.contact.wa_profile_name ||
-    formatPhoneDisplay(dto.contact.phone_e164) ||
-    dto.contact.email ||
-    "Unknown"
-  );
+  return personName(dto.contact);
 }
 
 /** The wire a written message travelled, as a thread names it. Anything unnamed is WhatsApp, which is what every row was before the column said. */
@@ -676,7 +688,7 @@ export function toInboxThreadVM(
       // signed "by WhatsApp Receptionist", crediting the wrong assistant with
       // work it did not do. The bubble already knows its own channel.
       ...(m.sender !== "customer"
-        ? { agentName: onPhone ? "Phone Receptionist" : AGENT.name, agentGlyph: onPhone ? "P" : AGENT.glyph }
+        ? (() => { const a = agentFor(onPhone ? "phone" : writtenChannelOf(m.channel)); return { agentName: a.name, agentGlyph: a.glyph }; })()
         : {}),
       ...(m.sender === "human" ? { byYou: true } : {}),
       // The words Conversations says too (messageAuthor): a person's reply is the team's.
@@ -773,7 +785,7 @@ export function toInboxThreadVM(
     phone: dto.contact.phone_e164 ?? null,
     phoneDisplay: formatPhoneDisplay(dto.contact.phone_e164),
     ...(waitingMin ? { waited: formatWaited(waitingMin * 60000) } : {}),
-    agent: AGENT,
+    agent: agentFor(primaryChannel),
     // The list's row says each thing once: why a person is needed (this), whose it is (its pill), how long they have
     // waited (beside the name) and what they asked (ask). A thread nobody needs to act on has no reason, and its row is
     // the last thing that happened. The subject said "A teammate is answering this" under a pill naming the teammate,
@@ -956,7 +968,7 @@ export function toConversationVM(dto: ConversationDto, tz: string, now = new Dat
     // The wire the conversation's last written words travelled. A thread with
     // nothing but a call note is the phone, which is what it looks like.
     channel: threadChannelOf(dto.messages),
-    agent: AGENT,
+    agent: agentFor(threadChannelOf(dto.messages)),
     // The row's time and its preview must come from the SAME message —
     // last_message_at ignored call notes, so a row read "3:22 AM" beside a
     // preview imported at 2:15 PM.

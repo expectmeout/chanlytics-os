@@ -716,7 +716,8 @@ const PeopleStatePill = ({ state, label }) => <StatePill kind="person" value={st
 
 const PeopleChannels = ({ channels }) => (
   <span className="cl-row-channels">
-    {channels.map((ch, i) => <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : "chat"} primary={i === 0} size={11} />)}
+    {/* The wire's own glyph. It was voice -> phone and everything else -> chat, so an email-only person wore WhatsApp's bubble. */}
+    {channels.map((ch, i) => <ChannelGlyph key={ch} kind={ch === "voice" ? "phone" : ch} primary={i === 0} size={11} />)}
   </span>
 );
 
@@ -1021,7 +1022,7 @@ const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
   if (!p.threadId && !drop) return null;
   const open = () => window.CHANLY.nav(window.CHANLY.R.thread(p.threadId));
   const link = () => {
-    if (p.replyWindow && p.replyWindow.open) {
+    if (p.bookingLinkAction.ready) {
       try { sessionStorage.setItem("chanlytics-compose", JSON.stringify({ threadId: p.threadId, text: `Here's the link to book your appointment: ${bookingLink}` })); } catch { /* nothing to carry */ }
     }
     open();
@@ -1030,7 +1031,7 @@ const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
     <span className="cl-row-actions" onClick={(e) => e.stopPropagation()}>
       {p.threadId && <button className="cl-row-act" title="Open the thread" aria-label="Open the thread" onClick={open} data-testid="row-open-thread"><Icon name="chat" size={12} /></button>}
       {p.threadId && bookingLink && (
-        <button className="cl-row-act" title={p.replyWindow && p.replyWindow.open ? `Text the booking link · ${p.replyWindow.hoursLeft}h left in their reply window` : "Send the booking-link template — their reply window is closed"} aria-label="Booking link" onClick={link} data-testid="row-booking-link"><Icon name="calendar" size={12} /></button>
+        <button className="cl-row-act" title={p.bookingLinkAction.title} aria-label={p.bookingLinkAction.label} onClick={link} data-testid="row-booking-link"><Icon name="calendar" size={12} /></button>
       )}
       {drop && (
         <button className="cl-row-act cl-row-act-drop" title={`Take ${p.name} off ${drop.list.name}`} aria-label={`Take ${p.name} off ${drop.list.name}`} onClick={() => drop.onDrop(p)} data-testid="row-drop-list"><Icon name="x" size={11} /></button>

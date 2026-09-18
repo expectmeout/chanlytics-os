@@ -15,13 +15,15 @@ import { standingOf, type StandingVerdict } from "./standing";
  * evidence-based first contact, recency.
  */
 import { formatPhoneDisplay } from "./phone";
+import { personName } from "./person-name";
 import { mayMessageFor, type ConsentChange, type SendPurpose } from "./consent";
-import { waWindow } from "./policy";
+import { replyWindow, waWindow } from "./policy";
 import { tidyCallSummary } from "./call-words";
 import { visitDateKey, visitDay, visitLine, visitTime, type PersonVisitsDto } from "./calendar-people";
 import {
   initialsOf,
   isIdentifierName,
+  writtenChannelOf,
   messageAt,
   messageText,
   shortTime,
@@ -256,18 +258,11 @@ function mmss(ms: number | null | undefined): string | undefined {
 
 const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
 
-/**
- * What to call a person: the name a human typed, their WhatsApp name, their
- * number, their email address. "Unknown" is a person with none of them, not
- * a person whose only identifier is an address. `email` is optional on the
- * argument because a call's contact is read without one; every list of
- * people carries it.
- */
-export function personName(r: Pick<PersonRowDto, "display_name" | "wa_profile_name" | "phone_e164"> & { email?: string | null }): string {
-  return r.display_name || r.wa_profile_name || formatPhoneDisplay(r.phone_e164) || r.email || "Unknown";
-}
+// What to call a person is person-name.ts's one rule; People reads it from there
+// like every other surface, and the index exports it from there.
+export { personName };
 
-export type PersonChannel = "whatsapp" | "voice" | "email";
+export type PersonChannel = "whatsapp" | "sms" | "voice" | "email";
 
 /**
  * Channels are what actually happened, not only what identities record.
@@ -280,16 +275,78 @@ function channelsOf(r: PersonRowDto): PersonChannel[] {
   // Which wires their words travelled (00127). A row read without it has
   // written words and no way to say where, and until email every written word
   // was WhatsApp's or a text's, which share a glyph.
+  //
+  // A text is its own wire now, not WhatsApp's: they share a glyph and nothing
+  // else -- no window, no templates, a different number -- and a person who had
+  // only ever texted was introduced as "WhatsApp" at the top of their page.
   const wrote = r.message_channels;
-  if (wrote ? wrote.some((c) => c === "whatsapp" || c === "sms") : r.has_chat) set.add("whatsapp");
+  if (wrote ? wrote.includes("whatsapp") : r.has_chat) set.add("whatsapp");
+  if (wrote?.includes("sms")) set.add("sms");
   if (wrote?.includes("email")) set.add("email");
   if ((r.call_count ?? 0) > 0) set.add("voice");
-  const order: PersonChannel[] = ["whatsapp", "voice", "email"];
+  const order: PersonChannel[] = ["whatsapp", "sms", "voice", "email"];
   return order.filter((c) => set.has(c));
 }
 
+/**
+ * The wire a reply to this row's person goes out on, as far as a ROW can say.
+ *
+ * A row knows which wires they have written on and not which one was last, so
+ * this is exact for the one case that matters most -- a person reached only by
+ * email, whose reply can never be held by WhatsApp's window -- and otherwise
+ * reads WhatsApp's window, the strictest there is: a row that cannot tell may
+ * say a reply is held when it is not, and never the reverse. The profile, which
+ * has every message, answers it exactly (replyChannelOfThreads).
+ */
+function replyChannelOfRow(r: PersonRowDto): "whatsapp" | "sms" | "email" | null {
+  if (!r.has_chat) return null;
+  const wrote = r.message_channels;
+  if (wrote && wrote.includes("email") && !wrote.some((c) => c === "whatsapp" || c === "sms")) return "email";
+  return "whatsapp";
+}
+
+/** The wire a reply goes out on, exactly: where they last wrote (the reply route's own rule, verbs replyChannelOf). */
+function replyChannelOfThreads(conversations: ReadonlyArray<ConversationDto>): "whatsapp" | "sms" | "email" | null {
+  let latest: { at: number; channel: string | null | undefined } | null = null;
+  for (const c of conversations) {
+    for (const m of c.messages) {
+      if (m.sender !== "customer" || m.type === "call_summary") continue;
+      const at = Date.parse(m.channel_ts ?? m.created_at);
+      if (Number.isFinite(at) && (!latest || at > latest.at)) latest = { at, channel: m.channel };
+    }
+  }
+  return latest ? writtenChannelOf(latest.channel) : null;
+}
+
+/**
+ * What the booking-link button says, by the wire a reply goes out on.
+ *
+ * Nothing is sent from the button: it opens the thread with the link ready in
+ * the composer, or, where WhatsApp's window has shut, lets the thread offer the
+ * approved template. Three pages carried their own two-way copy of these words,
+ * so on an email-only person they read "Text the booking link" -- and before
+ * the window was channel-aware, "Send the booking-link template", a template
+ * that person cannot receive. `ready` is whether the composer may be filled.
+ */
+export function bookingLinkAction(
+  replyVia: "WhatsApp" | "Text" | "Email" | null,
+  win: { open: boolean; hoursLeft: number } | null,
+): { label: string; title: string; ready: boolean } {
+  if (replyVia === "Email") return { label: "Email the booking link", title: "Opens the thread with the link ready to send by email", ready: true };
+  if (replyVia === "Text") return { label: "Text the booking link", title: "Opens the thread with the link ready to send as a text", ready: true };
+  if (win && win.open) return { label: "Text the booking link", title: `Opens the thread with the link ready to send · ${win.hoursLeft}h left in their reply window`, ready: true };
+  return {
+    label: "Send the booking-link template",
+    title: "Their reply window is closed — the thread offers the approved booking-link template, the one thing WhatsApp delivers outside it",
+    ready: false,
+  };
+}
+
+/** How a reply goes, in the words the page uses for the wire. */
+const REPLY_VIA: Record<"whatsapp" | "sms" | "email", "WhatsApp" | "Text" | "Email"> = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+
 /** A channel in the owner's words. */
-export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = { whatsapp: "WhatsApp", voice: "Phone", email: "Email" };
+export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 
 type StandingRow = Pick<PersonRowDto, "latest_state" | "latest_paused_until" | "latest_assignee_user_id" | "needs_human" | "open_escalation_reason">;
 
@@ -600,6 +657,12 @@ export interface PersonRowVM {
   lastVisitDay: string | null;
   /** WhatsApp's 24-hour window for a free reply: open, and how long is left. Null without a chat. */
   replyWindow: { open: boolean; hoursLeft: number } | null;
+  /** The wire a reply goes out on, in words ("Email", "WhatsApp", "Text"); null for a person who has only phoned. */
+  replyVia: "WhatsApp" | "Text" | "Email" | null;
+  /** Their channels in words, in the order the page shows them: "WhatsApp · Phone", "Email". */
+  channelWords: string;
+  /** The booking-link button's words for the wire a reply goes out on (bookingLinkAction). */
+  bookingLinkAction: { label: string; title: string; ready: boolean };
   /** When they last wrote or called, whichever is later. */
   askedMs: number | null;
   /** Wrote or called in the last 30 days, and the calendar has never had them. */
@@ -675,9 +738,18 @@ export function toPersonRowVM(r: PersonRowDto, tz: string, now = new Date()): Pe
     nextVisit: v?.next ? `${visitLine(v.next, v.timezone, nowMs)} · ${v.next.title}` : null,
     lastVisit: v?.last ? `${visitLine(v.last, v.timezone, nowMs)} · ${v.last.title}` : null,
     lastVisitDay: v?.last ? visitDay(v.last.start, v.timezone, nowMs) : null,
-    replyWindow: r.has_chat
-      ? (() => { const w = waWindow(r.latest_wa_inbound_at, now); return { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 }; })()
-      : null,
+    // Channel-aware: only WhatsApp has a window (policy replyWindow). This read
+    // WhatsApp's for everybody, so a person who had only ever emailed was shown
+    // "Closed · template only" -- a template they cannot receive, on a wire
+    // they have never used.
+    ...(() => {
+      const via = replyChannelOfRow(r);
+      if (!via) return { replyWindow: null, replyVia: null, bookingLinkAction: bookingLinkAction(null, null) };
+      const w = replyWindow(via, r.latest_wa_inbound_at, now);
+      const win = { open: w.open, hoursLeft: w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 };
+      return { replyWindow: win, replyVia: REPLY_VIA[via], bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
+    })(),
+    channelWords: channelsOf(r).map((c) => PERSON_CHANNEL_WORDS[c]).join(" · "),
     askedMs,
     askedNotBooked,
     nextVisitMs,
@@ -1262,7 +1334,27 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
 
   // Facts strip.
   const firstIsCall = d.calls.some((k) => k.started_at && ts(k.started_at) === base.firstContact.ts);
-  const firstChannel = base.firstContact.estimate ? "imported history" : firstIsCall || !base.hasChat ? "Phone" : "WhatsApp";
+  // The wire the first contact actually came on. It was two-valued -- a call,
+  // else "WhatsApp" -- so a person whose first word was an email was introduced
+  // as having arrived on WhatsApp. The profile has every message; it asks them.
+  const firstWritten = d.conversations
+    .flatMap((c) => c.messages)
+    .filter((m) => m.type !== "call_summary")
+    .map((m) => ({ at: Date.parse(m.channel_ts ?? m.created_at), channel: m.channel }))
+    .filter((m) => Number.isFinite(m.at))
+    .sort((a, b) => a.at - b.at)[0];
+  const firstChannel = base.firstContact.estimate
+    ? "imported history"
+    : firstIsCall || !base.hasChat
+      ? "Phone"
+      : firstWritten
+        ? REPLY_VIA[writtenChannelOf(firstWritten.channel)]
+        : "WhatsApp";
+  // Where a reply goes, exactly: the profile knows their last written words, the
+  // row only which wires they have used (replyChannelOfRow says why it reads the
+  // strictest window when it cannot tell).
+  const via = replyChannelOfThreads(d.conversations) ?? (base.replyVia === "Email" ? "email" : base.replyVia ? "whatsapp" : null);
+  const exactWindow = via ? replyWindow(via, r.latest_wa_inbound_at, now) : null;
   const lc = base.lastContact;
   const lastMeta = lc.who === "they" ? (lc.kind === "call" ? "they phoned" : "they wrote") : lc.who === "you" ? "you replied" : lc.who === "receptionist" ? "receptionist replied" : lc.who === "system" ? "we sent" : "";
   // "Held for you" is the word the People row puts beside the state, for a thread a person owns or a mode that holds.
@@ -1291,10 +1383,14 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       : "—",
   });
   about.push({ k: "Channels", v: base.channels.map((c) => PERSON_CHANNEL_WORDS[c]).join(" · ") || "—" });
-  if (base.hasChat) {
-    const w = waWindow(r.latest_wa_inbound_at, now);
-    const hours = w.closesAtIso ? Math.max(0, Math.round((new Date(w.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;
-    about.push({ k: "Reply window", v: w.open ? `Open · ${hours}h left` : "Closed · template only" });
+  if (base.hasChat && via && exactWindow) {
+    // Only WhatsApp has a window. The row said WhatsApp's for everybody, so a
+    // person who had only ever emailed read "Closed · template only".
+    const hours = exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0;
+    about.push({
+      k: "Reply window",
+      v: via === "email" ? "None — replies go by email" : via === "sms" ? "None — a text can be answered any time" : exactWindow.open ? `Open · ${hours}h left` : "Closed · template only",
+    });
   }
 
   // Their appointments, when the workspace's calendar is connected: the next
@@ -1319,6 +1415,12 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
 
   return {
     ...base,
+    ...(via && exactWindow
+      ? (() => {
+          const win = { open: exactWindow.open, hoursLeft: exactWindow.closesAtIso ? Math.max(0, Math.round((new Date(exactWindow.closesAtIso).getTime() - nowMs) / 3_600_000)) : 0 };
+          return { replyVia: REPLY_VIA[via], replyWindow: win, bookingLinkAction: bookingLinkAction(REPLY_VIA[via], win) };
+        })()
+      : {}),
     since: base.firstContact.label === "—" ? "" : base.firstContact.estimate ? `Since ${base.firstContact.label.charAt(0).toLowerCase()}${base.firstContact.label.slice(1)}` : `Since ${base.firstContact.label}`,
     metaLine: `${plural(base.threads, "conversation")} · ${plural(base.calls, "call")}`,
     lastExchange: { customer, reply },
