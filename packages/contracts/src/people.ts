@@ -491,6 +491,38 @@ export function offersYesRefusal(source: string | null | undefined): string | nu
   return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
 }
 
+/**
+ * "Their own message" names the message (00137).
+ *
+ * A desk could record an answer "in their own message" with nothing behind it:
+ * both doors took the source from any signed-in member, and the ledger then
+ * said a customer had written something nobody had looked for. When the
+ * conversation is in Chanlytics the desk now names the message they sent, and
+ * the door copies its id and words into the evidence. An answer given
+ * somewhere Chanlytics does not see is a sign-up form, with a note saying where.
+ *
+ * The database says these sentences too, so a refusal reads the same whichever
+ * of the two gives it; their-own-message.db.test.mjs holds the two equal.
+ */
+export const OWN_MESSAGE_REFUSALS = {
+  /** Their own message, with no message named. */
+  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
+  /** The message named is not one this person sent this workspace. */
+  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
+  /** The message named has nothing written in it. */
+  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
+  /** A message named beside another way of answering. */
+  notOwnMessage: "Only an answer in their own message names a message.",
+  /** Their own message, for many people at once: one message cannot be every person's. */
+  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form.",
+} as const;
+
+/** Why an answer given this way cannot be recorded with this message -- or null when it can. */
+export function ownMessageRefusal(source: string | null | undefined, messageId: string | null | undefined): string | null {
+  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
+  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
+}
+
 /** The words for a source; the reset has none, an unknown one is shown as itself. */
 export function consentSourceLabel(source: string | null | undefined): string | null {
   if (!source) return null;
@@ -1069,7 +1101,7 @@ export function consentChangeWords(c: ConsentChange): { who: string; text: strin
     : offers ? "Offers: back to not asked" : "Back to not asked";
   let sub: string | undefined;
   if (c.source === "customer_message") {
-    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : "in their own message";
+    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : c.channel === "email" ? "by email" : "in their own message";
     sub = `In their own words ${where}${c.words ? `: “${c.words}”` : ""}`;
   } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
     sub = "Reset by staff";
@@ -1128,6 +1160,56 @@ export interface PersonVM extends PersonRowVM {
    *  workspace's mode, so the rail can say which is in force. 'veto' at the
    *  workspace level still answers, after a hold, so it reads as "Answer". */
   receptionistMode: { person: PersonMode | null; workspace: PersonMode | null };
+  /** What they have written to you, newest first: the messages an answer "in their own message" may name (00137). */
+  ownMessages: OwnMessageVM[];
+}
+
+/** One message a person wrote to the business, as the desk chooses it for an answer given in it. */
+export interface OwnMessageVM {
+  /** The message's own id: what the door is handed, and what the evidence names. */
+  id: string;
+  /** What they wrote, on one line: the eighty characters the evidence keeps, and an ellipsis when there were more. */
+  words: string;
+  /** The wire it came on, in the page's word for it. */
+  via: string;
+  /** When they sent it, by the business's clock. */
+  when: string;
+}
+
+/** How many of a person's messages their page offers to choose from: the recent ones. */
+const OWN_MESSAGE_CHOICES = 10;
+/** How much of their words the evidence keeps (00110, 00137). */
+const EVIDENCE_WORDS = 80;
+
+/**
+ * What a person wrote to you, newest first, judged the way the door judges it
+ * (00137): an inbound message from the customer on a written wire, with words
+ * in it -- its text, or a photo's caption. So nothing offered here is one the
+ * door refuses. The words are said on one line and cut where the evidence
+ * cuts them, so the owner chooses what will be kept.
+ */
+function ownMessagesOf(d: PersonDetailDto, stamp: (t: number) => { time: string; day: string }): OwnMessageVM[] {
+  const found: { t: number; vm: OwnMessageVM }[] = [];
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "inbound" || m.sender !== "customer" || m.channel === "voice" || m.channel === "system") continue;
+      const said = [m.body, m.media?.caption].map((s) => (s ?? "").replace(/\s+/g, " ").trim()).find(Boolean);
+      const t = ts(messageAt(m));
+      if (!said || t === null) continue;
+      const chars = Array.from(said);
+      const at = stamp(t);
+      found.push({
+        t,
+        vm: {
+          id: m.id,
+          words: chars.length > EVIDENCE_WORDS ? `${chars.slice(0, EVIDENCE_WORDS).join("")}…` : said,
+          via: PERSON_CHANNEL_WORDS[m.channel as PersonChannel] ?? "",
+          when: `${at.day}, ${at.time}`,
+        },
+      });
+    }
+  }
+  return found.sort((a, b) => b.t - a.t).slice(0, OWN_MESSAGE_CHOICES).map((f) => f.vm);
 }
 
 const DECISION_LABELS: Record<string, { who: string; text: string }> = {
@@ -1440,5 +1522,6 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
       person: asPersonMode(d.receptionist_mode),
       workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode),
     },
+    ownMessages: ownMessagesOf(d, stamp),
   };
 }
