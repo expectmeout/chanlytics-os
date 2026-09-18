@@ -45,6 +45,8 @@ export async function expectDeskSign(page: Page): Promise<void> {
     const qr = await sheet.getByTestId("desk-sign-qr").locator("svg").boundingBox();
     expect(qr!.width / 96, "the code's width on Letter, in inches").toBeGreaterThanOrEqual(3);
   } finally {
-    await page.emulateMedia({ media: "screen" });
+    // Off, not "screen": a forced screen medium outlives the check, and a page.pdf() after it prints the dark
+    // screen page with its button on -- which is how the first live check of the sign saved a misleading PDF.
+    await page.emulateMedia({ media: null });
   }
 }
