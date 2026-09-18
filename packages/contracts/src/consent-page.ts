@@ -357,3 +357,62 @@ export function consentFormMetadata(
 ): PublicPageMetadata {
   return f ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
 }
+
+/**
+ * The sign for the desk: `/yes/<slug>/sign`, printed and put where customers wait.
+ *
+ * The code was on every page an OWNER looks at and on nothing a customer does. "Download QR" handed over an .svg,
+ * which most owners cannot open, let alone print; and a bare code on a desk says nothing a customer needs before
+ * scanning it -- whose messages, what they are, how to stop them. Printing the public page printed a page of
+ * disclosures with a small code in the middle. This is the thing itself: the business, what a yes gets you, the code
+ * large enough to scan from where a customer stands, and under it what a call to action owes, which is the offers
+ * ask's own terms and the page's foot -- the page's words, never a copy of them.
+ *
+ * ONE ask, the offers one, because the code is the offers one (consentPageVM's qrLink): a sign asking both questions
+ * would need two codes and two blocks of disclosures, which is the page. And WhatsApp only, for the page's reason:
+ * the texting line is registered for messages about a visit, and YES OFFERS offered on it is error 30896.
+ */
+export interface DeskSignVM {
+  /** Whose messages: the sign's first words. */
+  business: string;
+  /** What a yes gets you, as a call to action. */
+  headline: string;
+  /** Scan, and what happens when you do. */
+  how: string;
+  /** The same yes without scanning: the words, in both languages, and the number to send them to. */
+  byHand: string | null;
+  /** What a call to action owes beside it: the offers ask's terms, then what is true of both asks. */
+  terms: string[];
+  /** Who sends, for a reader who wants to know who is behind the number. */
+  operator: string;
+  /** The offers link, the one the page's QR encodes; null without WhatsApp. */
+  qrLink: string | null;
+  links: PolicyLinks;
+  /** No WhatsApp number, so no code: said instead of printing a sign that opens nothing. */
+  empty: boolean;
+  /** What the page says when it is empty. */
+  emptyLine: string;
+}
+
+export function deskSignVM(f: ConsentPageFacts): DeskSignVM {
+  const name = f.businessName.trim() || "This business";
+  const qrLink = optInLink(f.whatsappE164, CONSENT_PHRASE);
+  const number = formatPhoneDisplay(f.whatsappE164);
+  return {
+    business: name,
+    headline: "Get our offers and news on WhatsApp",
+    how: `Scan with your phone's camera: WhatsApp opens with ${CONSENT_PHRASE} ready to send. Sending it is your yes.`,
+    byHand: qrLink && number ? `Or send ${CONSENT_PHRASE} (en español, ${CONSENT_PHRASE_ES}) on WhatsApp to ${number}.` : null,
+    terms: [...askWords(name).marketing.terms, ...bothTerms(name)],
+    operator: `Messages are sent for ${name} by a receptionist operated by Chanlytics (RJ Capital LLC).`,
+    qrLink,
+    links: policyLinks(f),
+    empty: !qrLink,
+    emptyLine: `${name} has no WhatsApp number to say yes on yet, so there is no sign to print.`,
+  };
+}
+
+/** The desk sign's tab: the sheet it is and whose it is, or Not found. Never indexed, like the page it prints from. */
+export function deskSignMetadata(f: ConsentPageFacts | null): PublicPageMetadata {
+  return f ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
+}

@@ -109,9 +109,15 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   // WRITTEN (00100): the filing names the printable form as one way to give it,
   // and a reviewer who gets a login screen instead of the form has been shown a
   // consent method nobody can check. It is a page like its neighbour -- printed
-  // and signed by hand, it takes no input -- and it is the only thing that joined.
+  // and signed by hand, it takes no input.
+  //
+  // `/yes/<slug>/sign` joined when the offers code needed somewhere to be
+  // printed with the words a customer reads before scanning it: a page like its
+  // neighbours, read by slug, showing nothing the opt-in page does not, and
+  // taking no input. Its markup lives in src/yes, not beside it, so this folder
+  // still holds pages and nothing else.
   for (const [dir, what, beneath] of [
-    ["yes", "the opt-in page and its paper form", ["form", "page.tsx"]],
+    ["yes", "the opt-in page, its paper form and its desk sign", ["form", "page.tsx", "sign"]],
     ["b", "the workspace's own page and its texting terms", ["page.tsx", "terms"]],
   ]) {
     const at = path.join(ROOT, "apps/dashboard/app", dir);
@@ -119,6 +125,7 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
     assert.deepEqual(fs.readdirSync(path.join(at, "[slug]")).sort(), beneath, `and ${what} are pages, not routes that take input`);
   }
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/form")), ["page.tsx"], "the paper form is a page, not a route that takes input");
+  assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/yes/[slug]/sign")), ["page.tsx"], "the desk sign is a page, not a route that takes input");
   // `/b/<slug>/terms` joined when the campaign's terms URL became the business's
   // own: the reviewers' guide lists eight things a program's terms must carry,
   // and Chanlytics' /terms -- a software agreement for workspace owners --

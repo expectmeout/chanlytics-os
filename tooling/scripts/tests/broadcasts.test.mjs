@@ -356,6 +356,9 @@ test("getting their yes: an unambiguous phrase the ingest records, a link that o
   // page, where the composer is and this section is below the fold, and three printed it beside a disabled
   // button. broadcasts/get-yes lands on the section itself.
   assert.ok(p.includes('<section id="bc-optin" className="ct-section bc-optin"') && p.includes('document.getElementById("bc-optin")'), "the door lands on the QR, not above it");
+  // And the QR reaches the desk: a bare code printed says nothing about whose messages or how to stop them, and
+  // the .svg it downloaded as is a file most owners cannot open. The sign is the code with those words, one sheet.
+  assert.ok(p.includes('href={`${data.optIn.pageUrl}/sign`}') && p.includes('data-testid="bc-optin-sign">Print a desk sign</a>'), "the section's first button prints the sign");
 });
 
 test("Ask: a broadcast is read (list_audiences) and proposed (propose_broadcast) as a card, never sent; nobody without a yes is ever included", async () => {

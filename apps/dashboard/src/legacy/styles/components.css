@@ -459,6 +459,9 @@
 .btn:hover { background: var(--bg-hover); border-color: var(--line-strong); }
 .btn:active { background: var(--bg-active); }
 .btn .icon { width: 14px; height: 14px; color: var(--ink-muted); }
+/* A link that is a button is not underlined: Broadcasts' Download QR and Print a desk sign, the shell's, People's
+   and the thread's. Settings had this rule for itself alone. */
+a.btn { text-decoration: none; }
 
 .btn-primary {
   background: var(--ink);
