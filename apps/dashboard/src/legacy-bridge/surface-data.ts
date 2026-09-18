@@ -12,7 +12,7 @@ import type { PromptPreviewDto } from "../server/prompt-preview";
  * never inside legacy page files (the modularity rule).
  */
 
-import { clearSurfaceCache } from "./surface-cache";
+import { clearSurfaceCache, resnapshotSurface } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
 import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
@@ -653,7 +653,10 @@ function publishPeople(): void {
 
 // A save reads nothing back, and People mounted again (Back) reads the view from this copy, so the copy takes each save.
 export function keepSavedView(page: string, view: Record<string, unknown>): void {
-  if (peopleLoaded) peopleLoaded.views[page] = view;
+  if (!peopleLoaded) return;
+  peopleLoaded.views[page] = view;
+  // A reload paints the tab's cached People before anything is read again, so the cached copy takes the save too.
+  resnapshotSurface(peopleOverride.key, peopleOverride.globals ?? [], (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
 }
 
 /**
