@@ -377,6 +377,27 @@
 .shell-status.tone-danger { background: var(--danger-soft); }
 .shell-status.tone-danger > .icon { color: var(--danger); }
 
+/* ---------- The live-call bar ----------
+   Someone is on the phone RIGHT NOW: the one state in this product that stops
+   being true by itself, so it sits above the status line and leaves with the
+   call. The accent is its own — tokens.css reserves it for live agent state,
+   and this is what that means. The whole bar is the door to Live; the two
+   controls a call has (hand over, end) ask before they act and stay there. */
+.live-bar {
+  flex: none; width: 100%; display: flex; align-items: center; gap: 10px;
+  min-height: 42px; padding: 8px 24px;
+  border: none; border-bottom: 1px solid color-mix(in oklab, var(--accent) 30%, transparent);
+  background: var(--accent-soft); color: var(--ink);
+  font-family: inherit; font-size: 12.5px; line-height: 1.35; text-align: left; cursor: pointer;
+}
+.live-bar:hover { background: color-mix(in oklab, var(--accent) 18%, transparent); }
+.live-bar:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.live-bar-text { font-weight: 500; }
+.live-bar-clock { color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.live-bar-checking { color: var(--ink-muted); }
+.live-bar-go { margin-left: auto; display: flex; color: var(--ink-muted); }
+.live-bar:hover .live-bar-go { color: var(--ink); }
+
 /* ---------- Ask Chanlytics — unified topbar affordance ---------- */
 .tb-ask {
   display: inline-flex;

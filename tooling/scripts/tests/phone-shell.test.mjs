@@ -44,11 +44,10 @@ test("the Inbox and Conversations take turns on a phone, with a Back that only a
 test("the tab bar carries the real surfaces and the two counts that matter", () => {
   const shell = readRaw("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('data-testid="phone-tabs"'));
-  for (const route of ['route: "today"', 'route: "inbox"', 'route: "clients"', 'route: "live"']) assert.ok(shell.includes(route), route);
-  assert.ok(!/route: "(fleet|store|studio|calendar|outbound|broadcasts)"/.test(shell), "nothing seeded gets a tab");
+  for (const route of ['route: "today"', 'route: "inbox"', 'route: "clients"', 'route: "calendar"']) assert.ok(shell.includes(route), route);
+  assert.ok(!/route: "(fleet|store|studio|outbound|broadcasts)"/.test(shell), "nothing seeded gets a tab");
+  assert.ok(!/route: "live"/.test(shell), "and not Live: a call is a bar while it is happening, not a slot that is empty the rest of the week");
   assert.ok(shell.includes('t.id === "inbox" && inboxNeeds > 0 ? String(inboxNeeds)'), "what needs you");
-  assert.ok(shell.includes("window.__LIVE.now.filter((c) => c.live).length"), "who is on the line, by the heartbeat rule");
-  assert.ok(shell.includes('window.addEventListener("surface:live", on);'), "and it follows the live surface");
   assert.ok(shell.includes("<PhoneTabs page={page} inboxNeeds={inboxNeeds} onNavigate={navigate} onMenu={() => setNavOpen(true)} />"));
   const css = readRaw("apps/dashboard/src/legacy/styles/mobile.css");
   assert.ok(css.includes(".phone-tabs { display: none; }"), "desktop never sees it");

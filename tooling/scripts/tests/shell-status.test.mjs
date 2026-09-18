@@ -19,7 +19,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { pageTitle, shellStatusLine, toBillingVM } from "@chanlytics/contracts";
+import { pageTitle, shellStatusLine, toBillingVM, toLiveVM } from "@chanlytics/contracts";
 import { importSrc } from "./_source.mjs";
 
 const tick = () => new Promise((r) => setTimeout(r, 0));
@@ -335,7 +335,7 @@ test("the line under the top bar: a live region that is always there, the words,
   win.__shell = kept;
 });
 
-for (const name of ["Sidebar", "Topbar", "SurfaceTabs", "AskBar", "ShortcutsSheet", "Inbox", "ClientsA", "ClientProfile", "CalendarPage", "BroadcastsPage", "SettingsPage", "DashboardA"]) globalThis[name] = name;
+for (const name of ["Sidebar", "Topbar", "LiveCallBar", "SurfaceTabs", "AskBar", "ShortcutsSheet", "Inbox", "ClientsA", "ClientProfile", "CalendarPage", "BroadcastsPage", "SettingsPage", "DashboardA"]) globalThis[name] = name;
 
 /** The shell at `hash`, freshly mounted: its tree and the tab's name it left. */
 const mount = (hash) => {
@@ -360,7 +360,11 @@ test("the shell names the tab from the crumbs it draws, counts what needs you, a
   const kids = main.props.children.filter((k) => k && typeof k === "object");
   const at = (type) => kids.findIndex((k) => k.type === type);
   assert.ok(at("Topbar") >= 0, "the top bar");
-  assert.equal(at(win.ShellStatusBar), at("Topbar") + 1, "the line under it, above the page, on a phone as on a desk");
+  // A call happening right now is the one thing on this line that stops being
+  // true by itself, so it sits above the status line; both are above the page,
+  // on a phone as on a desk, and each draws nothing when it has nothing to say.
+  assert.equal(at("LiveCallBar"), at("Topbar") + 1, "a call in progress, first");
+  assert.equal(at(win.ShellStatusBar), at("Topbar") + 2, "then the line, above the page, on a phone as on a desk");
   win.INBOX_DATA = { THREADS: [] };
 });
 
@@ -612,6 +616,50 @@ test("People has no tab strip on a real workspace -- its one real tab is People,
   } finally {
     delete win.__DEMO_MODE;
   }
+});
+
+/* ------------------------------ the live-call bar ------------------------------ */
+
+test("the live bar names who is on the line and opens that call; with nobody on it, it draws nothing", () => {
+  shell.installShell(win);
+  // The bar reads the wall clock, like the Live page's own ticker, so the
+  // fixture is "a call that started ninety seconds ago, right now".
+  const NOW = Date.now();
+  const iso = (ago) => new Date(NOW - ago).toISOString();
+  const ongoing = (over = {}) => ({
+    id: "c-live", retell_call_id: "call_1", direction: "inbound", call_type: "phone_call", status: "ongoing",
+    from_e164: "+16465550123", from_raw: null, to_e164: "+13055550100",
+    started_at: iso(90_000), ended_at: null, duration_ms: null, disconnection_reason: null,
+    sentiment: null, call_successful: null, in_voicemail: null, summary: null, wanted: null, outcome: null,
+    follow_up: null, caller_name: null, transcript_object: [], recording: null, conversation_id: "cv1",
+    contact_id: "k1", message_id: null, created_at: iso(90_000), updated_at: iso(2_000),
+    contact: { display_name: "Rosa Díaz", wa_profile_name: null, phone_e164: "+16465550123" },
+    ...over,
+  });
+  // The bar runs a one-second clock while a call is up.
+  win.setInterval = () => 1;
+  win.clearInterval = () => {};
+  const drawn = () => { cells = []; seq = 0; return win.LiveCallBar({}); };
+
+  win.__LIVE = undefined;
+  assert.equal(drawn(), null, "no live surface yet: nothing to say");
+  win.__LIVE = toLiveVM([], null, "America/New_York", new Date(NOW));
+  assert.equal(drawn(), null, "REGRESSION: an empty line still drew a bar");
+
+  win.__LIVE = toLiveVM([ongoing()], null, "America/New_York", new Date(NOW));
+  const bar = drawn();
+  assert.ok(bar, "someone is on the phone");
+  assert.match(textOf(bar), /On the phone now · Rosa/);
+  const went = [];
+  win.CHANLY = { nav: (to) => went.push(to) };
+  bar.props.onClick();
+  assert.deepEqual(went, ["live/c-live"], "REGRESSION: it opened the list, so a second call would be a guess");
+
+  // The two controls a call has -- handing it over and ending it -- ask before
+  // they act, and they stay on Live. A global bar is a door, not a trigger.
+  assert.equal(find(bar, (n) => n.type === "button" && n !== bar), undefined, "nothing to press inside it");
+
+  win.__LIVE = undefined;
 });
 
 test("Conversations and Live are views of the Inbox: the strip is drawn over all three, the rail lights one item, and the trail starts at the Inbox", () => {

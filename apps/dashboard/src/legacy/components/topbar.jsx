@@ -506,6 +506,44 @@ window.Topbar = Topbar;
 // and the rail cut to an icon. The live region stays mounted while all is
 // well, so the next change is announced.
 const SHELL_STATUS_ICON = { offline: "alert", paused: "pause", stale: "sparkle", degraded: "clock", disconnected: "bolt" };
+/**
+ * The live-call bar: who is on the phone right now, and how long.
+ *
+ * A call in progress is the most time-critical thing this product knows, and it
+ * is true for minutes a week — so it took a permanent slot in the phone tab bar
+ * that was empty the rest of the time, in 60px that could not hold either of the
+ * two controls a live call actually has. It is a bar across the top while it is
+ * happening instead, on a phone and on a desk, and a press opens Live, where
+ * handing over and ending ask before they act.
+ *
+ * The rule for "still up" is contracts' (liveStillUp), the same one the Live
+ * page and the tab strip's pulse apply between refreshes.
+ */
+const LiveCallBar = () => {
+  const [, tick] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    window.addEventListener("surface:live", tick);
+    window.addEventListener("live:ended", tick);
+    // A second, so the clock reads like a clock. Only while a call is up: the
+    // effect re-runs on every repaint the events cause, and the interval is
+    // cleared with it.
+    const t = window.setInterval(tick, 1000);
+    return () => { window.clearInterval(t); window.removeEventListener("surface:live", tick); window.removeEventListener("live:ended", tick); };
+  }, []);
+  const bar = window.__chrome && window.__chrome.liveBar ? window.__chrome.liveBar(window.__LIVE, Date.now()) : null;
+  if (!bar) return null;
+  const open = () => window.CHANLY && window.CHANLY.nav(bar.callId ? `live/${bar.callId}` : "live");
+  return (
+    <button type="button" className="live-bar" onClick={open} data-testid="live-bar">
+      <span className="live-dot" aria-hidden="true" />
+      <span className="live-bar-text">{bar.text}</span>
+      {bar.sinceMs !== null && <span className="live-bar-clock tabular">{window.__chrome.fmtClock ? window.__chrome.fmtClock(Math.floor(bar.sinceMs / 1000)) : ""}</span>}
+      {bar.checking && <span className="live-bar-checking">still marked live · checking</span>}
+      <span className="live-bar-go"><Icon name="arrow-right" size={12} /></span>
+    </button>
+  );
+};
+
 const ShellStatusBar = () => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   const [busy, setBusy] = React.useState(false);
@@ -548,4 +586,5 @@ const ShellStatusBar = () => {
   );
 };
 
+window.LiveCallBar = LiveCallBar;
 window.ShellStatusBar = ShellStatusBar;

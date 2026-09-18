@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toLiveVM, toLiveCallVM } from "@chanlytics/contracts";
+import { toLiveVM, toLiveCallVM, liveStillUp, liveBar, fmtClock } from "@chanlytics/contracts";
 
 const ZONE = "America/New_York";
 const NOW = Date.now();
@@ -90,6 +90,9 @@ globalThis.React = {
 };
 globalThis.window = {
   __LIVE: toLiveVM([call()], channels, ZONE, new Date(NOW)),
+  // The chrome bridge, as installShell publishes it: the heartbeat rule the page
+  // re-applies between refreshes is contracts', not a fourth copy of it.
+  __chrome: { liveStillUp, liveBar, fmtClock },
   __FACTS: { facts: { handoff_number: { value: LINE } } },
   // The client's answer: the route's body under data (client/api.ts), never flat.
   __handOverCall: async () => ({ ok: true, data: { ok: true, decision_id: "d2", line: RANG } }),
@@ -216,4 +219,45 @@ test("a call gone quiet says when it was last heard from, before the checking ba
   assert.match(textOf(find(mount(), (n) => n.props?.className === "lm-head-meta")), /last heard 4\d s ago/);
   withLive([call({ updated_at: iso(2_000) })]);
   assert.doesNotMatch(textOf(find(mount(), (n) => n.props?.className === "lm-head-meta")), /last heard/, "a call heard from seconds ago needs no line about it");
+});
+
+/* --------------------------- the shell's live bar --------------------------- */
+// A call in progress is true for minutes a week, and it held a permanent slot in
+// the phone tab bar -- 60px, with room for neither of the two controls a live
+// call has. It is a bar across the top while it is happening instead.
+
+const barAt = (calls, atMs = NOW) => liveBar(toLiveVM(calls, channels, ZONE, new Date(NOW)), atMs);
+
+test("the bar says who is on the phone and how long, and draws nothing when nobody is", () => {
+  assert.equal(barAt([ended()]), null, "REGRESSION: an ended call kept the bar up");
+  assert.equal(barAt([]), null);
+  const one = barAt([call()]);
+  assert.equal(one.text, "On the phone now · Rosa", "the caller's first name, the Live page's own whoShort");
+  assert.equal(one.callId, "c-live", "and a press opens that call, not the list");
+  assert.ok(one.sinceMs >= 90_000 && one.sinceMs < 92_000, `running since it started — ${one.sinceMs}ms`);
+  assert.equal(one.checking, false);
+});
+
+test("two calls are counted, not named, and open the list", () => {
+  const two = barAt([call(), call({ id: "c-live-2", conversation_id: "cv2", contact: { display_name: "Ada Byron", wa_profile_name: null, phone_e164: "+16465550999" } })]);
+  assert.equal(two.text, "2 calls on your line now");
+  assert.equal(two.callId, null, "no one call to open");
+  assert.equal(two.sinceMs, null, "and no clock: whose would it be");
+});
+
+test("the heartbeat rule is applied between refreshes, by every reader, from here", () => {
+  const vm = toLiveVM([call()], channels, ZONE, new Date(NOW));
+  const c = vm.now[0];
+  assert.equal(liveStillUp(c, vm.heartbeatMs, NOW), true);
+  assert.equal(liveStillUp(c, vm.heartbeatMs, NOW + vm.heartbeatMs + 1), false, "REGRESSION: the phone tab counted `live` alone, so its badge stayed lit for a call nobody had heard from");
+  assert.equal(liveBar(vm, NOW + vm.heartbeatMs + 1), null, "and the bar leaves with it, before the next fetch");
+  assert.equal(liveStillUp({ ...c, live: false }, vm.heartbeatMs, NOW), false, "a call the read already ended is never up");
+});
+
+test("a call the provider has gone quiet about keeps the bar but loses the clock", () => {
+  // Marked live, last heard from past LIVE_STALE_MS: toLiveCallVM sets `checking`.
+  const quiet = barAt([call({ updated_at: iso(6 * 60_000) })]);
+  assert.ok(quiet, "still on the line as far as anyone knows");
+  assert.equal(quiet.checking, true);
+  assert.equal(quiet.sinceMs, null, "REGRESSION: a number climbing for a call that may already have ended");
 });
