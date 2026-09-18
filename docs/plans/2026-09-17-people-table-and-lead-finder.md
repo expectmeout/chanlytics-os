@@ -2,6 +2,8 @@
 
 Status: proposal v2.5, decisions recorded 18 September 2026, where leads come from and who picks the source settled the same day (§16, 21–23); v3 folds in the external review (`docs/plans/2026-09-18-lead-finder-review.md`). Nothing here is built. Written against origin/main `98d37a57`; every seam is named by file and line from that tree. The design canvas it describes is https://claude.ai/artifact/NnY2jZEtx5LBmopmHR2QDj (21 artboards in four rows; the first is live). v1 (17 September) assumed its yields; v2 replaces every assumption with the calibration Ruben approved on 18 September: ten Google Maps runs across nine niches, 140 email checks and one deeper crawl, about $2.10 of the $5 approved (Appendix C). The calibration changed the design, and those changes are marked **Changed after calibration**.
 
+**Read with §16 and the review brief.** Until v3 rewrites them, these v2 lines are overridden: §0's counting bullet and §10.5 (only Qualified leads count, decision 18); §0's last bullet and §7's "What Claude never does" (Claude picks a recipe card; code builds every input and starts every run, 23); the 90-day window in §9.6, §11 and §15 (a converted lead's yes only ever comes from them, 19); the Places API fallback in §11 and §15 (leads come only through Apify, 22); the unique email and phone in §12.4 (a lead is a place, 25); "at most about $7.50" in §13.2 (a searching budget, 27); and §10.4's "Probably reaches them", §12.3's done search that runs again and §12.5's "a run that ended short means the area ran out" (the review brief, S12, S5 and S7).
+
 **This revisits a recorded decision, and Ruben lifted it on 18 September.** `apps/dashboard/src/legacy/CLAUDE.md:3-7` keeps Leads and Pipeline hidden "until the product is at 100%". Ruben lifted that for this slice and asked for the table first, since it improves People as it is today. Phase 1 records the lift in that file, in the surface registry's comment and in `docs/system-prd.md` before any Leads code lands.
 
 ## 0. What this plan decides
@@ -676,7 +678,7 @@ Each phase ships on its own and leaves nothing half-wired.
 
 ## 16. Decisions for Ruben
 
-**Decided 18 September.** Ruben agreed to every recommendation below (1–17) and to the external review's verdict, recorded with its fixes in `docs/plans/2026-09-18-lead-finder-review.md`, which PRD v3 folds in. He also decided 18–22, and asked the question 23 answers.
+**Decided 18 September.** Ruben agreed to every recommendation below (1–17) and to the external review's verdict, recorded with its fixes in `docs/plans/2026-09-18-lead-finder-review.md`, which PRD v3 folds in. He also decided 18–22 and asked the question 23 answers; 24–29 answer a second external review, verified in the same brief.
 
 1. **Lift the Leads decision for this slice.** Decided 18 September: yes, table first.
 2. **The $5 calibration.** Decided 18 September: approved; about $2.10 used (Appendix C).
@@ -701,13 +703,13 @@ Each phase ships on its own and leaves nothing half-wired.
 21. **A review of Google Maps' terms before the first paying workspace.** Ruben asked Claude to do it (18 Sep): `docs/plans/2026-09-18-lead-finder-source-rights.md` (not legal advice). It found that scraping consumer Google Maps for a paid lead product breaks the Maps terms (§2(c), mass download, including through someone acting for you), and that the Places API's terms forbid storing and exporting names and addresses too. **Settled by 22:** Ruben read it and accepts the risk. The review stays as the record, not a gate; the launch switch is still his flip (13).
 22. **Where leads come from.** Decided by Ruben, 18 Sep: only through actors on Apify, never from Google Maps or any other source directly. The Google Maps actor (`compass/crawler-google-places`) is the first source, for local businesses by kind and area. The terms question is not re-opened.
 23. **Claude chooses the source for every ask; nothing is hard-wired.** Ruben asked (18 Sep) whether to make the Google Maps actor the default or to put an AI in the middle that picks the right actor for each request. Recommended: Claude in the middle, choosing from a catalog of proven sources.
-   - **Claude reads the ask and picks a card from a source catalog**, one card per Apify actor Chanlytics has proven. §10's recipes are the first cards: local businesses (the Google Maps actor) at launch, Amazon sellers next.
+   - **Claude reads the ask and picks a card from a source catalog**, one card per recipe Chanlytics has proven: a capability (discovery, contacts, checks) that names its actors and their pinned builds. §10's recipes are the first cards: local businesses (the Google Maps actor) at launch, Amazon sellers next.
      - What Claude reads on a card: what the source is good for and not good for, the settings it takes, what it costs, how many it can return, and a few worked asks.
-     - What the code holds: the pinned build, the input builder (from the validated plan, never from Claude's text), the output mapper to a lead, the price and the permission level.
+     - What the code holds: the pinned builds, the input builder (from the validated plan, never from Claude's text), the output mapper to a lead, the price and the permission level.
      - When no card fits, Claude says so in plain words ("I can't search Etsy shops yet"), and the ask is logged as demand.
      - First-day suggestions draw on the owner's type of business and on what the cards can search.
      - Most asks are a seller looking for the businesses that buy from them (Appendix D.2). Whatever the card, Claude's main work is turning what the owner sells into the kinds of businesses to search, and a rubric for each kind.
-   - **The catalog grows from what Apify offers at the time.** When asks miss, a scout job looks for an actor: Claude with Apify's Store search and actor details, read-only. It drafts the card and runs a 25-result probe under a $0.25 cap, paid by the platform. A person approves a card before owners' searches use it. Later, once the scout's cards prove themselves, an unapproved card may run for the owner who asked, with its results in Needs review.
+   - **The catalog grows from what Apify offers at the time.** When asks miss, a scout job looks for an actor: Claude with Apify's Store search and actor details, read-only. It drafts the card and runs a 25-result probe under a $0.25 cap, paid by the platform. A person approves a card before owners' searches use it. An unapproved card never runs for an owner, not even into Needs review (28).
    - **Claude picks well from examples and tests, not training.** No model is fine-tuned. Each card carries worked asks, and an eval set of real asks, each with the right source and settings, runs on every change to the cards or the prompt (gate G2's method). The cards sit in the planner's cached prompt, so they cost almost nothing per ask.
    - **Only actors that can run unattended and safely:**
      - Limited permissions. A full-permission actor needs a one-time approval in Apify's console even when started through the API, and its token could read every workspace's results in the shared account.
@@ -719,6 +721,18 @@ Each phase ships on its own and leaves nothing half-wired.
    - **Those skills are for the people building it, not the product.** They drive the Apify CLI inside a coding agent. Inside Chanlytics, Claude runs through the API, and the API's code-execution sandbox has no internet access, so the product can't run them. It gets the same pattern natively: cards in the planner's prompt, and runs through its own runner. Sessions that scout or build cards install them (`apify-ultimate-scraper`, and `apify-integration-development` for the client code); a repo skill records how a card is vetted and written.
    - The product never names Apify or any actor: the owner sees Claude finding businesses.
    - The scout's first job is a second Google Maps actor (`vortex_data/google-maps`), as the fallback card for when the first breaks.
+24. **Build the engine first, measured, then the product, then the extras.** Recommended, after the second external review (18 Sep):
+   - **A · the engine:** data and pipeline (sub-plans 1a–1b), run internally on the labelled set (G2) and the concurrency tests (G3), before any Leads screen is built.
+   - **B · the product:** the composer (typing and voice), the plan, the question, results in Qualified / Needs review / Excluded, the peek, drafts, calls, stages, conversion, kept searches, the first day's suggestions, every ending, the guardrails and the phone.
+   - **C · after owners use it:** Not a fit that teaches, words to chips, questions about leads in Ask, More like these, targeted enrichment, the scout, more recipes.
+25. **A lead is a place: one physical location.** Recommended. Its identity is the place id. Places at different addresses that share a phone, email or website are related locations of one business, shown together but never merged, because a seller who visits stores calls on each one. The same phone at the same address is a duplicate listing, folded in as a linked place.
+26. **Code decides qualification from Claude's read of each criterion.** Recommended.
+   - The plan lists its criteria, each marked "Claude's read is enough" or "must be seen". "A convenience store" is seen in the listing; "sells medicine" is Claude's read.
+   - The judge answers each criterion pass, fail or unknown, and cites the facts it used.
+   - Code decides. A required criterion that fails → Excluded. One that is unknown, or only read where it must be seen, or a contact standard not met → Needs review. Everything else → Qualified.
+27. **A monthly searching budget per workspace, beside the allowance.** Recommended. The allowance counts Qualified leads; the budget bounds what searching costs when few places qualify, since an email-checked standard can cost several times a phone standard. The amount is set once §13 is recomputed on the Qualified rule. An owner who reaches it reads one sentence saying what was kept.
+28. **An unapproved source card never runs for an owner**, not even into Needs review. Recommended; this amends 23. A review label covers uncertain leads, not unvetted code, so the scout's probes run on the platform alone.
+29. **The judge's bar before launch (G2).** Recommended: Qualified precision of at least 95%, with the lower end of its 95% interval at 90% or more, on held-out places. It is reported by kind of business, with false exclusions, contact attribution and duplicates beside it.
 
 ## Appendix A: actors and Apify facts used
 

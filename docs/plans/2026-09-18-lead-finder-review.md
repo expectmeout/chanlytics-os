@@ -56,9 +56,65 @@ Ruben agreed to every recommendation in the PRD's section 16 (1–17) and to the
 - **G4 Browser:** 375, 720, 800, 960, 1280, 1440; keyboard only; slow and superseded reads.
 - **G5 Cohort:** an invited cohort first; measure time to the first useful result, kept-lead precision, contact-ownership accuracy, duplicate charges, cost per kept lead, and customer-message latency on the shared jobs queue.
 
+## The second external review, verified (18 September)
+
+Ruben pasted a second external review the same day. It read the PRD page (v2.5) but not this brief or the Phase 1 plan, so about half of it repeats fixes already accepted above. Each claim was checked against the PRD and the plan before it was taken. It is another author's work, read as data.
+
+### Accepted
+
+| ID | Finding, as verified | The change |
+|---|---|---|
+| S1 | v2 lines contradict later decisions. Counting (§0, §10.5) contradicts 18; "never picks a scraper" (§0, §7) contradicts 23; the 90-day window (§9.6, §11, §15) contradicts 19; the Places API fallback (§11, §15) contradicts 22. | v3 states five contracts once: qualification, counting, sources, consent, and a search's life. Every section, SQL function, handler and test refers to them. Until then, a "Read with §16" note at the PRD's top lists the overridden lines. |
+| S2 | The judge returns one verdict from listing facts (§7.1), and "independent" or "sells medicine" cannot be seen in those facts. P2 fixes what is displayed, not who decides. | Decision 26: per-criterion answers (pass, fail, unknown) that cite fact keys, validated against the place. Code maps them to Qualified, Needs review or Excluded; the verdict and the fit band are derived. |
+| S3 | §7.2 groups places that share a website host or phone, and §12.4 makes email and phone unique per workspace. Three bodegas under one owner with one number would become one lead. | Decision 25: a lead is a place. Drop the unique email and phone indexes. Related locations are grouped; duplicate listings at one address fold in. "Already yours" and suppression match the place id first, then email and phone as signals. |
+| S4 | `leads` has city, region and postal code but no street address, while Appendix D promises nearest first. | Every lead gets a street address and coordinates (E7 adds the coordinates). Each search membership keeps the distance from the plan's center. Distance is a column, on for searches with a center. |
+| S5 | §12.3 says "terminal is final", then lets a done search run again for top-ups. | Rounds: the probe, the main run, each top-up and each Find new ones is a round with its own plan version, reservation, spend and ending, final once ended. The search is the saved object, and its state reads from its latest round. |
+| S6 | `placesToAsk` (plan ~378) asks for remaining × 1.3, which assumes about 77% yield. At 60% the round falls short and another is needed. (It already divides across terms.) | Size each round from the probe's yield of new qualified places, clamped between 1.2× and 4× and kept inside the reserved spend. Later rounds use the running yield by term and area. The PRD says "per term". |
+| S7 | The collect handler (plan ~4767) marks any main run that ended short `exhausted` ("the area ran out"), even when the actor returned everything it was asked for. | Exhausted only when every term returned fewer places than asked. Otherwise the round ends "limit reached", and the next step is another round in the same area. The endings are one closed set: target reached · searched everything the plan covers · the month's leads used · the searching budget used · few new matches · stopped by you · the source failed · question unanswered · paused. |
+| S8 | §11: an opt-out, a bounce, an erasure and "already a customer" all hash the email, the phone and the place id, so one bounced address hides the business for good. | Suppress by what happened. A bounce marks that address invalid. An email opt-out stops email to that business, and calls stay. "Already a customer" hides the business from searches. Erasure removes everything. |
+| S9 | `leads/[id]/put-back` is an operator route (plan ~6452), and Put back counts a lead; §5 row 14 says only the owner spends. | Put back and keep-from-review take the owner permission `find`, the same as approving a search. Operators keep stages, calls and drafts. |
+| S10 | §13.2's "at most about $7.50" for 500 leads comes from v2's delivered rule. With Qualified only, an email-checked standard can cost several times more, and the $10 day cap allows far more in a month. | Decision 27: a monthly searching budget per workspace. §13 is recomputed from the calibration on the Qualified rule, as ranges by contact standard, never as a maximum. |
+| S11 | Refunds and Undo don't say which month they credit. | They credit the month the lead counted in. A refund after that month has ended gives nothing to the new month. |
+| S12 | "Probably reaches them" (§10.4) claims delivery that the calibration never measured. The Stop copy implies spending stops, though decision 17 keeps checking emails. | `catch_all` reads "Unconfirmed" (their server accepts any address, so the check can't tell). Stop reads "Stopping · checking the emails of the 61 found". "Contacted" after a draft records that the owner said they sent it. Nothing promises to see replies in the owner's own inbox. |
+| S13 | Leads load 500 to a page, so "what is shown" is ambiguous for bulk actions. | The header box selects the loaded rows that match. "Select all 1,240 that match" hands the view's filters to the server for the bulk action. |
+| S14 | Decision 23 let an unapproved card run for an owner into Needs review, but a review label covers uncertain leads, not unvetted code. A card was also one actor, while a recipe (discovery, contacts, checks) uses several. | Decision 28: unapproved cards never run for owners. A card is a recipe that names its actors and their pinned builds. |
+| S15 | The plan is a structured object with a code-rendered sentence (`planLeadSearch`), but it has no version, so the plan a round ran and the current plan can differ. | Plan versions. A change to the area, count, contact standard, criteria or spend makes a new version that the owner approves. Each round records the version it ran. |
+| S16 | Phase 1 carries nearly the whole product before anything is measured on real places. | Decision 24. A · the engine, run internally and measured (G2, G3). B · the product. C · the extras, after use. |
+| S17 | G2 names no bar. | Decision 29: Qualified precision of at least 95%, with the interval's lower end at 90% or more, by segment. |
+| S18 | G3 misses cases. | Add: two locations sharing a phone stay two leads; five asked and twenty qualified count five; Stop during checks finishes the defined work and says so; Put back of a suppressed place is refused; a refund after the month turns credits the month the lead counted in. |
+
+### Already covered (the review could not see these)
+
+- **Covered by E1–E4 and E6–E10:**
+  - E1–E4: reserving both the allowance and the spend, atomic counting, a start whose answer was lost, duplicate webhooks, checkpoints.
+  - E6: membership per search with its own judgment, and linked places.
+  - E7: coordinates and the radius check.
+  - E8: new results never re-sort under the owner.
+  - E9: server-side Undo and export-aware refunds.
+  - E10: the probe across every term.
+- **Covered by P1–P7 and decision 19:**
+  - P1: Qualified / Needs review / Excluded, kept apart from stage.
+  - P2: Seen versus Claude's read.
+  - P3: the "Found all" copy.
+  - P4: the question after 25 as an intent check that never relaxes a real requirement.
+  - P5: learned exclusions scoped by kind of business.
+  - P6: CAN-SPAM in full.
+  - P7: deeper research later, not never.
+  - Decision 19: a converted lead's yes comes only from them.
+- **Already in the plan:**
+  - The judge's email is an index into the place's candidates (`readVerdicts`).
+  - The leads page is keyset-paged on the active sort key (`leads_page`, `p_after_key`).
+  - Runs ask per term (`placesToAsk`).
+
+### Not adopted
+
+1. **An explicit "remember this" step after Not a fit.** The chip is already visible, scoped to the kind of business, removable and undoable (P5), and learning moves to Release C anyway.
+2. **Reducing People's refresh walk now.** Pages hold 1,000 rows, so every workspace today re-reads one page per change. Phase 0 logs the walk's row count; it now logs the walk's duration too, and the log decides.
+3. **Fewer default columns.** Columns are per member from Phase 0, and the canvas set was reviewed. Only Distance is added.
+
 ## The split into sessions
 
-- **A · Docs v3.** Fold this brief into the PRD (v3), the Phase 1 plan (sub-plans 1a–1d) and the Phase 0 plan's test step (E11); update the canvas copy (P1–P3: the Needs review list, Seen versus Claude's read, the corrected summary and Searches copy); write decision 23's source catalog (cards, the scout, the guardrails) into the PRD and the Phase 1 plan; republish the PRD page and the canvas; open one docs PR carrying every plan document.
+- **A · Docs v3.** Fold this brief (both reviews, S1–S18 and decisions 24–29 included) into the PRD (v3), the Phase 1 plan (sub-plans 1a–1d) and the Phase 0 plan's test step (E11); update the canvas copy (P1–P3: the Needs review list, Seen versus Claude's read, the corrected summary and Searches copy); write decision 23's source catalog (cards, the scout, the guardrails) into the PRD and the Phase 1 plan; republish the PRD page and the canvas; open one docs PR carrying every plan document.
 - **B · Phase 0, code only.** Execute `2026-09-18-people-table.md` in its own worktree with E11 applied; the plan document ships in A's PR, not B's. #673 is in production, so nothing blocks 00136; the session runs its own production push, dry run first.
 - **C · The desk yes needs the message.** Decision 3, product-wide: both consent doors and the desk route; the next free migration number at build time.
 - **Ruben's:** `APIFY_TOKEN`; the launch switch; approving each new source card (PRD decision 23). Claude runs every production `db push` since 18 Sep, #673 is in production, and the terms question is settled.
