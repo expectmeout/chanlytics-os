@@ -3,8 +3,8 @@
  *
  * The page, the profile and every other reader of people_list say the same
  * thing because the rule lives in the function: the door that added them wins
- * (the calendar, a lead, a hand), then the wire of a history moved in from
- * before the database, then their first spoken event -- a call, or the wire a
+ * (the calendar, a lead, a hand), then how a history moved in from before the
+ * database began, then their first spoken event -- a call, or the wire a
  * message travelled. A function body, the events it reads under a member's own
  * RLS, and an order that pages without repeating anyone are what reading source
  * cannot prove, so these run against Postgres in the database workflow; skipped
@@ -69,8 +69,15 @@ const person = async (tenantId, name, { added, messages = [], calls = [] } = {})
 const T0 = "2026-08-01T12:00:00Z";
 const T1 = "2026-08-02T12:00:00Z";
 
-test("people_list says where each person came from: how a door added them, else the wire of a history moved in, else their first call or the wire of their first word", { skip }, async () => {
+// A Blob-era thread's row as apps/edge/api/admin/backfill.ts moved it in: on 'whatsapp', no channel_ts, the created_at it assigned. A call's note is the receptionist's own line.
+const movedInText = (at) => ({ channel: "whatsapp", channel_ts: null, meta: { backfill: true }, created_at: at });
+const movedInNote = (at) => ({ ...movedInText(at), type: "call_summary", direction: "outbound", sender: "ai", status: "sent", body: "[voice call note 2026-08-01T12:00] Caller phoned the business line. Summary: asked about a cut." });
+
+test("people_list says where each person came from: how a door added them, else how a history moved in began, else their first call or the wire of their first word", { skip }, async () => {
   const t = await tenant("came-from");
+  // Moved-in rows a second apart, as backfill.ts assigns them, a minute or two ago: rows inserted in one statement would share one now().
+  const x = Date.now() - 120_000;
+  const at = (s) => new Date(x + s * 1000).toISOString();
   const ids = {
     calendar: await person(t, "From the calendar", { added: "calendar", messages: [{ channel: "whatsapp", channel_ts: T0 }] }),
     lead: await person(t, "A lead", { added: "lead" }),
@@ -79,7 +86,12 @@ test("people_list says where each person came from: how a door added them, else 
     noSource: await person(t, "An event with no source", { added: null }),
     // Two doors, the newer written first, so only their times can pick the calendar. Both a minute or two ago: events is partitioned by month.
     addedTwice: await person(t, "Added twice", { added: [{ source: "manual", at: new Date(Date.now() - 60_000).toISOString() }, { source: "calendar", at: new Date(Date.now() - 120_000).toISOString() }] }),
-    movedIn: await person(t, "Moved in from before", { messages: [{ channel: "whatsapp", channel_ts: null, meta: { backfill: true } }], calls: [{ started_at: T0 }] }),
+    movedIn: await person(t, "Moved in from before", { messages: [movedInText(at(0))], calls: [{ started_at: T0 }] }),
+    // A Blob-era caller who never wrote: their thread holds only the receptionist's note, beside the call's own row.
+    noteOnly: await person(t, "Phoned before the database", { messages: [movedInNote(at(0))], calls: [{ started_at: T0 }] }),
+    // Each thread written later row first, so only its own order can say which came first.
+    noteThenText: await person(t, "Phoned, then wrote, before the database", { messages: [movedInText(at(1)), movedInNote(at(0))], calls: [{ started_at: T0 }] }),
+    textThenNote: await person(t, "Wrote, then phoned, before the database", { messages: [movedInNote(at(1)), movedInText(at(0))], calls: [{ started_at: T0 }] }),
     phoned: await person(t, "Phoned first", { calls: [{ started_at: T0 }], messages: [{ channel: "whatsapp", channel_ts: T1 }] }),
     tie: await person(t, "Phoned and wrote at once", { calls: [{ started_at: T0 }], messages: [{ channel: "whatsapp", channel_ts: T0 }] }),
     dialNeverConnected: await person(t, "A dial that never connected", { calls: [{ started_at: T0, status: "not_connected", duration_ms: 0 }], messages: [{ channel: "sms", channel_ts: T1 }] }),
@@ -92,8 +104,9 @@ test("people_list says where each person came from: how a door added them, else 
   const said = Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, rows.find((r) => r.id === id)?.came_from]));
   assert.deepEqual(said, {
     calendar: "calendar", lead: "lead", manual: "manual", otherDoor: "manual", noSource: "manual", addedTwice: "calendar",
-    movedIn: "whatsapp", phoned: "call", tie: "call", dialNeverConnected: "sms", whatsapp: "whatsapp", sms: "sms", email: "email", nothing: null,
-  }, "the event wins over their words, and the oldest event over a newer one; a history moved in says its wire, and wins over a call; a call wins a tie; a failed send and a dial that never connected are nobody's first word");
+    movedIn: "whatsapp", noteOnly: "call", noteThenText: "call", textThenNote: "whatsapp",
+    phoned: "call", tie: "call", dialNeverConnected: "sms", whatsapp: "whatsapp", sms: "sms", email: "email", nothing: null,
+  }, "the event wins over their words, and the oldest event over a newer one; a history moved in says how it began, a call's note as call and a word as its wire, and wins over a call; a call wins a tie; a failed send and a dial that never connected are nobody's first word");
   const one = ok(await db.rpc("people_list", { p_tenant_id: t, p_contact_id: ids.calendar }));
   assert.equal(one[0].came_from, "calendar", "one person, as the profile reads them: the same answer");
 });
