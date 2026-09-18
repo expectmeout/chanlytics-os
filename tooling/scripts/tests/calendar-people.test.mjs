@@ -596,7 +596,7 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
   assert.equal(peopleListAction("opted_out", [week]), null);
 });
 
-test("the list page: Next visit takes the receptionist's column with a calendar, the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
+test("the list page: the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
   assert.ok(page.includes('data-testid="row-next-visit"') && !page.includes("row-booked"), "the column carries the outcome; the chip is gone");
   assert.ok(page.includes('data-testid={`rail-group-${g.id}`}') && page.includes("cl-rail-group-label"));

@@ -555,10 +555,24 @@ const headings = (tree) => all(tree, (n) => n.type === "th").map((th) => textOf(
 const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
 
 test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, Offers, and Came from", async () => {
-  await freshPage({ people: [person(1)] });
-  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"]);
-  await freshPage({ people: [person(1)], calendar: "ok" });
-  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Visits", "Offers", "Came from"], "with a calendar the outcome takes the receptionist's column");
+  // The headings a press sorts by, as the table marks them; and each body row's cells against the headings above them.
+  const sorting = (tree) => all(tree, (n) => n.type === "th" && /\bsortable\b/.test(String(n.props?.className || ""))).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
+  const oneCellPerHeading = (tree, why) => {
+    const heads = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th").length;
+    const rows = all(find(tree, (n) => n.type === "tbody"), (n) => n.type === "tr");
+    assert.equal(rows.length, 2, "both people are rows");
+    for (const tr of rows) assert.equal(tr.props.children.filter((k) => k && k.type === "td").length, heads, `${tr.props.id}: one cell under each heading, ${why}`);
+  };
+  await freshPage({ people: [person(1), person(2)] });
+  let tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"]);
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Offers"], "the receptionist and where they came from never sort");
+  oneCellPerHeading(tree, "without a calendar");
+  await freshPage({ people: [person(1), person(2)], calendar: "ok" });
+  tree = draw();
+  assert.deepEqual(headings(tree), ["Person", "State", "Last contact", "Visits", "Offers", "Came from"], "with a calendar the outcome takes the receptionist's column");
+  assert.deepEqual(sorting(tree), ["Person", "State", "Last contact", "Visits", "Offers"], "the visit sorts; where they came from never does");
+  oneCellPerHeading(tree, "with a calendar");
 });
 
 test("a row says where the person came from, in words, and nothing when nothing is known", async () => {
@@ -566,6 +580,7 @@ test("a row says where the person came from, in words, and nothing when nothing 
   const tree = draw();
   const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
   assert.deepEqual(["p1", "p2", "p3", "p4"].map(said), ["Your calendar", "Text", "", ""], "and a row read before the column existed says nothing either");
+  for (const id of ["p3", "p4"]) assert.ok(byTestId(rowOf(tree, id), "row-came-from"), `${id}: the cell is drawn, empty, so the row's cells stay under their headings`);
 });
 
 test("a row with a thread offers the booking link on file; with none on file, only the thread", async () => {
@@ -575,4 +590,22 @@ test("a row with a thread offers the booking link on file; with none on file, on
   const tree = draw();
   assert.ok(byTestId(tree, "row-open-thread"), "the thread is one press away");
   assert.equal(byTestId(tree, "row-booking-link"), null, "and there is no link to offer");
+});
+
+test("the receptionist's word is beside the state whether or not its column shows, marked when it does, so a card never loses it", async () => {
+  // A reply is queued, so the receptionist is not simply answering: it has a word to say.
+  const queued = person(1, { queued_reply_at: iso(H) });
+  const markOf = (tree) => {
+    const state = find(rowOf(tree, "p1"), (n) => n.type === "td" && /\bcl-state-cell\b/.test(String(n.props?.className || "")));
+    return find(state, (n) => /\bcl-row-recept-mark\b/.test(String(n.props?.className || "")));
+  };
+  const inColumn = (mark) => /\bis-in-column\b/.test(String(mark.props.className));
+  await freshPage({ people: [queued] });
+  let mark = markOf(draw());
+  assert.equal(mark && textOf(mark), "reply queued", "without a calendar the Receptionist column shows, and the word is beside the state too");
+  assert.equal(inColumn(mark), true, "marked as said in its column, which the stylesheet leaves to say it where that column is on screen");
+  await freshPage({ people: [queued], calendar: "ok" });
+  mark = markOf(draw());
+  assert.equal(mark && textOf(mark), "reply queued", "with a calendar the Receptionist column is hidden, and the word is beside the state");
+  assert.equal(inColumn(mark), false, "unmarked: this is where it is said");
 });

@@ -979,8 +979,6 @@ const PeopleStanding = ({ agg, needsShown, onNeeds, onLists = null, listWord = n
   </div>
 );
 
-// The keys a view may sort by; PL_COLUMNS, below, says which headings sort.
-const PL_SORT_KEYS = ["last", "name", "state", "visits", "offers"];
 // The receptionist's four modes for a selection. The words are contracts' (PERSON_MODE_WORDS, through the
 // chrome bridge), the same ones the profile and a pill say: this list said "Answer them" and "Stay out" for
 // the profile's Answer and Never.
@@ -1084,8 +1082,9 @@ const PL_COLUMNS = [
     cell: (p, x) => (
       <td key="state" className="shrink cl-state-cell">
         <PeopleStatePill state={p.state} label={p.stateLabel} />
-        {/* The receptionist's word beside the state while its own column is hidden: said once, somewhere. */}
-        {!x.shows.receptionist && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
+        {/* The receptionist's word beside the state, said once. While its own column shows (is-in-column), the stylesheet hides
+            this one wherever that column's cell is on screen: always on a desktop, and on a card without the Visits column. */}
+        {p.receptionist.tone !== "answering" && <span className={`cl-row-recept-mark${x.shows.receptionist ? " is-in-column" : ""}`} title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
         {p.stateDetail && <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">{p.stateDetail}</span>}
       </td>
     ),
@@ -1116,6 +1115,8 @@ const PL_COLUMNS = [
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
+// The keys a view may sort by: the columns whose headings sort.
+const PL_SORT_KEYS = PL_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
 
 // Whether a column shows: Person and the row's actions always; any other by the member's own choice, else its default.
 const plShows = (c, choices, x) => !!(c.pinned || c.fixed) || (typeof choices[c.key] === "boolean" ? choices[c.key] : typeof c.on === "function" ? c.on(x) : c.on !== false);
