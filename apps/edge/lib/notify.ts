@@ -25,6 +25,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "./workspace/db.js";
 import type { NotificationsConfig } from "./workspace/contracts.js";
+import { SERVER_NOTIFICATION_KINDS } from "./workspace/contracts.js";
 import { pg } from "./pg.js";
 
 type Db = SupabaseClient<Database>;
@@ -158,8 +159,18 @@ export function reachesTenant(target: NotifyTarget): boolean {
  * Deliver to the tenant this concerns, or tell the platform operator that we
  * could not. Returns whether anything was delivered.
  */
-/** The kinds the table accepts; anything else is kept as a plain alert. */
-const KEPT_KINDS = new Set(["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing"]);
+/**
+ * The kinds the table accepts; anything else is kept as a plain alert.
+ *
+ * Contracts' list, not a copy of it. A copy lived here, and the day two kinds
+ * joined the table (00134: template_ready, template_blocked) it went on turning
+ * them into "alert" -- the webhook chose the right kind, the migration allowed
+ * it, and the row still reached the bell as a plain alert pointing at Today.
+ * SERVER_NOTIFICATION_KINDS is held equal to the table's check by type
+ * (contracts schema-sets.ts, against the set generated from the database), so
+ * the table and this cannot disagree again.
+ */
+const KEPT_KINDS: ReadonlySet<string> = new Set(SERVER_NOTIFICATION_KINDS);
 
 /**
  * Keep the alert as a row the workspace can read on its bell, whether or not

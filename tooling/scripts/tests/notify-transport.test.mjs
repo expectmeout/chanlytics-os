@@ -311,3 +311,17 @@ test("recordNotification on its own: a row with the given store, none without a 
   assert.equal(rows.length, 1);
   assert.equal(rows[0].route, "admin/billing");
 });
+
+test("every kind the table accepts is kept as itself -- a new kind is not turned into a plain alert on its way in", async () => {
+  // 00134 added template_ready and template_blocked. The webhook chose them and the migration allowed them, but
+  // this file kept its own copy of the list, so both went into the table as "alert": a bell icon pointing at Today
+  // instead of a check -- or a warning -- pointing at Templates.
+  const { SERVER_NOTIFICATION_KINDS } = await import("@chanlytics/contracts");
+  const rows = [];
+  const db = fakeDb({ notifications: rows });
+  for (const kind of SERVER_NOTIFICATION_KINDS) {
+    await recordNotification(TENANT, { kind, title: `a ${kind}`, body: "…" }, db);
+  }
+  assert.deepEqual(rows.map((r) => r.kind), [...SERVER_NOTIFICATION_KINDS], "REGRESSION: a kind the table accepts was stored as 'alert'");
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"), "the two template kinds are among them");
+});

@@ -4347,8 +4347,8 @@ var SERVER_LOOK = {
    * a change is belongs to the change (waba-events.ts describeWabaChange), and
    * how it should read belongs here. Never inferred from the title.
    */
-  template_ready: { icon: "check", tone: "ok", action: "Open Messages", to: "messages" },
-  template_blocked: { icon: "alert", tone: "warn", action: "Open Messages", to: "messages" },
+  template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
+  template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
@@ -4370,7 +4370,8 @@ var ROUTE_VERBS = [
   [/^live/, "Open Live"],
   [/^outbound/, "Open Playbooks"],
   [/^broadcasts/, "Open Broadcasts"],
-  [/^messages/, "Open Messages"],
+  // The route is still `messages`; the page is Templates (#658), and the door says the page's name.
+  [/^messages/, "Open Templates"],
   [/^calendar/, "Open Calendar"],
   [/^clients/, "Open People"],
   [/^reports/, "Open Reports"],

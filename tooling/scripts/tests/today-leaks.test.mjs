@@ -178,8 +178,8 @@ test("a template that can be sent does not wear a warning's colour, and neither 
     dto("c", "number", "WhatsApp number: quality rating is now Yellow"),
   ] });
   assert.deepEqual(rows.map((r) => [r.kind, r.tone, r.icon, r.to, r.action]), [
-    ["template_ready", "ok", "check", "messages", "Open Messages"],
-    ["template_blocked", "warn", "alert", "messages", "Open Messages"],
+    ["template_ready", "ok", "check", "messages", "Open Templates"],
+    ["template_blocked", "warn", "alert", "messages", "Open Templates"],
     ["number", "warn", "shield", "admin/integrations", "Open Connections"],
   ]);
   // And the away card sorts on that: the downgrade and the rejection above the approval.
