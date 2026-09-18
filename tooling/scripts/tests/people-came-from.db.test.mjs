@@ -3,11 +3,12 @@
  *
  * The page, the profile and every other reader of people_list say the same
  * thing because the rule lives in the function: the door that added them wins
- * (the calendar, a lead, a hand), then an imported history, then their first
- * spoken event -- a call, or the wire a message travelled. A function body, the
- * events it reads under a member's own RLS, and an order that pages without
- * repeating anyone are what reading source cannot prove, so these run against
- * Postgres in the database workflow; skipped without a local database.
+ * (the calendar, a lead, a hand), then the wire of a history moved in from
+ * before the database, then their first spoken event -- a call, or the wire a
+ * message travelled. A function body, the events it reads under a member's own
+ * RLS, and an order that pages without repeating anyone are what reading source
+ * cannot prove, so these run against Postgres in the database workflow; skipped
+ * without a local database.
  */
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
@@ -45,12 +46,13 @@ after(async () => {
 });
 
 let phones = 0;
-/** A person; how a door added them (a contact.added source, `null` for an event with none); what they said and when. */
+/** A person; how a door added them (a contact.added source, `null` for an event with none, or a list of `{ source, at }` when doors wrote more than one); what they said and when. */
 const person = async (tenantId, name, { added, messages = [], calls = [] } = {}) => {
   phones += 1;
   const c = ok(await db.from("contacts").insert({ tenant_id: tenantId, display_name: name, phone_e164: `+1555013${String(phones).padStart(4, "0")}` }).select("id").single());
   if (added !== undefined) {
-    ok(await db.from("events").insert({ tenant_id: tenantId, kind: "contact.added", category: "contact", subject_type: "contact", subject_id: c.id, data: added === null ? {} : { source: added } }));
+    const doors = Array.isArray(added) ? added : [{ source: added }];
+    ok(await db.from("events").insert(doors.map(({ source, at }) => ({ tenant_id: tenantId, kind: "contact.added", category: "contact", subject_type: "contact", subject_id: c.id, data: source === null ? {} : { source }, ...(at ? { created_at: at } : {}) }))));
   }
   if (messages.length || calls.length) {
     const conv = ok(await db.from("conversations").insert({ tenant_id: tenantId, contact_id: c.id, state: "open" }).select("id").single());
@@ -67,7 +69,7 @@ const person = async (tenantId, name, { added, messages = [], calls = [] } = {})
 const T0 = "2026-08-01T12:00:00Z";
 const T1 = "2026-08-02T12:00:00Z";
 
-test("people_list says where each person came from: how a door added them, else an import, else their first call or the wire of their first word", { skip }, async () => {
+test("people_list says where each person came from: how a door added them, else the wire of a history moved in, else their first call or the wire of their first word", { skip }, async () => {
   const t = await tenant("came-from");
   const ids = {
     calendar: await person(t, "From the calendar", { added: "calendar", messages: [{ channel: "whatsapp", channel_ts: T0 }] }),
@@ -75,8 +77,12 @@ test("people_list says where each person came from: how a door added them, else 
     manual: await person(t, "By hand", { added: "manual" }),
     otherDoor: await person(t, "Through another door", { added: "import_csv" }),
     noSource: await person(t, "An event with no source", { added: null }),
-    imported: await person(t, "Imported", { messages: [{ channel: "whatsapp", channel_ts: null, meta: { backfill: "true" } }], calls: [{ started_at: T0 }] }),
+    // Two doors, the newer written first, so only their times can pick the calendar. Both a minute or two ago: events is partitioned by month.
+    addedTwice: await person(t, "Added twice", { added: [{ source: "manual", at: new Date(Date.now() - 60_000).toISOString() }, { source: "calendar", at: new Date(Date.now() - 120_000).toISOString() }] }),
+    movedIn: await person(t, "Moved in from before", { messages: [{ channel: "whatsapp", channel_ts: null, meta: { backfill: true } }], calls: [{ started_at: T0 }] }),
     phoned: await person(t, "Phoned first", { calls: [{ started_at: T0 }], messages: [{ channel: "whatsapp", channel_ts: T1 }] }),
+    tie: await person(t, "Phoned and wrote at once", { calls: [{ started_at: T0 }], messages: [{ channel: "whatsapp", channel_ts: T0 }] }),
+    dialNeverConnected: await person(t, "A dial that never connected", { calls: [{ started_at: T0, status: "not_connected", duration_ms: 0 }], messages: [{ channel: "sms", channel_ts: T1 }] }),
     whatsapp: await person(t, "Wrote on WhatsApp first", { messages: [{ channel: "whatsapp", channel_ts: T0 }], calls: [{ started_at: T1 }] }),
     sms: await person(t, "Texted", { messages: [{ channel: "email", direction: "outbound", sender: "ai", status: "failed", channel_ts: T0 }, { channel: "sms", channel_ts: T1 }] }),
     email: await person(t, "Emailed", { messages: [{ channel: "email", channel_ts: T0 }, { channel: "whatsapp", channel_ts: T1 }] }),
@@ -85,9 +91,9 @@ test("people_list says where each person came from: how a door added them, else 
   const rows = ok(await db.rpc("people_list", { p_tenant_id: t }));
   const said = Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, rows.find((r) => r.id === id)?.came_from]));
   assert.deepEqual(said, {
-    calendar: "calendar", lead: "lead", manual: "manual", otherDoor: "manual", noSource: "manual",
-    imported: "import", phoned: "call", whatsapp: "whatsapp", sms: "sms", email: "email", nothing: null,
-  }, "the event wins over their words; an import over a call; a failed send is nobody's first word");
+    calendar: "calendar", lead: "lead", manual: "manual", otherDoor: "manual", noSource: "manual", addedTwice: "calendar",
+    movedIn: "whatsapp", phoned: "call", tie: "call", dialNeverConnected: "sms", whatsapp: "whatsapp", sms: "sms", email: "email", nothing: null,
+  }, "the event wins over their words, and the oldest event over a newer one; a history moved in says its wire, and wins over a call; a call wins a tie; a failed send and a dial that never connected are nobody's first word");
   const one = ok(await db.rpc("people_list", { p_tenant_id: t, p_contact_id: ids.calendar }));
   assert.equal(one[0].came_from, "calendar", "one person, as the profile reads them: the same answer");
 });

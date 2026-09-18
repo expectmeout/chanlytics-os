@@ -9,21 +9,25 @@
 --     apps/edge/lib/calendar-people.ts); a message or a call that makes a
 --     person writes none. Source 'calendar' is calendar, 'lead' is lead, and
 --     any other -- 'manual', or whatever POST contacts was given -- is manual.
---     The event is the record: purge_events never touches it (00038), and an
+--     The event is the record: purge_events never touches it (00115), and an
 --     erasure keeps its source (00131).
---   * Else an imported history is import: what we hold of them began before
---     Chanlytics did, so their first word is not ours to name.
---   * Else their first spoken event: a connected call is call; a message is the
---     wire it travelled, whatsapp, sms or email. Spoken is the ev CTE's rule: a
---     queued, canceled or failed send is nobody's first word.
+--   * Else a history moved in from before the database says the wire it
+--     travelled (import only when it names none). Its one writer,
+--     apps/edge/api/admin/backfill.ts, moved the receptionist's own Blob-era
+--     WhatsApp threads into Postgres: channel 'whatsapp', no channel_ts. It
+--     wins over a later call or message, because it predates everything the
+--     database dated.
+--   * Else their first spoken event: a connected call is call, and a call wins
+--     a tie with their first message; a message is the wire it travelled,
+--     whatsapp, sms or email. Spoken is the ev CTE's rule: a queued, canceled
+--     or failed send is nobody's first word.
 --   * Else null: there is nothing to say yet.
 --
 -- The body is 00127's. The change: the `added` CTE (one index range per events
--- partition for the whole call, never one per person), one aggregate in `ma`,
--- the column, and the order's last key. `c.id` makes the order whole: people
--- alike in everything it reads -- a calendar sweep adds several in one
--- statement, with one created_at and no contact yet -- come back in one order,
--- so a page of them never repeats a person or skips one.
+-- partition for the whole call, never one per person), two aggregates in `ma`,
+-- the column, and the order's last key. `c.id` makes the order whole: paging
+-- by offset needs one, so people alike in every key the order reads come back
+-- the same way every time, and a page never repeats a person or skips one.
 --
 -- Dropped and recreated because a returned column cannot be added in place.
 -- The signature is the same, so every caller keeps calling it as it does; the
@@ -131,13 +135,13 @@ as $$
     coalesce(ma.has_chat, false),
     coalesce(ma.channels, '{}'::text[]),
     ma.queued_at,
-    -- Where they came from: how they were added, else an import, else their
-    -- first spoken event.
+    -- Where they came from: how they were added, else the wire of a history
+    -- moved in, else their first spoken event.
     case
       when ad.source = 'calendar' then 'calendar'
       when ad.source = 'lead' then 'lead'
       when ad.source is not null then 'manual'
-      when coalesce(ma.has_backfill, false) then 'import'
+      when coalesce(ma.has_backfill, false) then case when ma.backfill_channel in ('whatsapp', 'sms', 'email') then ma.backfill_channel else 'import' end
       when lk.first_at is not null and (ma.first_at is null or lk.first_at <= ma.first_at) then 'call'
       when ma.first_channel in ('whatsapp', 'sms', 'email') then ma.first_channel
     end
@@ -194,7 +198,9 @@ as $$
            array_agg(distinct e.channel order by e.channel) filter (where e.type in ('text', 'template', 'media')) as channels,
            max(e.created_at) filter (where e.direction = 'outbound' and e.status = 'queued') as queued_at,
            -- The wire of their first spoken message, for came_from.
-           (array_agg(e.channel order by e.at, e.created_at) filter (where e.spoken and e.at is not null))[1] as first_channel
+           (array_agg(e.channel order by e.at, e.created_at) filter (where e.spoken and e.at is not null))[1] as first_channel,
+           -- The wire of a history moved in, for came_from: in the order it was written, as it carries no date of its own.
+           (array_agg(e.channel order by e.created_at) filter (where e.backfill))[1] as backfill_channel
       from ev e where e.contact_id = c.id
   ) ma on true
   left join lateral (
@@ -246,4 +252,4 @@ revoke execute on function public.people_list(uuid, uuid, text, integer, integer
 grant execute on function public.people_list(uuid, uuid, text, integer, integer) to authenticated, service_role;
 
 comment on function public.people_list(uuid, uuid, text, integer, integer) is
-  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, manual), an imported history (import), else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_limit (at most 1000) and p_offset page under one whole order: latest contact first, then the newest added, then the id.';
+  'Everyone this workspace has ever heard from, with both consent answers: `consent` for conversation and their own appointments, `marketing_consent` for offers. Two answers because the carriers require them collected separately (error 30913). `came_from` says where each first came from: the door that added them (calendar, lead, manual); else a history moved in from before the database says the wire it travelled (import only when it names none); else their first call (call) or the wire of their first message (whatsapp, sms, email); null when nothing says. p_query matches a name, a WhatsApp name, an email address or three digits of the number; p_limit (at most 1000) and p_offset page under one whole order: latest contact first, then the newest added, then the id.';
