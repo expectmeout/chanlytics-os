@@ -24,7 +24,7 @@
 - **Today**, at 1280px with a calendar connected, the table is 921px wide inside a 746px clipped box. 176px are cut off, so Visits is half hidden and Offers and the row actions cannot be reached. Task 7 fixes that.
 
 **Where the spec and the code disagree, and what this plan does:**
-1. **Migration number.** The spec says 00135, but open PR #673 (`fix/a-failed-intake-can-be-taken-again`) already holds `00135_a_failed_intake_can_be_taken_again.sql`. This plan takes **00136** and re-checks right before pushing (Task 9).
+1. **Migration number.** The spec says 00135, but #673 took `00135_a_failed_intake_can_be_taken_again.sql` (merged and in production, 18 Sep). This plan takes **00136** and re-checks right before pushing (Task 9).
 2. **The saved view.** The spec (sections 2 and 6.1) says `{ sortBy, sortDir, attentionTab, columns }`. The page stopped saving `attentionTab` when the attention strip went (`clients-a.jsx:1459-1461`: "the next save drops it"). Every save sends every key the page owns, `{ sortBy, sortDir, columns }`. The three comments that still say `attentionTab` are corrected (Task 5).
 3. **Receptionist by default.** Spec section 6.2 lists it as off. Today it is the fourth column when there is no calendar, `e2e/people.spec.ts:56` pins that, and Phase 0 is done only when the e2e specs pass unchanged apart from the new column. So it stays on without a calendar and off with one. While its column is hidden, its word sits beside the state, as it does today.
 4. **The sticky column.** Spec section 2 says the header is sticky, and it is. But `.cl-table-wrap { overflow: clip }` (`clients.css:778-784`) means nothing scrolls sideways, and a wide table is cut off. A pinned column needs a scroller, so on a desktop the table becomes its own scroller and the page above it holds still. The design canvas does the same (`.lt-shell`, `.lt-wrap`).
@@ -34,7 +34,7 @@
 
 **House rules this plan follows:**
 - Never add a `readCode(` or `readRaw(` assertion. Pins that the change must alter are removed or narrowed inside their existing assertions, and behaviour tests through the people-honest harness replace them. No `readCode(` call is removed, so no source-scan count falls; Task 9 runs the ratchet anyway.
-- Migrations: take the next free number and re-check it right before pushing. The production `db push` is Ruben's, never the agent's.
+- Migrations: take the next free number and re-check it right before pushing. The production `db push` is the agent's since 18 Sep (Ruben: "every production database push — please do this yourself"), in the order Task 9, Step 7 gives.
 - `packages/*/dist` is committed. Rebuild after any source change and keep only dists with a real diff (`git diff -w --ignore-cr-at-eol`). The unit tests import `@chanlytics/contracts` from its `dist`, so rebuild before believing a red test.
 - Legacy JSX: bump `?v=N` in `apps/dashboard/src/legacy/Chanlytics.html` once per edited file per PR. No new legacy file is added (the table stays in `clients-a.jsx` until Leads needs it), so neither `manifest.ts` nor the file lists change.
 - No route changes: the two route files get comment edits only, so `route-policy.json` and the route registry are not regenerated; Task 9 runs both tests to prove it.
@@ -262,7 +262,7 @@ Expected: `# fail 3`. Test 1 fails with its message "the event wins over their w
 
 Run: `git fetch origin && git ls-tree -r --name-only origin/main -- supabase/migrations | tail -3 && gh pr list --repo expectmeout/chanlytics-os --state open --limit 100 --json number,files | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{for(const p of JSON.parse(s))for(const f of p.files)if(f.path.startsWith('supabase/migrations/'))console.log('#'+p.number,f.path)})"`
 
-Expected: main ends at `00134_a_template_is_not_a_number.sql`, and the only open claim is `#673 supabase/migrations/00135_a_failed_intake_can_be_taken_again.sql`. If 00136 is taken, use the next free number here and in every later mention (Task 9, Step 2 lists them).
+Expected: main ends at `00135_a_failed_intake_can_be_taken_again.sql` (#673, merged 18 Sep), and no open PR claims `00136`. If 00136 is taken, use the next free number here and in every later mention (Task 9, Step 2 lists them).
 
 Create `supabase/migrations/00136_a_person_says_where_they_came_from.sql`:
 
@@ -2225,16 +2225,32 @@ Phase 0 of the People and lead-finder PRD, planned in docs/plans/2026-09-18-peop
 Every new people-honest test was red before its commit and green after; the four source pins this changed became behaviour tests, and no `readCode` was added; `people-came-from.db.test.mjs` proves each `came_from`, the member's RLS path and the whole order on Postgres; two new e2e tests (the Columns menu with its save intercepted, the pinned column at 960px) run nightly.
 
 ## Order
-This PR carries a migration, so it waits for 00136 to reach production, which is Ruben's `db push`, and then merges. The code is safe on either side of it: a row read before the column has no `came_from`, and the column says nothing for it.
+This PR carries a migration, so 00136 goes to production first (a dry run, the push, a read-back), and then it merges. The code is safe on either side of it: a row read before the column has no `came_from`, and the column says nothing for it.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 Wait for CI (`gh pr checks <number> --repo expectmeout/chanlytics-os --watch`). If a check fails, read its log and fix it. A red Database job with every step failing in about 2 seconds is a billing block; read the run's annotations. **Do not merge**: the PR carries a migration.
 
-- [ ] **Step 7: Hand the production push to Ruben**
+- [ ] **Step 7: Push 00136 to production, then merge**
 
-Ask Ruben to push 00136. The push must come from a checkout that holds every pending migration, and 00135 (PR #673) must reach production first, or 00136 lands ahead of it and 00135 becomes an out-of-order push. His PowerShell one-liners, from this worktree:
+The production push is the agent's (Ruben, 18 Sep). Run it from this worktree, on the PR's branch, once CI is green. A worktree has no Supabase link of its own: if `supabase/.temp/project-ref` is missing, copy the main checkout's `supabase/.temp` in first.
+
+```bash
+SB="$HOME/AppData/Local/npm-cache/_npx/b96a6bd565c470ce/node_modules/@supabase/cli-windows-x64/bin/supabase.exe"
+"$SB" db push --linked --dry-run </dev/null
+```
+
+Expected: the dry run lists exactly `00136_a_person_says_where_they_came_from.sql`. If it lists anything else, stop and find out why before pushing.
+
+```bash
+"$SB" db push --linked --yes </dev/null
+"$SB" db query --linked "select string_agg(version, ',' order by version desc) from (select version from supabase_migrations.schema_migrations order by version desc limit 3) t"
+```
+
+Expected: the head starts with `00136`. Then merge, from a folder that is not a git checkout: `gh pr merge <number> --repo expectmeout/chanlytics-os --squash --delete-branch`. Then confirm that the next nightly e2e ran `e2e/people.spec.ts` green.
+
+If Claude Code's auto-mode classifier refuses the push, never reroute it: finish everything else and hand Ruben these PowerShell one-liners, run from this worktree:
 
 ```powershell
 Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-people-table"; & "$env:LOCALAPPDATA\npm-cache\_npx\b96a6bd565c470ce\node_modules\@supabase\cli-windows-x64\bin\supabase.exe" db push --linked --dry-run
@@ -2243,8 +2259,6 @@ Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-people-ta
 ```powershell
 Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-people-table"; & "$env:LOCALAPPDATA\npm-cache\_npx\b96a6bd565c470ce\node_modules\@supabase\cli-windows-x64\bin\supabase.exe" db push --linked
 ```
-
-The dry run should list exactly `00136_a_person_says_where_they_came_from.sql`. Once it is in production and Ruben says yes, merge: `gh pr merge <number> --repo expectmeout/chanlytics-os --squash --delete-branch`, run from a folder that is not a git checkout. Then confirm that the next nightly e2e ran `e2e/people.spec.ts` green.
 
 ---
 
@@ -2265,4 +2279,4 @@ The dry run should list exactly `00136_a_person_says_where_they_came_from.sql`. 
 | Sticky header, sticky Person column, a hairline once scrolled sideways, a selected tint in light (not the accent); the pinned CSS and phone cards kept | Task 7 |
 | Docs: `docs/system-prd.md` People, and what `legacy/CLAUDE.md` would otherwise leave untrue | Task 8 |
 | Pins changed on purpose, no new `readCode`; e2e specs updated | Task 3, Steps 7-8; Task 4, Step 5; Task 5, Step 5 |
-| `?v=` bump, dist rebuild and `check:dist`, source-scan baseline, route policy (unchanged), final verification, the push is Ruben's | Task 3, Step 4; Tasks 1-2; Task 9 |
+| `?v=` bump, dist rebuild and `check:dist`, source-scan baseline, route policy (unchanged), final verification, the production push (the agent's, dry run first) | Task 3, Step 4; Tasks 1-2; Task 9 |

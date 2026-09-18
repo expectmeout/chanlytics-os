@@ -26,6 +26,8 @@ May Chanlytics, as a paid feature, have a third-party scraper (an actor on Apify
    - Take contact details from each business's own website, check the mailbox as planned, and keep the Google Maps scrape as an internal yardstick only.
    - **First, measure coverage (free).** If open data finds far fewer of the right businesses and Google Maps is still wanted as the source, that is the moment to pay a lawyer: it would mean knowingly operating against Google's terms.
 
+**Not taken.** Ruben kept the Google Maps actor through Apify and accepts the risk (the decision at the top).
+
 ## What the documents say
 
 **Google Terms of Service** (effective 30 July 2026).
@@ -106,6 +108,8 @@ May Chanlytics, as a paid feature, have a third-party scraper (an actor on Apify
 
 ## What changes in the product, if Ruben agrees
 
+Not taken: Ruben kept the Google Maps actor (the decision at the top). Kept as the record.
+
 - **Discovery:**
   - Businesses come from open places data, filtered by category and area.
   - The website each listing gives is read for contact details: the business's own public pages, respecting robots.txt.
@@ -122,6 +126,8 @@ May Chanlytics, as a paid feature, have a third-party scraper (an actor on Apify
 - **If open data finds materially fewer of the right businesses** (as a working line, under about 70% of what a Google search finds), bring the trade-off back to Ruben with the numbers. A lawyer's opinion is worth paying for at that point.
 
 ## Inside Apify only (Ruben, 18 September)
+
+Superseded the same day: the Google Maps actor is the first source, with no side-by-side and no acceptance step, and Claude chooses the source for each ask (PRD §16, decisions 22–23).
 
 Ruben's constraint: Chanlytics gets leads only through actors on Apify, never from Google Maps or any other source directly. That changes the options, not the reading of the terms.
 

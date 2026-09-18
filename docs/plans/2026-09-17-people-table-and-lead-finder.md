@@ -1,6 +1,6 @@
 # People: a real table, and leads Claude finds for you
 
-Status: proposal v2.2, decisions recorded 18 September 2026; v3 folds in the external review (`docs/plans/2026-09-18-lead-finder-review.md`). Nothing here is built. Written against origin/main `98d37a57`; every seam is named by file and line from that tree. The design canvas it describes is https://claude.ai/artifact/NnY2jZEtx5LBmopmHR2QDj (21 artboards in four rows; the first is live). v1 (17 September) assumed its yields; v2 replaces every assumption with the calibration Ruben approved on 18 September: ten Google Maps runs across nine niches, 140 email checks and one deeper crawl, about $2.10 of the $5 approved (Appendix C). The calibration changed the design, and those changes are marked **Changed after calibration**.
+Status: proposal v2.5, decisions recorded 18 September 2026, where leads come from and who picks the source settled the same day (§16, 21–23); v3 folds in the external review (`docs/plans/2026-09-18-lead-finder-review.md`). Nothing here is built. Written against origin/main `98d37a57`; every seam is named by file and line from that tree. The design canvas it describes is https://claude.ai/artifact/NnY2jZEtx5LBmopmHR2QDj (21 artboards in four rows; the first is live). v1 (17 September) assumed its yields; v2 replaces every assumption with the calibration Ruben approved on 18 September: ten Google Maps runs across nine niches, 140 email checks and one deeper crawl, about $2.10 of the $5 approved (Appendix C). The calibration changed the design, and those changes are marked **Changed after calibration**.
 
 **This revisits a recorded decision, and Ruben lifted it on 18 September.** `apps/dashboard/src/legacy/CLAUDE.md:3-7` keeps Leads and Pipeline hidden "until the product is at 100%". Ruben lifted that for this slice and asked for the table first, since it improves People as it is today. Phase 1 records the lift in that file, in the surface registry's comment and in `docs/system-prd.md` before any Leads code lands.
 
@@ -445,7 +445,7 @@ sequenceDiagram
 `queued → probing → running → verifying → done`, with `waiting_on_owner` between probing and running when the question fires, `stopped` from any open state (Stop, the question unanswered for 24 hours; the Apify run is aborted), and `failed` from any (a run failed or timed out twice). A trigger on `lead_searches`, like `jobs_guard` (`00098:95-121`), owns the transitions; terminal is final. A top-up and **Find new ones** add runs to a done search and walk it `running → verifying → done` again.
 
 ### 12.4 Data
-Phase 0 takes the next free migration number: **00136**, because open PR #673 already holds 00135 (re-check right before pushing; two sessions have taken the same number before). `people_list` is dropped and recreated, as 00127 did, with one more returned column and an order that ends on the id, so equal rows page the same way every time:
+Phase 0 takes the next free migration number: **00136**, because #673 took 00135 (merged and in production, 18 September; re-check right before pushing; two sessions have taken the same number before). `people_list` is dropped and recreated, as 00127 did, with one more returned column and an order that ends on the id, so equal rows page the same way every time:
 
 ```sql
 -- came_from: where this person first came from, once, in SQL.
@@ -676,7 +676,7 @@ Each phase ships on its own and leaves nothing half-wired.
 
 ## 16. Decisions for Ruben
 
-**Decided 18 September.** Ruben agreed to every recommendation below (1–17) and to the external review's verdict, recorded with its fixes in `docs/plans/2026-09-18-lead-finder-review.md`, which PRD v3 folds in. He also decided 18–21.
+**Decided 18 September.** Ruben agreed to every recommendation below (1–17) and to the external review's verdict, recorded with its fixes in `docs/plans/2026-09-18-lead-finder-review.md`, which PRD v3 folds in. He also decided 18–22, and asked the question 23 answers.
 
 1. **Lift the Leads decision for this slice.** Decided 18 September: yes, table first.
 2. **The $5 calibration.** Decided 18 September: approved; about $2.10 used (Appendix C).
@@ -698,16 +698,25 @@ Each phase ships on its own and leaves nothing half-wired.
 18. **Only Qualified leads count toward the monthly allowance.** Decided: yes. Unsure verdicts and contacts below the plan's standard are Needs review, free until the owner keeps them; left-out places never count.
 19. **A converted lead's yes comes only from them, permanently** (their own message through the edge, or the yes page; never a signed-in caller). Decided: yes; it replaces the 90-day window.
 20. **At the desk, "in their own message" requires picking the actual message** when the conversation is in Chanlytics; "form" stays for paper slips. Decided: yes, product-wide (the doors are older than this feature).
-21. **A review of Google Maps' terms gates the first paying workspace.** Decided: yes; the launch switch stays off until then. Ruben then asked Claude to do the review itself (18 Sep): `docs/plans/2026-09-18-lead-finder-source-rights.md` (not legal advice). It found that scraping consumer Google Maps for a paid lead product breaks the Maps terms (§2(c), mass download, including through someone acting for you), and that the Places API's terms forbid storing and exporting names and addresses too.
-22. **Where leads come from.** Decided by Ruben, 18 Sep:
-   - Leads come only through actors on Apify, and the Google Maps actor is the default for local businesses. He has read the terms review and accepts its risk; it is not re-opened.
-   - **Claude picks the source for each ask** from a catalog of Apify sources that grows. It starts with Google Maps places; Amazon sellers come next, and others follow as owners ask.
-     - Each catalog entry is an actor with a pinned build, an input builder, an output mapper, a price, and a line that tells Claude what it is good for.
-     - When no source fits, Claude says so in plain words ("I can't search Etsy shops yet").
-     - First-day suggestions draw on the owner's type of business and on what the catalog can search.
-   - **Apify's own limits apply:** concurrent runs and memory for the account's plan, per-run charge caps, and 60 requests a second per resource.
-   - The Overture-backed actors stay in the catalog as a fallback.
+21. **A review of Google Maps' terms before the first paying workspace.** Ruben asked Claude to do it (18 Sep): `docs/plans/2026-09-18-lead-finder-source-rights.md` (not legal advice). It found that scraping consumer Google Maps for a paid lead product breaks the Maps terms (§2(c), mass download, including through someone acting for you), and that the Places API's terms forbid storing and exporting names and addresses too. **Settled by 22:** Ruben read it and accepts the risk. The review stays as the record, not a gate; the launch switch is still his flip (13).
+22. **Where leads come from.** Decided by Ruben, 18 Sep: only through actors on Apify, never from Google Maps or any other source directly. The Google Maps actor (`compass/crawler-google-places`) is the first source, for local businesses by kind and area. The terms question is not re-opened.
+23. **Claude chooses the source for every ask; nothing is hard-wired.** Ruben asked (18 Sep) whether to make the Google Maps actor the default or to put an AI in the middle that picks the right actor for each request. Recommended: Claude in the middle, choosing from a catalog of proven sources.
+   - **Claude reads the ask and picks a card from a source catalog**, one card per Apify actor Chanlytics has proven. §10's recipes are the first cards: local businesses (the Google Maps actor) at launch, Amazon sellers next.
+     - What Claude reads on a card: what the source is good for and not good for, the settings it takes, what it costs, how many it can return, and a few worked asks.
+     - What the code holds: the pinned build, the input builder (from the validated plan, never from Claude's text), the output mapper to a lead, the price and the permission level.
+     - When no card fits, Claude says so in plain words ("I can't search Etsy shops yet"), and the ask is logged as demand.
+     - First-day suggestions draw on the owner's type of business and on what the cards can search.
+   - **The catalog grows from what Apify offers at the time.** When asks miss, a scout job looks for an actor: Claude with Apify's Store search and actor details, read-only. It drafts the card and runs a 25-result probe under a $0.25 cap, paid by the platform. A person approves a card before owners' searches use it. Later, once the scout's cards prove themselves, an unapproved card may run for the owner who asked, with its results in Needs review.
+   - **Claude picks well from examples and tests, not training.** No model is fine-tuned. Each card carries worked asks, and an eval set of real asks, each with the right source and settings, runs on every change to the cards or the prompt (gate G2's method). The cards sit in the planner's cached prompt, so they cost almost nothing per ask.
+   - **Only actors that can run unattended and safely:**
+     - Limited permissions. A full-permission actor needs a one-time approval in Apify's console even when started through the API, and its token could read every workspace's results in the shared account.
+     - Priced per result or per event, so `maxTotalChargeUsd` bounds every run. Rental actors are out: they charge a monthly fee and must be rented in the console first.
+     - Maintained and used: recently modified, real users, a good run success rate.
+   - **Apify's limits apply:** 60 requests a second per resource by default (400 for dataset pushes), with a 429 retried after a back-off; concurrent runs and memory by the account's plan; a charge cap on every run.
+   - **Claude never starts a paid run itself.** Its choice is data. Every run goes through Chanlytics' runner, with the dispatch claim, reservations, leases and webhooks of E1–E4.
+   - **For the people building it, not the product:** Apify publishes an official Claude Code plugin (its MCP server, a routing agent, and skills including a lead-generation one). Sessions that scout or build cards use it, and a repo skill records how a card is vetted and written.
    - The product never names Apify or any actor: the owner sees Claude finding businesses.
+   - The scout's first job is a second Google Maps actor (`vortex_data/google-maps`), as the fallback card for when the first breaks.
 
 ## Appendix A: actors and Apify facts used
 
@@ -720,7 +729,7 @@ Each phase ships on its own and leaves nothing half-wired.
 | `junglee/Amazon-crawler` | Amazon listings and sellers (Phase 4) | $0.004/result; seller +$0.002; delivery location +$0.05 |
 | `apify/google-search-scraper` | brand to website (Phase 4) | $0.0025/page |
 
-Platform facts: ad-hoc webhooks are passed as a base64 JSON array in the run-start `webhooks` parameter, fire on `ACTOR.RUN.SUCCEEDED`, `FAILED`, `ABORTED` and `TIMED_OUT`, carry no signature (a secret in the URL or a headers template is the documented protection), time out after 2 minutes, retry with back-off up to 11 times over about 32 hours, and may arrive more than once. `maxTotalChargeUsd` caps a pay-per-event run. The API allows 60 requests a second per resource. Unnamed storage expires after 7 days.
+Platform facts: ad-hoc webhooks are passed as a base64 JSON array in the run-start `webhooks` parameter, fire on `ACTOR.RUN.SUCCEEDED`, `FAILED`, `ABORTED` and `TIMED_OUT`, carry no signature (a secret in the URL or a headers template is the documented protection), time out after 2 minutes, retry with back-off up to 11 times over about 32 hours, and may arrive more than once. `maxTotalChargeUsd` caps a pay-per-event run. The API allows 60 requests a second per resource by default (400 for dataset pushes) and answers 429 over it. New actors run with limited permissions (their own storages and what the input names); a full-permission actor needs a one-time approval in the console, even through the API. The Store is searchable through the API (`GET /v2/store`: search, category, pricing model, sort). Unnamed storage expires after 7 days.
 
 ## Appendix B: from an actor's item to a lead
 
@@ -763,3 +772,14 @@ Ten `compass/crawler-google-places` runs with `scrapeContacts: true` (no filters
 - **Timing:** 30–40 places with site emails took 108–160 seconds a run; the checker did 140 emails in 49 seconds.
 - **Shapes kept, values not.** Apify deletes these datasets about seven days after the runs. On 18 September the real keys and types of a Maps item and a checker item were read for free and written down (no values); the fixtures invent every value in that shape.
 - **Not measured:** the judge's accuracy. Before launch, Phase 1 labels a fresh sample by hand and scores the judge on it (one small run, about $0.50, Ruben's to approve); the calibration's own items will have expired. Also the tablet band (721–900px), specified here and not drawn.
+
+## Appendix D: one ask, end to end
+
+Ruben's example, 18 September: "find me a list of 100 hardware stores that are not big chains like Home Depot", within his city, New York City, near 10016.
+
+1. **Claude reads the ask and writes the plan as a sentence** the owner can change word by word: "Find **100 hardware stores** in **New York City**, nearest **10016** first, **with a phone**. Leaving out: **Home Depot**, **Lowe's**, **other chains**." It asks the one question the ask leaves open: "Ace and True Value stores are usually owned locally. Keep them?"
+2. **Claude picks the source** from the catalog (23): local businesses by kind and area, the Google Maps card. The owner never sees the choice.
+3. **The runner builds the search from the validated plan**, never from Claude's text: the term "hardware store"; a circle around 10016's center, widened in steps up to the city's edge until 100 qualify; contacts from each business's own site.
+4. **The probe.** The first 25 places are judged: a hardware store, a chain, inside the city, open? The question after 25 comes only if the search misses what the owner meant, say mostly paint stores and lumber yards.
+5. **Collect and top up, never pad.** Chains are left out by name and by Claude's read. A place Claude is unsure about, or one with no location, is Needs review. Only Qualified leads count toward the allowance.
+6. **What it costs us,** at Bronze prices: about $0.003 a place, $0.002 a place for contacts, Claude's judging and the mailbox checks. How many places it takes to reach 100 is an estimate from the probe, and the plan sentence says so.

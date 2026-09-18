@@ -19,7 +19,7 @@
 **House rules this plan keeps, everywhere** (from the owner's standing instructions; each task repeats the ones it touches):
 
 - **Never add a `readCode(`/`readRaw(` assertion.** `source-scan-ratchet.test.mjs` counts them per file; a count may only fall. Every new test here runs code: real functions, the route's `run`, the handler over `_fake-db.mjs`, the page on the stub React. Where an existing pin's *value* changes (the `PROPOSAL_GATE` literal at `ask.test.mjs:375`), the assertion is edited, not added.
-- **Migrations:** take the next free number and **re-list `supabase/migrations` immediately before pushing**; two sessions have taken the same number and the CLI skips the second silently (`migrations.test.mjs` now fails duplicates). Open PR #673 holds `00135` and Phase 0 (`docs/plans/2026-09-18-people-table.md`) takes `00136`, so 1a writes `00137` and 1b writes `00138`. **The production `db push` is Ruben's, never the agent's.** Every migration is re-runnable (`if not exists`, `create or replace`, `drop … if exists`).
+- **Migrations:** take the next free number and **re-list `supabase/migrations` immediately before pushing**; two sessions have taken the same number and the CLI skips the second silently (`migrations.test.mjs` now fails duplicates). #673's `00135` is in production (18 Sep) and Phase 0 (`docs/plans/2026-09-18-people-table.md`) takes `00136`, so 1a writes `00137` and 1b writes `00138`. **The agent runs each production `db push` (Ruben, 18 Sep):** once CI is green, from the PR's branch, a dry run that lists only that sub-plan's migration, then `db push --linked --yes` with the cached CLI 2.116.0, a read-back with `db query --linked`, then the merge. If the auto-mode classifier refuses, never reroute: hand Ruben the PowerShell one-liner. Every migration is re-runnable (`if not exists`, `create or replace`, `drop … if exists`).
 - **Widening a CHECK set** takes the migration, the contracts list and `schema-sets.generated.ts` (`corepack pnpm gen:schema-sets` with `supabase start`).
 - **Package dists are committed.** After any change under `packages/`, run `node tooling/scripts/check-dist.mjs` (it rebuilds all five), keep only dists with a real diff (`for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done`), commit them, and expect `dist in sync with src` only after the commit. tsup inlines workspace packages: a `core` change also changes `jobs/dist`.
 - **Tests import `packages/*/src/*.ts` directly** (as `jobs-ledger.test.mjs` does), so a red test is never a stale dist. Tests that import `@chanlytics/contracts` read the dist: rebuild it (`corepack pnpm --filter @chanlytics/contracts build`) before believing a red.
@@ -3063,7 +3063,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 ## Task 9 (1a): ship
 
 - [ ] **Step 1:** `git push -u origin feat/leads-data`, open the PR (title "A lead is not a person yet"), body ending with the attribution line `🤖 Generated with [Claude Code](https://claude.com/claude-code)`. The Database workflow proves `leads.db.test.mjs` and `tenancy.db.test.mjs` on a fresh local Supabase.
-- [ ] **Step 2: Hand the push to Ruben.** Before merge, re-list migrations on origin/main (`git -C . fetch origin; git ls-tree --name-only origin/main supabase/migrations/ | tail -3`); if `00137` was taken meanwhile, renumber, rerun Task 5 Step 2 and push again. Then Ruben runs, from his terminal: `supabase db push --linked` (the production push is his). Merge after CI is green and the push is done.
+- [ ] **Step 2: Push 00137 to production.** Before merge, re-list migrations on origin/main (`git -C . fetch origin; git ls-tree --name-only origin/main supabase/migrations/ | tail -3`); if `00137` was taken meanwhile, renumber, rerun Task 5 Step 2 and push again. Then push it as the header says: a dry run from this branch that lists only `00137`, `db push --linked --yes`, a read-back. Merge after CI is green and the push is done.
 
 ---
 
@@ -5754,7 +5754,7 @@ test("ACCEPTANCE: a search runs end to end on recorded-shape fixtures: probe, qu
 
 - [ ] **Step 1:** `apps/edge/.env.example` gains, beside `ANTHROPIC_API_KEY`: `# The lead finder's source (the provider's API token). Set by Ruben; the finder is off without it.` `APIFY_TOKEN=` and `# The lead judge's model, one of LEAD_JUDGE_MODELS in contracts; empty = claude-opus-5.` `LEAD_JUDGE_MODEL=`. `env-manifest.test.mjs` then passes.
 - [ ] **Step 2:** `node tooling/scripts/check-dist.mjs`, keep the real dist diffs, `corepack pnpm -r typecheck`, `corepack pnpm lint`, `corepack pnpm test` → green.
-- [ ] **Step 3:** Push, open the PR ("The lead finder runs: a probe, a question, a judge, a check, a clock"). Before merge: re-list migrations on origin/main and renumber `00138` if taken. **Ruben**, in order: sets `APIFY_TOKEN` on the edge project (`vercel env add APIFY_TOKEN production` from `apps/edge`), runs `supabase db push --linked`, and leaves `lead_platform.searches_on` off until 1d ships.
+- [ ] **Step 3:** Push, open the PR ("The lead finder runs: a probe, a question, a judge, a check, a clock"). Before merge: re-list migrations on origin/main and renumber `00138` if taken. **Ruben** sets `APIFY_TOKEN` on the edge project (`vercel env add APIFY_TOKEN production` from `apps/edge`); the agent pushes `00138` as the header says (dry run first); `lead_platform.searches_on` stays off until 1d ships.
 
 ---
 
@@ -5786,7 +5786,7 @@ test("ACCEPTANCE: a search runs end to end on recorded-shape fixtures: probe, qu
 
 ## Task 0 (1c): a worktree of its own
 
-- [ ] `git -C cm-leads fetch origin`, `git -C cm-leads worktree add ../cm-leads-routes -b feat/leads-routes origin/main`, install. Confirm 1a and 1b are on main (`00137` and `00138` present, `packages/core/src/leads` present). 1c writes no migration; if it ever needs one, take the next free number and re-check before pushing, and the production push is Ruben's.
+- [ ] `git -C cm-leads fetch origin`, `git -C cm-leads worktree add ../cm-leads-routes -b feat/leads-routes origin/main`, install. Confirm 1a and 1b are on main (`00137` and `00138` present, `packages/core/src/leads` present). 1c writes no migration; if it ever needs one, take the next free number and re-check before pushing, and the agent runs the production push, dry run first.
 
 ## Task 1 (1c): the permission, the gate, the spend words
 
