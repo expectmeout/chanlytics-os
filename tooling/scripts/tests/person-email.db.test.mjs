@@ -96,7 +96,7 @@ test("set_person_email: an acting member where the person lives, the stored spel
     assert.equal(mErr, null, mErr?.message);
     const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
     const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
-    if (sErr) { assert.ok(true, `no anon sign-in here: ${sErr.message}`); return; }
+    assert.equal(sErr, null, sErr?.message);
 
     const { id } = await person({ display_name: "Dee", phone_e164: "+15550100131" });
     await person({ display_name: "Eli", phone_e164: "+15550100132", email: "eli@example.com" });
