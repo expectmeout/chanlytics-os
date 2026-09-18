@@ -866,14 +866,21 @@ const PersonTimeline = ({ items, initials, filter = "all", onFilter = null, show
  * Its own `pick` state, so arming one ask never arms the other. An armed button
  * is drawn as armed (dashed), never as the answer on record: nothing is written
  * until the how is chosen, and `aria-pressed` follows the record alone.
+ *
+ * A spoken way is written the moment it is chosen. A written way first names its
+ * evidence (00137): "their own message" is one of the messages they sent, chosen
+ * from `messages` (contracts ownMessagesOf), and a sign-up form carries a note
+ * saying which form, or where they wrote when it was somewhere Chanlytics does
+ * not see.
  */
 // `yesSources` narrows the ways a YES may have been given, for the ask that has to
 // be written (offers); a no keeps every source, because a no is honoured however
 // it is said. `why` is the explanation a reader may want and never needs in the
 // way: one line behind a tap. `lockedNote` is appended when the ask is locked; the
 // page passes null and says the role once for the whole rail.
-const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, why = null, onRecord, testid, lockedNote = "Only an owner or operator can change this." }) => {
-  const [st, setSt] = useStateP({ busy: false, error: null, pick: null });
+const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint, why = null, onRecord, testid, lockedNote = "Only an owner or operator can change this.", messages = [] }) => {
+  // `way` is a written way waiting for its evidence: the message, or the form's note.
+  const [st, setSt] = useStateP({ busy: false, error: null, pick: null, way: null, note: "" });
   const pick = (state) => {
     if (state === "unknown") {
       // "Not asked" is a reset and needs no source, so it is written straight
@@ -881,15 +888,22 @@ const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint
       if (value !== "unknown") record("unknown", null);
       return;
     }
-    setSt((c) => ({ ...c, pick: c.pick === state ? null : state, error: null }));
+    setSt((c) => ({ ...c, pick: c.pick === state ? null : state, way: null, note: "", error: null }));
   };
-  const record = async (consent, source) => {
+  const record = async (consent, source, evidence = null) => {
     if (st.busy) return;
-    setSt({ busy: true, error: null, pick: null });
-    const r = await onRecord(consent, source);
-    if (!r || !r.ok) { setSt({ busy: false, error: (r && r.message) || "Could not record this.", pick: null }); return; }
-    setSt({ busy: false, error: null, pick: null });
+    setSt({ busy: true, error: null, pick: null, way: null, note: "" });
+    const r = await onRecord(consent, source, evidence);
+    if (!r || !r.ok) { setSt({ busy: false, error: (r && r.message) || "Could not record this.", pick: null, way: null, note: "" }); return; }
+    setSt({ busy: false, error: null, pick: null, way: null, note: "" });
   };
+  const choose = (source) => {
+    if (source === "customer_message" || source === "form") { setSt((c) => ({ ...c, way: source, error: null })); return; }
+    record(st.pick, source);
+  };
+  const note = st.note.trim();
+  const recordForm = () => { if (note) record(st.pick, "form", { note }); };
+  const close = () => setSt({ busy: false, error: null, pick: null, way: null, note: "" });
   return (
     <div className="cl-prof-rail-section" data-testid={testid}>
       <div className="cl-prof-rail-label">{label}</div>
@@ -909,13 +923,60 @@ const ConsentAsk = ({ label, value, sources, yesSources, yesHow, canRecord, hint
       </div>
       {st.pick && (
         <div className="cl-prof-how" data-testid={`${testid}-how`}>
-          <div className="cl-prof-aut-hint">{st.pick === "opted_in" && yesHow ? yesHow : "How did they tell you?"}</div>
-          <div className="cl-prof-how-chips">
-            {(st.pick === "opted_in" && yesSources ? yesSources : sources).map((so) => (
-              <button key={so.id} type="button" className="cl-prof-how-chip" disabled={st.busy} onClick={() => record(st.pick, so.id)}>{so.label}</button>
-            ))}
-            <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={() => setSt({ busy: false, error: null, pick: null })}>Cancel</button>
-          </div>
+          {st.way === "customer_message" ? (
+            <>
+              <div className="cl-prof-aut-hint">Which message? Choose the one where they said it.</div>
+              {messages.length > 0 ? (
+                <div className="cl-prof-msgs" role="group" aria-label="Their messages">
+                  {messages.map((m) => (
+                    <button key={m.id} type="button" className="cl-prof-msg" disabled={st.busy} onClick={() => record(st.pick, "customer_message", { message_id: m.id })} data-testid={`${testid}-message`}>
+                      <span className="cl-prof-msg-words">“{m.words}”</span>
+                      <span className="cl-prof-msg-meta">{m.via ? `${m.via} · ` : ""}{m.when}</span>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <div className="cl-prof-aut-hint">Nothing they've written to you is here to choose.</div>
+              )}
+              <div className="cl-prof-aut-hint" data-testid={`${testid}-elsewhere`}>
+                Wrote to you somewhere Chanlytics doesn't see?{" "}
+                <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={() => setSt((c) => ({ ...c, way: "form", error: null }))}>Record a sign-up form</button>
+                {" "}and say where in the note.
+              </div>
+              <div className="cl-prof-how-chips">
+                <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={close}>Cancel</button>
+              </div>
+            </>
+          ) : st.way === "form" ? (
+            <>
+              <div className="cl-prof-aut-hint">Which form, or where did they write to you? The note is kept with their answer.</div>
+              <div className="cl-prof-note">
+                <input
+                  autoFocus
+                  value={st.note}
+                  maxLength={200}
+                  placeholder="Slip 12, or on Instagram"
+                  aria-label="Which form, or where they wrote to you"
+                  disabled={st.busy}
+                  data-testid={`${testid}-note`}
+                  onChange={(e) => setSt((c) => ({ ...c, note: e.target.value }))}
+                  onKeyDown={(e) => { if (e.key === "Enter") recordForm(); if (e.key === "Escape") close(); }}
+                />
+                <button type="button" className="btn btn-sm btn-primary" disabled={st.busy || !note} onClick={recordForm} data-testid={`${testid}-note-save`}>Record</button>
+                <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={close}>Cancel</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="cl-prof-aut-hint">{st.pick === "opted_in" && yesHow ? yesHow : "How did they tell you?"}</div>
+              <div className="cl-prof-how-chips">
+                {(st.pick === "opted_in" && yesSources ? yesSources : sources).map((so) => (
+                  <button key={so.id} type="button" className="cl-prof-how-chip" disabled={st.busy} onClick={() => choose(so.id)}>{so.label}</button>
+                ))}
+                <button type="button" className="cl-bucket-link" disabled={st.busy} onClick={close}>Cancel</button>
+              </div>
+            </>
+          )}
         </div>
       )}
       <div className="cl-prof-aut-hint">
@@ -1038,11 +1099,12 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
   const ws = (window.__WORKSPACES || []).find((w) => w.id === window.__ACTIVE_WORKSPACE) || null;
   const askScript = typeof window.__verbalOptInScript === "function" ? window.__verbalOptInScript((ws && ws.name) || "") : null;
   // One recorder per door. Both reload the person afterwards rather than assuming,
-  // because the lists and the Consent column are computed from the row.
-  const recordFor = (purpose) => async (consent, source) => {
+  // because the lists and the Consent column are computed from the row. A written
+  // way carries its evidence: the message they sent, or the form's note.
+  const recordFor = (purpose) => async (consent, source, evidence) => {
     const send = purpose === "marketing" ? window.__setPersonMarketingConsent : window.__setPersonConsent;
     if (!send) return { ok: false, message: "That cannot be recorded here." };
-    const r = await send(p.id, source ? { consent, source } : { consent });
+    const r = await send(p.id, source ? { consent, source, ...evidence } : { consent });
     if (!r.ok) return r;
     ppFlash({
       msg: purpose === "marketing"
@@ -1257,6 +1319,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           yesHow={askScript ? `How did they tell you? In person or on the phone, ask in these words: “${askScript}”` : undefined}
           canRecord={canRecord}
           lockedNote={null}
+          messages={p.ownMessages}
           onRecord={recordFor("conversational")}
           hint={
             p.consent.state === "opted_in"
@@ -1277,6 +1340,7 @@ const ClientProfileReal = ({ id, onBack = () => {} }) => {
           yesHow="How did they give it in writing? A spoken yes is not enough for offers."
           canRecord={canRecord && p.consent.state !== "opted_out"}
           lockedNote={null}
+          messages={p.ownMessages}
           onRecord={recordFor("marketing")}
           hint={
             p.consent.state === "opted_out"

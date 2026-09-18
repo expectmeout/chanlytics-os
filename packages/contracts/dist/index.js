@@ -3793,6 +3793,22 @@ function offersYesRefusal(source) {
   if (source && OFFERS_YES_SOURCES.includes(source)) return null;
   return "A yes to offers has to be in writing: a sign-up form they signed, or their own message. A spoken yes covers messages about their visit, not offers.";
 }
+var OWN_MESSAGE_REFUSALS = {
+  /** Their own message, with no message named. */
+  missing: "Choose the message where they said it. If they wrote to you somewhere Chanlytics doesn't see, record a sign-up form and say where in the note.",
+  /** The message named is not one this person sent this workspace. */
+  notTheirs: "That isn't a message this person sent you. Choose one of theirs.",
+  /** The message named has nothing written in it. */
+  wordless: "That message has no words in it to show their answer. Choose the one where they said it.",
+  /** A message named beside another way of answering. */
+  notOwnMessage: "Only an answer in their own message names a message.",
+  /** Their own message, for many people at once: one message cannot be every person's. */
+  batch: "Their own message is recorded one person at a time, on their page, where you choose the message. For signed slips, choose Sign-up form."
+};
+function ownMessageRefusal(source, messageId) {
+  if (source === "customer_message") return messageId ? null : OWN_MESSAGE_REFUSALS.missing;
+  return messageId ? OWN_MESSAGE_REFUSALS.notOwnMessage : null;
+}
 function consentSourceLabel(source) {
   if (!source) return null;
   const known = CONSENT_SOURCES.find((s) => s.id === source);
@@ -4088,7 +4104,7 @@ function consentChangeWords(c) {
   const text = c.consent === "opted_in" ? offers ? "Said yes to offers and news" : "Said yes to messages about their visit" : c.consent === "opted_out" ? offers ? "Said no to offers" : "Said stop \u2014 nothing goes out to them" : offers ? "Offers: back to not asked" : "Back to not asked";
   let sub;
   if (c.source === "customer_message") {
-    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : "in their own message";
+    const where = c.channel === "sms" ? "by text" : c.channel === "whatsapp" ? "on WhatsApp" : c.channel === "email" ? "by email" : "in their own message";
     sub = `In their own words ${where}${c.words ? `: \u201C${c.words}\u201D` : ""}`;
   } else if (c.source === CONSENT_RESET_SOURCE || !c.source) {
     sub = "Reset by staff";
@@ -4096,6 +4112,31 @@ function consentChangeWords(c) {
     sub = `${consentSourceLabel(c.source) ?? c.source}, recorded by staff${c.note ? ` \xB7 ${c.note}` : ""}`;
   }
   return { who: offers ? "Offers" : "Consent", text, sub };
+}
+var OWN_MESSAGE_CHOICES = 10;
+var EVIDENCE_WORDS = 80;
+function ownMessagesOf(d, stamp) {
+  const found = [];
+  for (const c of d.conversations) {
+    for (const m of c.messages) {
+      if (m.direction !== "inbound" || m.sender !== "customer" || m.channel === "voice" || m.channel === "system") continue;
+      const said = [m.body, m.media?.caption].map((s) => (s ?? "").replace(/\s+/g, " ").trim()).find(Boolean);
+      const t = ts(messageAt(m));
+      if (!said || t === null) continue;
+      const chars = Array.from(said);
+      const at2 = stamp(t);
+      found.push({
+        t,
+        vm: {
+          id: m.id,
+          words: chars.length > EVIDENCE_WORDS ? `${chars.slice(0, EVIDENCE_WORDS).join("")}\u2026` : said,
+          via: PERSON_CHANNEL_WORDS[m.channel] ?? "",
+          when: `${at2.day}, ${at2.time}`
+        }
+      });
+    }
+  }
+  return found.sort((a, b) => b.t - a.t).slice(0, OWN_MESSAGE_CHOICES).map((f) => f.vm);
 }
 var DECISION_LABELS = {
   take_over: { who: "Took over", text: "You paused the receptionist on this thread" },
@@ -4336,7 +4377,8 @@ function toPersonVM(d, tz, now = /* @__PURE__ */ new Date()) {
     receptionistMode: {
       person: asPersonMode(d.receptionist_mode),
       workspace: d.workspace_reply_mode === "veto" ? "auto" : asPersonMode(d.workspace_reply_mode)
-    }
+    },
+    ownMessages: ownMessagesOf(d, stamp)
   };
 }
 
@@ -10068,6 +10110,7 @@ export {
   OPT_OUT_PATTERN,
   OPT_OUT_REFUSAL,
   OUTCOME_UNKNOWN,
+  OWN_MESSAGE_REFUSALS,
   PARAM_SOURCES,
   PARAM_SOURCE_LABELS,
   PASSWORD_MAX_BYTES,
@@ -10425,6 +10468,7 @@ export {
   optInPurposeOf,
   overLimitRefusal,
   ownAddressesOf,
+  ownMessageRefusal,
   pageTitle,
   paramLabel,
   parseAskFinish,

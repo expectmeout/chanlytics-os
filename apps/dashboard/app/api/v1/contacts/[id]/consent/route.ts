@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES } from "@chanlytics/contracts";
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, ownMessageRefusal } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
 
@@ -7,10 +7,11 @@ const Body = z.object({
   consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
   source: z.string().optional(),
   note: z.string().optional(),
+  message_id: z.string().uuid({ message: "Choose one of their messages." }).optional(),
 });
 
 /**
- * PUT /api/v1/contacts/:id/consent — { consent, source?, note? }
+ * PUT /api/v1/contacts/:id/consent — { consent, source?, note?, message_id? }
  *
  * The customer's CONVERSATIONAL answer -- messages about their own visit, and a
  * reply when they write -- recorded by the person who heard it. Not offers: those
@@ -22,6 +23,11 @@ const Body = z.object({
  * answer is usually given. The door is one definer function that writes the
  * three consent columns together and keeps the event; the ledger row here says
  * who recorded it and how.
+ *
+ * "In their own message" names the message (00137): `message_id`, one they
+ * sent. The door judges it -- theirs, inbound, with words in it -- and copies
+ * its words into the evidence, since only the database can see the message.
+ * Asking here first hands the owner the same sentence without a round trip.
  *
  * The contact is the row (contactScope in verbs.ts): read under RLS, so one
  * the caller cannot see is a 404 rather than a leak, and the role is decided
@@ -39,6 +45,9 @@ export const PUT = write({
     if (typeof source !== "string" || (consent !== "unknown" && !CONSENT_SOURCES.some((s) => s.id === source))) {
       throw new AppError("validation", "Say how they told you: in person, on the phone, on a form, or in their own message.");
     }
+    const messageId = body.message_id ?? null;
+    const ownMessage = ownMessageRefusal(source, messageId);
+    if (ownMessage) throw new AppError("validation", ownMessage);
     const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
 
     const { data, error: doorErr } = await ctx.supabase.rpc("set_contact_consent", {
@@ -46,12 +55,14 @@ export const PUT = write({
       p_consent: consent,
       p_source: source,
       ...(note ? { p_note: note } : {}),
+      ...(messageId ? { p_message_id: messageId } : {}),
     });
     if (doorErr) throw new AppError("validation", doorErr.message);
     const r = (data ?? {}) as { previous?: string | null; updated_at?: string | null; dnc?: boolean };
 
     const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
       consent, source, note, previous: r.previous ?? null,
+      ...(messageId ? { message_id: messageId } : {}),
     });
     return { contact_id: id, consent, dnc: !!r.dnc, source, updated_at: r.updated_at ?? null, decision_id: decisionId };
   },

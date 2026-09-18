@@ -206,7 +206,7 @@ The order is the contract: a viewer is refused before a token is spent, so is a 
 |---|---|---|
 | `create_workspace` | a signed-in person | Workspace and owner membership in one transaction, recorded where it is made (00104); at most ten per account |
 | `provision_tenant` (trigger on insert) | automatic | Seeds the policy matrix, `tenant_config` and the billing row |
-| `set_contact_consent`, `set_marketing_consent` | operators and owners; the edge | The two consent answers, with an event that keeps the evidence — the channel, the provider's message id and the words of a texted answer (00110, S-14) |
+| `set_contact_consent`, `set_marketing_consent` | operators and owners; the edge | The two consent answers, with an event that keeps the evidence — the channel, the provider's message id and the words of a texted answer (00110, S-14). A member recording an answer "in their own message" names the inbound message, and the door reads its evidence itself (00137) |
 | `create_person`, `set_person_name`, `set_person_notes`, `set_person_email`, `set_person_reply_mode` | operators and owners | People added and described by hand, their email address among it (00125: one per workspace, stored trimmed and lower-cased, cleared by a trigger when the person is erased, remembered afterwards only as a keyed digest); the receptionist's mode for one person, and for fifty at a time |
 | `set_template_hidden`, `set_template_title` | operators and owners | How a template appears in the composers |
 | `line_forwarding_set`, `line_forwarding_test` | owners | Keep-your-number rows (S-07) |
@@ -726,6 +726,8 @@ Since 00095 each person carries two consent answers, because the carriers requir
 | Marketing | `marketing_consent` | YES OFFERS or SÍ OFERTAS from their own phone; a person recording a signed form (`set_marketing_consent`) — **a yes to offers is written or it is not recorded** (00100) | Promotional templates and campaigns, by WhatsApp only |
 
 **Consent as evidence and as history** (00110): a texted answer keeps its message — the channel, the provider's id and the words — on the event that records it; a person's page shows every change to either answer, with who recorded it and how; a bulk yes is one request for fifty. An erased row holds no answer (00101).
+
+**Their own message is one they sent** (00137, Ruben's decision of 18 Sep 2026): at the desk, "in their own message" names the inbound message it was given in, chosen on the person's page from what they wrote. Each door refuses a member's answer that names none, and a message that is not an inbound one from that person in that workspace or has no words. It copies the message's id, wire, provider id and words into the event, and a member can no longer hand in evidence of their own. An answer given somewhere Chanlytics does not see is a sign-up form, with a note saying where; the desk asks for that note wherever a form is recorded. A batch never names a message, so it cannot record "their own message". The edge's texted answer is unchanged.
 
 One predicate decides: `mayMessageFor(contact, purpose, { proactive })`. A template's purpose comes from Meta's category (`purposeOfTemplate`, which fails closed to marketing when the category is unknown); a playbook's comes from its class. It is asked at the inbound gate, in the reply route, in the `outbound_send` job (the last gate, failing closed), at broadcast enrolment and again at every send, in playbook eligibility, and before the voice booking link.
 

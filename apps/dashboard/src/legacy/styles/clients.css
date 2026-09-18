@@ -1524,6 +1524,44 @@
 }
 .cl-prof-how-chip:hover { border-color: var(--ink-faint); }
 .cl-prof-how-chip:disabled { opacity: 0.5; cursor: default; }
+.cl-prof-how > .cl-prof-aut-hint + .cl-prof-aut-hint { margin-top: 4px; }
+/* Their own message: what they wrote, each one a choice, newest first (00137). */
+.cl-prof-msgs { display: flex; flex-direction: column; gap: 4px; margin: 6px 0; }
+.cl-prof-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  padding: 6px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  background: var(--bg-raised);
+  color: var(--ink);
+  cursor: pointer;
+}
+.cl-prof-msg:hover { border-color: var(--ink-faint); }
+.cl-prof-msg:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.cl-prof-msg:disabled { opacity: 0.5; cursor: default; }
+.cl-prof-msg-words { font-size: 12px; line-height: 1.35; overflow-wrap: anywhere; }
+.cl-prof-msg-meta { font-size: 10.5px; color: var(--ink-dim); }
+/* A sign-up form's note: which form, or where they wrote. */
+.cl-prof-note { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.cl-prof-note input {
+  flex: 1 1 160px;
+  min-width: 0;
+  font: inherit;
+  font-size: 12px;
+  color: var(--ink);
+  background: var(--bg);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-sm);
+  padding: 5px 8px;
+  outline: none;
+}
+.cl-prof-note input:focus { border-color: var(--accent); }
+@media (pointer: coarse) { .cl-prof-msg { padding: 10px 12px; } .cl-prof-note input { padding: 9px 10px; } }
 /* The explanation a reader may want and never needs in the way. */
 .cl-prof-why { margin-top: 6px; }
 .cl-prof-why > summary { display: inline-flex; align-items: center; gap: 4px; list-style: none; font-size: 11px; color: var(--ink-muted); cursor: pointer; }

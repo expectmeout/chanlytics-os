@@ -615,3 +615,133 @@ test("a person with an address and no number or name is called by the address ev
   assert.equal(contracts.contactMeta({ contact: { ...conv.contact, display_name: "Ana Reyes" } }), "WhatsApp · ana@example.com", "REGRESSION: 'no phone' under a person who has an address");
   assert.equal(contracts.contactMeta({ contact: { ...conv.contact, display_name: "Ana Reyes", email: null } }), "WhatsApp · no phone");
 });
+
+/* ------------------------------- their own message (00137) ------------------------------- */
+
+/** A profile whose two consent doors are recorders that answer yes, in a real workspace whichever test ran first. */
+const profileRecording = async (vm) => {
+  globalThis.window.__PEOPLE ??= { saved: [], savedRead: true };
+  const sent = [];
+  const saved = { visit: globalThis.window.__setPersonConsent, offers: globalThis.window.__setPersonMarketingConsent };
+  globalThis.window.__setPersonConsent = async (id, body) => { sent.push(["visit", id, body]); return { ok: true, data: {} }; };
+  globalThis.window.__setPersonMarketingConsent = async (id, body) => { sent.push(["offers", id, body]); return { ok: true, data: {} }; };
+  const draw = await profile(vm);
+  const restore = () => { globalThis.window.__setPersonConsent = saved.visit; globalThis.window.__setPersonMarketingConsent = saved.offers; };
+  return { draw, sent, restore };
+};
+const said = (id, hoursAgo, body, over = {}) => ({ id, conversation_id: "cv1", direction: "inbound", sender: "customer", channel: "whatsapp", type: "text", body, media: null, meta: null, status: "received", created_at: iso(hoursAgo * H), ...over });
+const reply = (id, hoursAgo, body) => said(id, hoursAgo, body, { direction: "outbound", sender: "ai", status: "sent" });
+const withMessages = (messages) => { const d = detail(); return toPersonVM({ ...d, conversations: [{ ...d.conversations[0], messages }] }, ZONE, new Date(NOW)); };
+const segment = (tree, ask, word) => find(byTestId(tree, ask), (n) => n.type === "button" && textOf(n).trim() === word);
+const way = (tree, ask, word) => find(byTestId(tree, `${ask}-how`), (n) => n.type === "button" && textOf(n).trim() === word);
+
+test("their own message is chosen from what they wrote: the way opens their recent messages, and the one pressed is the one recorded", async () => {
+  const vm = withMessages([said("m1", 5, "Can I move Saturday to 11?"), reply("m2", 4, "Sure, 11 works."), said("m3", 1, "And yes, send me your offers", { channel: "sms" })]);
+  const { draw, sent, restore } = await profileRecording(vm);
+  try {
+    let tree = draw();
+    press(segment(tree, "consent-marketing", "Yes"));
+    tree = draw();
+    press(way(tree, "consent-marketing", "Their own message"));
+    tree = draw();
+    assert.deepEqual(sent, [], "choosing the way writes nothing");
+    const how = byTestId(tree, "consent-marketing-how");
+    assert.match(textOf(how), /Which message\? Choose the one where they said it\./);
+    const choices = all(how, (n) => n.props?.["data-testid"] === "consent-marketing-message");
+    assert.deepEqual(vm.ownMessages.map((m) => m.id), ["m3", "m1"], "what they wrote, newest first; not the reply");
+    assert.equal(choices.length, 2);
+    vm.ownMessages.forEach((m, i) => {
+      for (const part of [m.words, m.via, m.when]) assert.ok(textOf(choices[i]).includes(part), `choice ${i} says ${part}: ${textOf(choices[i])}`);
+      assert.equal(choices[i].type, "button", "a choice is pressed, not read");
+    });
+    press(choices[0]);
+    await settle();
+    assert.deepEqual(sent, [["offers", "p1", { consent: "opted_in", source: "customer_message", message_id: "m3" }]], "the message pressed is the message named");
+    assert.equal(byTestId(draw(), "consent-marketing-how"), null, "the ask closes once it lands");
+  } finally { restore(); }
+});
+
+test("an answer given somewhere Chanlytics does not see: the picker says to record a sign-up form with a note, and one press opens it", async () => {
+  const { draw, sent, restore } = await profileRecording(withMessages([said("m1", 2, "Hi there")]));
+  try {
+    let tree = draw();
+    press(segment(tree, "consent-control", "Yes"));
+    tree = draw();
+    press(way(tree, "consent-control", "Their own message"));
+    tree = draw();
+    const elsewhere = byTestId(tree, "consent-control-elsewhere");
+    assert.match(textOf(elsewhere), /somewhere Chanlytics doesn't see/);
+    assert.match(textOf(elsewhere), /Record a sign-up form/);
+    assert.match(textOf(elsewhere), /say where in the note/);
+    press(find(elsewhere, (n) => n.type === "button"));
+    tree = draw();
+    assert.ok(byTestId(tree, "consent-control-note"), "the form's note, one press away");
+    assert.equal(all(tree, (n) => n.props?.["data-testid"] === "consent-control-message").length, 0, "the messages give way to it");
+    assert.deepEqual(sent, [], "and nothing was recorded on the way");
+  } finally { restore(); }
+});
+
+test("a person who has written nothing here is offered no message, and is told the way that remains", async () => {
+  const vm = withMessages([reply("m2", 4, "Sure, 11 works."), said("m4", 3, null, { type: "media", media: { mime_type: "image/jpeg" } })]);
+  assert.deepEqual(vm.ownMessages, [], "a reply is ours, and a photo with nothing written on it has no words to show");
+  const { draw, restore } = await profileRecording(vm);
+  try {
+    let tree = draw();
+    press(segment(tree, "consent-marketing", "Yes"));
+    tree = draw();
+    press(way(tree, "consent-marketing", "Their own message"));
+    tree = draw();
+    const how = byTestId(tree, "consent-marketing-how");
+    assert.equal(all(how, (n) => n.props?.["data-testid"] === "consent-marketing-message").length, 0);
+    assert.match(textOf(how), /Nothing they've written to you is here to choose\./);
+    assert.ok(byTestId(tree, "consent-marketing-elsewhere"), "and the way that remains");
+  } finally { restore(); }
+});
+
+test("a sign-up form is recorded with the note that attests it: nothing is sent until the note says which form, or where", async () => {
+  const { draw, sent, restore } = await profileRecording(withMessages([said("m1", 2, "Hi there")]));
+  try {
+    let tree = draw();
+    press(segment(tree, "consent-marketing", "Yes"));
+    tree = draw();
+    press(way(tree, "consent-marketing", "Sign-up form"));
+    tree = draw();
+    assert.deepEqual(sent, [], "REGRESSION: a form was recorded the moment its chip was pressed, with nothing to say which");
+    const note = byTestId(tree, "consent-marketing-note");
+    assert.ok(note, "the form asks for its note");
+    assert.equal(note.props.maxLength, 200, "as long as the door keeps");
+    assert.equal(byTestId(tree, "consent-marketing-note-save").props.disabled, true, "and will not record without one");
+    type(note, "   ");
+    tree = draw();
+    assert.equal(byTestId(tree, "consent-marketing-note-save").props.disabled, true, "spaces say nothing");
+    type(byTestId(tree, "consent-marketing-note"), "  Slip 12, signed at the desk ");
+    tree = draw();
+    press(byTestId(tree, "consent-marketing-note-save"));
+    await settle();
+    assert.deepEqual(sent, [["offers", "p1", { consent: "opted_in", source: "form", note: "Slip 12, signed at the desk" }]]);
+
+    // A no on a form, by Enter: the same note, the same door.
+    tree = draw();
+    press(segment(tree, "consent-control", "No"));
+    tree = draw();
+    press(way(tree, "consent-control", "Sign-up form"));
+    tree = draw();
+    type(byTestId(tree, "consent-control-note"), "Opt-out slip");
+    tree = draw();
+    byTestId(tree, "consent-control-note").props.onKeyDown({ key: "Enter", preventDefault() {} });
+    await settle();
+    assert.deepEqual(sent.at(-1), ["visit", "p1", { consent: "opted_out", source: "form", note: "Opt-out slip" }]);
+  } finally { restore(); }
+});
+
+test("the spoken ways still record at once, with the source and nothing else", async () => {
+  const { draw, sent, restore } = await profileRecording(withMessages([said("m1", 2, "Hi there")]));
+  try {
+    let tree = draw();
+    press(segment(tree, "consent-control", "Yes"));
+    tree = draw();
+    press(way(tree, "consent-control", "In person"));
+    await settle();
+    assert.deepEqual(sent, [["visit", "p1", { consent: "opted_in", source: "in_person" }]]);
+  } finally { restore(); }
+});

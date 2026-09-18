@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, offersYesRefusal } from "@chanlytics/contracts";
+import { AppError, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, offersYesRefusal, ownMessageRefusal } from "@chanlytics/contracts";
 import { write } from "@/server/route";
 import { contactScope, recordDecision } from "@/server/verbs";
 
@@ -7,10 +7,11 @@ const Body = z.object({
   consent: z.enum(CONSENT_STATES as unknown as [string, ...string[]], { message: "Consent must be one of: opted_in, opted_out, unknown." }),
   source: z.string().optional(),
   note: z.string().optional(),
+  message_id: z.string().uuid({ message: "Choose one of their messages." }).optional(),
 });
 
 /**
- * PUT /api/v1/contacts/:id/marketing-consent — { consent, source?, note? }
+ * PUT /api/v1/contacts/:id/marketing-consent — { consent, source?, note?, message_id? }
  *
  * THE SECOND DOOR, and the reason this file exists. Migration 00095 split
  * consent into two answers and wrote `set_marketing_consent` for "ONE function,
@@ -34,6 +35,10 @@ const Body = z.object({
  * The RPC takes the tenant explicitly (it is also called with no session, by the
  * edge), so the tenant passed here is the one the contact was READ from under
  * RLS, never one from the request body.
+ *
+ * "In their own message" names the message (00137), as at its sibling: the
+ * door judges `message_id` and reads the words itself. The route hands in no
+ * evidence of its own -- a session that did would be writing the proof.
  */
 export const PUT = write({
   scope: contactScope,
@@ -55,6 +60,9 @@ export const PUT = write({
       const refusal = offersYesRefusal(source);
       if (refusal) throw new AppError("validation", refusal);
     }
+    const messageId = body.message_id ?? null;
+    const ownMessage = ownMessageRefusal(source, messageId);
+    if (ownMessage) throw new AppError("validation", ownMessage);
     const note = typeof body?.note === "string" && body.note.trim() ? body.note.trim().slice(0, 200) : null;
 
     const { data, error: doorErr } = await ctx.supabase.rpc("set_marketing_consent", {
@@ -63,6 +71,7 @@ export const PUT = write({
       p_consent: consent,
       p_source: source,
       ...(note ? { p_note: note } : {}),
+      ...(messageId ? { p_message_id: messageId } : {}),
     });
     if (doorErr) throw new AppError("validation", doorErr.message);
     const r = (data ?? {}) as { marketing_consent?: string | null; marketing_consent_updated_at?: string | null };
@@ -71,6 +80,7 @@ export const PUT = write({
     // query over `events` answers "what has this person agreed to, and when".
     const decisionId = await recordDecision(ctx, contact.tenant_id, "contact", id, "consent_change", {
       purpose: "marketing", consent, source, note, previous: contact.marketing_consent ?? null,
+      ...(messageId ? { message_id: messageId } : {}),
     });
     return {
       contact_id: id,
