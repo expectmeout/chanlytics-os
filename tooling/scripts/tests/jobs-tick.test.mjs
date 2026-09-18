@@ -23,7 +23,7 @@ const OPTS = { claimForMs: 20_000, yieldAtMs: 45_000, leaseSeconds: 90 };
 function fakes(jobs, o = {}) {
   const queue = [...jobs];
   const trail = [];
-  const calls = { claim: [], dispatch: [], complete: [], fail: [], settle: [], alert: [], log: [] };
+  const calls = { claim: [], dispatch: [], complete: [], fail: [], defer: [], settle: [], alert: [], log: [] };
   const has = (set, id) => (set ?? new Set()).has(id);
   let reading = 0;
   const ports = {
@@ -47,6 +47,11 @@ function fakes(jobs, o = {}) {
     fail: async (j, reason) => {
       calls.fail.push([j.id, reason]);
       return !has(o.failLost, j.id);
+    },
+    defer: async (j, untilIso, reason) => {
+      calls.defer.push([j.id, untilIso, reason]);
+      if (has(o.deferThrows, j.id)) throw new Error("connection reset");
+      return !has(o.deferLost, j.id);
     },
     settle: async (j, certain) => {
       calls.settle.push([j.id, certain]);
@@ -73,7 +78,7 @@ test("every due job runs once, in order, and is recorded done; the tick ends whe
   assert.deepEqual(calls.dispatch.map(([id]) => id), ["a", "b", "c"]);
   assert.deepEqual(calls.complete, ["a", "b", "c"]);
   assert.deepEqual(calls.claim, [90, 90, 90, 90], "each claim carries the lease; the fourth finds nothing");
-  assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0 });
+  assert.deepEqual(counts, { claimed: 3, done: 3, failed: 0, gaveUp: 0, deferred: 0 });
 });
 
 test("a job is claimed only when it is about to run", async () => {
@@ -99,7 +104,56 @@ test("a handler that throws is failed, settled as an unknown outcome and reporte
   assert.equal(calls.alert[0].subject, "A outbound_send job failed");
   assert.match(calls.alert[0].body, /boom b/);
   assert.match(calls.alert[0].body, /marked failed, so it is no longer shown as on its way/, "and what became of the message");
-  assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0 });
+  assert.deepEqual(counts, { claimed: 3, done: 2, failed: 1, gaveUp: 0, deferred: 0 });
+  assert.deepEqual(calls.defer, [], "a send is never kept to be tried again: a second try could reach a person twice");
+});
+
+/* ------------------------------------------------- an intake is tried again */
+
+const MIN = 60_000;
+const at = (ms) => new Date(ms).toISOString();
+
+test("an email intake that throws is kept and tried again later, not failed: its lease is put off, and nothing is settled or told", async () => {
+  // 18 Sep 2026: the deployment's key could send but not read, so the fetch
+  // was refused with 401, the job was failed for good, and the email was lost.
+  const { ports, calls, logged } = fakes([job("i", "email_ingest", 1), job("j", "email_ingest", 2)], { throwOn: new Set(["i", "j"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.defer, [["i", at(5 * MIN), "boom i"], ["j", at(30 * MIN), "boom j"]], "five minutes after the first try, thirty after the second, with why kept on the row");
+  assert.deepEqual([calls.fail, calls.settle, calls.alert], [[], [], []], "not failed, so nothing to settle and nobody to tell yet");
+  assert.ok(logged("warn", "job_deferred"));
+  assert.deepEqual(counts, { claimed: 2, done: 0, failed: 0, gaveUp: 0, deferred: 2 });
+});
+
+test("the last try of an intake fails it for good and tells the owner how many tries it took", async () => {
+  const { ports, calls } = fakes([job("i", "email_ingest", MAX_ATTEMPTS)], { throwOn: new Set(["i"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.defer, []);
+  assert.deepEqual(calls.fail, [["i", "boom i"]]);
+  assert.deepEqual(calls.settle, [["i", false]], "settled as a failure is: the mailbox says so, and the thread is held");
+  assert.match(calls.alert[0].body, new RegExp(`failed after ${MAX_ATTEMPTS} tries and will not retry on its own`));
+  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 1, gaveUp: 0, deferred: 0 });
+});
+
+test("an intake that could not be kept is not failed either: the claim's own lease brings it back", async () => {
+  // A write that failed leaves the claim's ninety-second lease on the row, and
+  // a run that lost the row to another has nothing of its own to fail.
+  for (const o of [{ deferThrows: new Set(["i"]) }, { deferLost: new Set(["i"]) }]) {
+    const { ports, calls, logged } = fakes([job("i", "email_ingest", 1)], { throwOn: new Set(["i"]), ...o });
+    const counts = await runTick(ports, OPTS);
+    assert.equal(calls.defer.length, 1);
+    assert.deepEqual([calls.fail, calls.settle, calls.alert], [[], [], []]);
+    assert.ok(o.deferThrows ? logged("error", "job_defer_write_failed") : logged("warn", "job_defer_lost_race"));
+    assert.equal(counts.deferred, 1);
+  }
+});
+
+test("internal work not written to be run again still fails on its first throw", async () => {
+  const { ports, calls } = fakes([job("a", "blob_thread_erase", 1), job("b", "line_provision", 1)], { throwOn: new Set(["a", "b"]) });
+  const counts = await runTick(ports, OPTS);
+  assert.deepEqual(calls.defer, []);
+  assert.deepEqual(calls.fail.map(([id]) => id), ["a", "b"]);
+  assert.match(calls.alert[0].body, /\(blob_thread_erase\) failed and will not retry on its own/, "a first try says no count");
+  assert.equal(counts.failed, 2);
 });
 
 test("a kind no runner knows is failed as never run, and never recorded done", async () => {
@@ -163,7 +217,7 @@ test("a completion that could not be written is not reported as the job failing"
   assert.deepEqual(calls.fail, []);
   assert.deepEqual(calls.alert, []);
   assert.ok(logged("error", "job_complete_write_failed"));
-  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 0, gaveUp: 0 });
+  assert.deepEqual(counts, { claimed: 1, done: 0, failed: 0, gaveUp: 0, deferred: 0 });
 });
 
 test("a failure another run already recorded is not settled or announced twice", async () => {

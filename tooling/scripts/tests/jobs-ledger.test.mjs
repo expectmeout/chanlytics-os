@@ -7,9 +7,10 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { fakeDb } from "./_fake-db.mjs";
 import {
-  verdictFor, claimNext, completeJob, failJob,
-  CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS, MAX_ATTEMPTS, MAX_RESUMES, SPEAKS_TO_A_PERSON,
+  verdictFor, retryWait, claimNext, completeJob, failJob, deferJob,
+  CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS, MAX_ATTEMPTS, MAX_RESUMES, SPEAKS_TO_A_PERSON, RETRY_WAITS_MS,
 } from "../../../packages/jobs/src/ledger.ts";
+import { JOB_KINDS } from "../../../packages/contracts/src/enums.ts";
 import { settleJob, saySettled } from "../../../packages/jobs/src/settle.ts";
 
 const TENANT = "11111111-1111-1111-1111-111111111111";
@@ -33,6 +34,35 @@ test("internal work is tried again up to the cap, then given up", () => {
   assert.equal(verdictFor({ kind: "blob_thread_erase", attempts: 2 }), "run");
   assert.equal(verdictFor({ kind: "blob_thread_erase", attempts: MAX_ATTEMPTS }), "run");
   assert.equal(verdictFor({ kind: "blob_thread_erase", attempts: MAX_ATTEMPTS + 1 }), "give_up");
+});
+
+test("an intake that threw waits five minutes, then thirty, and its last try is not waited on", () => {
+  assert.equal(retryWait({ kind: "email_ingest", attempts: 1 }), 5 * 60_000);
+  assert.equal(retryWait({ kind: "email_ingest", attempts: 2 }), 30 * 60_000);
+  assert.equal(retryWait({ kind: "email_ingest", attempts: MAX_ATTEMPTS }), null, "the last try fails the row and tells the owner");
+  for (const kind of ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision"]) {
+    assert.equal(retryWait({ kind, attempts: 1 }), null, `${kind} fails on its first throw`);
+  }
+});
+
+test("only a declared kind that speaks to nobody is tried again after a throw, and every wait it names is reached", () => {
+  for (const [kind, waits] of Object.entries(RETRY_WAITS_MS)) {
+    assert.ok(JOB_KINDS.includes(kind), `${kind} is a kind the ledger holds`);
+    assert.ok(!SPEAKS_TO_A_PERSON.has(kind), `${kind}: a second try could reach a real person twice`);
+    assert.ok(waits.length <= MAX_ATTEMPTS - 1, `${kind}: a wait past the last try is never reached`);
+    assert.ok(waits.every((w) => w > LEASE_SECONDS * 1000), `${kind}: a wait no longer than a lease is not a wait`);
+  }
+});
+
+test("a job kept to be tried again keeps its claim and why, on the claim that ran it", async () => {
+  const jobs = [{ id: "j1", state: "fired", attempts: 1, lease_until: "2026-01-01T00:01:30Z", last_error: null }];
+  const db = fakeDb({ jobs });
+  assert.equal(await deferJob(db, { id: "j1", attempts: 2 }, "2026-01-01T00:05:00Z", "late"), false, "a run that no longer holds the row cannot put it off");
+  assert.equal(jobs[0].lease_until, "2026-01-01T00:01:30Z");
+  assert.equal(await deferJob(db, { id: "j1", attempts: 1 }, "2026-01-01T00:05:00Z", "x".repeat(900)), true);
+  assert.deepEqual([jobs[0].state, jobs[0].lease_until, jobs[0].last_error.length], ["fired", "2026-01-01T00:05:00Z", 500], "still fired, claimed again when the lease ends, why bounded");
+  jobs[0].state = "failed";
+  assert.equal(await deferJob(db, { id: "j1", attempts: 1 }, "2026-01-01T00:35:00Z", "late"), false, "a failed row is never brought back");
 });
 
 test("the timings nest: claiming stops, then handlers yield, then a lease runs out", () => {

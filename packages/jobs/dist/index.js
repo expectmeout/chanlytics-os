@@ -11914,6 +11914,13 @@ function verdictFor(job) {
   if (SPEAKS_TO_A_PERSON.has(job.kind)) return "give_up";
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
+var RETRY_WAITS_MS = {
+  email_ingest: [5 * 6e4, 30 * 6e4]
+};
+function retryWait(job) {
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
+  return RETRY_WAITS_MS[job.kind]?.[job.attempts - 1] ?? null;
+}
 async function claimNext(db, leaseSeconds) {
   const { data, error } = await db.rpc("claim_due_jobs", { p_limit: 1, p_lease_seconds: leaseSeconds });
   if (error) throw new Error(`claim_due_jobs: ${error.message}`);
@@ -11928,6 +11935,11 @@ async function completeJob(db, job) {
 async function failJob(db, job, reason) {
   const { data, error } = await db.from("jobs").update({ state: "failed", last_error: reason.slice(0, 500), lease_until: null }).eq("id", job.id).eq("state", "fired").eq("attempts", job.attempts).select("id");
   if (error) throw new Error(`fail_job: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+async function deferJob(db, job, untilIso, reason) {
+  const { data, error } = await db.from("jobs").update({ lease_until: untilIso, last_error: reason.slice(0, 500) }).eq("id", job.id).eq("state", "fired").eq("attempts", job.attempts).select("id");
+  if (error) throw new Error(`defer_job: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
 
@@ -12036,7 +12048,7 @@ var errText = (e2) => e2 instanceof Error ? e2.message : String(e2);
 async function runTick(ports, opts) {
   const started = ports.now();
   const deadline = started + opts.yieldAtMs;
-  const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0 };
+  const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
   while (ports.now() - started < opts.claimForMs) {
     const job = await ports.claim(opts.leaseSeconds);
     if (!job) break;
@@ -12058,13 +12070,28 @@ async function runTick(ports, opts) {
       outcome = await ports.dispatch(job, deadline);
     } catch (e2) {
       const msg = errText(e2);
+      const wait = retryWait(job);
+      if (wait !== null) {
+        const untilIso = new Date(ports.now() + wait).toISOString();
+        try {
+          if (await ports.defer(job, untilIso, msg)) {
+            ports.log.warn("job_deferred", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, until: untilIso, error: msg });
+          } else {
+            ports.log.warn("job_defer_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+          }
+        } catch (d) {
+          ports.log.error("job_defer_write_failed", { job_id: job.id, kind: job.kind, error: errText(d) });
+        }
+        c2.deferred += 1;
+        continue;
+      }
       await conclude(
         ports,
         job,
         msg,
         false,
         `A ${job.kind} job failed`,
-        `Job ${job.id} (${job.kind}) failed and will not retry on its own.
+        `Job ${job.id} (${job.kind}) failed${job.attempts > 1 ? ` after ${job.attempts} tries` : ""} and will not retry on its own.
 
 ${msg}`
       );
@@ -12130,15 +12157,18 @@ export {
   LEASE_SECONDS,
   MAX_ATTEMPTS,
   MAX_RESUMES,
+  RETRY_WAITS_MS,
   RUN_INTERRUPTED,
   SPEAKS_TO_A_PERSON,
   YIELD_AT_MS,
   cancelJobsFor,
   claimNext,
   completeJob,
+  deferJob,
   dispatchJob,
   failJob,
   incomingEmailOf,
+  retryWait,
   runTick,
   saySettled,
   scheduleJob,

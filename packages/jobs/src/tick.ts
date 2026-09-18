@@ -14,7 +14,7 @@
  * at a time keeps "claimed" meaning "started", which is the fact verdictFor
  * stands on.
  */
-import { verdictFor, RUN_INTERRUPTED, type LedgerRow } from "./ledger";
+import { verdictFor, retryWait, RUN_INTERRUPTED, type LedgerRow } from "./ledger";
 import { saySettled, type Settled } from "./settle";
 
 export type TickFields = Record<string, string | number | boolean | null | undefined>;
@@ -32,6 +32,8 @@ export interface TickPorts {
   dispatch(job: LedgerRow, deadline: number): Promise<"done" | "unknown_kind">;
   complete(job: LedgerRow): Promise<boolean>;
   fail(job: LedgerRow, reason: string): Promise<boolean>;
+  /** Keep a job that threw, to be claimed again once `untilIso` passes (ledger deferJob). False when this run no longer holds it. */
+  defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
   /** Never throws: a write that failed comes back as a row with its error. */
   settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
   alert(job: LedgerRow, subject: string, body: string): Promise<void>;
@@ -52,6 +54,8 @@ export interface TickCounts {
   done: number;
   failed: number;
   gaveUp: number;
+  /** Threw, and kept to be tried again later (ledger RETRY_WAITS_MS). */
+  deferred: number;
 }
 
 const errText = (e: unknown): string => (e instanceof Error ? e.message : String(e));
@@ -59,7 +63,7 @@ const errText = (e: unknown): string => (e instanceof Error ? e.message : String
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
   const started = ports.now();
   const deadline = started + opts.yieldAtMs;
-  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0 };
+  const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
 
   while (ports.now() - started < opts.claimForMs) {
     // Only the claim may throw out of here. A ledger that cannot be claimed
@@ -84,8 +88,27 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
       outcome = await ports.dispatch(job, deadline);
     } catch (e) {
       const msg = errText(e);
+      // A kind written to be run again is kept and tried again later, rather
+      // than failed for good on its first throw (ledger RETRY_WAITS_MS). The
+      // last try falls through to the failure below, and is told as one.
+      const wait = retryWait(job);
+      if (wait !== null) {
+        const untilIso = new Date(ports.now() + wait).toISOString();
+        try {
+          if (await ports.defer(job, untilIso, msg)) {
+            ports.log.warn("job_deferred", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, until: untilIso, error: msg });
+          } else {
+            ports.log.warn("job_defer_lost_race", { job_id: job.id, kind: job.kind, attempts: job.attempts });
+          }
+        } catch (d) {
+          // Not failed either: the claim's own lease still brings the row back, sooner.
+          ports.log.error("job_defer_write_failed", { job_id: job.id, kind: job.kind, error: errText(d) });
+        }
+        c.deferred += 1;
+        continue;
+      }
       await conclude(ports, job, msg, false, `A ${job.kind} job failed`,
-        `Job ${job.id} (${job.kind}) failed and will not retry on its own.\n\n${msg}`);
+        `Job ${job.id} (${job.kind}) failed${job.attempts > 1 ? ` after ${job.attempts} tries` : ""} and will not retry on its own.\n\n${msg}`);
       c.failed += 1;
       continue;
     }

@@ -24,7 +24,7 @@ import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
 import { provisionLineJob } from "../../lib/line-provision-job.js";
 import {
-  runTick, claimNext, completeJob, failJob, settleJob, dispatchJob, scheduleJob,
+  runTick, claimNext, completeJob, failJob, deferJob, settleJob, dispatchJob, scheduleJob,
   CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS,
 } from "../../lib/workspace/jobs.js";
 
@@ -96,6 +96,7 @@ export async function POST(request: Request): Promise<Response> {
         },
         complete: (job) => completeJob(db, job),
         fail: (job, reason) => failJob(db, job, reason),
+        defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
         settle: (job, certain) => settleJob(db, job, certain),
         alert: (job, subject, body) => alertFor(db, job)(subject, body),
         log: L,

@@ -1499,7 +1499,8 @@ declare function sendEmail(cfg: ResendConfig, request: EmailRequest): Promise<Se
  * One received email, by the id its webhook named. `null` is the provider
  * saying it has no such email (404): a fact, and the intake ends. Anything
  * else that is not an email THROWS, because "we could not ask" is not "it is
- * gone": the job fails and the ledger tries again.
+ * gone": the ledger keeps the job and tries it again later (packages/jobs
+ * RETRY_WAITS_MS), and fails it only when the last try throws too.
  */
 declare function fetchReceivedEmail(cfg: ResendConfig, receivedId: string): Promise<ReceivedEmail | null>;
 /**

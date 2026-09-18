@@ -2,12 +2,14 @@
  * The jobs ledger: the rules a row moves by, and the writes that move it.
  *
  *   scheduled --claim_due_jobs--> fired --completeJob--> done
- *       |                           \-----failJob------> failed
+ *       |                         |  ^  \-----failJob------> failed
+ *       |                         \--/ deferJob: kept, and claimed again later
  *       \--------cancelJob---------> canceled
  *
  * `claim_due_jobs` (00098) is the only way into 'fired', and it also takes back
- * a 'fired' row whose lease ran out: the run that held it never reported back.
- * Whether that second claim RUNS the job or GIVES UP on it is `verdictFor`, and
+ * a 'fired' row whose lease ran out: the run that held it never reported back,
+ * or a run that threw put its lease off (`deferJob`) to be tried again then.
+ * Whether that later claim RUNS the job or GIVES UP on it is `verdictFor`, and
  * it is pure. `jobs_guard` (00098) refuses every other transition inside the
  * database, so no writer here has to remember the machine.
  */
@@ -84,6 +86,39 @@ export function verdictFor(job: { kind: string; attempts: number }): Verdict {
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
 
+/**
+ * Kinds tried again after they THROW, and how long each wait is.
+ *
+ * A job that throws is failed at once (tick.ts), and failed is final
+ * (jobs_guard). email_ingest is written to be run again: its message is
+ * recorded under the provider's id and marked handled last, so "the next try
+ * finishes it" (core ingestEmail). But nothing tried again, and its own index
+ * (00127) refuses a second row for the same email, so a webhook replay could
+ * not bring one back either: an intake that threw once lost the email. It
+ * happened on email's first day live (18 Sep 2026), to an email that arrived
+ * while the deployment's key could send but not read (401 restricted_api_key).
+ * The key was replaced sixteen minutes later.
+ *
+ * The wait is the LEASE. The row stays 'fired' with its lease put off, and
+ * claim_due_jobs takes it back when the lease ends, as it takes back a run that
+ * died (jobs_guard keeps a row fired, and never lets it go back to scheduled).
+ * So every try is a claim, MAX_ATTEMPTS bounds them all, and the last one still
+ * fails the row and tells the owner: five minutes, then thirty, covers a
+ * provider's bad minute and a key replaced within the half hour.
+ *
+ * Only internal work that is safe to repeat belongs here. Work that speaks to a
+ * person never does.
+ */
+export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
+  email_ingest: [5 * 60_000, 30 * 60_000],
+};
+
+/** How long a job that just threw waits before it is tried again; null when it is failed now. */
+export function retryWait(job: { kind: string; attempts: number }): number | null {
+  if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;
+  return RETRY_WAITS_MS[job.kind]?.[job.attempts - 1] ?? null;
+}
+
 /** The next due job, claimed for this run; null when nothing is due. */
 export async function claimNext(db: Db, leaseSeconds: number): Promise<LedgerRow | null> {
   const { data, error } = await db.rpc("claim_due_jobs", { p_limit: 1, p_lease_seconds: leaseSeconds });
@@ -118,5 +153,22 @@ export async function failJob(db: Db, job: { id: string; attempts: number }, rea
     .eq("attempts", job.attempts)
     .select("id");
   if (error) throw new Error(`fail_job: ${error.message}`);
+  return (data?.length ?? 0) > 0;
+}
+
+/**
+ * Keep a job that threw, to be claimed again once `untilIso` passes
+ * (retryWait): its lease is put off and why is kept on the row. The same
+ * compare-and-swap as the exits, so false means this run no longer holds it.
+ */
+export async function deferJob(db: Db, job: { id: string; attempts: number }, untilIso: string, reason: string): Promise<boolean> {
+  const { data, error } = await db
+    .from("jobs")
+    .update({ lease_until: untilIso, last_error: reason.slice(0, 500) })
+    .eq("id", job.id)
+    .eq("state", "fired")
+    .eq("attempts", job.attempts)
+    .select("id");
+  if (error) throw new Error(`defer_job: ${error.message}`);
   return (data?.length ?? 0) > 0;
 }
