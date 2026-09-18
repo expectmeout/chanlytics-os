@@ -320,6 +320,32 @@ test("right now: escalation → paused-for-you with a deep link; queued, owned, 
   assert.equal(bare({}).tone, "answering");
 });
 
+test("REGRESSION: right now says a thread the owner answered is theirs, as the Receptionist fact beside it does, for every flag a row carries", () => {
+  // Found live on 18 Sep 2026: the owner answered an email. The reply claimed
+  // the thread (an assignee, a day's pause) and its state stayed needs_human,
+  // so the card said "Needs you · Stopped, and nobody has taken the thread
+  // yet" while the Receptionist fact said a person owns it.
+  const vmOf = (over) => toPersonVM(detail({ row: row(over), escalations: [], decisions: [] }), ZONE, NOW);
+  const answered = vmOf({ needs_human: true, latest_state: "needs_human", latest_assignee_user_id: "u1", latest_paused_until: iso(-23 * H), last_message_direction: "outbound", last_message_sender: "human" });
+  assert.equal(answered.rightNow.tone, "paused");
+  assert.doesNotMatch(answered.rightNow.detail, /nobody has taken/);
+
+  // Both read one row; the card is receptionistOf's answer in more words.
+  let n = 0;
+  for (const assignee of [null, "u1"]) for (const paused of [null, iso(-H)]) for (const reason of [null, "human_token"])
+    for (const nh of [false, true]) for (const queued of [null, iso(5 * S)]) for (const snoozed of [false, true]) for (const [consent, dnc] of [["unknown", false], ["opted_out", false], ["unknown", true]]) {
+      const over = {
+        latest_assignee_user_id: assignee, latest_paused_until: paused,
+        open_escalation_reason: reason, open_escalation_since: reason ? iso(H) : null,
+        needs_human: nh, latest_state: snoozed ? "snoozed" : nh ? "needs_human" : "open", latest_snooze_until: snoozed ? iso(-18 * H) : null,
+        queued_reply_at: queued, consent, dnc,
+      };
+      assert.equal(vmOf(over).rightNow.tone, toPersonRowVM(row(over), ZONE, NOW).receptionist.tone, JSON.stringify(over));
+      n++;
+    }
+  assert.equal(n, 192, "every combination was drawn");
+});
+
 test("the profile's facts, about rail and thread link are measured, and a phone-only person has no thread to open", () => {
   const vm = toPersonVM(detail(), ZONE, NOW);
   assert.deepEqual(vm.facts.map((f) => f.label), ["First contact", "Last contact", "Conversations", "Calls", "Receptionist"]);

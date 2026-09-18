@@ -1295,7 +1295,14 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
   const openThread = threadTo ? { label: "Open the thread", to: threadTo } : null;
   const r = row;
   let rightNow: PersonRightNow;
-  if (r.open_escalation_reason) {
+  // A thread a person owns is theirs, whatever flagged it: receptionistOf's
+  // order, so this card and the Receptionist fact cannot disagree. It asked
+  // needs_human first, and an owner who had just answered an email -- a reply
+  // claims the thread, and its state stays needs_human until handed back --
+  // read "Needs you · Stopped, and nobody has taken the thread yet".
+  if (isOwned(r, nowMs)) {
+    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
+  } else if (r.open_escalation_reason) {
     const since = r.open_escalation_since ? shortTime(r.open_escalation_since, tz, now) : null;
     rightNow = {
       tone: "escalated",
@@ -1310,8 +1317,6 @@ export function toPersonVM(d: PersonDetailDto, tz: string, now = new Date()): Pe
     rightNow = { tone: "queued", title: "Reply sending", detail: `A reply is queued${q !== null ? `, ${ago(q, tz, nowMs)}` : ""} — it can still be stopped from the Inbox.`, cta: openThread };
   } else if (base.receptionist.tone === "snoozed") {
     rightNow = { tone: "snoozed", title: "Snoozed", detail: `Wakes ${shortTime(r.latest_snooze_until ?? null, tz, now)}.`, cta: openThread };
-  } else if (isOwned(r, nowMs)) {
-    rightNow = { tone: "paused", title: "Paused, a person owns this thread", detail: "A person owns this thread; automatic replies resume when it is handed back.", cta: openThread };
   } else if (base.consent.state === "opted_out") {
     // The consent ask on the rail carries the date and the words; here, only what it means for the thread.
     rightNow = { tone: "silent", title: "Silent, they opted out", detail: "They said stop — nothing goes out to them until they ask again.", cta: null };
