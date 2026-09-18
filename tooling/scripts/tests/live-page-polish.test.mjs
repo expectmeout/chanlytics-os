@@ -35,5 +35,7 @@ test("while a call is live the page re-reads every 8 s beside the realtime chann
   assert.ok(verbs.includes("export async function refreshLive(): Promise<void> {"));
   assert.ok(verbs.includes("await refreshSurfaces([liveOverride]);"));
   assert.ok(verbs.includes("window.__refreshLive = refreshLive;"));
-  assert.ok(page.includes("whisper it a line if you need to"), "the header says the control exists");
+  // The page's sub-headline used to announce the whisper; the page has no sub-headline now (the work first), and
+  // the box names itself where it sits, directly under the transcript.
+  assert.ok(page.includes("Whisper to the receptionist"), "the control says what it is where it is");
 });

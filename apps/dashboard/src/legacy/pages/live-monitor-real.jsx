@@ -1,4 +1,4 @@
-/* global React, Icon, StatStrip, StatCell, Confirm, EmptyState, FailedRead */
+/* global React, Icon, StatePill, Confirm, EmptyState, FailedRead */
 // Chanlytics — Live, on a real workspace.
 //
 // The mockup's console (live-monitor.jsx) promised Live Listen, Take Over and
@@ -38,9 +38,19 @@ const LrPill = ({ c }) => {
   return <StatePill kind="call" value={value} title={c.stale ? "Marked live by the phone provider, but silent past the heartbeat. Checked within five minutes." : null} />;
 };
 
-// A row takes the keyboard: Tab reaches it, Enter or Space opens it, and the arrows open and focus the call
-// beside it, across both tables (`order` is every call's id as the list draws them). It took a click and
-// nothing else. The avatar is the caller's own initials; it was a "P" on every row.
+// The last thing the caller said, for the row's second line: what the call is about, in their words.
+const lrLastSaid = (c) => {
+  const said = [...(c.transcript || [])].reverse().find((t) => t.speaker === "client" && t.text);
+  return said ? said.text : null;
+};
+
+// A call in progress, drawn the way the Inbox draws a conversation -- Live is a view of the same door
+// (#655), and it was a table: When · Length · From, 400px wide, so pressing Live moved the list's edge
+// and changed its language. The same 32px avatar with the caller's initials, the name and the running
+// clock on the first line, what they last said on the second, the pill on the third.
+//
+// A row takes the keyboard: it is a button, so Tab reaches it; Enter or Space opens it, and the arrows
+// open and focus the call beside it (`order` is every row's id as the list draws them).
 const LrRow = ({ c, active, elapsed, onSelect, order = [] }) => {
   const onKey = (e) => {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(c.callId); return; }
@@ -54,26 +64,31 @@ const LrRow = ({ c, active, elapsed, onSelect, order = [] }) => {
     const row = list ? list.querySelector(`[data-call-id="${next}"]`) : null;
     if (row) row.focus();
   };
+  const said = lrLastSaid(c);
   return (
-    <tr
-      className={active ? "active" : ""}
+    <button
+      type="button"
+      className={`lm-row ${active ? "active" : ""}`}
       onClick={() => onSelect(c.callId)}
       onKeyDown={onKey}
-      tabIndex={0}
       aria-current={active ? "true" : undefined}
       data-call-id={c.callId}
-      data-testid={c.live ? "live-row" : "recent-row"}
+      data-testid="live-row"
     >
-      <td className="num dim">{c.startedLabel}</td>
-      <td className="num">{c.live ? lrClock(elapsed) : (c.duration || "—")}</td>
-      <td>
-        <span className="lm-from">
-          <span className="agent-avatar" style={{ width: 16, height: 16, fontSize: 8.5 }}>{c.initials}</span>
-          {c.who}
+      <span className="lm-row-dot" aria-hidden="true">{c.live && !c.checking && <span className="live-dot" />}</span>
+      <span className="lm-row-avatar">{c.initials}</span>
+      <span className="lm-row-body">
+        <span className="lm-row-line1">
+          <span className="lm-row-who">{c.who}</span>
+          <span className="lm-row-clock tabular">{lrClock(elapsed)}</span>
         </span>
-      </td>
-      <td className="shrink"><LrPill c={c} /></td>
-    </tr>
+        <span className={`lm-row-said ${said ? "" : "is-waiting"}`}>{said ? <>&ldquo;{said}&rdquo;</> : "The receptionist has picked up"}</span>
+        <span className="lm-row-foot">
+          <LrPill c={c} />
+          <span className="lm-row-since">since {c.startedLabel}</span>
+        </span>
+      </span>
+    </button>
   );
 };
 
@@ -89,8 +104,12 @@ const LrLineNote = ({ line, lineRead = true }) => {
   );
 };
 
-const LrList = ({ live, recent, line, lineRead = true, activeId, elapsedOf, onSelect }) => {
-  const order = [...live, ...recent].map((c) => c.callId);
+// The list is who is on the phone right now, and nothing else. It also drew a "Recent" table of the
+// last calls -- the same calls Conversations › Calls lists with their transcripts and recordings, as
+// this list's own footer said. With nobody on the line it says what the line is doing and opens those.
+// A finished call still opens here from a door that names it (the bar, Today): the panel shows it.
+const LrList = ({ live, line, lineRead = true, activeId, elapsedOf, onSelect }) => {
+  const order = live.map((c) => c.callId);
   return (
     <aside className="lm-list">
       <div className="lm-list-head">
@@ -98,30 +117,16 @@ const LrList = ({ live, recent, line, lineRead = true, activeId, elapsedOf, onSe
         <span className="lm-list-count tabular">{live.length} {live.length === 1 ? "call" : "calls"}</span>
       </div>
       {live.length ? (
-        <table className="tbl lm-tbl">
-          <thead><tr><th>Started</th><th>Elapsed</th><th>From</th><th></th></tr></thead>
-          <tbody>
-            {live.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={elapsedOf(c)} onSelect={onSelect} order={order} />)}
-          </tbody>
-        </table>
+        <div className="lm-rows">
+          {live.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={elapsedOf(c)} onSelect={onSelect} order={order} />)}
+        </div>
       ) : (
         <LrLineNote line={line} lineRead={lineRead} />
       )}
-      <div className="lm-list-head lm-section-head">
-        <span className="lm-list-label">Recent</span>
-        <span className="lm-list-count tabular">{recent.length ? `last ${recent.length}` : "none yet"}</span>
-      </div>
-      {recent.length > 0 && (
-        <table className="tbl lm-tbl">
-          <thead><tr><th>When</th><th>Length</th><th>From</th><th></th></tr></thead>
-          <tbody>
-            {recent.map((c) => <LrRow key={c.callId} c={c} active={activeId === c.callId} elapsed={0} onSelect={onSelect} order={order} />)}
-          </tbody>
-        </table>
-      )}
-      <div className="lm-list-foot">
-        Every call is also a row in <button className="lm-link" onClick={() => window.CHANLY.nav("conversations/phone")}>Conversations</button>, with its transcript and recording.
-      </div>
+      <button type="button" className="lm-list-door" onClick={() => window.CHANLY.nav("conversations/phone")} data-testid="live-to-calls">
+        <span>Every call, with its transcript and recording, is in <b>Conversations &rsaquo; Calls</b></span>
+        <Icon name="arrow-right" size={12} />
+      </button>
     </aside>
   );
 };
@@ -535,33 +540,19 @@ const LiveMonitorReal = ({ initialCallId = null }) => {
   const line = L.line;
   const notice = initialCallId && activeId === initialCallId && !all.some((c) => c.callId === initialCallId)
     ? {
-        words: `That call isn't among the ${all.length} shown here — it may have ended a while ago.`,
+        words: "That call has ended, and Live no longer holds it.",
         open: () => window.CHANLY.nav(`conversations/cv-${initialCallId}`),
       }
     : null;
 
+  // No title, no sub-headline, no stat cards: the work first, like the Inbox and Conversations beside it
+  // under the same strip. The three cards each said something the page says once anyway -- how many
+  // are on the line (the list's head), whether the line is on (the list, when nobody is), and the last
+  // call (the panel, which opens on it when nobody is on the line).
   return (
     <div className="live-monitor" data-testid="live-real">
-      <div className="cl-head">
-        <div className="cl-head-titles">
-          <div className="cl-page-title">Live</div>
-          <div className="cl-page-sub">
-            Calls on your line as they happen. The receptionist answers; you follow the words, whisper it a line if you need to, and read the summary the moment a call ends.
-          </div>
-        </div>
-        <StatStrip className="cl-head-stats">
-          <StatCell label="On the line now" value={live.length} meta={live[0] ? `since ${live[0].startedLabel}` : "all quiet"} />
-          <StatCell
-            label="Your line"
-            value={line && line.number ? line.number : "—"}
-            meta={line ? (line.on ? "on — the receptionist picks up" : "switched off") : L.lineRead === false ? "couldn't read the line" : "no phone line yet"}
-          />
-          <StatCell label="Last call" value={recent[0] ? recent[0].startedLabel : "—"} meta={recent[0] ? recent[0].who : "none yet"} />
-        </StatStrip>
-      </div>
-
-      <div className="lm-body">
-        <LrList live={live} recent={recent} line={line} lineRead={L.lineRead !== false} activeId={active ? active.callId : null} elapsedOf={elapsedOf} onSelect={setActiveId} />
+      <div className="lm-body lm-body-rows">
+        <LrList live={live} line={line} lineRead={L.lineRead !== false} activeId={active ? active.callId : null} elapsedOf={elapsedOf} onSelect={setActiveId} />
         <LrPanel c={active} elapsed={active ? elapsedOf(active) : 0} nowMs={nowMs} notice={notice} />
       </div>
     </div>
