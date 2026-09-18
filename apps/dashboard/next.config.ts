@@ -72,6 +72,19 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  async redirects() {
+    return [
+      // A workspace's public pages move with its slug; a carrier filing does not.
+      // RJ Capital LLC's A2P registration was filed while this workspace was
+      // "billing-probe" and names /yes/billing-probe as its website. The workspace
+      // became "chanlytics" before launch, that address went 404, and the campaign
+      // was refused on it (30891, 18 Sep 2026: "unverifiable website"). Re-filing an
+      // approved brand re-vets it, so the old address answers instead — both
+      // prefixes, and every page beneath them (form, sign, terms).
+      { source: "/yes/billing-probe/:path*", destination: "/yes/chanlytics/:path*", permanent: true },
+      { source: "/b/billing-probe/:path*", destination: "/b/chanlytics/:path*", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;
