@@ -13,6 +13,15 @@ Ruben agreed to every recommendation in the PRD's section 16 (1–17) and to the
 3. **Product-wide, older than this feature:** when the conversation is in Chanlytics, recording a yes "in their own message" at the desk requires picking the actual inbound message; its id and words go into the evidence. "Form" stays for paper slips, attested with a note. (Today `set_marketing_consent`, 00110, and the desk route `apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts` accept `customer_message` from any operator without the message.)
 4. **Settled 18 Sep:** Claude reviewed the terms at Ruben's request (`2026-09-18-lead-finder-source-rights.md`), and Ruben accepted the risk and kept the Google Maps actor through Apify as the default (PRD decision 22). The original decision read: **a counsel review of Google Maps' terms gates the first paying workspace**: the scraping, what is stored and for how long, what is shown, exported and sent to a model. `lead_platform.searches_on` ships off; the first production search is Ruben's flip (PRD decision 13).
 
+5. **PRD decisions 23–29, approved the same day:**
+   - 23: Claude chooses the source from proven recipe cards.
+   - 24: build the engine first.
+   - 25: a lead is a place.
+   - 26: code decides qualification from Claude's per-criterion reads, with the owner's words setting how sure each must be.
+   - 27: a monthly searching budget.
+   - 28: unapproved cards never run for owners.
+   - 29: the G2 bar.
+
 ## Accepted: engineering (the Phase 1 plan)
 
 | ID | Finding, as verified | The change |
@@ -27,7 +36,7 @@ Ruben agreed to every recommendation in the PRD's section 16 (1–17) and to the
 | E8 (R10) | The Leads surface (~6877): each refresh re-reads page one and drops loaded pages (People fixed this with `everyPerson`); a slow read for an old view can publish under a newer one; `leadsMore` appends after a view change. | Reads keyed by the view (workspace, search, list, chips, sort); superseded answers ignored; refresh patches changed rows and keeps loaded pages, selection and cursor; new results are offered ("12 new"), never re-sorted under the owner. |
 | E9 (R04, R12) | `lead_restore` (~2297) takes "previous" values from the browser and deletes opt-out suppressions on its word; search Undo (~2109) deletes untouched leads and returns their allowance, and export or copy do not count as touched. | Undo is a server-side operation record (before and after, who, when); the client sends only its id and the version it saw; a later change by anyone, or a recipient's opt-out, is never overwritten. Exported or copied leads (recorded when it happens) keep their charge. Undo, removing from a list, erasure and a credit adjustment stay four different operations. |
 | E10 | The checker is configured `build: "latest"` (~314). `emailWhy` says "the only one on their site" whatever the count. The probe searches only `terms[0]` (`mapsRunInput`, ~342). | Pin the checker's build and check it weekly like the Maps build. Copy says what is true ("a personal inbox; 2 others on their site"). The probe spreads its 25 places across every term. |
-| E11 | Phase 0's RLS test (`2026-09-18-people-table.md`, ~231-232) passes when sign-in fails (`assert.ok(true); return`). | It fails, with the sign-in error, whenever the database is there. |
+| E11 | Phase 0's RLS test (`2026-09-18-people-table.md`, ~231-232) passes when sign-in fails (`assert.ok(true); return`). | It fails, with the sign-in error, whenever the database is there, as `activations.db.test.mjs` already does. Written into the plan on 18 Sep, with the same fix for the two older tests that carry the tolerant line. |
 
 ## Accepted: product and honesty (PRD, canvas)
 
@@ -109,14 +118,14 @@ Ruben pasted a second external review the same day. It read the PRD page (v2.5) 
 ### Not adopted
 
 1. **An explicit "remember this" step after Not a fit.** The chip is already visible, scoped to the kind of business, removable and undoable (P5), and learning moves to Release C anyway.
-2. **Reducing People's refresh walk now.** Pages hold 1,000 rows, so every workspace today re-reads one page per change. Phase 0 logs the walk's row count; it now logs the walk's duration too, and the log decides.
+2. **Reducing People's refresh walk now.** Pages hold 1,000 rows, so every workspace today re-reads one page per change. The dashboard's request logs already show every walk (its `GET contacts` pages), so measuring needs no new code. Revisit when a workspace nears 1,000 people or the logs show walks piling up.
 3. **Fewer default columns.** Columns are per member from Phase 0, and the canvas set was reviewed. Only Distance is added.
 
-A third reading the same day accepted the six decisions and these three answers, and tightened 25, 26, 27 and 29. S2, S3, S10, S17, S18 and P5 above carry its changes.
+A third reading the same day accepted the six decisions and these three answers, and tightened 25, 26, 27 and 29. S2, S3, S10, S17, S18 and P5 above carry its changes. Ruben approved 23–29 the same day.
 
 ## The split into sessions
 
-- **A · Docs v3.** Fold this brief (both reviews, S1–S18 and decisions 24–29 included) into the PRD (v3), the Phase 1 plan (sub-plans 1a–1d) and the Phase 0 plan's test step (E11); update the canvas copy (P1–P3: the Needs review list, Seen versus Claude's read, the corrected summary and Searches copy); write decision 23's source catalog (cards, the scout, the guardrails) into the PRD and the Phase 1 plan; republish the PRD page and the canvas; open one docs PR carrying every plan document.
+- **A · Docs v3.** Fold this brief (both reviews, S1–S18 and decisions 24–29 included) into the PRD (v3), the Phase 1 plan (sub-plans 1a–1d) (the Phase 0 plan's test step, E11, was fixed on 18 Sep); update the canvas copy (P1–P3: the Needs review list, Seen versus Claude's read, the corrected summary and Searches copy); write decision 23's source catalog (cards, the scout, the guardrails) into the PRD and the Phase 1 plan; republish the PRD page and the canvas; open one docs PR carrying every plan document.
 - **B · Phase 0, code only.** Execute `2026-09-18-people-table.md` in its own worktree with E11 applied; the plan document ships in A's PR, not B's. #673 is in production, so nothing blocks 00136; the session runs its own production push, dry run first.
 - **C · The desk yes needs the message.** Decision 3, product-wide: both consent doors and the desk route; the next free migration number at build time.
 - **Ruben's:** `APIFY_TOKEN`; the launch switch; approving each new source card (PRD decision 23). Claude runs every production `db push` since 18 Sep, #673 is in production, and the terms question is settled.

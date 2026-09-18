@@ -229,7 +229,7 @@ test("a member reads the same answer under their own RLS: the events the rule re
     ok(await db.from("memberships").insert({ tenant_id: t, user_id: made.user.id, role: "viewer" }));
     const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
     const { error: signIn } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
-    if (signIn) { assert.ok(true, `no anon sign-in here: ${signIn.message}`); return; }
+    assert.equal(signIn, null, signIn?.message);
     const rows = ok(await as.rpc("people_list", { p_tenant_id: t }));
     assert.equal(rows.find((r) => r.id === id)?.came_from, "calendar");
   } finally {
@@ -249,6 +249,8 @@ test("the order is whole: people alike in everything it reads come back by id, s
   assert.deepEqual(pages.map((r) => r.id), byId, "and paged two at a time, each person once");
 });
 ```
+
+The member signs in with a password the way `activations.db.test.mjs:44-45` does. A failed sign-in fails the test, never passes it (review E11). `people-pages.db.test.mjs:77-78` and `person-email.db.test.mjs:98-99` carry the old line, `if (sErr) { assert.ok(true, …); return; }`, so their RLS checks never ran when sign-in failed. Change both to `assert.equal(sErr, null, sErr?.message);` in this task.
 
 - [ ] **Step 2: Run it against the local database, and watch it fail**
 
