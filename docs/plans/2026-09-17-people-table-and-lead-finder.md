@@ -706,6 +706,7 @@ Each phase ships on its own and leaves nothing half-wired.
      - What the code holds: the pinned build, the input builder (from the validated plan, never from Claude's text), the output mapper to a lead, the price and the permission level.
      - When no card fits, Claude says so in plain words ("I can't search Etsy shops yet"), and the ask is logged as demand.
      - First-day suggestions draw on the owner's type of business and on what the cards can search.
+     - Most asks are a seller looking for the businesses that buy from them (Appendix D.2). Whatever the card, Claude's main work is turning what the owner sells into the kinds of businesses to search, and a rubric for each kind.
    - **The catalog grows from what Apify offers at the time.** When asks miss, a scout job looks for an actor: Claude with Apify's Store search and actor details, read-only. It drafts the card and runs a 25-result probe under a $0.25 cap, paid by the platform. A person approves a card before owners' searches use it. Later, once the scout's cards prove themselves, an unapproved card may run for the owner who asked, with its results in Needs review.
    - **Claude picks well from examples and tests, not training.** No model is fine-tuned. Each card carries worked asks, and an eval set of real asks, each with the right source and settings, runs on every change to the cards or the prompt (gate G2's method). The cards sit in the planner's cached prompt, so they cost almost nothing per ask.
    - **Only actors that can run unattended and safely:**
@@ -773,7 +774,9 @@ Ten `compass/crawler-google-places` runs with `scrapeContacts: true` (no filters
 - **Shapes kept, values not.** Apify deletes these datasets about seven days after the runs. On 18 September the real keys and types of a Maps item and a checker item were read for free and written down (no values); the fixtures invent every value in that shape.
 - **Not measured:** the judge's accuracy. Before launch, Phase 1 labels a fresh sample by hand and scores the judge on it (one small run, about $0.50, Ruben's to approve); the calibration's own items will have expired. Also the tablet band (721–900px), specified here and not drawn.
 
-## Appendix D: one ask, end to end
+## Appendix D: asks, end to end
+
+### D.1 One ask
 
 Ruben's example, 18 September: "find me a list of 100 hardware stores that are not big chains like Home Depot", within his city, New York City, near 10016.
 
@@ -783,3 +786,17 @@ Ruben's example, 18 September: "find me a list of 100 hardware stores that are n
 4. **The probe.** The first 25 places are judged: a hardware store, a chain, inside the city, open? The question after 25 comes only if the search misses what the owner meant, say mostly paint stores and lumber yards.
 5. **Collect and top up, never pad.** Chains are left out by name and by Claude's read. A place Claude is unsure about, or one with no location, is Needs review. Only Qualified leads count toward the allowance.
 6. **What it costs us,** at Bronze prices: about $0.003 a place, $0.002 a place for contacts, Claude's judging and the mailbox checks. How many places it takes to reach 100 is an estimate from the probe, and the plan sentence says so.
+
+### D.2 Asks are as varied as what owners sell
+
+Most asks are a seller looking for the businesses that buy from them, not for businesses like their own. Ruben's examples, 18 September, with what Claude would propose:
+
+| The owner sells | Claude proposes to find | Left out, or asked about | Claude's read, never shown as seen |
+|---|---|---|---|
+| Over-the-counter medicine | delis and bodegas, convenience stores, gas-station shops, independent pharmacies | chain pharmacies (CVS, Walgreens); asks whether grocery stores count | whether the store sells medicine at all |
+| Wine, wholesale | liquor and wine stores | chains (Total Wine); asks whether restaurants and bars count | whether it stocks wine or mostly spirits |
+| Cleaning services | hotels | asks about size: a two-room inn? | roughly how big, from the listing and the site |
+
+- **One card covers all three:** local businesses by kind and area. Claude's work is choosing the kinds of business to search and the rubric for each, from what the owner sells.
+- **"Every deli in Brooklyn" can mean thousands.** The probe estimates how many there are. Claude says so and proposes a first batch that fits the month's allowance, nearest first: "About 3,000 look likely. Start with the 500 nearest you?" (illustrative numbers). Packs come later (decision 12).
+- **Selling store by store runs on phones and addresses.** The contact standard is "a phone is enough", and nearest first is the natural order.
