@@ -673,6 +673,28 @@ const plLoadView = () => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEY) || "{}") }; } catch { return {}; }
 };
 const plSaveView = (v) => { try { localStorage.setItem(PL_VIEW_KEY, JSON.stringify(v)); } catch { /* private mode */ } };
+// The workspace's copy of the view, one save at a time. Each save replaces the member's whole view (member_view_set),
+// and two in flight could land out of order and leave the older one on the row: while one is out, only the latest view
+// waits, and it goes when that one lands. A save that fails is tried once more, unless a newer view is waiting, which
+// carries every key anyway: a timeout dropped the last change.
+const plViewSaver = () => {
+  let busy = false;
+  let next = null;
+  const push = (view, retried = false) => {
+    if (busy) { next = view; return; }
+    busy = true;
+    const landed = (r) => {
+      busy = false;
+      const waiting = next;
+      next = null;
+      if (waiting) push(waiting);
+      else if (!(r && r.ok) && !retried) push(view, true);
+      else if (!(r && r.ok)) console.error("people_view_not_saved", r && r.message);
+    };
+    window.__saveView("people", view).then(landed, (e) => landed({ ok: false, message: e && e.message }));
+  };
+  return push;
+};
 // A selection as a CSV, in the columns the page shows — nothing the schema does not hold.
 // The "Offers" column reads the OFFERS answer. It read `consent.state` -- the
 // conversational one -- so the column titled Offers showed Yes for everybody who
@@ -1199,11 +1221,12 @@ const plColumnOptions = (choices, x) => PL_COLUMNS
 
 // Which columns show, as a menu that stays open while they are switched: MoreMenu closes on every item, which is right
 // for an action and wrong for a set of switches. Hookless, with its open state the page's, whose one keyboard listener
-// closes it on Esc; pl-cols-menu keeps it out of PL_OVERLAY, what is open over the page and not the page's. A phone
-// draws cards, not columns, so it is hidden there (clients.css).
-const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick }) => (
+// closes it on Esc and puts focus back on its button (`buttonRef`, the page's); pl-cols-menu keeps it out of
+// PL_OVERLAY, what is open over the page and not the page's. A phone draws cards, not columns, so it is hidden there
+// (clients.css).
+const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = null }) => (
   <div className="more-wrap pl-cols">
-    <button type="button" className="btn btn-ghost btn-sm" aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); onOpenChange(!open); }} data-testid="people-columns">
+    <button type="button" ref={buttonRef} className="btn btn-ghost btn-sm" aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); onOpenChange(!open); }} data-testid="people-columns">
       <Icon name="eye" size={12} /> Columns
     </button>
     {open && (
@@ -1572,17 +1595,20 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // A view is the sort and the columns. The strip's tab was remembered too; a view saved before it went carries an
   // attentionTab this ignores, and the next save drops it. Every save sends every key the page owns, because
   // member_view_set replaces the page's whole object (00113): a save of the sort alone would lose the columns.
-  const colKey = JSON.stringify(colChoices);
   const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir, columns: plColumnChoices(remembered.columns) }));
+  // One saver for the page's life, so its saves go one at a time (plViewSaver).
+  const viewSaver = React.useRef(null);
+  if (!viewSaver.current) viewSaver.current = plViewSaver();
   React.useEffect(() => {
     const view = { sortBy, sortDir, columns: colChoices };
     plSaveView(view);
-    // The workspace's copy, once per change and never for the view it already holds.
+    // The workspace's copy, once per change and never for the view it already holds. The choices change only when
+    // what they say does (pickColumn keeps them for Person), so this runs once per change.
     const key = JSON.stringify(view);
     if (key === savedView.current || !window.__saveView) return;
     savedView.current = key;
-    window.__saveView("people", view).then((r) => { if (!r.ok) console.error("people_view_not_saved", r.message); });
-  }, [sortBy, sortDir, colKey]); // eslint-disable-line react-hooks/exhaustive-deps
+    viewSaver.current(view);
+  }, [sortBy, sortDir, colChoices]);
   // The view in the address, so a list or a state can be sent to someone —
   // the assistant and Today link here. Replaced, never pushed: Back leaves People.
   React.useEffect(() => {
@@ -1707,11 +1733,19 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const colCtx = { withCalendar };
   const columns = plVisibleColumns(colChoices, colCtx);
   const colOptions = plColumnOptions(colChoices, colCtx);
-  // Show or hide one column; Person and the row's actions are not the member's to hide.
+  // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
+  // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
+  // gives way to Visits once a calendar connects, as it does for everyone.
   const pickColumn = (key) => setColChoices((ch) => {
     const c = PL_COLUMNS.find((x) => x.key === key);
-    return c && !c.pinned && !c.fixed ? { ...ch, [key]: !plShows(c, ch, colCtx) } : ch;
+    if (!c || c.pinned || c.fixed) return ch;
+    const on = !plShows(c, ch, colCtx);
+    const rest = { ...ch };
+    delete rest[key];
+    return on === plShows(c, {}, colCtx) ? rest : { ...rest, [key]: on };
   });
+  // Where Esc puts focus when it closes the menu: back on the button that opened it.
+  const colsButton = React.useRef(null);
   const listsOf = useMemo(() => {
     const m = {};
     for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
@@ -1753,9 +1787,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       const from = e.target && e.target.nodeType === 1 ? e.target : document.activeElement;
       // A key an earlier listener took (the ? sheet's Esc) is not the page's.
       if (!k || e.defaultPrevented || plTyping(from) || e.metaKey || e.ctrlKey || e.altKey) return;
-      // The page's own overlays first. The Columns menu: Esc closes it, and the rows hold still behind it. The phone's
-      // lists sheet listens for its own Esc.
-      if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
+      // The page's own overlays first. The Columns menu: Esc closes it, and the rows hold still behind it. At a phone's
+      // width the stylesheet hides it (clients.css, 900px and under), so one left open as the window narrowed is closed
+      // and the key is the page's as ever: it held every key but Esc, the lists sheet's Esc included. The phone's lists
+      // sheet listens for its own Esc.
+      if (k.menuOpen && window.matchMedia && window.matchMedia("(max-width: 900px)").matches) k.closeMenu();
+      else if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
       if (k.sheetOpen) return;
       // Anything else open over the page has the keys: a menu, the notifications or a sidebar menu listens from when it
       // opens, after this listener, so it is still on the page as this one hears the key; the ? sheet takes its Esc.
@@ -1796,7 +1833,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
     sheetOpen: listsOpen,
     menuOpen: colsOpen,
-    closeMenu: () => setColsOpen(false),
+    closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
   };
 
   return (
@@ -1840,7 +1877,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
                   ? <button className="btn btn-ghost btn-sm" {...window.gate("export")}><Icon name="external" size={12} /> Export CSV</button>
                   : <a className="btn btn-ghost btn-sm" href={window.__href("GET contacts/export")} download title="Download everyone as a CSV file"><Icon name="external" size={12} /> Export CSV</a>
               )}
-              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} />
+              <PeopleColumnsMenu open={colsOpen} onOpenChange={setColsOpen} options={colOptions} onPick={pickColumn} buttonRef={colsButton} />
               <button className="btn btn-ghost btn-sm" onClick={() => setSortDir((d) => (d === "asc" ? "desc" : "asc"))}>
                 <Icon name="sort" size={12} /> {sortLabel}
               </button>

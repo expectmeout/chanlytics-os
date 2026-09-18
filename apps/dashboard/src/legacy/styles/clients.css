@@ -1763,6 +1763,14 @@
 .pl-cols .more-item[aria-disabled="true"]:hover { background: transparent; }
 /* A phone draws cards, not columns. */
 @media (max-width: 900px) { .pl-cols { display: none; } }
+/* People's controls wrap on a desktop too. Beside the sidebar and the rail, Add a person, Export CSV, Columns and the
+   sort outgrow one row from 901px to about 1200px, and a row that never wrapped pushed the whole page sideways (178px
+   at 1024px, with the Columns button cut and its menu clipped). People's alone: pipeline and the store share
+   .cl-controls. At 900px and under, mobile.css wraps every one. */
+@media (width > 900px) {
+  .clients .cl-controls { flex-wrap: wrap; row-gap: 8px; }
+  .clients .cl-controls-right { flex-wrap: wrap; row-gap: 8px; justify-content: flex-end; }
+}
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }

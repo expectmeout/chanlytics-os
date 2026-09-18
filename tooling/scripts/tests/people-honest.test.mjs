@@ -43,7 +43,8 @@ const person = (i, over = {}) => row({ id: `p${i}`, display_name: `Person ${i}`,
 const listeners = {};
 /**
  * What is open over the page, as document.querySelector finds it: nothing, unless a test opens a menu or a dialog
- * ({ role }) in the app, or one outside it ({ role, inApp: false }), as a browser extension can add and hide.
+ * ({ role }) in the app, or one outside it ({ role, inApp: false }), as a browser extension can add and hide. With
+ * `className`, it carries those classes, and a selector that says `:not(.x)` of one of them leaves it out.
  */
 let overlayOpen = null;
 const storage = () => { const m = new Map(); return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) }; };
@@ -55,8 +56,9 @@ globalThis.document = {
   addEventListener() {},
   removeEventListener() {},
   getElementById: () => null,
-  // A selector's part finds the open element when it names its role, and, for one outside the app, asks for no .app-root.
-  querySelector: (sel) => (overlayOpen && sel.split(",").some((part) => part.includes(`[role="${overlayOpen.role}"]`) && (overlayOpen.inApp !== false || !part.includes(".app-root"))) ? overlayOpen : null),
+  // A selector's part finds the open element when it names its role, and, for one outside the app, asks for no
+  // .app-root; unless the part leaves out a class the element carries.
+  querySelector: (sel) => (overlayOpen && sel.split(",").some((part) => part.includes(`[role="${overlayOpen.role}"]`) && (overlayOpen.inApp !== false || !part.includes(".app-root")) && !String(overlayOpen.className || "").split(/\s+/).some((c) => c && part.includes(`:not(.${c})`))) ? overlayOpen : null),
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
@@ -882,6 +884,8 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
   assert.deepEqual(saves.at(-1), ["people", { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true, lists: true } }], "a column change keeps the sort");
   click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
   draw();
+  // One save at a time: the new sort goes once the column's save has landed.
+  await settle();
   assert.deepEqual(saves.at(-1), ["people", { sortBy: "state", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }], "and a new sort keeps the columns");
 });
 
@@ -901,16 +905,20 @@ test("with a calendar the receptionist's word sits beside the state until its ow
   assert.match(mark?.props?.className || "", /is-in-column/, "beside the state only where its column is off the screen: a card");
 });
 
-test("Esc closes the Columns menu first, and the selection stays; the rows hold still behind it, and the next Esc clears the selection", async () => {
+test("Esc closes the Columns menu first and puts focus back on its button, and the selection stays; the rows hold still behind it, and the next Esc clears the selection", async () => {
   await freshPage({ people: [person(1), person(2)] });
   byTestId(draw(), "select-all").props.onChange();
   click(byTestId(draw(), "people-columns"));
-  assert.ok(byTestId(draw(), "people-columns-menu"), "the menu is open");
+  let tree = draw();
+  assert.ok(byTestId(tree, "people-columns-menu"), "the menu is open");
+  let focused = 0;
+  byTestId(tree, "people-columns").props.ref.current = { focus: () => { focused += 1; } };
   assert.equal(press("j"), false, "J walks nothing behind the menu");
   assert.equal(cursorRow(draw()), null);
   assert.equal(press("Escape"), true, "the menu is the page's own, so its Esc is the page's");
-  let tree = draw();
+  tree = draw();
   assert.equal(byTestId(tree, "people-columns-menu"), null, "Esc closed the menu");
+  assert.equal(focused, 1, "and focus is back on the Columns button, not lost to the page");
   assert.match(textOf(byTestId(tree, "bulk-bar")), /2 selected/, "and left the selection alone");
   assert.equal(press("Escape"), true);
   tree = draw();
@@ -934,4 +942,158 @@ test("a saved view's columns are read with care -- only a true or false for a co
     await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc", columns } } });
     assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"], `${JSON.stringify(columns)} is no set of columns: the defaults`);
   }
+});
+
+/** Saves the test lands by hand: each call waits in the list, with the view it carried, until the test lands it. */
+const heldSaves = () => {
+  const calls = [];
+  globalThis.window.__saveView = (page, view) => new Promise((land) => calls.push({ page, view: JSON.parse(JSON.stringify(view)), land }));
+  return calls;
+};
+
+test("a view saves one at a time, and only the latest waits -- two in flight could land out of order and leave the older one on the member's row", async () => {
+  await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
+  const calls = heldSaves();
+  click(byTestId(draw(), "people-columns"));
+  click(byTestId(draw(), "column-came_from"));
+  draw();
+  click(byTestId(draw(), "column-email"));
+  draw();
+  assert.equal(calls.length, 1, "two quick toggles: the first goes, and the second waits for it to land");
+  assert.deepEqual(calls[0].view.columns, { came_from: false });
+  click(byTestId(draw(), "column-lists"));
+  draw();
+  assert.equal(calls.length, 1, "a third takes the second's place: only the latest waits");
+  calls[0].land({ ok: true, data: {} });
+  await settle();
+  assert.equal(calls.length, 2, "the first landed, and one more went");
+  assert.equal(calls[1].page, "people");
+  assert.deepEqual(calls[1].view, { sortBy: "last", sortDir: "desc", columns: { came_from: false, email: true, lists: true } }, "the latest view, whole");
+  calls[1].land({ ok: true, data: {} });
+  await settle();
+  assert.equal(calls.length, 2, "and nothing after it");
+});
+
+test("a save that fails is tried once more, unless a newer view is waiting to go -- a timeout dropped the last change", async () => {
+  await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
+  const calls = heldSaves();
+  const errors = [];
+  const error = console.error;
+  console.error = (...a) => errors.push(a.join(" "));
+  try {
+    click(byTestId(draw(), "people-columns"));
+    click(byTestId(draw(), "column-email"));
+    draw();
+    calls[0].land({ ok: false, message: "timed out" });
+    await settle();
+    assert.equal(calls.length, 2, "tried once more");
+    assert.deepEqual(calls[1].view, calls[0].view, "the same view");
+    assert.deepEqual(errors, [], "and nothing said yet");
+    calls[1].land({ ok: false, message: "timed out" });
+    await settle();
+    assert.equal(calls.length, 2, "only once");
+    assert.equal(errors.filter((m) => m.startsWith("people_view_not_saved")).length, 1, "then it says the view was not saved");
+    // A newer view waiting goes instead of a second try: it carries every key, the failed one's too.
+    click(byTestId(draw(), "column-lists"));
+    draw();
+    click(byTestId(draw(), "column-came_from"));
+    draw();
+    assert.equal(calls.length, 3, "one at a time");
+    calls[2].land({ ok: false, message: "timed out" });
+    await settle();
+    assert.equal(calls.length, 4);
+    assert.deepEqual(calls[3].view.columns, { email: true, lists: true, came_from: false }, "the newer view, not the failed one again");
+    calls[3].land({ ok: true, data: {} });
+    await settle();
+    assert.equal(calls.length, 4, "and nothing after it");
+    assert.equal(errors.length, 1, "a failed view a newer one replaced is no view lost");
+  } finally {
+    console.error = error;
+  }
+});
+
+test("a Columns menu left open as the window narrows to a phone's lets go: the key is the page's, and the menu closes -- hidden by the stylesheet, it held every key but Esc", async () => {
+  await freshPage({ people: [person(1), person(2)] });
+  click(byTestId(draw(), "people-columns"));
+  assert.ok(byTestId(draw(), "people-columns-menu"), "open on a desktop");
+  // 900px and under, clients.css hides it; it is still on the page when the key comes, so the check for what is open
+  // over the page must know it for the page's own.
+  globalThis.window.matchMedia = (q) => ({ matches: q === "(max-width: 900px)" });
+  overlayOpen = { role: "menu", className: "more-menu align-right pl-cols-menu" };
+  try {
+    assert.equal(press("j"), true, "J is the page's again");
+    overlayOpen = null;
+    const tree = draw();
+    assert.equal(cursorRow(tree), "person-p1", "and walks the rows");
+    assert.equal(byTestId(tree, "people-columns-menu"), null, "the menu nobody could see is closed");
+  } finally {
+    delete globalThis.window.matchMedia;
+  }
+});
+
+test("a column put back the way its default has it is no choice any more -- the receptionist, turned off and on again, gives way to Visits once a calendar connects", async () => {
+  await freshPage({ people: [person(1)], views: { people: { sortBy: "last", sortDir: "desc" } } });
+  const saves = [];
+  globalThis.window.__saveView = async (page, view) => { saves.push(view); return { ok: true, data: {} }; };
+  click(byTestId(draw(), "people-columns"));
+  click(byTestId(draw(), "column-receptionist"));
+  draw();
+  await settle();
+  assert.deepEqual(saves.at(-1).columns, { receptionist: false }, "off: the member's choice");
+  click(byTestId(draw(), "column-receptionist"));
+  draw();
+  await settle();
+  assert.deepEqual(saves.at(-1).columns, {}, "on again, as it shows without a calendar: nothing left to keep");
+  await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves.at(-1) } });
+  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Visits", "Offers", "Came from"], "a calendar connects, and Visits takes the receptionist's place, as it does for everyone");
+});
+
+test("the Columns button says whether its menu is open, and a second press or a press beside the menu closes it", async () => {
+  await freshPage({ people: [person(1)] });
+  const button = (t) => byTestId(t, "people-columns");
+  let tree = draw();
+  assert.equal(button(tree).props["aria-expanded"], false, "closed");
+  click(button(tree));
+  tree = draw();
+  assert.ok(byTestId(tree, "people-columns-menu"));
+  assert.equal(button(tree).props["aria-expanded"], true, "open, and it says so");
+  click(button(tree));
+  tree = draw();
+  assert.equal(byTestId(tree, "people-columns-menu"), null, "a second press closes it");
+  assert.equal(button(tree).props["aria-expanded"], false);
+  click(button(tree));
+  tree = draw();
+  click(find(tree, (n) => n.props?.className === "more-backdrop"));
+  tree = draw();
+  assert.equal(byTestId(tree, "people-columns-menu"), null, "a press beside it closes it");
+  assert.equal(button(tree).props["aria-expanded"], false);
+});
+
+test("with a calendar the menu offers Visits, shown, and the receptionist, hidden; a Visits hidden stays hidden through a calendar outage and rides in every save", async () => {
+  let saves = [];
+  const record = async (page, view) => { saves.push(view); return { ok: true, data: {} }; };
+  await freshPage({ people: [person(1)], calendar: "ok", views: { people: { sortBy: "last", sortDir: "desc" } } });
+  globalThis.window.__saveView = record;
+  click(byTestId(draw(), "people-columns"));
+  let tree = draw();
+  assert.deepEqual(menuItems(tree).map((c) => [c.key, c.on]), [["name", true], ["state", true], ["last", true], ["visits", true], ["receptionist", false], ["offers", true], ["came_from", true], ["email", false], ["lists", false]], "the visit shows; the receptionist waits in the menu");
+  click(byTestId(tree, "column-visits"));
+  draw();
+  await settle();
+  const hidden = saves.at(-1);
+  assert.deepEqual(hidden.columns, { visits: false });
+  // The calendar stops answering: Visits cannot show and the menu does not offer it, but the choice is kept.
+  await freshPage({ people: [person(1)], calendar: "unavailable", views: { people: hidden } });
+  saves = [];
+  globalThis.window.__saveView = record;
+  click(byTestId(draw(), "people-columns"));
+  tree = draw();
+  assert.ok(!headings(tree).includes("Visits"));
+  assert.ok(!menuItems(tree).some((c) => c.key === "visits"), "the menu offers what this workspace can show now");
+  click(byTestId(tree, "column-email"));
+  draw();
+  await settle();
+  assert.deepEqual(saves.at(-1).columns, { visits: false, email: true }, "a save while it is down keeps the hidden Visits");
+  await freshPage({ people: [person(1)], calendar: "ok", views: { people: saves.at(-1) } });
+  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Offers", "Came from", "Email"], "back up, and Visits is still hidden, as chosen");
 });

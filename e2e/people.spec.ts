@@ -309,11 +309,21 @@ test.describe("People on a real workspace", () => {
 
   test("the Columns menu shows and hides a column and stays open; the view it saves keeps the sort -- the save is intercepted", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
+    // Any other write to a view is stopped and noted, so a save that moved to another address can never write this
+    // test's choices onto the member's real view. Registered first, so it runs last: the save expected below is
+    // answered before it gets here, and anything that one does not answer falls back to this.
+    const stopped: string[] = [];
+    await page.route(/\/api\/v1\/views(?:[/?#]|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET" || req.method() === "HEAD") { await route.continue(); return; }
+      stopped.push(`${req.method()} ${req.url()}`);
+      await route.abort();
+    });
     // Registered before the page loads, so no save from this test reaches the member's real view.
     const saved: Array<{ view?: { sortBy?: unknown; sortDir?: unknown; columns?: Record<string, boolean> } }> = [];
     await page.route(/\/api\/v1\/views\/people(?:[?#]|$)/, async (route) => {
       const req = route.request();
-      if (req.method() !== "PUT") { await route.continue(); return; }
+      if (req.method() !== "PUT") { await route.fallback(); return; }
       saved.push(req.postDataJSON());
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { views: {} } }) });
     });
@@ -334,6 +344,8 @@ test.describe("People on a real workspace", () => {
     expect(["asc", "desc"]).toContain(last.view?.sortDir);
     await page.keyboard.press("Escape");
     await expect(menu).toHaveCount(0);
+    await expect(page.getByTestId("people-columns"), "Esc puts focus back on the button that opened the menu").toBeFocused();
+    expect(stopped, "every write to a view went to the one address answered here").toEqual([]);
   });
 
   test("on a desktop the table scrolls sideways under a pinned Person column, with a hairline once it has", async ({ page }) => {
