@@ -706,7 +706,6 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.ok(page.includes('const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };'));
   assert.ok(page.includes('data-testid="row-open-thread"') && page.includes('data-testid="row-booking-link"') && page.includes('sessionStorage.setItem("chanlytics-compose"'), "the row's own next steps");
   assert.ok(page.includes('title={plWhen(p.lastContact.at)}'), "the exact time on hover");
-  assert.ok(page.includes('if (e.key === "ArrowDown" || e.key === "ArrowUp")') && page.includes('else if (e.key === "Enter" && cursor)') && page.includes('e.key === " " && cursor'), "arrows, Enter, Space");
   assert.ok(page.includes('"no messages yet"') && page.includes('`${total} ${total === 1 ? "person" : "people"}`'), "honest words");
   assert.ok(page.includes('(p.quote || "").toLowerCase().includes(needle)') && page.includes('(p.nextVisit || "").toLowerCase().includes(needle)'), "search finds words on the row");
   const css = readCode("apps/dashboard/src/legacy/styles/clients.css");

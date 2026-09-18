@@ -1178,7 +1178,7 @@ const PeopleTable = ({ columns, cell, rows, total, sortBy, sortDir, onSort, onOp
       </div>
       <div className="cl-table-foot">
         <span>{filtered ? `Showing ${rows.length} of ${total}` : `${total} ${total === 1 ? "person" : "people"}`}</span>
-        <span className="cl-table-keys"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↵</kbd> opens · <kbd>space</kbd> selects · <kbd>/</kbd> searches</span>
+        <span className="cl-table-keys"><kbd>J</kbd><kbd>K</kbd> move · {selectable && <><kbd>x</kbd> selects · <kbd>esc</kbd> clears · </>}<kbd>↵</kbd> opens · <kbd>/</kbd> searches</span>
       </div>
     </div>
   );
@@ -1463,6 +1463,11 @@ const AddPersonButton = ({ onAdded, flash }) => {
   );
 };
 
+// Typing: a field that takes words. A row's checkbox is not one, so after a click on it J, K, x and Esc still work.
+const plTyping = (el) => !!el && ((el.tagName === "INPUT" && !/^(checkbox|radio)$/i.test(el.type || "")) || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || !!el.isContentEditable);
+// What Enter and Space press when it has focus, instead of the row under the cursor.
+const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [role="menuitem"], [role="menuitemcheckbox"], [role="tab"], [role="option"]';
+
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null }) => {
   const people = usePeople();
   const rows = people.rows;
@@ -1566,10 +1571,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
-  useHotkey(
-    (e, typing) => !typing && !e.metaKey && !e.ctrlKey && !e.altKey && e.key === "/",
-    () => searchRef.current && searchRef.current.focus()
-  );
 
   const onSort = (key) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -1670,35 +1671,64 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);
   const shownIds = shown.map((p) => p.id);
-  // A keyboard walks the rows like the Inbox walks threads: ↑ ↓ move, Enter
-  // opens, Space selects. Never while typing, never with a modifier.
+  // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
+  // under it, Enter opens it, / goes to the search, Esc closes the Columns menu and then clears the selection. Never
+  // while typing, never with a modifier. The cursor's row shows its actions, as a hovered row does (clients.css).
   const [cursor, setCursor] = useState(null);
   React.useEffect(() => { setCursor((c) => (c && shownIds.includes(c) ? c : null)); }, [shownIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  const moveCursor = (step) => setCursor((c) => {
+    const i = c ? shownIds.indexOf(c) : -1;
+    const id = shownIds[step > 0 ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1)];
+    const row = document.getElementById(`person-${id}`);
+    if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+    return id;
+  });
+  // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
+  // taken down and added again on every render, and / had a second listener of its own.
+  const keys = React.useRef(null);
   React.useEffect(() => {
     const onKey = (e) => {
+      const k = keys.current;
       const el = document.activeElement;
-      const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT" || el.isContentEditable);
-      if (typing || e.metaKey || e.ctrlKey || e.altKey || !shownIds.length) return;
-      // Enter and Space on a focused button, link, tab or menu item are that control's: they opened
-      // the profile under the cursor, or selected its row, instead of pressing what had focus.
-      if ((e.key === "Enter" || e.key === " ") && el && el.closest && el.closest('button, a[href], [role="button"], [role="menuitem"], [role="tab"], [role="option"]')) return;
-      if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-        e.preventDefault();
-        setCursor((c) => {
-          const i = c ? shownIds.indexOf(c) : -1;
-          const next = e.key === "ArrowDown" ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1);
-          const id = shownIds[next];
-          const row = document.getElementById(`person-${id}`);
-          if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
-          return id;
-        });
-      } else if (e.key === "Enter" && cursor) { e.preventDefault(); onOpenProfile(cursor); }
-      else if (e.key === " " && cursor && (canEditLists || canExport)) { e.preventDefault(); toggleSel(cursor); }
+      if (!k || plTyping(el) || e.metaKey || e.ctrlKey || e.altKey) return;
+      // The Columns menu is the page's: Esc closes it, and the rows hold still behind it. The phone's lists sheet
+      // listens for its own Esc.
+      if (k.menuOpen) { if (e.key === "Escape") { e.preventDefault(); k.closeMenu(); } return; }
+      if (k.sheetOpen) return;
+      if (e.key === "/") { e.preventDefault(); k.focusSearch(); return; }
+      // Esc inside the bulk bar or one of its menus is theirs: the menu closes and the selection stays.
+      if (e.key === "Escape") {
+        if (k.selected && !(el && el.closest && el.closest('.cl-bulk, [role="menu"]'))) { e.preventDefault(); k.clearSel(); }
+        return;
+      }
+      if (!k.ids.length) return;
+      // Enter and Space on a focused button, link, box, tab or menu item are that control's: they opened the profile
+      // under the cursor, or selected its row, instead of pressing what had focus.
+      if ((e.key === "Enter" || e.key === " ") && el && el.closest && el.closest(PL_CONTROL)) return;
+      const down = e.key === "ArrowDown" || e.key === "j" || e.key === "J";
+      const up = e.key === "ArrowUp" || e.key === "k" || e.key === "K";
+      if (down || up) { e.preventDefault(); k.move(down ? 1 : -1); }
+      else if (e.key === "Enter" && k.cursor) { e.preventDefault(); k.open(k.cursor); }
+      else if ((e.key === " " || e.key === "x" || e.key === "X") && k.cursor && k.canSelect) { e.preventDefault(); k.toggle(k.cursor); }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
+  }, []);
   const toggleAll = () => setSel((s) => (shownIds.length && shownIds.every((id) => s.has(id)) ? new Set() : new Set(shownIds)));
+
+  // What the keyboard's one listener reads: this render's rows, cursor and doors.
+  keys.current = {
+    ids: shownIds,
+    cursor,
+    move: moveCursor,
+    open: onOpenProfile,
+    toggle: toggleSel,
+    canSelect: canEditLists || canExport,
+    selected: sel.size > 0,
+    clearSel: () => setSel(new Set()),
+    focusSearch: () => { if (searchRef.current) searchRef.current.focus(); },
+    sheetOpen: listsOpen,
+  };
 
   return (
     <div className="clients">

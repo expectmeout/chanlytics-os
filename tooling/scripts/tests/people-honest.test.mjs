@@ -610,3 +610,57 @@ test("the receptionist's word is beside the state whether or not its column show
   assert.equal(mark && textOf(mark), "reply queued", "with a calendar the Receptionist column is hidden, and the word is beside the state");
   assert.equal(inColumn(mark), false, "unmarked: this is where it is said");
 });
+
+test("REGRESSION: the keyboard is one listener for the page's life, and it walks the rows shown now -- it was taken down and added again on every draw", async () => {
+  const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  await freshPage({ people: [needs(1), person(2), needs(3)] });
+  draw();
+  assert.equal(listeners.keydown?.size, 1, "one listener");
+  const [only] = listeners.keydown;
+  draw();
+  byTestId(draw(), "people-standing-needs").props.onClick();
+  draw();
+  assert.equal(listeners.keydown.size, 1);
+  assert.ok(listeners.keydown.has(only), "REGRESSION: a draw put a new listener in its place");
+  press("j");
+  press("j");
+  const focused = find(draw(), (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""));
+  assert.equal(focused?.props.id, "person-p3", "two steps down the people who need you: Person 2 is not among them");
+});
+
+test("the keyboard: J/K and the arrows move, x and Space select, Enter opens, / searches, Esc clears the selection", async () => {
+  await freshPage({ people: [person(1), person(2), person(3)] });
+  const cursorOn = () => find(draw(), (n) => n.type === "tr" && /\bfocused\b/.test(n.props?.className || ""))?.props.id ?? null;
+  draw();
+  assert.equal(press("j"), true, "J is the page's");
+  assert.equal(cursorOn(), "person-p1");
+  press("ArrowDown");
+  assert.equal(cursorOn(), "person-p2");
+  press("k");
+  assert.equal(cursorOn(), "person-p1");
+  press("ArrowUp");
+  assert.equal(cursorOn(), "person-p1", "the first row holds");
+  press("J");
+  press("j");
+  press("ArrowDown");
+  assert.equal(cursorOn(), "person-p3", "and so does the last");
+  assert.equal(press("x"), true);
+  let tree = draw();
+  assert.match(textOf(byTestId(tree, "bulk-bar")), /1 selected/, "x selects the row under the cursor");
+  assert.equal(rowOf(tree, "p3").props["aria-selected"], true, "and the row says it is selected");
+  press("k");
+  draw();
+  press(" ");
+  assert.match(textOf(byTestId(draw(), "bulk-bar")), /2 selected/, "Space selects too");
+  assert.equal(press("Escape"), true);
+  assert.equal(byTestId(draw(), "bulk-bar"), null, "Esc clears the selection");
+  assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
+  assert.deepEqual(opened, ["p2"], "Enter opens the person under the cursor");
+  const box = find(draw(), (n) => n.type === "input" && /Search/.test(n.props?.placeholder || ""));
+  let focusedSearch = 0;
+  box.props.ref.current = { focus: () => { focusedSearch += 1; } };
+  assert.equal(press("/"), true);
+  assert.equal(focusedSearch, 1, "/ puts you in the search box");
+  assert.equal(press("j", { tagName: "INPUT", type: "text", isContentEditable: false, closest: () => null }), false, "and a J typed there is a letter");
+  assert.equal(press("j", { tagName: "INPUT", type: "checkbox", isContentEditable: false, closest: () => ({}) }), true, "a row's checkbox is not a place to type: after a click on one, J still walks");
+});
