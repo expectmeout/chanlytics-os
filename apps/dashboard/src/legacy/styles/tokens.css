@@ -75,10 +75,11 @@
        list -- rows you scan and pick from (Inbox, Conversations)
 
      -- and a surface that needs another width should say why in a comment
-     rather than inventing a ninth. Segments (320), Fleet (280) and Live (400)
-     still carry literals: their rails hold composers and call cards, and
-     narrowing them clips (Segments measured: clean at 280, clips at 220), so
-     they are a design call rather than a rename. */
+     rather than inventing a ninth. Segments (320) and Fleet (280) still carry
+     literals: their rails hold composers and cards, and narrowing them clips
+     (Segments measured: clean at 280, clips at 220), so they are a design call
+     rather than a rename. Live's 400 held a four-column table; its rows now
+     take the Inbox's shape, and the real page takes --rail-list (live.css). */
   --rail-nav: 220px;
   --rail-list: 340px;
 

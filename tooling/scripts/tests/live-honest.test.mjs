@@ -133,7 +133,7 @@ const textOf = (n) => {
 };
 const withLive = (calls, ch = channels) => { globalThis.window.__LIVE = toLiveVM(calls, ch, ZONE, new Date(NOW)); cells = []; };
 const mount = (props = {}) => { seq = 0; return Page(props); };
-const callRows = (tree) => findAll(tree, (n) => n.type === "tr" && n.props?.["data-call-id"]);
+const callRows = (tree) => findAll(tree, (n) => n.props?.["data-call-id"] && n.props?.["data-testid"] === "live-row");
 
 test("REGRESSION (A20, L8): an ended call's card leads with what the caller wanted, says what to do next, and gives its length in words beside the time", () => {
   withLive([ended()]);
@@ -151,18 +151,19 @@ test("REGRESSION (A20, L8): an ended call's card leads with what the caller want
 });
 
 test("REGRESSION (A20, A25): a caller's row shows their initials, and the rows take the keyboard -- Tab reaches them, Enter opens one, arrows move", () => {
-  withLive([call(), ended()]);
+  const ada = call({ id: "c-live-2", conversation_id: "cv2", contact_id: "k2", contact: { display_name: "Ada Byron", wa_profile_name: null, phone_e164: "+16465550999" } });
+  withLive([call(), ada]);
   let tree = mount();
   let rows = callRows(tree);
   assert.equal(rows.length, 2, "REGRESSION: rows carried no call id a keyboard could move between");
   assert.match(textOf(rows[0]), /RD/, "REGRESSION: every caller was drawn as 'P'");
-  assert.deepEqual(rows.map((r) => r.props.tabIndex), [0, 0], "Tab reaches every row");
+  assert.deepEqual(rows.map((r) => r.type), ["button", "button"], "a row is a button: Tab reaches it, and a screen reader says it can be pressed");
   assert.deepEqual(rows.map((r) => r.props["aria-current"]), ["true", undefined], "the open call is the current row");
   const focused = [];
   const list = { querySelector: (sel) => { const m = /data-call-id="([^"]+)"/.exec(sel); return m ? { focus: () => focused.push(m[1]) } : null; } };
-  const press = (row, key) => row.props.onKeyDown({ key, target: { tagName: "TR" }, currentTarget: { closest: () => list }, preventDefault() {}, stopPropagation() {} });
+  const press = (row, key) => row.props.onKeyDown({ key, currentTarget: { closest: () => list }, preventDefault() {}, stopPropagation() {} });
   press(rows[0], "ArrowDown");
-  assert.deepEqual(focused, ["c-done"], "the arrow moves to the next call, across the two tables");
+  assert.deepEqual(focused, ["c-live-2"], "the arrow moves to the next call");
   tree = mount();
   rows = callRows(tree);
   assert.deepEqual(rows.map((r) => r.props["aria-current"]), [undefined, "true"], "and opens it");
@@ -170,11 +171,11 @@ test("REGRESSION (A20, A25): a caller's row shows their initials, and the rows t
   assert.deepEqual(callRows(mount()).map((r) => r.props["aria-current"]), ["true", undefined], "Enter opens the row it is on");
 });
 
-test("REGRESSION (A16): when the line could not be read, the header says so -- not that there is no phone line", () => {
+test("REGRESSION (A16): when the line could not be read, the page says so -- not that there is no phone line", () => {
   withLive([], null);
-  const stat = find(mount(), (n) => n.type === "StatCell" && n.props?.label === "Your line");
-  assert.notEqual(stat.props.meta, "no phone line yet", "REGRESSION: a failed read said the workspace has no line");
-  assert.match(String(stat.props.meta), /couldn't read/i);
+  const tree = mount();
+  assert.ok(byTestId(tree, "live-line-failed"), "the list says the line's state is unknown");
+  assert.doesNotMatch(textOf(tree), /no phone line yet/, "REGRESSION: a failed read said the workspace has no line");
 });
 
 test("REGRESSION (A20): the hand-over's toast names the line the server rang, which the client nests under data", async () => {
@@ -260,4 +261,67 @@ test("a call the provider has gone quiet about keeps the bar but loses the clock
   assert.ok(quiet, "still on the line as far as anyone knows");
   assert.equal(quiet.checking, true);
   assert.equal(quiet.sinceMs, null, "REGRESSION: a number climbing for a call that may already have ended");
+});
+
+/* ----------------------- Live takes the Inbox's look ----------------------- */
+// Live is a view of the Inbox's door (#655). It was a page of its own inside it: a title, a sub-headline
+// and three stat cards above a 400px table of When · Length · From, with a "Recent" table of the calls
+// Conversations › Calls already lists -- its own footer said so.
+
+test("the list is who is on the phone right now: a finished call is no row here, and there is no second table of them", () => {
+  withLive([call(), ended()]);
+  const tree = mount();
+  assert.deepEqual(callRows(tree).map((r) => r.props["data-call-id"]), ["c-live"], "REGRESSION: the ended call was a row in a Recent table");
+  assert.equal(find(tree, (n) => n.type === "table"), undefined, "no table at all: the rows are the Inbox's shape");
+  assert.equal(byTestId(tree, "recent-row"), undefined);
+});
+
+test("a row says who, how long, and what they last said -- in the Inbox's three lines", () => {
+  withLive([call()]);
+  const row = callRows(mount())[0];
+  const text = textOf(row);
+  assert.match(text, /Rosa Díaz/);
+  assert.match(text, /1:3\d/, "the running clock, from the call's real start");
+  assert.match(text, /“Hi, is Melany in today\?”/, "the caller's own last words, not the receptionist's");
+  assert.ok(find(row, (n) => n.type === "StatePill" && n.props.value === "live"), "and the live pill");
+  // The receptionist usually has the last word -- the row still quotes the caller, which is what the call is about.
+  withLive([call({ transcript_object: [
+    { role: "agent", content: "Thank you for calling Melany's Beauty Salon!" },
+    { role: "user", content: "Can I move my Saturday colour to Sunday?" },
+    { role: "agent", content: "Let me check what Sunday has open." },
+  ] })]);
+  const quoted = textOf(callRows(mount())[0]);
+  assert.match(quoted, /“Can I move my Saturday colour to Sunday\?”/, "REGRESSION: the row quoted the receptionist, not the caller");
+  assert.doesNotMatch(quoted, /Let me check/);
+  withLive([call({ transcript_object: [] })]);
+  assert.match(textOf(callRows(mount())[0]), /The receptionist has picked up/, "before the first words arrive, it says what is true");
+});
+
+test("with nobody on the line the list says what the line is doing and opens Conversations › Calls; the panel still opens on the last call", () => {
+  withLive([ended()]);
+  went.length = 0;
+  const tree = mount();
+  assert.equal(callRows(tree).length, 0);
+  assert.match(textOf(tree), /No call in progress\. The line is on/);
+  const door = byTestId(tree, "live-to-calls");
+  assert.ok(door, "the door to every call");
+  door.props.onClick();
+  assert.deepEqual(went, ["conversations/phone"], "REGRESSION: the calls were listed a second time here instead");
+  assert.ok(byTestId(tree, "live-summary"), "what the last caller wanted is still one look away, in the panel");
+});
+
+test("the work first: no title, no sub-headline, no stat cards above the calls", () => {
+  withLive([call(), ended()]);
+  const tree = mount();
+  assert.equal(find(tree, (n) => n.type === "StatCell" || n.type === "StatStrip"), undefined, "REGRESSION: three cards said what the list and the panel already say");
+  assert.equal(find(tree, (n) => n.props?.className === "cl-page-title"), undefined);
+  assert.ok(find(tree, (n) => n.props?.className === "lm-body lm-body-rows"), "the list takes the Inbox's width (live.css .lm-body-rows)");
+});
+
+test("a door that names a finished call still opens it here, and one Live no longer holds says so", () => {
+  withLive([call(), ended()]);
+  assert.match(textOf(find(mount({ initialCallId: "c-done" }), (n) => n.props?.className === "lm-head-name")), /Emily Chen/, "the bar and Today's links open the call they name");
+  withLive([call()]);
+  const notice = byTestId(mount({ initialCallId: "c-gone" }), "live-missing");
+  assert.match(textOf(notice), /has ended, and Live no longer holds it/, "REGRESSION: it counted the calls 'shown here', which the list no longer shows");
 });

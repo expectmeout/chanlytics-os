@@ -16,9 +16,75 @@
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 400px minmax(0, 1fr);
+  grid-template-columns: var(--lm-rail, 400px) minmax(0, 1fr);
   overflow: hidden;
 }
+/* The real page's list is the Inbox's width. Live is a view of the Inbox's door (#655), and at 400px
+   against the Inbox's and Conversations' 340 the list's edge moved 60px when you pressed its tab. The
+   400 was for a table's four columns; the rows below are the Inbox's shape and fit --rail-list. A custom
+   property rather than a second grid rule, so the phone's one-column grid (mobile.css) still wins; the
+   demo console keeps its table and its 400. */
+.lm-body-rows { --lm-rail: var(--rail-list); }
+
+/* ---------- A call in progress, drawn as the Inbox draws a conversation ----------
+   The numbers are .ix-thread's at the Inbox's default density (inbox.css): a 14px lead column, a 32px
+   avatar with the caller's initials, 10px between, 12px by 14px of padding, a hairline below, the open
+   row raised with the ink edge. Kept by value, not by sharing the class: the Inbox's density setting
+   and its listbox rules are its own. */
+.lm-rows { display: flex; flex-direction: column; }
+.lm-row {
+  display: grid;
+  grid-template-columns: 14px 32px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+  width: 100%;
+  padding: 12px 14px;
+  border: none;
+  border-bottom: 1px solid var(--line);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 100ms;
+}
+.lm-row:hover { background: var(--bg-hover); }
+.lm-row.active { background: var(--bg-raised); box-shadow: inset 2px 0 0 var(--ink); }
+.lm-row:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+.lm-row-dot { display: flex; align-items: center; justify-content: center; height: 32px; }
+.lm-row-dot .live-dot { width: 6px; height: 6px; }
+.lm-row-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--bg-sunken); border: 1px solid var(--line);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 500; color: var(--ink-muted); letter-spacing: 0.02em;
+}
+.lm-row-body { min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.lm-row-line1 { display: flex; align-items: baseline; gap: 6px; }
+.lm-row-who { font-size: 12.5px; color: var(--ink); font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* The one number on the row that moves: it carries the accent, the way a reply about to send does. */
+.lm-row-clock { margin-left: auto; flex-shrink: 0; font-size: 11px; color: var(--accent-ink); font-variant-numeric: tabular-nums; }
+.lm-row-said { font-size: 11.5px; line-height: 1.35; color: var(--ink-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lm-row-said.is-waiting { color: var(--ink-dim); }
+.lm-row-foot { display: flex; align-items: center; gap: 8px; margin-top: 2px; }
+.lm-row-foot .pill { height: 16px; padding: 0 6px; font-size: 9.5px; letter-spacing: 0.04em; text-transform: uppercase; }
+.lm-row-since { font-size: 10.5px; color: var(--ink-dim); }
+
+/* The door to every call. It was the list's footnote under a "Recent" table of the same calls. */
+.lm-list-door {
+  margin-top: auto;
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 12px 14px;
+  border: none; border-top: 1px solid var(--line);
+  background: transparent; color: var(--ink-muted);
+  font: inherit; font-size: 12px; line-height: 1.45; text-align: left;
+  cursor: pointer;
+}
+.lm-list-door b { color: var(--ink); font-weight: 500; }
+.lm-list-door > .icon { flex-shrink: 0; margin-left: auto; color: var(--ink-dim); }
+.lm-list-door:hover { background: var(--bg-hover); color: var(--ink); }
+.lm-list-door:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
 
 /* ---------- Table ---------- */
 .lm-list {
