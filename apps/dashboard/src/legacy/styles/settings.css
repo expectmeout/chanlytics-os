@@ -1136,8 +1136,6 @@ tr.pol-locked .pol-label{color:var(--ink-muted)}
 .setup-try-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 8px 0; font-size: var(--set-label); }
 .setup-try-row .icon { flex: none; color: var(--ink-dim); }
 .setup-try-num { font-variant-numeric: tabular-nums; font-weight: 600; }
-/* A link that is a button is not underlined. */
-.settings a.btn { text-decoration: none; }
 @media (max-width: 640px) {
   /* The number takes the first line, both verbs the second, side by side: at
      390px each verb had been wrapping onto a line of its own. */

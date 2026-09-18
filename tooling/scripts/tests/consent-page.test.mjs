@@ -8,7 +8,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM, optInConfirmation, verbalOptInScript } from "@chanlytics/contracts";
+import { consentPageVM, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONVERSATION_PHRASE, OFFERS_OPT_IN_PHRASES, optInLink, SMS_CLAUSES, consentFormVM, optInConfirmation, verbalOptInScript, deskSignVM } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const salon = { businessName: "Melany's Beauty Salon", whatsappE164: "+19177724072", smsE164: null };
@@ -131,6 +131,90 @@ test("the paper form asks the same two questions, each its own unticked box with
   assert.match(bare.lead, /^One box\./);
   assert.match(offers.box, /on WhatsApp/, "the offers box says where offers go");
   assert.equal(consentFormVM({ businessName: "  " }).title, "Text messages from This business");
+});
+
+test("the desk sign asks the offers question alone, with the page's code and the page's own words for it", () => {
+  // The code was on every page an owner looks at and on nothing a customer does: an .svg to download, which most
+  // owners cannot open, and printed bare it says nothing about whose messages, what they are or how to stop them.
+  // The sign is the code with those words -- the page's, never a copy that one edit forgets.
+  const sign = deskSignVM({ ...salon, slug: "melanys", businessPage: true });
+  const page = consentPageVM({ ...salon, slug: "melanys", businessPage: true });
+  const offers = page.asks.find((a) => a.purpose === "marketing");
+  assert.equal(sign.empty, false);
+  assert.equal(sign.qrLink, page.qrLink, "the code the page shows, and the only one: the offers link");
+  assert.equal(sign.qrLink, optInLink("+19177724072", CONSENT_PHRASE));
+  assert.deepEqual(sign.terms, [...offers.terms, ...page.terms], "the offers ask's disclosures, then the foot's, in the page's words");
+  assert.deepEqual(sign.links, page.links, "the business's own privacy and terms, as the page links them");
+  assert.equal(sign.business, "Melany's Beauty Salon", "whose messages, first");
+  assert.match(sign.headline, /offers and news/);
+  assert.match(sign.headline, /WhatsApp/);
+  assert.ok(sign.how.includes(`WhatsApp opens with ${CONSENT_PHRASE} ready to send`) && sign.how.endsWith("Sending it is your yes."), "what scanning does, and that sending is the yes");
+  assert.equal(sign.byHand, `Or send ${CONSENT_PHRASE} (en español, ${CONSENT_PHRASE_ES}) on WhatsApp to +1 (917) 772-4072.`, "for a customer who cannot scan: the words and the number");
+  assert.match(sign.operator, /RJ Capital LLC/, "who is behind the number, as the form says");
+
+  // One question. A sign that claimed the appointment messages too would be one control for two consents: 30913.
+  const said = [sign.headline, sign.how, sign.byHand, ...sign.terms].join(" ");
+  assert.doesNotMatch(said, /appointment|reminder/i, "REGRESSION: one control, two purposes, is 30913");
+  assert.ok(!said.includes(CONVERSATION_PHRASE), "the other question's word is not on the sign");
+  // Offers never by text: a texting line changes nothing on the sign. YES OFFERS offered on the number registered
+  // for messages about a visit is the fourth refusal, 30896.
+  const withLine = deskSignVM({ ...salon, smsE164: "+13055550100" });
+  assert.deepEqual(withLine, deskSignVM(salon), "REGRESSION: the texting line reached the sign");
+  assert.ok(!JSON.stringify(withLine).includes("305"), "REGRESSION: the texting number printed as a way to say yes to offers");
+
+  // No WhatsApp: no code to print, and the page says so rather than printing a sign that opens nothing.
+  const none = deskSignVM({ ...salon, whatsappE164: null, smsE164: "+13055550100" });
+  assert.equal(none.empty, true);
+  assert.equal(none.qrLink, null);
+  assert.equal(none.byHand, null);
+  assert.equal(none.emptyLine, "Melany's Beauty Salon has no WhatsApp number to say yes on yet, so there is no sign to print.");
+  assert.equal(deskSignVM({ ...salon, businessName: "  " }).business, "This business");
+});
+
+test("the sign's markup carries every word of its view model, the code as given, and a print button off the sheet", async () => {
+  // Rendered, not read as source: the component is called and its element tree walked, as the Terms test does.
+  // What it looks like on paper -- one sheet of Letter and of A4, the code three inches wide -- is the nightly's
+  // (e2e/desk-sign.ts), which prints it.
+  // Here tsx compiles the dashboard's JSX to React.createElement, where Next uses the automatic runtime; each test
+  // file runs in its own process, so the global is this file's alone.
+  globalThis.React ??= (await import("react")).default;
+  const { DeskSign } = await import("../../../apps/dashboard/src/yes/DeskSign.tsx");
+  const { PrintButton } = await import("../../../apps/dashboard/src/yes/PrintButton.tsx");
+  const nodes = (n, out = []) => {
+    if (Array.isArray(n)) { for (const k of n) nodes(k, out); return out; }
+    if (n == null || typeof n !== "object") return out;
+    out.push(n);
+    nodes(n.props?.children, out);
+    return out;
+  };
+  const textOf = (n) => (n == null || typeof n === "boolean" ? "" : typeof n !== "object" ? String(n) : Array.isArray(n) ? n.map(textOf).join("") : textOf(n.props?.children));
+  const byTestId = (tree, id) => nodes(tree).find((n) => n.props?.["data-testid"] === id);
+  const svg = "<svg><path d=\"M0 0h1v1H0z\"/></svg>";
+
+  const vm = deskSignVM({ ...salon, slug: "melanys", businessPage: true });
+  const tree = DeskSign({ vm, qr: svg, host: "app.chanlytics.com" });
+  const sheet = byTestId(tree, "desk-sign");
+  const said = textOf(sheet);
+  for (const words of [vm.business, vm.headline, vm.how, vm.byHand, ...vm.terms, vm.operator]) assert.ok(said.includes(words), `the sheet says: ${words}`);
+  assert.ok(said.includes("Privacy: app.chanlytics.com/b/melanys") && said.includes("Terms: app.chanlytics.com/b/melanys/terms"), "the business's own pages, as addresses a person can type");
+  const code = byTestId(sheet, "desk-sign-qr");
+  assert.equal(code.props.dangerouslySetInnerHTML.__html, svg, "the code the page made, untouched");
+  assert.equal(code.props.role, "img");
+  assert.match(code.props["aria-label"], /YES OFFERS/);
+  assert.deepEqual(nodes(sheet).filter((n) => n.type === "b").map(textOf), [CONSENT_PHRASE, CONSENT_PHRASE, CONSENT_PHRASE_ES], "the words to send, in bold wherever the sign says them");
+  // The button prints the sheet and is not on it.
+  assert.ok(nodes(byTestId(tree, "desk-sign-bar")).some((n) => n.type === PrintButton), "a print button above the sheet");
+  assert.ok(!nodes(sheet).some((n) => n.type === PrintButton), "and none on the sheet itself");
+  // A long name trades a little of the code's width for its second line, so the sheet still fits Letter.
+  const bodyClass = (name) => nodes(DeskSign({ vm: deskSignVM({ ...salon, businessName: name }), qr: svg, host: "app.chanlytics.com" })).find((n) => /\bsign-body\b/.test(n.props?.className ?? "")).props.className;
+  assert.equal(bodyClass("Melany's Beauty Salon"), "sign-body");
+  assert.equal(bodyClass("Harbor Moving & Storage Company of Greater Brooklyn and Queens"), "sign-body sign-long");
+
+  // No WhatsApp: the page says so, and offers nothing to print.
+  const empty = DeskSign({ vm: deskSignVM({ ...salon, whatsappE164: null }), qr: null, host: "app.chanlytics.com" });
+  assert.equal(empty.props["data-testid"], "desk-sign-empty");
+  assert.ok(textOf(empty).includes("has no WhatsApp number to say yes on yet"));
+  assert.ok(!nodes(empty).some((n) => n.type === PrintButton), "no button that prints nothing");
 });
 
 test("the wiring: public by one prefix, read by slug, writes nothing, and the owner is given the link", () => {

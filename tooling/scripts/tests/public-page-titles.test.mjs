@@ -48,6 +48,11 @@ test("REGRESSION (N21): a /yes link no workspace answers to names the tab Not fo
   assert.equal(typeof contracts.consentFormMetadata, "function", "REGRESSION: the paper form named its tab only when it found a workspace");
   assert.deepEqual(contracts.consentFormMetadata(null), NOT_FOUND);
   assert.deepEqual(contracts.consentFormMetadata(salonOptIn), { title: `Sign-up form: ${consentFormVM(salonOptIn).title}`, robots: UNINDEXED });
+
+  // The desk sign joined them: named for the sheet and the business on it, Not found where they are, never indexed.
+  assert.deepEqual(contracts.deskSignMetadata(null), NOT_FOUND);
+  assert.deepEqual(contracts.deskSignMetadata(salonOptIn), { title: "Desk sign: Melany's Beauty Salon", robots: UNINDEXED });
+  assert.deepEqual(contracts.deskSignMetadata(noWay), { title: "Desk sign: Melany's Beauty Salon", robots: UNINDEXED }, "with nothing to print it still renders, saying so, so it keeps its name");
 });
 
 test("REGRESSION (N21): a /b page that shows Not found says so in the tab and is not indexed -- an unknown slug said 'Chanlytics OS', and a record with no address was named for the business and indexable", () => {

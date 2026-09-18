@@ -9019,6 +9019,26 @@ function consentPageMetadata(f) {
 function consentFormMetadata(f) {
   return f ? { title: `Sign-up form: ${consentFormVM(f).title}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
 }
+function deskSignVM(f) {
+  const name = f.businessName.trim() || "This business";
+  const qrLink = optInLink(f.whatsappE164, CONSENT_PHRASE);
+  const number = formatPhoneDisplay(f.whatsappE164);
+  return {
+    business: name,
+    headline: "Get our offers and news on WhatsApp",
+    how: `Scan with your phone's camera: WhatsApp opens with ${CONSENT_PHRASE} ready to send. Sending it is your yes.`,
+    byHand: qrLink && number ? `Or send ${CONSENT_PHRASE} (en espa\xF1ol, ${CONSENT_PHRASE_ES}) on WhatsApp to ${number}.` : null,
+    terms: [...askWords(name).marketing.terms, ...bothTerms(name)],
+    operator: `Messages are sent for ${name} by a receptionist operated by Chanlytics (RJ Capital LLC).`,
+    qrLink,
+    links: policyLinks(f),
+    empty: !qrLink,
+    emptyLine: `${name} has no WhatsApp number to say yes on yet, so there is no sign to print.`
+  };
+}
+function deskSignMetadata(f) {
+  return f ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
+}
 
 // src/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
@@ -10233,6 +10253,8 @@ export {
   describeOpenings,
   describeSettingsChange,
   describeVisits,
+  deskSignMetadata,
+  deskSignVM,
   detectLanguage,
   deviceTimezone,
   draftSendsAtMs,
