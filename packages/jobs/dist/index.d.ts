@@ -85,8 +85,9 @@ declare function verdictFor(job: {
  * (jobs_guard). email_ingest is written to be run again: its message is
  * recorded under the provider's id and marked handled last, so "the next try
  * finishes it" (core ingestEmail). But nothing tried again, and its own index
- * (00127) refuses a second row for the same email, so a webhook replay could
- * not bring one back either: an intake that threw once lost the email. It
+ * (00127) refused a second row for the same email, failed or not, so a webhook
+ * replay could not bring one back either (00135 lets a failed row go): an
+ * intake that threw once lost the email. It
  * happened on email's first day live (18 Sep 2026), to an email that arrived
  * while the deployment's key could send but not read (401 restricted_api_key).
  * The key was replaced sixteen minutes later.

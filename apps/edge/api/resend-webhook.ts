@@ -10,7 +10,9 @@
  * The received event is a pointer, so nothing is fetched or judged in this
  * request: each mailbox the delivery names gets one email_ingest job, once,
  * however often Resend redelivers (the ledger's unique index, 00127), and the
- * job does the rest under the ledger's lease and retries. A receipt is applied
+ * job does the rest under the ledger's lease and retries. A job that failed
+ * all its tries no longer counts (00135), so replaying its webhook from Resend
+ * once the cause is fixed takes the email in again. A receipt is applied
  * here, in the request (lib/email-receipts.ts says why that is safe). Resend is
  * answered 200 only once the work is written; a database that is down is a
  * 503, so the delivery comes back.
