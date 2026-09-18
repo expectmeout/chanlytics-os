@@ -979,22 +979,7 @@ const PeopleStanding = ({ agg, needsShown, onNeeds, onLists = null, listWord = n
   </div>
 );
 
-// With a calendar connected the outcome takes the column the receptionist's
-// state held: "Answering" on every row said nothing, the next visit does.
-// The columns answer the three questions an owner brings to the page — who
-// needs me, who is booked, who can I message. With a calendar connected the
-// outcome takes the column the receptionist's state held ("Answering" on
-// every row said nothing). Offers is the fact that gates every campaign.
-// First contact lives in the identity cell now; the last column is the
-// row's own actions, shown on hover.
-const plCols = (withCalendar) => [
-  { key: "name", label: "Person", sortable: true },
-  { key: "state", label: "State", sortable: true },
-  { key: "last", label: "Last contact", sortable: true },
-  withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false },
-  { key: "offers", label: "Offers", sortable: true },
-  { key: "actions", label: "", sortable: false },
-];
+// The keys a view may sort by; PL_COLUMNS, below, says which headings sort.
 const PL_SORT_KEYS = ["last", "name", "state", "visits", "offers"];
 // The receptionist's four modes for a selection. The words are contracts' (PERSON_MODE_WORDS, through the
 // chrome bridge), the same ones the profile and a pill say: this list said "Answer them" and "Stay out" for
@@ -1040,110 +1025,163 @@ const PeopleRowActions = ({ p, bookingLink, drop = null }) => {
   );
 };
 
-const PeopleTable = ({ rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, withCalendar = false, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, bookingLink = null, empty = null, attention = null, drop = null }) => (
-  <div className={`cl-table-wrap pl-table-wrap ${sel.size ? "selecting" : ""}`}>
-    {/* pl-table is the phone's hook: on a narrow screen these rows stop being a
-        760px sideways scroll and stack, so the state is on the row instead of
-        off the right edge. The seeded page, Leads and Lists keep the table. */}
-    <table className="cl-table pl-table">
-      <thead>
-        <tr>
-          {selectable && (
-            <th className="cl-sel">
-              <input type="checkbox" className="cl-check" checked={rows.length > 0 && rows.every((p) => sel.has(p.id))} onChange={onToggleAll} aria-label="Select everyone shown" title="Select everyone shown" data-testid="select-all" />
-            </th>
-          )}
-          {plCols(withCalendar).map((c) => (
-            <th key={c.key} className={`${c.sortable ? "sortable" : ""} ${c.key === "actions" ? "cl-actions-head" : ""}`} onClick={() => c.sortable && onSort(c.key)} aria-sort={sortBy === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
-              {c.label}
-              {sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((p) => {
-          // Named by an identifier, a number or an address: nobody has named them yet.
-          const byNumber = plIsNumber(p.name);
-          const numbered = byNumber || plIsAddress(p);
-          const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;
-          // Their words, or what they said on the phone, as the attention strip says them: a row in Needs you
-          // said neither, and gave no reason for the state either.
-          const said = attention && attention[p.id];
-          const words = said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
-          return (
-            <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} onClick={() => onOpen(p.id)}>
+// ---- The table, drawn from its columns -------------------------------------------------------------------------
+// Each column is defined once: its heading, whether it sorts, whether a member may hide it, and how its cell is drawn
+// from a row and what the page knows (`x`: withCalendar, bookingLink, attention, onOpen, drop, listsOf, shows).
+// Person is pinned and always shown; a member shows or hides any other with the Columns menu, and the choice rides
+// with their view (views.people.columns). With a calendar connected the outcome takes the column the receptionist's
+// state held ("Answering" on every row said nothing); the receptionist stays a column a member can show, and while it
+// is hidden its word sits beside the state. Offers is the fact that gates every campaign. First contact lives in the
+// identity cell; the last column is the row's own actions, shown on hover and on the keyboard's row.
+
+// The identity cell: who, on which wires, since when, and their last words.
+const plNameCell = (p, { attention, onOpen }) => {
+  // Named by an identifier, a number or an address: nobody has named them yet.
+  const byNumber = plIsNumber(p.name);
+  const numbered = byNumber || plIsAddress(p);
+  // Their words, or what they said on the phone, as the attention strip says them: a row in Needs you
+  // said neither, and gave no reason for the state either.
+  const said = attention && attention[p.id];
+  const words = said && (said.quoted || p.callSummary) ? (said.quoted ? `“${said.sentence}”` : said.sentence) : null;
+  return (
+    <td key="name" className="cl-name-cell pl-pin">
+      <div className="cl-row-name">
+        {numbered
+          ? <div className="ix-thread-avatar cl-row-avatar-glyph" title="No name yet"><Icon name={byNumber ? "phone" : "mail"} size={12} /></div>
+          : <div className="ix-thread-avatar">{p.initials}</div>}
+        <div className="cl-row-name-block">
+          <div className="cl-row-fullname">
+            <span className={byNumber ? "tabular" : ""}>{p.name}</span>
+            {numbered && <button className="cl-row-name-them" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} title="Give them a name on their profile" data-testid="row-name-them">Name them <Icon name="arrow-right" size={9} /></button>}
+          </div>
+          <div className="cl-row-meta">
+            <PeopleChannels channels={p.channels} />
+            {!numbered && p.phone && <><span className="dot" /><span className="tabular">{p.phone}</span></>}
+            {/* The address stands in for the number only when there is none: a row says one identifier. */}
+            {!numbered && !p.phone && p.email && <><span className="dot" /><span>{p.email}</span></>}
+            {!numbered && p.waName && p.waName !== p.name && <><span className="dot" /><span title="Their name on WhatsApp">{p.waName} on WhatsApp</span></>}
+            <span className="dot" />
+            <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
+            {p.firstContact.label !== "—" && <><span className="dot" /><span title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : "First contact"}>since {p.firstContact.label.replace(/^Before /, "before ")}</span></>}
+          </div>
+          {words && <div className="cl-row-words" title={words} data-testid="row-words">{words}</div>}
+        </div>
+      </div>
+    </td>
+  );
+};
+
+// The Offers cell reads the OFFERS answer, and its tooltip is that answer's own history.
+const plOffersCell = (p) => {
+  const offers = PL_OFFERS[p.consent.marketing] || PL_OFFERS.unknown;
+  return <td key="offers" className="shrink cl-offers-cell" title={p.consent.marketingSub} data-testid="row-offers"><span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span></td>;
+};
+
+const PL_COLUMNS = [
+  { key: "name", label: "Person", sortable: true, pinned: true, cell: plNameCell },
+  {
+    key: "state", label: "State", sortable: true,
+    cell: (p, x) => (
+      <td key="state" className="shrink cl-state-cell">
+        <PeopleStatePill state={p.state} label={p.stateLabel} />
+        {/* The receptionist's word beside the state while its own column is hidden: said once, somewhere. */}
+        {!x.shows.receptionist && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
+        {p.stateDetail && <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">{p.stateDetail}</span>}
+      </td>
+    ),
+  },
+  { key: "last", label: "Last contact", sortable: true, cell: (p) => <td key="last" className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>{p.lastContact.label}</td> },
+  {
+    key: "visits", label: "Visits", sortable: true, needs: (x) => x.withCalendar,
+    cell: (p) => (
+      <td key="visits" className="shrink cl-visits-cell" title={p.nextVisit || p.lastVisit || "Never on the calendar"} data-testid="row-next-visit">
+        {p.nextVisitDate || p.lastVisitDate
+          ? (
+            // The visit opens its day on the Calendar; the row around it opens the person.
+            <button type="button" className="cl-row-visit" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`calendar/${p.nextVisitDate || p.lastVisitDate}`); }} title={`Open ${p.nextVisitDay || p.lastVisitDay} on the Calendar`} data-testid="row-visit-open">
+              {p.nextVisitDay
+                ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></>
+                : <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>}
+            </button>
+          )
+          : <span className="dim">—</span>}
+      </td>
+    ),
+  },
+  { key: "receptionist", label: "Receptionist", sortable: false, on: (x) => !x.withCalendar, cell: (p) => <td key="receptionist" className="cl-recept-cell"><PeopleReceptionist r={p.receptionist} /></td> },
+  { key: "offers", label: "Offers", sortable: true, cell: plOffersCell },
+  // Where they first came from: people_list's came_from, in contracts' words; nothing when nothing says.
+  { key: "came_from", label: "Came from", sortable: false, cell: (p) => <td key="came_from" className="shrink dim cl-came-cell" data-testid="row-came-from">{p.cameFrom ? p.cameFrom.label : ""}</td> },
+  { key: "email", label: "Email", sortable: false, on: false, cell: (p) => <td key="email" className="shrink dim cl-email-cell" data-testid="row-email">{p.email || ""}</td> },
+  { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
+  { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
+];
+
+// Whether a column shows: Person and the row's actions always; any other by the member's own choice, else its default.
+const plShows = (c, choices, x) => !!(c.pinned || c.fixed) || (typeof choices[c.key] === "boolean" ? choices[c.key] : typeof c.on === "function" ? c.on(x) : c.on !== false);
+// The columns a member sees, in their order: the ones this workspace can show (Visits needs a calendar), as chosen.
+const plVisibleColumns = (choices, x) => PL_COLUMNS.filter((c) => (!c.needs || c.needs(x)) && plShows(c, choices, x));
+
+// The table, for any rows: the columns it is given, what a cell needs (`cell`), a selection, a keyboard cursor and a
+// way to open a row. People draws it; Leads, a scope of People in Phase 1, will draw it with columns of its own. It
+// stays in this file until then: a legacy file of its own must join the manifest, Chanlytics.html and every test that
+// loads the page, and nothing else draws it yet. Still a <table class="cl-table">, so the page's selectors and the
+// phone's card rules hold. On a desktop it scrolls in its own box (pl-table-scroll): the header sticks to its top and
+// the pinned column to its left, and the hairline beside that column shows once it has scrolled sideways (`scrolled`,
+// the page's state). Hookless on purpose: the tests' stub React keys state by call order, and a list's own controls
+// above the table come and go.
+const PeopleTable = ({ columns, cell, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, empty = null, scrolled = false, onScrolled = () => {} }) => {
+  const selecting = rows.some((p) => sel.has(p.id));
+  return (
+    <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
+      <div className={`pl-table-scroll ${scrolled ? "scrolled" : ""}`} onScroll={(e) => { const on = e.currentTarget.scrollLeft > 0; if (on !== scrolled) onScrolled(on); }} data-testid="people-table-scroll">
+        {/* pl-table is the phone's hook: on a narrow screen these rows stop being a
+            sideways scroll and stack, so the state is on the row instead of off the
+            right edge. The seeded page, Leads and Lists keep the table. */}
+        <table className="cl-table pl-table">
+          <thead>
+            <tr>
               {selectable && (
-                <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
-                  <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
-                </td>
+                <th className="cl-sel">
+                  <input type="checkbox" className="cl-check" checked={rows.length > 0 && rows.every((p) => sel.has(p.id))} onChange={onToggleAll} aria-label="Select everyone shown" title="Select everyone shown" data-testid="select-all" />
+                </th>
               )}
-              <td className="cl-name-cell">
-                <div className="cl-row-name">
-                  {numbered
-                    ? <div className="ix-thread-avatar cl-row-avatar-glyph" title="No name yet"><Icon name={byNumber ? "phone" : "mail"} size={12} /></div>
-                    : <div className="ix-thread-avatar">{p.initials}</div>}
-                  <div className="cl-row-name-block">
-                    <div className="cl-row-fullname">
-                      <span className={byNumber ? "tabular" : ""}>{p.name}</span>
-                      {numbered && <button className="cl-row-name-them" onClick={(e) => { e.stopPropagation(); onOpen(p.id); }} title="Give them a name on their profile" data-testid="row-name-them">Name them <Icon name="arrow-right" size={9} /></button>}
-                    </div>
-                    <div className="cl-row-meta">
-                      <PeopleChannels channels={p.channels} />
-                      {!numbered && p.phone && <><span className="dot" /><span className="tabular">{p.phone}</span></>}
-                      {/* The address stands in for the number only when there is none: a row says one identifier. */}
-                      {!numbered && !p.phone && p.email && <><span className="dot" /><span>{p.email}</span></>}
-                      {!numbered && p.waName && p.waName !== p.name && <><span className="dot" /><span title="Their name on WhatsApp">{p.waName} on WhatsApp</span></>}
-                      <span className="dot" />
-                      <span>{p.threads === 0 && p.calls === 0 ? "no messages yet" : `${p.threads} thread${p.threads === 1 ? "" : "s"}${p.calls ? ` · ${p.calls} call${p.calls === 1 ? "" : "s"}` : ""}`}</span>
-                      {p.firstContact.label !== "—" && <><span className="dot" /><span title={p.firstContact.estimate ? "The earliest row we hold; the true first contact is earlier" : "First contact"}>since {p.firstContact.label.replace(/^Before /, "before ")}</span></>}
-                    </div>
-                    {words && <div className="cl-row-words" title={words} data-testid="row-words">{words}</div>}
-                  </div>
-                </div>
-              </td>
-              <td className="shrink cl-state-cell">
-                <PeopleStatePill state={p.state} label={p.stateLabel} />
-                {withCalendar && p.receptionist.tone !== "answering" && <span className="cl-row-recept-mark" title={p.receptionist.label}>{PL_RECEPT_MARK[p.receptionist.tone] || p.receptionist.tone}</span>}
-                {p.stateDetail && <span className="cl-row-state-detail" title={p.stateDetail} data-testid="row-state-detail">{p.stateDetail}</span>}
-              </td>
-              <td className="shrink dim cl-last-cell" title={plWhen(p.lastContact.at)}>{p.lastContact.label}</td>
-              {withCalendar
-                ? (
-                  <td className="shrink cl-visits-cell" title={p.nextVisit || p.lastVisit || "Never on the calendar"} data-testid="row-next-visit">
-                    {p.nextVisitDate || p.lastVisitDate
-                      ? (
-                        // The visit opens its day on the Calendar; the row around it opens the person.
-                        <button type="button" className="cl-row-visit" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`calendar/${p.nextVisitDate || p.lastVisitDate}`); }} title={`Open ${p.nextVisitDay || p.lastVisitDay} on the Calendar`} data-testid="row-visit-open">
-                          {p.nextVisitDay
-                            ? <><span className="cl-row-next">{p.nextVisitDay}</span><span className="dim"> · {(p.nextVisit || "").split(" · ")[1] || ""}</span></>
-                            : <span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>}
-                        </button>
-                      )
-                      : <span className="dim">—</span>}
-                  </td>
-                )
-                : <td className="cl-recept-cell"><PeopleReceptionist r={p.receptionist} /></td>}
-              <td className="shrink cl-offers-cell" title={p.consent.marketingSub} data-testid="row-offers"><span className={`cl-row-offers ${offers[1]}`}>{offers[0]}</span></td>
-              <td className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={bookingLink} drop={drop} /></td>
+              {columns.map((c) => (
+                <th key={c.key} className={`${c.sortable ? "sortable" : ""} ${c.pinned ? "pl-pin" : ""} ${c.key === "actions" ? "cl-actions-head" : ""}`} onClick={() => c.sortable && onSort(c.key)} aria-sort={sortBy === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
+                  {c.label}
+                  {sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                </th>
+              ))}
             </tr>
-          );
-        })}
-        {rows.length === 0 && (
-          <tr>
-            <td colSpan={selectable ? 7 : 6}>
-              <EmptyState kind="line" className="empty-center" glyph="search" title={empty ? empty.title : total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} body={empty ? empty.body : undefined} action={empty ? empty.action : total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
-            </td>
-          </tr>
-        )}
-      </tbody>
-    </table>
-    <div className="cl-table-foot">
-      <span>{filtered ? `Showing ${rows.length} of ${total}` : `${total} ${total === 1 ? "person" : "people"}`}</span>
-      <span className="cl-table-keys"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↵</kbd> opens · <kbd>space</kbd> selects · <kbd>/</kbd> searches</span>
+          </thead>
+          <tbody>
+            {rows.map((p) => (
+              <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} onClick={() => onOpen(p.id)}>
+                {selectable && (
+                  <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
+                    <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
+                  </td>
+                )}
+                {columns.map((c) => c.cell(p, cell))}
+              </tr>
+            ))}
+            {rows.length === 0 && (
+              <tr>
+                <td colSpan={columns.length + (selectable ? 1 : 0)}>
+                  <EmptyState kind="line" className="empty-center" glyph="search" title={empty ? empty.title : total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} body={empty ? empty.body : undefined} action={empty ? empty.action : total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      <div className="cl-table-foot">
+        <span>{filtered ? `Showing ${rows.length} of ${total}` : `${total} ${total === 1 ? "person" : "people"}`}</span>
+        <span className="cl-table-keys"><kbd>↑</kbd><kbd>↓</kbd> move · <kbd>↵</kbd> opens · <kbd>space</kbd> selects · <kbd>/</kbd> searches</span>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 const PL_NO_SEL = new Set();
 // The batch doors take fifty people at a time (contacts/consent, /receptionist, /notes).
@@ -1610,6 +1648,24 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       undo: async () => { const u = await window.__lists.add(list.id, [p.id]); if (!u.ok) plFlash(window.refusalToast(u, `Not back on ${list.name}`)); },
     });
   };
+  // The columns this member sees (PL_COLUMNS: Person always, any other as chosen, else by its default), and what a
+  // cell needs to draw itself: the booking link, each row's words, the list open for taking people off, their lists.
+  const colCtx = { withCalendar };
+  const columns = plVisibleColumns({}, colCtx);
+  const listsOf = useMemo(() => {
+    const m = {};
+    for (const s of saved) for (const id of s.ids) (m[id] = m[id] || []).push(s.name);
+    return m;
+  }, [saved]);
+  const cellCtx = {
+    withCalendar,
+    bookingLink: people.bookingLink || null,
+    attention: people.attention,
+    onOpen: onOpenProfile,
+    drop: activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: dropFromList } : null,
+    listsOf,
+    shows: Object.fromEntries(columns.map((c) => [c.key, true])),
+  };
   const filtered = tab !== "all" || !!listId || !!savedId || !!q.trim();
   React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);
   const shownIds = shown.map((p) => p.id);
@@ -1734,14 +1790,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
           </div>
 
           <PeopleTable
-            withCalendar={withCalendar}
+            columns={columns}
+            cell={cellCtx}
             selectable={canEditLists || canExport}
             sel={sel}
             onToggle={toggleSel}
             onToggleAll={toggleAll}
             cursor={cursor}
-            bookingLink={people.bookingLink || null}
-            attention={people.attention}
             rows={shown}
             total={people.page && people.page.has_more ? people.page.total : rows.length}
             sortBy={sortBy}
@@ -1751,7 +1806,6 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
             filtered={filtered}
             onClearFilters={() => { setQ(""); setTab("all"); setListId(null); setSavedId(null); }}
             empty={activeSaved && activeSaved.count === 0 && tab === "all" && !listId && !q.trim() ? { title: `Nobody on ${activeSaved.name} yet`, body: "Pick people and use Add to list, or add them from their profile.", action: { label: "Show everyone", onClick: () => setSavedId(null) } } : null}
-            drop={activeSaved && canEditLists && window.__lists ? { list: activeSaved, onDrop: dropFromList } : null}
           />
           {hasMore && (
             <div className="cl-section-sub" style={{ padding: "8px 0 16px" }} data-testid="people-more">

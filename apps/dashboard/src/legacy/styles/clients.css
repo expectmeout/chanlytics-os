@@ -1751,6 +1751,8 @@
 .cl-table tbody tr.focused { background: var(--bg-hover); box-shadow: inset 2px 0 0 var(--accent); }
 .cl-table-keys { display: inline-flex; align-items: center; gap: 4px; }
 .cl-table-keys kbd { font: inherit; font-size: 10px; padding: 0 4px; border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; color: var(--ink-dim); background: var(--bg-raised); }
+/* The lists a person is on: one quiet line, cut with an ellipsis rather than widening the table. */
+.cl-table td.cl-lists-cell { max-width: 24ch; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 @media (max-width: 900px) {
   /* Cards: the table and its body become blocks so each row's grid takes the full width; the shrink columns give up their 1%. */
   .cl-table, .cl-table tbody { display: block; width: 100%; }
@@ -1765,6 +1767,10 @@
   .cl-table td.cl-offers-cell { grid-area: offers; }
   .cl-table td.cl-actions-cell { display: none; }
   .cl-table-keys { display: none; }
+  /* A card keeps its own few facts: where they came from, their address and their lists are the desktop's columns. */
+  .cl-table td.cl-came-cell, .cl-table td.cl-email-cell, .cl-table td.cl-lists-cell { display: none; }
+  /* Visits and the receptionist share one place on a card; with both columns chosen, the visit keeps it. */
+  .cl-table td.cl-visits-cell ~ td.cl-recept-cell { display: none; }
 }
 
 /* ---- Where your attention matters, redrawn to the mockup ------------------

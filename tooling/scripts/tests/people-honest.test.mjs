@@ -73,9 +73,10 @@ const { peopleOverride } = await quietly(() => import("../../../apps/dashboard/s
 const { installClock } = await import("../../../apps/dashboard/src/legacy-bridge/zone.ts");
 installClock();
 
-/** Everyone over pages of `per`, the saved lists (or their read failing), and what a search answers. */
-const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null } = {}) => {
+/** Everyone over pages of `per`, the saved lists (or their read failing), what a search answers, the calendar's state, the member's saved views and the booking link on file. */
+const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null, calendar = "none", views = {}, bookingLink = null } = {}) => {
   const seen = { offsets: [], queries: [] };
+  const cal = { state: calendar, source: calendar === "ok" ? "Google Calendar" : "your calendar" };
   globalThis.window.fetch = async (url) => {
     const u = new URL(String(url), "https://app.chanlytics.com");
     if (u.pathname === "/api/v1/contacts") {
@@ -83,18 +84,18 @@ const wire = ({ people, per = 1000, lists = [], listsFail = false, search = null
       if (q !== null) {
         seen.queries.push(q);
         const found = search ? search(q) : { people: [], total: 0, has_more: false };
-        return json(200, { ok: true, data: { people: found.people, page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more }, calendar: { state: "none", source: "your calendar" }, booking_link: null } });
+        return json(200, { ok: true, data: { people: found.people, page: { q, offset: 0, limit: 1000, total: found.total, has_more: found.has_more }, calendar: cal, booking_link: bookingLink } });
       }
       const offset = Number(u.searchParams.get("offset") || 0);
       seen.offsets.push(offset);
-      return json(200, { ok: true, data: { people: people.slice(offset, offset + per), page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length }, calendar: { state: "none", source: "your calendar" }, booking_link: null } });
+      return json(200, { ok: true, data: { people: people.slice(offset, offset + per), page: { q: null, offset, limit: per, total: people.length, has_more: offset + per < people.length }, calendar: cal, booking_link: bookingLink } });
     }
     if (u.pathname === "/api/v1/segments") {
       return listsFail
         ? json(500, { ok: false, error: { code: "internal", message: "The lists could not be read." } })
         : json(200, { ok: true, data: { lists } });
     }
-    if (u.pathname === "/api/v1/views") return json(200, { ok: true, data: { views: {} } });
+    if (u.pathname === "/api/v1/views") return json(200, { ok: true, data: { views } });
     return json(404, { ok: false, error: { code: "not_found", message: `no ${u.pathname}` } });
   };
   return seen;
@@ -216,9 +217,9 @@ const settle = async (n = 8) => { for (let i = 0; i < n; i += 1) await tick(); }
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const lists = (over = {}) => ({ create: async () => ({ ok: false, message: "not here" }), rename: async () => ({ ok: true, data: {} }), remove: async () => ({ ok: true, data: {} }), add: async () => ({ ok: true, data: {} }), drop: async () => ({ ok: true, data: {} }), ...over });
 
-/** People published by the real surface over the wire, and a page with nothing drawn yet. */
-const freshPage = async ({ people, lists: saved = [], listsFail = false } = {}) => {
-  wire({ people, lists: saved, listsFail });
+/** People published by the real surface over the wire, and a page with nothing drawn yet: no view remembered on this device and none saved over the wire, unless a test gives one. */
+const freshPage = async ({ people, lists: saved = [], listsFail = false, calendar = "none", views = {}, bookingLink = null } = {}) => {
+  wire({ people, lists: saved, listsFail, calendar, views, bookingLink });
   await quietly(() => peopleOverride.apply());
   cells = [];
   flashes.length = 0;
@@ -226,6 +227,8 @@ const freshPage = async ({ people, lists: saved = [], listsFail = false } = {}) 
   for (const k of Object.keys(listeners)) delete listeners[k];
   globalThis.document.activeElement = null;
   globalThis.window.location.hash = "#/clients";
+  globalThis.localStorage.removeItem("chanlytics-people-view");
+  delete globalThis.window.__saveView;
   delete globalThis.window.__setPersonConsentMany;
   globalThis.window.__lists = lists();
 };
@@ -542,4 +545,34 @@ test("a selection's yes on a sign-up form is recorded with the note that says wh
   } finally {
     delete globalThis.window.__setPersonMarketingConsentMany;
   }
+});
+
+/* ------------------------- the table, drawn from its columns (Phase 0) ------------------------- */
+
+/** The table's headings as a person reads them: the checkbox's and the actions' empty ones left out, the sort arrow off. */
+const headings = (tree) => all(tree, (n) => n.type === "th").map((th) => textOf(th).replace(/[▲▼]/g, "").trim()).filter(Boolean);
+/** A person's row, by their id. */
+const rowOf = (tree, id) => find(tree, (n) => n.type === "tr" && n.props?.id === `person-${id}`);
+
+test("the table's columns: Person, State, Last contact, the receptionist or, with a calendar, Visits, Offers, and Came from", async () => {
+  await freshPage({ people: [person(1)] });
+  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Receptionist", "Offers", "Came from"]);
+  await freshPage({ people: [person(1)], calendar: "ok" });
+  assert.deepEqual(headings(draw()), ["Person", "State", "Last contact", "Visits", "Offers", "Came from"], "with a calendar the outcome takes the receptionist's column");
+});
+
+test("a row says where the person came from, in words, and nothing when nothing is known", async () => {
+  await freshPage({ people: [person(1, { came_from: "calendar" }), person(2, { came_from: "sms" }), person(3, { came_from: null }), person(4)] });
+  const tree = draw();
+  const said = (id) => textOf(byTestId(rowOf(tree, id), "row-came-from")).trim();
+  assert.deepEqual(["p1", "p2", "p3", "p4"].map(said), ["Your calendar", "Text", "", ""], "and a row read before the column existed says nothing either");
+});
+
+test("a row with a thread offers the booking link on file; with none on file, only the thread", async () => {
+  await freshPage({ people: [person(1)], bookingLink: "https://booksy.com/salon" });
+  assert.ok(byTestId(draw(), "row-booking-link"), "the workspace's link reaches the row");
+  await freshPage({ people: [person(1)] });
+  const tree = draw();
+  assert.ok(byTestId(tree, "row-open-thread"), "the thread is one press away");
+  assert.equal(byTestId(tree, "row-booking-link"), null, "and there is no link to offer");
 });

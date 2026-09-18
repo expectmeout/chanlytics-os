@@ -598,7 +598,6 @@ test("the journey from visits: Booked this week and Lapsed, in three groups; eac
 
 test("the list page: Next visit takes the receptionist's column with a calendar, the rail is grouped, a state is a chip, a list has its step, the view is linkable and remembered", () => {
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(page.includes('withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false }'));
   assert.ok(page.includes('data-testid="row-next-visit"') && !page.includes("row-booked"), "the column carries the outcome; the chip is gone");
   assert.ok(page.includes('data-testid={`rail-group-${g.id}`}') && page.includes("cl-rail-group-label"));
   assert.ok(page.includes('data-testid="state-filter"') && !page.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
@@ -701,7 +700,7 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.deepEqual(row.replyWindow, { open: true, hoursLeft: 23 });
   assert.equal(toPersonRowVM({ ...ROW, has_chat: false }, TZ, now).replyWindow, null);
   const page = readCode("apps/dashboard/src/legacy/pages/clients-a.jsx");
-  assert.ok(page.includes('withCalendar ? { key: "visits", label: "Visits", sortable: true } : { key: "receptionist", label: "Receptionist", sortable: false }') && page.includes('{ key: "offers", label: "Offers", sortable: true }') && !page.includes('label: "First contact"'), "the columns");
+  assert.ok(!page.includes('label: "First contact"'), "First contact lives in the identity cell, never a column of its own");
   assert.ok(page.includes('cl-row-avatar-glyph') && page.includes('data-testid="row-name-them"'), "a number is not initials; it can be named");
   assert.ok(page.includes('<span className="cl-row-last-visit">Last · {p.lastVisitDay}</span>'), "a visit behind them when nothing is ahead");
   assert.ok(page.includes('const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };'));
@@ -710,7 +709,6 @@ test("the table: identity that says who, Offers where First contact was, Visits 
   assert.ok(page.includes('if (e.key === "ArrowDown" || e.key === "ArrowUp")') && page.includes('else if (e.key === "Enter" && cursor)') && page.includes('e.key === " " && cursor'), "arrows, Enter, Space");
   assert.ok(page.includes('"no messages yet"') && page.includes('`${total} ${total === 1 ? "person" : "people"}`'), "honest words");
   assert.ok(page.includes('(p.quote || "").toLowerCase().includes(needle)') && page.includes('(p.nextVisit || "").toLowerCase().includes(needle)'), "search finds words on the row");
-  assert.ok(page.includes('bookingLink={people.bookingLink || null}'));
   const css = readCode("apps/dashboard/src/legacy/styles/clients.css");
   assert.ok(css.includes("overflow: clip;") && css.includes('grid-template-areas: "sel name state" "sel last visits" "sel offers offers";'), "a header that sticks; cards under 900px");
   const svc = readCode("apps/dashboard/src/server/calendar.ts");
