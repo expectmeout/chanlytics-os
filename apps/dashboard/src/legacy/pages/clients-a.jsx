@@ -667,7 +667,7 @@ const PL_LIST_TIP = {
   lapsed: "Forty-five days or more since their last visit, nothing ahead — the win-back list, from visits rather than silence",
 };
 
-// What the page remembers between visits: the sort, the attention tab, the strip.
+// What the page remembers between visits on this device: the sort and the columns ({ sortBy, sortDir, columns }).
 const PL_VIEW_KEY = "chanlytics-people-view";
 const plLoadView = () => {
   try { return { ...JSON.parse(localStorage.getItem(PL_VIEW_KEY) || "{}") }; } catch { return {}; }
