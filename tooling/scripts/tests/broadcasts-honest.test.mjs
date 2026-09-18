@@ -348,6 +348,17 @@ test("REGRESSION: a run opened on a page already scrolled is brought into view, 
 
 /* ------------------------------ Messages ------------------------------ */
 
+test("the page counts templates: `message` is what a customer gets, and the word meant three things across one nav", () => {
+  // With rows on file, so the line reaches its plural: an empty workspace says
+  // "No template on file yet" whatever the word for a full one is.
+  const tree = messages({ __TEMPLATES_ALL: [templateRow(), templateRow({ id: "t8", name: "welcome" })] });
+  const line = textOf(byTestId(tree, "messages-standing"));
+  assert.match(line, /(No template on file yet|\d+ templates?\b)/, `REGRESSION: it counted "messages" under a tab beside the Inbox — ${line}`);
+  assert.ok(!/\bmessages?\b/i.test(line), `nothing on the line calls a template a message — ${line}`);
+  assert.equal(textOf(byTestId(tree, "template-new")).trim(), "New template", "and the act that makes one says so");
+});
+
+
 test("REGRESSION (C20): on Messages only the pressed control says it is working, and every control waits -- one flag relabelled every Add while a sync ran", async () => {
   let finish = () => {};
   globalThis.window.__syncTemplates = () => new Promise((r) => { finish = () => r({ ok: true, data: { seen: 2, approved: 2, marketing: 1 } }); });
@@ -390,7 +401,7 @@ test("REGRESSION (C8): deleting a message a playbook sends names the playbook --
   let tree = armed({ rows: [playbook({ name: "Win-back", template_name: "offer", template_language: "en_US", state: "running" })] });
   assert.equal(byTestId(tree, "template-delete-yes"), null, "REGRESSION: a Yes, and the playbook's runs skipped from then on");
   const held = byTestId(tree, "template-delete-held");
-  assert.ok(held && textOf(held).includes("“Win-back” still sends this message."), textOf(held));
+  assert.ok(held && textOf(held).includes("“Win-back” still uses this template."), textOf(held));
   press(find(held, (n) => n.type === "button" && textOf(n).includes("Playbooks")));
   assert.equal(went.at(-1), "outbound", "and a door to the playbook");
 

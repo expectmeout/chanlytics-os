@@ -5377,13 +5377,13 @@ var ASK_PAGES = [
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
-  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People" },
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
   { label: "Playbooks", to: "outbound", kind: "page", sub: "campaigns that run on their own" },
   { label: "Broadcasts", to: "broadcasts", kind: "page", sub: "one message to the people who said yes" },
-  { label: "Messages", to: "messages", kind: "page", sub: "what the receptionist and the campaigns send" },
+  { label: "Templates", to: "messages", kind: "page", sub: "the wording the receptionist and the campaigns send", also: ["messages", "wording"] },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
   { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
@@ -5409,6 +5409,7 @@ function askJump(query, index, limit = 6) {
   };
   for (const p of index) if (p.kind === "page" && p.label.toLowerCase().startsWith(s)) push(p);
   for (const p of index) if (p.kind === "page" && p.label.toLowerCase().includes(s)) push(p);
+  for (const p of index) if (p.kind === "page" && (p.also ?? []).some((w) => w.toLowerCase().includes(s))) push(p);
   for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
   return out.slice(0, limit);
 }
@@ -6276,8 +6277,8 @@ function paramLabel(spec) {
 }
 function playbooksStillSending(names) {
   const quoted = names.map((n) => `\u201C${n}\u201D`);
-  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still sends this message. Pause it, or give it another message, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still send this message. Pause them, or give them another message, first.`;
+  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 function firstNameOf(displayName, waProfileName) {
   const raw = (displayName || waProfileName || "").trim();
@@ -8473,7 +8474,7 @@ function connectionRows(i, nowMs = Date.now()) {
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` \xB7 ${h.label}` : "";
-    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: !wa.on ? "off" : flagged ? "attention" : "connected", stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On", sentence: `${wa.healthLabel}${health}`, verb: { label: "Messages", to: "messages", who: "operator" } }));
+    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: !wa.on ? "off" : flagged ? "attention" : "connected", stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On", sentence: `${wa.healthLabel}${health}`, verb: { label: "Templates", to: "messages", who: "operator" } }));
   } else if (i.whatsapp === void 0) {
     out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: null, state: "none", stateWords: "Not connected", sentence: "Checking whether Chanlytics can connect a number\u2026", verb: null }));
   } else if (i.whatsapp?.ready) {

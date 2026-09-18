@@ -2133,7 +2133,7 @@ button.pol-chip.pill-warn{border:1px solid transparent}
 .sb-sheet-keys { display: inline-flex; align-items: center; gap: 4px; }
 .sb-sheet-sep { font-size: 11px; color: var(--ink-dim); padding: 0 2px; }
 
-/* ---- Campaigns › Messages: one card per message, the bubble the customer sees ---- */
+/* ---- Campaigns › Templates: one card per template, the bubble the customer sees ---- */
 .cl-bucket-link.danger { color: var(--danger); }
 .int-soon-list { font-style: normal; line-height: 1.6; }
 .int-soon-list b { color: var(--ink); font-weight: 500; }

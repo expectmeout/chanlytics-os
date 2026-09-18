@@ -184,7 +184,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
         <div className="bc-chips" style={{ flexWrap: "wrap" }}>
           {!templatesRead && <FailedRead kind="line" what="your templates" surface="playbooks" testid="pb-templates-failed" />}
           {templatesRead && templates.length === 0 && (
-            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one, or sync yours from WhatsApp Manager, in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Messages</button>.</span>
+            <span className="bc-excl-hint" data-testid="pb-no-template">No approved template yet — write one, or sync yours from WhatsApp Manager, in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-no-template-open">Templates</button>.</span>
           )}
           <window.TemplateChips templates={templates} value={tplId} onPick={(id) => { setPicked(true); setTplId(id); }} testid="pb-template" />
         </div>
@@ -195,7 +195,7 @@ const PlaybookComposer = ({ data, editing, onDone, onCancel }) => {
           {starterRow
             ? <>Written for this moment: <b>{starter.title}</b>{tplId === starterRow.id ? " — picked for you; change it above if you like" : " — it's above if you'd rather use it"}</>
             : starterAny
-              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Campaigns › Messages`}</>
+              ? <><b>{starter.title}</b> is {starterAny.meta_status === "pending" ? "in review at WhatsApp — it appears here once approved, usually within minutes" : `${starterAny.meta_status} at WhatsApp — see Campaigns › Templates`}</>
               : <>
                   The <b>{starter.title}</b> starter is written for this moment.{" "}
                   {canEdit && window.__templates && window.__templates.addStarters
@@ -340,7 +340,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
             <window.MessagePreview from={surface.businessName} body={message.body} values={message.values} header={message.template.header} footer={pbFooter(message.template)} buttons={message.template.buttons} compact />
             {/* Which message this is, captioning the message itself, and in which
                 language -- that was a data-tip on a chip, and no finger reaches one.
-                It opens Messages, where the same template is renamed or replaced. */}
+                It opens Templates, where the same one is renamed or replaced. */}
             <button type="button" className="ob-words-name" onClick={() => window.CHANLY.nav("messages")} data-testid="pb-template-name">
               {pbTitle(p.template_name)} <span className="dim">&middot; {pbLangWords(p.template_language)}</span>
             </button>

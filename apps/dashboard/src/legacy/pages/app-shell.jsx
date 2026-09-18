@@ -600,7 +600,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     content = <OutboundPage initialPlaybook={param} />;
   } else if (page === "messages") {
     activeNav = "messages";
-    crumbs = ["Campaigns", "Messages"];
+    crumbs = ["Campaigns", "Templates"];
     pane = true;
     content = <MessagesPage />;
   } else if (page === "content") {

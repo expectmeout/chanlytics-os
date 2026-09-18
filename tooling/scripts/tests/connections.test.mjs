@@ -59,7 +59,7 @@ test("the live salon: both numbers on, the listing watched, the profile connecte
   assert.equal(r.whatsapp.state, "connected");
   assert.equal(r.whatsapp.detail, "+1 (917) 772-4072");
   assert.ok(r.whatsapp.sentence.startsWith("Receiving · last message"));
-  assert.deepEqual(r.whatsapp.verb, { label: "Messages", to: "messages", who: "operator" });
+  assert.deepEqual(r.whatsapp.verb, { label: "Templates", to: "messages", who: "operator" });
   assert.equal(r.phone.state, "connected");
   assert.equal(r.phone.verb, null);
   assert.equal(r.google_profile.state, "connected");

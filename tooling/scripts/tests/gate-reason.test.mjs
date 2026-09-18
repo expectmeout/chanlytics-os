@@ -242,7 +242,7 @@ test("REGRESSION (C17, C21): a viewer on Messages finds New message where it alw
     const tree = globalThis.window.MessagesPage();
     const write = byTestId(tree, "template-new");
     assert.ok(write, "REGRESSION: New message was hidden from a viewer, with no word why");
-    assert.equal(write.props["data-tip"], "Only an owner or operator can write a message.");
+    assert.equal(write.props["data-tip"], "Only an owner or operator can write a template.");
     assert.ok(!listening.includes("messages:new"), "REGRESSION: a listener for an event nothing dispatches");
   } finally {
     globalThis.window.addEventListener = add;

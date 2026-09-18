@@ -11,7 +11,7 @@
 // The Inbox composer had already answered this: `inboxTemplates` labels every
 // row "<title> · <language>". Here there is room to do better than a label --
 // one chip per message, with its languages as a toggle inside it, the way a
-// message's card on Campaigns › Messages already draws them.
+// template's card on Campaigns › Templates already draws them.
 //
 // The "starter" / category word gives up its place to the toggle when a message
 // has more than one language: which language leaves is load-bearing, and where

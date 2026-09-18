@@ -202,8 +202,8 @@ export function paramLabel(spec: ParamSpec): string {
  */
 export function playbooksStillSending(names: readonly string[]): string {
   const quoted = names.map((n) => `“${n}”`);
-  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still sends this message. Pause it, or give it another message, first.`;
-  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still send this message. Pause them, or give them another message, first.`;
+  if (quoted.length <= 1) return `${quoted[0] ?? "A playbook"} still uses this template. Pause it, or give it another, first.`;
+  return `${quoted.slice(0, -1).join(", ")} and ${quoted[quoted.length - 1]} still use this template. Pause them, or give them another, first.`;
 }
 
 export interface ParamFacts {
