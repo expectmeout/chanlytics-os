@@ -715,7 +715,8 @@ Each phase ships on its own and leaves nothing half-wired.
      - Maintained and used: recently modified, real users, a good run success rate.
    - **Apify's limits apply:** 60 requests a second per resource by default (400 for dataset pushes), with a 429 retried after a back-off; concurrent runs and memory by the account's plan; a charge cap on every run.
    - **Claude never starts a paid run itself.** Its choice is data. Every run goes through Chanlytics' runner, with the dispatch claim, reservations, leases and webhooks of E1–E4.
-   - **For the people building it, not the product:** Apify publishes an official Claude Code plugin (its MCP server, a routing agent, and skills including a lead-generation one). Sessions that scout or build cards use it, and a repo skill records how a card is vetted and written.
+   - **Apify's own agent skills work the same way, and seed ours.** Their open-source `apify-ultimate-scraper` skill (github.com/apify/agent-skills, Apache-2.0) routes a plain-language ask through a curated index of about 130 actors, and searches the whole Store when nothing in the index fits: the two tiers above. Its index gives the scout its first candidates, and its gotchas become card rules (Appendix A).
+   - **Those skills are for the people building it, not the product.** They drive the Apify CLI inside a coding agent. Inside Chanlytics, Claude runs through the API, and the API's code-execution sandbox has no internet access, so the product can't run them. It gets the same pattern natively: cards in the planner's prompt, and runs through its own runner. Sessions that scout or build cards install them (`apify-ultimate-scraper`, and `apify-integration-development` for the client code); a repo skill records how a card is vetted and written.
    - The product never names Apify or any actor: the owner sees Claude finding businesses.
    - The scout's first job is a second Google Maps actor (`vortex_data/google-maps`), as the fallback card for when the first breaks.
 
@@ -731,6 +732,25 @@ Each phase ships on its own and leaves nothing half-wired.
 | `apify/google-search-scraper` | brand to website (Phase 4) | $0.0025/page |
 
 Platform facts: ad-hoc webhooks are passed as a base64 JSON array in the run-start `webhooks` parameter, fire on `ACTOR.RUN.SUCCEEDED`, `FAILED`, `ABORTED` and `TIMED_OUT`, carry no signature (a secret in the URL or a headers template is the documented protection), time out after 2 minutes, retry with back-off up to 11 times over about 32 hours, and may arrive more than once. `maxTotalChargeUsd` caps a pay-per-event run. The API allows 60 requests a second per resource by default (400 for dataset pushes) and answers 429 over it. New actors run with limited permissions (their own storages and what the input names); a full-permission actor needs a one-time approval in the console, even through the API. The Store is searchable through the API (`GET /v2/store`: search, category, pricing model, sort). Unnamed storage expires after 7 days.
+
+Scout candidates from Apify's curated index (`apify-ultimate-scraper`, 18 Sep 2026), each still to be vetted against decision 23's rules:
+
+| Kind of lead | Candidates |
+|---|---|
+| Local businesses (more Google Maps) | `compass/google-maps-extractor`, `lukaskrivka/google-maps-with-contact-details`, `compass/enrich-google-maps-dataset-with-contacts`, `compass/contact-details-scraper-standby` |
+| Business directories | `tri_angle/yelp-scraper` |
+| Companies | `harvestapi/linkedin-company`, `apimaestro/linkedin-companies-search-scraper` |
+| Business pages | `apify/facebook-page-contact-information`, `apify/instagram-profile-scraper` |
+| B2B lists | `code_crafter/leads-finder` |
+
+Its gotchas that become card rules:
+- Estimate every pay-per-event run before it starts.
+- Each actor names its limit field differently (`maxResults`, `maxCrawledPlacesPerSearch`, …): a card maps it.
+- Check `isDeprecated` when a card is re-verified.
+- Split scrapes above about 1,000 results into batches.
+- Google Maps: set `language: "en"`; a specific location works better than a broad city name.
+- LinkedIn actors: under 100 profiles a run, five minutes apart.
+- Runs over ten minutes are started and awaited, never held open. The webhooks and the sweep already do this.
 
 ## Appendix B: from an actor's item to a lead
 
