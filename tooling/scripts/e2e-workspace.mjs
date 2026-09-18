@@ -4,7 +4,7 @@
  * The signed-in end-to-end specs used to run as the owner's own account inside
  * a live customer's workspace: every run wrote to it, and the Ask specs spent
  * model tokens there. This makes a workspace that is the suite's alone -- a test
- * owner with exactly one membership, a teammate, two fictional people, one
+ * owner with exactly one membership, a teammate, three fictional people, one
  * conversation, one call and a WhatsApp channel -- and puts it back in the same
  * state every night, because the specs change some of it and time moves the rest
  * (Reports only counts the last thirty days, so the conversation is re-dated).
@@ -27,6 +27,15 @@
  *     and the deadman pages the platform if the escalation outlives two hours.
  *     With an address on file both go to the workspace's own, and this one
  *     delivers nowhere;
+ *   - the people have said yes to MESSAGES and nobody has said yes to OFFERS --
+ *     the state a real salon was in on 17 Sep 2026, and the one Today's "Worth a
+ *     look", People's list steps and Broadcasts' "Get their yes" exist to answer.
+ *     A yes to messages starts nothing on its own: the receptionist only ever
+ *     answers, nothing here is scheduled to write first, and the channel above
+ *     could not carry it if it were. With nobody's yes to offers, no promotional
+ *     send has an audience at all. Three, because a list the product calls a
+ *     list starts at three (contracts todayLeaks) -- the seed meets the product's
+ *     floor rather than the product meeting the seed's;
  *   - and there is no job, escalation, line, playbook, broadcast or Google row.
  *
  * It refuses an owner or teammate address outside example.com, so it can never
@@ -57,7 +66,19 @@ const BUSINESS_PHONE_DISPLAY = "(212) 555-0142";
 export const PEOPLE = [
   { phone: "+12125550143", name: "Robin Example", waProfile: "Robin", identity: { channel: "whatsapp", external_id: "12125550143" } },
   { phone: "+12125550144", name: "Casey Example", waProfile: null, identity: { channel: "voice", external_id: "+12125550144" } },
+  { phone: "+12125550145", name: "Sam Example", waProfile: null, identity: { channel: "voice", external_id: "+12125550145" } },
 ];
+
+/**
+ * Every person's two answers, in force after each run: a yes to messages, taken
+ * in person a week before the run, and nothing yet about offers. The specs
+ * (e2e/owner-signals.spec.ts) read this state and nothing else; verify() below
+ * refuses a workspace that drifted from it.
+ */
+export const SAID_YES_TO_MESSAGES = "opted_in";
+export const SAID_YES_TO_OFFERS = "unknown";
+const CONSENT_SOURCE = "in_person";
+const WEEK_MS = 7 * 86_400_000;
 /**
  * Where the workspace's alerts go: Resend's test inbox, which simulates a
  * delivery and reaches nobody (resend.com/docs/dashboard/emails/send-test-emails).
@@ -254,8 +275,10 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
       row = null;
     }
     const fields = {
-      display_name: person.name, wa_profile_name: person.waProfile, consent: "unknown", consent_source: null, consent_updated_at: null,
-      dnc: false, notes: null, email: null, marketing_consent: "unknown", marketing_consent_source: null, marketing_consent_updated_at: null,
+      display_name: person.name, wa_profile_name: person.waProfile,
+      consent: SAID_YES_TO_MESSAGES, consent_source: CONSENT_SOURCE, consent_updated_at: new Date(now - WEEK_MS).toISOString(),
+      dnc: false, notes: null, email: null,
+      marketing_consent: SAID_YES_TO_OFFERS, marketing_consent_source: null, marketing_consent_updated_at: null,
       merged_into_contact_id: null,
     };
     if (row) must("resetting a person", await db.from("contacts").update(fields).eq("id", row.id));
@@ -346,6 +369,14 @@ export async function verify(db, T, ownerId) {
   const cfg = await read("the config", db.from("tenant_config").select("config").eq("tenant_id", T).maybeSingle());
   if (!TenantConfigWriteSchema.safeParse(cfg?.config ?? null).success) problems.push("the config would not save");
   if (cfg?.config?.calendar) problems.push("the config has a calendar");
+  // The state the owner-signals specs read. A person who said yes to offers here
+  // would give a promotional send an audience; fewer than three who said yes to
+  // messages would take the list under the product's own floor, and Today's
+  // "Worth a look" would have nothing to say -- the specs would then fail on a
+  // missing band, which reads nothing like "the seed drifted".
+  const people = (await read("the people", db.from("contacts").select("consent, marketing_consent, erased_at").eq("tenant_id", T))).filter((p) => !p.erased_at);
+  if (people.some((p) => p.marketing_consent === "opted_in")) problems.push("someone in the workspace has said yes to offers");
+  if (people.filter((p) => p.consent === SAID_YES_TO_MESSAGES).length < 3) problems.push("fewer than three people have said yes to messages");
   const alerts = cfg?.config?.notifications;
   if (!alerts || Object.keys(alerts).length !== 1 || alerts.escalation_emails?.length !== 1 || alerts.escalation_emails[0] !== ALERT_INBOX) {
     problems.push(`the config's alerts go somewhere other than the test inbox, ${ALERT_INBOX}`);
