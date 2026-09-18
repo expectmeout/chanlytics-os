@@ -38,6 +38,8 @@ import {
   type ParsedFeed,
   visitsIn,
   needsConsultation,
+  ownAddressesOf,
+  type OwnAddresses,
 } from "@chanlytics/contracts";
 import type { RouteContext } from "@/server/with-route";
 import { tenantFacts } from "@/server/tenant";
@@ -96,7 +98,7 @@ async function parsedFeedFor(tenantId: string, url: string, tz: string, now: Dat
 }
 
 /** The workspace's calendar, as the people surfaces need it: its address (kept here), zone and name — and the booking link, which a row may offer. */
-async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: string | null; timezone: string; source: string; bookingLink: string | null }> {
+async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: string | null; timezone: string; source: string; bookingLink: string | null; own: OwnAddresses }> {
   const [{ timezone }, { data: row, error }] = await Promise.all([
     tenantFacts(ctx.supabase, tenantId),
     ctx.supabase.from("tenant_config").select("config").eq("tenant_id", tenantId).maybeSingle(),
@@ -106,7 +108,9 @@ async function calendarOf(ctx: RouteContext, tenantId: string): Promise<{ url: s
   const url = cfg?.calendar?.ical_url ?? null;
   const bookingLink = cfg?.brain?.booking_link?.trim() || null;
   // Server-side only: the address feeds the reads in this module and is never part of a response.
-  return { url, timezone, source: feedSourceLabel(url), bookingLink };
+  // The business's own addresses (contracts ownAddressesOf): where it is alerted,
+  // and whose calendar this is. Never a customer's, so never anybody's visit.
+  return { url, timezone, source: feedSourceLabel(url), bookingLink, own: ownAddressesOf(cfg) };
 }
 
 export function spanFor(from: string | null, days: number, tz: string, now: Date): { from: string; days: number } {
@@ -132,7 +136,7 @@ export function personLike(p: Pick<PersonRowDto, "id" | "display_name" | "wa_pro
   };
 }
 
-export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[], services: string[] = []): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
+export function itemsToDays(items: FeedItem[], from: string, days: number, tz: string, people: PersonLike[], own: OwnAddresses, services: string[] = []): { days: Array<Pick<CalendarDayDto, "key" | "items">>; dropped: number } {
   const out: Array<Pick<CalendarDayDto, "key" | "items">> = [];
   let dropped = 0;
   for (let i = 0; i < days; i++) {
@@ -144,14 +148,14 @@ export function itemsToDays(items: FeedItem[], from: string, days: number, tz: s
     const rows: CalendarItemDto[] = inDay
       .slice(0, MAX_ITEMS_PER_DAY)
       .map((it, n) => {
-        const c = extractContacts(it);
+        const c = extractContacts(it, own);
         return {
           id: `${it.uid ?? "ev"}:${it.start}:${n}`,
           start: new Date(it.start).toISOString(),
           end: new Date(it.end).toISOString(),
           title: it.title,
           all_day: it.allDay,
-          person: matchPerson(it, people),
+          person: matchPerson(it, people, own),
           description: eventText(it.description),
           location: it.location,
           contacts: { phones: c.phones, emails: c.emails },
@@ -264,7 +268,7 @@ export async function calendarWeek(ctx: Pick<RouteContext, "supabase">, tenantId
   // owner is looking at already links to them; the hourly sweep does the
   // same for everyone else, and for a feed nobody opens.
   if (opts.canAct) people.push(...await addPeopleSeen(ctx, tenantId, parsed.items, serviceNames, people, now).catch((e: unknown) => { console.error("calendar_people_seen_failed", JSON.stringify({ tenant: tenantId, error: e instanceof Error ? e.message : String(e) })); return []; }));
-  const { days, dropped } = itemsToDays(parsed.items, span.from, span.days, timezone, people, serviceNames);
+  const { days, dropped } = itemsToDays(parsed.items, span.from, span.days, timezone, people, ownAddressesOf(cfg), serviceNames);
   const openings = profile ? freeWindows({ hours: profile.hours, closures: profile.closures, tz: timezone, busy: parsed.busy, rules, now }) : [];
   const windowsOf = new Map(openings.map((o) => [o.key, o.windows]));
   // The receptionist's next open time from now, whatever span the page asked for: the first of every time it would
@@ -325,7 +329,7 @@ export async function previewFeed(url: string, tz: string, now = new Date()): Pr
  * booked past the receptionist's own offering window.
  */
 export async function personVisits(ctx: RouteContext, tenantId: string, person: PersonLike, now = new Date()): Promise<PersonVisitsDto | null> {
-  const { url, timezone, source } = await calendarOf(ctx, tenantId);
+  const { url, timezone, source, own } = await calendarOf(ctx, tenantId);
   if (!url) return null;
   let feed: ParsedRead;
   try {
@@ -335,7 +339,7 @@ export async function personVisits(ctx: RouteContext, tenantId: string, person: 
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed) return { timezone, source, state: "unavailable", next: null, last: null };
-  const index = indexFeed(feed.parsed.items);
+  const index = indexFeed(feed.parsed.items, own);
   const v = visitsIn(index, person, now.getTime());
   // The timeline wants them all; a season either side is what the parse holds.
   const all = allVisitsIn(index, person).map((x) => toVisitDto(x) as VisitDto).slice(-60);
@@ -357,7 +361,7 @@ export interface PeopleVisits {
  * of hundreds costs one read of the calendar, not hundreds.
  */
 export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: PersonRowDto[], now = new Date()): Promise<PeopleVisits> {
-  const { url, timezone, source, bookingLink } = await calendarOf(ctx, tenantId);
+  const { url, timezone, source, bookingLink, own } = await calendarOf(ctx, tenantId);
   const visits = new Map<string, PersonVisitsDto>();
   if (!url) return { calendar: { state: "none", source, timezone }, visits, bookingLink };
   let feed: ParsedRead;
@@ -368,7 +372,7 @@ export async function peopleVisits(ctx: RouteContext, tenantId: string, rows: Pe
     feed = { parsed: null, at: null, reason: "not_ical", status: null, checkedAt: null };
   }
   if (!feed.parsed) return { calendar: { state: "unavailable", source, timezone }, visits, bookingLink };
-  const index = indexFeed(feed.parsed.items);
+  const index = indexFeed(feed.parsed.items, own);
   const nowMs = now.getTime();
   for (const r of rows) {
     const v = visitsIn(index, personLike(r), nowMs);

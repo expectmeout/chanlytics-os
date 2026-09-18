@@ -14,6 +14,7 @@ import { notify } from "./notify.js";
 import { loadTenantNotifications } from "./tenant-runtime.js";
 import {
   indexFeed,
+  ownAddressesOf,
   numberHealth,
   parseTenantConfig,
   toPersonRowVM,
@@ -178,7 +179,10 @@ export async function loadTenantRunContext(db: Db, tenantId: string, now: Date):
     const items = await feedItemsFor(tenantId, url, tz, now, daysAhead);
     if (items) {
       calendar = "ok";
-      const index = indexFeed(items);
+      // The business's own addresses are never a customer's (contracts
+      // ownAddressesOf). Without them a visit playbook could thank the owner,
+      // as a customer, for a meeting on their own calendar.
+      const index = indexFeed(items, ownAddressesOf(cfgParsed));
       for (const r of rows) {
         const v = visitsIn(index, { id: r.id, name: r.display_name || r.wa_profile_name || "", phone: r.phone_e164, email: r.email ?? null }, now.getTime());
         visits.set(r.id, { timezone: tz, source: "calendar", state: "ok", next: toVisitDto(v.next), last: toVisitDto(v.last) });

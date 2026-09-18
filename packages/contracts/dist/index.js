@@ -3359,13 +3359,40 @@ function phoneFrom(raw) {
   if (bare && !s.startsWith("+") && !(digits2.length === 10 || digits2.length === 11 && digits2.startsWith("1"))) return null;
   return normalizePhone(s.startsWith("+") ? `+${digits2}` : digits2);
 }
-function extractContacts(item) {
+var NO_OWN_ADDRESSES = /* @__PURE__ */ new Set();
+function calendarOwnerOf(url) {
+  const m = /^https:\/\/calendar\.google\.com\/calendar\/ical\/([^/]+)\//i.exec(url ?? "");
+  if (!m) return null;
+  let id;
+  try {
+    id = decodeURIComponent(m[1]).trim().toLowerCase();
+  } catch {
+    return null;
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(id) || /@(group|import)\.calendar\.google\.com$/.test(id)) return null;
+  return id;
+}
+function ownAddressesOf(cfg) {
+  const out = /* @__PURE__ */ new Set();
+  for (const e of cfg?.notifications?.escalation_emails ?? []) {
+    const a = String(e).trim().toLowerCase();
+    if (a) out.add(a);
+  }
+  const owner = calendarOwnerOf(cfg?.calendar?.ical_url);
+  if (owner) out.add(owner);
+  return out;
+}
+function isOwn(own, p) {
+  return !!p.email && own.has(p.email.toLowerCase());
+}
+function extractContacts(item, own) {
   const text = [item.title, item.description ?? "", item.location ?? ""].join("\n");
   const organizer = item.organizer?.toLowerCase() || null;
   const emails = /* @__PURE__ */ new Set();
   for (const m of text.match(EMAIL_RE) ?? []) emails.add(m.toLowerCase());
   for (const a of item.attendees ?? []) if (a.email) emails.add(a.email.toLowerCase());
   if (organizer) emails.delete(organizer);
+  for (const a of own) emails.delete(a);
   const phones = /* @__PURE__ */ new Set();
   for (const m of text.replace(EMAIL_RE, " ").match(PHONE_RE) ?? []) {
     const p = phoneFrom(m);
@@ -3374,6 +3401,7 @@ function extractContacts(item) {
   const names = /* @__PURE__ */ new Set();
   for (const a of item.attendees ?? []) {
     if (organizer && a.email?.toLowerCase() === organizer) continue;
+    if (a.email && own.has(a.email.toLowerCase())) continue;
     const n = (a.name ?? "").trim();
     if (n && !EMAIL_RE.test(n)) names.add(n);
     EMAIL_RE.lastIndex = 0;
@@ -3395,8 +3423,9 @@ function personInText(text, people) {
   return best;
 }
 var labelOf = (p) => p.name.trim() || formatPhoneDisplay(p.phone) || p.email || "Unknown";
-function matchPerson(item, people) {
-  const c = extractContacts(item);
+function matchPerson(item, everyone, own) {
+  const c = extractContacts(item, own);
+  const people = everyone.filter((p2) => !isOwn(own, p2));
   if (c.phones.length) {
     const byPhone = /* @__PURE__ */ new Map();
     for (const p2 of people) if (p2.phone) byPhone.set(p2.phone, p2);
@@ -3416,19 +3445,20 @@ function matchPerson(item, people) {
   const p = personInText([item.title, ...c.names, item.description ?? ""].join("\n"), people);
   return p ? { id: p.id, name: labelOf(p), via: "name", ...threadOf(p) } : null;
 }
-function indexFeed(items) {
+function indexFeed(items, own) {
   const byPhone = /* @__PURE__ */ new Map();
   const byEmail = /* @__PURE__ */ new Map();
   const texts = [];
   for (const it of items) {
-    const c = extractContacts(it);
+    const c = extractContacts(it, own);
     for (const ph of c.phones) byPhone.set(ph, [...byPhone.get(ph) ?? [], it]);
     for (const em of c.emails) byEmail.set(em, [...byEmail.get(em) ?? [], it]);
     texts.push({ item: it, text: [it.title, ...c.names, it.description ?? ""].join("\n") });
   }
-  return { byPhone, byEmail, texts };
+  return { byPhone, byEmail, texts, own };
 }
 function allVisitsIn(index, person) {
+  if (isOwn(index.own, person)) return [];
   const out = [];
   const seen = /* @__PURE__ */ new Set();
   const take = (it, via) => {
@@ -3445,6 +3475,7 @@ function allVisitsIn(index, person) {
   return out.sort((a, b) => a.start - b.start);
 }
 function visitsIn(index, person, nowMs) {
+  if (isOwn(index.own, person)) return { next: null, last: null };
   let next = null;
   let last = null;
   const seen = /* @__PURE__ */ new Set();
@@ -3464,8 +3495,8 @@ function visitsIn(index, person, nowMs) {
   }
   return { next, last };
 }
-function visitsOf(items, person, nowMs) {
-  return visitsIn(indexFeed(items), person, nowMs);
+function visitsOf(items, person, nowMs, own) {
+  return visitsIn(indexFeed(items, own), person, nowMs);
 }
 var ms = (t) => typeof t === "number" ? t : Date.parse(t);
 function visitDay(start, tz, nowMs) {
@@ -3559,7 +3590,7 @@ function peopleFromItems(items, services, nowMs, window = {}) {
   };
   for (const it of items) {
     if (it.end < from || it.start > to) continue;
-    const phones = extractContacts(it).phones;
+    const phones = extractContacts(it, NO_OWN_ADDRESSES).phones;
     if (!phones.length) continue;
     const name = guessName(it, services);
     for (const phone of phones) {
@@ -10196,6 +10227,7 @@ export {
   businessRecordLine,
   businessRecordProblems,
   businessTypeOf,
+  calendarOwnerOf,
   callOutcomeOf,
   callOutcomeWords,
   capabilityStatus,
@@ -10392,6 +10424,7 @@ export {
   optInLink,
   optInPurposeOf,
   overLimitRefusal,
+  ownAddressesOf,
   pageTitle,
   paramLabel,
   parseAskFinish,
