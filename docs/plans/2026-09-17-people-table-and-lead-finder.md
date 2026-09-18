@@ -699,7 +699,15 @@ Each phase ships on its own and leaves nothing half-wired.
 19. **A converted lead's yes comes only from them, permanently** (their own message through the edge, or the yes page; never a signed-in caller). Decided: yes; it replaces the 90-day window.
 20. **At the desk, "in their own message" requires picking the actual message** when the conversation is in Chanlytics; "form" stays for paper slips. Decided: yes, product-wide (the doors are older than this feature).
 21. **A review of Google Maps' terms gates the first paying workspace.** Decided: yes; the launch switch stays off until then. Ruben then asked Claude to do the review itself (18 Sep): `docs/plans/2026-09-18-lead-finder-source-rights.md` (not legal advice). It found that scraping consumer Google Maps for a paid lead product breaks the Maps terms (§2(c), mass download, including through someone acting for you), and that the Places API's terms forbid storing and exporting names and addresses too.
-22. **Where leads come from.** Ruben, 18 Sep: only through actors on Apify, never directly. The recipe hides the discovery actor behind one source port. A side-by-side on three niches (the Google Maps actor against the Overture-backed actors on Apify, about $1 of the approved calibration budget) picks the default. An Overture actor is the default if it finds at least about 70% of what the Google Maps actor finds: licensed data. Otherwise the Google Maps actor is, but only with Ruben's explicit, recorded acceptance of the terms risk (`docs/plans/2026-09-18-lead-finder-source-rights.md`, "Inside Apify only") and its mitigations. A lawyer's opinion comes before lead packs or scaling past the pilot.
+22. **Where leads come from.** Decided by Ruben, 18 Sep:
+   - Leads come only through actors on Apify, and the Google Maps actor is the default for local businesses. He has read the terms review and accepts its risk; it is not re-opened.
+   - **Claude picks the source for each ask** from a catalog of Apify sources that grows. It starts with Google Maps places; Amazon sellers come next, and others follow as owners ask.
+     - Each catalog entry is an actor with a pinned build, an input builder, an output mapper, a price, and a line that tells Claude what it is good for.
+     - When no source fits, Claude says so in plain words ("I can't search Etsy shops yet").
+     - First-day suggestions draw on the owner's type of business and on what the catalog can search.
+   - **Apify's own limits apply:** concurrent runs and memory for the account's plan, per-run charge caps, and 60 requests a second per resource.
+   - The Overture-backed actors stay in the catalog as a fallback.
+   - The product never names Apify or any actor: the owner sees Claude finding businesses.
 
 ## Appendix A: actors and Apify facts used
 

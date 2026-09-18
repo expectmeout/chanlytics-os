@@ -11,7 +11,7 @@ Ruben agreed to every recommendation in the PRD's section 16 (1–17) and to the
 1. **Only Qualified leads count toward the monthly allowance.** A lead Claude was unsure about, or whose contact does not meet the plan's contact standard, is **Needs review**: free, visible, and counted only when the owner keeps it. **Excluded** (left out) never counts.
 2. **A converted lead's yes comes only from them, permanently.** For a person linked to a lead, a yes of either kind arrives only through the edge (their own message, with its evidence) or the yes page. No signed-in caller may record one, ever. This replaces the 90-day quarantine (`lead_consent_quarantine_days`, `set_contact_consent` at ~2649).
 3. **Product-wide, older than this feature:** when the conversation is in Chanlytics, recording a yes "in their own message" at the desk requires picking the actual inbound message; its id and words go into the evidence. "Form" stays for paper slips, attested with a note. (Today `set_marketing_consent`, 00110, and the desk route `apps/dashboard/app/api/v1/contacts/[id]/marketing-consent/route.ts` accept `customer_message` from any operator without the message.)
-4. **A counsel review of Google Maps' terms gates the first paying workspace**: the scraping, what is stored and for how long, what is shown, exported and sent to a model. `lead_platform.searches_on` ships off and stays off until then.
+4. **Settled 18 Sep:** Claude reviewed the terms at Ruben's request (`2026-09-18-lead-finder-source-rights.md`), and Ruben accepted the risk and kept the Google Maps actor through Apify as the default (PRD decision 22). The original decision read: **a counsel review of Google Maps' terms gates the first paying workspace**: the scraping, what is stored and for how long, what is shown, exported and sent to a model. `lead_platform.searches_on` ships off and stays off until then.
 
 ## Accepted: engineering (the Phase 1 plan)
 
@@ -50,7 +50,7 @@ Ruben agreed to every recommendation in the PRD's section 16 (1–17) and to the
 
 ## Release gates for Phase 1
 
-- **G1 Source rights:** counsel's review (decision 4) before the first paying workspace.
+- **G1 Source rights:** settled by Ruben's decision on 18 Sep (decision 4, PRD decision 22). What remains is his flip of the launch switch.
 - **G2 Quality:** a human-labelled set of a few hundred places across several niches and cities, accepted and rejected, including shared identities, ambiguous contacts, missing geography and hostile names; the judge is scored on it (with uncertainty, by segment) before launch. The calibration's items expire about 25 September, so this needs one small new run (about $0.50, Ruben's to approve).
 - **G3 Concurrency:** real-Postgres tests for E1–E5 and E9: duplicate starts, competing reservations, stale workers, late webhooks, Stop during checks, month rollover, erasure mid-run.
 - **G4 Browser:** 375, 720, 800, 960, 1280, 1440; keyboard only; slow and superseded reads.

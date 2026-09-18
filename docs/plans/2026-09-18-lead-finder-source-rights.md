@@ -1,5 +1,7 @@
 # Google Maps' terms and the lead finder: a review
 
+**Decision, Ruben, 18 September 2026:** leads come through Apify actors, with the Google Maps actor as the default for local businesses. He has read this review and accepts its risk. It stays as the record and is not a gate.
+
 Written 18 September 2026 by Claude, at Ruben's request, from the primary documents and published rulings listed at the end. **This is not legal advice.** Claude is not a lawyer. It is a close reading of Google's terms and the US case law, to decide what to build. Where the answer turns on a judgment a court would make, it says so.
 
 ## The question
