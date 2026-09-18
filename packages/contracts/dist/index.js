@@ -4369,6 +4369,7 @@ function dedupeFeed(rows) {
 
 // src/today.ts
 var TODAY_QUEUE_MAX = 6;
+var QUOTE_MAX = 240;
 var CHANNEL_LABEL = { whatsapp: "WhatsApp", voice: "Phone line" };
 function tzClock(iso, tz, now) {
   const t = tzTime(iso, tz);
@@ -4497,7 +4498,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       waited: formatWaited(waitedMs),
       warn: waitedMs > 30 * 6e4,
       // her own words, never a generated characterization of them
-      quote: lastCustomer ? messageText(lastCustomer).slice(0, 110) : "",
+      quote: lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "",
       meta: conv ? contactMeta(conv, threadChannelWords(conv.messages)) : "WhatsApp",
       windowNote: closes ? `Reply window closes ${closes}` : null,
       to: `inbox/th-${e.conversation_id}`
@@ -4716,7 +4717,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       continue;
     }
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : void 0;
-    const quote = lastCustomer ? messageText(lastCustomer).slice(0, 110) : "";
+    const quote = lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "";
     const who = conv ? contactName(conv) : "Unknown";
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
     const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
@@ -4749,7 +4750,7 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       initials: initialsOf(who),
       channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} \xB7 in ${formatWaited(leftMs)}`,
-      sentence: last ? messageText(last).slice(0, 110) : "They wrote last, and the free reply window is closing.",
+      sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.",
       quoted: !!last,
       status: ["Reply window closing", "they wrote last"],
       tone: "warn",
@@ -9928,6 +9929,7 @@ export {
   QUEUE_SENDS_NOTHING,
   QUEUE_SHOWN,
   QUIET_AFTER_MS,
+  QUOTE_MAX,
   RATE_HITS_RETENTION_HOURS,
   RECENT_MAX,
   RECIPIENT_STATES,
@@ -10055,6 +10057,7 @@ export {
   cleanDraft,
   cleanParam,
   cleanTimezone,
+  clipAtWord,
   clockDate,
   clockDateYear,
   clockDayLabel,

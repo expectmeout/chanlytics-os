@@ -879,7 +879,7 @@ function lastWordOf(dto: ConversationDto): NonNullable<InboxThreadVM["lastWord"]
 }
 
 /** Words cut after a whole word, with an ellipsis, when they run past `max`; whole when they fit. */
-function clipAtWord(text: string, max: number): string {
+export function clipAtWord(text: string, max: number): string {
   const t = text.trim();
   if (t.length <= max) return t;
   const cut = t.slice(0, max + 1);
