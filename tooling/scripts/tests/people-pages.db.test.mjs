@@ -75,7 +75,7 @@ test("member_view_set: a member's own row in the workspace named; a stranger is 
     void anon;
     const as = createClient(URL_, process.env.SUPABASE_ANON_KEY ?? KEY, { auth: { persistSession: false } });
     const { error: sErr } = await as.auth.signInWithPassword({ email, password: "a-long-test-password-1" });
-    if (sErr) { assert.ok(true, `no anon sign-in here: ${sErr.message}`); return; }
+    assert.equal(sErr, null, sErr?.message);
     const { data: views, error } = await as.rpc("member_view_set", { p_tenant_id: tenantId, p_page: "people", p_view: { sortBy: "name", sortDir: "asc" } });
     assert.equal(error, null, error?.message);
     assert.deepEqual(views, { people: { sortBy: "name", sortDir: "asc" } });

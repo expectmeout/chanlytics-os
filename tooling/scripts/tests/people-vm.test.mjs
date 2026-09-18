@@ -18,6 +18,9 @@ import {
   PEOPLE_LISTS,
   PEOPLE_TABS,
 } from "@chanlytics/contracts";
+// A namespace too: a word this change adds is missing from the module until the dist is rebuilt, and a named import
+// of it would fail the whole file instead of the one test that reads it.
+import * as contracts from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -410,4 +413,18 @@ test("the offers answer in a word, as People's Offers column says it -- so a lis
   assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: "opted_out" }), ZONE, NOW).consent.marketingLabel, "No");
   assert.equal(toPersonRowVM(row({ consent: "opted_in", marketing_consent: null }), ZONE, NOW).consent.marketingLabel, "Not asked", "a yes to messages is not a yes to offers");
   assert.equal(toPersonRowVM(row({ consent: "opted_out", marketing_consent: "opted_in" }), ZONE, NOW).consent.marketingLabel, "No", "a STOP stops offers too");
+});
+
+test("where a person came from, in the words People says it: one per stored value, and nothing for what this build does not know", () => {
+  assert.deepEqual(contracts.PERSON_CAME_FROM_WORDS, {
+    whatsapp: "WhatsApp", sms: "Text", email: "Email", call: "Phone",
+    calendar: "Your calendar", manual: "Added by hand", import: "Imported history", lead: "A lead you found",
+  });
+  for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS)) assert.deepEqual(contracts.cameFromOf({ came_from: key }), { key, label });
+  assert.equal(contracts.cameFromOf({ came_from: null }), null, "nothing known, nothing said");
+  assert.equal(contracts.cameFromOf({}), null, "a row read before 00138 has no came_from at all");
+  assert.equal(contracts.cameFromOf({ came_from: "carrier_pigeon" }), null, "a value this build does not know is never shown raw");
+  assert.equal(contracts.cameFromOf({ came_from: "toString" }), null, "nor one every object answers to");
+  assert.deepEqual(toPersonRowVM(row({ came_from: "calendar" }), ZONE, NOW).cameFrom, { key: "calendar", label: "Your calendar" }, "the row carries it");
+  assert.equal(toPersonRowVM(row(), ZONE, NOW).cameFrom, null);
 });

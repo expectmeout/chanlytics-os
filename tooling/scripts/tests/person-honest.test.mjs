@@ -144,6 +144,7 @@ globalThis.React = {
     if (typeof type === "function") node.rendered = type(props);
     return node;
   },
+  cloneElement: (el, props) => ({ ...el, props: { ...el.props, ...props } }),
   useState: (init) => { const k = seq++; if (!(k in cells)) cells[k] = typeof init === "function" ? init() : init; return [cells[k], (v) => { cells[k] = typeof v === "function" ? v(cells[k]) : v; }]; },
   useReducer: (red, init) => { const k = seq++; if (!(k in cells)) cells[k] = init; return [cells[k], (a) => { cells[k] = red(cells[k], a); }]; },
   useRef: (init) => { const k = seq++; if (!(k in cells)) cells[k] = { current: init }; return cells[k]; },

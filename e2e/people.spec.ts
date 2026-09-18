@@ -28,7 +28,8 @@ async function assertMeasuredOnly(page: Page, where: string) {
     expect(text, `${where} shows an invented person: "${who}"`).not.toContain(who);
   }
   // A customer's own words may name a price ("can you do it for $150?"); the facts and cells may not.
-  for (const cell of await page.locator(".stat-cell, td, .cl-attn-status").allInnerTexts()) expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
+  // A column the member turned off (pl-col-off) is drawn and hidden, and innerText reads a hidden cell's text: only what shows counts.
+  for (const cell of await page.locator(".stat-cell, td:not(.pl-col-off), .cl-attn-status").allInnerTexts()) expect(cell, `${where} shows a dollar amount, and revenue has no column`).not.toMatch(/\$\d/);
 }
 
 test.describe("People on a real workspace", () => {
@@ -49,11 +50,12 @@ test.describe("People on a real workspace", () => {
 
     // The table's columns are the measured ones.
     // innerText follows the CSS text-transform, so compare case-insensitively.
-    const headers = (await page.locator(".cl-table thead th").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
+    // The headings a desktop shows: a column the member turned off is drawn with pl-col-off and hidden, and innerText would read it.
+    const headers = (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
     const cal = ((await (await apiGet(page, "/api/v1/contacts")).json()).data as { calendar?: { state: string } }).calendar;
     // With a calendar connected the outcome takes the receptionist's column; the checkbox and the actions columns have no words. First contact lives in the identity cell.
-    // The first column is Person: a page called People (B19); "Customer" was the mockup's word.
-    expect(headers).toEqual(["person", "state", "last contact", cal?.state === "ok" ? "visits" : "receptionist", "offers"]);
+    // The first column is Person: a page called People (B19); "Customer" was the mockup's word. Came from ends the default columns.
+    expect(headers).toEqual(["person", "state", "last contact", cal?.state === "ok" ? "visits" : "receptionist", "offers", "came from"]);
     // Every Offers cell is one of the three answers.
     for (const t of await page.getByTestId("row-offers").allInnerTexts()) expect(["Yes", "No", "Not asked"]).toContain(t.trim());
     // One state switcher: the rail, and the count in the line above. The tab row
@@ -305,5 +307,87 @@ test.describe("People on a real workspace", () => {
       const words = row.getByTestId("row-words");
       if (await words.count()) expect((await words.innerText()).trim()).not.toMatch(/nothing written to quote/);
     }
+  });
+
+  test("the Columns menu shows and hides a column and stays open; the view it saves keeps the sort -- the save is intercepted", async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    // Any other write to a view is stopped and noted, so a save that moved to another address can never write this
+    // test's choices onto the member's real view. Registered first, so it runs last: the save expected below is
+    // answered before it gets here, and anything that one does not answer falls back to this.
+    const stopped: string[] = [];
+    await page.route(/\/api\/v1\/views(?:[/?#]|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() === "GET" || req.method() === "HEAD") { await route.continue(); return; }
+      stopped.push(`${req.method()} ${req.url()}`);
+      await route.abort();
+    });
+    // Registered before the page loads, so no save from this test reaches the member's real view.
+    const saved: Array<{ view?: { sortBy?: unknown; sortDir?: unknown; columns?: Record<string, boolean> } }> = [];
+    await page.route(/\/api\/v1\/views\/people(?:[?#]|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() !== "PUT") { await route.fallback(); return; }
+      saved.push(req.postDataJSON());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ ok: true, data: { views: {} } }) });
+    });
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const headers = async () => (await page.locator(".cl-table thead th:not(.pl-col-off)").allInnerTexts()).map((h) => h.replace(/[▲▼]/g, "").trim().toLowerCase()).filter(Boolean);
+    expect(await headers()).toContain("came from");
+    await page.getByTestId("people-columns").click();
+    const menu = page.getByTestId("people-columns-menu");
+    await expect(menu).toBeVisible();
+    await expect(page.getByTestId("column-name")).toHaveAttribute("aria-disabled", "true");
+    await page.getByTestId("column-came_from").click();
+    await expect(menu).toBeVisible();
+    await expect.poll(headers).not.toContain("came from");
+    // A write the catch-all stopped is the answer the poll shows, so a save that moved fails saying where it went.
+    await expect.poll(() => (stopped.length ? stopped : saved.some((s) => s.view?.columns?.came_from === false)), { message: "the column's save reached the one address answered here" }).toBe(true);
+    const last = saved[saved.length - 1];
+    expect(typeof last.view?.sortBy, "the sort rides with the columns").toBe("string");
+    expect(["asc", "desc"]).toContain(last.view?.sortDir);
+    await page.keyboard.press("Escape");
+    await expect(menu).toHaveCount(0);
+    await expect(page.getByTestId("people-columns"), "Esc puts focus back on the button that opened the menu").toBeFocused();
+    expect(stopped, "every write to a view went to the one address answered here").toEqual([]);
+  });
+
+  test("on a desktop the table scrolls sideways under a pinned Person column, with a hairline once it has", async ({ page }) => {
+    await page.setViewportSize({ width: 960, height: 800 });
+    await page.goto("/#/clients");
+    await page.waitForLoadState("networkidle");
+    const rows = page.locator(".cl-table tbody tr:not(:has(.empty))");
+    test.skip((await rows.count()) === 0, "this workspace has nobody to show");
+    const scroller = page.getByTestId("people-table-scroll");
+    // Beside the sidebar and the rail the columns are wider than their box; the box used to cut them off.
+    expect(await scroller.evaluate((el) => el.scrollWidth > el.clientWidth + 1), "the table scrolls sideways at 960px").toBe(true);
+    await expect(scroller).not.toHaveClass(/\bscrolled\b/);
+    const name = rows.first().locator("td.cl-name-cell");
+    const heading = page.locator(".cl-table thead th.pl-pin");
+    const before = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
+    await scroller.evaluate((el) => { el.scrollLeft = 240; });
+    await expect(scroller).toHaveClass(/\bscrolled\b/);
+    const after = { name: (await name.boundingBox())!, heading: (await heading.boundingBox())! };
+    expect(Math.round(after.name.x), "Person stays where it was").toBe(Math.round(before.name.x));
+    expect(Math.round(after.heading.x), "and so does its heading").toBe(Math.round(before.heading.x));
+    // K past the top: the row the cursor walks up to stops below the sticky header, not under it. The box's
+    // scroll-padding-top is the header's height (--pl-head), so a taller header shows here as a row under it.
+    await page.evaluate(() => { const el = document.activeElement as HTMLElement | null; if (el && el.blur) el.blur(); });
+    const target = Math.min(3, (await rows.count()) - 1);
+    for (let i = 0; i <= target; i += 1) await page.keyboard.press("j");
+    await expect(page.locator(".cl-table tbody tr.focused")).toHaveCount(1);
+    // The row above the cursor goes up out of the box, as far as the box scrolls.
+    await scroller.evaluate((el, above) => {
+      const row = el.querySelectorAll("tbody tr")[above];
+      if (row) el.scrollTop += row.getBoundingClientRect().bottom - el.getBoundingClientRect().top;
+    }, Math.max(0, target - 1));
+    await page.keyboard.press("k");
+    const cursor = page.locator(".cl-table tbody tr.focused");
+    await expect(cursor).toHaveCount(1);
+    const head = (await page.locator(".cl-table thead th").first().boundingBox())!;
+    expect((await cursor.boundingBox())!.y, "the row K walked up to stops below the header").toBeGreaterThanOrEqual(head.y + head.height - 1);
+    // Three people (the nightly's workspace) never make the box scroll, and then the walk above cannot fail: so the
+    // rule itself is read too. The box's scroll padding is the header's height, whatever the number of rows.
+    const pad = await scroller.evaluate((el) => getComputedStyle(el).scrollPaddingTop);
+    expect(Math.abs(parseFloat(pad) - head.height), `the box's scroll padding (${pad}) is the header's height`).toBeLessThanOrEqual(0.5);
   });
 });

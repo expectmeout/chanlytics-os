@@ -12,7 +12,7 @@ import type { PromptPreviewDto } from "../server/prompt-preview";
  * never inside legacy page files (the modularity rule).
  */
 
-import { clearSurfaceCache } from "./surface-cache";
+import { clearSurfaceCache, resnapshotSurface } from "./surface-cache";
 import { ApiError } from "../client/api";
 import { api, read } from "./api";
 import { getActiveWorkspace, rememberWorkspace, workspaceHref } from "./workspace";
@@ -651,6 +651,26 @@ function publishPeople(): void {
   };
 }
 
+/** The views this tab has saved (the latest by page), how many saves it has made, and how many still wait on their reply. */
+const keptViews = { views: {} as Record<string, Record<string, unknown>>, made: 0, waiting: 0 };
+
+// A save reads nothing back, and People mounted again (Back) reads the view from this copy, so the copy takes each save.
+// Until the first read of People lands (straight after F5) the copy is the one the tab's cache painted. What it returns
+// is called when the save's reply lands.
+export function keepSavedView(page: string, view: Record<string, unknown>): () => void {
+  keptViews.views[page] = view;
+  keptViews.made += 1;
+  keptViews.waiting += 1;
+  let waiting = true;
+  const landed = () => { if (waiting) { waiting = false; keptViews.waiting -= 1; } };
+  const views = peopleLoaded ? peopleLoaded.views : (window as unknown as { __PEOPLE?: PeopleSurface }).__PEOPLE?.views;
+  if (!views) return landed;
+  views[page] = view;
+  // A reload paints the tab's cached People before anything is read again, so the cached copy takes the save too.
+  resnapshotSurface(peopleOverride.key, peopleOverride.globals ?? [], (window as unknown as { __ACTIVE_WORKSPACE?: string }).__ACTIVE_WORKSPACE ?? null);
+  return landed;
+}
+
 /**
  * The next thousand, appended under the same order, and the surface told:
  * `window.__peopleMore()`. The page shows the button only while the server
@@ -717,6 +737,11 @@ export const peopleOverride: SurfaceOverride = {
   events: ["surface:clients"],
   refreshOnMessageInserts: true,
   apply: async () => {
+    // A view saved while this read is out, or before it with its reply still to come, may be missing from what the read
+    // brings back, so the tab's own saves are laid over it. A read that overlapped no save takes the server's views as
+    // they are: another device's change shows.
+    const savesBefore = keptViews.made;
+    const overlapped = keptViews.waiting > 0;
     const [data, savedData, viewsData, tz] = await Promise.all([
       read("GET contacts"),
       // The saved lists failing is their own state (savedRead): one failed read of
@@ -736,7 +761,7 @@ export const peopleOverride: SurfaceOverride = {
       saved: savedData instanceof Error ? null : savedData.lists,
       calendar: data.calendar ?? { state: "none" as const, source: "your calendar" },
       bookingLink: data.booking_link ?? null,
-      views: viewsData.views ?? {},
+      views: overlapped || keptViews.made !== savesBefore ? { ...(viewsData.views ?? {}), ...keptViews.views } : viewsData.views ?? {},
     };
     const w = window as unknown as { __peopleMore?: () => Promise<void>; __peopleSearch?: (q: string) => Promise<{ rows: PersonRowVM[]; more: boolean }> };
     w.__peopleMore = peopleMore;

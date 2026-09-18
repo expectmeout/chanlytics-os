@@ -3739,6 +3739,21 @@ function bookingLinkAction(replyVia, win) {
 }
 var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
 var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
+var PERSON_CAME_FROM_WORDS = {
+  whatsapp: REPLY_VIA.whatsapp,
+  sms: REPLY_VIA.sms,
+  email: REPLY_VIA.email,
+  call: PERSON_CHANNEL_WORDS.voice,
+  calendar: "Your calendar",
+  manual: "Added by hand",
+  import: "Imported history",
+  lead: "A lead you found"
+};
+function cameFromOf(r) {
+  const k = r.came_from;
+  if (!k || !Object.prototype.hasOwnProperty.call(PERSON_CAME_FROM_WORDS, k)) return null;
+  return { key: k, label: PERSON_CAME_FROM_WORDS[k] };
+}
 function personStanding(r, nowMs) {
   return standingOf({
     state: r.latest_state === "snoozed" ? "snoozed" : r.needs_human || r.latest_state === "needs_human" ? "needs_human" : r.latest_state ?? "open",
@@ -3894,6 +3909,7 @@ function toPersonRowVM(r, tz, now = /* @__PURE__ */ new Date()) {
     lastContact: last,
     receptionist: receptionistOf(r, tz, nowMs),
     firstContact: first,
+    cameFrom: cameFromOf(r),
     consent,
     quote: r.last_inbound_text?.trim() || null,
     callSummary: r.last_inbound_call_summary?.trim() || null,
@@ -8561,6 +8577,10 @@ var SHORTCUTS = [
   { group: "Everywhere", keys: ["?"], does: "This sheet" },
   { group: "Everywhere", keys: ["Esc"], does: "Close what is open" },
   { group: "People", keys: ["/"], does: "Search People" },
+  { group: "People", keys: ["J", "K", "\u2193", "\u2191"], does: "Next and previous person" },
+  { group: "People", keys: ["X", "Space"], does: "Select the person" },
+  { group: "People", keys: ["\u21B5"], does: "Open their profile" },
+  { group: "People", keys: ["Esc"], does: "Clear the selection" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
@@ -10122,6 +10142,7 @@ export {
   PEOPLE_LIST_GROUPS,
   PEOPLE_TABS,
   PERM_DOING,
+  PERSON_CAME_FROM_WORDS,
   PERSON_CHANNEL_WORDS,
   PERSON_MODES,
   PERSON_MODE_LABELS,
@@ -10273,6 +10294,7 @@ export {
   calendarOwnerOf,
   callOutcomeOf,
   callOutcomeWords,
+  cameFromOf,
   capabilityStatus,
   changedConfigFields,
   channelFor,

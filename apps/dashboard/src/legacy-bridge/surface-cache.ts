@@ -81,18 +81,31 @@ export function hydrateSurfaceCache(): Set<string> {
   return restored;
 }
 
-/** Persist the globals a surface owns, after its apply succeeded. */
-export function snapshotSurface(key: string, globals: string[], tenant: string | null): void {
-  if (!globals.length) return;
+/** What a snapshot of a surface holds: the globals it owns, as they are on window now. */
+function globalsNow(globals: string[]): Record<string, unknown> {
   const w = window as unknown as Record<string, unknown>;
-  const blob = read() ?? { build: BUILD, tenant, surfaces: {} };
-  blob.build = BUILD;
-  if (tenant) blob.tenant = tenant;
   const snap: Record<string, unknown> = {};
   for (const name of globals) {
     if (w[name] !== undefined) snap[name] = w[name];
   }
-  blob.surfaces[key] = snap;
+  return snap;
+}
+
+/** Persist the globals a surface owns, after its apply succeeded. */
+export function snapshotSurface(key: string, globals: string[], tenant: string | null): void {
+  if (!globals.length) return;
+  const blob = read() ?? { build: BUILD, tenant, surfaces: {} };
+  blob.build = BUILD;
+  if (tenant) blob.tenant = tenant;
+  blob.surfaces[key] = globalsNow(globals);
+  write(blob);
+}
+
+// Only into an entry already cached for this tenant: a new one could carry no tenant, and the runner's guard skips those.
+export function resnapshotSurface(key: string, globals: string[], tenant: string | null): void {
+  const blob = read();
+  if (!blob || !tenant || blob.tenant !== tenant || !blob.surfaces[key]) return;
+  blob.surfaces[key] = globalsNow(globals);
   write(blob);
 }
 

@@ -59,8 +59,13 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
   assert.deepEqual(groups.map((g) => g.group), ["Everywhere", "People", "Inbox"]);
   const does = SHORTCUTS.map((s) => s.does);
   for (const d of ["Ask Chanlytics", "Collapse or expand the sidebar", "This sheet", "Search People", "Next and previous conversation", "Approve the draft", "Send"]) assert.ok(does.includes(d), d);
-  const where = (keys) => (SHORTCUTS.find((s) => s.keys.join(" ") === keys) || {}).group;
-  assert.deepEqual([where("/"), where("J K")], ["People", "Inbox"], "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People and J/K walk the Inbox");
+  const where = (key) => SHORTCUTS.filter((s) => s.keys.includes(key)).map((s) => s.group);
+  assert.deepEqual([where("/"), where("J")], [["People"], ["People", "Inbox"]], "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People, and J/K walk People's rows and the Inbox's");
+  assert.deepEqual(
+    groups.find((g) => g.group === "People").items.map((s) => [s.keys.join(" "), s.does]),
+    [["/", "Search People"], ["J K ↓ ↑", "Next and previous person"], ["X Space", "Select the person"], ["↵", "Open their profile"], ["Esc", "Clear the selection"]],
+    "People's keys, the ones its table's foot names: the sheet listed only /",
+  );
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('e.key === "k"') && shell.includes('e.key === "b"'), "⌘K and ⌘B are real");
   assert.ok(shell.includes("if (n >= 1 && n <= 9)"), "⌘1–9 are real");
