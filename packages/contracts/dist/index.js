@@ -6604,6 +6604,19 @@ function nextRunLabel(p, tz, now) {
   }
   return `tomorrow ${at2}`;
 }
+function playbookReach(p) {
+  if (p.waiting) return "waiting";
+  if (p.state !== "running") return "paused";
+  if (p.candidates > 0) return "sends";
+  return p.held > 0 ? "all-heard" : "nobody";
+}
+var PLAYBOOK_REACH_WORDS = {
+  waiting: null,
+  paused: null,
+  sends: null,
+  nobody: "nobody to send to",
+  "all-heard": "waiting out the week's gap"
+};
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
@@ -9933,6 +9946,7 @@ export {
   PLAYBOOK_DEFAULTS,
   PLAYBOOK_HOURS,
   PLAYBOOK_NAME_MAX,
+  PLAYBOOK_REACH_WORDS,
   PLAYBOOK_STATES,
   PLAYBOOK_TRIGGERS,
   PLAYBOOK_VETO_DELAY_MS,
@@ -10292,6 +10306,7 @@ export {
   platformQueue,
   platformRows,
   platformSummary,
+  playbookReach,
   playbooksStillSending,
   pointsDelta,
   policyAskClass,

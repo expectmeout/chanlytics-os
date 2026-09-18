@@ -13,6 +13,8 @@ import assert from "node:assert/strict";
 import {
   BROADCAST_STATES, DECISION_SUBJECTS, DECISION_VERBS, PLAYBOOK_BREATH_MS, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS,
   eligibleForPlaybook, localDate, localHour, nextRunLabel, planRun, runDueNow, scheduleLine, toBroadcastVM, triggerOf,
+  PLAYBOOK_REACH_WORDS,
+  playbookReach,
 } from "@chanlytics/contracts";
 import { readCode, readRaw, importSrc } from "./_source.mjs";
 import { localDate as tzDate, visitFactsFor as visitFacts } from "@chanlytics/contracts";
@@ -174,6 +176,33 @@ test("the page and its doors: Outbound is Playbooks, real; make, change, pause, 
   assert.ok(pools.includes("cap_per_run: PLAYBOOK_POOL, gap_days: 0, cadence_days: 0 }, touches, now.getTime()).length"), "the chip counts the pool with the runner's own predicate -- with the week's touches, since slice C of the data program; on the server over everyone since Calendar 3 (run in calendar-counts.test.mjs)");
   assert.ok(readCode("apps/dashboard/src/legacy/components/surface-tabs.jsx").includes('{ id: "outbound", label: "Playbooks", to: "outbound" }'));
   assert.ok(readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx").includes("broadcastsOverride, playbooksOverride"), "booted with the rest");
+  // "Running · next run tomorrow 10:00" is a promise the run cannot keep when
+  // the pool is empty: the card says what the next run will DO, beside the
+  // state and in the sentence, and the standing line counts them.
+  for (const s of ['data-testid="pb-reach"', 'data-testid="pb-reaches-nobody"', "pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting })", "Next run {p.next} &mdash; <b>{reachWords}</b>."]) assert.ok(page.includes(s), s);
+  assert.ok(page.includes("{p.totals.runs > 1 && ("), "one run says itself once: the row below is the same run, with its date and its door");
+});
+
+test("what the next run will DO: a playbook running against an empty list is not running in the sense the owner means", () => {
+  // The salon had three playbooks on 17 Sep 2026 -- two of them running every
+  // day -- and every one watched a pool of nought. Two runs a day reached
+  // nobody, and had since the list emptied. The card printed it as "0 people on
+  // the list said yes", mid-sentence, as a link, while the hour it would run at
+  // was in bold.
+  const at = (over) => playbookReach({ state: "running", candidates: 0, held: 0, ...over });
+  assert.equal(at({}), "nobody");
+  assert.equal(at({ candidates: 4 }), "sends");
+  assert.equal(at({ state: "paused" }), "paused");
+  assert.equal(at({ state: "paused", candidates: 4 }), "paused", "a paused playbook is paused whoever is on its list");
+  assert.equal(at({ waiting: { id: "b-1" } }), "waiting", "a run waiting for a person is the state that matters");
+  assert.equal(at({ candidates: 4, waiting: { id: "b-1" } }), "waiting");
+  // An empty pool has two causes and they are not the same news: nobody has
+  // said yes (go and fix it), or everyone has and they all heard from you this
+  // week (wait it out).
+  assert.equal(at({ held: 3 }), "all-heard");
+  assert.equal(PLAYBOOK_REACH_WORDS.nobody, "nobody to send to");
+  assert.equal(PLAYBOOK_REACH_WORDS["all-heard"], "waiting out the week's gap");
+  for (const quiet of ["sends", "paused", "waiting"]) assert.equal(PLAYBOOK_REACH_WORDS[quiet], null, `${quiet}: the schedule is the whole truth, so nothing is added`);
 });
 
 test("Ask knows playbooks: read as the page shows them, proposed as a card, committed through the app's route, undone by deleting; Today says what ran; a run's thread names its playbook", async () => {

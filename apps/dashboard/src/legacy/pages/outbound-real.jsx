@@ -37,6 +37,10 @@ const pbRowLabel = (cls) => ((window.__PLAYBOOKS && window.__PLAYBOOKS.classWord
 const pbHour = (h) => `${String(h).padStart(2, "0")}:00`;
 const pbPeople = (n) => `${n} ${n === 1 ? "person" : "people"}`;
 const pbStatus = (p) => (p.totals && p.totals.waiting ? "approval" : p.state);
+// What the next run will actually do (contracts playbookReach): a running
+// playbook whose list is empty is not "running" in any sense the owner means.
+const pbReach = (p) => (window.__playbookReach ? window.__playbookReach(p) : "sends");
+const pbReachWords = (r) => (window.__playbookReachWords ? window.__playbookReachWords[r] : null);
 // Words for people: a starter's title, or the name with its underscores made spaces.
 const pbTitle = (name) => (window.__starters ? window.__starters.title(name) : String(name || "").replace(/_/g, " "));
 const pbIsStarter = (name) => !!(window.__starters && window.__starters.byName(name));
@@ -290,6 +294,8 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
   const surface = window.__PLAYBOOKS || {};
   const message = Array.isArray(surface.templates) ? pbMessage(p, surface.templates, surface.businessName) : null;
   const templateGone = Array.isArray(surface.templates) && !message;
+  const reach = pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting });
+  const reachWords = pbReachWords(reach);
   const act = async (fn, said) => {
     if (!V || busy) return;
     setBusy(true);
@@ -325,6 +331,9 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
           <span className="ob-name">{p.name}</span>
         </div>
         <StatePill kind="playbook" value={status === "paused" ? "paused" : status === "approval" ? "approval" : "running"} />
+        {/* Beside the state, because it IS part of the state: three cards of
+            "Running" that reach nobody scan as three working playbooks. */}
+        {reachWords && <span className="ob-reach" data-testid="pb-reach">{reachWords}</span>}
         <PolicyChip cls={p.policy_class} />
       </div>
 
@@ -362,7 +371,11 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
             {/* "Next run paused" was the words when it is. */}
             {p.state === "paused"
               ? <>Paused &mdash; nothing runs until you resume it.</>
-              : <>Next run <b>{p.next}</b>.</>}
+              // The hour was in bold on its own, which promised a send. It keeps
+              // the hour and says what the hour will do.
+              : reachWords
+                ? <>Next run {p.next} &mdash; <b>{reachWords}</b>.</>
+                : <>Next run <b>{p.next}</b>.</>}
             {p.last_run_for ? <> Last ran {pbDay(p.last_run_for)}.</> : <> It has not run yet.</>}
           </p>
           {templateGone && (
@@ -371,7 +384,10 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
           {/* What its runs earned, as ONE sentence rather than five numbers with
               dots between them. Numbers read as a sentence here the way they do on
               Today, Reports and People; each run below still says its own. */}
-          {p.totals.runs > 0 && (
+          {/* One run says itself once: the row below carries the same numbers
+              with its date and its door, and the two disagreed about which
+              numbers to show. The sum is worth a sentence once there is a sum. */}
+          {p.totals.runs > 1 && (
             <p className="ob-sentence ob-sentence-dim" data-testid="pb-results">
               <span className="tabular">{p.totals.runs}</span> {p.totals.runs === 1 ? "run" : "runs"} so far:{" "}
               <span className="tabular">{p.totals.sent}</span> sent,{" "}
@@ -390,7 +406,7 @@ const PlaybookCard = ({ p, canAct, onEdit, flash, focus = false }) => {
           {p.totals.history.map((h) => (
             <button key={h.id} type="button" className="cl-prof-aut-hint ob-history-row" onClick={() => window.CHANLY.nav(`broadcasts/run:${h.id}`)} data-testid="pb-run-open">
               <span className="tabular">{pbDay(h.run_for || (h.scheduled_for ? h.scheduled_for.slice(0, 10) : ""))}</span>
-              {" · "}{h.state === "sent" ? <>{h.sent} sent{h.held > 0 ? `, ${h.held} held` : ""}{h.replied > 0 ? `, ${h.replied} replied` : ""}</>
+              {" · "}{h.state === "sent" ? <>{h.sent} sent{h.delivered > 0 ? `, ${h.delivered} delivered` : ""}{h.held > 0 ? `, ${h.held} held` : ""}{h.replied > 0 ? `, ${h.replied} replied` : ""}</>
                 : h.state === "pending_approval" ? `waiting for you · ${h.recipient_count} people`
                 : h.state === "sending" ? `sending · ${h.sent} so far`
                 : h.state === "scheduled" ? `scheduled · ${h.recipient_count} people`
@@ -462,10 +478,11 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
   const waiting = rows.filter((p) => p.totals.waiting).length;
   const sent = rows.reduce((a, p) => a + p.totals.sent, 0);
   const replied = rows.reduce((a, p) => a + p.totals.replied, 0);
+  const reachesNobody = rows.filter((p) => pbReach({ state: p.state, candidates: p.candidates, held: p.held, waiting: p.totals.waiting }) === "nobody").length;
   const closeComposer = () => { setComposing(false); setEditing(null); };
 
   return (
-    <div className="reports" data-testid="playbooks-real">
+    <div className="reports pb-page" data-testid="playbooks-real">
       {/* One line above the cards, the way Today, Reports and People say their
           numbers (#556, #557, #558). It was a page title the top bar already
           showed, a two-line sub-headline, a three-cell stat strip and a row of
@@ -492,6 +509,19 @@ const PlaybooksReal = ({ initialPlaybook = null }) => {
               >
                 <span className="tabular">{n}</span> {f.words}
               </button>
+              {/* A running playbook with nobody on its list is the one thing this
+                  line could not say, and on a workspace whose list has emptied it
+                  is true of every one of them: two runs a day, reaching nobody,
+                  for weeks. It rides the running count because that is what it
+                  qualifies -- it is not a filter of its own. */}
+              {f.id === "running" && reachesNobody > 0 && (
+                <>
+                  <span className="cm-standing-dot" aria-hidden="true">·</span>
+                  <span className="cm-standing-warn" data-testid="pb-reaches-nobody">
+                    {reachesNobody === n ? "none with anyone to send to" : `${reachesNobody} with nobody to send to`}
+                  </span>
+                </>
+              )}
             </span>
           );
         })}

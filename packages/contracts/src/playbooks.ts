@@ -232,6 +232,38 @@ export function nextRunLabel(p: Pick<PlaybookDto, "state" | "run_hour" | "last_r
   return `tomorrow ${at}`;
 }
 
+/**
+ * What a playbook will actually DO on its next run.
+ *
+ * "Running · next run tomorrow 10:00" is a promise, and on a workspace whose
+ * list is empty it is one the run cannot keep. The salon had three playbooks,
+ * two of them running every day, and every one of them watched a pool of
+ * nought -- so two runs a day reached nobody and had been doing so since the
+ * list emptied. The card said it: "0 people on the list said yes", in the
+ * middle of a sentence, as a link, while the hour it would run at was in bold.
+ *
+ * An empty pool has two different causes and they are not the same news:
+ * nobody on the list has said yes to offers (a thing to go and fix), or
+ * everybody has and they all heard from you this week (a thing to wait out).
+ */
+export type PlaybookReach = "waiting" | "paused" | "sends" | "nobody" | "all-heard";
+
+export function playbookReach(p: { state: string; candidates: number; held: number; waiting?: unknown }): PlaybookReach {
+  if (p.waiting) return "waiting";
+  if (p.state !== "running") return "paused";
+  if (p.candidates > 0) return "sends";
+  return p.held > 0 ? "all-heard" : "nobody";
+}
+
+/** The few words beside the state, when the schedule is not the whole truth; null when it is. */
+export const PLAYBOOK_REACH_WORDS: Record<PlaybookReach, string | null> = {
+  waiting: null,
+  paused: null,
+  sends: null,
+  nobody: "nobody to send to",
+  "all-heard": "waiting out the week's gap",
+};
+
 export const PLAYBOOK_CLASS_LABEL: Record<PlaybookPolicyClass, string> = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,

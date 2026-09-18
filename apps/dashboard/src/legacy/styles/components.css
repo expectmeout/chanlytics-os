@@ -1395,6 +1395,12 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 
 /* ---------- Campaigns: Outbound ---------- */
 .ob-card { display: flex; flex-direction: column; gap: var(--space-3); container-type: inline-size; }
+/* Playbooks borrows the Reports shell, which is full-bleed because Reports has
+   panes. This is a COLUMN OF CARDS, so it takes a measure like every other one
+   (the rule in legacy/CLAUDE.md): the message is a fixed 268px and the sentence
+   beside it stops at 68ch, so past this width the card only grows emptier --
+   at 1440 there were 470 pixels of nothing to the right of every sentence. */
+.pb-page .cm-standing, .pb-page .rp-body { max-width: var(--measure-page); }
 /* A run waiting on a person. It was a 2px accent stripe down the left edge --
    the one decorative use of the token reserved for live agent state, and the
    shape every admin UI reaches for. A tint and a border say it without it. */
@@ -1403,6 +1409,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .ob-head .ob-titles { flex: 1; min-width: 0; }
 .ob-titles { min-width: 0; display: flex; flex-direction: column; gap: 4px; }
 .ob-name { font-size: 13.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.005em; }
+/* Beside the state pill, and in the warning ink, because it IS the state: a
+   playbook that runs every day and reaches nobody reads as a working one. */
+.ob-reach { flex: none; font-size: 11px; color: var(--warn-ink); white-space: nowrap; }
 .ob-meta { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: var(--ink-dim); flex-wrap: wrap; }
 .ob-meta .icon { color: var(--ink-faint); }
 .ob-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
@@ -1554,6 +1563,9 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
    Three tabs of one nav item, three different page edges. */
 .reports > .cm-standing { padding: 26px 28px 12px; }
 .cm-standing-lead { color: var(--ink); font-weight: var(--weight-medium); font-variant-numeric: tabular-nums; }
+/* A fact about the ones already counted, not a filter -- so it takes the warning
+   ink and none of the tap chrome. */
+.cm-standing-warn { color: var(--warn-ink); font-variant-numeric: tabular-nums; }
 .cm-standing-part { display: inline-flex; align-items: center; gap: 6px; }
 .cm-standing-dot { color: var(--ink-faint); }
 /* The split reads as an aside on the count before it, not as another item. */
