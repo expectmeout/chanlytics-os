@@ -360,14 +360,14 @@ export const PERSON_CHANNEL_WORDS: Record<PersonChannel, string> = { whatsapp: "
  */
 export type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
 
-/** The words for each, once. The three wires say what a reply on them says (REPLY_VIA). */
+/** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
 export const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string> = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
   email: REPLY_VIA.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found",
 };

@@ -417,8 +417,8 @@ test("the offers answer in a word, as People's Offers column says it -- so a lis
 
 test("where a person came from, in the words People says it: one per stored value, and nothing for what this build does not know", () => {
   assert.deepEqual(contracts.PERSON_CAME_FROM_WORDS, {
-    whatsapp: "WhatsApp", sms: "Text", email: "Email", call: "Phone call",
-    calendar: "Your calendar", manual: "Added by you", import: "Imported history", lead: "A lead you found",
+    whatsapp: "WhatsApp", sms: "Text", email: "Email", call: "Phone",
+    calendar: "Your calendar", manual: "Added by hand", import: "Imported history", lead: "A lead you found",
   });
   for (const [key, label] of Object.entries(contracts.PERSON_CAME_FROM_WORDS)) assert.deepEqual(contracts.cameFromOf({ came_from: key }), { key, label });
   assert.equal(contracts.cameFromOf({ came_from: null }), null, "nothing known, nothing said");

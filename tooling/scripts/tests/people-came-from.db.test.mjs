@@ -13,6 +13,7 @@
 import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
+import { cameFromOf } from "@chanlytics/contracts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -102,6 +103,7 @@ test("people_list says where each person came from: how a door added them, else 
   };
   const rows = ok(await db.rpc("people_list", { p_tenant_id: t }));
   const said = Object.fromEntries(Object.entries(ids).map(([k, id]) => [k, rows.find((r) => r.id === id)?.came_from]));
+  assert.ok(rows.every((r) => r.came_from == null || cameFromOf({ came_from: r.came_from })), "every came_from the SQL can return, cameFromOf already knows");
   assert.deepEqual(said, {
     calendar: "calendar", lead: "lead", manual: "manual", otherDoor: "manual", noSource: "manual", addedTwice: "calendar",
     movedIn: "whatsapp", noteOnly: "call", noteThenText: "call", textThenNote: "whatsapp",

@@ -747,13 +747,14 @@ var MONTH_MS = 30 * DAY_MS3;
 var NEW_WINDOW_MS = 7 * DAY_MS3;
 var QUIET_AFTER_MS = 30 * DAY_MS3;
 var REPLY_VIA = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 var PERSON_CAME_FROM_WORDS = {
   whatsapp: REPLY_VIA.whatsapp,
   sms: REPLY_VIA.sms,
   email: REPLY_VIA.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found"
 };
@@ -6500,13 +6501,14 @@ var MONTH_MS2 = 30 * DAY_MS32;
 var NEW_WINDOW_MS2 = 7 * DAY_MS32;
 var QUIET_AFTER_MS3 = 30 * DAY_MS32;
 var REPLY_VIA2 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS2 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 var PERSON_CAME_FROM_WORDS2 = {
   whatsapp: REPLY_VIA2.whatsapp,
   sms: REPLY_VIA2.sms,
   email: REPLY_VIA2.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS2.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found"
 };
@@ -8335,13 +8337,14 @@ var MONTH_MS3 = 30 * DAY_MS33;
 var NEW_WINDOW_MS3 = 7 * DAY_MS33;
 var QUIET_AFTER_MS4 = 30 * DAY_MS33;
 var REPLY_VIA3 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS3 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 var PERSON_CAME_FROM_WORDS3 = {
   whatsapp: REPLY_VIA3.whatsapp,
   sms: REPLY_VIA3.sms,
   email: REPLY_VIA3.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS3.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found"
 };
@@ -9220,13 +9223,14 @@ var MONTH_MS22 = 30 * DAY_MS322;
 var NEW_WINDOW_MS22 = 7 * DAY_MS322;
 var QUIET_AFTER_MS32 = 30 * DAY_MS322;
 var REPLY_VIA22 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS22 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 var PERSON_CAME_FROM_WORDS22 = {
   whatsapp: REPLY_VIA22.whatsapp,
   sms: REPLY_VIA22.sms,
   email: REPLY_VIA22.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS22.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found"
 };
@@ -10074,13 +10078,14 @@ var MONTH_MS32 = 30 * DAY_MS332;
 var NEW_WINDOW_MS32 = 7 * DAY_MS332;
 var QUIET_AFTER_MS42 = 30 * DAY_MS332;
 var REPLY_VIA32 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS32 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 var PERSON_CAME_FROM_WORDS32 = {
   whatsapp: REPLY_VIA32.whatsapp,
   sms: REPLY_VIA32.sms,
   email: REPLY_VIA32.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS32.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found"
 };
@@ -11351,13 +11356,14 @@ var MONTH_MS4 = 30 * DAY_MS34;
 var NEW_WINDOW_MS4 = 7 * DAY_MS34;
 var QUIET_AFTER_MS5 = 30 * DAY_MS34;
 var REPLY_VIA4 = { whatsapp: "WhatsApp", sms: "Text", email: "Email" };
+var PERSON_CHANNEL_WORDS4 = { whatsapp: "WhatsApp", sms: "Text", voice: "Phone", email: "Email" };
 var PERSON_CAME_FROM_WORDS4 = {
   whatsapp: REPLY_VIA4.whatsapp,
   sms: REPLY_VIA4.sms,
   email: REPLY_VIA4.email,
-  call: "Phone call",
+  call: PERSON_CHANNEL_WORDS4.voice,
   calendar: "Your calendar",
-  manual: "Added by you",
+  manual: "Added by hand",
   import: "Imported history",
   lead: "A lead you found"
 };

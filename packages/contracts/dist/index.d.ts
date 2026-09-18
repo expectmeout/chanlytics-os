@@ -3986,7 +3986,7 @@ declare const PERSON_CHANNEL_WORDS: Record<PersonChannel, string>;
  * value is never shown.
  */
 type PersonCameFrom = "whatsapp" | "sms" | "email" | "call" | "calendar" | "manual" | "import" | "lead";
-/** The words for each, once. The three wires say what a reply on them says (REPLY_VIA). */
+/** The words for each, once: the three wires say what a reply on them says (REPLY_VIA), and a call says what its glyph says (PERSON_CHANNEL_WORDS.voice). */
 declare const PERSON_CAME_FROM_WORDS: Record<PersonCameFrom, string>;
 /** A row's came_from in words, or null: nothing known, a row read before 00138, or a value this build does not know. */
 declare function cameFromOf(r: {
