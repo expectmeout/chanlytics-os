@@ -48,7 +48,12 @@ const ST_GROUPS = {
     tabs: [
       { id: "outbound", label: "Playbooks", to: "outbound" },
       { id: "broadcasts", label: "Broadcasts", to: "broadcasts" },
-      { id: "messages", label: "Messages", to: "messages", tip: "The WhatsApp messages your playbooks and broadcasts send, as the customer sees them" },
+      // "Templates" is Meta's word and WhatsApp Manager's, which is where an
+      // owner meets these and where this page syncs them from. It was
+      // "Messages", which made the word mean three things across one nav —
+      // a thread in the Inbox, a send in "15 messages, 87% delivered", and
+      // the wording on file here — and needed this tip to say which.
+      { id: "messages", label: "Templates", to: "messages", tip: "The wording your playbooks and broadcasts send, as the customer sees it" },
       // Content is seed-only: a real workspace has no such surface yet.
       { id: "content", label: "Content", to: "content", demoOnly: true },
     ],

@@ -509,6 +509,13 @@ export interface JumpEntry {
   to: string;
   kind: "page" | "person" | "thread" | "call";
   sub?: string;
+  /**
+   * Other words that find this page. A page is not always called what someone
+   * types: Templates was "Messages" until the word came to mean three things,
+   * and a person who learned it then still types it. Matched after the label,
+   * so the name a page goes by always wins.
+   */
+  also?: readonly string[];
 }
 
 /**
@@ -521,13 +528,13 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
-  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People" },
+  { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },
   { label: "Calls", to: "live", kind: "page", sub: "live and recent" },
   { label: "Calendar", to: "calendar", kind: "page", sub: "taken, open and closed times" },
   { label: "Playbooks", to: "outbound", kind: "page", sub: "campaigns that run on their own" },
   { label: "Broadcasts", to: "broadcasts", kind: "page", sub: "one message to the people who said yes" },
-  { label: "Messages", to: "messages", kind: "page", sub: "what the receptionist and the campaigns send" },
+  { label: "Templates", to: "messages", kind: "page", sub: "the wording the receptionist and the campaigns send", also: ["messages", "wording"] },
   { label: "Reports", to: "reports", kind: "page" },
   { label: "Settings", to: "admin/workspace", kind: "page" },
   { label: "Setup", to: "admin/setup", kind: "page", sub: "what is left to set up" },
@@ -559,6 +566,8 @@ export function askJump(query: string, index: JumpEntry[], limit = 6): JumpEntry
   };
   for (const p of index) if (p.kind === "page" && p.label.toLowerCase().startsWith(s)) push(p);
   for (const p of index) if (p.kind === "page" && p.label.toLowerCase().includes(s)) push(p);
+  // Then the other words a page answers to, so a name it used to go by still finds it.
+  for (const p of index) if (p.kind === "page" && (p.also ?? []).some((w) => w.toLowerCase().includes(s))) push(p);
   for (const p of index) if (p.kind !== "page" && p.label.toLowerCase().includes(s)) push(p);
   return out.slice(0, limit);
 }

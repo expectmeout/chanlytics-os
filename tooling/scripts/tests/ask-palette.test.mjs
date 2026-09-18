@@ -291,3 +291,18 @@ test("REGRESSION (N18): every page a real workspace ships is a jump away -- 'cal
   assert.deepEqual(groundCitations([{ kind: "page", id: "calendar", label: "Calendar" }], read).kept.map((c) => c.id), ["calendar"], "a citation of the Calendar is kept");
   await closes();
 });
+
+/* ------------------------------ the name a page went by ------------------------------ */
+
+test("a page is found by the name it goes by AND by the one it used to: 'templates' and 'messages' both land there", () => {
+  const byLabel = askJump("templates", ASK_PAGES);
+  assert.equal(byLabel[0]?.to, "messages", "the label first");
+  assert.equal(byLabel[0]?.label, "Templates");
+  const byOldName = askJump("messages", ASK_PAGES);
+  assert.ok(byOldName.some((j) => j.to === "messages"), "REGRESSION: renaming the tab lost everyone who still types the old word");
+  // The label always wins: a word listed under `also` never outranks a page's own name.
+  assert.equal(askJump("lists", ASK_PAGES)[0]?.label, "Lists");
+  assert.ok(askJump("segments", ASK_PAGES).some((j) => j.to === "clients"), "the lists answer to the word they were filed under too");
+  // And an alias is not a wildcard: a word nothing answers to still finds nothing.
+  assert.deepEqual(askJump("zzq", ASK_PAGES), []);
+});

@@ -3,27 +3,27 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 
 /**
- * Campaigns › Messages, on a real workspace: one card per message showing
+ * Campaigns › Templates, on a real workspace: one card per template showing
  * the bubble the customer sees, the languages beside it, the three doors of
  * Campaigns in one strip, and never Meta's sample. Read-only except for
  * opening the composer and a card's menu; nothing here submits, hides or
  * deletes a template.
  */
-test.describe("Messages on a real workspace", () => {
+test.describe("Templates on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
   });
 
-  test("one card per message, the bubble the customer sees, the languages beside it, the sample never shown", async ({ page }) => {
+  test("one card per template, the bubble the customer sees, the languages beside it, the sample never shown", async ({ page }) => {
     await page.goto("/#/messages");
     await page.waitForLoadState("networkidle");
     const real = page.getByTestId("messages-real");
     await expect(real).toBeVisible();
-    // The strip is the shell's own, above the page: Playbooks · Broadcasts · Messages.
+    // The strip is the shell's own, above the page: Playbooks · Broadcasts · Templates.
     const strip = page.locator(".stabs");
     await expect(strip).toContainText("Playbooks");
-    await expect(strip.locator(".stabs-tab.active")).toHaveText("Messages");
+    await expect(strip.locator(".stabs-tab.active")).toHaveText("Templates");
 
     const res = await apiGet(page, "/api/v1/templates?all=1");
     expect(res.status()).toBe(200);
@@ -70,10 +70,11 @@ test.describe("Messages on a real workspace", () => {
     await expect(strip.locator(".stabs-tab.active")).toHaveText("Playbooks");
     // Three doors on a real workspace: Content is seed-only and stays out of the strip.
     await expect(strip.locator(".stabs-tab")).toHaveCount(3);
-    await strip.getByRole("button", { name: "Messages" }).click();
+    // The route is still `messages`: only what a person reads changed.
+    await strip.getByRole("button", { name: "Templates" }).click();
     await expect(page).toHaveURL(/#\/messages/);
     await expect(page.getByTestId("messages-real")).toBeVisible();
-    await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Messages");
+    await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Templates");
     await strip.getByRole("button", { name: "Broadcasts" }).click();
     await expect(page).toHaveURL(/#\/broadcasts/);
     await expect(page.locator(".stabs .stabs-tab.active")).toHaveText("Broadcasts");

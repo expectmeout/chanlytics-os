@@ -1,5 +1,5 @@
 /* global React, Icon, Confirm, EmptyState, FailedRead, StatePill */
-// Campaigns › Messages: what the receptionist and the campaigns send on
+// Campaigns › Templates: the wording the receptionist and the campaigns send on
 // WhatsApp, shown as the customer sees it. One card per message — the
 // starter set in the library's order, then what the workspace wrote or
 // synced — with the bubble for the language in view, the languages beside
@@ -71,8 +71,8 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
   const paused = users.filter((p) => p.state !== "running").map((p) => p.name);
   const quoted = (names) => names.map((n) => `“${n}”`).join(", ");
   const pausedWords = !pbRows ? " Chanlytics couldn't check which playbooks send it."
-    : paused.length === 1 ? ` ${quoted(paused)} is paused and sends it: if it resumes, its runs skip until it has another message.`
-    : paused.length > 1 ? ` ${quoted(paused)} are paused and send it: if they resume, their runs skip until they have another message.` : "";
+    : paused.length === 1 ? ` ${quoted(paused)} is paused and sends it: if it resumes, its runs skip until it has another template.`
+    : paused.length > 1 ? ` ${quoted(paused)} are paused and send it: if they resume, their runs skip until they have another template.` : "";
   return (
     <article className={"msg-card" + (row && row.hidden_at ? " is-hidden" : "")} data-testid={g.starter ? "starter-row" : "custom-row"}>
       <div className="msg-card-head">
@@ -106,7 +106,7 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           ))}
         </span>
         {g.rows.filter(({ row: r, lang }) => !r && g.starter && lang).map(({ lang }) => (
-          <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter message")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>
+          <button key={lang.id} className="btn btn-sm" disabled={busy} onClick={() => onAdd(g, lang)} data-testid="starter-add" {...window.gate("approve", "add a starter template")}>{doing === `add:${g.starter.key}:${lang.id}` ? "Adding…" : `Add ${lang.label}`}</button>
         ))}
       </div>
       <window.MessagePreview from={bizName || "Your business"} body={body} values={values} header={row ? row.header : null} footer={footer} buttons={row ? row.buttons : null} compact />
@@ -138,7 +138,7 @@ const MessageCard = ({ g, langs, bizName, canAct, busy, doing = null, S, onAdd, 
           ) : arm && sending.length > 0 ? (
             // A running playbook still sends it: the route refuses the delete, so the question is not asked.
             <div className="msg-delete-held" role="status" data-testid="template-delete-held">
-              <span>{S && S.stillSends ? S.stillSends(sending) : `${quoted(sending)} still sends this message.`}</span>
+              <span>{S && S.stillSends ? S.stillSends(sending) : `${quoted(sending)} still uses this template.`}</span>
               <button className="cl-bucket-link" onClick={() => { closeMenu(); window.CHANLY.nav("outbound"); }}>Open Playbooks</button>
               <button className="cl-bucket-link" onClick={() => setArm(false)}>Keep it</button>
             </div>
@@ -177,16 +177,16 @@ const MessagesReal = () => {
   if (templates === undefined) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cm-standing">{window.__DEMO_MODE ? "Messages reads a real workspace — what WhatsApp has approved for it." : "Reading your messages…"}</div>
+        <div className="cm-standing">{window.__DEMO_MODE ? "Templates reads a real workspace — what WhatsApp has approved for it." : "Reading your templates…"}</div>
       </div>
     );
   }
   if (templates === null) {
     return (
       <div className="reports" data-testid="messages-real">
-        <div className="cm-standing">Your messages couldn&rsquo;t be loaded right now</div>
+        <div className="cm-standing">Your templates couldn&rsquo;t be loaded right now</div>
         <div className="rp-body">
-          <FailedRead kind="card" what="your messages" body="The receptionist keeps sending; this page just can't show them at the moment." surface="settings" testid="messages-failed" />
+          <FailedRead kind="card" what="your templates" body="The receptionist keeps sending; this page just can't show them at the moment." surface="settings" testid="messages-failed" />
         </div>
       </div>
     );
@@ -244,7 +244,7 @@ const MessagesReal = () => {
           of a phone, and not one message card on the first screen. */}
       <div className="cm-standing" data-testid="messages-standing">
         <span className="cm-standing-lead" data-tip="What the receptionist and your campaigns send on WhatsApp, as the customer sees it. Written here or in WhatsApp Manager, WhatsApp approves either way. A marketing template can only go to people who said yes to offers.">
-          {shown.length === 0 ? "No message on file yet" : `${shown.length} ${shown.length === 1 ? "message" : "messages"}`}
+          {shown.length === 0 ? "No template on file yet" : `${shown.length} ${shown.length === 1 ? "template" : "templates"}`}
         </span>
         {shown.length > 0 && (
           <span className="cm-standing-part">
@@ -268,12 +268,12 @@ const MessagesReal = () => {
         <div className="cl-controls-right">
           {/* The page's own acts stay where they are for every role and say who may
               (window.gate); a message's rename, hide and delete stay with those who may. */}
-          {!canAct && hasWhatsApp && <span className="bc-excl-hint" data-testid="messages-role">{window.gateTitle("approve", "rename, hide or delete a message")}</span>}
+          {!canAct && hasWhatsApp && <span className="bc-excl-hint" data-testid="messages-role">{window.gateTitle("approve", "rename, hide or delete a template")}</span>}
           {hasWhatsApp && missing.filter((m) => m.n > 0).map((m) => (
-            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all" {...window.gate("approve", "add a starter message")}>{doing === `add:all:${m.lang.id}` ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
+            <button key={m.lang.id} className="btn btn-sm" disabled={busy} onClick={() => addStarters(null, [m.lang.id])} data-testid="starter-add-all" {...window.gate("approve", "add a starter template")}>{doing === `add:all:${m.lang.id}` ? "Adding…" : `Add ${m.n === (S ? S.list.length : 0) ? "all " : "the "}${m.n} in ${m.lang.label}`}</button>
           ))}
           {hasWhatsApp && <button className="btn btn-sm" onClick={sync} disabled={busy} data-testid="sync-templates" {...window.gate("approve", "sync from WhatsApp")}>{doing === "sync" ? "Syncing…" : "Sync from WhatsApp"}</button>}
-          {hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a message")}><Icon name="plus" size={12} /> New message</button>}
+          {hasWhatsApp && <button className="btn btn-primary btn-sm" onClick={() => setComposing((c) => !c)} data-testid="template-new" {...window.gate("approve", "write a template")}><Icon name="plus" size={12} /> New template</button>}
         </div>
       </div>
 
@@ -282,7 +282,7 @@ const MessagesReal = () => {
         {window.__CHANNELS === null ? (
           <FailedRead kind="card" what="your WhatsApp number" body="What is on file is below; adding and syncing wait until the number can be read." surface="settings" testid="messages-channels-failed" />
         ) : !hasWhatsApp && (
-          <EmptyState kind="card" glyph="phone" title="Connect a WhatsApp number first" body="Messages belong to a number's account." action={{ label: "Open Connections", to: "admin/integrations" }} testid="messages-no-number" />
+          <EmptyState kind="card" glyph="phone" title="Connect a WhatsApp number first" body="Templates belong to a number's account." action={{ label: "Open Connections", to: "admin/integrations" }} testid="messages-no-number" />
         )}
         {composing && window.TemplateComposer && (
           <section className="fl-card rp2-card" data-testid="messages-composer">
@@ -296,7 +296,7 @@ const MessagesReal = () => {
         <section data-testid="templates">
           {hasWhatsApp && S && (
             <div className="msg-intro" data-testid="starters">
-              <span className="rp2-foot">The starter set: {S.list.length} messages for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes.</span>
+              <span className="rp2-foot">The starter set: {S.list.length} templates for the moments Chanlytics acts on, in English and Spanish — WhatsApp reviews each, usually within minutes.</span>
             </div>
           )}
           <div className="msg-grid">

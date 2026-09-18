@@ -6116,6 +6116,13 @@ interface JumpEntry {
     to: string;
     kind: "page" | "person" | "thread" | "call";
     sub?: string;
+    /**
+     * Other words that find this page. A page is not always called what someone
+     * types: Templates was "Messages" until the word came to mean three things,
+     * and a person who learned it then still types it. Matched after the label,
+     * so the name a page goes by always wins.
+     */
+    also?: readonly string[];
 }
 /**
  * The pages a real workspace has. Nothing here is seeded or demo-only. The list stopped at the pages that were real

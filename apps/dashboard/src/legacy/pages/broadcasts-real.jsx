@@ -541,7 +541,7 @@ const BroadcastsReal = ({ initialSegment = null, initialRun = null }) => {
               <span className="bc-excl-hint" data-testid="bc-no-template">
                 {starterPending > 0
                   ? `Your starter templates are in review at WhatsApp (${starterPending}) — they appear here once approved, usually within minutes.`
-                  : <>No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="bc-no-template-open">Messages</button>.</>}
+                  : <>No approved template yet — add the starter set, write one here, or sync yours from WhatsApp Manager in <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("messages")} data-testid="bc-no-template-open">Templates</button>.</>}
               </span>
             )}
             {templatesRead && templates.length === 0 && starterPending === 0 && window.__templates && window.__templates.addStarters && (

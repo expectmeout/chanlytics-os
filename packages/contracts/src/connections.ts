@@ -204,7 +204,7 @@ export function connectionRows(i: ConnectionInputs, nowMs = Date.now()): Connect
     const h = numberHealth({ quality: wa.quality, event: wa.qualityEvent, limit: wa.messagingLimit });
     const flagged = wa.on && h.tone === "danger";
     const health = wa.on && h.tone !== "unknown" ? ` · ${h.label}` : "";
-    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: !wa.on ? "off" : flagged ? "attention" : "connected", stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On", sentence: `${wa.healthLabel}${health}`, verb: { label: "Messages", to: "messages", who: "operator" } }));
+    out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: wa.number, state: !wa.on ? "off" : flagged ? "attention" : "connected", stateWords: !wa.on ? "Off" : flagged ? "Needs attention" : "On", sentence: `${wa.healthLabel}${health}`, verb: { label: "Templates", to: "messages", who: "operator" } }));
   } else if (i.whatsapp === undefined) {
     out.push(row({ kind: "whatsapp", icon: "chat", title: "WhatsApp Business", detail: null, state: "none", stateWords: "Not connected", sentence: "Checking whether Chanlytics can connect a number…", verb: null }));
   } else if (i.whatsapp?.ready) {

@@ -205,9 +205,9 @@ test("one template: hidden or titled through the definer doors; deleting is refu
   tables.broadcasts[0].state = "sent";
   // REGRESSION (C8): a running playbook that sends it would skip every run from then on, and the delete said nothing.
   tables.playbooks.push(pb(K1, B, { name: "Win-back", template_name: "offer", template_language: "en_US" }), pb(K2, B, { name: "Welcome", template_name: "offer", template_language: "en_US" }), pb(K9, B, { name: "Spanish offer", template_name: "offer", template_language: "es" }));
-  await refused(template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })), "conflict", 409, "“Win-back” and “Welcome” still send this message. Pause them, or give them another message, first.");
+  await refused(template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })), "conflict", 409, "“Win-back” and “Welcome” still use this template. Pause them, or give them another, first.");
   tables.playbooks[1].state = "paused";
-  await refused(template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })), "conflict", 409, "“Win-back” still sends this message. Pause it, or give it another message, first.");
+  await refused(template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })), "conflict", 409, "“Win-back” still uses this template. Pause it, or give it another, first.");
   tables.playbooks[0].state = "paused";
   await refused(template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T2 })), "upstream_meta", 502, "Deleting only works on the production dashboard.");
   await refused(template.DELETE.run(send("DELETE"), ctxFor(tables, { id: T9 })), "not_found", 404);

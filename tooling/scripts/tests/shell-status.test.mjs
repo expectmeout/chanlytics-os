@@ -650,6 +650,16 @@ test("Conversations and Live are views of the Inbox: the strip is drawn over all
   delete globalThis.LiveMonitorPage;
 });
 
+test("Campaigns' third door is Templates, on the route that is still `messages` -- the word `message` meant three things across one nav", () => {
+  globalThis.MessagesPage = "MessagesPage";
+  const { tree, title } = mount("#/messages");
+  assert.equal(title, "Templates · Campaigns · Chanlytics", "REGRESSION: the trail said Messages, beside an Inbox full of them");
+  const strip = find(tree, (n) => n.type === "SurfaceTabs");
+  assert.equal(strip.props.page, "messages", "the route is untouched: every deep link still works");
+  assert.ok(find(tree, (n) => n.type === "MessagesPage"), "and the same page draws");
+  delete globalThis.MessagesPage;
+});
+
 test("a list's own route lands on People with that list picked, and the address is replaced so Back leaves People -- the Lists page folded into People", () => {
   // The People page's rule, as it publishes it (people-honest.test.mjs runs the real one).
   win.__PEOPLE = { rows: [], lists: [{ id: "needs_you", label: "Needs you", ids: [] }], saved: [{ id: "s1", name: "Regulars", ids: [] }] };

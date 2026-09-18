@@ -83,7 +83,7 @@ test.describe("Playbooks on a real workspace", () => {
    * negative margin cancelled the flex gap on the LEFT and the padding added to
    * it on the RIGHT, so every dot after a tap sat 12px from the word before it
    * and 6px from the word after. Playbooks is the only Campaigns tab with taps,
-   * which is why it read as kerned by hand next to Broadcasts and Messages.
+   * which is why it read as kerned by hand next to Broadcasts and Templates.
    * Geometry, so it is measured in a real browser rather than read off the CSS.
    */
   test("Playbooks: the standing line is evenly spaced, as the other tabs are", async ({ page }) => {
@@ -123,7 +123,7 @@ test.describe("Playbooks on a real workspace", () => {
    * `.bc-page` supplies its children's gutter; `.reports` is full-bleed by design
    * and every direct child carries the pane's own (.cl-head, .cl-controls,
    * .rp-body all do). The standing line replaced .cl-head on Playbooks and
-   * Messages and carried none, so on those two tabs it sat flush against the
+   * Templates and carried none, so on those two tabs it sat flush against the
    * sidebar while everything below it was inset 28px -- and Broadcasts, whose
    * line is inside .bc-page, was inset correctly. Geometry, so it is measured.
    */
