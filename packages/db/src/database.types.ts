@@ -2177,6 +2177,7 @@ export type Database = {
           month: string
           plan: Json
           plan_version: number
+          platform_day: string
           purpose: string
           question: Json | null
           search_id: string
@@ -2204,6 +2205,7 @@ export type Database = {
           month: string
           plan: Json
           plan_version: number
+          platform_day?: string
           purpose: string
           question?: Json | null
           search_id: string
@@ -2231,6 +2233,7 @@ export type Database = {
           month?: string
           plan?: Json
           plan_version?: number
+          platform_day?: string
           purpose?: string
           question?: Json | null
           search_id?: string
@@ -3830,6 +3833,7 @@ export type Database = {
           p_last: boolean
           p_results: Json
           p_round_id: string
+          p_run_id: string
           p_usage_usd: number
         }
         Returns: Json
@@ -3894,6 +3898,7 @@ export type Database = {
           p_day: string
           p_leads: number
           p_month: string
+          p_platform_day: string
           p_tenant_id: string
           p_usd: number
         }
@@ -3905,6 +3910,7 @@ export type Database = {
           p_day: string
           p_leads: number
           p_month: string
+          p_platform_day: string
           p_tenant_id: string
           p_usd: number
         }
@@ -3984,6 +3990,7 @@ export type Database = {
           p_delta: number
           p_month: string
           p_outstanding: number
+          p_platform_day: string
           p_tenant_id: string
         }
         Returns: undefined

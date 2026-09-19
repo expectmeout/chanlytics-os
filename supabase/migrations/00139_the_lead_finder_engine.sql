@@ -113,6 +113,19 @@ comment on table public.lead_rounds is
   'The unit of execution and of money: the probe (seq 1), each top-up and each Find new ones. Carries the plan it ran, its reservation and spend, one ending; final once ended (lead_rounds_guard). The search''s state is its latest round''s.';
 comment on column public.lead_rounds.ending_pending is
   'Set by the collect that moved the round to checking, or by Stop during the checks; lead_check_commit''s last batch ends the round with it.';
+-- The platform's day row this round reserved in, in UTC, beside the
+-- workspace's own month and day. A round that crosses UTC midnight must
+-- release and settle against the row it took from: releasing against today's
+-- would drive the platform's reservation toward zero and weaken the $50 day
+-- cap for every other workspace, and leave yesterday's row reserved for ever.
+alter table public.lead_rounds add column if not exists platform_day text
+  default to_char(now() at time zone 'UTC', 'YYYY-MM-DD');
+update public.lead_rounds set platform_day = to_char(now() at time zone 'UTC', 'YYYY-MM-DD') where platform_day is null;
+alter table public.lead_rounds alter column platform_day set not null;
+alter table public.lead_rounds drop constraint if exists lead_rounds_platform_day_check;
+alter table public.lead_rounds add constraint lead_rounds_platform_day_check check (platform_day ~ '^\d{4}-\d{2}-\d{2}$');
+comment on column public.lead_rounds.platform_day is
+  'The platform-wide day counter (tenant_id null, UTC) this round reserved in, so every release and settle reaches the row it took from, whatever day it is when the round ends.';
 
 create table if not exists public.lead_runs (
   id                 uuid primary key default gen_random_uuid(),
@@ -202,6 +215,12 @@ create index if not exists leads_tenant_phone on public.leads (tenant_id, phone_
 create index if not exists leads_tenant_email on public.leads (tenant_id, email) where email is not null;
 create index if not exists leads_tenant_host on public.leads (tenant_id, website_host) where website_host is not null;
 create index if not exists leads_tenant_contact on public.leads (tenant_id, contact_id) where contact_id is not null;
+-- purge_leads' first pass reads only leads nobody has worked, oldest first;
+-- without this it scans every lead of every workspace every night.
+create index if not exists leads_untouched_purge
+  on public.leads (found_at)
+  where stage = 'ready' and contact_id is null and contacted_at is null and exported_at is null
+    and erased_at is null and blanked_at is null;
 comment on table public.leads is
   'A place: one physical location, outside contacts. Unique by place id in the workspace; a shared phone, email or website is looked up and marked on the member, never merged (25). Stage is the relationship; class lives on the membership.';
 
@@ -241,6 +260,10 @@ create table if not exists public.lead_search_members (
   check (counted = (counted_month is not null))
 );
 create index if not exists lead_search_members_lead on public.lead_search_members (lead_id);
+-- purge_leads' third pass reads only excluded memberships not yet blanked,
+-- oldest first; without this it scans every membership every night.
+create index if not exists lead_search_members_excluded_purge
+  on public.lead_search_members (created_at) where class = 'excluded' and blanked_at is null;
 create index if not exists lead_search_members_round on public.lead_search_members (round_id);
 create index if not exists lead_search_members_page on public.lead_search_members (tenant_id, search_id, class, created_at desc);
 comment on table public.lead_search_members is
@@ -381,8 +404,13 @@ alter table public.jobs add constraint jobs_kind_check
 
 -- A collect is scheduled once per page, however often the webhook, the sweep
 -- and the commit each ask for it: the key is the run and the page's seq.
+-- A failed one does not count (00135's rule for the intake): a collect that
+-- failed for good -- the stop collect above all -- can be made again.
+drop index if exists public.jobs_lead_collect_once;
 create unique index if not exists jobs_lead_collect_once
-  on public.jobs ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect';
+  on public.jobs ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' and state <> 'failed';
+comment on index public.jobs_lead_collect_once is
+  'One live collect per page of a run, however often the webhook, the sweep and the commit each ask for it. A failed collect does not count, so a run whose stop collect failed can be stopped again.';
 
 /* ----------------------------------------------------------- 4. helpers -- */
 
@@ -469,8 +497,10 @@ as $$
 $$;
 comment on function public.has_permission(uuid, uuid, text) is
   'Whether this user may do this in this workspace, by role: contracts'' ROLE_PERMS, restated once in SQL. find (start a search, keep a lead from review, put one back: each spends the month''s allowance) is the owner''s alone.';
-revoke execute on function public.has_permission(uuid, uuid, text) from public, anon;
-grant execute on function public.has_permission(uuid, uuid, text) to authenticated, service_role;
+-- It takes an arbitrary user id, so a signed-in member could read anyone's
+-- role with it. The doors call it as definer and need no grant of their own.
+revoke execute on function public.has_permission(uuid, uuid, text) from public, anon, authenticated;
+grant execute on function public.has_permission(uuid, uuid, text) to service_role;
 
 create or replace function public.lead_suppression_hash(p_tenant_id uuid, p_value text)
 returns text
@@ -519,7 +549,8 @@ revoke execute on function public.lead_renews_on(uuid) from public, anon, authen
 -- Reserve a round's target and estimate, or say which cap binds. Counters are
 -- taken in one fixed order and the whole reservation is one statement's
 -- worth of locks; a refusal writes nothing but the counter rows themselves.
-create or replace function public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_leads integer, p_usd numeric)
+drop function if exists public.lead_reserve(uuid, text, text, integer, numeric);
+create or replace function public.lead_reserve(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric)
 returns jsonb
 language plpgsql
 security definer
@@ -550,7 +581,7 @@ begin
   if v_day.used + v_day.reserved + p_usd > 10 then
     return jsonb_build_object('error', 'day_cap', 'sentence', 'Today''s searching is used up. Try again tomorrow.');
   end if;
-  v_platform := public.lead_counter_take(null, 'day', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'));
+  v_platform := public.lead_counter_take(null, 'day', p_platform_day);
   if v_platform.used + v_platform.reserved + p_usd > 50 then
     return jsonb_build_object('error', 'day_cap', 'sentence', 'Searching is busy today. Try again tomorrow.');
   end if;
@@ -560,11 +591,12 @@ begin
   update public.lead_counters set reserved = reserved + p_usd,   updated_at = now() where id = v_platform.id;
   return null;
 end $$;
-comment on function public.lead_reserve(uuid, text, text, integer, numeric) is
-  'Reserves p_leads from the month''s allowance (500) and p_usd from the month''s budget ($25), the workspace''s day ($10) and the platform''s day ($50), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
-revoke execute on function public.lead_reserve(uuid, text, text, integer, numeric) from public, anon, authenticated;
+comment on function public.lead_reserve(uuid, text, text, text, integer, numeric) is
+  'Reserves p_leads from the month''s allowance (500) and p_usd from the month''s budget ($25), the workspace''s day ($10) and the platform''s day ($50, the UTC day p_platform_day, which the round stores), in that lock order; null when reserved, else {error, sentence} naming the cap that binds (§0.2, §13.3).';
+revoke execute on function public.lead_reserve(uuid, text, text, text, integer, numeric) from public, anon, authenticated;
 
-create or replace function public.lead_release(p_tenant_id uuid, p_month text, p_day text, p_leads integer, p_usd numeric)
+drop function if exists public.lead_release(uuid, text, text, integer, numeric);
+create or replace function public.lead_release(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_leads integer, p_usd numeric)
 returns void
 language plpgsql
 security definer
@@ -579,17 +611,18 @@ begin
   update public.lead_counters set reserved = greatest(reserved - p_usd, 0), updated_at = now() where id = v.id;
   v := public.lead_counter_take(p_tenant_id, 'day', p_day);
   update public.lead_counters set reserved = greatest(reserved - p_usd, 0), updated_at = now() where id = v.id;
-  v := public.lead_counter_take(null, 'day', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'));
+  v := public.lead_counter_take(null, 'day', p_platform_day);
   update public.lead_counters set reserved = greatest(reserved - p_usd, 0), updated_at = now() where id = v.id;
 end $$;
-comment on function public.lead_release(uuid, text, text, integer, numeric) is
-  'Gives back what a round reserved and did not use, in the same lock order as lead_reserve. Never below zero.';
-revoke execute on function public.lead_release(uuid, text, text, integer, numeric) from public, anon, authenticated;
+comment on function public.lead_release(uuid, text, text, text, integer, numeric) is
+  'Gives back what a round reserved and did not use, to the four rows it took from -- the round''s own month, day and platform_day -- in the same lock order as lead_reserve. Never below zero.';
+revoke execute on function public.lead_release(uuid, text, text, text, integer, numeric) from public, anon, authenticated;
 
 -- Usage settles against the cost reservation: what was reserved moves to used
 -- up to the reservation, and past it only used grows (retries and failed
 -- runs included, 27).
-create or replace function public.lead_settle_usage(p_tenant_id uuid, p_month text, p_day text, p_delta numeric, p_outstanding numeric)
+drop function if exists public.lead_settle_usage(uuid, text, text, numeric, numeric);
+create or replace function public.lead_settle_usage(p_tenant_id uuid, p_month text, p_day text, p_platform_day text, p_delta numeric, p_outstanding numeric)
 returns void
 language plpgsql
 security definer
@@ -604,12 +637,12 @@ begin
   update public.lead_counters set used = used + p_delta, reserved = greatest(reserved - v_take, 0), updated_at = now() where id = v.id;
   v := public.lead_counter_take(p_tenant_id, 'day', p_day);
   update public.lead_counters set used = used + p_delta, reserved = greatest(reserved - v_take, 0), updated_at = now() where id = v.id;
-  v := public.lead_counter_take(null, 'day', to_char(now() at time zone 'UTC', 'YYYY-MM-DD'));
+  v := public.lead_counter_take(null, 'day', p_platform_day);
   update public.lead_counters set used = used + p_delta, reserved = greatest(reserved - v_take, 0), updated_at = now() where id = v.id;
 end $$;
-comment on function public.lead_settle_usage(uuid, text, text, numeric, numeric) is
-  'A run''s new usage, settled against the month''s budget and both day counters: used grows by the delta; reserved shrinks by what the round still had outstanding.';
-revoke execute on function public.lead_settle_usage(uuid, text, text, numeric, numeric) from public, anon, authenticated;
+comment on function public.lead_settle_usage(uuid, text, text, text, numeric, numeric) is
+  'A run''s new usage, settled against the month''s budget and both day counters -- the round''s own day and the platform_day it reserved in: used grows by the delta; reserved shrinks by what the round still had outstanding.';
+revoke execute on function public.lead_settle_usage(uuid, text, text, text, numeric, numeric) from public, anon, authenticated;
 
 -- What blanking clears, named once (§0.4 take the least; §12.4 retention). An
 -- allow-list: what a lead KEEPS is listed here, and everything else goes.
@@ -774,11 +807,26 @@ begin
     if auth.uid() is not null then return null; end if;
     if NEW.erased_at is not null or NEW.merged_into_contact_id is not null then return null; end if;
     if NEW.phone_e164 is null and NEW.email is null then return null; end if;
-    select l.id into v_lead from public.leads l
-     where l.tenant_id = NEW.tenant_id and l.contact_id is null and l.erased_at is null and l.blanked_at is null
-       and ((NEW.phone_e164 is not null and l.phone_e164 = NEW.phone_e164) or (NEW.email is not null and l.email = NEW.email))
-     order by l.found_at desc
-     limit 1;
+    -- Two guarded single-column lookups, never one OR over two nullable
+    -- parameters: this runs on EVERY contacts insert (the inbound hot path),
+    -- and an OR of two nullable parameters plans as a sequential scan over
+    -- leads. Each lookup reaches its own index (leads_tenant_phone,
+    -- leads_tenant_email); the number is tried first, being the stronger
+    -- identity.
+    if NEW.phone_e164 is not null then
+      select l.id into v_lead from public.leads l
+       where l.tenant_id = NEW.tenant_id and l.phone_e164 = NEW.phone_e164
+         and l.contact_id is null and l.erased_at is null and l.blanked_at is null
+       order by l.found_at desc
+       limit 1;
+    end if;
+    if v_lead is null and NEW.email is not null then
+      select l.id into v_lead from public.leads l
+       where l.tenant_id = NEW.tenant_id and l.email = NEW.email
+         and l.contact_id is null and l.erased_at is null and l.blanked_at is null
+       order by l.found_at desc
+       limit 1;
+    end if;
     if v_lead is null then return null; end if;
     update public.leads
        set contact_id = NEW.id, stage = 'converted', closed_reason = null, converted_at = now(), contacted_at = coalesce(contacted_at, now())
@@ -913,7 +961,7 @@ begin
   update public.lead_rounds
      set state = 'ended', ending = p_ending, ended_at = now(), waiting_since = null
    where id = p_round_id;
-  perform public.lead_release(r.tenant_id, r.month, r.day,
+  perform public.lead_release(r.tenant_id, r.month, r.day, r.platform_day,
     greatest(r.allowance_reserved - r.allowance_used, 0), greatest(r.cost_reserved_usd - r.cost_usd, 0));
   insert into public.events (tenant_id, kind, category, subject_type, subject_id, data)
   values (r.tenant_id, 'lead.round', 'lead', 'lead_round', p_round_id,
@@ -959,6 +1007,17 @@ declare
   v_state     text;
   v_counter   public.lead_counters;
 begin
+  -- One lock order everywhere: the ROUND first, then its runs, as
+  -- lead_round_stop and lead_search_remove take them. So the run is read
+  -- without a lock, only to learn which round it belongs to (a run never
+  -- moves), and read again under lock once the round is held; a Stop arriving
+  -- mid-page then waits instead of deadlocking (40P01). The lease and the
+  -- offset are judged on the locked copy, so the compare-and-set still holds.
+  select * into v_run from public.lead_runs where id = p_run_id;
+  if not found then
+    return jsonb_build_object('ok', false, 'why', 'run');
+  end if;
+  select * into v_round from public.lead_rounds where id = v_run.round_id for update;
   select * into v_run from public.lead_runs where id = p_run_id for update;
   if not found then
     return jsonb_build_object('ok', false, 'why', 'run');
@@ -969,7 +1028,6 @@ begin
   if v_run.read_offset <> p_from_offset then
     return jsonb_build_object('ok', false, 'why', 'offset');
   end if;
-  select * into v_round from public.lead_rounds where id = v_run.round_id for update;
   if v_round.state = 'ended' then
     return jsonb_build_object('ok', false, 'why', 'ended');
   end if;
@@ -1070,7 +1128,7 @@ begin
   v_usage := (p_page->>'usage_usd')::numeric;
   if v_usage is not null and v_usage > v_run.usage_usd then
     v_delta := v_usage - v_run.usage_usd;
-    perform public.lead_settle_usage(v_round.tenant_id, v_month, v_round.day, v_delta, v_round.cost_reserved_usd - v_round.cost_usd);
+    perform public.lead_settle_usage(v_round.tenant_id, v_month, v_round.day, v_round.platform_day, v_delta, v_round.cost_reserved_usd - v_round.cost_usd);
     update public.lead_rounds set cost_usd = cost_usd + v_delta where id = v_round.id;
     update public.lead_runs set usage_usd = v_usage where id = p_run_id;
   end if;
@@ -1093,7 +1151,7 @@ begin
       insert into public.jobs (tenant_id, kind, due_at, payload)
       values (v_round.tenant_id, 'lead_collect', now() + make_interval(secs => coalesce((v_next->>'run_after_seconds')::integer, 0)),
               jsonb_build_object('run_id', p_run_id, 'seq', coalesce(v_next->>'seq', 'p' || p_to_offset)))
-      on conflict ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' do nothing;
+      on conflict ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' and state <> 'failed' do nothing;
     end if;
   end if;
 
@@ -1125,7 +1183,8 @@ end $$;
 comment on function public.lead_collect_commit(uuid, text, integer, integer, integer, jsonb) is
   'One page of one run, in one transaction (E4). Refuses {ok:false, why} on a stale lease, a wrong offset or an ended round. Keeps judgments by op_id, inserts leads (once per place id) and members (once per search), counts Qualified members up to the round''s reservation, settles usage, advances the offset, writes the next job once, moves the round, appends the events. Replayed with the same offset it does nothing twice; replayed after the offset moved it is refused.';
 
-create or replace function public.lead_check_commit(p_round_id uuid, p_results jsonb, p_usage_usd numeric, p_last boolean)
+drop function if exists public.lead_check_commit(uuid, jsonb, numeric, boolean);
+create or replace function public.lead_check_commit(p_round_id uuid, p_run_id uuid, p_results jsonb, p_usage_usd numeric, p_last boolean)
 returns jsonb
 language plpgsql
 security definer
@@ -1139,6 +1198,8 @@ declare
   v_counted integer := 0;
   v_room    integer;
   v_counter public.lead_counters;
+  v_prev    numeric;
+  v_delta   numeric;
   v_ended   boolean := false;
 begin
   select * into v_round from public.lead_rounds where id = p_round_id for update;
@@ -1150,6 +1211,7 @@ begin
     update public.leads
        set email_state = v_r->>'email_state', email_checked_at = coalesce((v_r->>'checked_at')::timestamptz, now())
      where id = (v_r->>'lead_id')::uuid and tenant_id = v_round.tenant_id
+       and blanked_at is null and erased_at is null
        and (v_r->>'email_state') in ('ok', 'catch_all', 'unknown', 'invalid');
   end loop;
   -- A member the email standard alone held back, whose address now checks
@@ -1184,9 +1246,18 @@ begin
     v_counter := public.lead_counter_take(v_round.tenant_id, 'allowance', v_round.month);
     update public.lead_counters set used = used + v_counted, reserved = greatest(reserved - v_counted, 0), updated_at = now() where id = v_counter.id;
   end if;
-  if coalesce(p_usage_usd, 0) > 0 then
-    perform public.lead_settle_usage(v_round.tenant_id, v_round.month, v_round.day, p_usage_usd, v_round.cost_reserved_usd - v_round.cost_usd);
-    update public.lead_rounds set cost_usd = cost_usd + p_usage_usd where id = p_round_id;
+  -- The checker run's total so far, not this batch's delta: only what is new
+  -- settles, so a check job tried again charges the batch once (E4, the rule
+  -- lead_collect_commit takes). The run is locked after the round, never
+  -- before it.
+  if p_run_id is not null and coalesce(p_usage_usd, 0) > 0 then
+    select r.usage_usd into v_prev from public.lead_runs r where r.id = p_run_id and r.round_id = p_round_id for update;
+    if found and p_usage_usd > v_prev then
+      v_delta := p_usage_usd - v_prev;
+      perform public.lead_settle_usage(v_round.tenant_id, v_round.month, v_round.day, v_round.platform_day, v_delta, v_round.cost_reserved_usd - v_round.cost_usd);
+      update public.lead_rounds set cost_usd = cost_usd + v_delta where id = p_round_id;
+      update public.lead_runs set usage_usd = p_usage_usd where id = p_run_id;
+    end if;
   end if;
   if p_last then
     select * into v_round from public.lead_rounds where id = p_round_id;
@@ -1195,8 +1266,8 @@ begin
   end if;
   return jsonb_build_object('ok', true, 'qualified', v_newly, 'counted', v_counted, 'ended', v_ended);
 end $$;
-comment on function public.lead_check_commit(uuid, jsonb, numeric, boolean) is
-  'A batch of mailbox answers ([{lead_id, email_state, checked_at}]): each lead''s state is set; a member of the round held in review by the email standard alone, now ok, qualifies, and counts only through the round''s reservation, the way lead_collect_commit counts a page (past the room the member is Qualified, counted stays false and no counter moves); the usage settles; the last batch ends the round with the ending the collect left pending.';
+comment on function public.lead_check_commit(uuid, uuid, jsonb, numeric, boolean) is
+  'A batch of mailbox answers ([{lead_id, email_state, checked_at}]) from the check run p_run_id: each lead''s state is set (never a blanked or erased one); a member of the round held in review by the email standard alone, now ok, qualifies, and counts only through the round''s reservation, the way lead_collect_commit counts a page (past the room the member is Qualified, counted stays false and no counter moves). p_usage_usd is that RUN''S TOTAL SO FAR, not this batch''s delta: only what is new settles, so a retried job charges once, and nothing settles without a check run of this round. The last batch ends the round with the ending the collect left pending.';
 
 revoke execute on function public.lead_run_claim(uuid, text) from public, anon, authenticated;
 revoke execute on function public.lead_run_record_start(uuid, text, text, text, numeric) from public, anon, authenticated;
@@ -1206,11 +1277,11 @@ revoke execute on function public.lead_run_lease(uuid, text, integer) from publi
 revoke execute on function public.lead_run_release(uuid, text, integer) from public, anon, authenticated;
 revoke execute on function public.lead_round_end(uuid, text) from public, anon, authenticated;
 revoke execute on function public.lead_collect_commit(uuid, text, integer, integer, integer, jsonb) from public, anon, authenticated;
-revoke execute on function public.lead_check_commit(uuid, jsonb, numeric, boolean) from public, anon, authenticated;
+revoke execute on function public.lead_check_commit(uuid, uuid, jsonb, numeric, boolean) from public, anon, authenticated;
 grant execute on function public.lead_run_claim(uuid, text), public.lead_run_record_start(uuid, text, text, text, numeric),
   public.lead_run_mark_unknown(uuid, text), public.lead_run_reconcile(uuid, text, text, text), public.lead_run_lease(uuid, text, integer),
   public.lead_run_release(uuid, text, integer), public.lead_round_end(uuid, text), public.lead_collect_commit(uuid, text, integer, integer, integer, jsonb),
-  public.lead_check_commit(uuid, jsonb, numeric, boolean) to service_role;
+  public.lead_check_commit(uuid, uuid, jsonb, numeric, boolean) to service_role;
 
 /* ------------------------------------------------------------- 7. doors -- */
 
@@ -1265,6 +1336,7 @@ declare
   v_count  integer;
   v_month  text;
   v_day    text;
+  v_pday   text;
   v_err    jsonb;
   v_search uuid;
   v_round  uuid;
@@ -1301,7 +1373,8 @@ begin
 
   v_month := public.lead_month(p_tenant_id, now());
   v_day   := public.lead_day(p_tenant_id, now());
-  v_err   := public.lead_reserve(p_tenant_id, v_month, v_day, v_count, p_estimate_usd);
+  v_pday  := to_char(now() at time zone 'UTC', 'YYYY-MM-DD');
+  v_err   := public.lead_reserve(p_tenant_id, v_month, v_day, v_pday, v_count, p_estimate_usd);
   if v_err is not null then
     return v_err;
   end if;
@@ -1309,8 +1382,8 @@ begin
   insert into public.lead_searches (tenant_id, created_by, via, card, name, asked, plan)
   values (p_tenant_id, v_user, p_via, p_plan->>'card', left(p_plan->>'name', 120), p_plan->>'asked', p_plan)
   returning id into v_search;
-  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day)
-  values (p_tenant_id, v_search, 1, 'probe', p_plan, 1, least(25, v_count), 'queued', v_count, p_estimate_usd, v_month, v_day)
+  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day)
+  values (p_tenant_id, v_search, 1, 'probe', p_plan, 1, least(25, v_count), 'queued', v_count, p_estimate_usd, v_month, v_day, v_pday)
   returning id into v_round;
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (p_tenant_id, 'lead_round_start', now(), jsonb_build_object('round_id', v_round));
@@ -1406,7 +1479,7 @@ begin
       if run.state = 'running' then
         insert into public.jobs (tenant_id, kind, due_at, payload)
         values (r.tenant_id, 'lead_collect', now(), jsonb_build_object('run_id', run.id, 'seq', 'stop'))
-        on conflict ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' do nothing;
+        on conflict ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' and state <> 'failed' do nothing;
         v_live := v_live + 1;
       end if;
       v_runs := v_runs + 1;
@@ -1440,6 +1513,7 @@ declare
   v_version integer;
   v_month   text;
   v_day     text;
+  v_pday    text;
   v_err     jsonb;
   v_round   uuid;
 begin
@@ -1483,15 +1557,16 @@ begin
   end if;
   v_month := public.lead_month(s.tenant_id, now());
   v_day   := public.lead_day(s.tenant_id, now());
-  v_err   := public.lead_reserve(s.tenant_id, v_month, v_day, v_target, p_estimate_usd);
+  v_pday  := to_char(now() at time zone 'UTC', 'YYYY-MM-DD');
+  v_err   := public.lead_reserve(s.tenant_id, v_month, v_day, v_pday, v_target, p_estimate_usd);
   if v_err is not null then
     return v_err;
   end if;
   if v_version <> (s.plan->>'version')::integer then
     update public.lead_searches set plan = p_plan where id = p_search_id;
   end if;
-  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day)
-  values (s.tenant_id, p_search_id, last.seq + 1, p_purpose, p_plan, v_version, v_target, 'queued', v_target, p_estimate_usd, v_month, v_day)
+  insert into public.lead_rounds (tenant_id, search_id, seq, purpose, plan, plan_version, target, state, allowance_reserved, cost_reserved_usd, month, day, platform_day)
+  values (s.tenant_id, p_search_id, last.seq + 1, p_purpose, p_plan, v_version, v_target, 'queued', v_target, p_estimate_usd, v_month, v_day, v_pday)
   returning id into v_round;
   insert into public.jobs (tenant_id, kind, due_at, payload)
   values (s.tenant_id, 'lead_round_start', now(), jsonb_build_object('round_id', v_round));
@@ -1529,6 +1604,12 @@ begin
   select * into s from public.lead_searches where id = p_search_id;
   if not found or not public.has_permission(v_user, s.tenant_id, 'find') then
     raise exception 'Search not found.' using errcode = 'P0002';
+  end if;
+  -- A removed search charges nobody: Keep and Put back each spend a lead of
+  -- the month's allowance, and its members are blanked. lead_search_more says
+  -- the same word.
+  if s.removed_at is not null then
+    return jsonb_build_object('error', 'removed');
   end if;
   select * into m from public.lead_search_members where search_id = p_search_id and lead_id = p_lead_id for update;
   if not found then
@@ -1590,7 +1671,7 @@ begin
   return jsonb_build_object('op_id', v_op, 'version', m.version, 'counted', v_counts);
 end $$;
 comment on function public.lead_member_move(uuid, uuid, text) is
-  'The body of lead_member_keep, lead_member_exclude and lead_member_put_back: the state each expects, the change, the allowance when it counts, and one lead_operations row with the member''s new version.';
+  'The body of lead_member_keep, lead_member_exclude and lead_member_put_back: the state each expects, the change, the allowance when it counts, and one lead_operations row with the member''s new version. {error: removed} on a search that was removed, as lead_search_more says it.';
 revoke execute on function public.lead_member_move(uuid, uuid, text) from public, anon, authenticated;
 
 create or replace function public.lead_member_keep(p_search_id uuid, p_lead_id uuid)
@@ -1744,7 +1825,7 @@ begin
       if run.state = 'running' then
         insert into public.jobs (tenant_id, kind, due_at, payload)
         values (r.tenant_id, 'lead_collect', now(), jsonb_build_object('run_id', run.id, 'seq', 'stop'))
-        on conflict ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' do nothing;
+        on conflict ((payload->>'run_id'), (payload->>'seq')) where kind = 'lead_collect' and state <> 'failed' do nothing;
       end if;
     end loop;
     perform public.lead_round_end(r.id, 'stopped');
@@ -1892,8 +1973,12 @@ security definer
 set search_path = public, extensions
 as $$
 begin
+  -- Any round that has not ended, not only one waiting or checking: a round
+  -- whose lead_round_start job died before it wrote a run sits in 'queued'
+  -- with no run at all, and nothing but the sweep can end it and give its
+  -- allowance and budget back (lead_rounds_live serves this predicate).
   if exists (select 1 from public.lead_runs r where r.state in ('claimed', 'starting', 'running', 'unknown'))
-     or exists (select 1 from public.lead_rounds r where r.state in ('waiting_on_owner', 'checking')) then
+     or exists (select 1 from public.lead_rounds r where r.state <> 'ended') then
     return public.request_sweep('leads', '/api/cron/leads');
   end if;
   insert into public.sweep_status (sweep, requested_at) values ('leads', now())
@@ -1902,7 +1987,7 @@ begin
 end $$;
 revoke execute on function public.trigger_leads_sweep() from public, anon, authenticated;
 comment on function public.trigger_leads_sweep() is
-  'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live or a round waits or checks; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
+  'The lead finder''s clock. Calls the edge (/api/cron/leads) only when a run is live or a round has not ended -- a round whose start job died sits queued with no run, and its reservation comes back only when something ends it; otherwise records that it looked, so sweep_health() can tell a quiet engine from a stopped clock.';
 
 insert into public.sweep_status (sweep, jobname, max_silence, judged_by, requested_at) values
   -- every five minutes, recording itself each time: fifteen minutes is three
