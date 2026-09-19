@@ -9988,6 +9988,13 @@ function erasedPhoneHash(tenantId, phoneE164) {
 function erasedEmailHash(tenantId, email) {
   return keyedDigest(tenantId, email);
 }
+
+// src/csv.ts
+function csvCell(v) {
+  let s = v == null ? "" : typeof v === "boolean" ? v ? "yes" : "no" : String(v);
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
+  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 export {
   ABANDONED_MS,
   ACTIVITY_KINDS,
@@ -10333,6 +10340,7 @@ export {
   contactName,
   conversationOfNeedsKey,
   coversSpan,
+  csvCell,
   dailyLimit,
   dataSentences,
   dayDate,

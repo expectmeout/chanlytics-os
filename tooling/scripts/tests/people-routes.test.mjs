@@ -89,9 +89,15 @@ test("adding a person: the workspace must be named, a viewer is refused as a vie
   await refused(contacts.POST.run(send("POST", { phone: "abc" }, `?workspace=${A}`), ctxFor(tables, {}, rpcs)), "forbidden", 403, "a viewer, whatever the body says");
   await refused(contacts.POST.run(send("POST", { phone: "abc" }, `?workspace=${B}`), ctxFor(tables, {}, rpcs)), "validation", 400);
   assert.equal(made.length, 0, "nothing reached the door");
-  const out = await contacts.POST.run(send("POST", { phone: "+1 (555) 000-0001", name: "  Ada  ", source: "calendar" }, `?workspace=${B}`), ctxFor(tables, {}, rpcs));
+  const out = await contacts.POST.run(send("POST", { phone: "+1 (555) 000-0001", name: "  Ada  ", source: "walk_in" }, `?workspace=${B}`), ctxFor(tables, {}, rpcs));
   assert.deepEqual(out, { contact_id: P1, existed: false });
-  assert.deepEqual(made, [{ p_tenant_id: B, p_phone_e164: "+15550000001", p_display_name: "Ada", p_source: "calendar" }]);
+  // A door's own word goes through. Not "calendar" or "lead": people_list (00138) names those two, and they are the
+  // sweep's and the converter's, written server-side. This door took any word, so a person added by hand could say "Your calendar".
+  await contacts.POST.run(send("POST", { phone: "+1 (555) 000-0002", name: "Bea", source: "calendar" }, `?workspace=${B}`), ctxFor(tables, {}, rpcs));
+  assert.deepEqual(made, [
+    { p_tenant_id: B, p_phone_e164: "+15550000001", p_display_name: "Ada", p_source: "walk_in" },
+    { p_tenant_id: B, p_phone_e164: "+15550000002", p_display_name: "Bea", p_source: "manual" },
+  ], "REGRESSION: the public door claimed the calendar's source");
 });
 
 test("one person in full: the row with both reply modes, the notes, where they came from, the booking link; a person not in the named workspace is a 404", async () => {
