@@ -84,6 +84,7 @@ import "@/legacy/pages/live-monitor.jsx";
 import "@/legacy/pages/live-monitor-real.jsx";
 import "@/legacy/pages/calendar.jsx";
 import "@/legacy/pages/calendar-real.jsx";
+import "@/legacy/pages/reports-sections.jsx";
 import "@/legacy/pages/reports.jsx";
 import "@/legacy/pages/tasks.jsx";
 import "@/legacy/pages/setup.jsx";
