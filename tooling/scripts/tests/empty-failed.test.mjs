@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { stateOf, toTodayVM, toLiveVM, toReportVM } from "@chanlytics/contracts";
+import { stateOf, toTodayVM, toLiveVM, toReportVM, reportFacts } from "@chanlytics/contracts";
 
 // The workspace's zone: every view model says its times by it (contracts clock.ts).
 const ZONE = "America/New_York";
@@ -214,6 +214,19 @@ test("both reads good: the campaigns are published; the report read failing fail
     return json(500, { ok: false, error: { code: "internal", message: "down" } });
   };
   await assert.rejects(() => reportsOverride.apply(), (e) => e && e.code === "internal", "without the report there is no page to show; the shell says so");
+});
+
+test("Worth knowing is published beside the numbers it is drawn from, once, by the bridge", async () => {
+  globalThis.window.fetch = async (url) => {
+    if (url.includes("/reports/campaigns")) return json(200, { ok: true, data: { report: campaignsDto() } });
+    if (url.includes("/reports")) return json(200, { ok: true, data: { report: reportDto(), booking: { calendar: "none", days: 7, asked: 0, booked: 0 } } });
+    return json(404, { ok: false, error: { code: "not_found", message: "no" } });
+  };
+  await reportsOverride.apply();
+  const R = globalThis.window.__REPORTS;
+  assert.deepEqual(R.facts.map((f) => f.id), ["busiest"], "a Saturday of four messages: nothing unanswered, nobody handed over");
+  assert.equal(R.facts[0].text, "Saturday was your busiest day");
+  assert.deepEqual(R.facts, reportFacts(R.vm, R.campaigns), "contracts' facts, from the same two view models the page draws");
 });
 
 /* -------------------- Settings › Team, with a failed read ---------------- */

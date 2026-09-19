@@ -3,12 +3,11 @@ import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
 
 /**
- * Reports, on a real workspace.
+ * Reports, on a real workspace (the redesign of September 2026).
  *
- * The seeded page led with revenue, bookings, eight agents and a share link
- * over invented numbers. The real one is the receptionist's own numbers over
- * a chosen period, every chart with a table twin and nothing in dollars.
- * Read-only; the range control only issues a GET.
+ * The receptionist's share of the answered as a meter beside Worth knowing, five tiles compared with the period before
+ * in counts, then the cards, each with a table twin, and nothing in dollars. Read-only: the range control only issues a
+ * GET, and Ask is not pressed.
  */
 const INVENTED = ["Revenue", "Agent performance", "Segment health", "Lead sources", "Where bookings come from", "Your judgment layer", "Phone Rep", "Share"];
 
@@ -18,7 +17,7 @@ test.describe("Reports on a real workspace", () => {
     await signIn(page);
   });
 
-  test("six measured tiles, a period control above everything, charts with table twins, no money", async ({ page }) => {
+  test("the headline, five tiles, one period control above everything, cards with table twins, no money", async ({ page }) => {
     await page.goto("/#/reports");
     await page.waitForLoadState("networkidle");
     const report = page.getByTestId("reports-real");
@@ -28,44 +27,43 @@ test.describe("Reports on a real workspace", () => {
     for (const s of INVENTED) expect(text, `invented copy: "${s}"`).not.toContain(s);
     expect(text, "revenue has no column").not.toMatch(/\$\d/);
 
-    const tiles = report.locator(".rp2-strip-reception .rp2-tile");
-    await expect(tiles).toHaveCount(6);
-    const labels = (await tiles.locator(".rp2-tile-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
-    expect(labels).toEqual(["customer messages", "receptionist answered", "median reply time", "needed you", "calls", "new people"]);
-    // A tile value is a count, a percentage or a duration — never a dash-free invention.
-    for (const v of await tiles.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+|\d+%|—|\d+s|\d+m( \d{2}s)?|\d+h \d{2}m)$/);
+    await expect(report.getByTestId("reports-hero")).toContainText("answered by your receptionist");
 
-    // Campaigns: five indicators beside the receptionist's, and the sources
-    // card or the honest line — never a number the schema has no column for.
-    const campaign = report.locator(".rp2-strip-campaigns .rp2-tile");
-    await expect(campaign).toHaveCount(5);
-    const campaignLabels = (await campaign.locator(".rp2-tile-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
-    expect(campaignLabels).toEqual(["messages sent", "delivered", "replied", "said yes", "asked to stop"]);
-    for (const v of await campaign.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+|\d+%|—)$/);
+    const tiles = report.getByTestId("reports-tiles").locator(".rpt-tile");
+    await expect(tiles).toHaveCount(5);
+    const labels = (await tiles.locator(".rpt-tile-label").allInnerTexts()).map((l) => l.trim().toLowerCase());
+    expect(labels).toEqual(["customer messages", "calls", "new people", "booked", "needed you"]);
+    // A count (or a dash with no calendar), and the period before in counts when it had some: never a percentage.
+    for (const v of await tiles.locator(".rpt-tile-value").allInnerTexts()) {
+      expect(v.trim()).toMatch(/^(\d+|—)\s*(up from \d+|down from \d+|same as the \d+ days before|none the \d+ days before)?$/);
+    }
+
+    const ranges = report.locator(".rpt-range button");
+    await expect(ranges).toHaveCount(3);
+    await expect(ranges.filter({ hasText: "30 days" })).toHaveAttribute("aria-pressed", "true");
+    await expect(report.getByRole("button", { name: "Ask about this period" })).toBeVisible();
     await expect(report.getByTestId("chart-campaigns")).toBeVisible();
 
-    // The period control is one row above the charts and scopes everything.
-    const ranges = report.locator(".rp2-range .cl-tab");
-    await expect(ranges).toHaveCount(3);
-    await expect(ranges.filter({ hasText: "30 days" })).toHaveClass(/active/);
-
-    // The main chart is an SVG with a legend of three series — or, when no
-    // customer wrote in the period, an honest sentence instead of an empty plot.
+    // A workspace nobody reached in the period has one honest card instead of the charts, and no Worth knowing.
+    if (await report.getByTestId("reports-empty").count()) {
+      await expect(report.getByTestId("reports-facts")).toHaveCount(0);
+      return;
+    }
+    await expect(report.getByTestId("reports-facts")).toContainText("Worth knowing");
     const main = report.getByTestId("chart-answered");
-    // Three series, and a fourth key for the period before when that period has data (#557 folded the delta into the chart).
-    const keys = main.locator(".rp2-legend .rp2-key");
-    for (const who of ["Receptionist", "You", "Unanswered"]) await expect(keys.filter({ hasText: who })).toHaveCount(1);
-    expect(await keys.count()).toBeLessThanOrEqual(4);
     if (await main.locator(".empty").count()) {
       await expect(main.getByText("No customer messages in this period")).toBeVisible();
     } else {
-      await expect(main.locator("svg")).toBeVisible();
+      for (const who of ["Receptionist", "You", "Unanswered"]) await expect(main.locator(".ck-legend-item", { hasText: who })).toHaveCount(1);
+      await expect(main.locator("svg").first()).toBeVisible();
     }
     // Either way it has a table twin.
-    await main.getByRole("button", { name: "Table" }).click();
-    const table = main.locator("table");
-    await expect(table).toBeVisible();
-    await expect(table.locator("thead th")).toHaveCount(8);
+    await main.hover();
+    await main.getByTestId("card-table").click();
+    await expect(main.locator("table thead th")).toHaveCount(8);
+    for (const id of ["chart-reply", "chart-reasons", "chart-calls", "chart-booking", "chart-channels", "chart-rhythm", "chart-people"]) {
+      await expect(report.getByTestId(id), id).toBeVisible();
+    }
   });
 
   test("changing the period asks the API for that window and keeps the frame while it loads", async ({ page }) => {
@@ -75,21 +73,21 @@ test.describe("Reports on a real workspace", () => {
     await expect(report).toBeVisible();
 
     const req = page.waitForRequest((r) => r.url().includes("/api/v1/reports") && r.url().includes("days=7") && r.method() === "GET");
-    await report.locator(".rp2-range .cl-tab", { hasText: "7 days" }).click();
+    await report.locator(".rpt-range button", { hasText: "7 days" }).click();
     const seen = await req;
     expect(seen.url()).toContain("workspace=");
-    await expect(report.locator(".rp2-range .cl-tab", { hasText: "7 days" })).toHaveClass(/active/);
-    await expect(report.getByText(/last 7 days|7 days/i).first()).toBeVisible();
+    await expect(report.locator(".rpt-range button", { hasText: "7 days" })).toHaveAttribute("aria-pressed", "true");
+    await expect(report.getByTestId("reports-hero")).toBeVisible();
   });
 
-  test("asked, then booked: one conversion line, from the calendar or honest about needing it", async ({ page }) => {
+  test("asked, then booked: the share from the calendar, the calendar's own sentence, or a read that failed", async ({ page }) => {
     await page.goto("/#/reports");
     await page.waitForLoadState("networkidle");
     const card = page.getByTestId("chart-booking");
     if (await card.count()) {
-      await expect(card).toContainText(/booked|Nobody asked|needs the calendar|could not be read/);
+      await expect(card).toContainText(/have an appointment on the calendar|Nobody asked|Connect your calendar|Couldn't read your calendar/);
     } else {
-      // An empty period hides the section; the route still carries the line.
+      // An empty period shows one card instead of the sections; the route still carries the line.
       const res = await apiGet(page, "/api/v1/reports?days=30");
       expect((await res.json()).data).toHaveProperty("booking");
     }

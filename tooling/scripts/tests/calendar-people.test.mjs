@@ -512,7 +512,7 @@ test("the wiring: the list and the assistant carry appointments from one parsed 
   // Booked was a stat card above the table as well as a list on the rail; the rail keeps it.
   assert.ok(page.includes('data-testid="row-next-visit"') && page.includes("asked_never_booked:"), "the column and the tips");
   assert.ok(!page.includes('<StatCell label="Booked"'), "REGRESSION: the rail said it and a card said it again");
-  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes('testid="chart-booking"'));
+  assert.ok(readCode("apps/dashboard/src/legacy/pages/reports-sections.jsx").includes('testid="chart-booking"'));
 });
 
 test("a name the owner gives and notes the receptionist reads: two doors, one route, the profile's rename and Notes, the VM's givenName", () => {

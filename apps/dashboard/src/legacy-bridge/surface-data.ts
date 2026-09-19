@@ -184,6 +184,8 @@ import {
   toChannelVM,
   type ChannelVM,
   toReportVM,
+  reportFacts,
+  type ReportFactVM,
   REPORT_RANGES,
   type ReportVM,
   toCampaignReportVM,
@@ -1151,10 +1153,12 @@ export function setReportDays(days: number): void {
 
 export interface ReportsSurface {
   vm: ReportVM;
-  /** What the offers earned over the same period; null when that read failed and the receptionist's own numbers still stand (D9). */
+  /** What the broadcasts and playbooks sent over the same period; null when that read failed and the receptionist's own numbers still stand (D9). */
   campaigns: CampaignReportVM | null;
   /** Asked, then booked: the one conversion line, from the calendar. */
   booking: BookingReportVM;
+  /** Worth knowing: at most three facts from these same numbers (contracts' reportFacts). */
+  facts: ReportFactVM[];
   days: number;
   fetchedAt: number;
 }
@@ -1183,13 +1187,15 @@ export const reportsOverride: SurfaceOverride = {
       read("GET reports/campaigns", { query: { days: String(days) } }).catch((e: unknown) => e as Error),
     ]);
     if (campaigns instanceof Error) console.error("reports_campaigns_fetch_failed", campaigns.message);
-    (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = {
+    const surface: Omit<ReportsSurface, "facts"> = {
       vm: toReportVM(data.report),
       campaigns: campaigns instanceof Error ? null : toCampaignReportVM(campaigns.report),
       booking: toBookingReportVM(data.booking),
       days,
       fetchedAt: Date.now(),
     };
+    // Worth knowing is derived here, once, from the same two view models the page draws: never in the page.
+    (window as unknown as { __REPORTS?: ReportsSurface }).__REPORTS = { ...surface, facts: reportFacts(surface.vm, surface.campaigns) };
   },
 };
 
