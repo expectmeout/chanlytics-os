@@ -14,6 +14,7 @@ import {
   LEAD_ESTIMATE_MARGIN,
 } from "../../../packages/contracts/src/lead-search.ts";
 import * as searchWords from "../../../packages/contracts/src/lead-search.ts";
+import * as judgeWords from "../../../packages/contracts/src/lead-judge.ts";
 
 /** The plan every test starts from: 200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms. */
 const plan = (over = {}) => LeadSearchPlanSchema.parse({
@@ -187,6 +188,7 @@ test("no word the product says names the vendor that runs the searches, in eithe
     else if (v && typeof v === "object" && !seen.has(v)) { seen.add(v); Object.values(v).forEach(walk); }
   };
   walk({ ...searchWords });
+  walk({ ...judgeWords });
   assert.ok(strings.length > 50, "the walk saw the words");
   assert.deepEqual(strings.filter((s) => /apify|compass|bounceverify|crawler/i.test(s)), []);
 });
