@@ -1334,6 +1334,14 @@ begin
      or (jsonb_typeof(p_plan->'area'->'center') <> 'null' and (p_plan->'area'->'center'->>'lat' is null or p_plan->'area'->'center'->>'lng' is null)) then
     raise exception 'plan.area' using errcode = '22023';
   end if;
+  -- A radius is drawn around a point, so it brings one. A ZIP ask may still
+  -- arrive without a centre: release A2 derives it from the ZCTA table, and a
+  -- city may wait for its own. LeadSearchPlanSchema says exactly this, and the
+  -- door is the floor: it is granted to authenticated, so a plan that reaches
+  -- it without the route must be held to the same rule.
+  if p_plan->'area'->>'kind' = 'radius' and coalesce(jsonb_typeof(p_plan->'area'->'center'), 'null') = 'null' then
+    raise exception 'plan.area.center' using errcode = '22023';
+  end if;
   -- A whole number of metres, between the smallest area worth a run and the
   -- largest the provider takes.
   if jsonb_typeof(p_plan->'area'->'radius_m') <> 'number' or p_plan->'area'->>'radius_m' !~ '^\d+$'
@@ -1380,7 +1388,7 @@ begin
     raise exception 'plan.criteria[].key' using errcode = '22023';
   end if;
 end $$;
-comment on function public.lead_plan_check(jsonb) is 'Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes: the same rules, including at most five terms and no phrase twice, at most eight criteria and eight exclusions with a key each, a radius of 500 to 200000 metres, a real state, the area''s query, and a ZIP for a ZIP ask. The door is granted to authenticated, so this is what a plan is held to when the route is stepped around.';
+comment on function public.lead_plan_check(jsonb) is 'Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes: the same rules, including at most five terms and no phrase twice, at most eight criteria and eight exclusions with a key each, a radius of 500 to 200000 metres with a centre to draw it around, a real state, the area''s query, and a ZIP for a ZIP ask. The door is granted to authenticated, so this is what a plan is held to when the route is stepped around.';
 revoke execute on function public.lead_plan_check(jsonb) from public, anon, authenticated;
 
 create or replace function public.lead_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric)
