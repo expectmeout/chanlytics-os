@@ -484,7 +484,9 @@ test("asked, then booked: the report's one conversion line, in words that say wh
   assert.equal(bookedAfterAsk({ next: null, last: { ...up, start: askedMs + 86_400_000, end: askedMs + 90_000_000 } }, askedMs), true, "held since they reached out");
   assert.equal(bookedAfterAsk({ next: null, last: { ...up, start: askedMs - 30 * 86_400_000, end: askedMs - 29 * 86_400_000 } }, askedMs), false, "a visit before they asked does not answer the ask");
   assert.equal(bookedAfterAsk(null, askedMs), false);
-  assert.deepEqual(toBookingReportVM({ calendar: "ok", days: 30, asked: 40, booked: 12 }), { present: true, headline: "12 of 40 booked", sub: "30% of the people who wrote or called in the last 30 days have an appointment on the calendar", pct: 30, asked: 40, booked: 12 });
+  assert.deepEqual(toBookingReportVM({ calendar: "ok", days: 30, asked: 40, booked: 12 }), { present: true, calendar: "ok", headline: "12 of 40 booked", sub: "30% of the people who wrote or called in the last 30 days have an appointment on the calendar", words: "of the people who wrote or called in the last 30 days have an appointment on the calendar", pct: 30, asked: 40, booked: 12 });
+  // A page that draws the share itself (Reports' meter) says the rest in the view model's own words.
+  assert.deepEqual([null, { calendar: "none", days: 30, asked: 0, booked: 0 }, { calendar: "unavailable", days: 30, asked: 5, booked: 0 }, { calendar: "ok", days: 7, asked: 0, booked: 0 }].map((d) => [toBookingReportVM(d).calendar, toBookingReportVM(d).words]), [["none", ""], ["none", ""], ["unavailable", ""], ["ok", ""]], "which calendar, and no words where nothing was counted");
   assert.equal(toBookingReportVM({ calendar: "ok", days: 7, asked: 0, booked: 0 }).headline, "Nobody asked");
   assert.equal(toBookingReportVM({ calendar: "none", days: 30, asked: 0, booked: 0 }).present, false);
   assert.equal(toBookingReportVM(null).sub, "Connect your calendar under Settings › Business to see who booked.");

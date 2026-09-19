@@ -35,6 +35,7 @@ export * from "./call-words";
 export * from "./channels";
 
 export * from "./reports";
+export * from "./report-facts";
 export * from "./live";
 export * from "./setup";
 export * from "./capabilities";

@@ -99,6 +99,8 @@ export interface CampaignReportVM {
   /** Messages sent the period before, day for day beside this one's (null where there is no such day). */
   prior: (number | null)[];
   table: { columns: string[]; rows: (string | number)[][] };
+  /** The one sentence under each campaign card: who said yes or stop (the funnel), and how many runs sent it (null with none). */
+  lines: { funnel: string; sent: string | null };
 }
 
 const sum = (xs: number[]): number => xs.reduce((a, b) => a + b, 0);
@@ -165,6 +167,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.sent ? `over ${sends} ${sends === 1 ? "send" : "sends"}` : "none in this period",
       delta: deltaOf(tot.sent, prev.sent, true, noun),
       spark: points.map((p) => p.sent),
+      compare: null,
     },
     {
       id: "delivered",
@@ -173,6 +176,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.sent ? `${tot.delivered} of ${tot.sent} · WhatsApp's receipts` : "nothing sent",
       delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
       spark: points.map((p) => p.delivered),
+      compare: null,
     },
     {
       id: "replied",
@@ -181,6 +185,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
       delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
       spark: points.map((p) => p.replied),
+      compare: null,
     },
     {
       id: "optins",
@@ -189,6 +194,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
       delta: deltaOf(tot.optIns, prev.optIns, true, noun),
       spark: points.map((p) => p.optIns),
+      compare: null,
     },
     {
       id: "optouts",
@@ -197,6 +203,7 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
       meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
       delta: deltaOf(tot.optOuts, prev.optOuts, false, noun),
       spark: points.map((p) => p.optOuts),
+      compare: null,
     },
   ];
 
@@ -212,6 +219,13 @@ export function toCampaignReportVM(dto: CampaignReportDto): CampaignReportVM {
     table: {
       columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts]),
+    },
+    lines: {
+      // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
+      funnel: tot.optIns || tot.optOuts
+        ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.`
+        : "Nobody said yes to messages or asked to stop.",
+      sent: sends ? (sends === 1 ? "From one broadcast or playbook run." : `From ${sends} broadcast and playbook runs.`) : null,
     },
   };
 }

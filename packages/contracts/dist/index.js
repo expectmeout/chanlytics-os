@@ -3615,14 +3615,17 @@ function bookedAfterAsk(visits, askedMs) {
   return !!visits.last && visits.last.start >= askedMs - 864e5;
 }
 function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none") return { present: false, headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", pct: null, asked: 0, booked: 0 };
-  if (dto.calendar === "unavailable") return { present: false, headline: "\u2014", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
-  if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
+  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", words: "", pct: null, asked: 0, booked: 0 };
+  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "\u2014", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0 };
+  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0 };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
+  const words = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
   return {
     present: true,
+    calendar: "ok",
     headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct2}% of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`,
+    sub: `${pct2}% ${words}`,
+    words,
     pct: pct2,
     asked: dto.asked,
     booked: dto.booked
@@ -4747,8 +4750,8 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1e3
     ) : null;
     const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
-    const plural4 = m.channels.length > 1 ? "are" : "is";
-    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural4} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural4} connected. No messages have arrived yet.`;
+    const plural5 = m.channels.length > 1 ? "are" : "is";
+    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural5} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural5} connected. No messages have arrived yet.`;
     return {
       standing: {
         eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
@@ -6952,6 +6955,13 @@ function roleGate(role, perm, doing) {
 }
 
 // src/reports.ts
+var REPORT_CHANNELS = [
+  { key: "whatsapp", label: "WhatsApp" },
+  { key: "voice", label: "Calls" },
+  { key: "email", label: "Email" },
+  { key: "sms", label: "SMS" },
+  { key: "instagram", label: "Instagram" }
+];
 var REPORT_RANGES = [
   { days: 7, id: "7d", label: "7 days" },
   { days: 30, id: "30d", label: "30 days" },
@@ -6993,6 +7003,12 @@ function pointsDelta(current, previous, noun) {
   if (pts === 0) return { text: `same share as the prior ${noun}`, tone: "" };
   return { text: `${pts > 0 ? "+" : ""}${pts} pts vs prior ${noun}`, tone: pts > 0 ? "pos" : "neg" };
 }
+function compareWords(current, previous, rangeLabel, priorHadAny) {
+  if (!priorHadAny || current === 0 && previous === 0) return null;
+  if (previous === 0) return `none the ${rangeLabel} before`;
+  if (current === previous) return `same as the ${rangeLabel} before`;
+  return `${current > previous ? "up" : "down"} from ${previous}`;
+}
 var REPLY_BUCKETS = [
   { id: "lt15", label: "under 15s", max: 15 },
   { id: "lt60", label: "15s \u2013 1m", max: 60 },
@@ -7011,6 +7027,107 @@ function priorOf(n, previous, pick) {
     const j = previous.length - n + i;
     return j >= 0 ? pick(previous[j]) : null;
   });
+}
+var REPORT_WEEK_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+var REPORT_WEEK_LONG = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+var weekdayOf = (day) => (dayDate(day).getDay() + 6) % 7;
+function weekOf(series) {
+  const total = [0, 0, 0, 0, 0, 0, 0];
+  const seen = [0, 0, 0, 0, 0, 0, 0];
+  for (const d of series) {
+    const w = weekdayOf(d.day);
+    total[w] += (d.messages_in || 0) + (d.calls || 0);
+    seen[w] += 1;
+  }
+  return total.map((t, w) => seen[w] ? Math.round(t / seen[w] * 10) / 10 : 0);
+}
+function onlyIndex(values, wins) {
+  if (!values.some((v) => v > 0)) return null;
+  let at2 = 0;
+  for (let i = 1; i < values.length; i++) if (wins(values[i], values[at2])) at2 = i;
+  return values.filter((v) => v === values[at2]).length === 1 ? at2 : null;
+}
+function reportHourWords(h) {
+  const x = (h % 24 + 24) % 24;
+  return x === 0 ? "12am" : x < 12 ? `${x}am` : x === 12 ? "12pm" : `${x - 12}pm`;
+}
+function hoursOf2(grid) {
+  if (!grid || !grid.length) return null;
+  const values = Array.from({ length: 24 }, (_, h) => grid.reduce((s, row2) => s + (Number(row2?.[h]) || 0), 0));
+  const total = values.reduce((a, b) => a + b, 0);
+  let peak = null;
+  if (total > 0) {
+    peak = 0;
+    for (let h = 1; h < 23; h++) if (values[h] + values[h + 1] > values[peak] + values[peak + 1]) peak = h;
+  }
+  const outside = values.reduce((s, v, h) => s + (h < 8 || h >= 20 ? v : 0), 0);
+  return { values, peak, outside, labels: values.map((_, h) => reportHourWords(h)) };
+}
+function channelsOf2(ch) {
+  if (!ch) return null;
+  return REPORT_CHANNELS.map(({ key, label }) => ({ key, label, value: Number(ch.current?.[key]) || 0, prior: Number(ch.previous?.[key]) || 0 })).filter((c) => c.value > 0 || c.prior > 0);
+}
+function runningTotal(values) {
+  let t = 0;
+  return values.map((v) => t += v || 0);
+}
+function speedOf(replies, days) {
+  const byDay = /* @__PURE__ */ new Map();
+  for (const r of replies) {
+    if (!Number.isFinite(r.s)) continue;
+    const xs = byDay.get(r.day) ?? [];
+    xs.push(r.s);
+    byDay.set(r.day, xs);
+  }
+  const point = (chunk) => {
+    const s = chunk.flatMap((d) => byDay.get(d) ?? []).sort((a, b) => a - b);
+    const first = chunk[0];
+    const p50 = quantile(s, 0.5);
+    const p90 = quantile(s, 0.9);
+    return {
+      day: first,
+      label: fmtDay(first),
+      short: chunk.length > 1 ? fmtDay(first) : String(dayDate(first).getDate()),
+      p50,
+      p90,
+      p50Label: fmtSeconds(p50),
+      p90Label: fmtSeconds(p90),
+      count: s.length
+    };
+  };
+  if (days.length <= 14) return { unit: "day", points: days.map((d) => point([d])) };
+  const weeks = [];
+  for (let end = days.length; end > 0; end -= 7) weeks.unshift(days.slice(Math.max(0, end - 7), end));
+  if (weeks.length > 1 && weeks[0].length < 4) weeks.splice(0, 2, [...weeks[0], ...weeks[1]]);
+  return { unit: "week", points: weeks.map(point) };
+}
+function callMoodTone(sentiment) {
+  return sentiment === "Positive" ? "ok" : sentiment === "Negative" ? "danger" : "";
+}
+var moodRank = (s) => s === "Positive" ? 0 : s === "Negative" ? 2 : 1;
+var listWords = (names, last) => names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} ${last} ${names[names.length - 1]}`;
+var channelNoun = (c) => c.key === "voice" ? "calls" : c.key === "email" ? "email" : c.label;
+function channelsLine(channels, rangeLabel) {
+  if (!channels) return null;
+  const reached = channels.reduce((s, c) => s + c.value, 0);
+  if (!reached) return null;
+  const top = channels.reduce((a, c) => c.value > a.value ? c : a);
+  const lead = top.value * 2 > reached ? `Mostly ${channelNoun(top)}` : `${capitalize2(channelNoun(top))} ${top.key === "voice" ? "lead" : "leads"}`;
+  const before = channels.reduce((s, c) => s + c.prior, 0);
+  if (!before) return `${lead}.`;
+  const wasTop = channels.reduce((a, c) => c.prior > a.prior ? c : a);
+  if (wasTop.key === top.key) return `${lead}, as the ${rangeLabel} before.`;
+  return `${capitalize2(channelNoun(top))} took over from ${channelNoun(wasTop)}.`;
+}
+function rhythmLine(week) {
+  if (!week.current.some((v) => v > 0)) return null;
+  const avg = week.unit === "average";
+  const name = (i) => avg ? `${week.long[i]}s` : week.long[i];
+  const idle = week.current.flatMap((v, i) => v === 0 ? [i] : []);
+  if (idle.length >= 4) return `Only on ${listWords(week.current.flatMap((v, i) => v > 0 ? [name(i)] : []), "and")}.`;
+  if (idle.length) return `Nothing on ${listWords(idle.map(name), "or")}.`;
+  if (week.quietest === null) return null;
+  return avg ? `Quietest on ${name(week.quietest)}.` : `${week.long[week.quietest]} was the quietest day.`;
 }
 function toReportVM(dto) {
   const days = dto.days;
@@ -7050,6 +7167,8 @@ function toReportVM(dto) {
     newPeople: sum(previous.map((d) => d.new_contacts))
   };
   const noun = `${days} days`;
+  const rangeLabel = REPORT_RANGES.find((r) => r.days === days)?.label ?? noun;
+  const priorHadAny = prev.in + prev.calls > 0;
   const answeredTotal = tot.ai + tot.you + tot.none;
   const aiShare = answeredTotal ? Math.round(tot.ai / answeredTotal * 100) : null;
   const prevAnsweredTotal = prev.ai + prev.you + prev.none;
@@ -7068,7 +7187,8 @@ function toReportVM(dto) {
       value: String(tot.in),
       meta: tot.in ? `on ${current.filter((d) => d.messages_in > 0).length} of ${days} days` : "none in this period",
       delta: deltaOf(tot.in, prev.in, true, noun),
-      spark: points.map((p) => p.in)
+      spark: points.map((p) => p.in),
+      compare: compareWords(tot.in, prev.in, rangeLabel, priorHadAny)
     },
     {
       id: "answered",
@@ -7078,7 +7198,8 @@ function toReportVM(dto) {
       // A share compares in POINTS. Against counts, the share could fall from
       // 100% to 60% while the delta read +20% in green.
       delta: pointsDelta(aiShare, prevShare, noun),
-      spark: points.map((p) => p.ai)
+      spark: points.map((p) => p.ai),
+      compare: null
     },
     {
       id: "reply",
@@ -7086,7 +7207,8 @@ function toReportVM(dto) {
       value: fmtSeconds(median),
       meta: sortedReply.length ? `slowest tenth ${fmtSeconds(p90)} \xB7 ${sortedReply.length} replies` : "no receptionist replies yet",
       delta: null,
-      spark: []
+      spark: [],
+      compare: null
     },
     {
       id: "needed",
@@ -7094,7 +7216,8 @@ function toReportVM(dto) {
       value: String(tot.escalations),
       meta: tot.escalations ? "times the receptionist stopped" : "the receptionist never stopped",
       delta: deltaOf(tot.escalations, prev.escalations, false, noun),
-      spark: points.map((p) => p.escalations)
+      spark: points.map((p) => p.escalations),
+      compare: compareWords(tot.escalations, prev.escalations, rangeLabel, priorHadAny)
     },
     {
       id: "calls",
@@ -7102,7 +7225,8 @@ function toReportVM(dto) {
       value: String(tot.calls),
       meta: tot.calls ? `${Math.max(1, Math.round(tot.callSeconds / 60))} min on the phone \xB7 ${dto.voicemail ?? 0} to voicemail` : "no calls",
       delta: deltaOf(tot.calls, prev.calls, true, noun),
-      spark: points.map((p) => p.calls)
+      spark: points.map((p) => p.calls),
+      compare: compareWords(tot.calls, prev.calls, rangeLabel, priorHadAny)
     },
     {
       id: "people",
@@ -7110,26 +7234,49 @@ function toReportVM(dto) {
       value: String(tot.newPeople),
       meta: tot.newPeople ? "first contact in this period, by evidence" : "nobody new",
       delta: deltaOf(tot.newPeople, prev.newPeople, true, noun),
-      spark: points.map((p) => p.newPeople)
+      spark: points.map((p) => p.newPeople),
+      compare: compareWords(tot.newPeople, prev.newPeople, rangeLabel, priorHadAny)
     }
   ];
   const reasons = bars(
     Object.entries(dto.reasons ?? {}).sort((a, b) => b[1] - a[1]).map(([r, n]) => [r, capitalize2(reasonShort(r)) || r, n])
   );
   const sentiments = bars(
-    Object.entries(dto.sentiments ?? {}).sort((a, b) => b[1] - a[1]).map(([s, n]) => [s, s, n])
-  );
+    Object.entries(dto.sentiments ?? {}).sort((a, b) => moodRank(a[0]) - moodRank(b[0]) || b[1] - a[1]).map(([s, n]) => [s, s, n])
+  ).map((b) => ({ ...b, tone: callMoodTone(b.id) }));
+  const weekNow = weekOf(current);
+  const weekBefore = weekOf(previous);
+  const week = {
+    axes: [...REPORT_WEEK_SHORT],
+    long: [...REPORT_WEEK_LONG],
+    current: weekNow,
+    prior: weekBefore.some((v) => v > 0) ? weekBefore : null,
+    busiest: onlyIndex(weekNow, (a, b) => a > b),
+    quietest: onlyIndex(weekNow, (a, b) => a < b),
+    unit: current.length > 7 ? "average" : "count"
+  };
+  const channels = channelsOf2(dto.channels);
+  const peopleBefore = priorOf(current.length, previous, (d) => d.new_contacts);
+  const peopleRun = runningTotal(points.map((p) => p.newPeople));
+  const busiestDay = tot.in ? points.reduce((b, p) => p.in > b.in ? p : b) : null;
   const first = current[0]?.day;
   const last = current[current.length - 1]?.day;
   return {
     days,
-    rangeLabel: REPORT_RANGES.find((r) => r.days === days)?.label ?? `${days} days`,
+    rangeLabel,
     since: first ? fmtDay(first) : "",
     until: last ? fmtDay(last) : "",
     timezone: dto.timezone,
     empty: tot.in === 0 && tot.calls === 0,
     tiles,
-    answered: { points, totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none }, max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)), prior: priorOf(current.length, previous, (d) => d.messages_in) },
+    answered: {
+      points,
+      totals: { in: tot.in, ai: tot.ai, you: tot.you, none: tot.none },
+      max: Math.max(1, ...points.map((p) => p.ai + p.you + p.none)),
+      prior: priorOf(current.length, previous, (d) => d.messages_in),
+      share: answeredTotal ? tot.ai / answeredTotal : null,
+      priorShare: prevAnsweredTotal ? prev.ai / prevAnsweredTotal : null
+    },
     reasons,
     replyTime: {
       count: sortedReply.length,
@@ -7140,7 +7287,31 @@ function toReportVM(dto) {
       buckets: bars(bucketCounts)
     },
     calls: { points, total: tot.calls, minutes: Math.round(tot.callSeconds / 60), voicemail: dto.voicemail ?? 0, sentiments, max: Math.max(1, ...points.map((p) => p.calls)), prior: priorOf(current.length, previous, (d) => d.calls) },
-    people: { points, total: tot.newPeople, max: Math.max(1, ...points.map((p) => p.newPeople)), prior: priorOf(current.length, previous, (d) => d.new_contacts) },
+    people: {
+      points,
+      total: tot.newPeople,
+      max: Math.max(1, ...points.map((p) => p.newPeople)),
+      prior: peopleBefore,
+      cumulative: {
+        points: points.map((p, i) => ({ ...p, total: peopleRun[i] })),
+        prior: prev.newPeople > 0 ? runningTotal(peopleBefore) : null
+      }
+    },
+    speed: dto.replies ? speedOf(dto.replies, current.map((d) => d.day)) : null,
+    week,
+    hours: hoursOf2(dto.hours),
+    channels,
+    period: { now: `Last ${rangeLabel}`, before: `The ${rangeLabel} before` },
+    lines: {
+      hero: answeredTotal ? `${tot.ai} of ${answeredTotal} customer messages, without you.${sortedReply.length ? ` Half of its replies went out within ${fmtSeconds(median)}.` : ""}` : "No customer wrote in this period.",
+      heroBefore: prevAnsweredTotal ? `${Math.round(prev.ai / prevAnsweredTotal * 100)}% the ${rangeLabel} before` : null,
+      answered: busiestDay ? `Most messages on ${busiestDay.label}: ${busiestDay.in}.` : null,
+      // Nine in ten is a claim about a tenth: under ten replies it would be a guess, so the slowest one is said instead.
+      reply: sortedReply.length >= 10 ? `Nine in ten within ${fmtSeconds(p90)}.` : sortedReply.length ? `The slowest took ${fmtSeconds(sortedReply[sortedReply.length - 1])}.` : null,
+      calls: tot.calls ? `About ${fmtSeconds(tot.callSeconds / tot.calls)} a call.` : null,
+      channels: channelsLine(channels, rangeLabel),
+      rhythm: rhythmLine(week)
+    },
     table: {
       columns: ["Day", "Customer messages", "Answered by receptionist", "Answered by you", "Unanswered", "Calls", "Needed you", "New people"],
       rows: points.map((p) => [p.label, p.in, p.ai, p.you, p.none, p.calls, p.escalations, p.newPeople])
@@ -7210,7 +7381,8 @@ function toCampaignReportVM(dto) {
       value: String(tot.sent),
       meta: tot.sent ? `over ${sends} ${sends === 1 ? "send" : "sends"}` : "none in this period",
       delta: deltaOf(tot.sent, prev.sent, true, noun),
-      spark: points.map((p) => p.sent)
+      spark: points.map((p) => p.sent),
+      compare: null
     },
     {
       id: "delivered",
@@ -7218,7 +7390,8 @@ function toCampaignReportVM(dto) {
       value: pct(tot.delivered, tot.sent) === null ? "\u2014" : `${pct(tot.delivered, tot.sent)}%`,
       meta: tot.sent ? `${tot.delivered} of ${tot.sent} \xB7 WhatsApp's receipts` : "nothing sent",
       delta: pointsDelta(pct(tot.delivered, tot.sent), pct(prev.delivered, prev.sent), noun),
-      spark: points.map((p) => p.delivered)
+      spark: points.map((p) => p.delivered),
+      compare: null
     },
     {
       id: "replied",
@@ -7226,7 +7399,8 @@ function toCampaignReportVM(dto) {
       value: pct(tot.replied, tot.sent) === null ? "\u2014" : `${pct(tot.replied, tot.sent)}%`,
       meta: tot.sent ? `${tot.replied} wrote back ${REPLY_WINDOW_WORDS}` : "nothing sent",
       delta: pointsDelta(pct(tot.replied, tot.sent), pct(prev.replied, prev.sent), noun),
-      spark: points.map((p) => p.replied)
+      spark: points.map((p) => p.replied),
+      compare: null
     },
     {
       id: "optins",
@@ -7234,7 +7408,8 @@ function toCampaignReportVM(dto) {
       value: String(tot.optIns),
       meta: tot.optIns ? "at the desk, or in their own words" : "nobody in this period",
       delta: deltaOf(tot.optIns, prev.optIns, true, noun),
-      spark: points.map((p) => p.optIns)
+      spark: points.map((p) => p.optIns),
+      compare: null
     },
     {
       id: "optouts",
@@ -7242,7 +7417,8 @@ function toCampaignReportVM(dto) {
       value: String(tot.optOuts),
       meta: tot.optOuts ? "STOP, or recorded at the desk" : "nobody in this period",
       delta: deltaOf(tot.optOuts, prev.optOuts, false, noun),
-      spark: points.map((p) => p.optOuts)
+      spark: points.map((p) => p.optOuts),
+      compare: null
     }
   ];
   return {
@@ -7257,6 +7433,11 @@ function toCampaignReportVM(dto) {
     table: {
       columns: ["Day", "Sent", "Delivered", "Replied", "Said yes", "Asked to stop"],
       rows: points.map((p) => [p.label, p.sent, p.delivered, p.replied, p.optIns, p.optOuts])
+    },
+    lines: {
+      // A yes is to being messaged, never to an offer: a visit reminder is no offer (the wiring audit's C25).
+      funnel: tot.optIns || tot.optOuts ? `${tot.optIns} ${tot.optIns === 1 ? "person" : "people"} said yes to messages, ${tot.optOuts} ${tot.optOuts === 1 ? "person" : "people"} asked to stop.` : "Nobody said yes to messages or asked to stop.",
+      sent: sends ? sends === 1 ? "From one broadcast or playbook run." : `From ${sends} broadcast and playbook runs.` : null
     }
   };
 }
@@ -7320,6 +7501,67 @@ function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
     messagingLimit: dto.messaging_limit ?? null,
     created_at: dto.created_at
   };
+}
+
+// src/report-facts.ts
+var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var lowerFirst = (s) => s ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+function reportFacts(vm, campaigns) {
+  const out = [];
+  const none = vm.answered.totals.none;
+  if (none > 0) {
+    out.push({ id: "unanswered", tone: "warn", icon: "alert", text: `${plural2(none, "message")} ${none === 1 ? "has" : "have"} no reply yet`, sub: "", door: { label: "Open the Inbox", to: "inbox" } });
+  }
+  const handovers = vm.answered.points.reduce((s, p) => s + p.escalations, 0);
+  const top = vm.reasons[0];
+  if (handovers > 0 && top) {
+    const several = vm.reasons.length > 1;
+    out.push({
+      id: "handovers",
+      tone: "",
+      icon: "users",
+      text: `${several ? "Top reason it handed over" : "Why it handed over"}: ${lowerFirst(top.label)}`,
+      sub: several ? plural2(top.value, "time") : "every time",
+      door: { label: "See them", to: "inbox" }
+    });
+  }
+  const b = vm.week.busiest;
+  if (b !== null) {
+    const h = vm.hours;
+    const peak = h && h.peak !== null ? `peak ${reportHourWords(h.peak)} to ${reportHourWords(h.peak + 2)}` : "";
+    const outside = h && h.outside > 0 ? `${h.outside} outside 8am to 8pm` : "";
+    out.push({
+      id: "busiest",
+      tone: "",
+      icon: "calendar",
+      text: vm.week.unit === "average" ? `${vm.week.long[b]}s are your busiest day` : `${vm.week.long[b]} was your busiest day`,
+      sub: [peak, outside].filter(Boolean).join(", "),
+      door: null
+    });
+  }
+  const best = campaigns ? campaigns.sources.filter((s) => s.replied > 0).sort((a, c) => c.replied - a.replied || a.sent - c.sent)[0] : void 0;
+  if (best) {
+    out.push({
+      id: "campaign",
+      tone: "",
+      icon: "sparkle",
+      text: `${best.name} drew the most replies`,
+      sub: `${best.replied} of ${best.sent} wrote back`,
+      door: { label: "Open it", to: best.kind === "broadcast" ? `broadcasts/run:${best.id}` : `outbound/${best.id}` }
+    });
+  }
+  const ch = vm.channels;
+  if (ch) {
+    const now = ch.reduce((s, c) => s + c.value, 0);
+    const was = ch.reduce((s, c) => s + c.prior, 0);
+    if (now > 0 && was > 0) {
+      const moved = ch.map((c) => ({ c, share: Math.round(c.value / now * 100), before: Math.round(c.prior / was * 100) })).map((m) => ({ ...m, delta: m.share - m.before })).filter((m) => Math.abs(m.delta) >= 10).sort((a, c) => Math.abs(c.delta) - Math.abs(a.delta))[0];
+      if (moved) {
+        out.push({ id: "channel", tone: "", icon: "chat", text: `${moved.c.label} ${moved.delta > 0 ? "grew" : "fell"} to ${moved.share}% of messages and calls`, sub: `from ${moved.before}% the ${vm.rangeLabel} before`, door: null });
+      }
+    }
+  }
+  return out.slice(0, 3);
 }
 
 // src/forwarding.ts
@@ -7484,7 +7726,7 @@ var GOOGLE_SHOWN_REVIEWS = 5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
 var REVIEW_NEWS_MAX_AGE_MS = 14 * 864e5;
 var BOOTSTRAP_MS = 3600 * 1e3;
-var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function ratingWords(rating) {
   return typeof rating === "number" && Number.isFinite(rating) ? `${rating.toFixed(1)} \u2605` : "no rating yet";
 }
@@ -7493,7 +7735,7 @@ function starsOf(rating) {
   return "\u2605".repeat(n) + "\u2606".repeat(5 - n);
 }
 function reviewsWords(count) {
-  return typeof count === "number" ? plural2(count, "review") : "reviews not counted yet";
+  return typeof count === "number" ? plural3(count, "review") : "reviews not counted yet";
 }
 function listingLine(l) {
   if (!l.review_count) return `${l.name} \xB7 no reviews on Google yet`;
@@ -7617,7 +7859,8 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       value: typeof l.rating === "number" ? l.rating.toFixed(1) : "\u2014",
       meta: `${reviewsWords(l.review_count)} \xB7 ${checked.toLowerCase()}`,
       delta: ratingDelta,
-      spark: ratingSpark
+      spark: ratingSpark,
+      compare: null
     },
     {
       id: "reviews",
@@ -7625,7 +7868,8 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       value: typeof l.review_count === "number" ? String(l.review_count) : "\u2014",
       meta: "as Google counts them, with or without words",
       delta: null,
-      spark: countSpark
+      spark: countSpark,
+      compare: null
     },
     {
       id: "gained",
@@ -7633,7 +7877,8 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       value: gained.total === null ? "\u2014" : String(gained.total),
       meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
       delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
-      spark: gained.points.map((p) => p.gained)
+      spark: gained.points.map((p) => p.gained),
+      compare: null
     },
     {
       id: "newest",
@@ -7641,7 +7886,8 @@ function toGoogleVM(dto, periodDays, nowMs = Date.now()) {
       value: newest?.when || "\u2014",
       meta: newest ? `${newest.stars} \xB7 ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
       delta: null,
-      spark: []
+      spark: [],
+      compare: null
     }
   ];
   const news = latest.find((r) => r.isNew) ?? null;
@@ -8031,7 +8277,7 @@ function textingWords(l) {
   }
 }
 var display = (e164) => e164 ? formatPhoneDisplay(e164) : null;
-var plural3 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
+var plural4 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 function activationWords(cap, nowMs) {
   if (cap.live && cap.activated) return `Activated ${agoWords(Date.parse(cap.activated.at), nowMs)}`;
   if (cap.tested) return "Tested \u2014 activate it to say it is yours";
@@ -8073,9 +8319,9 @@ function setupSteps(i, nowMs = Date.now()) {
     if (b.broken) {
       i.requests.repair ? row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_them", required: true, sentence: `${BROKEN_CONFIG_WORDS.clause} ${BROKEN_CONFIG_WORDS.requested(i.requests.repair, nowMs)}`, details: [], verb: { label: "Open Business", to: "admin/workspace" } }) : row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: BROKEN_CONFIG_WORDS.clause, details: [], verb: { label: BROKEN_CONFIG_WORDS.ask, to: "verb:request-repair" } });
     } else if (serious) {
-      row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: serious.sentence, details: [`${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`], verb: { label: "Fix it in Business", to: serious.to } });
+      row2({ id: "facts", icon: "home", title: "Business facts", state: "waiting_you", required: true, sentence: serious.sentence, details: [`${b.name} \xB7 hours set \xB7 ${plural4(b.services, "service")} on record`], verb: { label: "Fix it in Business", to: serious.to } });
     } else if (missing.length === 0) {
-      row2({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural3(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Business", to: "admin/workspace" } });
+      row2({ id: "facts", icon: "home", title: "Business facts", state: "ready", required: true, sentence: `${b.name} \xB7 hours set \xB7 ${plural4(b.services, "service")} on record`, details: [b.bookingLink ? "Booking link on record" : "No booking link \u2014 the receptionist answers, but cannot send one", b.address ? "Address on record" : "No address yet"], verb: { label: "Edit in Business", to: "admin/workspace" } });
     } else {
       const none = missing.length === 3;
       row2({ id: "facts", icon: "home", title: "Business facts", state: none ? "not_started" : "waiting_you", required: true, sentence: none ? "Name, hours and services are what the receptionist answers with." : `Still missing: ${missing.join(" and ")}.`, details: [], verb: { label: none ? "Start in Business" : "Finish in Business", to: "admin/workspace" } });
@@ -8150,7 +8396,7 @@ function setupSteps(i, nowMs = Date.now()) {
     const cap = capabilityStatus("whatsapp", i, nowMs);
     const details = [
       wa.quality ? `Quality ${wa.quality.toLowerCase()}` : "",
-      t.approved ? `${plural3(t.approved, "approved message")}` : t.pending ? `${plural3(t.pending, "message")} with Meta for approval` : "No approved messages yet",
+      t.approved ? `${plural4(t.approved, "approved message")}` : t.pending ? `${plural4(t.pending, "message")} with Meta for approval` : "No approved messages yet",
       t.startersApproved < 5 ? "Add the starter messages: welcome, win-back, the month's offer" : "",
       wa.lastInboundAt ? `Last message ${agoWords(Date.parse(wa.lastInboundAt), nowMs)}` : ""
     ].filter(Boolean);
@@ -8195,8 +8441,8 @@ function setupSteps(i, nowMs = Date.now()) {
   {
     const t = i.team;
     const people = t.members > 1 || t.invitesOpen > 0;
-    const who = `${plural3(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural3(t.invitesOpen, "invite")} open` : ""}`;
-    const alerts = t.alertEmails ? `alerts go to ${plural3(t.alertEmails, "address", "addresses")}` : "no alert address yet";
+    const who = `${plural4(t.members, "person", "people")}${t.invitesOpen ? ` \xB7 ${plural4(t.invitesOpen, "invite")} open` : ""}`;
+    const alerts = t.alertEmails ? `alerts go to ${plural4(t.alertEmails, "address", "addresses")}` : "no alert address yet";
     row2({
       id: "team",
       icon: "users",
@@ -8211,8 +8457,8 @@ function setupSteps(i, nowMs = Date.now()) {
   {
     const offers = i.consent.offers;
     const talk = i.consent.yes;
-    const alsoTalk = talk > offers ? [`${plural3(talk, "person", "people")} said yes to messages about their own visit`] : [];
-    row2(offers > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural3(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: "broadcasts" } });
+    const alsoTalk = talk > offers ? [`${plural4(talk, "person", "people")} said yes to messages about their own visit`] : [];
+    row2(offers > 0 ? { id: "yes", icon: "tag", title: "The first yes", state: "ready", required: false, sentence: `${plural4(offers, "person", "people")} said yes to offers.`, details: alsoTalk, verb: { label: "Open Broadcasts", to: "broadcasts" } } : { id: "yes", icon: "tag", title: "The first yes", state: "not_started", required: false, sentence: "Nobody has said yes to offers yet. The keyword and the QR are on Broadcasts.", details: alsoTalk, verb: { label: "Get their yes", to: "broadcasts" } });
   }
   if (i.google?.ready) {
     const g = i.google.listing;
@@ -10200,7 +10446,10 @@ export {
   REPLY_WINDOW_HOURS,
   REPLY_WINDOW_MS,
   REPLY_WINDOW_WORDS,
+  REPORT_CHANNELS,
   REPORT_RANGES,
+  REPORT_WEEK_LONG,
+  REPORT_WEEK_SHORT,
   RETENTION_DAYS,
   REVIEW_AUTO_REPLIES_PER_SYNC,
   REVIEW_AUTO_REPLY_MAX_AGE_MS,
@@ -10299,12 +10548,14 @@ export {
   businessRecordProblems,
   businessTypeOf,
   calendarOwnerOf,
+  callMoodTone,
   callOutcomeOf,
   callOutcomeWords,
   cameFromOf,
   capabilityStatus,
   changedConfigFields,
   channelFor,
+  channelsOf2 as channelsOf,
   checkedWords,
   citationRoute,
   citationsToShow,
@@ -10326,6 +10577,7 @@ export {
   closedOn,
   companyTypeOf,
   compareTemplates,
+  compareWords,
   composeSystemPrompt,
   connectionRows,
   connectionWords,
@@ -10418,6 +10670,7 @@ export {
   hardLimitsWords,
   hasProfile,
   hoursLines2 as hoursLines,
+  hoursOf2 as hoursOf,
   hoursRuns,
   identityWords,
   inboxSlots,
@@ -10561,6 +10814,8 @@ export {
   replyDelayMs,
   replyWhy,
   replyWindow,
+  reportFacts,
+  reportHourWords,
   requestCodeWords,
   resendLeft,
   resolveFacts,
@@ -10578,6 +10833,7 @@ export {
   ruleParts,
   rulesLine,
   runDueNow,
+  runningTotal,
   safeNavigate,
   sameAddress,
   sameName,
@@ -10609,6 +10865,7 @@ export {
   spanForView,
   spanLabel,
   spanUnits,
+  speedOf,
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,
@@ -10697,6 +10954,7 @@ export {
   waWindow,
   waitedLabel,
   wallClockAt,
+  weekOf,
   whenLabel,
   whisperText,
   whyCannotSpend,
