@@ -29,6 +29,11 @@ import type { POLICY_CLASSES, POLICY_MODES } from "./config";
 import type { SERVER_NOTIFICATION_KINDS } from "./notifications";
 import type { PLAYBOOK_STATES, PLAYBOOK_TRIGGERS } from "./playbooks";
 import type { TEMPLATE_CATEGORIES } from "./templates";
+import type {
+  LEAD_CLOSED_REASONS, LEAD_COUNTER_KINDS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS,
+  LEAD_PREFERENCE_KINDS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES,
+  LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_STAGES, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS,
+} from "./lead-search";
 
 export type SchemaSetKey = keyof typeof SCHEMA_SETS;
 /** The values one column's CHECK allows, e.g. SchemaSet<"lines.voice_state">. */
@@ -98,4 +103,24 @@ export type SchemaAgreement = [
   Holds<Exactly<Of<typeof BILLING_STATUSES>, SchemaSet<"billing_accounts.status">>>,
   Holds<Exactly<Of<typeof BUSINESS_TYPES>, SchemaSet<"business_records.business_type">>>,
   Holds<Exactly<Of<typeof COMPANY_TYPES>, SchemaSet<"business_records.company_type">>>,
+
+  // The lead finder (00139). A round's ending and its pending ending are one set.
+  Holds<Exactly<Of<typeof LEAD_SEARCH_VIAS>, SchemaSet<"lead_searches.via">>>,
+  Holds<Exactly<Of<typeof LEAD_ROUND_PURPOSES>, SchemaSet<"lead_rounds.purpose">>>,
+  Holds<Exactly<Of<typeof LEAD_ROUND_STATES>, SchemaSet<"lead_rounds.state">>>,
+  Holds<Exactly<Of<typeof LEAD_ROUND_ENDINGS>, SchemaSet<"lead_rounds.ending">>>,
+  Holds<Exactly<Of<typeof LEAD_ROUND_ENDINGS>, SchemaSet<"lead_rounds.ending_pending">>>,
+  Holds<Exactly<Of<typeof LEAD_ROUND_ANSWERS>, SchemaSet<"lead_rounds.answered">>>,
+  Holds<Exactly<Of<typeof LEAD_RUN_PURPOSES>, SchemaSet<"lead_runs.purpose">>>,
+  Holds<Exactly<Of<typeof LEAD_RUN_STATES>, SchemaSet<"lead_runs.state">>>,
+  Holds<Exactly<Of<typeof LEAD_EMAIL_STATES>, SchemaSet<"leads.email_state">>>,
+  Holds<Exactly<Of<typeof LEAD_STAGES>, SchemaSet<"leads.stage">>>,
+  Holds<Exactly<Of<typeof LEAD_CLOSED_REASONS>, SchemaSet<"leads.closed_reason">>>,
+  Holds<Exactly<Of<typeof LEAD_MEMBER_CLASSES>, SchemaSet<"lead_search_members.class">>>,
+  Holds<Exactly<Of<typeof LEAD_FITS>, SchemaSet<"lead_search_members.fit">>>,
+  Holds<Exactly<Of<typeof LEAD_COUNTER_KINDS>, SchemaSet<"lead_counters.kind">>>,
+  Holds<Exactly<Of<typeof LEAD_OPERATION_KINDS>, SchemaSet<"lead_operations.kind">>>,
+  Holds<Exactly<Of<typeof LEAD_PREFERENCE_KINDS>, SchemaSet<"lead_preferences.kind">>>,
+  Holds<Exactly<Of<typeof LEAD_SUPPRESSION_KINDS>, SchemaSet<"lead_suppressions.kind">>>,
+  Holds<Exactly<Of<typeof LEAD_SUPPRESSION_WHATS>, SchemaSet<"lead_suppressions.what">>>,
 ];

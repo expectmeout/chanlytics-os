@@ -159,6 +159,8 @@ import { z as z2 } from "zod";
 import { z as z3 } from "zod";
 import { z as z4 } from "zod";
 import { z as z5 } from "zod";
+import { z as z6 } from "zod";
+import { z as z7 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -244,7 +246,11 @@ var EVENT_KINDS = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -399,7 +405,12 @@ var RETENTION_DAYS = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -977,13 +988,210 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_MAX_PLACES = 1e3;
+var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var US_STATES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES = new Set(Object.values(US_STATES));
+var KEY = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words = (min, max) => z6.string().transform((s2) => stripUnsafe(s2).trim()).pipe(z6.string().min(min).max(max));
+var LeadSearchPlanSchema = z6.object({
+  version: z6.number().int().min(1),
+  card: z6.literal("local_businesses"),
+  name: words(2, 80),
+  asked: words(1, 400),
+  terms: z6.array(words(2, 60)).min(1).max(5),
+  area: z6.object({
+    kind: z6.enum(["zip", "city", "radius"]),
+    label: words(2, 80),
+    state: z6.string().regex(/^[A-Z]{2}$/),
+    center: z6.object({ lat: z6.number().min(-90).max(90), lng: z6.number().min(-180).max(180) }).nullable(),
+    radius_m: z6.number().int().min(500).max(2e5),
+    zip: z6.string().regex(/^\d{5}$/).optional(),
+    query: words(2, 120)
+  }),
+  count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z6.enum(["phone", "email"]),
+  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
+  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema = z7.object({
+  places: z7.array(z7.object({
+    ref: z7.number().int(),
+    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
+    email_index: z7.number().int().nullable(),
+    reason: z7.string()
+  }))
+});
+var K = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
 
 // ../channels/dist/index.js
-import { z as z6 } from "zod";
+import { z as z8 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
 import { z as z52 } from "zod";
+import { z as z62 } from "zod";
+import { z as z72 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -4546,7 +4754,7 @@ var InlineTextBuilder = class {
    * @returns { string }
    */
   toString() {
-    return [...this.lines, this.nextLineWords].map((words) => words.join(" ")).join("\n");
+    return [...this.lines, this.nextLineWords].map((words5) => words5.join(" ")).join("\n");
   }
   /**
    * Split a long word up to fit within the word wrap limit.
@@ -5924,7 +6132,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z6.config({ jitless: true });
+z8.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -6009,7 +6217,11 @@ var EVENT_KINDS2 = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -6165,7 +6377,12 @@ var RETENTION_DAYS2 = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
 var RECORDING_PURGED_WORDS2 = `Recording removed after ${RECORDING_RETENTION_DAYS2} days; the transcript is kept`;
@@ -6731,6 +6948,201 @@ var PASSWORD_WORDS2 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_MAX_PLACES2 = 1e3;
+var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
+var US_STATES2 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES2 = new Set(Object.values(US_STATES2));
+var KEY2 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe2 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words2 = (min, max) => z62.string().transform((s2) => stripUnsafe2(s2).trim()).pipe(z62.string().min(min).max(max));
+var LeadSearchPlanSchema2 = z62.object({
+  version: z62.number().int().min(1),
+  card: z62.literal("local_businesses"),
+  name: words2(2, 80),
+  asked: words2(1, 400),
+  terms: z62.array(words2(2, 60)).min(1).max(5),
+  area: z62.object({
+    kind: z62.enum(["zip", "city", "radius"]),
+    label: words2(2, 80),
+    state: z62.string().regex(/^[A-Z]{2}$/),
+    center: z62.object({ lat: z62.number().min(-90).max(90), lng: z62.number().min(-180).max(180) }).nullable(),
+    radius_m: z62.number().int().min(500).max(2e5),
+    zip: z62.string().regex(/^\d{5}$/).optional(),
+    query: words2(2, 120)
+  }),
+  count: z62.number().int().min(1).max(LEAD_MAX_PLACES2),
+  contact: z62.enum(["phone", "email"]),
+  criteria: z62.array(z62.object({ key: z62.string().regex(KEY2), text: words2(2, 120), standard: z62.enum(["likely", "seen"]), required: z62.boolean() })).max(8),
+  exclusions: z62.array(z62.object({ key: z62.string().regex(KEY2), text: words2(2, 80), origin: z62.enum(["claude", "you_said"]), category_key: z62.string().regex(KEY2).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES2.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA2 = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS2] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema2 = z72.object({
+  places: z72.array(z72.object({
+    ref: z72.number().int(),
+    criteria: z72.array(z72.object({ key: z72.string(), answer: z72.enum(["pass", "fail", "unknown"]), facts: z72.array(z72.string()) })),
+    email_index: z72.number().int().nullable(),
+    reason: z72.string()
+  }))
+});
+var K2 = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
 var MEDIA_MAX_BYTES = 25 * 1024 * 1024;
 function greetingFor(name2) {
   const who = name2 ? ` ${name2}` : "";
@@ -6826,21 +7238,27 @@ var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 
 // ../core/dist/index.js
-import { z as z7 } from "zod";
+import { z as z9 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
 import { z as z53 } from "zod";
-import { z as z62 } from "zod";
+import { z as z63 } from "zod";
+import { z as z73 } from "zod";
+import { z as z82 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
 import { z as z522 } from "zod";
-import { z as z72 } from "zod";
+import { z as z622 } from "zod";
+import { z as z722 } from "zod";
+import { z as z92 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
 import { z as z532 } from "zod";
+import { z as z632 } from "zod";
+import { z as z732 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -7760,7 +8178,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z7.config({ jitless: true });
+z9.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -7845,7 +8263,11 @@ var EVENT_KINDS3 = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -8001,7 +8423,12 @@ var RETENTION_DAYS3 = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
 var RECORDING_PURGED_WORDS3 = `Recording removed after ${RECORDING_RETENTION_DAYS3} days; the transcript is kept`;
@@ -8567,6 +8994,201 @@ var PASSWORD_WORDS3 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_MAX_PLACES3 = 1e3;
+var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
+var US_STATES3 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES3 = new Set(Object.values(US_STATES3));
+var KEY3 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe3 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words3 = (min, max) => z63.string().transform((s2) => stripUnsafe3(s2).trim()).pipe(z63.string().min(min).max(max));
+var LeadSearchPlanSchema3 = z63.object({
+  version: z63.number().int().min(1),
+  card: z63.literal("local_businesses"),
+  name: words3(2, 80),
+  asked: words3(1, 400),
+  terms: z63.array(words3(2, 60)).min(1).max(5),
+  area: z63.object({
+    kind: z63.enum(["zip", "city", "radius"]),
+    label: words3(2, 80),
+    state: z63.string().regex(/^[A-Z]{2}$/),
+    center: z63.object({ lat: z63.number().min(-90).max(90), lng: z63.number().min(-180).max(180) }).nullable(),
+    radius_m: z63.number().int().min(500).max(2e5),
+    zip: z63.string().regex(/^\d{5}$/).optional(),
+    query: words3(2, 120)
+  }),
+  count: z63.number().int().min(1).max(LEAD_MAX_PLACES3),
+  contact: z63.enum(["phone", "email"]),
+  criteria: z63.array(z63.object({ key: z63.string().regex(KEY3), text: words3(2, 120), standard: z63.enum(["likely", "seen"]), required: z63.boolean() })).max(8),
+  exclusions: z63.array(z63.object({ key: z63.string().regex(KEY3), text: words3(2, 80), origin: z63.enum(["claude", "you_said"]), category_key: z63.string().regex(KEY3).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES3.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA3 = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS3] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema3 = z73.object({
+  places: z73.array(z73.object({
+    ref: z73.number().int(),
+    criteria: z73.array(z73.object({ key: z73.string(), answer: z73.enum(["pass", "fail", "unknown"]), facts: z73.array(z73.string()) })),
+    email_index: z73.number().int().nullable(),
+    reason: z73.string()
+  }))
+});
+var K3 = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
 var MEDIA_MAX_BYTES2 = 25 * 1024 * 1024;
 function greetingFor2(name2) {
   const who = name2 ? ` ${name2}` : "";
@@ -8623,7 +9245,7 @@ var FRESH_SLACK_MS2 = 2 * 864e5;
 var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
-z62.config({ jitless: true });
+z82.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -8718,7 +9340,11 @@ var EVENT_KINDS22 = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OFFERS_OPT_IN_PHRASES22 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS22 = [
@@ -8887,7 +9513,12 @@ var RETENTION_DAYS22 = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
 var RECORDING_PURGED_WORDS22 = `Recording removed after ${RECORDING_RETENTION_DAYS22} days; the transcript is kept`;
@@ -9502,7 +10133,202 @@ var PASSWORD_WORDS22 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
-z72.config({ jitless: true });
+var LEAD_MAX_PLACES22 = 1e3;
+var LEAD_QUESTION_WAIT_MS22 = 24 * 36e5;
+var US_STATES22 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES22 = new Set(Object.values(US_STATES22));
+var KEY22 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe22 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words22 = (min, max) => z622.string().transform((s2) => stripUnsafe22(s2).trim()).pipe(z622.string().min(min).max(max));
+var LeadSearchPlanSchema22 = z622.object({
+  version: z622.number().int().min(1),
+  card: z622.literal("local_businesses"),
+  name: words22(2, 80),
+  asked: words22(1, 400),
+  terms: z622.array(words22(2, 60)).min(1).max(5),
+  area: z622.object({
+    kind: z622.enum(["zip", "city", "radius"]),
+    label: words22(2, 80),
+    state: z622.string().regex(/^[A-Z]{2}$/),
+    center: z622.object({ lat: z622.number().min(-90).max(90), lng: z622.number().min(-180).max(180) }).nullable(),
+    radius_m: z622.number().int().min(500).max(2e5),
+    zip: z622.string().regex(/^\d{5}$/).optional(),
+    query: words22(2, 120)
+  }),
+  count: z622.number().int().min(1).max(LEAD_MAX_PLACES22),
+  contact: z622.enum(["phone", "email"]),
+  criteria: z622.array(z622.object({ key: z622.string().regex(KEY22), text: words22(2, 120), standard: z622.enum(["likely", "seen"]), required: z622.boolean() })).max(8),
+  exclusions: z622.array(z622.object({ key: z622.string().regex(KEY22), text: words22(2, 80), origin: z622.enum(["claude", "you_said"]), category_key: z622.string().regex(KEY22).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES22.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var JUDGE_FACT_KEYS22 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA22 = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS22] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema22 = z722.object({
+  places: z722.array(z722.object({
+    ref: z722.number().int(),
+    criteria: z722.array(z722.object({ key: z722.string(), answer: z722.enum(["pass", "fail", "unknown"]), facts: z722.array(z722.string()) })),
+    email_index: z722.number().int().nullable(),
+    reason: z722.string()
+  }))
+});
+var K22 = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
+z92.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -9587,7 +10413,11 @@ var EVENT_KINDS32 = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OFFERS_OPT_IN_PHRASES32 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS32 = [
@@ -9742,7 +10572,12 @@ var RETENTION_DAYS32 = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
 var RECORDING_PURGED_WORDS32 = `Recording removed after ${RECORDING_RETENTION_DAYS32} days; the transcript is kept`;
@@ -10308,6 +11143,201 @@ var PASSWORD_WORDS32 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_MAX_PLACES32 = 1e3;
+var LEAD_QUESTION_WAIT_MS32 = 24 * 36e5;
+var US_STATES32 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES32 = new Set(Object.values(US_STATES32));
+var KEY32 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe32 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words32 = (min, max) => z632.string().transform((s2) => stripUnsafe32(s2).trim()).pipe(z632.string().min(min).max(max));
+var LeadSearchPlanSchema32 = z632.object({
+  version: z632.number().int().min(1),
+  card: z632.literal("local_businesses"),
+  name: words32(2, 80),
+  asked: words32(1, 400),
+  terms: z632.array(words32(2, 60)).min(1).max(5),
+  area: z632.object({
+    kind: z632.enum(["zip", "city", "radius"]),
+    label: words32(2, 80),
+    state: z632.string().regex(/^[A-Z]{2}$/),
+    center: z632.object({ lat: z632.number().min(-90).max(90), lng: z632.number().min(-180).max(180) }).nullable(),
+    radius_m: z632.number().int().min(500).max(2e5),
+    zip: z632.string().regex(/^\d{5}$/).optional(),
+    query: words32(2, 120)
+  }),
+  count: z632.number().int().min(1).max(LEAD_MAX_PLACES32),
+  contact: z632.enum(["phone", "email"]),
+  criteria: z632.array(z632.object({ key: z632.string().regex(KEY32), text: words32(2, 120), standard: z632.enum(["likely", "seen"]), required: z632.boolean() })).max(8),
+  exclusions: z632.array(z632.object({ key: z632.string().regex(KEY32), text: words32(2, 80), origin: z632.enum(["claude", "you_said"]), category_key: z632.string().regex(KEY32).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES32.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var JUDGE_FACT_KEYS32 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA32 = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS32] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema32 = z732.object({
+  places: z732.array(z732.object({
+    ref: z732.number().int(),
+    criteria: z732.array(z732.object({ key: z732.string(), answer: z732.enum(["pass", "fail", "unknown"]), facts: z732.array(z732.string()) })),
+    email_index: z732.number().int().nullable(),
+    reason: z732.string()
+  }))
+});
+var K32 = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
 async function recordOutbound(db, p) {
   const { data, error } = await db.from("messages").insert({
     tenant_id: p.tenantId,
@@ -10697,7 +11727,7 @@ async function sendBroadcastBatch(ports, cmd) {
       await skip(r2.contact_id, "missing_value");
       return "go on";
     }
-    const words = renderTemplate(tpl.body_preview, params);
+    const words42 = renderTemplate(tpl.body_preview, params);
     await ports.mark(b.id, r2.contact_id, { state: "failed", reason: OUTCOME_UNKNOWN });
     const out = await ports.deliver({
       tenantId: cmd.tenantId,
@@ -10709,7 +11739,7 @@ async function sendBroadcastBatch(ports, cmd) {
       kind: "broadcast",
       purpose,
       proactive: true,
-      body: words,
+      body: words42,
       template: { name: b.template_name, language: b.template_language, params },
       // A run's message names its playbook, so a thread reads "by the Win-back playbook".
       meta: {
@@ -10767,12 +11797,14 @@ async function sendBroadcastBatch(ports, cmd) {
 }
 
 // ../db/dist/index.js
-import { z as z8 } from "zod";
+import { z as z10 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
 import { z as z54 } from "zod";
-z8.config({ jitless: true });
+import { z as z64 } from "zod";
+import { z as z74 } from "zod";
+z10.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -10865,7 +11897,11 @@ var EVENT_KINDS4 = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OFFERS_OPT_IN_PHRASES4 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS4 = [
@@ -11020,7 +12056,12 @@ var RETENTION_DAYS4 = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
 var RECORDING_PURGED_WORDS4 = `Recording removed after ${RECORDING_RETENTION_DAYS4} days; the transcript is kept`;
@@ -11586,6 +12627,201 @@ var PASSWORD_WORDS4 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_MAX_PLACES4 = 1e3;
+var LEAD_QUESTION_WAIT_MS4 = 24 * 36e5;
+var US_STATES4 = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES4 = new Set(Object.values(US_STATES4));
+var KEY4 = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe4 = (s2) => s2.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words4 = (min, max) => z64.string().transform((s2) => stripUnsafe4(s2).trim()).pipe(z64.string().min(min).max(max));
+var LeadSearchPlanSchema4 = z64.object({
+  version: z64.number().int().min(1),
+  card: z64.literal("local_businesses"),
+  name: words4(2, 80),
+  asked: words4(1, 400),
+  terms: z64.array(words4(2, 60)).min(1).max(5),
+  area: z64.object({
+    kind: z64.enum(["zip", "city", "radius"]),
+    label: words4(2, 80),
+    state: z64.string().regex(/^[A-Z]{2}$/),
+    center: z64.object({ lat: z64.number().min(-90).max(90), lng: z64.number().min(-180).max(180) }).nullable(),
+    radius_m: z64.number().int().min(500).max(2e5),
+    zip: z64.string().regex(/^\d{5}$/).optional(),
+    query: words4(2, 120)
+  }),
+  count: z64.number().int().min(1).max(LEAD_MAX_PLACES4),
+  contact: z64.enum(["phone", "email"]),
+  criteria: z64.array(z64.object({ key: z64.string().regex(KEY4), text: words4(2, 120), standard: z64.enum(["likely", "seen"]), required: z64.boolean() })).max(8),
+  exclusions: z64.array(z64.object({ key: z64.string().regex(KEY4), text: words4(2, 80), origin: z64.enum(["claude", "you_said"]), category_key: z64.string().regex(KEY4).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c2) => c2.key), ...p.exclusions.map((e2) => e2.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t2) => t2.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES4.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var JUDGE_FACT_KEYS4 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA4 = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS4] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema4 = z74.object({
+  places: z74.array(z74.object({
+    ref: z74.number().int(),
+    criteria: z74.array(z74.object({ key: z74.string(), answer: z74.enum(["pass", "fail", "unknown"]), facts: z74.array(z74.string()) })),
+    email_index: z74.number().int().nullable(),
+    reason: z74.string()
+  }))
+});
+var K4 = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
 async function ingestInbound(db, p) {
   const { data, error } = await db.rpc("ingest_inbound", {
     p_tenant_id: p.tenantId,
@@ -11959,12 +13195,27 @@ async function emailIngest(ctx, job) {
   );
   console.log(JSON.stringify({ level: "info", event: "email_ingested", tenant: job.tenant_id, job: job.id, outcome }));
 }
+async function leadRoundStart(ctx, job) {
+  if (!ctx.leads) throw new Error("lead_round_start: this runtime holds no lead pipeline");
+  await ctx.leads.roundStart(ctx, job);
+}
+async function leadCollect(ctx, job) {
+  if (!ctx.leads) throw new Error("lead_collect: this runtime holds no lead pipeline");
+  await ctx.leads.collect(ctx, job);
+}
+async function leadCheck(ctx, job) {
+  if (!ctx.leads) throw new Error("lead_check: this runtime holds no lead pipeline");
+  await ctx.leads.check(ctx, job);
+}
 var HANDLERS = {
   outbound_send: outboundSend,
   broadcast_send: broadcastSend,
   blob_thread_erase: blobThreadErase,
   line_provision: lineProvision,
-  email_ingest: emailIngest
+  email_ingest: emailIngest,
+  lead_round_start: leadRoundStart,
+  lead_collect: leadCollect,
+  lead_check: leadCheck
 };
 async function dispatchJob(ctx, job) {
   const handler = HANDLERS[job.kind];
@@ -11987,7 +13238,16 @@ function verdictFor(job) {
   return job.attempts > MAX_ATTEMPTS ? "give_up" : "run";
 }
 var RETRY_WAITS_MS = {
-  email_ingest: [5 * 6e4, 30 * 6e4]
+  email_ingest: [5 * 6e4, 30 * 6e4],
+  // The lead finder's three (00139). Each is written to be run again: a start
+  // claims its run row before it calls the provider, a collect commits a page
+  // by compare-and-set on the offset, a check commits by lead id. A
+  // provider's 429 or 5xx throws and lands here: two minutes covers a bad
+  // minute, ten a short outage; the third claim fails the row and the round
+  // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
+  lead_round_start: [2 * 6e4, 10 * 6e4],
+  lead_collect: [2 * 6e4, 10 * 6e4],
+  lead_check: [2 * 6e4, 10 * 6e4]
 };
 function retryWait(job) {
   if (SPEAKS_TO_A_PERSON.has(job.kind) || job.attempts >= MAX_ATTEMPTS) return null;

@@ -1847,6 +1847,833 @@ type Database = {
                     }
                 ];
             };
+            lead_counters: {
+                Row: {
+                    id: string;
+                    kind: string;
+                    period: string;
+                    reserved: number;
+                    tenant_id: string | null;
+                    updated_at: string;
+                    used: number;
+                };
+                Insert: {
+                    id?: string;
+                    kind: string;
+                    period: string;
+                    reserved?: number;
+                    tenant_id?: string | null;
+                    updated_at?: string;
+                    used?: number;
+                };
+                Update: {
+                    id?: string;
+                    kind?: string;
+                    period?: string;
+                    reserved?: number;
+                    tenant_id?: string | null;
+                    updated_at?: string;
+                    used?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_counters_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_judgments: {
+                Row: {
+                    answer: Json;
+                    batch: number;
+                    created_at: string;
+                    id: string;
+                    model: string | null;
+                    op_id: string;
+                    request_hash: string | null;
+                    round_id: string;
+                    tenant_id: string;
+                    tokens: number;
+                };
+                Insert: {
+                    answer: Json;
+                    batch?: number;
+                    created_at?: string;
+                    id?: string;
+                    model?: string | null;
+                    op_id: string;
+                    request_hash?: string | null;
+                    round_id: string;
+                    tenant_id: string;
+                    tokens?: number;
+                };
+                Update: {
+                    answer?: Json;
+                    batch?: number;
+                    created_at?: string;
+                    id?: string;
+                    model?: string | null;
+                    op_id?: string;
+                    request_hash?: string | null;
+                    round_id?: string;
+                    tenant_id?: string;
+                    tokens?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_judgments_round_id_fkey";
+                        columns: ["round_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_rounds";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_judgments_round_id_fkey";
+                        columns: ["round_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["round_id"];
+                    },
+                    {
+                        foreignKeyName: "lead_judgments_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_niche_priors: {
+                Row: {
+                    category_key: string;
+                    matched: number;
+                    places: number;
+                    updated_at: string;
+                    with_email: number;
+                };
+                Insert: {
+                    category_key: string;
+                    matched?: number;
+                    places?: number;
+                    updated_at?: string;
+                    with_email?: number;
+                };
+                Update: {
+                    category_key?: string;
+                    matched?: number;
+                    places?: number;
+                    updated_at?: string;
+                    with_email?: number;
+                };
+                Relationships: [];
+            };
+            lead_operations: {
+                Row: {
+                    after: Json;
+                    at: string;
+                    before: Json;
+                    by: string | null;
+                    id: string;
+                    kind: string;
+                    lead_ids: string[];
+                    search_id: string | null;
+                    tenant_id: string;
+                    undone_at: string | null;
+                    version: number;
+                };
+                Insert: {
+                    after?: Json;
+                    at?: string;
+                    before?: Json;
+                    by?: string | null;
+                    id?: string;
+                    kind: string;
+                    lead_ids?: string[];
+                    search_id?: string | null;
+                    tenant_id: string;
+                    undone_at?: string | null;
+                    version: number;
+                };
+                Update: {
+                    after?: Json;
+                    at?: string;
+                    before?: Json;
+                    by?: string | null;
+                    id?: string;
+                    kind?: string;
+                    lead_ids?: string[];
+                    search_id?: string | null;
+                    tenant_id?: string;
+                    undone_at?: string | null;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_operations_search_id_fkey";
+                        columns: ["search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_operations_search_id_fkey";
+                        columns: ["search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_operations_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_places: {
+                Row: {
+                    found_at: string;
+                    id: string;
+                    lead_id: string;
+                    place_id: string;
+                    street: string | null;
+                    tenant_id: string;
+                    title: string | null;
+                };
+                Insert: {
+                    found_at?: string;
+                    id?: string;
+                    lead_id: string;
+                    place_id: string;
+                    street?: string | null;
+                    tenant_id: string;
+                    title?: string | null;
+                };
+                Update: {
+                    found_at?: string;
+                    id?: string;
+                    lead_id?: string;
+                    place_id?: string;
+                    street?: string | null;
+                    tenant_id?: string;
+                    title?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_places_lead_id_fkey";
+                        columns: ["lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_places_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_platform: {
+                Row: {
+                    id: boolean;
+                    note: string | null;
+                    prices_checked_at: string | null;
+                    searches_on: boolean;
+                    tenants_on: string[];
+                    updated_at: string;
+                };
+                Insert: {
+                    id?: boolean;
+                    note?: string | null;
+                    prices_checked_at?: string | null;
+                    searches_on?: boolean;
+                    tenants_on?: string[];
+                    updated_at?: string;
+                };
+                Update: {
+                    id?: boolean;
+                    note?: string | null;
+                    prices_checked_at?: string | null;
+                    searches_on?: boolean;
+                    tenants_on?: string[];
+                    updated_at?: string;
+                };
+                Relationships: [];
+            };
+            lead_preferences: {
+                Row: {
+                    active: boolean;
+                    category_key: string | null;
+                    created_at: string;
+                    created_by: string | null;
+                    example: string | null;
+                    from_lead_id: string | null;
+                    id: string;
+                    kind: string;
+                    tenant_id: string;
+                };
+                Insert: {
+                    active?: boolean;
+                    category_key?: string | null;
+                    created_at?: string;
+                    created_by?: string | null;
+                    example?: string | null;
+                    from_lead_id?: string | null;
+                    id?: string;
+                    kind: string;
+                    tenant_id: string;
+                };
+                Update: {
+                    active?: boolean;
+                    category_key?: string | null;
+                    created_at?: string;
+                    created_by?: string | null;
+                    example?: string | null;
+                    from_lead_id?: string | null;
+                    id?: string;
+                    kind?: string;
+                    tenant_id?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_preferences_from_lead_id_fkey";
+                        columns: ["from_lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_preferences_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_rounds: {
+                Row: {
+                    allowance_reserved: number;
+                    allowance_used: number;
+                    answered: string | null;
+                    cost_reserved_usd: number;
+                    cost_usd: number;
+                    created_at: string;
+                    day: string;
+                    ended_at: string | null;
+                    ending: string | null;
+                    ending_pending: string | null;
+                    id: string;
+                    judge_model: string | null;
+                    judge_tokens: number;
+                    month: string;
+                    plan: Json;
+                    plan_version: number;
+                    purpose: string;
+                    question: Json | null;
+                    search_id: string;
+                    seq: number;
+                    started_at: string | null;
+                    state: string;
+                    target: number;
+                    tenant_id: string;
+                    waiting_since: string | null;
+                };
+                Insert: {
+                    allowance_reserved?: number;
+                    allowance_used?: number;
+                    answered?: string | null;
+                    cost_reserved_usd?: number;
+                    cost_usd?: number;
+                    created_at?: string;
+                    day: string;
+                    ended_at?: string | null;
+                    ending?: string | null;
+                    ending_pending?: string | null;
+                    id?: string;
+                    judge_model?: string | null;
+                    judge_tokens?: number;
+                    month: string;
+                    plan: Json;
+                    plan_version: number;
+                    purpose: string;
+                    question?: Json | null;
+                    search_id: string;
+                    seq: number;
+                    started_at?: string | null;
+                    state?: string;
+                    target: number;
+                    tenant_id: string;
+                    waiting_since?: string | null;
+                };
+                Update: {
+                    allowance_reserved?: number;
+                    allowance_used?: number;
+                    answered?: string | null;
+                    cost_reserved_usd?: number;
+                    cost_usd?: number;
+                    created_at?: string;
+                    day?: string;
+                    ended_at?: string | null;
+                    ending?: string | null;
+                    ending_pending?: string | null;
+                    id?: string;
+                    judge_model?: string | null;
+                    judge_tokens?: number;
+                    month?: string;
+                    plan?: Json;
+                    plan_version?: number;
+                    purpose?: string;
+                    question?: Json | null;
+                    search_id?: string;
+                    seq?: number;
+                    started_at?: string | null;
+                    state?: string;
+                    target?: number;
+                    tenant_id?: string;
+                    waiting_since?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_rounds_search_id_fkey";
+                        columns: ["search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_rounds_search_id_fkey";
+                        columns: ["search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_rounds_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_runs: {
+                Row: {
+                    actor: string;
+                    apify_run_id: string | null;
+                    build: string;
+                    cap_usd: number | null;
+                    claimed_at: string | null;
+                    claimed_by: string | null;
+                    created_at: string;
+                    dataset_id: string | null;
+                    finished_at: string | null;
+                    id: string;
+                    items_seen: number;
+                    lease_gen: number;
+                    lease_owner: string | null;
+                    lease_until: string | null;
+                    purpose: string;
+                    read_offset: number;
+                    round_id: string;
+                    state: string;
+                    tenant_id: string;
+                    term: string | null;
+                    usage_usd: number;
+                    webhook_token_hash: string;
+                };
+                Insert: {
+                    actor: string;
+                    apify_run_id?: string | null;
+                    build: string;
+                    cap_usd?: number | null;
+                    claimed_at?: string | null;
+                    claimed_by?: string | null;
+                    created_at?: string;
+                    dataset_id?: string | null;
+                    finished_at?: string | null;
+                    id?: string;
+                    items_seen?: number;
+                    lease_gen?: number;
+                    lease_owner?: string | null;
+                    lease_until?: string | null;
+                    purpose: string;
+                    read_offset?: number;
+                    round_id: string;
+                    state?: string;
+                    tenant_id: string;
+                    term?: string | null;
+                    usage_usd?: number;
+                    webhook_token_hash: string;
+                };
+                Update: {
+                    actor?: string;
+                    apify_run_id?: string | null;
+                    build?: string;
+                    cap_usd?: number | null;
+                    claimed_at?: string | null;
+                    claimed_by?: string | null;
+                    created_at?: string;
+                    dataset_id?: string | null;
+                    finished_at?: string | null;
+                    id?: string;
+                    items_seen?: number;
+                    lease_gen?: number;
+                    lease_owner?: string | null;
+                    lease_until?: string | null;
+                    purpose?: string;
+                    read_offset?: number;
+                    round_id?: string;
+                    state?: string;
+                    tenant_id?: string;
+                    term?: string | null;
+                    usage_usd?: number;
+                    webhook_token_hash?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_runs_round_id_fkey";
+                        columns: ["round_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_rounds";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_runs_round_id_fkey";
+                        columns: ["round_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["round_id"];
+                    },
+                    {
+                        foreignKeyName: "lead_runs_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_search_members: {
+                Row: {
+                    blanked_at: string | null;
+                    class: string;
+                    counted: boolean;
+                    counted_month: string | null;
+                    created_at: string;
+                    distance_m: number | null;
+                    excluded_by: string | null;
+                    fit: string | null;
+                    id: string;
+                    judgment: Json;
+                    kept_at: string | null;
+                    kept_by: string | null;
+                    lead_id: string;
+                    reason: string;
+                    round_id: string | null;
+                    search_id: string;
+                    tenant_id: string;
+                    version: number;
+                };
+                Insert: {
+                    blanked_at?: string | null;
+                    class: string;
+                    counted?: boolean;
+                    counted_month?: string | null;
+                    created_at?: string;
+                    distance_m?: number | null;
+                    excluded_by?: string | null;
+                    fit?: string | null;
+                    id?: string;
+                    judgment?: Json;
+                    kept_at?: string | null;
+                    kept_by?: string | null;
+                    lead_id: string;
+                    reason?: string;
+                    round_id?: string | null;
+                    search_id: string;
+                    tenant_id: string;
+                    version?: number;
+                };
+                Update: {
+                    blanked_at?: string | null;
+                    class?: string;
+                    counted?: boolean;
+                    counted_month?: string | null;
+                    created_at?: string;
+                    distance_m?: number | null;
+                    excluded_by?: string | null;
+                    fit?: string | null;
+                    id?: string;
+                    judgment?: Json;
+                    kept_at?: string | null;
+                    kept_by?: string | null;
+                    lead_id?: string;
+                    reason?: string;
+                    round_id?: string | null;
+                    search_id?: string;
+                    tenant_id?: string;
+                    version?: number;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_search_members_lead_id_fkey";
+                        columns: ["lead_id"];
+                        isOneToOne: false;
+                        referencedRelation: "leads";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_search_members_round_id_fkey";
+                        columns: ["round_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_rounds";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_search_members_round_id_fkey";
+                        columns: ["round_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["round_id"];
+                    },
+                    {
+                        foreignKeyName: "lead_search_members_search_id_fkey";
+                        columns: ["search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_search_members_search_id_fkey";
+                        columns: ["search_id"];
+                        isOneToOne: false;
+                        referencedRelation: "lead_searches_view";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "lead_search_members_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_searches: {
+                Row: {
+                    asked: string;
+                    card: string;
+                    created_at: string;
+                    created_by: string | null;
+                    id: string;
+                    name: string;
+                    plan: Json;
+                    removed_at: string | null;
+                    tenant_id: string;
+                    via: string;
+                };
+                Insert: {
+                    asked: string;
+                    card: string;
+                    created_at?: string;
+                    created_by?: string | null;
+                    id?: string;
+                    name: string;
+                    plan: Json;
+                    removed_at?: string | null;
+                    tenant_id: string;
+                    via: string;
+                };
+                Update: {
+                    asked?: string;
+                    card?: string;
+                    created_at?: string;
+                    created_by?: string | null;
+                    id?: string;
+                    name?: string;
+                    plan?: Json;
+                    removed_at?: string | null;
+                    tenant_id?: string;
+                    via?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_searches_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            lead_suppressions: {
+                Row: {
+                    created_at: string;
+                    hash: string;
+                    id: string;
+                    kind: string;
+                    tenant_id: string;
+                    what: string;
+                };
+                Insert: {
+                    created_at?: string;
+                    hash: string;
+                    id?: string;
+                    kind: string;
+                    tenant_id: string;
+                    what: string;
+                };
+                Update: {
+                    created_at?: string;
+                    hash?: string;
+                    id?: string;
+                    kind?: string;
+                    tenant_id?: string;
+                    what?: string;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_suppressions_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
+            leads: {
+                Row: {
+                    blanked_at: string | null;
+                    business_name: string;
+                    category: string | null;
+                    city: string | null;
+                    closed_reason: string | null;
+                    contact_id: string | null;
+                    contacted_at: string | null;
+                    converted_at: string | null;
+                    country: string;
+                    email: string | null;
+                    email_alternates: Json;
+                    email_checked_at: string | null;
+                    email_state: string;
+                    erased_at: string | null;
+                    exported_at: string | null;
+                    found_at: string;
+                    id: string;
+                    instagram_url: string | null;
+                    last_note: string | null;
+                    last_outcome: string | null;
+                    lat: number | null;
+                    lng: number | null;
+                    phone_e164: string | null;
+                    phone_sources: number;
+                    phone_wrong: boolean;
+                    place_id: string | null;
+                    postal_code: string | null;
+                    rating: number | null;
+                    region: string | null;
+                    reviews: number | null;
+                    stage: string;
+                    street: string | null;
+                    tenant_id: string;
+                    website_host: string | null;
+                };
+                Insert: {
+                    blanked_at?: string | null;
+                    business_name?: string;
+                    category?: string | null;
+                    city?: string | null;
+                    closed_reason?: string | null;
+                    contact_id?: string | null;
+                    contacted_at?: string | null;
+                    converted_at?: string | null;
+                    country?: string;
+                    email?: string | null;
+                    email_alternates?: Json;
+                    email_checked_at?: string | null;
+                    email_state?: string;
+                    erased_at?: string | null;
+                    exported_at?: string | null;
+                    found_at?: string;
+                    id?: string;
+                    instagram_url?: string | null;
+                    last_note?: string | null;
+                    last_outcome?: string | null;
+                    lat?: number | null;
+                    lng?: number | null;
+                    phone_e164?: string | null;
+                    phone_sources?: number;
+                    phone_wrong?: boolean;
+                    place_id?: string | null;
+                    postal_code?: string | null;
+                    rating?: number | null;
+                    region?: string | null;
+                    reviews?: number | null;
+                    stage?: string;
+                    street?: string | null;
+                    tenant_id: string;
+                    website_host?: string | null;
+                };
+                Update: {
+                    blanked_at?: string | null;
+                    business_name?: string;
+                    category?: string | null;
+                    city?: string | null;
+                    closed_reason?: string | null;
+                    contact_id?: string | null;
+                    contacted_at?: string | null;
+                    converted_at?: string | null;
+                    country?: string;
+                    email?: string | null;
+                    email_alternates?: Json;
+                    email_checked_at?: string | null;
+                    email_state?: string;
+                    erased_at?: string | null;
+                    exported_at?: string | null;
+                    found_at?: string;
+                    id?: string;
+                    instagram_url?: string | null;
+                    last_note?: string | null;
+                    last_outcome?: string | null;
+                    lat?: number | null;
+                    lng?: number | null;
+                    phone_e164?: string | null;
+                    phone_sources?: number;
+                    phone_wrong?: boolean;
+                    place_id?: string | null;
+                    postal_code?: string | null;
+                    rating?: number | null;
+                    region?: string | null;
+                    reviews?: number | null;
+                    stage?: string;
+                    street?: string | null;
+                    tenant_id?: string;
+                    website_host?: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "leads_contact_id_fkey";
+                        columns: ["contact_id"];
+                        isOneToOne: false;
+                        referencedRelation: "contacts";
+                        referencedColumns: ["id"];
+                    },
+                    {
+                        foreignKeyName: "leads_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
             lines: {
                 Row: {
                     a2p_profile_sid: string | null;
@@ -2782,7 +3609,44 @@ type Database = {
             };
         };
         Views: {
-            [_ in never]: never;
+            lead_searches_view: {
+                Row: {
+                    answered: string | null;
+                    asked: string | null;
+                    card: string | null;
+                    cost_usd: number | null;
+                    counted: number | null;
+                    created_at: string | null;
+                    created_by: string | null;
+                    ending: string | null;
+                    excluded: number | null;
+                    id: string | null;
+                    judge_tokens: number | null;
+                    name: string | null;
+                    plan: Json | null;
+                    plan_version: number | null;
+                    purpose: string | null;
+                    qualified: number | null;
+                    question: Json | null;
+                    removed_at: string | null;
+                    review: number | null;
+                    round_id: string | null;
+                    seq: number | null;
+                    state: string | null;
+                    target: number | null;
+                    tenant_id: string | null;
+                    via: string | null;
+                };
+                Relationships: [
+                    {
+                        foreignKeyName: "lead_searches_tenant_id_fkey";
+                        columns: ["tenant_id"];
+                        isOneToOne: false;
+                        referencedRelation: "tenants";
+                        referencedColumns: ["id"];
+                    }
+                ];
+            };
         };
         Functions: {
             call_status_rank: {
@@ -2967,6 +3831,14 @@ type Database = {
                 };
                 Returns: Json;
             };
+            has_permission: {
+                Args: {
+                    p_permission: string;
+                    p_tenant_id: string;
+                    p_user: string;
+                };
+                Returns: boolean;
+            };
             ingest_call: {
                 Args: {
                     p_agent_id: string;
@@ -3036,6 +3908,314 @@ type Database = {
                     p_wait?: string;
                 };
                 Returns: number;
+            };
+            lead_blank: {
+                Args: {
+                    p_lead_id: string;
+                };
+                Returns: number;
+            };
+            lead_check_commit: {
+                Args: {
+                    p_last: boolean;
+                    p_results: Json;
+                    p_round_id: string;
+                    p_usage_usd: number;
+                };
+                Returns: Json;
+            };
+            lead_collect_commit: {
+                Args: {
+                    p_from_offset: number;
+                    p_gen: number;
+                    p_owner: string;
+                    p_page: Json;
+                    p_run_id: string;
+                    p_to_offset: number;
+                };
+                Returns: Json;
+            };
+            lead_counter_take: {
+                Args: {
+                    p_kind: string;
+                    p_period: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    id: string;
+                    kind: string;
+                    period: string;
+                    reserved: number;
+                    tenant_id: string | null;
+                    updated_at: string;
+                    used: number;
+                };
+                SetofOptions: {
+                    from: "*";
+                    to: "lead_counters";
+                    isOneToOne: true;
+                    isSetofReturn: false;
+                };
+            };
+            lead_day: {
+                Args: {
+                    p_at?: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
+            lead_member_exclude: {
+                Args: {
+                    p_lead_id: string;
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_member_keep: {
+                Args: {
+                    p_lead_id: string;
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_member_move: {
+                Args: {
+                    p_kind: string;
+                    p_lead_id: string;
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_member_put_back: {
+                Args: {
+                    p_lead_id: string;
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_month: {
+                Args: {
+                    p_at?: string;
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
+            lead_niche_prior: {
+                Args: {
+                    p_category_key: string;
+                };
+                Returns: Json;
+            };
+            lead_plan_check: {
+                Args: {
+                    p_plan: Json;
+                };
+                Returns: undefined;
+            };
+            lead_release: {
+                Args: {
+                    p_day: string;
+                    p_leads: number;
+                    p_month: string;
+                    p_tenant_id: string;
+                    p_usd: number;
+                };
+                Returns: undefined;
+            };
+            lead_renews_on: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: string;
+            };
+            lead_reserve: {
+                Args: {
+                    p_day: string;
+                    p_leads: number;
+                    p_month: string;
+                    p_tenant_id: string;
+                    p_usd: number;
+                };
+                Returns: Json;
+            };
+            lead_round_answer: {
+                Args: {
+                    p_answer: string;
+                    p_plan?: Json;
+                    p_round_id: string;
+                };
+                Returns: Json;
+            };
+            lead_round_end: {
+                Args: {
+                    p_ending: string;
+                    p_round_id: string;
+                };
+                Returns: boolean;
+            };
+            lead_round_stop: {
+                Args: {
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_run_claim: {
+                Args: {
+                    p_owner: string;
+                    p_run_id: string;
+                };
+                Returns: boolean;
+            };
+            lead_run_lease: {
+                Args: {
+                    p_owner: string;
+                    p_run_id: string;
+                    p_seconds: number;
+                };
+                Returns: number;
+            };
+            lead_run_mark_unknown: {
+                Args: {
+                    p_owner: string;
+                    p_run_id: string;
+                };
+                Returns: boolean;
+            };
+            lead_run_reconcile: {
+                Args: {
+                    p_apify_run_id: string;
+                    p_dataset_id: string;
+                    p_run_id: string;
+                    p_state: string;
+                };
+                Returns: boolean;
+            };
+            lead_run_record_start: {
+                Args: {
+                    p_apify_run_id: string;
+                    p_cap_usd: number;
+                    p_dataset_id: string;
+                    p_owner: string;
+                    p_run_id: string;
+                };
+                Returns: boolean;
+            };
+            lead_run_release: {
+                Args: {
+                    p_gen: number;
+                    p_owner: string;
+                    p_run_id: string;
+                };
+                Returns: boolean;
+            };
+            lead_search_create: {
+                Args: {
+                    p_estimate_usd: number;
+                    p_plan: Json;
+                    p_tenant_id: string;
+                    p_via: string;
+                };
+                Returns: Json;
+            };
+            lead_search_more: {
+                Args: {
+                    p_estimate_usd: number;
+                    p_plan: Json;
+                    p_purpose: string;
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_search_remove: {
+                Args: {
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_search_rename: {
+                Args: {
+                    p_name: string;
+                    p_search_id: string;
+                };
+                Returns: Json;
+            };
+            lead_searches_on: {
+                Args: {
+                    p_tenant_id: string;
+                };
+                Returns: boolean;
+            };
+            lead_settle_usage: {
+                Args: {
+                    p_day: string;
+                    p_delta: number;
+                    p_month: string;
+                    p_outstanding: number;
+                    p_tenant_id: string;
+                };
+                Returns: undefined;
+            };
+            lead_suppression_hash: {
+                Args: {
+                    p_tenant_id: string;
+                    p_value: string;
+                };
+                Returns: string;
+            };
+            lead_undo: {
+                Args: {
+                    p_op_id: string;
+                    p_version: number;
+                };
+                Returns: Json;
+            };
+            leads_page: {
+                Args: {
+                    p_after_key?: string;
+                    p_class?: string;
+                    p_limit?: number;
+                    p_search_id?: string;
+                    p_sort?: string;
+                    p_tenant_id: string;
+                };
+                Returns: {
+                    business_name: string;
+                    category: string;
+                    city: string;
+                    class: string;
+                    closed_reason: string;
+                    contact_id: string;
+                    counted: boolean;
+                    counted_month: string;
+                    distance_m: number;
+                    email: string;
+                    email_checked_at: string;
+                    email_state: string;
+                    excluded_by: string;
+                    fit: string;
+                    found_at: string;
+                    instagram_url: string;
+                    lat: number;
+                    lead_id: string;
+                    lng: number;
+                    member_id: string;
+                    phone_e164: string;
+                    phone_sources: number;
+                    phone_wrong: boolean;
+                    place_id: string;
+                    postal_code: string;
+                    rating: number;
+                    reason: string;
+                    region: string;
+                    reviews: number;
+                    round_id: string;
+                    search_id: string;
+                    shares: Json;
+                    sort_key: string;
+                    stage: string;
+                    street: string;
+                    website_host: string;
+                }[];
             };
             line_forwarding_set: {
                 Args: {
@@ -3262,6 +4442,10 @@ type Database = {
                 Args: {
                     p_keep?: string;
                 };
+                Returns: number;
+            };
+            purge_leads: {
+                Args: never;
                 Returns: number;
             };
             purge_notifications: {
@@ -3505,6 +4689,10 @@ type Database = {
                 Returns: number;
             };
             trigger_jobs_tick: {
+                Args: never;
+                Returns: number;
+            };
+            trigger_leads_sweep: {
                 Args: never;
                 Returns: number;
             };

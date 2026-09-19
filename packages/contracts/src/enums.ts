@@ -68,6 +68,17 @@ export const JOB_KINDS = [
    * provider's key and is injected into the tick.
    */
   "email_ingest",
+  /**
+   * The lead finder (00139, PRD v3 §12.5). lead_round_start starts one round:
+   * a run per term, each claimed before the provider is called. lead_collect
+   * reads one page of one run, judges it and commits it in one transaction;
+   * seq is p<offset> for a page, final from the webhook, s<minute> from the
+   * sweep, stop from the stop door. lead_check checks one batch of emails. A
+   * provider's 429 or 5xx throws and is tried again by RETRY_WAITS_MS.
+   */
+  "lead_round_start",
+  "lead_collect",
+  "lead_check",
 ] as const;
 export type JobKind = (typeof JOB_KINDS)[number];
 
@@ -181,6 +192,10 @@ export const EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card",
 ] as const;
 export type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 

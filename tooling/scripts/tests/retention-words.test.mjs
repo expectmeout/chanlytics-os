@@ -8,7 +8,7 @@ import assert from "node:assert/strict";
 import { EVENT_EVIDENCE_KINDS, EVENT_KINDS, RATE_HITS_RETENTION_HOURS, RECORDING_RETENTION_DAYS, RETENTION_DAYS, isActivityNoise, phoneTail, retentionWords } from "@chanlytics/contracts";
 
 test("the numbers, and the paragraph the privacy page prints from them", () => {
-  assert.deepEqual(RETENTION_DAYS, { call_recordings: 90, events_evidence: 30, ask_threads: 90, notifications: 90, cron_history: 14 });
+  assert.deepEqual(RETENTION_DAYS, { call_recordings: 90, events_evidence: 30, ask_threads: 90, notifications: 90, cron_history: 14, leads_untouched: 90, leads_untouched_blanked: 180, leads_excluded_blanked: 30 });
   assert.equal(RATE_HITS_RETENTION_HOURS, 2);
   assert.equal(RECORDING_RETENTION_DAYS, 90);
   const words = retentionWords();
@@ -16,6 +16,7 @@ test("the numbers, and the paragraph the privacy page prints from them", () => {
   assert.match(words, /Webhook receipts, delivery logs, unplaced messages and model-usage rows are kept for 30 days\./);
   assert.match(words, /Assistant threads untouched for 90 days, and notifications after 90 days, are removed/);
   assert.match(words, /run history is kept for 14 days and rate-limit counters for 2 hours/);
+  assert.match(words, /Leads nobody has worked are set aside after 90 days and their details removed after 180; places a search left out lose their details after 30 days\./);
   assert.match(words, /Everything else stays while the workspace exists\.$/);
 });
 

@@ -253,6 +253,19 @@ interface JobContext {
         tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
     };
     /**
+     * The lead finder's pipeline (00139), as the edge holds it. INJECTED like
+     * the three above: the provider's token, the judge's client and the
+     * webhook base live on the edge (release A2 binds them). Optional so a
+     * test context need not supply one; a lead job in a runtime without it
+     * fails loudly rather than guessing. Each takes the claimed job whole and
+     * bounds itself to one page or one batch before ctx.deadline.
+     */
+    leads?: {
+        roundStart: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+        collect: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+        check: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+    };
+    /**
      * Schedule a job of this tenant — how a broadcast continues itself, one
      * batch after another, through the same door the dashboard uses.
      */
