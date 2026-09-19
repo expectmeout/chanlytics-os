@@ -8,7 +8,7 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords, csvCell } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -26,6 +26,7 @@ declare global {
     __phoneDisplay: typeof formatPhoneDisplay;
     __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
     __hardLimits: typeof hardLimitsWords;
+    __csvCell: typeof csvCell;
   }
 }
 
@@ -69,6 +70,9 @@ if (typeof window !== "undefined") {
   // hard limits in words that say a default is a default (S6).
   window.__brokenConfigWords = BROKEN_CONFIG_WORDS;
   window.__hardLimits = hardLimitsWords;
+  // One CSV cell, as the route's export spells it: the page's export of a selection quoted and nothing more, so a
+  // WhatsApp name of "=HYPERLINK(...)" ran in whoever opened that file while the whole-workspace export was safe.
+  window.__csvCell = csvCell;
 }
 
 export {};

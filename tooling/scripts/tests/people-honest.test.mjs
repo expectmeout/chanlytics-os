@@ -14,7 +14,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { CONSENT_SOURCES, SHORTCUTS, mayReceive, offersYesRefusal, shortcutGroups, stateOf, toPersonRowVM } from "@chanlytics/contracts";
+import { CONSENT_SOURCES, SHORTCUTS, csvCell, mayReceive, offersYesRefusal, shortcutGroups, stateOf, toPersonRowVM } from "@chanlytics/contracts";
 
 const TID = "t-salon";
 const ZONE = "America/New_York";
@@ -210,6 +210,7 @@ Object.assign(globalThis.window, {
   AttnRow: () => null,
   CHANLY: { nav: (to) => went.push(to), R: { thread: (id) => `inbox/${id}`, segment: (id) => `segments/${id}` } },
   __chrome: { state: stateOf },
+  __csvCell: csvCell,
   __ME: { role: "owner" },
   __consentSources: CONSENT_SOURCES,
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
@@ -436,6 +437,8 @@ test("a day nobody needs you says the count and the week, and offers no tap", as
 
 // A click, as a mouse gives it: `press` above is the keyboard.
 const click = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+// A heading's sort: the button in the cell (a keyboard reaches it), found by its words.
+const sortByHeading = (tree, label) => click(find(tree, (n) => n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || "")) && textOf(n).startsWith(label)));
 
 test("a list kept by hand is the page's title when open, with its rename, its delete and its one door -- the Lists page held them over a second table of the same people", async () => {
   // Person 1 said yes to offers (the fixture's default); person 2 was never asked.
@@ -894,7 +897,7 @@ test("a view keeps its columns with its sort, and every save sends every key -- 
   click(byTestId(tree, "column-lists"));
   tree = draw();
   assert.deepEqual(saves.at(-1), ["people", { sortBy: "name", sortDir: "asc", columns: { came_from: false, email: true, lists: true } }], "a column change keeps the sort");
-  click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
+  sortByHeading(tree, "State");
   draw();
   // One save at a time: the new sort goes once the column's save has landed.
   await settle();
@@ -1125,7 +1128,7 @@ test("REGRESSION: Back keeps the columns a member chose -- People mounted again 
   const tree = draw();
   assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the column the member hid came back");
   assert.deepEqual(JSON.parse(globalThis.localStorage.getItem("chanlytics-people-view")).columns, { came_from: false }, "REGRESSION: and this device's copy was written over with the old columns");
-  click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
+  sortByHeading(tree, "State");
   draw();
   await settle();
   assert.deepEqual(seen.viewSaves.at(-1), { page: "people", view: { sortBy: "state", sortDir: "desc", columns: { came_from: false } } }, "REGRESSION: a sort afterwards sent the columns from before, and the server lost the choice");
@@ -1146,7 +1149,7 @@ test("REGRESSION: a save made while People is being read is not undone by the re
   cells = [];
   const tree = draw();
   assert.ok(!headings(tree).includes("Came from"), "REGRESSION: the read put the column back");
-  click(find(tree, (n) => n.type === "th" && textOf(n).startsWith("State")));
+  sortByHeading(tree, "State");
   draw();
   await settle();
   assert.deepEqual(seen.viewSaves.at(-1).view, { sortBy: "state", sortDir: "desc", columns: { came_from: false } }, "REGRESSION: and the next sort saved the old columns");
@@ -1181,8 +1184,9 @@ const catchExports = () => {
   globalThis.window.__href = () => "";
   return { blobs, restore: () => { URL.createObjectURL = was.url; globalThis.document.createElement = was.make; delete globalThis.document.body.appendChild; delete globalThis.window.__href; } };
 };
-/** Who is in a file the bar made: each row's first cell, the name, under the heading row. */
-const exportedNames = async (blob) => (await blob.text()).split("\r\n").slice(1).map((line) => /^"([^"]*)"/.exec(line)[1]);
+/** Who is in a file the bar made: each row's first cell, the name, under the heading row. A cell is quoted only when it must be (csvCell). */
+const csvFirst = (line) => { const m = /^"((?:[^"]|"")*)"/.exec(line); return m ? m[1].replace(/""/g, '"') : line.split(",")[0]; };
+const exportedNames = async (blob) => (await blob.text()).split("\r\n").slice(1).map(csvFirst);
 
 test("REGRESSION: the bulk bar acts on the people shown -- a person a refresh moved out of the view stayed counted, and was written to", async () => {
   const needs = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
@@ -1332,4 +1336,62 @@ test("REGRESSION: a member's columns are a desktop's, and a phone keeps its card
   assert.match(textOf(state), /needs you/i, "and the card still says who needs a person");
   const offHeadings = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th" && colOff(n)).map((th) => textOf(th).replace(/[▲▼]/g, "").trim());
   assert.deepEqual(offHeadings, ["State", "Offers", "Email", "Lists"], "a heading carries the mark with its cells, so one cell sits under each heading");
+});
+
+/* ------------------------- the table, after its review (18 September) ------------------------- */
+
+test("REGRESSION: By state puts who needs a person first -- the ranks ran the other way, so the first press put Active first and Needs you last", async () => {
+  const needsOne = (i) => person(i, { needs_human: true, open_escalation_reason: "human_token", open_escalation_since: iso(H), latest_state: "needs_human" });
+  await freshPage({ people: [person(1), needsOne(2), person(3)] });
+  let tree = draw();
+  const ids = (t) => all(t, (n) => n.type === "tr" && n.props?.id).map((n) => n.props.id);
+  assert.deepEqual(ids(tree), ["person-p1", "person-p2", "person-p3"], "by last contact they tie, in the order read");
+  sortByHeading(tree, "State");
+  tree = draw();
+  assert.equal(ids(tree)[0], "person-p2", `REGRESSION: the person who needs someone came last: ${ids(tree)}`);
+  assert.equal(all(tree, (n) => n.type === "button" && textOf(n).trim() === "By state").length, 1, "and the sort says so");
+});
+
+test("REGRESSION: a selection's file spells a cell as the route's export does -- a name a spreadsheet reads as a formula ran in whoever opened it, and a number lost its plus", async () => {
+  await freshPage({ people: [person(1, { display_name: '=HYPERLINK("http://x")' }), person(2)] });
+  const { blobs, restore } = catchExports();
+  try {
+    byTestId(draw(), "select-all").props.onChange();
+    byTestId(draw(), "bulk-export").props.onClick();
+    const lines = (await blobs.at(-1).text()).replace(/^\ufeff/, "").split("\r\n");
+    assert.equal(lines[0], "Name,Phone,Email,State,Last contact,Consent,Offers,Next visit,First contact", "a heading is quoted only when it must be");
+    const hyper = lines.find((l) => l.includes("HYPERLINK"));
+    assert.ok(hyper && hyper.startsWith(`"'=HYPERLINK(""http://x"")",'+1 (786) 555-1001,`), `REGRESSION: the formula was quoted and nothing more: ${hyper}`);
+    assert.deepEqual((await exportedNames(blobs.at(-1))).sort(), ["'=HYPERLINK(\"http://x\")", "Person 2"]);
+  } finally {
+    restore();
+  }
+});
+
+test("a heading that sorts is a button a keyboard reaches; one that does not is words", async () => {
+  await freshPage({ people: [person(1)] });
+  const tree = draw();
+  const ths = all(find(tree, (n) => n.type === "thead"), (n) => n.type === "th");
+  const isSort = (n) => n.type === "button" && /\bcl-th-sort\b/.test(String(n.props?.className || ""));
+  const withButton = ths.filter((th) => find(th, isSort));
+  assert.deepEqual(withButton.map((th) => textOf(th).replace(/[▲▼]/g, "").trim()), ["Person", "State", "Last contact", "Offers"], "REGRESSION: the sort was the cell's own click, which Tab never found");
+  for (const th of withButton) assert.equal(find(th, isSort).props.type, "button", "a button, not a form's submit");
+  assert.equal(find(ths.find((th) => textOf(th).trim() === "Came from"), (n) => n.type === "button"), null, "Came from does not sort, so it is words");
+});
+
+test("focusing a row puts the cursor on it, and the cursor's row is the table's tab stop -- J and K carry on from where a person tabbed or clicked", async () => {
+  await freshPage({ people: [person(1), person(2), person(3)] });
+  let tree = draw();
+  const rows = (t) => all(t, (n) => n.type === "tr" && n.props?.id);
+  assert.deepEqual(rows(tree).map((r) => r.props.tabIndex), [0, -1, -1], "with no cursor the first row is the tab stop");
+  rows(tree)[1].props.onFocus();
+  tree = draw();
+  assert.deepEqual(rows(tree).map((r) => /\bfocused\b/.test(r.props.className)), [false, true, false], "REGRESSION: a row focused by Tab or a click was not the cursor's");
+  assert.deepEqual(rows(tree).map((r) => r.props.tabIndex), [-1, 0, -1], "and it is the tab stop");
+  press("ArrowDown");
+  tree = draw();
+  assert.deepEqual(rows(tree).map((r) => /\bfocused\b/.test(r.props.className)), [false, false, true], "the keys carry on from it");
+  const before = opened.length;
+  assert.equal(press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null }), true);
+  assert.deepEqual(opened.slice(before), ["p3"], "Enter on the focused row opens it");
 });

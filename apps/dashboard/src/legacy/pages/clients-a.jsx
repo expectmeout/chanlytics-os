@@ -703,7 +703,10 @@ const plViewSaver = () => {
 // had ever texted START, and the composer then refused every one of them.
 const PL_OFFERS = { opted_in: ["Yes", "yes"], opted_out: ["No", "no"], unknown: ["Not asked", "unasked"] };
 const plCsv = (rows) => {
-  const esc = (v) => `"${String(v == null ? "" : v).replace(/"/g, '""')}"`;
+  // One cell as contracts spell it (csvCell, the rule the route's export of everyone uses): quoted when it must be,
+  // and a cell a spreadsheet would read as a formula gets a leading apostrophe. This file quoted and nothing more, so
+  // a WhatsApp name of "=HYPERLINK(...)" ran in whoever opened a selection's file, and "+1786..." was summed.
+  const esc = window.__csvCell;
   // Both answers, because "Consent" alone cannot say which one it means -- and the
   // one an audit asks about is the offers column, which this file did not carry.
   const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];
@@ -1144,9 +1147,11 @@ const PL_COLUMNS = [
 // The keys a view may sort by: the columns whose headings sort.
 const PL_SORT_KEYS = PL_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
 
+// Person and the row's actions are not the member's to hide.
+const plLocked = (c) => !!(c.pinned || c.fixed);
 // Whether a column shows on a desktop: Person and the row's actions always; any other by the member's own choice, else
 // its default.
-const plShows = (c, choices, x) => !!(c.pinned || c.fixed) || (typeof choices[c.key] === "boolean" ? choices[c.key] : typeof c.on === "function" ? c.on(x) : c.on !== false);
+const plShows = (c, choices, x) => plLocked(c) || (typeof choices[c.key] === "boolean" ? choices[c.key] : typeof c.on === "function" ? c.on(x) : c.on !== false);
 // The columns drawn, in their order: every one this workspace can show (Visits needs a calendar). A member's choices are
 // a desktop's: one they turned off is drawn all the same, `off`, and only a desktop hides it (clients.css, pl-col-off),
 // so a phone's cards keep the facts they draw by default. Hidden cells were gone from the cards too, and the Columns menu
@@ -1154,7 +1159,7 @@ const plShows = (c, choices, x) => !!(c.pinned || c.fixed) || (typeof choices[c.
 const plDrawnColumns = (choices, x) => PL_COLUMNS.filter((c) => !c.needs || c.needs(x)).map((c) => (plShows(c, choices, x) ? c : { ...c, off: true }));
 
 // The table, for any rows: the columns it is given (one that is `off` drawn with pl-col-off on its heading and every
-// cell, which only a desktop hides), what a cell needs (`cell`), a selection, a keyboard cursor and a way to open a
+// cell, which only a desktop hides), what a cell needs (`ctx`), a selection, a keyboard cursor and a way to open a
 // row. People draws it; Leads, a scope of People in Phase 1, will draw it with columns of its own. It
 // stays in this file until then: a legacy file of its own must join the manifest, Chanlytics.html and every test that
 // loads the page, and nothing else draws it yet. Still a <table class="cl-table">, so the page's selectors and the
@@ -1162,7 +1167,7 @@ const plDrawnColumns = (choices, x) => PL_COLUMNS.filter((c) => !c.needs || c.ne
 // the pinned column to its left, and the hairline beside that column shows once it has scrolled sideways (`scrolled`,
 // the page's state). Hookless on purpose: the tests' stub React keys state by call order, and a list's own controls
 // above the table come and go.
-const PeopleTable = ({ columns, cell, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, empty = null, scrolled = false, onScrolled = () => {} }) => {
+const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {} }) => {
   const selecting = rows.some((p) => sel.has(p.id));
   return (
     <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
@@ -1179,23 +1184,28 @@ const PeopleTable = ({ columns, cell, rows, total, sortBy, sortDir, onSort, onOp
                 </th>
               )}
               {columns.map((c) => (
-                <th key={c.key} className={`${c.sortable ? "sortable" : ""} ${c.pinned ? "pl-pin" : ""} ${c.key === "actions" ? "cl-actions-head" : ""} ${c.off ? "pl-col-off" : ""}`} onClick={() => c.sortable && onSort(c.key)} aria-sort={sortBy === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
-                  {c.label}
-                  {sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}
+                <th key={c.key} className={`${c.sortable ? "sortable" : ""} ${c.pinned ? "pl-pin" : ""} ${c.key === "actions" ? "cl-actions-head" : ""} ${c.off ? "pl-col-off" : ""}`} aria-sort={sortBy === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
+                  {/* A heading that sorts is a button, so a keyboard reaches it: the sort was the cell's own click, which Tab never found. */}
+                  {c.sortable
+                    ? <button type="button" className="cl-th-sort" onClick={() => onSort(c.key)}>{c.label}{sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}</button>
+                    : c.label}
                 </th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {rows.map((p) => (
-              <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} onClick={() => onOpen(p.id)}>
+            {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
+                by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
+                J and K move focus with the cursor (the page's effect on `cursor`). */}
+            {rows.map((p, i) => (
+              <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} tabIndex={cursor === p.id || (!cursor && i === 0) ? 0 : -1} onFocus={() => { if (cursor !== p.id) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
                 {selectable && (
                   <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
                   </td>
                 )}
                 {columns.map((c) => {
-                  const td = c.cell(p, cell);
+                  const td = c.cell(p, ctx);
                   return c.off ? React.cloneElement(td, { className: `${td.props.className || ""} pl-col-off` }) : td;
                 })}
               </tr>
@@ -1223,7 +1233,7 @@ const PeopleTable = ({ columns, cell, rows, total, sortBy, sortDir, onSort, onOp
 const plColumnChoices = (raw) => {
   const out = {};
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
-  for (const c of PL_COLUMNS) if (!c.pinned && !c.fixed && typeof raw[c.key] === "boolean") out[c.key] = raw[c.key];
+  for (const c of PL_COLUMNS) if (!plLocked(c) && typeof raw[c.key] === "boolean") out[c.key] = raw[c.key];
   return out;
 };
 // The Columns menu's rows: every column this workspace can show, whether it shows, and Person, which always does.
@@ -1701,7 +1711,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         (p.lastVisit || "").toLowerCase().includes(needle)
       );
     }
-    const order = { needs_you: 0, waiting_on_you: 1, opted_out: 2, new: 3, quiet: 4, active: 5 };
+    // By state: who needs a person first, then who is waiting on one, then the rest in the rail's order. The ranks ran
+    // the other way, so "By state" (the descending sort a first press gives) put Active first and Needs you last.
+    const order = { needs_you: 5, waiting_on_you: 4, opted_out: 3, new: 2, quiet: 1, active: 0 };
     return [...list].sort((a, b) => {
       let av, bv;
       switch (sortBy) {
@@ -1756,7 +1768,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // gives way to Visits once a calendar connects, as it does for everyone.
   const pickColumn = (key) => setColChoices((ch) => {
     const c = PL_COLUMNS.find((x) => x.key === key);
-    if (!c || c.pinned || c.fixed) return ch;
+    if (!c || plLocked(c)) return ch;
     const on = !plShows(c, ch, colCtx);
     const rest = { ...ch };
     delete rest[key];
@@ -1788,11 +1800,19 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   React.useEffect(() => { setCursor((c) => (c && shownIds.includes(c) ? c : null)); }, [shownIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
   const moveCursor = (step) => setCursor((c) => {
     const i = c ? shownIds.indexOf(c) : -1;
-    const id = shownIds[step > 0 ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1)];
-    const row = document.getElementById(`person-${id}`);
-    if (row && row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
-    return id;
+    return shownIds[step > 0 ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1)];
   });
+  // The cursor's row takes focus, so a screen reader says it and Tab carries on from it, and is scrolled to (under the
+  // sticky header: scroll-padding-top). Not when focus is already on it or in it: a row focused by Tab or a click put
+  // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
+  React.useEffect(() => {
+    if (!cursor || !document.getElementById) return;
+    const row = document.getElementById(`person-${cursor}`);
+    const active = document.activeElement;
+    if (!row || row === active || (active && row.contains && row.contains(active))) return;
+    if (row.focus) row.focus({ preventScroll: true });
+    if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
+  }, [cursor]);
   // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
   // taken down and added again on every render, and / had a second listener of its own.
   const keys = React.useRef(null);
@@ -1947,12 +1967,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
 
           <PeopleTable
             columns={columns}
-            cell={cellCtx}
+            ctx={cellCtx}
             selectable={canEditLists || canExport}
             sel={sel}
             onToggle={toggleSel}
             onToggleAll={toggleAll}
             cursor={cursor}
+            onCursor={setCursor}
             rows={shown}
             total={people.page && people.page.has_more ? people.page.total : rows.length}
             sortBy={sortBy}

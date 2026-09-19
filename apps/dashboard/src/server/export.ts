@@ -10,7 +10,7 @@
  * Times are written in the business's own zone, once, in the header, so a
  * file read months later still says which clock it used.
  */
-import { personName, whisperText } from "@chanlytics/contracts";
+import { csvCell, personName, whisperText, type CsvCell } from "@chanlytics/contracts";
 import type { CallDto, ConversationDto, MessageDto, PersonRowDto } from "@chanlytics/contracts";
 
 export interface ExportOpts {
@@ -148,20 +148,10 @@ export function callText(call: CallDto, opts: ExportOpts): string {
   ].join("\n");
 }
 
-type Cell = string | number | boolean | null | undefined;
+type Cell = CsvCell;
 
-/**
- * One CSV cell. Quoted when it must be (RFC 4180), and any cell that a
- * spreadsheet would read as a formula gets a leading apostrophe: a WhatsApp
- * profile name is customer-written text, and "=HYPERLINK(...)" is a real
- * attack on whoever opens the file. Phone numbers start with "+" and keep it
- * this way too, instead of being summed.
- */
-export function csvCell(v: Cell): string {
-  let s = v == null ? "" : typeof v === "boolean" ? (v ? "yes" : "no") : String(v);
-  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`;
-  return /[",\r\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
+/** One CSV cell: contracts' rule (csvCell), the same one the page's export of a selection spells (clients-a.jsx plCsv). */
+export { csvCell };
 
 export const PEOPLE_COLUMNS: ReadonlyArray<readonly [string, (r: PersonRowDto, tz: string) => Cell]> = [
   ["name", (r) => r.display_name],

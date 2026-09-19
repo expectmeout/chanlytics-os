@@ -64,7 +64,9 @@ export const POST = write({
     const phone = normalizePhone(raw);
     if (!phone) throw new AppError("validation", whyNotAPhone(raw) ?? "A phone number is needed to add a person.");
     const name = typeof body?.name === "string" ? body.name.trim().slice(0, 80) : "";
-    const source = typeof body?.source === "string" && /^[a-z_]{1,24}$/.test(body.source) ? body.source : "manual";
+    // Which door, for the record. Never "calendar" or "lead", the two doors people_list names (00138): those are the
+    // sweep's and the converter's, written server-side, and a person added here by hand would say "A lead you found".
+    const source = typeof body?.source === "string" && /^[a-z_]{1,24}$/.test(body.source) && body.source !== "calendar" && body.source !== "lead" ? body.source : "manual";
     const { data, error } = await ctx.supabase.rpc("create_person", { p_tenant_id: member.tenantId, p_phone_e164: phone, p_display_name: name, p_source: source });
     if (error) throw new AppError("validation", error.message);
     const out = data as { contact_id: string; existed: boolean };
