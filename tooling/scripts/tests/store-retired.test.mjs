@@ -73,7 +73,7 @@ test("the queue's kinds: each one handled and each one scheduled somewhere", () 
   for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, or the draft queue's row, naming it -- or a
-  // door in SQL that inserts the job itself (the lead finder's, 00139).
+  // door in SQL that inserts the job itself (the lead finder's, 00140).
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
   const migrations = path.join(ROOT, "supabase/migrations");
   const sql = fs.readdirSync(migrations).filter((f) => f.endsWith(".sql")).map((f) => fs.readFileSync(path.join(migrations, f), "utf8")).join("\n");

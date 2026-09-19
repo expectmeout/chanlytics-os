@@ -112,7 +112,7 @@ export function verdictFor(job: { kind: string; attempts: number }): Verdict {
  */
 export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   email_ingest: [5 * 60_000, 30 * 60_000],
-  // The lead finder's three (00139). Each is written to be run again: a start
+  // The lead finder's three (00140). Each is written to be run again: a start
   // claims its run row before it calls the provider, a collect commits a page
   // by compare-and-set on the offset, a check commits by lead id. A
   // provider's 429 or 5xx throws and lands here: two minutes covers a bad

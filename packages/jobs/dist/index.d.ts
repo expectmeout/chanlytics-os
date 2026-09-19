@@ -253,7 +253,7 @@ interface JobContext {
         tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
     };
     /**
-     * The lead finder's pipeline (00139), as the edge holds it. INJECTED like
+     * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
      * the three above: the provider's token, the judge's client and the
      * webhook base live on the edge (release A2 binds them). Optional so a
      * test context need not supply one; a lead job in a runtime without it

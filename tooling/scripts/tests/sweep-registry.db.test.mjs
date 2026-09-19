@@ -38,7 +38,7 @@ const EVERY_CLOCK = {
   purge_rate_hits: "purge-rate-hits",
   registration: "registration-sweep",
   snoozes: "wake-stale-snoozes",
-  // The lead finder (00139): a five-minute clock that asks the edge only when
+  // The lead finder (00140): a five-minute clock that asks the edge only when
   // a run is live or a round waits, and its nightly purge.
   leads: "leads-sweep",
   purge_leads: "purge-leads",

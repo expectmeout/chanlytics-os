@@ -27,7 +27,7 @@ export function erasedEmailHash(tenantId: string, email: string): Promise<string
 
 /**
  * A lead's email, phone or place id on the never-again list (lead_suppressions,
- * 00139): the same keyed digest, so SQL's lead_suppression_hash(tenant, value)
+ * 00140): the same keyed digest, so SQL's lead_suppression_hash(tenant, value)
  * and this agree byte for byte (lead-engine.db.test.mjs proves it). The value
  * is the one stored: E.164 with its "+", normalizeEmail's output, the place id.
  */

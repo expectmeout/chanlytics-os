@@ -247,7 +247,7 @@ var EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card"
@@ -406,10 +406,10 @@ var RETENTION_DAYS = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
@@ -6218,7 +6218,7 @@ var EVENT_KINDS2 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card"
@@ -6378,10 +6378,10 @@ var RETENTION_DAYS2 = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS2 = RETENTION_DAYS2.call_recordings;
@@ -8264,7 +8264,7 @@ var EVENT_KINDS3 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card"
@@ -8424,10 +8424,10 @@ var RETENTION_DAYS3 = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS3 = RETENTION_DAYS3.call_recordings;
@@ -9341,7 +9341,7 @@ var EVENT_KINDS22 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card"
@@ -9514,10 +9514,10 @@ var RETENTION_DAYS22 = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS22 = RETENTION_DAYS22.call_recordings;
@@ -10414,7 +10414,7 @@ var EVENT_KINDS32 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card"
@@ -10573,10 +10573,10 @@ var RETENTION_DAYS32 = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS32 = RETENTION_DAYS32.call_recordings;
@@ -11898,7 +11898,7 @@ var EVENT_KINDS4 = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card"
@@ -12057,10 +12057,10 @@ var RETENTION_DAYS4 = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS4 = RETENTION_DAYS4.call_recordings;
@@ -13239,7 +13239,7 @@ function verdictFor(job) {
 }
 var RETRY_WAITS_MS = {
   email_ingest: [5 * 6e4, 30 * 6e4],
-  // The lead finder's three (00139). Each is written to be run again: a start
+  // The lead finder's three (00140). Each is written to be run again: a start
   // claims its run row before it calls the provider, a collect commits a page
   // by compare-and-set on the offset, a check commits by lead id. A
   // provider's 429 or 5xx throws and lands here: two minutes covers a bad

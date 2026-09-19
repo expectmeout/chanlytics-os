@@ -1,4 +1,4 @@
--- 00139 · The lead finder's engine: the data and the doors (release A1).
+-- 00140 · The lead finder's engine: the data and the doors (release A1).
 --
 -- PRD v3 (docs/plans/2026-09-17-people-table-and-lead-finder.md) §0, §12.3,
 -- §12.4; the plan is docs/plans/2026-09-19-lead-finder-A1-data.md. Nothing here

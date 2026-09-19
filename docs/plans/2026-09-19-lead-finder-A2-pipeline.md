@@ -4,7 +4,7 @@
 
 **Goal:** The lead finder's engine runs end to end with no screen: a plan posted through the real route becomes a probe of 25 places across the plan's terms, a question when most of them miss what the owner meant, a main phase sized from the probe's yield, a mailbox check on every address found, and one of nine endings; every provider run is claimed before it is started, every page is one commit under a lease and a generation, the judge is paid once per batch, and the sweep finishes what a killed job left.
 
-**Architecture:** Release A1 (merged before this plan starts) holds the rows, the doors and the service RPCs of migration 00139 and the pure rules in contracts (`classify`, `placesToAsk`, `questionAfterProbe`, `endingOfRound`, the judge's schema and parser). A2 adds the moving parts around them: the provider client over `fetch` and the judge's one structured call in `packages/channels`; the runner's verbs in `packages/core/src/leads` behind ports (`startRound`, `collect`, `check`, `reconcileUnknownRuns`), with the card's input builder and mapper, the cleaner, identity by place, geography from the bundled ZIP table, the batches of 25 by operation id, sizing and the endings; the database adapter, the pipeline's binding for the ledger, the webhook door and the five-minute sweep on the edge; the engine's routes on the dashboard; the internal runner script and gate G2's scoring; and three suites, one over fakes, one over a real Postgres (G3), one replaying a whole search from recorded-shape fixtures.
+**Architecture:** Release A1 (merged before this plan starts) holds the rows, the doors and the service RPCs of migration 00140 and the pure rules in contracts (`classify`, `placesToAsk`, `questionAfterProbe`, `endingOfRound`, the judge's schema and parser). A2 adds the moving parts around them: the provider client over `fetch` and the judge's one structured call in `packages/channels`; the runner's verbs in `packages/core/src/leads` behind ports (`startRound`, `collect`, `check`, `reconcileUnknownRuns`), with the card's input builder and mapper, the cleaner, identity by place, geography from the bundled ZIP table, the batches of 25 by operation id, sizing and the endings; the database adapter, the pipeline's binding for the ledger, the webhook door and the five-minute sweep on the edge; the engine's routes on the dashboard; the internal runner script and gate G2's scoring; and three suites, one over fakes, one over a real Postgres (G3), one replaying a whole search from recorded-shape fixtures.
 
 **Tech Stack:** TypeScript across five committed-dist packages (tsup), Node 22 web handlers on Vercel (`apps/edge`, NodeNext), Next route handlers behind `route()` (`apps/dashboard`), Supabase Postgres through supabase-js (service role on the edge, the session client on the dashboard), the Apify HTTP API v2 over `fetch` (no SDK), the Anthropic SDK 0.125 (`beta.messages.create` with `output_config` and `fallbacks`), `node:test` with `tsx`, the `_fake-db.mjs` double, the Census 2020 ZCTA gazetteer.
 
@@ -14,9 +14,9 @@
 
 **The spec** is PRD v3, `docs/plans/2026-09-17-people-table-and-lead-finder.md`: §0 (the five contracts), §7 (7.1 the judge's call, 7.2 what is deterministic), §10.1 (recipe A), §12.3 to §12.6, §13.3, §14 (release A's done-when), §16 (14, 23, 25 to 32), Appendix A (the Apify facts) and Appendix B (item to lead). **The interface** both release A plans share is `docs/plans/2026-09-19-lead-finder-A-interface.md`: where it and the PRD disagree, it wins for names and shapes, the PRD for behaviour. **Release A1** is `docs/plans/2026-09-19-lead-finder-A1-data.md`, executed and merged before this plan starts; where A1's code departed from the interface (its *Read this first* lists fourteen departures), this plan follows A1, not the interface: `jobs.due_at`; the ledger's waits `[120_000, 600_000]` already on the three kinds; `JobContext.leads` as a seam of three functions (`roundStart`, `collect`, `check`) with three handlers that reach it; `p_estimate_usd` on create and more; `{error, sentence}` refusals; `p_page.round.target` and `p_page.round.ending_pending`, `p_page.judgment` an object or an array, and the suppression check inside `lead_collect_commit`; `leads.place_id` nullable; `lead_rounds.month`, `.day` and `.ending_pending`; `has_permission`; `leads_page` keyed on one `<k>|<id>` key; a clock that asks the edge only when there is lead work. **The review brief** is `docs/plans/2026-09-18-lead-finder-review.md` (E1 to E10, S6, S7, S12, P4, G2, G3). The v2 plan (`docs/plans/2026-09-18-lead-finder.md`, sub-plan 1b, lines 3070 to 5760) is raw material only: its fixtures' real shape, its fetch-only client, its webhook door's shape, its sweep's shape and its injection posture survive; the eleven defects the reviewer found in it are listed under *What this plan does not repeat*.
 
-**What A2 is, and is not.** A2 lands with the switch still off for everyone (`lead_platform.searches_on = false`) and no workspace listed; the internal runs list the nightly's test workspace in `lead_platform.tenants_on` (decision 30) as a separate, approved step at the end of Task 12. It carries no migration: 00139 is A1's, and nothing here changes a table, a door or an RPC. It carries no screen: the routes of PRD §12.6 marked A, exercised by the runner script and the suites. `APIFY_TOKEN`, `LEAD_JUDGE_MODEL`, `LEAD_JUDGE_FALLBACKS` and `LEAD_WEBHOOK_BASE` are Ruben's to set on the edge project.
+**What A2 is, and is not.** A2 lands with the switch still off for everyone (`lead_platform.searches_on = false`) and no workspace listed; the internal runs list the nightly's test workspace in `lead_platform.tenants_on` (decision 30) as a separate, approved step at the end of Task 12. It carries no migration: 00140 is A1's, and nothing here changes a table, a door or an RPC. It carries no screen: the routes of PRD §12.6 marked A, exercised by the runner script and the suites. `APIFY_TOKEN`, `LEAD_JUDGE_MODEL`, `LEAD_JUDGE_FALLBACKS` and `LEAD_WEBHOOK_BASE` are Ruben's to set on the edge project.
 
-**Proven before this plan was written.** Every code block below was written into a worktree at origin/main `fbc5d871` with A1's contracts, seam and DB types stubbed exactly as A1's plan writes them, run, and copied here verbatim; the commands and their outputs are in *Proven before this plan was written* at the end. In short: every project typechecks; the eleven unit suites this plan creates pass (63 tests) over fakes; the twenty database cases (A1's fifteen and this plan's five) parse and skip without a database; the whole unit suite is `# fail 0` (3,068 tests, 199 skipped without a database); lint reports 0 errors; the ZCTA generator ran on the real gazetteer (33,144 ZCTAs, 927,244 bytes). The one thing not run is the database suite against 00139 (the local stack did not carry it while this plan was written); Task 10 runs it.
+**Proven before this plan was written.** Every code block below was written into a worktree at origin/main `fbc5d871` with A1's contracts, seam and DB types stubbed exactly as A1's plan writes them, run, and copied here verbatim; the commands and their outputs are in *Proven before this plan was written* at the end. In short: every project typechecks; the eleven unit suites this plan creates pass (63 tests) over fakes; the twenty database cases (A1's fifteen and this plan's five) parse and skip without a database; the whole unit suite is `# fail 0` (3,068 tests, 199 skipped without a database); lint reports 0 errors; the ZCTA generator ran on the real gazetteer (33,144 ZCTAs, 927,244 bytes). The one thing not run is the database suite against 00140 (the local stack did not carry it while this plan was written); Task 10 runs it.
 
 **Where this plan departs from the interface, and why** (each forced by code that must run; every other name and shape is the interface's or A1's):
 1. **Three ports beyond the interface's five.** `LeadPorts` also carries `webhookToken(runRowId)`, `schedule(kind, payload, runAfterSeconds)` and `deadline`. The token: a run row's webhook token is derived from the row's id by the edge (an HMAC under the service-role key), so it is made once at creation (its sha256 on the row), never rewritten (E1), and a job the ledger tries again can rebuild the URL its earlier try sent; a random token held only in the memory of a dead invocation cannot be. The schedule: `lead_collect_commit`'s `next` takes only a `lead_collect`, and the runner must also queue the resume of a round that passed its probe (`lead_round_start {resume: true}`) and the first check (`lead_check {batch: 0}`); both go through `scheduleJobOnce`. The deadline: PRD §12.5 checks it before every provider or model call.
@@ -54,11 +54,11 @@
 
 **House rules this plan follows:**
 - **Never add a `readCode(` or `readRaw(` assertion.** `source-scan-ratchet.test.mjs` counts them per file; a count may only fall. Every new test here runs code: the client over a fake `fetch`, the judge over a fake client, the runner over the world in memory, the door and the sweep as Vercel runs them, the routes' `run`. No existing pin's value changes in this plan (A1 changed the `JOB_KINDS` pin and the kinds lint).
-- **No migration.** 00139 is A1's and on main. The database suite of Task 10 runs against the local stack with 00139 applied; if the stack lags (main moved past it before `supabase start` on this machine), apply the missing migrations the way Phase 0's plan did (`docker cp` + `psql`, then `notify pgrst, 'reload schema'`), never `db reset` on the shared stack.
+- **No migration.** 00140 is A1's and on main. The database suite of Task 10 runs against the local stack with 00140 applied; if the stack lags (main moved past it before `supabase start` on this machine), apply the missing migrations the way Phase 0's plan did (`docker cp` + `psql`, then `notify pgrst, 'reload schema'`), never `db reset` on the shared stack.
 - **Package dists are committed.** After any change under `packages/`, `node tooling/scripts/check-dist.mjs` rebuilds all five; keep only dists with a real diff (`for d in contracts db jobs channels core; do git diff -w --ignore-cr-at-eol --quiet -- packages/$d/dist && git checkout -- packages/$d/dist; done`), commit them, and expect `dist in sync with src` only after the commit. tsup inlines workspace packages: a `core` change also changes `jobs/dist`, and core's dist grows by about a megabyte with the ZIP table inlined (decision 31 accepted that).
 - **Tests that import `packages/*/src/*.ts` directly** are never a stale dist. Tests that import `@chanlytics/contracts`, the edge's `lib/workspace/*.js` or `packages/jobs/dist` read the built copy: rebuild (`corepack pnpm --filter "./packages/*" build`) before believing a red. The door, the sweep, the pipeline's binding and the adapter are edge files and read the dists.
 - **The edge's imports carry `.js`** (NodeNext) and reach the packages only through `lib/workspace/*.js`; the edge declares no `zod`, so its payload checks are by hand.
-- **`emitEvent` kinds are linted from literals**: A2 emits no event; `lead.round` is written by 00139's doors and RPCs.
+- **`emitEvent` kinds are linted from literals**: A2 emits no event; `lead.round` is written by 00140's doors and RPCs.
 - **Fixtures copy the real shape** with fictional values: phones in `555-0100..0199`, every domain under `.example`, place ids `ChIJfixture` plus four digits, no token-shaped string (Gitleaks reads every commit).
 - **No `\u` escapes in a file the Write tool writes:** a typed escape lands as the literal character. Control characters are matched with `\p{Cc}` classes and built with `String.fromCharCode` in tests; the one JSON escape written by contracts' `judgeUserContent` is built at run time.
 - **Routes:** every route declares `read(...)`/`write({ scope, role, rate, spend?, input })`; then `UPDATE_ROUTE_POLICY=1 node --conditions=react-server --import tsx --test tooling/scripts/tests/route-policy.test.mjs` and `node tooling/scripts/gen-route-types.mjs`.
@@ -107,7 +107,7 @@
 | `apps/dashboard/app/api/v1/lead-searches/route.ts`, `lead-searches/[id]/route.ts`, `…/answer/route.ts`, `…/more/route.ts`, `…/stop/route.ts`, `leads/route.ts`, `leads/[id]/keep/route.ts`, `…/exclude/route.ts`, `…/put-back/route.ts`, `lead-operations/[id]/undo/route.ts` | create | the ten routes of PRD §12.6 marked A |
 | `tooling/scripts/tests/route-policy.json`, `apps/dashboard/src/client/routes.generated.ts` | modify (generated) | the ten policies banked; the registry |
 | `tooling/scripts/lead-search.mjs`, `docs/plans/lead-labels.example.json` | create | the internal runner and G2's scoring; the labelled set's shape |
-| `tooling/scripts/tests/_lead-world.mjs` | create | 00139's rules in memory over `_fake-db.mjs`, the fake provider and judge, `drain` |
+| `tooling/scripts/tests/_lead-world.mjs` | create | 00140's rules in memory over `_fake-db.mjs`, the fake provider and judge, `drain` |
 | `tooling/scripts/tests/lead-apify.test.mjs`, `lead-judge-call.test.mjs`, `lead-fixtures.test.mjs`, `zcta-centroids.test.mjs`, `lead-core.test.mjs`, `lead-runner.test.mjs`, `lead-pipeline.test.mjs`, `apify-webhook-door.test.mjs`, `lead-sweep.test.mjs`, `lead-routes.test.mjs`, `lead-search-replay.test.mjs` | create | the suites over fakes |
 | `tooling/scripts/tests/lead-engine.db.test.mjs` | modify | A1's real-Postgres suite gains the five runtime cases of G3 |
 | `docs/plans/2026-09-19-lead-finder-A2-pipeline.md` | create (copy) | this plan, committed with the work |
@@ -134,8 +134,8 @@ Expected: `Done in …` (about two minutes, ten seconds from a warm store). The 
 
 - [ ] **Step 3: A1 is on main**
 
-Run: `grep -l lead_collect_commit supabase/migrations/00139_*.sql && grep -c "export function classify" packages/contracts/src/lead-search.ts && grep -c "lead_check" packages/contracts/src/enums.ts packages/jobs/src/ledger.ts packages/jobs/src/handlers.ts && grep -c "leads?: {" packages/jobs/src/handlers.ts && grep -c "lead_run_lease" packages/db/src/database.types.ts`
-Expected: `supabase/migrations/00139_the_lead_finder_engine.sql`, then `1`, then `packages/contracts/src/enums.ts:1`, `packages/jobs/src/ledger.ts:1`, `packages/jobs/src/handlers.ts:2` (or more), then `1`, then a number above 0. Anything else means A1 is not merged, or not whole: stop and say so.
+Run: `grep -l lead_collect_commit supabase/migrations/00140_*.sql && grep -c "export function classify" packages/contracts/src/lead-search.ts && grep -c "lead_check" packages/contracts/src/enums.ts packages/jobs/src/ledger.ts packages/jobs/src/handlers.ts && grep -c "leads?: {" packages/jobs/src/handlers.ts && grep -c "lead_run_lease" packages/db/src/database.types.ts`
+Expected: `supabase/migrations/00140_the_lead_finder_engine.sql`, then `1`, then `packages/contracts/src/enums.ts:1`, `packages/jobs/src/ledger.ts:1`, `packages/jobs/src/handlers.ts:2` (or more), then `1`, then a number above 0. Anything else means A1 is not merged, or not whole: stop and say so.
 
 - [ ] **Step 4: The suites are green before anything changes**
 
@@ -1101,7 +1101,7 @@ Create `packages/core/src/leads/ports.ts`:
 /**
  * The lead finder's view of the world (PRD §12.5): what the runner needs,
  * named for what each means. The database half is one method per service
- * RPC of migration 00139 plus a few reads (apps/edge/lib/lead-db.ts, service
+ * RPC of migration 00140 plus a few reads (apps/edge/lib/lead-db.ts, service
  * role); the provider and the judge are the channels package's clients, bound
  * by the edge where the keys are (apps/edge/lib/lead-wires.ts). Every verb
  * here runs over fakes in a test: no network, no database.
@@ -2097,10 +2097,10 @@ Create `tooling/scripts/tests/_lead-world.mjs`:
 
 ```js
 /**
- * The lead finder's world in memory: 00139's rows and the rules of its
+ * The lead finder's world in memory: 00140's rows and the rules of its
  * service RPCs, modelled over _fake-db.mjs so the runner, the pipeline's
  * binding, the webhook door, the sweep and a whole search run against them
- * with no database and no network. What is modelled, as 00139 writes it: the
+ * with no database and no network. What is modelled, as 00140 writes it: the
  * claim, the lease with its owner and generation, the one commit per page
  * with its compare-and-set on the offset, the judgment kept by operation id,
  * the counting up to the reservation, the pending ending and the raised
@@ -2134,17 +2134,17 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
     lead_platform: [{ id: uuid(), searches_on: false, tenants_on: searchesOn ? [TENANT] : [], note: null, prices_checked_at: null }],
     lead_searches: [], lead_rounds: [], lead_runs: [], leads: [], lead_places: [], lead_search_members: [], lead_judgments: [], lead_suppressions: [], lead_counters: [], contacts: [], jobs: [],
   };
-  /** What the commit refuses by value (00139 hashes; the rows in lead_suppressions carry the real hash for the adapter's read). */
+  /** What the commit refuses by value (00140 hashes; the rows in lead_suppressions carry the real hash for the adapter's read). */
   const suppressedValues = new Set();
   const w = { T, clock };
 
-  /** scheduleJobOnce's rule, with 00139's index on lead_collect's run and seq modelled. */
+  /** scheduleJobOnce's rule, with 00140's index on lead_collect's run and seq modelled. */
   w.scheduleOnce = async (kind, dueAt, payload) => {
     if (kind === "lead_collect" && T.jobs.some((j) => j.kind === "lead_collect" && live(j) && j.payload.run_id === payload.run_id && j.payload.seq === payload.seq)) return "already_scheduled";
     T.jobs.push({ id: uuid(), tenant_id: TENANT, kind, state: "scheduled", due_at: new Date(dueAt).toISOString(), payload, attempts: 0, created_at: nowIso() });
     return "scheduled";
   };
-  /** A suppression as 00139 writes one: the keyed digest on the row, the value kept for the commit's check. */
+  /** A suppression as 00140 writes one: the keyed digest on the row, the value kept for the commit's check. */
   w.suppress = async (kind, value, what = "erased") => {
     T.lead_suppressions.push({ id: uuid(), tenant_id: TENANT, kind, hash: await leadSuppressionHash(TENANT, value), what, created_at: nowIso() });
     suppressedValues.add(`${kind}:${value}`);
@@ -2340,7 +2340,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
   };
   w.rpcs = rpcs;
   w.db = fakeDb(T, {}, rpcs);
-  // 00139's index on lead_collect's (run_id, seq): a second insert is 23505, as the door meets it; a row inserted without a state has Postgres's default.
+  // 00140's index on lead_collect's (run_id, seq): a second insert is 23505, as the door meets it; a row inserted without a state has Postgres's default.
   const realFrom = w.db.from;
   w.db.from = (table) => {
     const b = realFrom(table);
@@ -3364,7 +3364,7 @@ Create `apps/edge/lib/lead-db.ts`:
 ```ts
 /**
  * The lead finder's database half (core LeadDb), over the service client: one
- * method per service RPC of migration 00139, and the reads the runner needs.
+ * method per service RPC of migration 00140, and the reads the runner needs.
  * Every read names the workspace it is for; a read that fails throws with what
  * it was reading, because a failed read is not an answer (the ledger's rule).
  * Nothing here decides anything: the rules are in core and in SQL.
@@ -3479,7 +3479,7 @@ export function leadDb(db: Db): LeadDb {
       const placeIds = new Set<string>();
       const wanted = [...keys.emails.map((e) => ["email", e] as const), ...keys.placeIds.map((p) => ["place", p] as const)];
       if (!wanted.length) return { emails, placeIds };
-      // The same keyed digest 00139's lead_suppression_hash writes (contracts erasure.ts).
+      // The same keyed digest 00140's lead_suppression_hash writes (contracts erasure.ts).
       const hashed = await Promise.all(wanted.map(async ([kind, v]) => [kind, v, await leadSuppressionHash(tenantId, v)] as const));
       const byHash = new Map(hashed.map(([kind, v, h]) => [`${kind}:${h}`, v]));
       const rows = must<{ kind: string; hash: string }[]>("lead_suppressions read", await db.from("lead_suppressions").select("kind, hash").eq("tenant_id", tenantId).in("hash", hashed.map(([, , h]) => h)));
@@ -3719,7 +3719,7 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     now: () => new Date(),
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
-    // Once per key: a second row for the same run and seq is an answer, not an error (00139's index on lead_collect).
+    // Once per key: a second row for the same run and seq is an answer, not an error (00140's index on lead_collect).
     schedule: async (kind, payload, runAfterSeconds) => {
       await scheduleJobOnce(ctx.db, { tenantId: job.tenant_id, kind, dueAt: new Date(Date.now() + runAfterSeconds * 1000), payload: payload as Json });
     },
@@ -4064,7 +4064,7 @@ Create `apps/edge/api/apify-webhook.ts`:
  * THIS FILE IS THE WIRE, NOT THE JUDGEMENT. What a delivery means is decided
  * by planApifyIngress (lib/apify-ingress.ts), which runs over a fake in a
  * test; what is left here is reading the row, proving the token, the one
- * write (a final collect, once, however often the provider delivers: 00139's
+ * write (a final collect, once, however often the provider delivers: 00140's
  * index on lead_collect's run and seq) and what the provider wants back: 200
  * once the work is written, 503 when the ledger cannot take it so the
  * delivery comes back (up to 11 times over about 32 hours). The provider is
@@ -4333,7 +4333,7 @@ Create `apps/edge/api/cron/leads.ts`:
 
 ```ts
 /**
- * The lead finder's sweep: every five minutes (00139's clock `leads`,
+ * The lead finder's sweep: every five minutes (00140's clock `leads`,
  * request_sweep, judged by its request in sweep_health()), what the runs and
  * the rounds need that no job is doing (lib/lead-sweep.ts decides; this route
  * reads the rows, applies each action on its own and carries on past a
@@ -4672,7 +4672,7 @@ Create `apps/dashboard/src/server/leads.ts`:
 /**
  * The lead finder's routes share these: the door's answer read once, its
  * refusals said in sentences, the estimate the route computes for the door to
- * store (00139's create and more take p_estimate_usd), and the search's latest
+ * store (00140's create and more take p_estimate_usd), and the search's latest
  * round from lead_searches_view.
  */
 import { AppError, LEAD_PROBE_PLACES, estimateRoundUsd, placesToAsk, type LeadRoundPurpose, type LeadSearchPlan } from "@chanlytics/contracts";
@@ -4680,7 +4680,7 @@ import type { RouteContext } from "./with-route";
 
 export interface DoorAnswer {
   error?: string;
-  /** The door's own sentence for its refusal (00139): said as it is when present. */
+  /** The door's own sentence for its refusal (00140): said as it is when present. */
   sentence?: string;
   state?: string;
   left?: number;
@@ -5533,12 +5533,12 @@ test("A2: erasure mid-run: a place suppressed between the read and the commit is
 });
 ```
 
-- [ ] **Step 3: The local stack carries 00139**
+- [ ] **Step 3: The local stack carries 00140**
 
 Make sure Docker answers (see Commands), then: `"$SB" status >/dev/null 2>&1 || "$SB" start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector`
 
 Run: `docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -Atc "select string_agg(version, ',' order by version desc) from (select version from supabase_migrations.schema_migrations order by version desc limit 3) t"`
-Expected: a list starting with `00139`. If it does not, apply what the stack lacks, in order, never with `db reset` (the stack is shared): for each missing file `f` from `ls supabase/migrations | sort`,
+Expected: a list starting with `00140`. If it does not, apply what the stack lacks, in order, never with `db reset` (the stack is shared): for each missing file `f` from `ls supabase/migrations | sort`,
 
 ```bash
 docker cp "supabase/migrations/$f" supabase_db_chanlytics-messaging:/tmp/m.sql && docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1 -f /tmp/m.sql && docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -Atc "insert into supabase_migrations.schema_migrations (version, name) values ('${f%%_*}', '${f#*_}') on conflict do nothing"
@@ -5618,7 +5618,7 @@ test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep go
   assert.ok(qualified.every((m) => LABELS.get(w.T.leads.find((l) => l.id === m.lead_id).business_name) === "fit"), "nothing but a fit qualifies");
   assert.equal(labelled.filter((k) => k === "chain").length, w.members().filter((m) => m.excluded_by === "independent").length);
   assert.ok(w.T.leads.filter((l) => l.email).every((l) => l.email_state === "ok"), "every found address was checked");
-  // 00139's lead_check_commit counts a member the email standard alone held back from the round's reservation first, then from the month's allowance.
+  // 00140's lead_check_commit counts a member the email standard alone held back from the round's reservation first, then from the month's allowance.
   assert.equal(w.members().filter((m) => m.counted).length, qualified.length, "every place that qualified on its mailbox answer counted, the month allowing");
   assert.equal(w.T.lead_judgments.length, w.judge.calls.length, "every batch's answer kept by operation id");
   assert.deepEqual(w.T.jobs.filter((j) => j.state === "failed"), []);
@@ -5715,7 +5715,7 @@ Run: `git rev-parse --abbrev-ref HEAD` (expected `feat/lead-finder-a2-pipeline`)
 Write this body to a file in your scratchpad with your file tool, then run `gh pr create --repo expectmeout/chanlytics-os --base main --head feat/lead-finder-a2-pipeline --title "The lead finder runs: a provider over fetch, one judge call per batch, a runner that claims before it starts, a webhook that proves its token, a sweep" --body-file <that file>`:
 
 ```md
-Release A2 of the lead finder (PRD v3 §12.5, §12.6; docs/plans/2026-09-19-lead-finder-A2-pipeline.md), on A1's rows and doors (00139). No migration, no screen; the switch stays off for everyone.
+Release A2 of the lead finder (PRD v3 §12.5, §12.6; docs/plans/2026-09-19-lead-finder-A2-pipeline.md), on A1's rows and doors (00140). No migration, no screen; the switch stays off for everyone.
 
 ## What changes
 - **The provider** (`packages/channels/src/apify.ts`): seven documented calls over `fetch`, the token in a header, a 429 or 5xx or no answer retryable, a 4xx an answer, items never cleaned.
@@ -5759,11 +5759,11 @@ A1's code-quality review fixed the contracts' design before A1 merged, without r
 
 ## Proven before this plan was written
 
-Everything below ran on 19 September 2026 in a worktree at origin/main `fbc5d871` (Windows 11, Git Bash, Node 22.14, pnpm 10.4.1), with A1's `packages/contracts/src/lead-search.ts` and `lead-judge.ts` taken verbatim from A1's plan, A1's `JobContext.leads` seam and its three handlers applied to `packages/jobs/src/handlers.ts`, A1's `leadSuppressionHash` added to `erasure.ts`, the three job kinds added to `enums.ts` and `schema-sets.generated.ts`, `[120_000, 600_000]` added to `RETRY_WAITS_MS`, and the tables, the view and the functions of 00139 stubbed into `packages/db/src/database.types.ts` in the generated shape. Nothing was committed anywhere; the worktree was removed afterwards.
+Everything below ran on 19 September 2026 in a worktree at origin/main `fbc5d871` (Windows 11, Git Bash, Node 22.14, pnpm 10.4.1), with A1's `packages/contracts/src/lead-search.ts` and `lead-judge.ts` taken verbatim from A1's plan, A1's `JobContext.leads` seam and its three handlers applied to `packages/jobs/src/handlers.ts`, A1's `leadSuppressionHash` added to `erasure.ts`, the three job kinds added to `enums.ts` and `schema-sets.generated.ts`, `[120_000, 600_000]` added to `RETRY_WAITS_MS`, and the tables, the view and the functions of 00140 stubbed into `packages/db/src/database.types.ts` in the generated shape. Nothing was committed anywhere; the worktree was removed afterwards.
 
 - `corepack pnpm -r typecheck` → `Done` for contracts, channels, db, core, jobs, edge, dashboard (after `corepack pnpm --filter "./packages/*" build`).
 - The eleven suites, one file at a time: `lead-fixtures` 4/4, `lead-apify` 7/7, `lead-judge-call` 4/4, `lead-core` 9/9, `lead-runner` 13/13, `lead-pipeline` 4/4, `apify-webhook-door` 6/6, `lead-sweep` 2/2, `lead-routes` 7/7, `lead-search-replay` 3/3, `zcta-centroids` 2/2; `lead-jobs` (A1's, over the rebuilt jobs dist) 2/2; together `# tests 83`, `# pass 63`, `# fail 0`, `# skipped 20` (the database suite without a database).
-- `tooling/scripts/tests/lead-engine.db.test.mjs`, composed exactly as Task 10 composes it (A1's file from its plan, the imports, the helper, the five cases): `node --check` clean; run without a database → `# tests 20`, `# skipped 20`. It was not run against 00139: the shared local stack did not carry the migration while this plan was written. Task 10 runs it.
+- `tooling/scripts/tests/lead-engine.db.test.mjs`, composed exactly as Task 10 composes it (A1's file from its plan, the imports, the helper, the five cases): `node --check` clean; run without a database → `# tests 20`, `# skipped 20`. It was not run against 00140: the shared local stack did not carry the migration while this plan was written. Task 10 runs it.
 - `corepack pnpm test` (no database in env) → `# tests 3068`, `# pass 2869`, `# fail 0`, `# skipped 199`. Earlier in the same session, before A1's kinds lint was in place, `store-retired.test.mjs` "the queue's kinds: each one handled and each one scheduled somewhere" failed for `lead_round_start` and `lead_check`; A1's version of that lint (which reads the migrations' inserts) passes on main, and the prove worktree extended its scan to `packages/core/src` only as a stand-in.
 - `corepack pnpm lint` → `✖ 37 problems (0 errors, 37 warnings)`, every warning on main already; none in a file this plan creates.
 - `UPDATE_ROUTE_POLICY=1 … route-policy.test.mjs` → `# pass 5`, `route-policy.json | 77 +`; `node tooling/scripts/gen-route-types.mjs` → `wrote apps/dashboard/src/client/routes.generated.ts` (22 lines); `route-types.test.mjs` → `# pass 3`.
@@ -5771,7 +5771,7 @@ Everything below ran on 19 September 2026 in a worktree at origin/main `fbc5d871
 - The provider facts, read on 19 September: `GET https://api.apify.com/v2/acts/bounceverify~bounceverify-email-verifier` → `taggedBuilds.latest.buildNumber "0.1.16"`; `…/compass~crawler-google-places` → `"0.14.757"`, event names `place-scraped, filter-applied, place-details-scraped, contact-details-scraped, lead-scraped, lead-email-verified, social-profile-scraped, review-scraped, image-scraped, competitor-analyzed, apify-actor-start`; the actor's input schema (`customGeolocation` a GeoJSON object; a `Point` takes `radiusKm` per the README's changelog); the checker's input `emails` (max 5,000), price $0.00089 per verified email; the runs list's item shape from the API docs.
 - `node --check tooling/scripts/lead-search.mjs` → clean; `wilson(95, 100)` and the four-row `score` as Task 9 prints them.
 
-What was not run, and where the plan runs it: the database suite against 00139 (Task 10), `check-dist` and the dist commit (Task 12), the dashboard's `next build` (Task 12), the production run (Task 12, Step 6, Ruben's).
+What was not run, and where the plan runs it: the database suite against 00140 (Task 10), `check-dist` and the dist commit (Task 12), the dashboard's `next build` (Task 12), the production run (Task 12, Step 6, Ruben's).
 
 ---
 

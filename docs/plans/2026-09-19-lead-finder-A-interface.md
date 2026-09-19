@@ -1,10 +1,10 @@
 # Lead finder, release A: the interface the two plans share
 
-19 September 2026. `2026-09-19-lead-finder-A1-data.md` (migration 00139, the contracts) and `2026-09-19-lead-finder-A2-pipeline.md` (the provider, the judge's call, the core, the handlers, the webhook, the sweep, the engine's routes, the gates) were written from this file at the same time, so every name and shape here is the name in the code. Release B (`2026-09-19-lead-finder-B-product.md`) builds on it and widens what it must (`leads_page` gains `p_list`; `lead_searches_view` gains the undo operation; `lead_operations.kind` gains `stage | bulk`). Where this file and the PRD disagree, this file wins for names and shapes and the PRD (v3, §0 and §12) for behaviour.
+19 September 2026. `2026-09-19-lead-finder-A1-data.md` (migration 00140, the contracts) and `2026-09-19-lead-finder-A2-pipeline.md` (the provider, the judge's call, the core, the handlers, the webhook, the sweep, the engine's routes, the gates) were written from this file at the same time, so every name and shape here is the name in the code. Release B (`2026-09-19-lead-finder-B-product.md`) builds on it and widens what it must (`leads_page` gains `p_list`; `lead_searches_view` gains the undo operation; `lead_operations.kind` gains `stage | bulk`). Where this file and the PRD disagree, this file wins for names and shapes and the PRD (v3, §0 and §12) for behaviour.
 
 Both plan writers follow this exactly. A name here is the name in the code. Where this file and the PRD disagree, this file wins for names and shapes; the PRD (v3, `docs/plans/2026-09-17-people-table-and-lead-finder.md`, §0 and §12) wins for behaviour.
 
-## Migration 00139 (A1) — `supabase/migrations/00139_the_lead_finder_engine.sql`
+## Migration 00140 (A1) — `supabase/migrations/00140_the_lead_finder_engine.sql`
 
 Tables exactly as PRD §12.4: `lead_searches`, `lead_rounds`, `lead_runs`, `lead_judgments`, `leads`, `lead_places`, `lead_search_members`, `lead_counters`, `lead_operations`, `lead_preferences`, `lead_suppressions`, `lead_niche_priors`, `lead_platform`. Stored sets (CHECKs), which contracts mirror and `schema-sets.generated.ts` regenerates:
 

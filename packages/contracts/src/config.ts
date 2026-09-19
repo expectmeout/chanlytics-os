@@ -26,7 +26,7 @@ export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; dis
   // people a screen at a time, the owner may take them all at once.
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
-  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00139 says the
+  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
   // same, and lead-engine.db.test.mjs holds the two together.
   owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true,  find: true },
   operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false, find: false },

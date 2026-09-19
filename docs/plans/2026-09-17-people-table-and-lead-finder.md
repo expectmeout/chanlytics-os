@@ -502,9 +502,9 @@ lead_preferences · lead_suppressions · lead_niche_priors · lead_platform
 - **Run states:** `claimed → starting → running → succeeded | failed | aborted | timed_out`, plus `unknown` (the start's answer was lost; reconciled by the sweep from the provider's own list of runs, never blindly retried).
 - **Plan versions.** `lead_searches.plan` is the current plan; every round carries the exact plan it ran (`lead_rounds.plan`, with `plan.version`). A change to the area, count, contact standard, criteria or spend makes a new version the owner approves; the next round runs it.
 
-### 12.4 Data (release A, migration 00139)
+### 12.4 Data (release A, migration 00140)
 
-Phase 0 took 00138; release A takes **00139** (re-checked immediately before pushing) and release B the next free number. The execution plans hold the full SQL; this is the shape and the reasons.
+Phase 0 took 00138; release A takes **00140** (re-checked immediately before pushing) and release B the next free number. The execution plans hold the full SQL; this is the shape and the reasons.
 
 | Table | Holds | Notes |
 |---|---|---|
@@ -576,7 +576,7 @@ Three tools: `propose_lead_search` (act: a proposal of kind `lead_search`, `PROP
 | Edge | `api/apify-webhook.ts`, `lib/apify-ingress.ts`, `api/cron/leads.ts`, `vercel.json`, `.env.example` (`APIFY_TOKEN`, `LEAD_JUDGE_MODEL`) |
 | Dashboard | the routes of §12.6, `server/leads.ts`, the Ask tools (B), `legacy-bridge` reads for the Leads scope (B) |
 | Legacy UI (B) | the shared table (Phase 0, built), `pages/people-table.jsx` (the table lifted out of `clients-a.jsx` when Leads first draws it), `clients-a.jsx` (the scope switch, composer, strip, question, peek, draft, outcome), `clients.css`; the seeded `leads.jsx` retired |
-| Database | 00139 (release A), the next free number (release B), regenerated types and schema sets |
+| Database | 00140 (release A), the next free number (release B), regenerated types and schema sets |
 
 ## 13. What it costs, and what to charge
 
@@ -631,7 +631,7 @@ Each ships on its own and leaves nothing half-wired.
 
 **Phase 1 — the finder, in three releases (decision 24).**
 
-- **Release A — the engine, measured before any screen.** Plan: `docs/plans/2026-09-19-lead-finder-A1-data.md` (00139, the contracts) and `docs/plans/2026-09-19-lead-finder-A2-pipeline.md`, both written from `docs/plans/2026-09-19-lead-finder-A-interface.md` (every name and shape the two share) (the provider, the judge, the runner, the three handlers, the webhook, the sweep, the routes of §12.6 marked A). Runs on the nightly's test workspace through the real route, with the switch off for everyone else. *Done when:* G2 is passed (decision 29: Qualified precision ≥95%, the interval's lower end ≥90%, by kind of business, with yield, the Needs-review share and cost per Qualified lead reported beside it) on a fresh labelled set (about $0.50, from the approved test budget); G3's real-Postgres tests pass (duplicate starts, competing reservations, stale workers, late webhooks, Stop during checks, month rollover, erasure mid-run, the shared-phone triple, five asked and twenty qualified count five, Put back of a hidden place refused, a refund after the month credits the right month); a whole search replays from a recorded fixture in CI; a wrong webhook token and a replayed run id are refused; the 501st Qualified lead is refused in a sentence.
+- **Release A — the engine, measured before any screen.** Plan: `docs/plans/2026-09-19-lead-finder-A1-data.md` (00140, the contracts) and `docs/plans/2026-09-19-lead-finder-A2-pipeline.md`, both written from `docs/plans/2026-09-19-lead-finder-A-interface.md` (every name and shape the two share) (the provider, the judge, the runner, the three handlers, the webhook, the sweep, the routes of §12.6 marked A). Runs on the nightly's test workspace through the real route, with the switch off for everyone else. *Done when:* G2 is passed (decision 29: Qualified precision ≥95%, the interval's lower end ≥90%, by kind of business, with yield, the Needs-review share and cost per Qualified lead reported beside it) on a fresh labelled set (about $0.50, from the approved test budget); G3's real-Postgres tests pass (duplicate starts, competing reservations, stale workers, late webhooks, Stop during checks, month rollover, erasure mid-run, the shared-phone triple, five asked and twenty qualified count five, Put back of a hidden place refused, a refund after the month credits the right month); a whole search replays from a recorded fixture in CI; a wrong webhook token and a replayed run id are refused; the 501st Qualified lead is refused in a sentence.
 - **Release B — the product.** Plan: `docs/plans/2026-09-19-lead-finder-B-product.md`, written in full once release A is measured (its shape today is the v2 sub-plans 1c and 1d with the release C items taken out). The Leads scope of People on the shared table (lifted into its own legacy file first), the composer (typing and voice), the plan card, the strip, the question, the Qualified / Needs review / Excluded lists, the peek with Seen versus Claude's read, drafts, calls and their outcomes, stages, conversion on a real conversation, kept searches, the first day's suggestions, every ending on the States artboard, the guardrails in the owner's words, the phone, Ask's proposal and its card, the consent doors' converted-lead refusals. *Done when:* a search runs end to end on production from the page; the question fires on a fixture with 12 of 25 passing and nothing more is started until it is answered; every consent path refuses a converted lead in a test; G4's widths and keyboard-only pass; G5's cohort is invited.
 - **Release C — after owners use it.** Not a fit that teaches (the scoped chips), words to chips, questions about leads in Ask, More like these, targeted enrichment (the deeper research P7 keeps for later), the scout that grows the catalog, more recipe cards (Amazon sellers first).
 

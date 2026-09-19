@@ -132,7 +132,7 @@ before(async () => {
   await seed("idempotency_keys", { tenant_id: A, key: "tenancy-key-1", route: "POST /x" }, null);
   await seed("jobs", { tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} });
 
-  // The lead finder (00139), in dependency order. The round is the search's
+  // The lead finder (00140), in dependency order. The round is the search's
   // first (the guard allows one live round, and seq 1 needs no session).
   ctx.leadSearch = await seed("lead_searches", { tenant_id: A, via: "people", card: "local_businesses", name: "tenancy search", asked: "tenancy", plan: {} });
   ctx.leadRound = await seed("lead_rounds", { tenant_id: A, search_id: ctx.leadSearch, seq: 1, purpose: "probe", plan: {}, plan_version: 1, target: 5, month: "2026-09", day: "2026-09-19" });
@@ -158,7 +158,7 @@ before(async () => {
   await seed("platform_admins", { user_id: ctx.nobodyId }, null); probes.push(["platform_admins", "user_id", ctx.nobodyId]);
   await seed("rate_hits", { actor: key, bucket: "tenancy" }, null); probes.push(["rate_hits", "actor", key]);
   await seed("waitlist", { email: `${key}@example.com` }, null); probes.push(["waitlist", "email", `${key}@example.com`]);
-  // The lead finder's platform tables: the switch row is 00139's own; a prior is seeded and removed.
+  // The lead finder's platform tables: the switch row is 00140's own; a prior is seeded and removed.
   const prior = `tenancy_${Date.now()}`;
   await seed("lead_niche_priors", { category_key: prior }, null); probes.push(["lead_niche_priors", "category_key", prior]);
 });
@@ -218,7 +218,7 @@ const TENANT_TABLES = {
   google_reviews: ["member", () => ({ tenant_id: A, review_id: "stranger-review" })],
   idempotency_keys: ["acting", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
   jobs: ["none", () => ({ tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} })],
-  // The lead finder (00139): members read, nobody signed in writes a row; the
+  // The lead finder (00140): members read, nobody signed in writes a row; the
   // judgments and the counters are the service role's. The view runs under
   // the reader's own row security (security_invoker), and is not writable.
   lead_searches: ["member", () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger search", asked: "stranger", plan: {} })],

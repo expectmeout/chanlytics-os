@@ -18,10 +18,10 @@ export const RETENTION_DAYS = {
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30,
 } as const;
 

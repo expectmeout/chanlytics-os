@@ -69,7 +69,7 @@ export const JOB_KINDS = [
    */
   "email_ingest",
   /**
-   * The lead finder (00139, PRD v3 §12.5). lead_round_start starts one round:
+   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
    * a run per term, each claimed before the provider is called. lead_collect
    * reads one page of one run, judges it and commits it in one transaction;
    * seq is p<offset> for a page, final from the webhook, s<minute> from the
@@ -192,7 +192,7 @@ export const EVENT_KINDS = [
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card",

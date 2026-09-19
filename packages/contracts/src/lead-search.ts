@@ -18,7 +18,7 @@ import { dayInZone } from "./availability";
 import type { JudgePlaceAnswer, PlaceFacts } from "./lead-judge";
 
 /* ------------------------------------------------------ the stored sets -- */
-// Each mirrors a CHECK in 00139 and is held to it in schema-sets.ts.
+// Each mirrors a CHECK in 00140 and is held to it in schema-sets.ts.
 
 export const LEAD_SEARCH_VIAS = ["people", "ask"] as const;
 export type LeadSearchVia = (typeof LEAD_SEARCH_VIAS)[number];
@@ -559,7 +559,7 @@ export function stateCode(raw: string | null | undefined): string | null {
 
 /* ---------------------------------------------------------- the month -- */
 
-/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00139 says the same. */
+/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00140 says the same. */
 export function leadMonth(zone: string, at: Date): string {
   const d = dayInZone(zone, at.getTime());
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
