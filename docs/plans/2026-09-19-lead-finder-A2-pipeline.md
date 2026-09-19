@@ -5747,6 +5747,16 @@ This spends about $0.50 of the approved test budget and needs Ruben's four varia
 
 ---
 
+## What A1's review changed that this plan pins (19 September 2026)
+
+A1's code-quality review fixed the contracts' design before A1 merged, without renaming anything. Fit these lines of this plan to A1 as merged before executing the tasks that carry them:
+- **`questionAfterProbe`** now measures the Excluded share (it asks when more than 40% of the probe is Excluded), names only one of the plan's exclusions (never a required criterion, and returns `ask: false` when no exclusion accounts for the excluded places), and drops a term only while another term with at least five places works. Re-pin every question sentence this plan asserts (search it for "Most of the first 25" and "Some of the first 25") from A1's `lead-search.test.mjs`.
+- **`classify`** names an exclusion before a criterion in `excluded_by`; only a required criterion gates the class (an optional one lowers the fit band); a `seen` pass that cites only `name` or `category` is a read.
+- **`placesToAsk`** returns zeros when nothing remains and may give a term 0: the runner starts no discover run for a term asked for 0 (search this plan for `maxCrawledPlacesPerSearch`).
+- **The probe's yield** that sizes the main round is the share of the probe's places that are not Excluded and hold what the contact standard needs (a phone, or a candidate email the cleaner kept), never the Qualified share, which is 0 under an email standard until the mailbox checks land (search this plan for `yieldOf`).
+- **`lead_check_commit` takes the checker run id** (`p_round_id, p_run_id, p_results, p_usage_usd, p_last`) and `p_usage_usd` is the run's total so far: the check handler passes the run and its total, never a per-batch delta.
+- **`parseJudgeAnswer`** accepts a `fail` or `unknown` citing an absent fact; the schema's `facts.items` is an enum of the fact keys; nullable fields are `anyOf` with null; the judge's content strips format characters (`\p{Cf}`) as well as control characters.
+
 ## Proven before this plan was written
 
 Everything below ran on 19 September 2026 in a worktree at origin/main `fbc5d871` (Windows 11, Git Bash, Node 22.14, pnpm 10.4.1), with A1's `packages/contracts/src/lead-search.ts` and `lead-judge.ts` taken verbatim from A1's plan, A1's `JobContext.leads` seam and its three handlers applied to `packages/jobs/src/handlers.ts`, A1's `leadSuppressionHash` added to `erasure.ts`, the three job kinds added to `enums.ts` and `schema-sets.generated.ts`, `[120_000, 600_000]` added to `RETRY_WAITS_MS`, and the tables, the view and the functions of 00139 stubbed into `packages/db/src/database.types.ts` in the generated shape. Nothing was committed anywhere; the worktree was removed afterwards.

@@ -4537,10 +4537,18 @@ Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-lead-a1";
 
 
 ## Three things A2's proof found for A1 to close in Task 4, before the push
+**Closed in the migration, 19 September, each proven to fail against the unedited SQL.**
 
 - `lead_check_commit` must count a member that meets its email standard only through the round's reservation (the same path `lead_collect_commit` takes), never past it; A2's runner relies on that.
 - `lead_searches_view` must expose the latest round's `cost_usd` beside `judge_tokens` (the internal runner reports cost per Qualified lead from it).
 - `leads_page` must return `place_id` with each row (the labelled set is keyed by place id for G2).
+
+## What this branch's reviews changed after the plan was written
+
+A code-quality review of each task, probing the live database, found these before the migration was pushed. Every one is in the branch, with its own test or assert.
+- **The contracts (Tasks 1–2).** The question after 25 measures the Excluded share, not the Qualified share (under an email standard nothing is Qualified until the mailbox checks land, so it asked on almost every email search); it names only one of the plan's own exclusions, never a required criterion, and its first word counts what it names; only a required criterion gates the class (decision 26 as written), and a `seen` pass citing only the name or the category is a read; the parser accepts a `fail` citing a missing fact; `placesToAsk` asks for nothing when nothing remains; a ZIP ask brings no centre yet; format characters are stripped beside control characters.
+- **The engine (Tasks 3–4).** The clock wakes for any round that has not ended, so a round whose start job died no longer holds its reservation for ever; a day's cap is released against the row its reservation took (a round crossing UTC midnight was releasing other workspaces' platform reservation); `lead_check_commit` takes the check run and settles off its high-water mark, so a retried check charges once; the page commit and Stop lock the round before the run, which was an ABBA deadlock; the write-in trigger does one index lookup per identifier; `has_permission` is the doors' own; a failed collect can be scheduled again; a removed search charges nobody; a blanked lead is not written; the nightly purge has its two indexes.
+- **The tests (Task 5).** `numeric` arrives from PostgREST as a number, not a string; the top-up reserves 6, not 5, now that a spent round's check counts nothing; the clock's own block was missing.
 
 ## Proven before this plan was written
 

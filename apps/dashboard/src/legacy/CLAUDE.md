@@ -2,9 +2,15 @@
 
 > **Status, 11 September 2026.** This tree is the signed-in operator shell, bridged to real data by `src/legacy-bridge`
 > (see `surface-registry.ts` for which surfaces are real). The mockup-only surfaces — Agents (fleet, store, studio,
-> tasks), Content, Pipeline and Leads, the shared report viewer — stay here and stay hidden from every real workspace.
+> tasks), Content, Pipeline, the shared report viewer — stay here and stay hidden from every real workspace.
 > Ruben's decision: most of it is revisited when the product is at 100%; none of those features is built before then.
 > Nothing below this line is a plan to build them.
+>
+> **Lifted for Leads, 18 September 2026:** Ruben lifted "hidden until 100%" for the lead finder, table first
+> (docs/plans/2026-09-17-people-table-and-lead-finder.md). Release A (00139, the engine) lands with no screen and the
+> switch off; Leads becomes a scope of People (`clients/leads…`) in release B, built from `pages/people-table.jsx`
+> lifted out of `clients-a.jsx`. The seeded `pages/leads.jsx` is retired. The stored sets are 00139's: a lead's stage is
+> `ready`, `nurture`, `converted` or `archived` with a reason; `qualifying` and `new` are the mockup's and are never stored.
 
 Single-page React (Babel, no bundler). These files load TWICE, from two lists that must stay identical: `../legacy-bridge/manifest.ts` (the app) and `Chanlytics.html` (the standalone harness, `node tooling/scripts/serve-legacy.mjs`). Order in both: `data/bridge-stubs.jsx` (harness) or `seed-globals.ts` (app) → components/*.jsx → data/*.jsx → pages/*.jsx → app-shell; `Chanlytics.html` loads tokens/css first.
 

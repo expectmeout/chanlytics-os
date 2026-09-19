@@ -170,6 +170,12 @@ export function haversineM(a: {lat,lng}, b: {lat,lng}): number; export function 
 - The `sweep_status` clock for leads asks the edge only when work exists.
 - `lead_searches_view` is listed in the tenancy proof with the tables.
 
+**A1's own review changed four more things (19 September), and A2 follows them:**
+- `lead_check_commit` takes the checker run: `lead_check_commit(p_round_id, p_run_id, p_results, p_usage_usd, p_last)`, and `p_usage_usd` is that run's total so far, not a delta (it settles off the run's high-water mark, as `lead_collect_commit` does, so a retried check job never charges twice).
+- `lead_searches_view` carries the latest round's `cost_usd`, and `leads_page` returns each lead's `place_id`.
+- A round carries the platform's UTC day beside its own month and day, so a release reaches the row its reservation took.
+- The clock wakes the edge for any round that has not ended, not only for a live run: a round whose start job died would otherwise hold its reservation for ever.
+
 ## Three things A2's proof found for A1 to close in Task 4, before the push
 
 - `lead_check_commit` must count a member that meets its email standard only through the round's reservation (the same path `lead_collect_commit` takes), never past it; A2's runner relies on that.
