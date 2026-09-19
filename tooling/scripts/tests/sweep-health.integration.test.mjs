@@ -36,7 +36,7 @@ test("sweep_health() names every watched sweep and every schedule exists", { ski
   // which 00097 had registered with sweep_status and never here. 00107 made
   // the register data and added the six clocks nobody had typed in: the
   // monthly partition precreate and the five nightly purges.
-  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
+  assert.deepEqual(data.map((r) => r.sweep), ["calendar", "calls", "deadman", "google", "health", "jobs", "leads", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_leads", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
   for (const r of data) assert.equal(r.scheduled, true, `${r.sweep}: ${r.detail}`);
 });
 
@@ -78,7 +78,7 @@ test("an unexpected sweep name cannot be added behind sweep_health()'s back", { 
   assert.match(error.message, /not registered/);
   const { data } = await db.from("sweep_status").select("sweep");
   // Seventeen: every clock has a row now, the ones that run inside Postgres included.
-  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
+  assert.deepEqual(data.map((r) => r.sweep).sort(), ["calendar", "calls", "deadman", "google", "health", "jobs", "leads", "lines", "partitions", "pauses", "playbooks", "purge_ask", "purge_cron_history", "purge_events", "purge_leads", "purge_notifications", "purge_rate_hits", "registration", "snoozes"]);
   // Belt and braces, in case a future migration ever widens the set.
   await db.from("sweep_status").delete().eq("sweep", "bogus");
 });
