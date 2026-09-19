@@ -576,9 +576,13 @@ export interface BookingReportDto {
 export interface BookingReportVM {
   /** False without a readable calendar: nothing to count against. */
   present: boolean;
+  /** Where the count came from: a calendar that was read, one that could not be read, or none connected. */
+  calendar: "ok" | "unavailable" | "none";
   /** "12 of 40 booked" */
   headline: string;
   sub: string;
+  /** What the share is of, for a page that draws the share itself (the sub is the share and these words); empty when nothing was counted. */
+  words: string;
   pct: number | null;
   asked: number;
   booked: number;
@@ -596,14 +600,17 @@ export function bookedAfterAsk(visits: Visits | null | undefined, askedMs: numbe
 }
 
 export function toBookingReportVM(dto: BookingReportDto | null | undefined): BookingReportVM {
-  if (!dto || dto.calendar === "none") return { present: false, headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", pct: null, asked: 0, booked: 0 };
-  if (dto.calendar === "unavailable") return { present: false, headline: "—", sub: "Your calendar could not be read.", pct: null, asked: dto.asked, booked: 0 };
-  if (dto.asked === 0) return { present: true, headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, pct: null, asked: 0, booked: 0 };
+  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "—", sub: "Connect your calendar under Settings › Business to see who booked.", words: "", pct: null, asked: 0, booked: 0 };
+  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "—", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0 };
+  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0 };
   const pct = Math.round((dto.booked / dto.asked) * 100);
+  const words = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
   return {
     present: true,
+    calendar: "ok",
     headline: `${dto.booked} of ${dto.asked} booked`,
-    sub: `${pct}% of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`,
+    sub: `${pct}% ${words}`,
+    words,
     pct,
     asked: dto.asked,
     booked: dto.booked,

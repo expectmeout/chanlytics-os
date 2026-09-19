@@ -363,6 +363,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       meta: `${reviewsWords(l.review_count)} · ${checked.toLowerCase()}`,
       delta: ratingDelta,
       spark: ratingSpark,
+      compare: null,
     },
     {
       id: "reviews",
@@ -371,6 +372,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       meta: "as Google counts them, with or without words",
       delta: null,
       spark: countSpark,
+      compare: null,
     },
     {
       id: "gained",
@@ -379,6 +381,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       meta: gained.total === null ? "needs a second day of reading" : gained.sinceLabel ? `since ${gained.sinceLabel}, the first day on record` : `new ratings, words or not`,
       delta: gained.total !== null && previous !== null ? deltaOf(gained.total, previous, true, noun) : null,
       spark: gained.points.map((p) => p.gained),
+      compare: null,
     },
     {
       id: "newest",
@@ -387,6 +390,7 @@ export function toGoogleVM(dto: GoogleDto, periodDays: number, nowMs = Date.now(
       meta: newest ? `${newest.stars} · ${newest.author}` : canReply ? "no review yet" : "none of the five Google shows has a date",
       delta: null,
       spark: [],
+      compare: null,
     },
   ];
 

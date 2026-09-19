@@ -107,3 +107,16 @@ test("the door: two periods by the business's clock, replied by the Broadcasts r
   assert.ok(p.includes('<RpSection label="Campaigns"') && p.includes('className="rp2-tiles rp2-strip-reception"'), "the page is sectioned, and the strip is one frame");
   assert.ok(!/\$\d|revenue|booked from/i.test(p.slice(p.indexOf("const ReportsReal"))), "nothing in dollars");
 });
+
+test("the one sentence under each campaign card: who said yes to messages or stop, and how many runs sent it", () => {
+  const vm = toCampaignReportVM(dto());
+  assert.equal(vm.lines.funnel, "3 people said yes to messages, 2 people asked to stop.", "never 'offers': a visit reminder is no offer (C25)");
+  assert.equal(vm.lines.sent, "From 3 broadcast and playbook runs.", "the win-back's two runs and the broadcast");
+  const one = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day, d.day === "2026-09-01" ? { sent: 6, opt_ins: 1, opt_outs: 1 } : {})), sources: [dto().sources[1]] }));
+  assert.equal(one.lines.funnel, "1 person said yes to messages, 1 person asked to stop.");
+  assert.equal(one.lines.sent, "From one broadcast or playbook run.");
+  const nothing = toCampaignReportVM(dto({ series: dto().series.map((d) => day(d.day)), sources: [] }));
+  assert.equal(nothing.lines.funnel, "Nobody said yes to messages or asked to stop.");
+  assert.equal(nothing.lines.sent, null, "no run sent anything");
+  assert.deepEqual(vm.tiles.map((t) => t.compare), [null, null, null, null, null], "a campaign tile compares nothing on Reports");
+});
