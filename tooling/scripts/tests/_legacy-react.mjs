@@ -1,0 +1,122 @@
+/**
+ * A stub React that renders the legacy tree's classic scripts on node, for the chart kit's and the Reports page's
+ * tests. It is the stub reports-honest.test.mjs grew, shared, with layout effects added: function components render
+ * when created (children first, as JSX evaluates), hooks are cells in call order, an effect runs when its inputs
+ * change after its last cleanup, and a tree is plain objects to walk.
+ *
+ * An effect runs inside the hook call, before any ref is attached, so a chart's useChartWidth never measures here:
+ * every chart draws at its 600px start, which is what the tests read.
+ *
+ * window IS globalThis here, as it is in a browser, so a classic script's Object.assign(window, {...}) makes names
+ * the next script reads bare. The bridge's CSV rule (contracts' csvCell, window.__csvCell) is seeded from contracts,
+ * as seed-globals.ts publishes it in the app.
+ *
+ * Not named *.test.mjs on purpose: the runner globs that pattern.
+ */
+import { csvCell } from "@chanlytics/contracts";
+
+const listeners = {};
+const storage = () => {
+  const m = new Map();
+  return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
+};
+const cells = { list: [], seq: 0 };
+
+export function installLegacyReact(extra = {}) {
+  globalThis.window = globalThis;
+  Object.assign(globalThis, {
+    localStorage: storage(),
+    sessionStorage: storage(),
+    location: { pathname: "/w/studio", hash: "#/reports", origin: "https://app.chanlytics.com", assign() {}, replace() {}, reload() {} },
+    history: { replaceState() {} },
+    innerHeight: 800,
+    addEventListener: (type, fn) => { (listeners[type] ||= new Set()).add(fn); },
+    removeEventListener: (type, fn) => { listeners[type]?.delete(fn); },
+    dispatchEvent: (ev) => { for (const fn of [...(listeners[ev.type] || [])]) fn(ev); return true; },
+    matchMedia: () => ({ matches: false, addEventListener() {}, removeEventListener() {} }),
+    Icon: "Icon",
+    __csvCell: csvCell,
+    ...extra,
+  });
+  globalThis.document = {
+    body: { appendChild() {} }, activeElement: null, addEventListener() {}, removeEventListener() {}, getElementById: () => null,
+    createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} }, click() {}, remove() {} }),
+  };
+  const effect = (fn, deps) => {
+    const k = cells.seq++;
+    const prev = cells.list[k];
+    if (prev && deps && prev.deps && deps.length === prev.deps.length && deps.every((d, i) => Object.is(d, prev.deps[i]))) return;
+    if (prev && typeof prev.cleanup === "function") prev.cleanup();
+    cells.list[k] = { deps, cleanup: undefined };
+    cells.list[k].cleanup = fn();
+  };
+  globalThis.React = {
+    Fragment: "Fragment",
+    createElement: (type, p, ...kids) => {
+      const props = { ...(p || {}), children: kids.flat(Infinity) };
+      const node = { type, props };
+      if (typeof type === "function") node.rendered = type(props);
+      return node;
+    },
+    useState: (init) => {
+      const k = cells.seq++;
+      if (!(k in cells.list)) cells.list[k] = typeof init === "function" ? init() : init;
+      return [cells.list[k], (v) => { cells.list[k] = typeof v === "function" ? v(cells.list[k]) : v; }];
+    },
+    useReducer: (red, init) => {
+      const k = cells.seq++;
+      if (!(k in cells.list)) cells.list[k] = init;
+      return [cells.list[k], (a) => { cells.list[k] = red(cells.list[k], a); }];
+    },
+    useRef: (init) => {
+      const k = cells.seq++;
+      if (!(k in cells.list)) cells.list[k] = { current: init };
+      return cells.list[k];
+    },
+    useMemo: (fn) => fn(),
+    useCallback: (fn) => fn,
+    useEffect: effect,
+    useLayoutEffect: effect,
+  };
+  globalThis.ReactDOM = { createPortal: (node) => node };
+}
+
+/** A new tree: every hook cell and every listener forgotten. */
+export function fresh() {
+  cells.list = [];
+  cells.seq = 0;
+  for (const k of Object.keys(listeners)) delete listeners[k];
+}
+
+/** Draw again over the same cells, as React would after a state change. */
+export function again(draw) {
+  cells.seq = 0;
+  return draw();
+}
+
+export const walk = (n, fn) => {
+  if (n == null || typeof n !== "object") return;
+  if (Array.isArray(n)) { for (const k of n) walk(k, fn); return; }
+  fn(n);
+  walk(n.props?.children, fn);
+  walk(n.rendered, fn);
+};
+/** A drawn component is walked as the children it was given and as what it rendered: each node counts once. */
+export const all = (tree, pred) => {
+  const out = [];
+  const seen = new Set();
+  walk(tree, (n) => { if (!seen.has(n) && pred(n)) { seen.add(n); out.push(n); } });
+  return out;
+};
+export const find = (tree, pred) => all(tree, pred)[0] ?? null;
+export const byTestId = (tree, id) => find(tree, (n) => n.props?.["data-testid"] === id);
+export const textOf = (n) => {
+  if (n == null || typeof n === "boolean") return "";
+  if (typeof n === "string" || typeof n === "number") return String(n);
+  if (Array.isArray(n)) return n.map(textOf).join("");
+  if (n.rendered !== undefined) return textOf(n.rendered);
+  return textOf(n.props?.children);
+};
+export const classes = (n) => String(n?.props?.className || "").split(/\s+/).filter(Boolean);
+export const press = (node) => node.props.onClick({ stopPropagation() {}, preventDefault() {} });
+export const settle = () => new Promise((r) => setImmediate(r));

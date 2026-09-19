@@ -1,0 +1,205 @@
+/* Chanlytics chart kit: the palette and the chrome every chart shares.
+
+   The palette was checked with the dataviz skill's validate_palette.js against the surfaces the charts sit on (the
+   card: light #ffffff, dark oklch(0.2 0.006 260) = #141619), in both themes:
+   - ink (#3a65b8 / #5a84d4) is the one data hue: the receptionist, this period, any single series;
+   - the categorical order ink, apricot, plum, sand, rose passes as a 4- and a 5-slice ring (a donut's last slice
+     touches its first): worst CVD dE 8.6, worst normal-vision dE 17.4, both themes. Channels only;
+   - the ordinal ink ramp is monotone with dL >= 0.06 and a light end >= 2:1 in both themes;
+   - the accent (coral) and the status colours stay out: the accent is for live state only, and status (warn for
+     unanswered, ok and danger for a caller's mood) always rides with an icon or a word.
+   A change to any token re-runs the validator before it ships. */
+
+[data-theme="light"] {
+  --chart-1: #3a65b8;
+  --chart-1-soft: #7398dc;
+  --chart-cat-1: #3a65b8;
+  --chart-cat-2: #d98854;
+  --chart-cat-3: #94559e;
+  --chart-cat-4: #baa851;
+  --chart-cat-5: #bc598c;
+  --chart-ramp-1: #95b3e9;
+  --chart-ramp-2: #7398dc;
+  --chart-ramp-3: #547ecd;
+  --chart-ramp-4: #3a65b8;
+  --chart-ramp-5: #234993;
+  --chart-prior: #a3a5a8;
+  --chart-track: oklch(0.945 0.02 262);
+  --chart-empty: oklch(0.965 0.004 80);
+}
+[data-theme="dark"] {
+  --chart-1: #5a84d4;
+  --chart-1-soft: #3c61a7;
+  --chart-cat-1: #5a84d4;
+  --chart-cat-2: #cb7b48;
+  --chart-cat-3: #a86cb1;
+  --chart-cat-4: #a39340;
+  --chart-cat-5: #c66897;
+  --chart-ramp-1: #2e4b83;
+  --chart-ramp-2: #3c61a7;
+  --chart-ramp-3: #4e78c7;
+  --chart-ramp-4: #6991dc;
+  --chart-ramp-5: #92b2eb;
+  --chart-prior: #616368;
+  --chart-track: oklch(0.275 0.03 262);
+  --chart-empty: oklch(0.235 0.006 260);
+}
+
+/* ---------- plot chrome ---------- */
+/* touch-action: a finger scrolls the page up and down, and drags across a chart to read it. */
+.ck-plot { position: relative; width: 100%; outline: none; border-radius: 6px; touch-action: pan-y; }
+.ck-plot:focus-visible, .ck-pie-figure:focus-visible { box-shadow: var(--focus-ring); }
+.ck-svg { display: block; overflow: visible; }
+.ck-grid { stroke: var(--line); stroke-width: 1; fill: none; shape-rendering: crispEdges; }
+.ck-base { stroke: var(--line-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.ck-tick { font-family: var(--font-mono); font-size: 10.5px; fill: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.ck-bar { transition: opacity var(--duration-fast) var(--ease-out); }
+.ck-col.dim .ck-bar { opacity: 0.42; }
+.ck-line { fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ck-area { pointer-events: none; }
+.ck-prior { fill: none; stroke: var(--chart-prior); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.ck-crosshair { stroke: var(--line-strong); stroke-width: 1; shape-rendering: crispEdges; }
+.ck-dot { stroke: var(--bg-raised); stroke-width: 2; }
+.ck-dot.prior { fill: var(--chart-prior); }
+.ck-ref line { stroke: var(--ink-faint); stroke-width: 1; shape-rendering: crispEdges; }
+.ck-ref text { font-family: var(--font-mono); font-size: 10.5px; fill: var(--ink-dim); }
+.ck-live { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+
+/* ---------- keys, legend, tooltip ---------- */
+.ck-key { display: inline-block; flex: none; background: var(--k); }
+.ck-key.rect { width: 9px; height: 9px; border-radius: 2.5px; }
+.ck-key.line { width: 12px; height: 2px; border-radius: 1px; }
+.ck-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; font-size: 12px; color: var(--ink-muted); }
+.ck-legend-item { display: inline-flex; align-items: center; gap: 6px; }
+.ck-legend-icon { color: var(--warn-ink); }
+.ck-legend-value { color: var(--ink); font-weight: 600; }
+/* Above the plot, beside the point: .start to its right, .end to its left, .pin across the plot when neither side
+   holds 260px (chart-core.jsx decides in pixels). */
+.ck-tip {
+  position: absolute; z-index: 6; top: 0; pointer-events: none;
+  width: max-content; min-width: 164px; max-width: 260px; padding: 9px 11px;
+  background: var(--bg-raised); border: 1px solid var(--line); border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md); font-size: 12px; line-height: 1.45;
+  transform: translate(14px, calc(-100% - 6px));
+  animation: ck-fade var(--duration-fast) var(--ease-out);
+}
+.ck-tip.end { transform: translate(calc(-100% - 14px), calc(-100% - 6px)); }
+.ck-tip.pin { left: 0; right: 0; width: auto; min-width: 0; max-width: none; transform: translateY(calc(-100% - 6px)); }
+.ck-tip-title { font-size: 11.5px; color: var(--ink-dim); margin-bottom: 5px; }
+.ck-tip-row { display: flex; align-items: center; gap: 7px; }
+.ck-tip-row + .ck-tip-row { margin-top: 3px; }
+.ck-tip-value { min-width: 24px; text-align: right; font-weight: 600; color: var(--ink); font-variant-numeric: tabular-nums; }
+.ck-tip-label { color: var(--ink-muted); }
+.ck-tip-note { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line); color: var(--ink-dim); font-size: 11.5px; }
+
+/* ---------- card ---------- */
+.ck-card {
+  display: flex; flex-direction: column; gap: 12px; min-width: 0;
+  padding: 14px 18px 16px; background: var(--bg-raised);
+  border: 1px solid var(--line); border-radius: var(--radius-lg);
+}
+.ck-card-head { display: flex; align-items: flex-start; gap: 12px; }
+.ck-card-titles { flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.ck-card-title { margin: 0; font-size: 13.5px; font-weight: 500; color: var(--ink); letter-spacing: -0.005em; line-height: 1.35; }
+.ck-card-takeaway { margin: 0; font-size: 12.5px; color: var(--ink-dim); line-height: 1.45; }
+.ck-card-actions { display: flex; align-items: center; gap: 6px; flex: none; }
+/* The switch and the CSV wait for the pointer or the keyboard; a touch screen shows them always. */
+@media (hover: hover) {
+  .ck-card-actions { opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
+  .ck-card:hover .ck-card-actions, .ck-card:focus-within .ck-card-actions, .ck-card.is-table .ck-card-actions { opacity: 1; }
+}
+.ck-card-body { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ck-seg { display: inline-flex; padding: 2px; gap: 2px; border-radius: 7px; background: var(--bg-sunken); border: 1px solid var(--line); }
+.ck-seg button { font-size: 11.5px; line-height: 1; padding: 5px 8px; border-radius: 5px; color: var(--ink-dim); transition: background var(--duration-fast), color var(--duration-fast); }
+.ck-seg button:hover { color: var(--ink); }
+.ck-seg button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
+.ck-icon-btn { width: 26px; height: 26px; display: grid; place-items: center; border-radius: 6px; color: var(--ink-dim); }
+.ck-icon-btn:hover { background: var(--bg-hover); color: var(--ink); }
+.ck-seg button:focus-visible, .ck-icon-btn:focus-visible { box-shadow: var(--focus-ring); outline: none; }
+/* On a touch screen legacy.css gives every control 44px of height; the icon button gets the width to match. */
+@media (pointer: coarse) { .ck-icon-btn { min-width: 44px; } }
+
+/* ---------- table twin ---------- */
+.ck-table-wrap { overflow: auto; max-height: 300px; border-radius: 8px; }
+.ck-table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+.ck-table th { position: sticky; top: 0; background: var(--bg-raised); text-align: left; font-weight: 500; color: var(--ink-dim); padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+.ck-table td { padding: 5px 10px; color: var(--ink-muted); white-space: nowrap; }
+.ck-table tbody tr:hover td { background: var(--bg-hover); color: var(--ink); }
+.ck-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.ck-table-empty { color: var(--ink-dim); text-align: center; padding: 18px; }
+
+/* ---------- bar list: a label and its value on one line, the bar under them ---------- */
+.ck-barlist { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.ck-barlist-row { display: flex; flex-direction: column; gap: 7px; width: calc(100% + 16px); padding: 7px 8px 8px; margin: 0 -8px; border-radius: 8px; text-align: left; font-size: 12.5px; color: var(--ink-muted); }
+.ck-barlist-row.door { cursor: pointer; }
+.ck-barlist-row.door:hover { background: var(--bg-hover); color: var(--ink); }
+.ck-barlist-row:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+.ck-barlist-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; min-width: 0; }
+.ck-barlist-label { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-barlist-value { flex: none; font-weight: 600; color: var(--ink); white-space: pre; }
+.ck-barlist-track { display: block; height: 6px; }
+.ck-barlist-bar { display: block; height: 6px; border-radius: 0 3px 3px 0; transform-origin: left center; }
+
+/* ---------- segment bar: one bar in its parts, a legend under it ---------- */
+.ck-segbar { display: flex; flex-direction: column; gap: 9px; }
+.ck-segbar-title { font-size: 11.5px; color: var(--ink-dim); }
+.ck-segbar-bar { display: flex; gap: 2px; height: 10px; }
+.ck-segbar-bar.small { height: 8px; }
+.ck-segbar-bar i { display: block; min-width: 3px; }
+.ck-segbar-bar i:first-child { border-radius: 4px 0 0 4px; }
+.ck-segbar-bar i:last-child { border-radius: 0 4px 4px 0; }
+.ck-segbar-bar i:only-child { border-radius: 4px; }
+.ck-segbar .ck-legend { gap: 5px 14px; font-size: 11.5px; }
+
+/* ---------- donut ---------- */
+.ck-pie { display: flex; align-items: center; gap: 20px; }
+.ck-pie-figure { position: relative; flex: none; outline: none; border-radius: 50%; }
+.ck-pie-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; pointer-events: none; }
+.ck-pie-value { font-size: 24px; font-weight: 500; color: var(--ink); letter-spacing: -0.02em; line-height: 1.1; }
+.ck-pie-label { font-size: 11.5px; color: var(--ink-dim); text-align: center; }
+.ck-slice { stroke: var(--bg-raised); stroke-width: 2; stroke-linejoin: round; transition: opacity var(--duration-fast) var(--ease-out); }
+.ck-slice.dim { opacity: 0.38; }
+.ck-pie-legend { list-style: none; margin: 0; padding: 0; flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 9px; }
+.ck-pie-legend li { display: grid; grid-template-columns: 9px minmax(0, 1fr) auto 38px; align-items: center; gap: 9px; font-size: 12.5px; color: var(--ink-muted); transition: opacity var(--duration-fast); }
+.ck-pie-legend li.dim { opacity: 0.45; }
+.ck-pie-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ck-pie-count { color: var(--ink); font-weight: 600; font-variant-numeric: tabular-nums; }
+.ck-pie-share { text-align: right; color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+/* One slice is a whole: its number stands where the ring would, beside its one row. */
+.ck-pie-one { align-items: center; }
+.ck-pie-whole { flex: none; min-width: 112px; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+
+/* ---------- radar ---------- */
+.ck-ring { fill: none; }
+.ck-spoke.hot { stroke: var(--line-strong); stroke-width: 1; }
+.ck-radar-label { font-family: var(--font-sans); font-size: 11px; fill: var(--ink-dim); }
+.ck-radar-label.hot { fill: var(--ink); font-weight: 500; }
+.ck-radar-line { stroke-width: 2; stroke-linejoin: round; fill-opacity: 0.12; }
+.ck-radar-line.prior { stroke: var(--chart-prior); fill: none; }
+
+/* ---------- radial ---------- */
+.ck-radial { position: relative; flex: none; }
+.ck-radial-track { fill: none; stroke: var(--chart-track); stroke-linecap: round; }
+.ck-radial-value { fill: none; stroke: var(--chart-1); stroke-linecap: round; }
+.ck-radial-marker { stroke: var(--ink-muted); stroke-width: 2; stroke-linecap: round; }
+.ck-radial-center { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
+
+/* ---------- heat strip ---------- */
+.ck-cell { transition: opacity var(--duration-fast) var(--ease-out); }
+.ck-cell.dim { opacity: 0.5; }
+
+/* ---------- motion: once, on arrival or a new period; never a loop, never under reduced motion ---------- */
+@keyframes ck-fade { from { opacity: 0; } }
+@keyframes ck-grow-y { from { transform: scaleY(0); } }
+@keyframes ck-grow-x { from { transform: scaleX(0); } }
+@keyframes ck-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes ck-sweep { from { stroke-dasharray: 0 99999; } }
+@media (prefers-reduced-motion: no-preference) {
+  .ck-col .ck-bar { transform-box: fill-box; transform-origin: 50% 100%; animation: ck-grow-y 520ms var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 60) * 6ms); }
+  .ck-draw { stroke-dasharray: 1; stroke-dashoffset: 0; animation: ck-draw 900ms var(--ease-out) both; }
+  .ck-area { animation: ck-fade 700ms var(--ease-out) 200ms both; }
+  .ck-barlist-bar { animation: ck-grow-x 560ms var(--ease-out) both; animation-delay: calc(var(--i, 0) * 50ms); }
+  .ck-slice { animation: ck-fade 500ms var(--ease-out) both; }
+  .ck-radial-value { stroke-dasharray: calc(var(--len) * 1px) 99999; animation: ck-sweep 1000ms var(--ease-out) both; }
+}
+@media (prefers-reduced-motion: reduce) { .ck-tip { animation: none; } }

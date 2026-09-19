@@ -69,6 +69,7 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "monitor":  return <svg {...props}><rect x="1.5" y="2.5" width="13" height="8.5" rx="1.5"/><path d="M6 13.5h4M8 11v2.5"/></svg>;
     case "user":     return <svg {...props}><circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14a5.5 5.5 0 0111 0"/></svg>;
     case "sidebar":  return <svg {...props}><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11"/></svg>;
+    case "download": return <svg {...props}><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7"/><path d="M3 13h10"/></svg>;
     default: return <svg {...props}><circle cx="8" cy="8" r="3"/></svg>;
   }
 };
