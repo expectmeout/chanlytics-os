@@ -155,3 +155,17 @@ export function haversineM(a: {lat,lng}, b: {lat,lng}): number; export function 
 - `tooling/scripts/lead-search.mjs --workspace <slug> --plan <file.json> [--wait]`: signs in as the nightly's owner (the E2E_* env the nightly uses), posts the plan, polls `GET lead-searches/[id]` until ended, prints the round's ending and counts, and with `--label <labels.json>` scores the members against the labelled set (G2: precision of `qualified` by category, the 95% Wilson interval, yield, review share, cost per qualified from `cost_usd`).
 - G3: `tooling/scripts/tests/lead-engine.db.test.mjs` on the real local Postgres: duplicate claims (one wins), competing reservations (the last unit goes once), a stale lease (generation refused), a late webhook (final scheduled once), Stop during checks (the round ends 'stopped' after checks), month rollover (a refund credits the old month), erasure mid-run (the erased place is not inserted), the shared-phone triple (two delivered, marked, no person made), five asked and twenty qualified count five, put back of a hidden place refused, an out-of-area place is review/excluded by rule.
 - The replay: `tooling/scripts/tests/lead-search-replay.test.mjs` over `_fake-db.mjs` with the fixtures (real shape, fictional values): a whole search from create to ended, the webhook, and a killed collect resumed by the sweep.
+
+## Where A1 departed from this file, and A2 follows A1 (recorded 19 September, after A1 was proven on the local Postgres)
+
+- `jobs.due_at` is the column, not `run_after`.
+- `RETRY_WAITS_MS` gains the three kinds as `[120_000, 600_000]`: the ledger test caps the waits at `MAX_ATTEMPTS - 1` and demands each exceeds the 90-second lease.
+- A1 adds a `leads` seam on `JobContext` and three entries in `HANDLERS` (a `Record<JobKind, …>` will not build without them); A2 replaces those entries with the real handlers.
+- `lead_search_create` and `lead_search_more` take `p_estimate_usd numeric` (the route computes `estimateRoundUsd`; SQL stores it); there is no `lead_round_estimate_usd`.
+- `lead_search_create`'s refusal writes the `lead.no_card` event itself (the event-kinds lint fails a kind nothing emits). Refusals return `{ error, sentence }`.
+- `lead_collect_commit`'s `p_page` carries `round.target` and `round.ending_pending`, and `judgments` as an array (one per batch of 25 on the page); the suppression check runs inside the commit.
+- `leads.place_id` is nullable (a duplicate listing without one); `lead_rounds` has `month`, `day` and `ending_pending` columns.
+- `has_permission(uid, tenant, perm)` is created by A1; nothing on main had it.
+- `leads_page` keysets on one key spelled `<k>|<id>`.
+- The `sweep_status` clock for leads asks the edge only when work exists.
+- `lead_searches_view` is listed in the tenancy proof with the tables.
