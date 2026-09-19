@@ -136,6 +136,11 @@ before(async () => {
   // first (the guard allows one live round, and seq 1 needs no session).
   ctx.leadSearch = await seed("lead_searches", { tenant_id: A, via: "people", card: "local_businesses", name: "tenancy search", asked: "tenancy", plan: {} });
   ctx.leadRound = await seed("lead_rounds", { tenant_id: A, search_id: ctx.leadSearch, seq: 1, purpose: "probe", plan: {}, plan_version: 1, target: 5, month: "2026-09", day: "2026-09-19" });
+  // Ended as soon as it exists: a round that has not ended is lead work to
+  // the lead finder's clock, and lead-engine.db.test.mjs runs beside this
+  // suite. queued -> ended is allowed, and the row wants its ending with it.
+  const roundEnded = await db.from("lead_rounds").update({ state: "ended", ending: "stopped" }).eq("id", ctx.leadRound);
+  assert.equal(roundEnded.error, null, `ending the tenancy round: ${roundEnded.error?.message}`);
   await seed("lead_runs", { tenant_id: A, round_id: ctx.leadRound, purpose: "discover", actor: "card-a", build: "1", webhook_token_hash: "tenancy" });
   await seed("lead_judgments", { tenant_id: A, round_id: ctx.leadRound, op_id: `tenancy-${Date.now()}`, answer: {} }, null);
   ctx.lead = await seed("leads", { tenant_id: A, place_id: "ChIJtenancy0001", business_name: "Tenancy Salon" });

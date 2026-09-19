@@ -123,14 +123,19 @@ after(async () => {
   const p = await db.from("lead_platform").select("tenants_on").eq("id", true).single();
   if (p.data) await db.from("lead_platform").update({ tenants_on: (p.data.tenants_on ?? []).filter((t) => t !== A) }).eq("id", true);
   for (const id of [A, B].filter(Boolean)) {
+    for (const r of (await db.from("lead_rounds").select("platform_day").eq("tenant_id", id)).data ?? []) platformDays.add(r.platform_day);
     await db.from("events").delete().eq("tenant_id", id);
     await db.from("tenants").delete().eq("id", id);
   }
-  await db.from("lead_counters").delete().is("tenant_id", null);
+  // The platform's day counter carries no workspace, so it does not cascade
+  // -- and it is the platform's, shared with every suite: take back exactly
+  // the day rows this suite's own rounds reserved in, and nothing else.
+  if (platformDays.size) await db.from("lead_counters").delete().is("tenant_id", null).eq("kind", "day").in("period", [...platformDays]);
   for (const id of users) await db.auth.admin.deleteUser(id).catch(() => {});
 });
 
 const ids = {}; // what the tests hand each other, in order
+const platformDays = new Set(); // the UTC day rows this suite's rounds reserved in: they carry no workspace, so they never cascade
 
 test("has_permission is ROLE_PERMS in SQL: every role and permission agree, and find is the owner's alone", { skip }, async () => {
   const who = { owner: owner.userId, operator: operator.userId };
@@ -178,8 +183,11 @@ test("create reserves the count and the estimate in one transaction, writes the 
   assert.deepEqual(await counter("allowance", month), { used: 0, reserved: 5 });
   assert.deepEqual(await counter("budget", month), { used: 0, reserved: 0.05 });
   assert.deepEqual(await counter("day", round.day), { used: 0, reserved: 0.05 });
-  const job = ok(await db.from("jobs").select("state, tenant_id").eq("kind", "lead_round_start").eq("payload->>round_id", r.round_id));
-  assert.deepEqual(job, [{ state: "scheduled", tenant_id: A }], "the start job is written with the round");
+  // What the door wrote, not what the ledger did with it: jobs are claimed by
+  // whatever heartbeat is running, and another database suite's claim may be
+  // holding this one by the time it is read.
+  const job = ok(await db.from("jobs").select("tenant_id, payload").eq("kind", "lead_round_start").eq("payload->>round_id", r.round_id));
+  assert.deepEqual(job, [{ tenant_id: A, payload: { round_id: r.round_id } }], "the start job is written with the round, once");
   const ev = ok(await db.from("events").select("data").eq("tenant_id", A).eq("kind", "lead.round").eq("subject_id", r.round_id));
   assert.equal(ev[0].data.state, "queued");
 
@@ -252,6 +260,22 @@ test("the run is claimed once, leased by owner and generation, and a page commit
   assert.equal(ok(await db.rpc("lead_run_release", { p_run_id: run.id, p_owner: "w1", p_gen: 0 })), true, "released by the holder with the generation");
 });
 
+test("a start whose answer was lost is unknown until the sweep finds it in the provider's list, and reconciles only from unknown", { skip }, async () => {
+  const lost = ok(await db.from("lead_runs").insert({ tenant_id: A, round_id: ids.round1, purpose: "discover", term: "lost", actor: "card-a", build: "1", webhook_token_hash: `lost-${Date.now()}` }).select("id").single());
+  assert.equal(ok(await db.rpc("lead_run_mark_unknown", { p_run_id: lost.id, p_owner: "w9" })), false, "nothing is unknown before it is claimed");
+  assert.equal(ok(await db.rpc("lead_run_claim", { p_run_id: lost.id, p_owner: "w9" })), true);
+  assert.equal(ok(await db.rpc("lead_run_mark_unknown", { p_run_id: lost.id, p_owner: "w8" })), false, "and only the claimer says so");
+  assert.equal(ok(await db.rpc("lead_run_mark_unknown", { p_run_id: lost.id, p_owner: "w9" })), true);
+  assert.equal(ok(await db.from("lead_runs").select("state").eq("id", lost.id).single()).state, "unknown", "never blindly started again");
+  const apr = `apr-lost-${Date.now()}`;
+  assert.equal(ok(await db.rpc("lead_run_reconcile", { p_run_id: lost.id, p_apify_run_id: apr, p_dataset_id: "ds-lost", p_state: "succeeded" })), true, "the sweep found it, with the state the provider gave");
+  const back = ok(await db.from("lead_runs").select("state, apify_run_id, dataset_id, finished_at").eq("id", lost.id).single());
+  assert.deepEqual([back.state, back.apify_run_id, back.dataset_id, back.finished_at !== null], ["succeeded", apr, "ds-lost", true]);
+  assert.equal(ok(await db.rpc("lead_run_reconcile", { p_run_id: lost.id, p_apify_run_id: apr, p_dataset_id: "ds-lost", p_state: "running" })), false, "and only from unknown");
+  const bad = await db.rpc("lead_run_reconcile", { p_run_id: lost.id, p_apify_run_id: apr, p_dataset_id: "ds-lost", p_state: "queued" });
+  assert.match(bad.error?.message ?? "", /running or finished/, "a state the provider never gives is a caller's bug");
+});
+
 test("the shared-phone triple: three places with one number, one already in the workspace; the other two are delivered and marked, and no person is made", { skip }, async () => {
   const person = ok(await db.from("contacts").insert({ tenant_id: A, phone_e164: "+15125550177", display_name: "Corner Deli" }).select("id").single());
   const run = await runOf(ids.round2, "deli", "w1");
@@ -266,7 +290,10 @@ test("the shared-phone triple: three places with one number, one already in the 
   assert.equal(withNumber, 3, "three places, three leads, one number: never merged");
   for (const pid of ["ChIJfixture0102", "ChIJfixture0103"]) {
     const m = await member(ids.search2, (await leadByPlace(pid)).id);
-    assert.ok(m.judgment.shares.some((s) => s.contact_id === person.id), "marked as sharing the number with the person");
+    // The values are the page's; what is pinned is where the engine put them
+    // and what else it wrote: the page's shares land on the MEMBERSHIP's
+    // judgment beside the judge's reasons, and nothing else is added.
+    assert.deepEqual(m.judgment, { reasons: [], shares }, "the judgment is the judge's reasons and the page's shares, and nothing more");
   }
   const { count: after_ } = await db.from("contacts").select("id", { count: "exact", head: true }).eq("tenant_id", A);
   assert.equal(after_, before, "no person was made");
@@ -320,11 +347,23 @@ test("keep, exclude and put back write their operation rows; undo refuses a chan
   assert.equal(ok(await owner.client.rpc("lead_member_keep", { p_search_id: ids.search1, p_lead_id: a })).error, "state", "kept twice is refused");
 
   assert.equal(ok(await owner.client.rpc("lead_undo", { p_op_id: r.op_id, p_version: 1 })).error, "changed", "undo with the version the client did not see");
+
+  // "The lead goes back to the allowance of the month it counted in" (S11) is
+  // only a claim while that month is this one. Move the keep back a month --
+  // the member's row and the operation's record of it -- and seed that
+  // month's counter, so the credit has somewhere else to land.
+  const last = leadMonth(TZ, new Date(Date.now() - 45 * 86_400_000));
+  assert.notEqual(last, month, "a month that is not this one");
+  ok(await db.from("lead_search_members").update({ counted_month: last }).eq("search_id", ids.search1).eq("lead_id", a));
+  ok(await db.from("lead_operations").update({ after: { ...op.after, counted_month: last } }).eq("id", op.id));
+  ok(await db.from("lead_counters").insert({ tenant_id: A, kind: "allowance", period: last, used: 3 }));
+
   r = ok(await owner.client.rpc("lead_undo", { p_op_id: r.op_id, p_version: 2 }));
   assert.deepEqual(r, { ok: true, version: 3 });
   m = await member(ids.search1, a);
   assert.deepEqual([m.class, m.counted, m.counted_month, m.version], ["review", false, null, 3], "back in review");
-  assert.deepEqual(await counter("allowance", month), { used: 8, reserved: 0 }, "undo credits the month it counted in");
+  assert.deepEqual(await counter("allowance", last), { used: 2, reserved: 0 }, "undo credits the month it counted in");
+  assert.deepEqual(await counter("allowance", month), { used: 9, reserved: 0 }, "and never this one");
   assert.equal(ok(await owner.client.rpc("lead_undo", { p_op_id: op.id, p_version: 2 })).error, "undone", "undone once");
 
   r = ok(await owner.client.rpc("lead_member_exclude", { p_search_id: ids.search1, p_lead_id: b }));
@@ -341,6 +380,12 @@ test("keep, exclude and put back write their operation rows; undo refuses a chan
   assert.equal(ok(await owner.client.rpc("lead_member_put_back", { p_search_id: ids.search1, p_lead_id: c })).error, "hidden", "a customer is hidden");
   assert.equal(ok(await owner.client.rpc("lead_member_put_back", { p_search_id: ids.search1, p_lead_id: d })).error, "out_of_area", "out of area stays out");
   assert.equal(ok(await owner.client.rpc("lead_member_exclude", { p_search_id: ids.search1, p_lead_id: c })).error, "state", "exclude wants a member in review");
+  // Neither Put back nor Keep revives a hidden or an out-of-area place (§0.1).
+  // Put back is refused by name above; Keep never reaches either, because the
+  // only members it takes are in review or qualified and not yet counted, and
+  // both of these were left out.
+  assert.equal(ok(await owner.client.rpc("lead_member_keep", { p_search_id: ids.search1, p_lead_id: c })).error, "state", "a customer's place is never kept either");
+  assert.equal(ok(await owner.client.rpc("lead_member_keep", { p_search_id: ids.search1, p_lead_id: d })).error, "state", "nor an out-of-area one");
   assert.equal(ok(await owner.client.rpc("lead_member_keep", { p_search_id: ids.search1, p_lead_id: "00000000-0000-4000-8000-000000000000" })).error, "not_found");
 });
 
@@ -372,6 +417,16 @@ test("the check qualifies a member the email standard alone held back; the last 
   m = await member(ids.search1, e);
   assert.equal(m.class, "review", "a bounce stays in review, marked invalid on the lead");
   assert.equal((await leadByPlace("ChIJfixture0206")).email_state, "invalid");
+
+  // Qualified and not counted is the state Keep is for, and the zero-room
+  // check is the only thing that makes it: the owner takes the one the round
+  // had no room for, and the month's allowance moves now.
+  const allowanceWas = await counter("allowance", month);
+  const kept = ok(await owner.client.rpc("lead_member_keep", { p_search_id: ids.search1, p_lead_id: a }));
+  assert.deepEqual([kept.version, kept.counted], [5, true], "keep takes a qualified member the round could not count");
+  const km = await member(ids.search1, a);
+  assert.deepEqual([km.class, km.counted, km.counted_month], ["qualified", true, month]);
+  assert.deepEqual(await counter("allowance", month), { used: allowanceWas.used + 1, reserved: allowanceWas.reserved }, "and it counts now");
 
   const budgetAfter = await counter("budget", month);
   assert.equal((budgetAfter.used - budgetBefore.used).toFixed(4), "0.0010", "the batch is charged");
@@ -424,9 +479,9 @@ test("the same answer on a round that still has room counts, and the month's all
 test("a top-up reserves the count minus what counted; the question waits on the owner and keep, include and stop answer it; Stop moves the generation so a late worker cannot publish", { skip }, async () => {
   let r = ok(await owner.client.rpc("lead_search_more", { p_search_id: ids.search1, p_purpose: "topup", p_plan: plan(5), p_estimate_usd: 0.05 }));
   assert.equal(r.error, "nothing_to_add", JSON.stringify(r));
-  assert.equal(r.counted, 6, "five on the first page and one put back; the checked one never counted");
+  assert.equal(r.counted, 7, "five on the first page, one put back, one kept after the check");
   r = ok(await owner.client.rpc("lead_search_more", { p_search_id: ids.search1, p_purpose: "topup", p_plan: plan(12, 2), p_estimate_usd: 0.05 }));
-  assert.deepEqual([r.seq, r.target], [2, 6], "the count minus what counted");
+  assert.deepEqual([r.seq, r.target], [2, 5], "the count minus what counted");
   ids.round3 = r.round_id;
   assert.equal(ok(await db.from("lead_searches").select("plan").eq("id", ids.search1).single()).plan.version, 2, "the amended plan is the search's");
   assert.equal(ok(await owner.client.rpc("lead_search_more", { p_search_id: ids.search1, p_purpose: "renew", p_plan: plan(12, 2), p_estimate_usd: 0.05 })).error, "live", "one live round");
@@ -464,13 +519,17 @@ test("rename is the operator's; remove is the owner's and blanks what is not bei
   assert.equal(r.name, "Trainers, Austin");
   const denied = await operator.client.rpc("lead_search_remove", { p_search_id: ids.search1 });
   assert.match(denied.error?.message ?? "", /Search not found/, "an operator may not remove");
+  const every = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1)).map((x) => x.lead_id).sort();
+  assert.equal(every.length, 28, "twenty on the first page, two more, five judged, one checked: every place this search judged");
   const worked = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).eq("counted", true).limit(1)).at(0).lead_id;
   ok(await db.from("leads").update({ stage: "nurture" }).eq("id", worked));
   r = ok(await owner.client.rpc("lead_search_remove", { p_search_id: ids.search1 }));
-  assert.ok(r.op_id && r.version === 1 && r.blanked >= 2, JSON.stringify(r));
+  assert.ok(r.op_id, JSON.stringify(r));
+  assert.deepEqual([r.version, r.blanked], [1, 27], "every membership but the one being worked");
   assert.ok(ok(await db.from("lead_searches").select("removed_at").eq("id", ids.search1).single()).removed_at);
-  const { count: kept } = await db.from("lead_search_members").select("id", { count: "exact", head: true }).eq("search_id", ids.search1).is("blanked_at", null);
-  assert.equal(kept, 1, "the worked lead's membership stays");
+  const blanked = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).not("blanked_at", "is", null)).map((x) => x.lead_id).sort();
+  assert.deepEqual(blanked, every.filter((id) => id !== worked), "and exactly those: the memberships of the leads nobody is working");
+  assert.deepEqual(ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).is("blanked_at", null)).map((x) => x.lead_id), [worked], "the worked lead's membership stays");
   assert.equal(ok(await owner.client.rpc("lead_search_remove", { p_search_id: ids.search1 })).error, "removed");
   // The three movers share one body, and it says the same word: a removed
   // search charges nobody, so Keep, Exclude and Put back are refused too.
@@ -481,7 +540,8 @@ test("rename is the operator's; remove is the owner's and blanks what is not bei
   const exported = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).not("blanked_at", "is", null).limit(1)).at(0).lead_id;
   ok(await db.from("leads").update({ exported_at: new Date().toISOString() }).eq("id", exported));
   const undone = ok(await owner.client.rpc("lead_undo", { p_op_id: r.op_id, p_version: 1 }));
-  assert.deepEqual(undone, { ok: true, restored: r.blanked - 1, kept: 1 }, "the exported lead stays as it is and stays charged");
+  assert.deepEqual(undone, { ok: true, restored: 26, kept: 1 }, "the exported lead stays as it is and stays charged");
+  assert.deepEqual(ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).not("blanked_at", "is", null)).map((x) => x.lead_id), [exported], "and it is the only membership still blanked");
   assert.equal(ok(await db.from("lead_searches").select("removed_at").eq("id", ids.search1).single()).removed_at, null);
 });
 
@@ -503,6 +563,7 @@ test("a write-in whose number a lead holds is that lead (linked, converted, came
   const placeHash = await leadSuppressionHash(A, "ChIJfixture0003");
   assert.ok(hashes.some((h) => h.kind === "phone" && h.hash === phoneHash), "the number is on the never-again list");
   assert.ok(hashes.some((h) => h.kind === "place" && h.hash === placeHash), "and the place");
+  assert.equal(ok(await owner.client.rpc("lead_member_keep", { p_search_id: ids.search1, p_lead_id: lead.id })).error, "hidden", "and the lead it blanked is never kept back into the search");
 });
 
 test("a member reads their workspace's searches with the latest round and the counts, and pages its leads; a member of another workspace reads nothing", { skip }, async () => {
@@ -521,6 +582,70 @@ test("a member reads their workspace's searches with the latest round and the co
   assert.deepEqual(ok(await stranger.client.from("lead_searches_view").select("id").eq("tenant_id", A)), [], "a stranger sees none of it");
   assert.deepEqual(ok(await stranger.client.rpc("leads_page", { p_tenant_id: A, p_search_id: null, p_class: "qualified", p_sort: "found", p_after_key: null, p_limit: 50 })), [], "nor a page");
   assert.deepEqual(ok(await owner.client.rpc("leads_page", { p_tenant_id: B, p_search_id: null, p_class: "qualified", p_sort: "found", p_after_key: null, p_limit: 50 })), [], "a wrong workspace reads nothing");
+});
+
+test("the owner's other two answers: Keep carries the round on as it is, Stop ends it stopped", { skip }, async () => {
+  /** A fresh search whose round is waiting on the owner after the probe. */
+  const waiting = async (worker) => {
+    const made = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: plan(2), p_via: "ask", p_estimate_usd: 0.01 }));
+    assert.ok(made.round_id, JSON.stringify(made));
+    const run = await runOf(made.round_id, "chain gyms", worker);
+    ok(await commit(run.id, worker, run.gen, 0, 0, { places: [], round: { state: "probing" } }));
+    ok(await commit(run.id, worker, run.gen, 0, 0, { places: [], round: { state: "waiting_on_owner", question: { sentence: "Half of the first 25 are chain gyms. Is that what you meant?", criterionKey: "chain" } } }));
+    return made.round_id;
+  };
+
+  const carried = await waiting("w6");
+  let r = ok(await owner.client.rpc("lead_round_answer", { p_round_id: carried, p_answer: "keep" }));
+  assert.deepEqual([r.round_id, r.state], [carried, "running"], "Keep carries the round on");
+  let round = ok(await db.from("lead_rounds").select("state, answered, question, waiting_since, plan_version, target, plan").eq("id", carried).single());
+  assert.deepEqual([round.state, round.answered, round.waiting_since, round.plan_version, round.target, round.plan.exclusions.length], ["running", "keep", null, 1, 2, 1], "the plan it ran is the plan it runs on: no amendment, no version");
+  const { count: resumes } = await db.from("jobs").select("id", { count: "exact", head: true }).eq("kind", "lead_round_start").eq("payload->>round_id", carried).eq("payload->>resume", "true");
+  assert.equal(resumes, 1, "a resume job for the same round");
+  assert.equal(ok(await db.rpc("lead_round_end", { p_round_id: carried, p_ending: "stopped" })), true);
+
+  const halted = await waiting("w7");
+  r = ok(await owner.client.rpc("lead_round_answer", { p_round_id: halted, p_answer: "stop" }));
+  assert.deepEqual([r.round_id, r.state], [halted, "ended"], "Stop ends it");
+  round = ok(await db.from("lead_rounds").select("state, answered, ending, ended_at").eq("id", halted).single());
+  assert.deepEqual([round.state, round.answered, round.ending, round.ended_at !== null], ["ended", "stop", "stopped", true], "ended stopped, and answered so");
+  const ev = ok(await db.from("events").select("data").eq("tenant_id", A).eq("kind", "lead.round").eq("subject_id", halted).order("created_at", { ascending: false }).limit(1));
+  assert.deepEqual([ev[0].data.state, ev[0].data.ending], ["ended", "stopped"]);
+});
+
+test("the other three caps refuse in their own sentence: the month's searching budget, the workspace's day and the platform's", { skip }, async () => {
+  const month = leadMonth(TZ, new Date());
+  const day = ok(await db.rpc("lead_day", { p_tenant_id: A }));
+  const platformDay = new Date().toISOString().slice(0, 10);
+  const { count: searchesWere } = await db.from("lead_searches").select("id", { count: "exact", head: true }).eq("tenant_id", A);
+
+  /**
+   * One counter put a step from its edge, the door asked for a step more,
+   * and the row put back exactly as it was. The rows are this suite's running
+   * arithmetic, and the platform's day row is shared with every other suite,
+   * so nothing here reads an absolute value and nothing is left moved.
+   */
+  const atTheEdge = async (where, used, usd) => {
+    const was = ok(await where(db.from("lead_counters").select("id, used, reserved")).single());
+    ok(await db.from("lead_counters").update({ used, reserved: 0 }).eq("id", was.id));
+    const r = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: plan(1), p_via: "ask", p_estimate_usd: usd }));
+    ok(await db.from("lead_counters").update({ used: was.used, reserved: was.reserved }).eq("id", was.id));
+    return r;
+  };
+
+  let r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "budget").eq("period", month), 24.9, 0.2);
+  assert.equal(r.error, "budget_used", JSON.stringify(r));
+  assert.equal(Number(r.left_usd), 0.1, "what is left of the month's $25");
+  assert.match(r.sentence, /^This month's searching is nearly used up\. Try a smaller search, or a phone standard; it renews on [A-Z][a-z]{2} 1\.$/);
+
+  r = await atTheEdge((q) => q.eq("tenant_id", A).eq("kind", "day").eq("period", day), 9.95, 0.1);
+  assert.deepEqual([r.error, r.sentence], ["day_cap", "Today's searching is used up. Try again tomorrow."], "the workspace's own day");
+
+  r = await atTheEdge((q) => q.is("tenant_id", null).eq("kind", "day").eq("period", platformDay), 49.9, 0.2);
+  assert.deepEqual([r.error, r.sentence], ["day_cap", "Searching is busy today. Try again tomorrow."], "and the platform's, which says so differently");
+
+  const { count: searchesNow } = await db.from("lead_searches").select("id", { count: "exact", head: true }).eq("tenant_id", A);
+  assert.equal(searchesNow, searchesWere, "a refusal writes no search, no round and no job: only the counter rows it had to take");
 });
 
 test("retention: an untouched lead is set aside at 90 days and blanked at 180; an excluded place is blanked at 30 but stays counted as left out", { skip }, async () => {
@@ -542,20 +667,64 @@ test("retention: an untouched lead is set aside at 90 days and blanked at 180; a
   assert.ok(l.blanked_at && l.business_name === "", "blanked at 180");
 });
 
-test("the clock asks the edge only when there is lead work: with no round left open it records a look and asks nothing", { skip }, async () => {
-  // trigger_leads_sweep asks for ANY round that has not ended -- a round
-  // whose start job died sits queued with no run at all, and only the sweep
-  // can give its reservation back -- so the quiet path needs a database with
-  // none. This suite's rounds and runs go here, where the cleanup would have
-  // taken them anyway.
+/** What request_sweep writes when there is no edge to ask, which is every database this suite will run against. */
+const NO_EDGE = "missing cron_sweep_key or edge_base_url in Vault";
+
+/**
+ * One turn of the clock, with what its own predicate saw at that moment.
+ *
+ * The two branches write disjoint columns of sweep_status: asking goes
+ * through request_sweep, which rewrites note; recording a look stamps
+ * requested_at and never touches note. A sentinel in note therefore tells
+ * them apart whatever the row said before -- and the row is the platform's,
+ * so it is put back as it was.
+ *
+ * The counts are read through the service role immediately before the call,
+ * because the predicate is the whole database's: other database suites run
+ * beside this one and their open rounds are lead work too.
+ */
+async function turnTheClock(why) {
+  const was = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
+  const mark = `lead-engine ${Math.random().toString(36).slice(2)}`;
+  ok(await db.from("sweep_status").update({ note: mark }).eq("sweep", "leads"));
+  const open = await db.from("lead_rounds").select("id", { count: "exact", head: true }).neq("state", "ended");
+  assert.equal(open.error, null, open.error?.message);
+  const live = await db.from("lead_runs").select("id", { count: "exact", head: true }).in("state", ["claimed", "starting", "running", "unknown"]);
+  assert.equal(live.error, null, live.error?.message);
+  const returned = ok(await db.rpc("trigger_leads_sweep"));
+  const now = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
+  ok(await db.from("sweep_status").update({ note: was.note }).eq("sweep", "leads"));
+  const asked = now.note !== mark;
+  assert.equal(returned, null, `${why}: on a database with no edge to ask, either branch answers null`);
+  if (asked) assert.equal(now.note, NO_EDGE, `${why}: the ask reached request_sweep`);
+  else assert.notEqual(now.requested_at, was.requested_at, `${why}: a look is a look only once it is stamped`);
+  return { asked, open: open.count, live: live.count };
+}
+
+test("the clock asks the edge exactly when the database holds lead work, and records a look when it holds none", { skip }, async () => {
+  // This suite's own rounds and runs go first -- where the cleanup would have
+  // taken them anyway -- so that when this file runs alone the look is the
+  // branch that runs. What is left may still be another suite's work, so both
+  // turns are judged against the counts the predicate itself reads.
   for (const id of [A, B]) {
+    for (const r of ok(await db.from("lead_rounds").select("platform_day").eq("tenant_id", id))) platformDays.add(r.platform_day);
     ok(await db.from("lead_runs").delete().eq("tenant_id", id));
     ok(await db.from("lead_rounds").delete().eq("tenant_id", id));
   }
-  assert.deepEqual(ok(await db.from("lead_rounds").select("id, state").neq("state", "ended")), [], "no round anywhere is still open");
-  assert.deepEqual(ok(await db.from("lead_runs").select("id, state").in("state", ["claimed", "starting", "running", "unknown"])), [], "and no run is live");
-  const before = ok(await db.from("sweep_status").select("requested_at").eq("sweep", "leads").single());
-  assert.equal(ok(await db.rpc("trigger_leads_sweep")), null, "nothing to do, so the edge is not asked");
-  const after_ = ok(await db.from("sweep_status").select("requested_at").eq("sweep", "leads").single());
-  assert.ok(new Date(after_.requested_at) > new Date(before.requested_at), "but the look is recorded, so sweep_health can tell a quiet engine from a stopped clock");
+  assert.deepEqual(ok(await db.from("lead_rounds").select("id").eq("tenant_id", A)), [], "none of this suite's rounds is left");
+  let turn = await turnTheClock("nothing of this suite's left");
+  assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `with none of this suite's work left, the clock answered the database: ${JSON.stringify(turn)}`);
+
+  // A round queued with no run at all: its start job died before it wrote
+  // one, and nothing but the sweep can end it and give its reservation back.
+  // This is the case a clock that asked only for a round waiting or checking
+  // would walk past, and the reason the predicate reads lead_rounds_live.
+  const made = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: plan(1), p_via: "people", p_estimate_usd: 0.01 }));
+  assert.ok(made.round_id, JSON.stringify(made));
+  assert.equal(ok(await db.from("lead_rounds").select("state").eq("id", made.round_id).single()).state, "queued");
+  assert.deepEqual(ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id)), [], "and nothing has run for it");
+  turn = await turnTheClock("a round of this suite's own, queued, with no run");
+  assert.ok(turn.open >= 1, "this suite's own round is open");
+  assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `the clock answered the database: ${JSON.stringify(turn)}`);
+  assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
 });
