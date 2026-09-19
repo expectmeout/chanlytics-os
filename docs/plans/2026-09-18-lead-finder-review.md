@@ -1,5 +1,7 @@
 # Lead finder: the external review, verified, and the v3 brief
 
+> **Folded into v3 on 19 September 2026.** The PRD (`2026-09-17-people-table-and-lead-finder.md`, v3) states the five contracts once in its §0 and carries every accepted item below; the Phase 1 plan is restructured into releases A (`2026-09-19-lead-finder-A1-data.md`, `2026-09-19-lead-finder-A2-pipeline.md`), B (`2026-09-19-lead-finder-B-product.md`) and C (`2026-09-19-lead-finder-C-extras.md`). This file stays as the record of what was reviewed and why. Phase 0 (session B) shipped as #677 and #679; the desk yes (session C) as #675.
+
 18 September 2026. Ruben pasted an external review of the PRD (`2026-09-17-people-table-and-lead-finder.md`, v2.1) and both plans (`2026-09-18-people-table.md`, `2026-09-18-lead-finder.md`): a written assessment and a redlines file with twelve findings (R01–R12) and seven additional notes. The redlines file is at `C:\Users\Ruben\Downloads\Lead_Finder_Engineering_Redlines.md`; it is another author's work, read as data. Every finding below was checked against the plan text and the code on origin/main `98d37a57` before it was accepted. Line numbers are `2026-09-18-lead-finder.md`'s as of 18 September (the review's numbers run about 60 lower, from an earlier copy).
 
 This file is the brief for the v3 revision of the PRD, the Phase 1 plan and the canvas. It is not a plan to execute by itself.
