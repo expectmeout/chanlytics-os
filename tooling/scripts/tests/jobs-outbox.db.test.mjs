@@ -66,6 +66,30 @@ async function insertJob(patch = {}) {
 
 const claim = (limit) => db.rpc("claim_due_jobs", { p_limit: limit, p_lease_seconds: 90 });
 
+/**
+ * A claim that came back holding a row this suite made.
+ *
+ * The ledger is ONE queue and claim_due_jobs takes from all of it: no kind,
+ * no workspace, just what is due. Another database suite claiming at the same
+ * moment can therefore carry a row of ours off between the insert and the
+ * call, and that row is then fired on somebody else's lease -- the ledger
+ * working, not a fault here. So the row is made again and the claim repeated,
+ * a few times at most, and the batch is never read as if it were all ours.
+ */
+async function claimHolding(limit, make) {
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const id = await make();
+    const { data, error } = await claim(limit);
+    assert.equal(error, null, error?.message);
+    const row = (data ?? []).find((r) => r.id === id);
+    if (row) return { id, row, batch: data ?? [] };
+    const gone = await db.from("jobs").select("state, lease_until").eq("id", id).single();
+    assert.ok(gone.data && gone.data.state === "fired" && Date.parse(gone.data.lease_until) > Date.now(),
+      `attempt ${attempt}: the row did not come back, and no other claim is holding it either (${JSON.stringify(gone.data)})`);
+  }
+  return assert.fail("five claims running: another suite's claim reached this suite's row first every time");
+}
+
 /** A conversation of its own contact: conversations are one per contact. */
 async function thread(fields) {
   phones += 1;
@@ -89,36 +113,43 @@ async function statesOf(ids) {
 }
 
 test("a claim takes what is due, leaves what is not, and holds it on a lease", { skip }, async () => {
-  const due = await insertJob();
   const later = await insertJob({ due_at: ahead(3600) });
-  const { data, error } = await claim(50);
-  assert.equal(error, null, error?.message);
-  assert.deepEqual(data.map((r) => r.id), [due]);
-  assert.equal(data[0].state, "fired");
-  assert.equal(data[0].attempts, 1);
-  assert.ok(Date.parse(data[0].lease_until) > Date.now() + 60_000, "the lease outlives the run that holds it");
+  const { id: due, row, batch } = await claimHolding(50, () => insertJob());
+  // This suite's own two rows, never the whole batch: other suites claim from
+  // this same queue, and whatever they have due comes back in it too.
+  assert.deepEqual(batch.filter((r) => r.id === due || r.id === later).map((r) => r.id), [due], "the one that is due came back, and the one that is not did not");
+  assert.equal(row.state, "fired");
+  assert.equal(row.attempts, 1);
+  assert.ok(Date.parse(row.lease_until) > Date.now() + 60_000, "the lease outlives the run that holds it");
   const { data: rest } = await db.from("jobs").select("state").eq("id", later).single();
   assert.equal(rest.state, "scheduled");
 });
 
 test("two claims at once never take the same row", { skip }, async () => {
-  const mine = await Promise.all([insertJob(), insertJob(), insertJob(), insertJob()]);
+  // Two hours due, which is older than anything another suite leaves lying in
+  // the queue: claim_due_jobs orders by due_at, so the four slots these two
+  // claims have go to these four rows and not to somebody else's work.
+  const mine = await Promise.all([0, 1, 2, 3].map(() => insertJob({ due_at: ago(7200) })));
   const [a, b] = await Promise.all([claim(2), claim(2)]);
   assert.equal(a.error, null, a.error?.message);
   assert.equal(b.error, null, b.error?.message);
   const ids = [...a.data, ...b.data].map((r) => r.id);
   assert.equal(new Set(ids).size, ids.length, "SKIP LOCKED: no row claimed twice");
-  assert.deepEqual([...ids].sort(), [...mine].sort(), "and between them they took all four");
+  const got = ids.filter((id) => mine.includes(id));
+  assert.equal(new Set(got).size, got.length, "and none of this suite's four twice");
+  // Taken, every one of them: by these two claims, or by another suite's
+  // claim on the same queue, which fires it just the same.
+  const rows = await db.from("jobs").select("id, state").in("id", mine);
+  assert.equal(rows.error, null, rows.error?.message);
+  assert.deepEqual(rows.data.map((r) => r.state).sort(), ["fired", "fired", "fired", "fired"], "and between them they took all four");
 });
 
 test("a lease that ran out is taken back with attempts + 1; a live one is left alone", { skip }, async () => {
-  const dead = await insertJob({ state: "fired", fired_at: ago(200), lease_until: ago(10), attempts: 1 });
   const alive = await insertJob({ state: "fired", fired_at: ago(5), lease_until: ahead(80), attempts: 1 });
-  const { data, error } = await claim(50);
-  assert.equal(error, null, error?.message);
-  assert.deepEqual(data.map((r) => r.id), [dead]);
-  assert.equal(data[0].attempts, 2, "verdictFor reads this: a second claim means a run started and never came back");
-  assert.ok(!data.some((r) => r.id === alive));
+  const { id: dead, row, batch } = await claimHolding(50, () => insertJob({ state: "fired", fired_at: ago(200), lease_until: ago(10), attempts: 1 }));
+  // This suite's own two rows again, not the batch: see claimHolding.
+  assert.deepEqual(batch.filter((r) => r.id === dead || r.id === alive).map((r) => r.id), [dead], "the lease that ran out came back, and the one still running did not");
+  assert.equal(row.attempts, 2, "verdictFor reads this: a second claim means a run started and never came back");
 });
 
 test("the database refuses every transition the machine does not have", { skip }, async () => {

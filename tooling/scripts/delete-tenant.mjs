@@ -71,7 +71,9 @@ const TABLES = [
   "ask_messages", "ask_threads", "billing_accounts", "billing_events", "broadcast_recipients",
   "broadcasts", "business_records", "calls", "capability_activations", "contact_identities", "contacts", "conversations",
   "decisions", "escalations", "events", "google_connections", "google_listing_days",
-  "google_listings", "google_reviews", "idempotency_keys", "invitations", "jobs", "lines",
+  "google_listings", "google_reviews", "idempotency_keys", "invitations", "jobs",
+  "lead_counters", "lead_judgments", "lead_operations", "lead_places", "lead_preferences", "lead_rounds", "lead_runs",
+  "lead_search_members", "lead_searches", "lead_suppressions", "leads", "lines",
   "mailboxes", "memberships", "messages", "notification_reads", "notifications", "playbooks", "policies",
   "segment_members", "segments", "templates", "tenant_channels", "tenant_config",
 ];

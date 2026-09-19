@@ -217,7 +217,7 @@ type ConsentState = (typeof CONSENT_STATES)[number];
  * A new kind arrives with its handler, its caller and the jobs.kind CHECK,
  * together.
  */
-declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest"];
+declare const JOB_KINDS: readonly ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check"];
 type JobKind = (typeof JOB_KINDS)[number];
 /**
  * `fired` means CLAIMED, not finished: claim_due_jobs() sets it with a lease,
@@ -242,7 +242,7 @@ type WabaEventKind = `channel.${(typeof WABA_FIELDS)[number]}`;
  * kind emitted that is not here is a row nobody can name. Both were true for
  * months (three dead, fourteen undeclared) before the lint existed.
  */
-declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "workspace.created", "settings.changed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.noted", "contact.email_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "broadcast.sent", "playbook.run", "channel.connected", "mailbox.created", "mailbox.renamed"];
+declare const EVENT_KINDS: readonly ["message.received", "message.sent", "contact.consent_changed", "usage.llm_tokens", "usage.wa_conversation", "ingest.allowlist_skip", "ingest.unreachable_sender", "message.send_failed", "message.send_blocked", "message.send_raced_cancel", "conversation.reopened", "conversation.pause_expired", "contact.erased", "contact.blob_erased", "setup.requested", "voice.provisioned", "line.answering", "line.failed", "line.released", "line.forwarding_verified", "platform.acted", "line.texting_on", "line.texting_approved", "line.texting_rejected", "business.recorded", "google.linked", "google.unlinked", "google.reviews", "google.connected", "google.disconnected", "google.replied", "workspace.created", "settings.changed", "policy.changed", "billing.updated", "billing.paused", "billing.resumed", "call.recorded", "usage.voice_seconds", "usage.ask_tokens", "webhook.auth", "webhook.delivery", "contact.added", "contact.named", "contact.noted", "contact.email_set", "contact.email_suppressed", "ingest.unroutable", "policy.veto_window_skipped", "conversation.snooze_expired", "broadcast.sent", "playbook.run", "channel.connected", "mailbox.created", "mailbox.renamed", "lead.round", "lead.no_card"];
 type EventKind = (typeof EVENT_KINDS)[number] | WabaEventKind;
 /** Customer texts that mean opt-out (webhook consent handling, §4). */
 declare const OPT_OUT_PATTERN: RegExp;
@@ -2008,8 +2008,26 @@ declare const SCHEMA_SETS: {
     readonly "escalations.state": readonly ["open", "resolved"];
     readonly "google_reviews.origin": readonly ["places", "profile"];
     readonly "invitations.role": readonly ["operator", "viewer"];
-    readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest"];
+    readonly "jobs.kind": readonly ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check"];
     readonly "jobs.state": readonly ["scheduled", "fired", "done", "canceled", "failed"];
+    readonly "lead_counters.kind": readonly ["allowance", "budget", "day"];
+    readonly "lead_operations.kind": readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop"];
+    readonly "lead_preferences.kind": readonly ["chain", "wrong_kind", "too_far"];
+    readonly "lead_rounds.answered": readonly ["keep", "include", "stop"];
+    readonly "lead_rounds.ending": readonly ["target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches", "stopped", "source_failed", "question_unanswered", "paused"];
+    readonly "lead_rounds.ending_pending": readonly ["target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches", "stopped", "source_failed", "question_unanswered", "paused"];
+    readonly "lead_rounds.purpose": readonly ["probe", "main", "topup", "renew"];
+    readonly "lead_rounds.state": readonly ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
+    readonly "lead_runs.purpose": readonly ["discover", "check"];
+    readonly "lead_runs.state": readonly ["claimed", "starting", "running", "succeeded", "failed", "aborted", "timed_out", "unknown"];
+    readonly "lead_search_members.class": readonly ["qualified", "review", "excluded"];
+    readonly "lead_search_members.fit": readonly ["strong", "look", "long"];
+    readonly "lead_searches.via": readonly ["people", "ask"];
+    readonly "lead_suppressions.kind": readonly ["email", "place", "phone"];
+    readonly "lead_suppressions.what": readonly ["email_opt_out", "customer", "erased"];
+    readonly "leads.closed_reason": readonly ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
+    readonly "leads.email_state": readonly ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
+    readonly "leads.stage": readonly ["ready", "nurture", "converted", "archived"];
     readonly "lines.forwarding_state": readonly ["none", "instructed", "verified"];
     readonly "lines.kind": readonly ["chanlytics", "hosted", "ported", "forwarded"];
     readonly "lines.port_state": readonly ["none", "requested", "scheduled", "done", "rejected"];
@@ -5300,6 +5318,339 @@ sendAt?: Date): {
  */
 declare function visitDayWord(visit: Pick<VisitDto, "start">, tz: string, sendAt: Date | undefined, assumed: string): string;
 
+/** One place, as the judge is shown it. Every string is capped at LEAD_FACT_MAX and stripped of control characters by judgeUserContent. */
+interface PlaceFacts {
+    ref: number;
+    name: string;
+    category: string | null;
+    city: string | null;
+    state: string | null;
+    host: string | null;
+    rating: number | null;
+    reviews: number | null;
+    /** The cleaned candidates, in the cleaner's order; the judge picks one by index. */
+    emails: string[];
+    /** The listing's number equals one on their site; null when the listing has no number. */
+    phone_matches_site: boolean | null;
+}
+/** The keys a criterion's answer may cite: the facts, by name. */
+declare const JUDGE_FACT_KEYS: readonly ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+type JudgeFactKey = (typeof JUDGE_FACT_KEYS)[number];
+type JudgeCriterionAnswer = "pass" | "fail" | "unknown";
+interface JudgePlaceAnswer {
+    ref: number;
+    criteria: {
+        key: string;
+        answer: JudgeCriterionAnswer;
+        facts: string[];
+    }[];
+    /** Into PlaceFacts.emails; null when none of them is the business's own. */
+    email_index: number | null;
+    /** Twelve words or fewer. */
+    reason: string;
+}
+/**
+ * Hand-written, the shape apps/edge/lib/brain.ts sends in production: every
+ * property required, additionalProperties false, and no length or range
+ * keywords (the API does not enforce them; the parser caps and checks after).
+ */
+declare const JUDGE_OUTPUT_SCHEMA: Record<string, unknown>;
+/**
+ * The criteria with their standards, and the exclusions as criteria the place
+ * must not be. A seen standard must cite a fact key; a likely one may be
+ * Claude's read of the facts. Unknown when the facts do not say.
+ */
+declare function judgeSystemPrompt(plan: LeadSearchPlan): string;
+/** Each place's facts, capped and stripped, as quoted JSON inside a <places> block. */
+declare function judgeUserContent(places: PlaceFacts[]): string;
+/**
+ * The answer, read by code. Rejected whole when a place is missing or answered
+ * twice, a ref is not among the places, a criterion key is not the plan's or
+ * is answered twice or not at all, a fact key is not one the place has, or an
+ * email index is out of range. The reason is capped to twelve words.
+ */
+declare function parseJudgeAnswer(raw: unknown, plan: LeadSearchPlan, places: PlaceFacts[]): {
+    ok: true;
+    answers: JudgePlaceAnswer[];
+} | {
+    ok: false;
+    why: string;
+};
+/** SHA-256 of a UTF-8 string, as lower-case hex. */
+declare function sha256Hex(text: string): string;
+/** The judge's operation id for one batch: sha256 hex of `${runId}:${fromOffset}:${batch}`, so a replayed page finds its answer and pays nothing (E4). */
+declare function judgeOpId(runId: string, fromOffset: number, batch: number): string;
+
+/**
+ * The lead finder: the plan, the sets, the caps, and every rule with a right
+ * answer (PRD 2026-09-17 v3 §0, §7.2, §10, §12, §13.3; release A1).
+ *
+ * Pure. The dashboard's routes, the edge's jobs and, later, the page read this
+ * file. The model proposes a plan in these shapes and judges places criterion
+ * by criterion (lead-judge.ts); everything decidable is decided here, by code:
+ * what a junk address is, which class a place gets from the judge's answers
+ * (§0.1), how many places a round asks for (S6), when the search stops to ask
+ * (P4), which of the nine endings a round gets (S7), what a round is likely
+ * to cost. No word here names the vendor that runs the searches: the owner
+ * sees Claude finding businesses, and where each fact came from.
+ */
+
+declare const LEAD_SEARCH_VIAS: readonly ["people", "ask"];
+type LeadSearchVia = (typeof LEAD_SEARCH_VIAS)[number];
+declare const LEAD_ROUND_PURPOSES: readonly ["probe", "main", "topup", "renew"];
+type LeadRoundPurpose = (typeof LEAD_ROUND_PURPOSES)[number];
+declare const LEAD_ROUND_STATES: readonly ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
+type LeadRoundState = (typeof LEAD_ROUND_STATES)[number];
+/** The nine endings, one closed set (§0.5, S7). */
+declare const LEAD_ROUND_ENDINGS: readonly ["target_reached", "searched_everything", "month_leads_used", "budget_used", "few_new_matches", "stopped", "source_failed", "question_unanswered", "paused"];
+type LeadRoundEnding = (typeof LEAD_ROUND_ENDINGS)[number];
+declare const LEAD_ROUND_ANSWERS: readonly ["keep", "include", "stop"];
+type LeadRoundAnswer = (typeof LEAD_ROUND_ANSWERS)[number];
+declare const LEAD_RUN_PURPOSES: readonly ["discover", "check"];
+declare const LEAD_RUN_STATES: readonly ["claimed", "starting", "running", "succeeded", "failed", "aborted", "timed_out", "unknown"];
+type LeadRunState = (typeof LEAD_RUN_STATES)[number];
+/** The five words of §10.4, plus `checking` while a batch is out. */
+declare const LEAD_EMAIL_STATES: readonly ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
+type LeadEmailState = (typeof LEAD_EMAIL_STATES)[number];
+declare const LEAD_STAGES: readonly ["ready", "nurture", "converted", "archived"];
+declare const LEAD_CLOSED_REASONS: readonly ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
+declare const LEAD_MEMBER_CLASSES: readonly ["qualified", "review", "excluded"];
+type LeadMemberClass = (typeof LEAD_MEMBER_CLASSES)[number];
+declare const LEAD_FITS: readonly ["strong", "look", "long"];
+type LeadFit = (typeof LEAD_FITS)[number];
+declare const LEAD_COUNTER_KINDS: readonly ["allowance", "budget", "day"];
+declare const LEAD_OPERATION_KINDS: readonly ["undo_search", "keep", "exclude", "put_back", "include", "stop"];
+declare const LEAD_PREFERENCE_KINDS: readonly ["chain", "wrong_kind", "too_far"];
+declare const LEAD_SUPPRESSION_KINDS: readonly ["email", "place", "phone"];
+declare const LEAD_SUPPRESSION_WHATS: readonly ["email_opt_out", "customer", "erased"];
+/** §16.7, 18: Qualified leads a month, by the workspace's calendar month. */
+declare const LEAD_MONTHLY_ALLOWANCE = 500;
+/** §16.32: what searching may cost a workspace a month: scraping, judging, checks, retries. */
+declare const LEAD_MONTHLY_BUDGET_USD = 25;
+declare const LEAD_DAY_CAP_USD = 10;
+declare const LEAD_PLATFORM_DAY_CAP_USD = 50;
+/** §16.5: under this share of Qualified among the first places, the round stops and asks. */
+declare const LEAD_QUESTION_THRESHOLD = 0.6;
+/** Below this many judged places the question is not asked: too little to go on. */
+declare const LEAD_QUESTION_MIN_EVIDENCE = 10;
+declare const LEAD_PROBE_PLACES = 25;
+declare const LEAD_JUDGE_BATCH = 25;
+declare const LEAD_MAX_PLACES = 1000;
+/** Every fact a place gives the judge is cut to this many characters (§7.1). */
+declare const LEAD_FACT_MAX = 120;
+/** The judge's one reason, in words (§0.1). */
+declare const LEAD_REASON_MAX_WORDS = 12;
+/** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
+declare const LEAD_ESTIMATE_MARGIN = 1.3;
+/** The main round asks for the remainder over the probe's yield, clamped here (S6). */
+declare const LEAD_ASK_MIN_FACTOR = 1.2;
+declare const LEAD_ASK_MAX_FACTOR = 4;
+/** An unanswered question ends the round after this long (§0.5). */
+declare const LEAD_QUESTION_WAIT_MS: number;
+type LeadContactStandard = "phone" | "email";
+/** likely: Claude's read is enough. seen: a fact the card can show, cited by key (§0.1, 26). */
+type LeadCriterionStandard = "likely" | "seen";
+interface LeadCriterion {
+    key: string;
+    text: string;
+    standard: LeadCriterionStandard;
+    required: boolean;
+}
+/** A "Leaving out" chip. The judge answers it as a required criterion: `fail` means the place is what is left out. */
+interface LeadExclusion {
+    key: string;
+    text: string;
+    origin: "claude" | "you_said";
+    category_key?: string;
+}
+interface LeadArea {
+    kind: "zip" | "city" | "radius";
+    /** As the sentence says it: "Austin, TX". */
+    label: string;
+    /** Two letters. */
+    state: string;
+    /** Null for a city ask until the probe's coordinates give one, or a ZIP ask until A2 derives it from the ZCTA table (§12.5, 31). */
+    center: {
+        lat: number;
+        lng: number;
+    } | null;
+    radius_m: number;
+    zip?: string;
+    /** The card's own location query, built from the validated plan. */
+    query: string;
+}
+interface LeadSearchPlan {
+    version: number;
+    card: "local_businesses";
+    /** Who is sought, plural, as the sentence says it: "personal trainers". */
+    name: string;
+    /** The owner's words, at most 400 characters. */
+    asked: string;
+    terms: string[];
+    area: LeadArea;
+    count: number;
+    contact: LeadContactStandard;
+    criteria: LeadCriterion[];
+    exclusions: LeadExclusion[];
+}
+/** The route's input and the door's: the same shape, checked twice on purpose. */
+declare const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan>;
+/**
+ * The plan as one sentence, whose words are the controls (§7 step 2, §8.3).
+ * "Find 200 personal trainers in Austin, TX with a website, then find their
+ * email and check it. Leaving out: chain gyms." A seen criterion says so.
+ */
+declare function planSentence(plan: LeadSearchPlan): string;
+/** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
+declare function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan;
+declare const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string>;
+/**
+ * Which of the nine endings a round gets, in the order the facts outrank each
+ * other (S7). The target overrides everything else: once it is reached, that
+ * is the ending, whatever else happened on the page that reached it.
+ * "Searched everything" only when every term returned fewer places than it
+ * was asked for; otherwise the round ended at its limit with few new matches,
+ * and the next step is another round in the same area.
+ */
+declare function endingOfRound(x: {
+    counted: number;
+    target: number;
+    termsShort: boolean[];
+    budgetLeftUsd: number;
+    allowanceLeft: number;
+    stopped: boolean;
+    sourceFailed: boolean;
+    unanswered: boolean;
+    paused: boolean;
+}): LeadRoundEnding;
+/** The half of a card Claude reads (§0.3, 23). The half code holds is A2's `CARDS`. */
+interface LeadCardBrief {
+    id: "local_businesses";
+    goodFor: string[];
+    notFor: string[];
+    settings: string[];
+    /** Bronze prices, 18 Sep 2026 (§10.1). */
+    costPerPlaceUsd: number;
+    contactsPerPlaceUsd: number;
+    judgePerPlaceUsd: number;
+    checkPerEmailUsd: number;
+    startUsd: number;
+    /** One search on the source tops out near this many places (§7 step 3). */
+    maxPerTerm: number;
+    examples: string[];
+    approved: true;
+}
+declare const LEAD_CARDS: readonly LeadCardBrief[];
+/**
+ * What a round is likely to cost, from the card's prices, with room (§13.3):
+ * discovery and contacts per place asked, the judge per place, the mailbox
+ * check per place under an email standard, and one start per term. The route
+ * computes it, the door stores it, the counters reserve it.
+ */
+declare function estimateRoundUsd(plan: LeadSearchPlan, purpose: LeadRoundPurpose, placesToAsk: number): number;
+/**
+ * How many places to ask the source for (S6). The probe asks for 25 spread
+ * across every term (E10). A later round asks for the remainder over the
+ * yield so far (new Qualified places per place asked), clamped between 1.2x
+ * and 4x the remainder, never past LEAD_MAX_PLACES or what one term can
+ * return. `yieldSoFar` null means the probe. `remaining` at or under zero asks
+ * for nothing at all; when the total is smaller than the number of terms, a
+ * term asked for 0 got nothing to ask for, and a caller skips it.
+ */
+declare function placesToAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number | null): {
+    total: number;
+    perTerm: number[];
+};
+interface LeadClassification {
+    class: LeadMemberClass;
+    /** The criterion or exclusion whose required fail excluded the place; null otherwise. */
+    excluded_by: string | null;
+    /** For ordering only, never for counting. Null when excluded. */
+    fit: LeadFit | null;
+    /** Why it is not simply Qualified: `fail:<key>`, `unknown:<key>`, `inferred:<key>`, `out_of_area`, `email:<state>`, `phone:none`. */
+    reasons: string[];
+}
+/** The reason tokens of a contact standard not met, so SQL and the check can find "the email was the only reason". */
+declare const LEAD_EMAIL_REASON: RegExp;
+/**
+ * Code decides the class from the judge's per-criterion answers (§0.1, 26).
+ * Exclusions are checked before criteria, so a place that is both a chain and
+ * without a website is tallied as the chain. Only a REQUIRED criterion (or an
+ * exclusion: every exclusion is required) gates the class: a required fail
+ * excludes, with that key as the reason; a required criterion answered
+ * `unknown`, or a required seen criterion only read (no fact cited beyond the
+ * name or category, which are descriptions, not evidence), sends the place to
+ * review. An optional criterion never excludes and never sends a place to
+ * review by itself — it only softens the fit band. A place with no location
+ * or one outside the area, or a contact standard not met, also sends it to
+ * review. Everything else qualifies. A fit band is derived for ordering.
+ */
+declare function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean): LeadClassification;
+interface ProbeMember {
+    class: LeadMemberClass;
+    excluded_by: string | null;
+    term?: string | null;
+}
+type LeadQuestion = {
+    ask: true;
+    sentence: string;
+    criterionKey: string;
+    dropTerm: string | null;
+} | {
+    ask: false;
+};
+/**
+ * An intent check, never an accuracy measure (P4). Measured by exclusion, not
+ * by qualification: under an email standard almost nothing is Qualified yet
+ * while the mailbox checks are still out, so Review must never read as a no.
+ * Over the probe's places, when more than 1 − LEAD_QUESTION_THRESHOLD were
+ * excluded, the round waits and asks whether the search matches what the
+ * owner meant, from the most common exclusion. Only an exclusion's own tally
+ * can be the topic: Include lifts an exclusion, and must never be offered
+ * against a real requirement, so a place excluded by a required criterion is
+ * not counted here. The sentence's own lead word ("Most"/"Half"/"Some") comes
+ * from that chip's own share of the first n, never from everything excluded
+ * for any reason (P2, S12: a line claims only what it names); when more
+ * places were excluded than the chip accounts for, the sentence says so with
+ * "and other kinds of places". A term is dropped first when it is demonstrably the
+ * problem and at least one other term with enough places is demonstrably
+ * working; never when every term is bad, and never on the strength of a term
+ * nobody else has tried. It never asks the owner to relax a fact.
+ */
+declare function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[]): LeadQuestion;
+/** Hosts that are a booking platform or a social page: a business there has no site of its own. */
+declare const LEAD_PLATFORM_HOSTS: readonly ["vagaro.com", "square.site", "squareup.com", "glossgenius.com", "godaddysites.com", "wixsite.com", "business.site", "facebook.com", "instagram.com", "linktr.ee", "yelp.com", "booksy.com", "fresha.com", "styleseat.com", "schedulicity.com", "mindbodyonline.com", "setmore.com", "acuityscheduling.com", "google.com"];
+/** Address domains that are never the business: platforms, builders' placeholders, trackers. */
+declare const LEAD_JUNK_EMAIL_DOMAINS: readonly ["vagaro.com", "square.site", "squareup.com", "glossgenius.com", "godaddy.com", "wix.com", "wixpress.com", "sentry.io", "example.com", "domain.com", "yourdomain.com", "email.com"];
+/** Local parts that are a template's placeholder, not a mailbox. */
+declare const LEAD_PLACEHOLDER_LOCALS: readonly ["filler", "yourdomain", "youremail", "your", "example", "email", "name", "user", "username", "test", "noreply", "no-reply", "donotreply"];
+/** Corporate roles that are not how a business takes a customer (§7.2). */
+declare const LEAD_ROLE_LOCALS: readonly ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"];
+declare const LEAD_FREE_MAIL: readonly ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "live.com", "msn.com", "me.com", "protonmail.com", "proton.me"];
+interface CleanedEmails {
+    /** Best first: the business's own (five at most, a front desk first), free-mail (three), another company's (two). */
+    kept: string[];
+    dropped: {
+        email: string;
+        why: "malformed" | "duplicate" | "junk_domain" | "placeholder" | "role" | "image" | "foreign_list" | "over_limit";
+    }[];
+}
+/**
+ * The addresses worth showing the judge, and why each of the others was
+ * dropped (§7.2). When the page names more than three other companies'
+ * domains, that is a list of partners or brands, not the business, and none
+ * of theirs is kept.
+ */
+declare function cleanEmailCandidates(emails: string[], host: string | null): CleanedEmails;
+/** A US number anyone can dial, in E.164; null for a placeholder, a mis-prefixed number or a foreign one. */
+declare function usPhone(raw: string | null | undefined): string | null;
+/** The website's host, www. removed; null when there is none of their own (a platform, a social page). */
+declare function siteHost(url: string | null | undefined): string | null;
+/** "Texas" or "TX" → "TX"; null for anything that is not a US state or DC. */
+declare function stateCode(raw: string | null | undefined): string | null;
+/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00140 says the same. */
+declare function leadMonth(zone: string, at: Date): string;
+
 /**
  * The database's closed sets, and every hand-kept copy held to them.
  *
@@ -5365,7 +5716,25 @@ type SchemaAgreement = [
     Holds<Exactly<Of<typeof BILLING_MODES>, SchemaSet<"billing_accounts.mode">>>,
     Holds<Exactly<Of<typeof BILLING_STATUSES>, SchemaSet<"billing_accounts.status">>>,
     Holds<Exactly<Of<typeof BUSINESS_TYPES>, SchemaSet<"business_records.business_type">>>,
-    Holds<Exactly<Of<typeof COMPANY_TYPES>, SchemaSet<"business_records.company_type">>>
+    Holds<Exactly<Of<typeof COMPANY_TYPES>, SchemaSet<"business_records.company_type">>>,
+    Holds<Exactly<Of<typeof LEAD_SEARCH_VIAS>, SchemaSet<"lead_searches.via">>>,
+    Holds<Exactly<Of<typeof LEAD_ROUND_PURPOSES>, SchemaSet<"lead_rounds.purpose">>>,
+    Holds<Exactly<Of<typeof LEAD_ROUND_STATES>, SchemaSet<"lead_rounds.state">>>,
+    Holds<Exactly<Of<typeof LEAD_ROUND_ENDINGS>, SchemaSet<"lead_rounds.ending">>>,
+    Holds<Exactly<Of<typeof LEAD_ROUND_ENDINGS>, SchemaSet<"lead_rounds.ending_pending">>>,
+    Holds<Exactly<Of<typeof LEAD_ROUND_ANSWERS>, SchemaSet<"lead_rounds.answered">>>,
+    Holds<Exactly<Of<typeof LEAD_RUN_PURPOSES>, SchemaSet<"lead_runs.purpose">>>,
+    Holds<Exactly<Of<typeof LEAD_RUN_STATES>, SchemaSet<"lead_runs.state">>>,
+    Holds<Exactly<Of<typeof LEAD_EMAIL_STATES>, SchemaSet<"leads.email_state">>>,
+    Holds<Exactly<Of<typeof LEAD_STAGES>, SchemaSet<"leads.stage">>>,
+    Holds<Exactly<Of<typeof LEAD_CLOSED_REASONS>, SchemaSet<"leads.closed_reason">>>,
+    Holds<Exactly<Of<typeof LEAD_MEMBER_CLASSES>, SchemaSet<"lead_search_members.class">>>,
+    Holds<Exactly<Of<typeof LEAD_FITS>, SchemaSet<"lead_search_members.fit">>>,
+    Holds<Exactly<Of<typeof LEAD_COUNTER_KINDS>, SchemaSet<"lead_counters.kind">>>,
+    Holds<Exactly<Of<typeof LEAD_OPERATION_KINDS>, SchemaSet<"lead_operations.kind">>>,
+    Holds<Exactly<Of<typeof LEAD_PREFERENCE_KINDS>, SchemaSet<"lead_preferences.kind">>>,
+    Holds<Exactly<Of<typeof LEAD_SUPPRESSION_KINDS>, SchemaSet<"lead_suppressions.kind">>>,
+    Holds<Exactly<Of<typeof LEAD_SUPPRESSION_WHATS>, SchemaSet<"lead_suppressions.what">>>
 ];
 
 /**
@@ -5387,6 +5756,7 @@ declare const ROLE_PERMS: Record<Role, {
     team: boolean;
     settings: boolean;
     export: boolean;
+    find: boolean;
 }>;
 declare const POLICY_CLASSES: readonly ["reply", "booking", "faq", "reengage", "campaign", "reviews", "money"];
 type PolicyClass = (typeof POLICY_CLASSES)[number];
@@ -8666,6 +9036,11 @@ declare const RETENTION_DAYS: {
     readonly notifications: 90;
     /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
     readonly cron_history: 14;
+    /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+    readonly leads_untouched: 90;
+    readonly leads_untouched_blanked: 180;
+    /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+    readonly leads_excluded_blanked: 30;
 };
 /** Rate-limit counters (00059): two hours, in hours. */
 declare const RATE_HITS_RETENTION_HOURS = 2;
@@ -9355,6 +9730,13 @@ declare const PASSWORD_WORDS: {
 declare function erasedPhoneHash(tenantId: string, phoneE164: string): Promise<string>;
 /** Of the address as stored: normalizeEmail's output, never a raw header. */
 declare function erasedEmailHash(tenantId: string, email: string): Promise<string>;
+/**
+ * A lead's email, phone or place id on the never-again list (lead_suppressions,
+ * 00140): the same keyed digest, so SQL's lead_suppression_hash(tenant, value)
+ * and this agree byte for byte (lead-engine.db.test.mjs proves it). The value
+ * is the one stored: E.164 with its "+", normalizeEmail's output, the place id.
+ */
+declare function leadSuppressionHash(tenantId: string, value: string): Promise<string>;
 
 /** What a CSV cell may hold before it is spelled. */
 type CsvCell = string | number | boolean | null | undefined;
@@ -9367,4 +9749,4 @@ type CsvCell = string | number | boolean | null | undefined;
  */
 declare function csvCell(v: CsvCell): string;
 
-export { ABANDONED_MS, ACTIVITY_KINDS, ACTIVITY_NOISE_PREFIXES, ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, AUDIENCE_KINDS, type ActivationRecord, type ActivityPageDto, type ActivityRowDto, type DecisionVerb as ActivityVerb, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayRowLike, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROKEN_CONFIG_WORDS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CAPABILITY_KINDS, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CHECKOUT_OUTCOME_WORDS, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelVM, type Closure, ClosureSchema, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, type Crumb, type CsvCell, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_TIMEZONE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, type DeskSignVM, E164, EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVERYONE_LABEL, type EmailSetupDto, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type Exactly, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FEED_MAX_BYTES, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type Fact, type FactConflict, type FactSource, type FallbackDetail, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type FirstWorkspaceDoor, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GET_YES_ROUTE, GOOGLE_SHOWN_REVIEWS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleLocationDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Holds, type Hours, type HoursRun, HoursSchema, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, type IdentityInput, type IdentityWords, type InboxTemplateLike, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, type JobKind, type JobState, type JourneyListLike, type JumpEntry, type KnownFacts, LIMIT_TIERS, LINE_CREDENTIALS_SENTENCE, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LineDto, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAILBOX_FROM_NAME_MAX, MAILBOX_LOCAL_PART_MAX, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MOCK_TEXTING_SENTENCE, MODE_WORDS, type MailboxDto, type MatchVia, type MediaVM, type MembershipRole, type MessageAuthor, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEEDS_KEY_PREFIX, NEEDS_TITLE, NEW_WINDOW_MS, type NameableContact, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, OFFERS_YES_SOURCES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OWN_MESSAGE_REFUSALS, type Ok, type Opening, type OwnAddresses, type OwnFacts, type OwnMessageVM, PARAM_SOURCES, PARAM_SOURCE_LABELS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSE_HOURS_DEFAULT, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERM_DOING, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_STATE_LABELS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_REACH_DOOR, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, POLICY_MODE_WORDS, PROPOSAL_GATE, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PersonCameFrom, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookReach, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PreflightFacts, type PreflightProblem, type PreviewPerson, type PublicPageMetadata, type PurposeBearing, type PurposeRefusal, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_MS, QUOTE_MAX, RATE_HITS_RETENTION_HOURS, RECENT_MAX, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, RETENTION_DAYS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type RecordCheckFacts, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, type ReplyWhyVM, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDto, type ReportFactVM, type ReportHoursVM, type ReportLinesVM, type ReportPointVM, type ReportSpeedPointVM, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RolePerm, type RunPlan, SCHEMA_SETS, SENDING_HOURS_WORDS, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, STARTER_LANGUAGES, STARTER_TEMPLATES, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SendPurpose, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type SetupBillingFacts, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SpanUnits, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type StateKind, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, TEMPLATE_BODY_MAX, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_OPTIONS, TIMELINE_FILTERS, TOAST_ICONS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_LEAK_MAX, TODAY_QUEUE_MAX, TONES, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateParts, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TextingTermsVM, type Theme, type ThemePref, type TimelineFilterId, type TimelineKind, type ToastShape, type ToastTone, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyRowVM, type TodayJourneyVM, type TodayLeakId, type TodayLeakVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type TodayWeekViewVM, type Tone, type Touches, type TypedFacts, type Visit, type VisitDto, type Visits, WABA_FIELDS, WA_WINDOW_MS, type WaWindow, type WabaEventKind, type WaitingPersonDto, type WaitingRowVM, type WeekTileLike, type Within, abandonedCall, activityTone, activityWords, addressAlreadyKnown, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, askUndoOpen, attentionRow, audiencePreview, autoReplyBell, autoReplyCandidates, billingAccountDto, billingDoorOpen, billingPill, bookedAfterAsk, bookingLinkAction, bookingTemplate, brainMetaOf, broadcastFailureWords, broadcastName, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGroupWordsFor, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, calendarOwnerOf, callMoodTone, callOutcomeOf, callOutcomeWords, cameFromOf, capabilityStatus, changedConfigFields, channelFor, channelsOf, checkedWords, citationRoute, citationsToShow, cleanAnswer, cleanDisplayName, cleanDraft, cleanParam, cleanTimezone, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockInZone, clockLabel, clockShort, clockStamp, clockTime, clockWhen, closedOn, companyTypeOf, compareTemplates, compareWords, composeSystemPrompt, connectionRows, connectionWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentPageMetadata, consentPageVM, consentSourceLabel, contactMeta, contactName, conversationOfNeedsKey, coversSpan, csvCell, dailyLimit, dataSentences, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayPlusInZone, dayWords, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emailLeftOutOf, emailNotConfirmed, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, erasedEmailHash, erasedPhoneHash, err, eventText, exampleParams, extractContacts, factConflicts, fallbackMessages, fastPath, feedBodyProblem, feedNotes, feedProblemWords, feedSourceLabel, feedUrlOk, filterOpenings, filterTimeline, firstNameOf, firstWorkspaceDoor, fmtClock, fmtDay, fmtSeconds, followupsToShow, footerOf, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromZonedInput, gainedOver, googleAudienceWords, googleCallbackUrl, groundCitations, groupTemplates, guardSpokenTurns, guessName, guessSlotKind, handoffE164, hardLimitsWords, hasProfile, hoursLines, hoursOf, hoursRuns, identityWords, inboxSlots, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, instructionsDraft, inviteState, invoiceStatusWords, isActivityNoise, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isIdentifierName, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, isUsablePassword, knownTimezones, languageLabels, languageWords, lastChangedWords, lineCredentialFailure, lineRetryRefusal, lineStuckProvisioning, listingLine, liveBar, liveStillUp, localDate, localHour, localToUtcMs, matchPerson, matchService, mayMessageFor, mayReceive, maySpend, mediaKind, mediaVM, memberWords, messageAt, messageAuthor, messageStatusLabel, messageText, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, needsConsultation, newReceptionistDefaults, nextOpenMoment, nextRunLabel, nextThemePref, normalizeEmail, normalizeLocalPart, normalizeNavigate, normalizePhone, notFoundPageMetadata, numberHealth, offerFor, offerLead, offeringHorizon, offersYesRefusal, ok, optInConfirmation, optInLink, optInPurposeOf, overLimitRefusal, ownAddressesOf, ownMessageRefusal, pageTitle, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseParamSpec, parseParamSpecs, parseTenantConfig, parseTenantConfigResult, partialAnswer, passwordProblem, pausedVoiceFacts, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, phoneTail, placeholdersOf, placeholdersSequential, planBilling, planRun, platformActionWarning, platformHealthOf, platformHealthWords, platformLineActions, platformNumber, platformQueue, platformRows, platformSummary, playbookReach, playbooksStillSending, pointsDelta, policyAskClass, policyClassOfIntent, policyLinks, policyRules, previewHorizon, priceWords, priorOf, providerNameOf, purposeOfPlaybook, purposeOfTemplate, quantile, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, receptionistOn, recoverCitations, refusalOf, registrationPathOf, registrationPreflight, renderTemplate, replyDelayMs, replyWhy, replyWindow, reportFacts, reportHourWords, requestCodeWords, resendLeft, resolveFacts, resolveParams, resolveSystemPrompt, resolveTheme, retentionWords, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, roleGate, ruleParts, rulesLine, runDueNow, runningTotal, safeNavigate, sameAddress, sameName, samePhone, sameQuestion, savedListAction, scheduleLine, scopeFromRoute, seasonHorizon, sendFailureIsOurs, sendableTemplates, serverNotificationRows, setupRoute, setupSteps, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnSetup, signupPosture, slotLabels, slotToWrite, slugTemplateName, smsConsentSentence, smsStateRow, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, spokenBreach, spokenBreachDetails, spokenDuration, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterText, stateLabel, stateOf, stateTone, suggestLocalPart, telHref, templateBlocked, templateComponents, templateFooter, templateNameOk, templateParts, templatePreview, templatePreviewValues, templateTitle, tenantStatusFor, textingTermsMetadata, textingTermsVM, textingWords, themeButtonWords, threadChannelOf, threadChannelWords, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, toastShape, todayAway, todayAwayGrouped, todayDay, todayDayFacts, todayDayLine, todayJourney, todayLeaks, todayWeek, tomorrowAtIn, trialOffer, trialWords, triggerOf, tzClock, unknownDetails, usableDeviceTimezone, validateTemplateDraft, verbForRoute, verbalOptInScript, verifyCodeWords, violatesNoPrices, visitDateKey, visitDay, visitDayWord, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, wallClockAt, weekOf, whenLabel, whisperText, whyCannotSpend, whyNotAFromName, whyNotAHandoff, whyNotALocalPart, whyNotAPhone, whyNotAnEmail, windowFor, workspaceHotkey, writtenChannelOf, zoneDayKey, zoneMidnight, zoneOffsetMs, zonedInputValue };
+export { ABANDONED_MS, ACTIVITY_KINDS, ACTIVITY_NOISE_PREFIXES, ACTOR_TYPES, ALERT_KINDS, ANALYSIS_GRACE_MS, ASK_CAPS, ASK_CITATION_KINDS, ASK_FINISH_JSON_SCHEMA, ASK_LANGUAGES, ASK_MAX_CHARS, ASK_MAX_ROUNDS, ASK_MODEL, ASK_PAGES, ASK_PAGE_ROUTES, ASK_RETENTION_DAYS, ASK_THREAD_VERBS, ASK_TOKENS_DAY, ASK_TURN_BUDGET_MS, ASK_UNDO_MS, AUDIENCE_KINDS, type ActivationRecord, type ActivityPageDto, type ActivityRowDto, type DecisionVerb as ActivityVerb, type ActorType, AppError, type AskCitation, type AskCitationKind, type AskFinish, AskFinishSchema, type AskLanguage, type AskMessageVM, type AskProposal, type AskProposalOutcome, AskProposalOutcomeSchema, type AskReadSet, type AskRole, type AskScope, type AskSettingsChange, AskSettingsChangeSchema, type AskSuggestion, type AskSurface, type AskThreadVM, type AskThreadVerb, type AttentionRowVM, type Audience, type AudienceKind, type AudiencePreview, type AwayGroupVM, type AwayRowLike, BILLING_MODES, BILLING_STATUSES, BILLING_TEST_MODE_CLAUSE, BILLING_TRIAL_DAYS, BOOKING_DEFAULTS, BRAIN_INTENTS, BRAIN_LANGUAGES, BRAIN_OUTPUT_JSON_SCHEMA, BROADCAST_CHUNK, BROADCAST_FAILURE_WORDS, BROADCAST_GAP_MS, BROADCAST_MAX_RECIPIENTS, BROADCAST_NAME_MAX, BROADCAST_PARAM_MAX, BROADCAST_SCHEDULE_MAX_DAYS, BROADCAST_STATES, BROADCAST_STATE_LABELS, BROKEN_CONFIG_WORDS, BUSINESS_INDUSTRIES, BUSINESS_TYPES, type BillingAccountDto, type BillingBell, type BillingDto, type BillingInvoiceDto, type BillingMode, type BillingPlan, type BillingPriceDto, type BillingStatus, type BillingVM, type BookingReportDto, type BookingReportVM, type BookingRules, type BookingRulesLike, BookingRulesSchema, type BrainConfig, BrainConfigSchema, type BrainIntent, type BrainMeta, type BrainOutput, BrainOutputSchema, type BroadcastCounts, type BroadcastDetailDto, type BroadcastDto, type BroadcastRecipientDto, type BroadcastState, type BroadcastVM, type BusinessFieldVM, type BusinessIndustry, type BusinessPageFacts, type BusinessPageVM, type BusinessProfile, BusinessProfileSchema, type BusinessRecordDto, type BusinessType, type BusyBlock, CALENDAR_FEED_WORDS, CALL_HEARTBEAT_MS, CALL_OUTCOMES, CALL_OUTCOME_WORDS, CAMPAIGN_REPORT_RANGES, CAPABILITY_KINDS, CARRIERS, CARRIER_WORDS, CHANNEL_KINDS, CHECKOUT_OUTCOME_WORDS, COMPANY_TYPES, CONFIDENCE_STEPS, CONNECTION_GROUP_WORDS, CONNECTION_KINDS, CONSENT_PHRASE, CONSENT_PHRASE_ES, CONSENT_RESET_SOURCE, CONSENT_SOURCES, CONSENT_STATES, CONVERSATION_OPT_IN_PATTERN, CONVERSATION_PHRASE, CONVERSATION_STATES, type CalendarBandVM, type CalendarBlockVM, type CalendarClosureVM, type CalendarConfig, CalendarConfigSchema, type CalendarDayDto, type CalendarDayVM, type CalendarFeedDto, type CalendarFeedHealth, type CalendarFeedNoteVM, type CalendarItemDto, type CalendarLike, type CalendarPerson, type CalendarServiceDto, type CalendarServiceVM, type CalendarVM, type CalendarView, type CalendarWeekDto, type CalendarWindowVM, type CallDto, type CallOutcome, type CallVM, type CampaignDayDto, type CampaignPointVM, type CampaignReportDto, type CampaignReportVM, type CampaignSourceDto, type CampaignSourceVM, type CampaignTotals, type CapabilityBlocker, type CapabilityInputs, type CapabilityKind, type CapabilityStatus, type Carrier, type ChannelDto, type ChannelHealth, type ChannelKind, type ChannelPickable, type ChannelVM, type CleanedEmails, type Closure, ClosureSchema, type CompanyType, type ConflictSeverity, type ConnectionGroup, type ConnectionInputs, type ConnectionKind, type ConnectionRow, type ConnectionState, type ConnectionTone, type ConnectionVerb, type ConnectionWho, type ConsentAsk, type ConsentBearing, type ConsentChange, type ConsentFormSection, type ConsentFormVM, type ConsentPageFacts, type ConsentPageVM, type ConsentState, type ConsentWay, type ConsentWayKind, type ConsultRules, type ConversationDto, type ConversationMessageVM, type ConversationState, type ConversationVM, type Crumb, type CsvCell, DAYS, DECISION_SUBJECTS, DECISION_VERBS, DEFAULT_BUSINESS_TYPE, DEFAULT_COMPANY_TYPE, DEFAULT_INDUSTRY, DEFAULT_TIMEZONE, DISCONNECTION_LABELS, DISPLAY_NAME_MAX, type DayFrameLike, type DecisionSubject, type DecisionVerb, type DeskSignVM, E164, EMAIL_ELSEWHERE_SENTENCE, EMAIL_NOT_ANSWERED_SENTENCE, EMPTY_READ_STATE, ERROR_CODES, ESCALATION_REASONS, ESCALATION_REASON_LABELS, ESCALATION_STATES, EVENT_EVIDENCE_KINDS, EVENT_KINDS, EVERYONE_LABEL, type EmailSetupDto, type Envelope, type Err, type ErrorCode, type EscalationDto, type EscalationReason, type EscalationState, type EventContacts, type EventKind, type Exactly, FALLBACK_DEFAULTS, FALLBACK_DETAILS, FEED_MAX_BYTES, FORWARDING_MODES, FORWARDING_TEST_WINDOW_MS, type Fact, type FactConflict, type FactSource, type FallbackDetail, type FastCall, type FastContext, type FastPath, type FeaturesConfig, FeaturesConfigSchema, type FeedAttendee, type FeedCall, type FeedFailure, type FeedHorizon, type FeedIndex, type FeedInput, type FeedInvite, type FeedItem, type FeedThread, type FirstWorkspaceDoor, type ForwardingCode, type ForwardingCodes, type ForwardingFacts, type ForwardingMode, type FreeWindowsInput, GET_YES_ROUTE, GOOGLE_SHOWN_REVIEWS, type GoogleAudience, type GoogleCandidateDto, type GoogleConnectionDto, type GoogleDayDto, type GoogleDto, type GoogleGainedPointVM, type GoogleListingDto, type GoogleLocationDto, type GoogleReviewDto, type GoogleReviewVM, type GoogleVM, GuardrailsSchema, HELD_REASONS, type Holds, type Hours, type HoursRun, HoursSchema, INSTRUCTIONS_MAX, INTENT_LABELS, INVOICE_STATUS_WORDS, type IdentityInput, type IdentityWords, type InboxTemplateLike, type InboxThreadVM, type Interval, IntervalSchema, JOB_KINDS, JOB_STATES, JUDGE_FACT_KEYS, JUDGE_OUTPUT_SCHEMA, type JobKind, type JobState, type JourneyListLike, type JudgeCriterionAnswer, type JudgeFactKey, type JudgePlaceAnswer, type JumpEntry, type KnownFacts, LEAD_ASK_MAX_FACTOR, LEAD_ASK_MIN_FACTOR, LEAD_CARDS, LEAD_CLOSED_REASONS, LEAD_COUNTER_KINDS, LEAD_DAY_CAP_USD, LEAD_EMAIL_REASON, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_ESTIMATE_MARGIN, LEAD_FACT_MAX, LEAD_FITS, LEAD_FREE_MAIL, LEAD_JUDGE_BATCH, LEAD_JUNK_EMAIL_DOMAINS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_OPERATION_KINDS, LEAD_PLACEHOLDER_LOCALS, LEAD_PLATFORM_DAY_CAP_USD, LEAD_PLATFORM_HOSTS, LEAD_PREFERENCE_KINDS, LEAD_PROBE_PLACES, LEAD_QUESTION_MIN_EVIDENCE, LEAD_QUESTION_THRESHOLD, LEAD_QUESTION_WAIT_MS, LEAD_REASON_MAX_WORDS, LEAD_ROLE_LOCALS, LEAD_ROUND_ANSWERS, LEAD_ROUND_ENDINGS, LEAD_ROUND_PURPOSES, LEAD_ROUND_STATES, LEAD_RUN_PURPOSES, LEAD_RUN_STATES, LEAD_SEARCH_VIAS, LEAD_STAGES, LEAD_SUPPRESSION_KINDS, LEAD_SUPPRESSION_WHATS, LIMIT_TIERS, LINE_CREDENTIALS_SENTENCE, LINE_STEP_WORDS, LIVE_OVERLONG_MS, LIVE_STALE_MS, type LeadArea, type LeadCardBrief, type LeadClassification, type LeadContactStandard, type LeadCriterion, type LeadCriterionStandard, type LeadEmailState, type LeadExclusion, type LeadFit, type LeadMemberClass, type LeadQuestion, type LeadRoundAnswer, type LeadRoundEnding, type LeadRoundPurpose, type LeadRoundState, type LeadRunState, type LeadSearchPlan, LeadSearchPlanSchema, type LeadSearchVia, type LineDto, type LiveBarVM, type LiveCallVM, type LiveLineVM, type LiveTurnVM, type LiveVM, MAILBOX_FROM_NAME_MAX, MAILBOX_LOCAL_PART_MAX, MAILBOX_RESERVED, MARKETING_OPT_IN_PATTERN, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, MEMBERSHIP_ROLES, MESSAGE_CHANNELS, MESSAGE_DIRECTIONS, MESSAGE_SENDERS, MESSAGE_STATUSES, MESSAGE_TYPES, MOCK_TEXTING_SENTENCE, MODE_WORDS, type MailboxDto, type MatchVia, type MediaVM, type MembershipRole, type MessageAuthor, type MessageChannel, type MessageDirection, type MessageDto, type MessageSender, type MessageStatus, type MessageType, type MetricsSummaryDto, NEEDS_KEY_PREFIX, NEEDS_TITLE, NEW_WINDOW_MS, type NameableContact, type Note, NoteSchema, type NotificationDto, type NotificationItem, type NotificationKind, type NotificationReadState, type NotificationRow, type NotificationsConfig, NotificationsConfigSchema, type NotificationsDto, type NumberHealth, type NumberHealthInput, OFFERS_BY_WHATSAPP_NOTE, OFFERS_OPT_IN_PHRASES, OFFERS_YES_SOURCES, OPT_IN_PATTERN, OPT_OUT_PATTERN, OPT_OUT_REFUSAL, OUTCOME_UNKNOWN, OWN_MESSAGE_REFUSALS, type Ok, type Opening, type OwnAddresses, type OwnFacts, type OwnMessageVM, PARAM_SOURCES, PARAM_SOURCE_LABELS, PASSWORD_MAX_BYTES, PASSWORD_MIN, PASSWORD_WORDS, PAUSE_HOURS_DEFAULT, PENDING_WORKSPACE_KEY, PEOPLE_LISTS, PEOPLE_LIST_GROUPS, PEOPLE_TABS, PERM_DOING, PERSON_CAME_FROM_WORDS, PERSON_CHANNEL_WORDS, PERSON_MODES, PERSON_MODE_LABELS, PERSON_MODE_WORDS, PERSON_STATE_LABELS, PLATFORM_NEW_DAYS, PLATFORM_QUIET_DAYS, PLATFORM_VERDICTS, PLAYBOOK_BREATH_MS, PLAYBOOK_CLASS_LABEL, PLAYBOOK_DEFAULTS, PLAYBOOK_HOURS, PLAYBOOK_NAME_MAX, PLAYBOOK_REACH_DOOR, PLAYBOOK_REACH_WORDS, PLAYBOOK_STATES, PLAYBOOK_TRIGGERS, PLAYBOOK_VETO_DELAY_MS, POLICY_CLASSES, POLICY_CLASS_MODES, POLICY_CLASS_WORDS, POLICY_MODES, POLICY_MODE_WORDS, PROPOSAL_GATE, PROVISIONING_DEADLINE_MS, PURPOSE_REFUSALS, type ParamFacts, type ParamSourceKind, type ParamSpec, type ParseOptions, type ParsedFeed, type PendingWorkspace, PendingWorkspaceSchema, type PeopleAggregates, type PeopleListAction, type PeopleListGroup, type PeopleListsLike, type PersonCameFrom, type PersonChannel, type PersonConsent, type PersonDecisionDto, type PersonDetailDto, type PersonEscalationDto, type PersonFact, type PersonFirstContact, type PersonIdentityDto, type PersonLastContact, type PersonLike, type PersonMatch, type PersonMode, type PersonReceptionist, type PersonRightNow, type PersonRowDto, type PersonRowVM, type PersonState, type PersonTimelineItemVM, type PersonVM, type PersonVisitsDto, type PlaceFacts, type PlatformHealth, type PlatformLineAction, type PlatformLineActionVM, type PlatformQueue, type PlatformQueueVM, type PlatformRowVM, type PlatformTenantDto, type PlatformVerdict, type PlatformVerdictWords, type PlaybookCardLike, type PlaybookDto, type PlaybookPolicyClass, type PlaybookReach, type PlaybookState, type PlaybookTrigger, type PlaybookTriggerKind, type PolicyClass, type PolicyLimits, PolicyLimitsSchema, type PolicyLinks, type PolicyMode, type PolicyRow, type PreflightFacts, type PreflightProblem, type PreviewPerson, type ProbeMember, type PublicPageMetadata, type PurposeBearing, type PurposeRefusal, QUEUE_SENDS_NOTHING, QUEUE_SHOWN, QUIET_AFTER_MS, QUOTE_MAX, RATE_HITS_RETENTION_HOURS, RECENT_MAX, RECIPIENT_STATES, RECORDING_PURGED_WORDS, RECORDING_RETENTION_DAYS, REGISTRATION_COST_WORDS, REGISTRATION_PATHS, REGISTRATION_PATH_WORDS, REGISTRATION_QUESTION, REPLY_CAP_DEFAULT, REPLY_DELAY_DEFAULT_MS, REPLY_DELAY_MAX_MS, REPLY_DELAY_MIN_MS, REPLY_LIMITS, REPLY_MAX_ANY, REPLY_WINDOW_HOURS, REPLY_WINDOW_MS, REPLY_WINDOW_WORDS, REPORT_CHANNELS, REPORT_RANGES, REPORT_WEEK_LONG, REPORT_WEEK_SHORT, RETENTION_DAYS, REVIEW_AUTO_REPLIES_PER_SYNC, REVIEW_AUTO_REPLY_MAX_AGE_MS, REVIEW_NEWS_MAX_AGE_MS, REVIEW_NEWS_MS, REVIEW_REPLY_MAX_CHARS, REVIEW_REPLY_MAX_WORDS, ROLES, ROLE_PERMS, ROLE_WORDS, type ReceptionistTone, type RecipientState, type RecordCheckFacts, type Refusal, type RefusalInput, type RegistrationPath, type RegistrationPathWords, type ReplyWhyVM, type ReportBarVM, type ReportChannelCounts, type ReportChannelKey, type ReportChannelVM, type ReportDayDto, type ReportDto, type ReportFactVM, type ReportHoursVM, type ReportLinesVM, type ReportPointVM, type ReportSpeedPointVM, type ReportTileVM, type ReportVM, type ReportWeekVM, type ReportsLike, type ResolvedFacts, type ReviewOnRecord, type ReviewReplyFacts, type ReviewReplyMode, type ReviewToAnswer, type Role, type RolePerm, type RunPlan, SCHEMA_SETS, SENDING_HOURS_WORDS, SERVER_KEY_PREFIX, SERVER_NOTIFICATION_KINDS, SETUP_REQUEST_KINDS, SETUP_STATE_WORDS, SHORTCUTS, SIGNIN_RESEND_COOLDOWN_S, SIGNUP_NAME_MAX, SIGNUP_NAME_MIN, SIGNUP_WAITLIST, SIGNUP_WORDS, SMS_CLAUSES, SMS_OPT_OUT_PATTERN, SOLE_PROP_CEILING_SENTENCE, SOLE_PROP_LIMITS, SOLE_PROP_TEXTING_SENTENCE, SOURCE_WORDS, STARTER_LANGUAGES, STARTER_TEMPLATES, type SchemaAgreement, type SchemaSet, type SchemaSetKey, type SendPurpose, type ServerNotificationKind, type Service, type ServiceLike, type ServiceOffer, ServiceSchema, type SetupBillingFacts, type SetupDto, type SetupGoogleFacts, type SetupInputs, type SetupRequestKind, type SetupRowVM, type SetupState, type SetupVM, type SetupVerb, type ShellStatus, type ShellStatusLine, type Shortcut, type SidebarPref, type SignupInput, type SignupPosture, SignupSchema, type SpanUnits, type SpokenBreach, type SpokenGuardVerdict, type SpokenRule, type SpokenTurn, type Standing, type StandingInput, type StandingVerdict, type StarterSlot, type StarterSlotKind, type StarterTemplate, type StarterText, type StateKind, type SubscriptionFacts, type SuggestionInput, type SweepHealthRow, TEMPLATE_BODY_MAX, TEMPLATE_BUTTON_TEXT_MAX, TEMPLATE_CATEGORIES, TEMPLATE_EXAMPLE_MAX, TEMPLATE_FOOTER_MAX, TEMPLATE_LANGUAGES, TEMPLATE_NAME_MAX, TEMPLATE_STATUSES, TEMPLATE_TITLE_MAX, TENANT_STATUSES, TEXTING_NEEDS_RECORD_CLAUSE, TEXTING_NEEDS_RECORD_SENTENCE, THEME_OPTIONS, TIMELINE_FILTERS, TOAST_ICONS, TOAST_MIN_MS, TOAST_MS, TOAST_TONES, TOAST_UNDO_MS, TODAY_LEAK_MAX, TODAY_QUEUE_MAX, TONES, type TemplateButton, type TemplateCategoryChoice, type TemplateDraft, type TemplateDraftCheck, type TemplateDraftInput, type TemplateGroup, type TemplateParts, type TemplateStatus, type TenantConfig, type TenantConfigParse, TenantConfigSchema, TenantConfigWriteSchema, type TenantStatus, type TextingTermsVM, type Theme, type ThemePref, type TimelineFilterId, type TimelineKind, type ToastShape, type ToastTone, type TodayCallRowVM, type TodayDayFrameVM, type TodayDayItemVM, type TodayDayVM, type TodayFactVM, type TodayJourneyRowVM, type TodayJourneyVM, type TodayLeakId, type TodayLeakVM, type TodayNeedsRowVM, type TodayQueueRowVM, type TodaySentenceVM, type TodayVM, type TodayWeekVM, type TodayWeekViewVM, type Tone, type Touches, type TypedFacts, type Visit, type VisitDto, type Visits, WABA_FIELDS, WA_WINDOW_MS, type WaWindow, type WabaEventKind, type WaitingPersonDto, type WaitingRowVM, type WeekTileLike, type Within, abandonedCall, activityTone, activityWords, addressAlreadyKnown, afterPersonRefused, agentFor, ago, agoLabel, agoShort, agoWords, allVisitsIn, applyReadState, applySettingsChange, asPersonMode, askJump, askUndoOpen, attentionRow, audiencePreview, autoReplyBell, autoReplyCandidates, billingAccountDto, billingDoorOpen, billingPill, bookedAfterAsk, bookingLinkAction, bookingTemplate, brainMetaOf, broadcastFailureWords, broadcastName, buildAskSuggestions, buildNotificationFeed, businessFieldsFor, businessGroupWordsFor, businessPageMetadata, businessPageVM, businessRecordForPath, businessRecordLine, businessRecordProblems, businessTypeOf, calendarOwnerOf, callMoodTone, callOutcomeOf, callOutcomeWords, cameFromOf, capabilityStatus, changedConfigFields, channelFor, channelsOf, checkedWords, citationRoute, citationsToShow, classify, cleanAnswer, cleanDisplayName, cleanDraft, cleanEmailCandidates, cleanParam, cleanTimezone, clipAtWord, clockDate, clockDateYear, clockDayLabel, clockInZone, clockLabel, clockShort, clockStamp, clockTime, clockWhen, closedOn, companyTypeOf, compareTemplates, compareWords, composeSystemPrompt, connectionRows, connectionWords, consentChangeOf, consentChangeWords, consentFormMetadata, consentFormVM, consentPageMetadata, consentPageVM, consentSourceLabel, contactMeta, contactName, conversationOfNeedsKey, coversSpan, csvCell, dailyLimit, dataSentences, dayDate, dayFromQuestion, dayInZone, dayIntervals, dayPlusInZone, dayWords, dedupeFeed, defaultParamSpecs, defaultSlotKinds, defaultTemplate, deltaOf, describeNow, describeOpenings, describeSettingsChange, describeVisits, deskSignMetadata, deskSignVM, detectLanguage, deviceTimezone, draftSendsAtMs, durationLabel, eligibleFor, eligibleForPlaybook, emailLeftOutOf, emailNotConfirmed, emptyAudienceRefusal, emptyBusinessRecord, emptyReadSet, endingOfRound, erasedEmailHash, erasedPhoneHash, err, estimateRoundUsd, eventText, exampleParams, extractContacts, factConflicts, fallbackMessages, fastPath, feedBodyProblem, feedNotes, feedProblemWords, feedSourceLabel, feedUrlOk, filterOpenings, filterTimeline, firstNameOf, firstWorkspaceDoor, fmtClock, fmtDay, fmtSeconds, followupsToShow, footerOf, formatPhoneDisplay, formatWaited, forwardingCodes, forwardingMatch, forwardingTestOpen, frameGuardrail, frameHandOver, frameOf, frameSteer, frameWhisper, freeWindows, fromZonedInput, gainedOver, googleAudienceWords, googleCallbackUrl, groundCitations, groupTemplates, guardSpokenTurns, guessName, guessSlotKind, handoffE164, hardLimitsWords, hasProfile, hoursLines, hoursOf, hoursRuns, identityWords, inboxSlots, inboxTemplates, indexFeed, industryOf, industryWords, initialsOf, injectedTurn, instructionsDraft, inviteState, invoiceStatusWords, isActivityNoise, isCarrier, isDayKey, isForwardingMode, isHeldDraft, isIdentifierName, isLiveCall, isOptedOut, isOptedOutContact, isOwned, isRealDate, isSidebarPref, isThemePref, isTimezone, isTypingTarget, isUngrounded, isUsablePassword, judgeOpId, judgeSystemPrompt, judgeUserContent, knownTimezones, languageLabels, languageWords, lastChangedWords, leadMonth, leadSuppressionHash, lineCredentialFailure, lineRetryRefusal, lineStuckProvisioning, listingLine, liveBar, liveStillUp, localDate, localHour, localToUtcMs, matchPerson, matchService, mayMessageFor, mayReceive, maySpend, mediaKind, mediaVM, memberWords, messageAt, messageAuthor, messageStatusLabel, messageText, mondayOf, moneyWords, monthLabelOf, monthSpan, navigateLabel, needsConsultation, newReceptionistDefaults, nextOpenMoment, nextRunLabel, nextThemePref, normalizeEmail, normalizeLocalPart, normalizeNavigate, normalizePhone, notFoundPageMetadata, numberHealth, offerFor, offerLead, offeringHorizon, offersYesRefusal, ok, optInConfirmation, optInLink, optInPurposeOf, overLimitRefusal, ownAddressesOf, ownMessageRefusal, pageTitle, paramLabel, parseAskFinish, parseBrainOutput, parseIcs, parseJudgeAnswer, parseParamSpec, parseParamSpecs, parseTenantConfig, parseTenantConfigResult, partialAnswer, passwordProblem, pausedVoiceFacts, pendingWorkspaceOf, peopleAggregates, peopleFromItems, peopleListAction, personInText, personInitials, personName, personStanding, personStateFor, phoneTail, placeholdersOf, placeholdersSequential, placesToAsk, planBilling, planRun, planSentence, planVersionOf, platformActionWarning, platformHealthOf, platformHealthWords, platformLineActions, platformNumber, platformQueue, platformRows, platformSummary, playbookReach, playbooksStillSending, pointsDelta, policyAskClass, policyClassOfIntent, policyLinks, policyRules, previewHorizon, priceWords, priorOf, providerNameOf, purposeOfPlaybook, purposeOfTemplate, quantile, questionAfterProbe, ratingWords, reachedCustomer, readAgoLabel, reasonShort, recencyCells, receptionistOn, recoverCitations, refusalOf, registrationPathOf, registrationPreflight, renderTemplate, replyDelayMs, replyWhy, replyWindow, reportFacts, reportHourWords, requestCodeWords, resendLeft, resolveFacts, resolveParams, resolveSystemPrompt, resolveTheme, retentionWords, reviewIsNew, reviewReplyModeOf, reviewReplyPrompt, reviewReplyWords, reviewSnippet, reviewsWords, roleGate, ruleParts, rulesLine, runDueNow, runningTotal, safeNavigate, sameAddress, sameName, samePhone, sameQuestion, savedListAction, scheduleLine, scopeFromRoute, seasonHorizon, sendFailureIsOurs, sendableTemplates, serverNotificationRows, setupRoute, setupSteps, sha256Hex, shellStatusLine, shiftKey, shiftMonth, shortCode, shortTime, shortcutGroups, shouldLandOnSetup, signupPosture, siteHost, slotLabels, slotToWrite, slugTemplateName, smsConsentSentence, smsStateRow, soleProprietorLimits, spanForView, spanLabel, spanUnits, speedOf, spokenBreach, spokenBreachDetails, spokenDuration, standingOf, starsOf, starterByKey, starterByName, starterDraft, starterForTrigger, starterIndex, starterPreview, starterPreviewValues, starterText, stateCode, stateLabel, stateOf, stateTone, suggestLocalPart, telHref, templateBlocked, templateComponents, templateFooter, templateNameOk, templateParts, templatePreview, templatePreviewValues, templateTitle, tenantStatusFor, textingTermsMetadata, textingTermsVM, textingWords, themeButtonWords, threadChannelOf, threadChannelWords, threadStanding, tidyCallSummary, timezoneCity, timezoneWords, toBillingVM, toBookingReportVM, toBroadcastVM, toCalendarVM, toCallVM, toCampaignReportVM, toChannelVM, toConversationVM, toGoogleReviewVM, toGoogleVM, toInboxThreadVM, toLiveCallVM, toLiveVM, toPersonRowVM, toPersonVM, toReportVM, toTodayVM, toVisitDto, toastShape, todayAway, todayAwayGrouped, todayDay, todayDayFacts, todayDayLine, todayJourney, todayLeaks, todayWeek, tomorrowAtIn, trialOffer, trialWords, triggerOf, tzClock, unknownDetails, usPhone, usableDeviceTimezone, validateTemplateDraft, verbForRoute, verbalOptInScript, verifyCodeWords, violatesNoPrices, visitDateKey, visitDay, visitDayWord, visitFactsFor, visitLine, visitStartTime, visitTime, visitsIn, visitsOf, waWindow, waitedLabel, wallClockAt, weekOf, whenLabel, whisperText, whyCannotSpend, whyNotAFromName, whyNotAHandoff, whyNotALocalPart, whyNotAPhone, whyNotAnEmail, windowFor, workspaceHotkey, writtenChannelOf, zoneDayKey, zoneMidnight, zoneOffsetMs, zonedInputValue };

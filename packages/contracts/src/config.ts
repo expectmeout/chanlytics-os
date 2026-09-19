@@ -18,15 +18,19 @@ export type Role = (typeof ROLES)[number];
 
 /** What each role may do. Mirrors the mockup's ST_PERMS exactly — the client
  *  gate() chips read this shape; the server re-checks via requireRole. */
-export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; disconnect: boolean; billing: boolean; team: boolean; settings: boolean; export: boolean }> = {
+export const ROLE_PERMS: Record<Role, { approve: boolean; autonomy: boolean; disconnect: boolean; billing: boolean; team: boolean; settings: boolean; export: boolean; find: boolean }> = {
   // `settings` is the business details and who is alerted: PUT /settings is
   // owner-only, and the form used to open on the autonomy gate, which let an
   // operator fill it in and be refused at Save.
   // `export` is the whole customer list as a file: a member sees these
   // people a screen at a time, the owner may take them all at once.
-  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true },
-  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false },
-  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false },
+  // `find` is the lead finder: starting a search, keeping a lead from review,
+  // putting one back. Each spends the month's allowance, so it is the
+  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
+  // same, and lead-engine.db.test.mjs holds the two together.
+  owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true,  find: true },
+  operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false, find: false },
+  viewer:   { approve: false, autonomy: false, disconnect: false, billing: false, team: false, settings: false, export: false, find: false },
 };
 
 /* --------------------------------------------------------------- E3 policy */

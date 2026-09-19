@@ -204,6 +204,7 @@ export const PERM_DOING: Readonly<Record<RolePerm, string>> = {
   team: "manage the team",
   settings: "change the business details",
   export: "export the customer list",
+  find: "find businesses for you",
 };
 
 /**

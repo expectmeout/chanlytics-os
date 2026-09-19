@@ -132,6 +132,25 @@ before(async () => {
   await seed("idempotency_keys", { tenant_id: A, key: "tenancy-key-1", route: "POST /x" }, null);
   await seed("jobs", { tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} });
 
+  // The lead finder (00140), in dependency order. The round is the search's
+  // first (the guard allows one live round, and seq 1 needs no session).
+  ctx.leadSearch = await seed("lead_searches", { tenant_id: A, via: "people", card: "local_businesses", name: "tenancy search", asked: "tenancy", plan: {} });
+  ctx.leadRound = await seed("lead_rounds", { tenant_id: A, search_id: ctx.leadSearch, seq: 1, purpose: "probe", plan: {}, plan_version: 1, target: 5, month: "2026-09", day: "2026-09-19" });
+  // Ended as soon as it exists: a round that has not ended is lead work to
+  // the lead finder's clock, and lead-engine.db.test.mjs runs beside this
+  // suite. queued -> ended is allowed, and the row wants its ending with it.
+  const roundEnded = await db.from("lead_rounds").update({ state: "ended", ending: "stopped" }).eq("id", ctx.leadRound);
+  assert.equal(roundEnded.error, null, `ending the tenancy round: ${roundEnded.error?.message}`);
+  await seed("lead_runs", { tenant_id: A, round_id: ctx.leadRound, purpose: "discover", actor: "card-a", build: "1", webhook_token_hash: "tenancy" });
+  await seed("lead_judgments", { tenant_id: A, round_id: ctx.leadRound, op_id: `tenancy-${Date.now()}`, answer: {} }, null);
+  ctx.lead = await seed("leads", { tenant_id: A, place_id: "ChIJtenancy0001", business_name: "Tenancy Salon" });
+  await seed("lead_places", { tenant_id: A, lead_id: ctx.lead, place_id: "ChIJtenancy0002" }, null);
+  await seed("lead_search_members", { tenant_id: A, search_id: ctx.leadSearch, lead_id: ctx.lead, round_id: ctx.leadRound, class: "review" }, null);
+  await seed("lead_counters", { tenant_id: A, kind: "allowance", period: "2026-09" }, null);
+  await seed("lead_operations", { tenant_id: A, kind: "keep", search_id: ctx.leadSearch, lead_ids: [ctx.lead], version: 1 }, null);
+  await seed("lead_preferences", { tenant_id: A, kind: "chain" }, null);
+  await seed("lead_suppressions", { tenant_id: A, kind: "place", hash: "tenancy", what: "customer" }, null);
+
   // The service role's own tables, seeded so "a member reads nothing" is not
   // proved on an empty table. A platform admin is a user who is nobody's
   // member, so the grant widens no session this suite signs in with.
@@ -144,6 +163,9 @@ before(async () => {
   await seed("platform_admins", { user_id: ctx.nobodyId }, null); probes.push(["platform_admins", "user_id", ctx.nobodyId]);
   await seed("rate_hits", { actor: key, bucket: "tenancy" }, null); probes.push(["rate_hits", "actor", key]);
   await seed("waitlist", { email: `${key}@example.com` }, null); probes.push(["waitlist", "email", `${key}@example.com`]);
+  // The lead finder's platform tables: the switch row is 00140's own; a prior is seeded and removed.
+  const prior = `tenancy_${Date.now()}`;
+  await seed("lead_niche_priors", { category_key: prior }, null); probes.push(["lead_niche_priors", "category_key", prior]);
 });
 
 after(async () => {
@@ -201,6 +223,21 @@ const TENANT_TABLES = {
   google_reviews: ["member", () => ({ tenant_id: A, review_id: "stranger-review" })],
   idempotency_keys: ["acting", () => ({ tenant_id: A, key: "stranger-key", route: "POST /x" })],
   jobs: ["none", () => ({ tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} })],
+  // The lead finder (00140): members read, nobody signed in writes a row; the
+  // judgments and the counters are the service role's. The view runs under
+  // the reader's own row security (security_invoker), and is not writable.
+  lead_searches: ["member", () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger search", asked: "stranger", plan: {} })],
+  lead_rounds: ["member", () => ({ tenant_id: A, search_id: ctx.leadSearch, seq: 2, purpose: "topup", plan: {}, plan_version: 1, target: 1, month: "2026-09", day: "2026-09-19" })],
+  lead_runs: ["member", () => ({ tenant_id: A, round_id: ctx.leadRound, purpose: "discover", actor: "card-a", build: "1", webhook_token_hash: "stranger" })],
+  lead_judgments: ["none", () => ({ tenant_id: A, round_id: ctx.leadRound, op_id: "stranger", answer: {} })],
+  leads: ["member", () => ({ tenant_id: A, place_id: "ChIJstranger0001", business_name: "Stranger" })],
+  lead_places: ["member", () => ({ tenant_id: A, lead_id: ctx.lead, place_id: "ChIJstranger0002" })],
+  lead_search_members: ["member", () => ({ tenant_id: A, search_id: ctx.leadSearch, lead_id: ctx.lead, class: "review" })],
+  lead_counters: ["none", () => ({ tenant_id: A, kind: "budget", period: "2026-09" })],
+  lead_operations: ["member", () => ({ tenant_id: A, kind: "exclude", search_id: ctx.leadSearch, lead_ids: [ctx.lead], version: 1 })],
+  lead_preferences: ["member", () => ({ tenant_id: A, kind: "too_far" })],
+  lead_suppressions: ["member", () => ({ tenant_id: A, kind: "email", hash: "stranger", what: "email_opt_out" })],
+  lead_searches_view: ["member", () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger", asked: "stranger", plan: {} })],
 };
 
 /** Tables without a tenant_id: scoped by the user, or the service role's, or the workspace row itself. */
@@ -213,6 +250,8 @@ const OTHER_TABLES = {
   rate_hits: "none",
   sweep_status: "none",
   waitlist: "none",
+  lead_platform: "none", // the switch, one row; read through lead_searches_on()
+  lead_niche_priors: "none", // platform-wide priors; read through lead_niche_prior()
 };
 
 const seen = async (client, table, filter) => {

@@ -61,6 +61,19 @@ export interface JobContext {
     tell: (tenantId: string, note: Parameters<EmailIngestPorts["tell"]>[1]) => Promise<void>;
   };
   /**
+   * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
+   * the three above: the provider's token, the judge's client and the
+   * webhook base live on the edge (release A2 binds them). Optional so a
+   * test context need not supply one; a lead job in a runtime without it
+   * fails loudly rather than guessing. Each takes the claimed job whole and
+   * bounds itself to one page or one batch before ctx.deadline.
+   */
+  leads?: {
+    roundStart: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+    collect: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+    check: (ctx: JobContext, job: ClaimedJob) => Promise<void>;
+  };
+  /**
    * Schedule a job of this tenant — how a broadcast continues itself, one
    * batch after another, through the same door the dashboard uses.
    */
@@ -346,6 +359,25 @@ async function emailIngest(ctx: JobContext, job: ClaimedJob): Promise<void> {
 type Handler = (ctx: JobContext, job: ClaimedJob) => Promise<void>;
 
 /**
+ * The lead finder's three, over the pipeline the edge injects (A2). Each is
+ * written to be run again (RETRY_WAITS_MS): a start claims its run row before
+ * the provider is called, a collect commits one page by compare-and-set, a
+ * check commits by lead id.
+ */
+async function leadRoundStart(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.leads) throw new Error("lead_round_start: this runtime holds no lead pipeline");
+  await ctx.leads.roundStart(ctx, job);
+}
+async function leadCollect(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.leads) throw new Error("lead_collect: this runtime holds no lead pipeline");
+  await ctx.leads.collect(ctx, job);
+}
+async function leadCheck(ctx: JobContext, job: ClaimedJob): Promise<void> {
+  if (!ctx.leads) throw new Error("lead_check: this runtime holds no lead pipeline");
+  await ctx.leads.check(ctx, job);
+}
+
+/**
  * Every declared kind, and only those. `Record<JobKind, Handler>` is the
  * compiler's promise that a kind added to JOB_KINDS without a handler does
  * not build, rather than sitting on the ledger until a row of it is claimed
@@ -357,6 +389,9 @@ const HANDLERS: Record<JobKind, Handler> = {
   blob_thread_erase: blobThreadErase,
   line_provision: lineProvision,
   email_ingest: emailIngest,
+  lead_round_start: leadRoundStart,
+  lead_collect: leadCollect,
+  lead_check: leadCheck,
 };
 
 export async function dispatchJob(ctx: JobContext, job: ClaimedJob): Promise<"done" | "unknown_kind"> {

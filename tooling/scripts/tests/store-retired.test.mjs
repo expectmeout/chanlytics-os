@@ -67,16 +67,20 @@ test("every caller that used the store as a mirror steps aside when it is retire
 });
 
 test("the queue's kinds: each one handled and each one scheduled somewhere", () => {
-  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest"]);
+  assert.deepEqual([...JOB_KINDS], ["outbound_send", "broadcast_send", "blob_thread_erase", "line_provision", "email_ingest", "lead_round_start", "lead_collect", "lead_check"]);
   const handlers = readCode("packages/jobs/src/handlers.ts");
   for (const k of JOB_KINDS) assert.ok(new RegExp(`^\\s*${k}: \\w+,`, "m").test(handlers), `${k} has a handler in the dispatch map`);
   for (const dead of ["veto_fire", "media_fetch", "rollup_daily", "report_weekly", "snooze_wake", "pause_expire"]) assert.ok(!handlers.includes(`${dead}:`), `${dead} is not handled and not declared`);
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
-  // `ctx.schedule(...)` call, or the draft queue's row, naming it.
+  // `ctx.schedule(...)` call, or the draft queue's row, naming it -- or a
+  // door in SQL that inserts the job itself (the lead finder's, 00140).
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
+  const migrations = path.join(ROOT, "supabase/migrations");
+  const sql = fs.readdirSync(migrations).filter((f) => f.endsWith(".sql")).map((f) => fs.readFileSync(path.join(migrations, f), "utf8")).join("\n");
   for (const k of JOB_KINDS) {
     const named = new RegExp(`(schedule(?:Job)?\\([^;]*"${k}"|kind: "${k}")`, "s");
-    assert.ok(named.test(src), `${k} is scheduled by something`);
+    const inserted = new RegExp(`insert into (?:public\\.)?jobs\\b[^;]*'${k}'`, "s");
+    assert.ok(named.test(src) || inserted.test(sql), `${k} is scheduled by something`);
   }
   // That the CHECK agrees is held at compile time by contracts/src/schema-sets.ts.
 });

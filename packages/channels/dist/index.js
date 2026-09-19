@@ -4,6 +4,8 @@ import { z as z2 } from "zod";
 import { z as z3 } from "zod";
 import { z as z4 } from "zod";
 import { z as z5 } from "zod";
+import { z as z6 } from "zod";
+import { z as z7 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -89,7 +91,11 @@ var EVENT_KINDS = [
   "channel.connected",
   /** An owner gave the workspace its email address, or changed the name beside it (00129). Who, never the address. */
   "mailbox.created",
-  "mailbox.renamed"
+  "mailbox.renamed",
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
+  "lead.round",
+  /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
+  "lead.no_card"
 ];
 var OPT_OUT_PATTERN = /^\s*(stop|baja|unsubscribe|alto)\s*[.!]?\s*$/i;
 var SMS_OPT_OUT_PATTERN = /^\s*(stop|stopall|end|cancel|quit|unsubscribe|revoke|optout|baja|alto)\s*[.!]?\s*$/i;
@@ -264,7 +270,12 @@ var RETENTION_DAYS = {
   /** The bell's rows and their marks (purge_notifications, 00057). */
   notifications: 90,
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
-  cron_history: 14
+  cron_history: 14,
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
+  leads_untouched: 90,
+  leads_untouched_blanked: 180,
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
+  leads_excluded_blanked: 30
 };
 var RECORDING_RETENTION_DAYS = RETENTION_DAYS.call_recordings;
 var RECORDING_PURGED_WORDS = `Recording removed after ${RECORDING_RETENTION_DAYS} days; the transcript is kept`;
@@ -821,6 +832,93 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var LEAD_MAX_PLACES = 1e3;
+var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var US_STATES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES = new Set(Object.values(US_STATES));
+var KEY = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words = (min, max) => z6.string().transform((s) => stripUnsafe(s).trim()).pipe(z6.string().min(min).max(max));
+var LeadSearchPlanSchema = z6.object({
+  version: z6.number().int().min(1),
+  card: z6.literal("local_businesses"),
+  name: words(2, 80),
+  asked: words(1, 400),
+  terms: z6.array(words(2, 60)).min(1).max(5),
+  area: z6.object({
+    kind: z6.enum(["zip", "city", "radius"]),
+    label: words(2, 80),
+    state: z6.string().regex(/^[A-Z]{2}$/),
+    center: z6.object({ lat: z6.number().min(-90).max(90), lng: z6.number().min(-180).max(180) }).nullable(),
+    radius_m: z6.number().int().min(500).max(2e5),
+    zip: z6.string().regex(/^\d{5}$/).optional(),
+    query: words(2, 120)
+  }),
+  count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z6.enum(["phone", "email"]),
+  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
+  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var BUSINESS_INDUSTRIES = [
   "AGRICULTURE",
@@ -898,6 +996,114 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
+var JUDGE_OUTPUT_SCHEMA = {
+  type: "object",
+  properties: {
+    places: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          ref: { type: "integer" },
+          criteria: {
+            type: "array",
+            items: {
+              type: "object",
+              properties: {
+                key: { type: "string" },
+                answer: { type: "string", enum: ["pass", "fail", "unknown"] },
+                facts: { type: "array", items: { type: "string", enum: [...JUDGE_FACT_KEYS] } }
+              },
+              required: ["key", "answer", "facts"],
+              additionalProperties: false
+            }
+          },
+          email_index: { anyOf: [{ type: "integer" }, { type: "null" }] },
+          reason: { type: "string" }
+        },
+        required: ["ref", "criteria", "email_index", "reason"],
+        additionalProperties: false
+      }
+    }
+  },
+  required: ["places"],
+  additionalProperties: false
+};
+var AnswerSchema = z7.object({
+  places: z7.array(z7.object({
+    ref: z7.number().int(),
+    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
+    email_index: z7.number().int().nullable(),
+    reason: z7.string()
+  }))
+});
+var K = new Uint32Array([
+  1116352408,
+  1899447441,
+  3049323471,
+  3921009573,
+  961987163,
+  1508970993,
+  2453635748,
+  2870763221,
+  3624381080,
+  310598401,
+  607225278,
+  1426881987,
+  1925078388,
+  2162078206,
+  2614888103,
+  3248222580,
+  3835390401,
+  4022224774,
+  264347078,
+  604807628,
+  770255983,
+  1249150122,
+  1555081692,
+  1996064986,
+  2554220882,
+  2821834349,
+  2952996808,
+  3210313671,
+  3336571891,
+  3584528711,
+  113926993,
+  338241895,
+  666307205,
+  773529912,
+  1294757372,
+  1396182291,
+  1695183700,
+  1986661051,
+  2177026350,
+  2456956037,
+  2730485921,
+  2820302411,
+  3259730800,
+  3345764771,
+  3516065817,
+  3600352804,
+  4094571909,
+  275423344,
+  430227734,
+  506948616,
+  659060556,
+  883997877,
+  958139571,
+  1322822218,
+  1537002063,
+  1747873779,
+  1955562222,
+  2024104815,
+  2227730452,
+  2361852424,
+  2428436474,
+  2756734187,
+  3204031479,
+  3329325298
+]);
 
 // src/whatsapp.ts
 var GRAPH = "https://graph.facebook.com/v25.0";
@@ -1066,7 +1272,7 @@ function liveTurns(items) {
   if (!items?.length) return null;
   const spoken = items.filter((t) => t.role === "agent" || t.role === "user" || t.role === "injected");
   if (!spoken.length) return null;
-  return spoken.map(({ role, content, words }) => ({ role, content: content ?? "", ...words ? { words } : {} }));
+  return spoken.map(({ role, content, words: words2 }) => ({ role, content: content ?? "", ...words2 ? { words: words2 } : {} }));
 }
 function parseTranscriptText(text) {
   if (!text) return null;
@@ -2182,9 +2388,9 @@ function smsInboundFrom(form2) {
 }
 function smsAsWaMessage(s, nowMs = Date.now()) {
   const digits = s.from.replace(/[^\d]/g, "");
-  const words = s.body.trim();
+  const words2 = s.body.trim();
   const base = { from: digits, id: s.messageSid, timestamp: String(Math.floor(nowMs / 1e3)) };
-  if (words) return { ...base, type: "text", text: { body: s.numMedia > 0 ? `${words} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words } };
+  if (words2) return { ...base, type: "text", text: { body: s.numMedia > 0 ? `${words2} [with ${s.numMedia === 1 ? "a picture" : `${s.numMedia} pictures`}]` : words2 } };
   return { ...base, type: s.numMedia > 0 ? "image" : "unsupported" };
 }
 function carrierConsent(s) {
@@ -2835,8 +3041,8 @@ function brandRequest(o) {
     }
   };
 }
-function keywordsFor(words) {
-  return words.map((w) => w.trim()).filter((w) => /^[A-Za-z0-9]+$/.test(w));
+function keywordsFor(words2) {
+  return words2.map((w) => w.trim()).filter((w) => /^[A-Za-z0-9]+$/.test(w));
 }
 var LOW_VOLUME_USECASE = "LOW_VOLUME";
 function campaignRequest(f) {

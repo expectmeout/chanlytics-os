@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Release A of the lead finder, first half: the engine's data and its contracts, with no screen and no provider call. One migration (00139) that holds a search, its rounds, its runs, the places found, each search's own judgment of each place, the month's allowance and searching budget with the two day caps, the undo records and the never-again list; the doors an owner's routes will call and the RPCs the edge's jobs will call, each one transaction; two contracts modules that decide everything with a right answer (the plan and its sentence, the class of a place from the judge's answers, how many places to ask for, when to stop and ask, which of the nine endings a round gets, the judge's schema and parser); and the proofs on a real Postgres. A2 (`docs/plans/2026-09-19-lead-finder-A2-pipeline.md`) brings the provider, the judge's call, the three jobs, the webhook, the sweep's handler and the routes, and starts at the next free migration number.
+**Goal:** Release A of the lead finder, first half: the engine's data and its contracts, with no screen and no provider call. One migration (00140) that holds a search, its rounds, its runs, the places found, each search's own judgment of each place, the month's allowance and searching budget with the two day caps, the undo records and the never-again list; the doors an owner's routes will call and the RPCs the edge's jobs will call, each one transaction; two contracts modules that decide everything with a right answer (the plan and its sentence, the class of a place from the judge's answers, how many places to ask for, when to stop and ask, which of the nine endings a round gets, the judge's schema and parser); and the proofs on a real Postgres. A2 (`docs/plans/2026-09-19-lead-finder-A2-pipeline.md`) brings the provider, the judge's call, the three jobs, the webhook, the sweep's handler and the routes, and starts at the next free migration number.
 
 **Architecture:** The search is the saved object; a round is the unit of execution and money, final once ended; a run is one provider execution claimed before the provider is called and leased by owner token and generation while a page is read; a lead is a place, unique by place id in a workspace, never merged on a shared phone, email or host; a membership joins a lead to a search with that search's class. Counters are locked in one order inside one door (allowance, budget, the workspace's day, the platform's day) and settled as pages commit; nothing is held across a provider or model call. `lead_collect_commit` is one page in one transaction: the judgment kept by operation id, the leads and members inserted once, Qualified members counted up to the round's reservation, the usage settled, the offset moved by compare-and-set, the next job written once, the round moved, the events appended. Every write from a session goes through a `SECURITY DEFINER` door that judges `auth.uid()` and the role; the edge's RPCs are `service_role`'s alone; members read through row security in the 00002 shape. Contracts hold the plan (`LeadSearchPlanSchema`, zod 4), its sentence, `classify` (§0.1: code decides from per-criterion answers), `placesToAsk` (S6), `questionAfterProbe` (P4), `endingOfRound` (S7), the cleaner (§7.2), the cards' briefs, the judge's hand-written JSON schema and its zod parser; the stored sets are held to the database's own CHECKs at compile time.
 
@@ -38,7 +38,7 @@
 
 **House rules this plan follows:**
 - **Never add a `readCode(` or `readRaw(` assertion.** `source-scan-ratchet.test.mjs` counts them per file; a count may only fall. Every new test here runs code. Where an existing pin's *value* changes (the `JOB_KINDS` list in `store-retired.test.mjs`, `RETENTION_DAYS` in `retention-words.test.mjs`), the assertion is edited, not added; the one lint widened (`store-retired.test.mjs`, "each one scheduled somewhere") reads the migrations with `fs.readFileSync`, so no `readRaw(` is added.
-- **Migrations:** take the next free number and **re-list `supabase/migrations` immediately before pushing**. Main ends at `00138_a_person_says_where_they_came_from.sql` (#677, 18 Sep); this plan writes `00139_the_lead_finder_engine.sql`. Every statement is re-runnable (`if not exists`, `create or replace`, `drop … if exists`, `on conflict`). **The agent runs the production `db push`** (Ruben, 18 Sep): once CI is green, from the PR's branch, a dry run that lists only 00139, then `db push --linked --yes` with the cached CLI 2.116.0, a read-back, then the merge (Task 6). If the auto-mode classifier refuses, never reroute: hand Ruben the PowerShell one-liners.
+- **Migrations:** take the next free number and **re-list `supabase/migrations` immediately before pushing**. Main ends at `00138_a_person_says_where_they_came_from.sql` (#677, 18 Sep); this plan writes `00140_the_lead_finder_engine.sql`. Every statement is re-runnable (`if not exists`, `create or replace`, `drop … if exists`, `on conflict`). **The agent runs the production `db push`** (Ruben, 18 Sep): once CI is green, from the PR's branch, a dry run that lists only 00140, then `db push --linked --yes` with the cached CLI 2.116.0, a read-back, then the merge (Task 6). If the auto-mode classifier refuses, never reroute: hand Ruben the PowerShell one-liners.
 - **Widening a CHECK set** takes the migration, the contracts list and `schema-sets.generated.ts`, which is generated from the database (`corepack pnpm gen:schema-sets` with the local stack running). So Task 3's list edits and Task 4's migration land in ONE commit: contracts does not typecheck between them.
 - **Package dists are committed.** After any change under `packages/`, `node tooling/scripts/check-dist.mjs` rebuilds all five; keep only dists with a real diff (`git diff -w --ignore-cr-at-eol`), commit them, and expect `dist in sync with src` only after the commit. tsup inlines workspace packages: this change touches all five dists.
 - **Tests that import `packages/*/src/*.ts` directly** (`lead-search.test.mjs`, `lead-judge.test.mjs`, `jobs-ledger.test.mjs`) are never a stale dist. Tests that import `@chanlytics/contracts` or `packages/jobs/dist` (`retention-words`, `gate-reason`, `event-kinds`, `exports`, `lead-jobs`, the db suites) read the built copy: rebuild before believing a red.
@@ -53,7 +53,7 @@
 - The Supabase CLI (2.116.0, the version CI pins; also the binary `check-db-types.mjs` and `gen-schema-sets.mjs` want): `SB="$HOME/AppData/Local/npm-cache/_npx/b96a6bd565c470ce/node_modules/@supabase/cli-windows-x64/bin/supabase.exe"`. It is not a repo dependency. If it is missing, ask Ruben before `npx -y supabase@2.116.0 --version`, which downloads it again.
 - The local database's env, in the same command as the test: `eval "$("$SB" status -o env | sed -n 's/^\(SERVICE_ROLE_KEY\|ANON_KEY\)=/export SUPABASE_\1=/p')"; export SUPABASE_URL=http://127.0.0.1:54321; export SUPABASE_CLI="$SB";`
 - The local stack needs Docker Desktop. If `docker version --format '{{.Server.Version}}'` errors, start it with PowerShell `Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe"` and poll until it answers (up to about 4 minutes). The stack (`supabase_*_chanlytics-messaging`) is shared by every worktree on this machine, and `db reset` (Task 4) replays every migration from zero on it.
-- A rolled-back dry run of the migration, before the reset: `( echo 'begin;'; cat supabase/migrations/00139_the_lead_finder_engine.sql; echo 'rollback;' ) | docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1`
+- A rolled-back dry run of the migration, before the reset: `( echo 'begin;'; cat supabase/migrations/00140_the_lead_finder_engine.sql; echo 'rollback;' ) | docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1`
 
 ---
 
@@ -73,7 +73,7 @@
 | `packages/jobs/src/handlers.ts` | modify | the `leads` seam on `JobContext` and three handlers that reach it |
 | `packages/db/src/database.types.ts` | modify (generated) | the thirteen tables, the view and the functions |
 | `packages/*/dist/**` | modify (built) | the committed builds; all five carry a real diff |
-| `supabase/migrations/00139_the_lead_finder_engine.sql` | create | the tables, row security, the jobs kinds and index, the helpers, the guards, the service RPCs, the doors, the view and the page, realtime, the clock, retention |
+| `supabase/migrations/00140_the_lead_finder_engine.sql` | create | the tables, row security, the jobs kinds and index, the helpers, the guards, the service RPCs, the doors, the view and the page, realtime, the clock, retention |
 | `tooling/scripts/tests/lead-search.test.mjs`, `lead-judge.test.mjs` | create | the pure rules, run |
 | `tooling/scripts/tests/lead-jobs.test.mjs` | create | the three kinds reach the seam; a runtime without it fails by name |
 | `tooling/scripts/tests/lead-engine.db.test.mjs` | create | the engine on a real Postgres with real sessions |
@@ -111,7 +111,7 @@ Expected: `# fail 0`.
 - [ ] **Step 4: Re-check the migration number**
 
 Run: `ls supabase/migrations | tail -3 && git ls-tree -r --name-only origin/main -- supabase/migrations | tail -1 && gh pr list --repo expectmeout/chanlytics-os --state open --limit 100 --json number,files | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{for(const p of JSON.parse(s))for(const f of p.files)if(f.path.startsWith('supabase/migrations/'))console.log('#'+p.number,f.path)})"`
-Expected: the folder and main both end at `00138_a_person_says_where_they_came_from.sql`, and no open PR claims `00139`. If 00139 is taken, use the next free number here and in every later mention (Task 6, Step 3 lists them).
+Expected: the folder and main both end at `00138_a_person_says_where_they_came_from.sql`, and no open PR claims `00140`. If 00140 is taken, use the next free number here and in every later mention (Task 6, Step 3 lists them).
 
 - [ ] **Step 5: Check what main changed since this plan was written**
 
@@ -365,7 +365,7 @@ import { dayInZone } from "./availability";
 import type { JudgePlaceAnswer, PlaceFacts } from "./lead-judge";
 
 /* ------------------------------------------------------ the stored sets -- */
-// Each mirrors a CHECK in 00139 and is held to it in schema-sets.ts.
+// Each mirrors a CHECK in 00140 and is held to it in schema-sets.ts.
 
 export const LEAD_SEARCH_VIAS = ["people", "ask"] as const;
 export type LeadSearchVia = (typeof LEAD_SEARCH_VIAS)[number];
@@ -859,7 +859,7 @@ export function stateCode(raw: string | null | undefined): string | null {
 
 /* ---------------------------------------------------------- the month -- */
 
-/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00139 says the same. */
+/** 'YYYY-MM' in the workspace's zone: the month a lead counts in (§0.2, 15). lead_month() in 00140 says the same. */
 export function leadMonth(zone: string, at: Date): string {
   const d = dayInZone(zone, at.getTime());
   return `${d.y}-${String(d.m).padStart(2, "0")}`;
@@ -1328,7 +1328,7 @@ with
 ```ts
   "email_ingest",
   /**
-   * The lead finder (00139, PRD v3 §12.5). lead_round_start starts one round:
+   * The lead finder (00140, PRD v3 §12.5). lead_round_start starts one round:
    * a run per term, each claimed before the provider is called. lead_collect
    * reads one page of one run, judges it and commits it in one transaction;
    * seq is p<offset> for a page, final from the webhook, s<minute> from the
@@ -1355,7 +1355,7 @@ with
 ```ts
   "mailbox.created",
   "mailbox.renamed",
-  /** A lead search's round started, waited, or ended with one of the nine endings (00139). */
+  /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
   "lead.no_card",
@@ -1391,7 +1391,7 @@ with
   // people a screen at a time, the owner may take them all at once.
   // `find` is the lead finder: starting a search, keeping a lead from review,
   // putting one back. Each spends the month's allowance, so it is the
-  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00139 says the
+  // owner's alone (PRD v3 §16.6, S9); has_permission() in 00140 says the
   // same, and lead-engine.db.test.mjs holds the two together.
   owner:    { approve: true,  autonomy: true,  disconnect: true,  billing: true,  team: true,  settings: true,  export: true,  find: true },
   operator: { approve: true,  autonomy: true,  disconnect: false, billing: false, team: false, settings: false, export: false, find: false },
@@ -1430,10 +1430,10 @@ with
 ```ts
   /** The sweeps' run history; a clock that fires every few minutes keeps a day (purge_cron_history, 00099). */
   cron_history: 14,
-  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00139). */
+  /** A found lead nobody worked (no contact, no export, no person): set aside, then its details removed (purge_leads, 00140). */
   leads_untouched: 90,
   leads_untouched_blanked: 180,
-  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00139). */
+  /** A place a search left out: its details removed, while the count of what was left out stays (purge_leads, 00140). */
   leads_excluded_blanked: 30,
 } as const;
 ```
@@ -1476,7 +1476,7 @@ In `packages/contracts/src/erasure.ts`, after the whole `erasedEmailHash` functi
 
 /**
  * A lead's email, phone or place id on the never-again list (lead_suppressions,
- * 00139): the same keyed digest, so SQL's lead_suppression_hash(tenant, value)
+ * 00140): the same keyed digest, so SQL's lead_suppression_hash(tenant, value)
  * and this agree byte for byte (lead-engine.db.test.mjs proves it). The value
  * is the one stored: E.164 with its "+", normalizeEmail's output, the place id.
  */
@@ -1500,7 +1500,7 @@ with
 ```ts
 export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   email_ingest: [5 * 60_000, 30 * 60_000],
-  // The lead finder's three (00139). Each is written to be run again: a start
+  // The lead finder's three (00140). Each is written to be run again: a start
   // claims its run row before it calls the provider, a collect commits a page
   // by compare-and-set on the offset, a check commits by lead id. A
   // provider's 429 or 5xx throws and lands here: two minutes covers a bad
@@ -1528,7 +1528,7 @@ with
 
 ```ts
   /**
-   * The lead finder's pipeline (00139), as the edge holds it. INJECTED like
+   * The lead finder's pipeline (00140), as the edge holds it. INJECTED like
    * the three above: the provider's token, the judge's client and the
    * webhook base live on the edge (release A2 binds them). Optional so a
    * test context need not supply one; a lead job in a runtime without it
@@ -1602,7 +1602,7 @@ Create `tooling/scripts/tests/lead-jobs.test.mjs` (it reads the jobs dist, so it
 ```js
 /**
  * The lead finder's three job kinds reach the pipeline the edge injects, and
- * a runtime without one fails the job loudly instead of guessing (00139,
+ * a runtime without one fails the job loudly instead of guessing (00140,
  * release A1; A2 binds the pipeline). Run over the committed jobs dist, the
  * way line-provision.test.mjs runs its kind.
  */
@@ -1674,7 +1674,7 @@ with
 ```js
   // Something schedules each kind: a `schedule(...)` / `scheduleJob(...)` /
   // `ctx.schedule(...)` call, or the draft queue's row, naming it -- or a
-  // door in SQL that inserts the job itself (the lead finder's, 00139).
+  // door in SQL that inserts the job itself (the lead finder's, 00140).
   const src = sourceTree(["apps/edge", "apps/dashboard/app", "apps/dashboard/src", "packages/jobs/src"]);
   const migrations = path.join(ROOT, "supabase/migrations");
   const sql = fs.readdirSync(migrations).filter((f) => f.endsWith(".sql")).map((f) => fs.readFileSync(path.join(migrations, f), "utf8")).join("\n");
@@ -1719,20 +1719,20 @@ Expected: exactly one error, `src/schema-sets.ts(69,9): error TS2344: Type 'fals
 
 ---
 
-## Task 4: The migration 00139, applied locally, the sets regenerated, one commit with Task 3
+## Task 4: The migration 00140, applied locally, the sets regenerated, one commit with Task 3
 
 **Files:**
-- Create: `supabase/migrations/00139_the_lead_finder_engine.sql`
+- Create: `supabase/migrations/00140_the_lead_finder_engine.sql`
 - Modify: `packages/contracts/src/schema-sets.ts`; `packages/contracts/src/schema-sets.generated.ts` (generated); `packages/db/src/database.types.ts` (generated); `packages/*/dist/**` (built)
 
 - [ ] **Step 1: Re-check the number, then write the migration**
 
-Run the command of Task 0, Step 4 again. Expected: nothing holds 00139.
+Run the command of Task 0, Step 4 again. Expected: nothing holds 00140.
 
-Create `supabase/migrations/00139_the_lead_finder_engine.sql`:
+Create `supabase/migrations/00140_the_lead_finder_engine.sql`:
 
 ```sql
--- 00139 · The lead finder's engine: the data and the doors (release A1).
+-- 00140 · The lead finder's engine: the data and the doors (release A1).
 --
 -- PRD v3 (docs/plans/2026-09-17-people-table-and-lead-finder.md) §0, §12.3,
 -- §12.4; the plan is docs/plans/2026-09-19-lead-finder-A1-data.md. Nothing here
@@ -3710,13 +3710,13 @@ select cron.schedule('purge-leads', '47 4 * * *', $$select public.purge_leads()$
 
 Make sure Docker answers (see Commands), then `"$SB" status >/dev/null 2>&1 || "$SB" start -x studio,imgproxy,inbucket,edge-runtime,logflare,vector`.
 
-Run: `( echo 'begin;'; cat supabase/migrations/00139_the_lead_finder_engine.sql; echo 'rollback;' ) | docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1 2>&1 | grep -E "ERROR|ROLLBACK"`
-Expected: `ROLLBACK` and no `ERROR` line. (If the local database is behind main, this dry run still passes: 00139 depends on nothing 00134 to 00138 added. The reset below replays everything.)
+Run: `( echo 'begin;'; cat supabase/migrations/00140_the_lead_finder_engine.sql; echo 'rollback;' ) | docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1 2>&1 | grep -E "ERROR|ROLLBACK"`
+Expected: `ROLLBACK` and no `ERROR` line. (If the local database is behind main, this dry run still passes: 00140 depends on nothing 00134 to 00138 added. The reset below replays everything.)
 
 - [ ] **Step 3: Replay the local stack from zero, and regenerate what is generated from it**
 
 Run: `"$SB" db reset`
-Expected: every migration applies in order, ending `Applying migration 00139_the_lead_finder_engine.sql...` with no error, then `Finished supabase db reset`.
+Expected: every migration applies in order, ending `Applying migration 00140_the_lead_finder_engine.sql...` with no error, then `Finished supabase db reset`.
 
 Run: `SUPABASE_CLI="$SB" corepack pnpm gen:schema-sets`
 Expected: `wrote packages/contracts/src/schema-sets.generated.ts`. Then `git diff --stat -- packages/contracts/src/schema-sets.generated.ts` shows `30 insertions(+), 1 deletion(-)`: `jobs.kind` gains the three kinds and these nineteen entries appear, byte for byte (the generator's own rendering):
@@ -3779,7 +3779,7 @@ with
   Holds<Exactly<Of<typeof BUSINESS_TYPES>, SchemaSet<"business_records.business_type">>>,
   Holds<Exactly<Of<typeof COMPANY_TYPES>, SchemaSet<"business_records.company_type">>>,
 
-  // The lead finder (00139). A round's ending and its pending ending are one set.
+  // The lead finder (00140). A round's ending and its pending ending are one set.
   Holds<Exactly<Of<typeof LEAD_SEARCH_VIAS>, SchemaSet<"lead_searches.via">>>,
   Holds<Exactly<Of<typeof LEAD_ROUND_PURPOSES>, SchemaSet<"lead_rounds.purpose">>>,
   Holds<Exactly<Of<typeof LEAD_ROUND_STATES>, SchemaSet<"lead_rounds.state">>>,
@@ -3810,13 +3810,13 @@ Run: `node tooling/scripts/check-dist.mjs; for d in contracts db jobs channels c
 Expected: `DIST DRIFT` (it reads the uncommitted rebuild as drift; the commit below settles it) and then five lines, `contracts: real diff`, `db: real diff`, `jobs: real diff`, `channels: real diff`, `core: real diff` (tsup inlines contracts into the other four).
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/lead-search.test.mjs tooling/scripts/tests/lead-judge.test.mjs tooling/scripts/tests/lead-jobs.test.mjs tooling/scripts/tests/jobs-ledger.test.mjs tooling/scripts/tests/line-provision.test.mjs tooling/scripts/tests/retention-words.test.mjs tooling/scripts/tests/gate-reason.test.mjs tooling/scripts/tests/exports.test.mjs tooling/scripts/tests/event-kinds.test.mjs tooling/scripts/tests/store-retired.test.mjs tooling/scripts/tests/delete-tenant.test.mjs tooling/scripts/tests/migrations.test.mjs tooling/scripts/tests/source-scan-ratchet.test.mjs`
-Expected: `# fail 0`. `event-kinds` now sees `lead.round` and `lead.no_card` emitted (five `insert into events` in 00139 name `lead.round`, one names `lead.no_card`, one names `contact.added`); `store-retired` sees the three kinds handled and scheduled by SQL; `delete-tenant` sees the eleven tables listed.
+Expected: `# fail 0`. `event-kinds` now sees `lead.round` and `lead.no_card` emitted (five `insert into events` in 00140 name `lead.round`, one names `lead.no_card`, one names `contact.added`); `store-retired` sees the three kinds handled and scheduled by SQL; `delete-tenant` sees the eleven tables listed.
 
 - [ ] **Step 6: Commit Task 3 and Task 4 together**
 
 ```bash
-git add packages/contracts/src packages/jobs/src packages/db/src packages/contracts/dist packages/db/dist packages/jobs/dist packages/channels/dist packages/core/dist supabase/migrations/00139_the_lead_finder_engine.sql tooling/scripts/tests/lead-jobs.test.mjs tooling/scripts/tests/retention-words.test.mjs tooling/scripts/tests/store-retired.test.mjs tooling/scripts/delete-tenant.mjs
-git commit -m "The lead finder's engine: a search, its rounds and runs, the places found, the month's allowance and budget reserved and settled in one transaction, the doors and the RPCs (00139)" -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
+git add packages/contracts/src packages/jobs/src packages/db/src packages/contracts/dist packages/db/dist packages/jobs/dist packages/channels/dist packages/core/dist supabase/migrations/00140_the_lead_finder_engine.sql tooling/scripts/tests/lead-jobs.test.mjs tooling/scripts/tests/retention-words.test.mjs tooling/scripts/tests/store-retired.test.mjs tooling/scripts/delete-tenant.mjs
+git commit -m "The lead finder's engine: a search, its rounds and runs, the places found, the month's allowance and budget reserved and settled in one transaction, the doors and the RPCs (00140)" -m "Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ```
 
 Then `corepack pnpm check:dist`. Expected: `dist in sync with src`.
@@ -3835,7 +3835,7 @@ Create `tooling/scripts/tests/lead-engine.db.test.mjs`. Its blocks are the SQL p
 
 ```js
 /**
- * The lead finder's engine (00139), proved on a real Postgres with real
+ * The lead finder's engine (00140), proved on a real Postgres with real
  * sessions: the doors reserve, count, refuse and undo as PRD v3 §0 says; the
  * service RPCs commit one page in one transaction under a lease and an
  * offset; a member reads their own workspace and nothing else.
@@ -4308,7 +4308,7 @@ test("retention: an untouched lead is set aside at 90 days and blanked at 180; a
 In `tooling/scripts/tests/tenancy.db.test.mjs`, in `before()`, after the line `  await seed("jobs", { tenant_id: A, kind: "blob_thread_erase", due_at: new Date().toISOString(), payload: {} });` add:
 
 ```js
-  // The lead finder (00139), in dependency order. The round is the search's
+  // The lead finder (00140), in dependency order. The round is the search's
   // first (the guard allows one live round, and seq 1 needs no session).
   ctx.leadSearch = await seed("lead_searches", { tenant_id: A, via: "people", card: "local_businesses", name: "tenancy search", asked: "tenancy", plan: {} });
   ctx.leadRound = await seed("lead_rounds", { tenant_id: A, search_id: ctx.leadSearch, seq: 1, purpose: "probe", plan: {}, plan_version: 1, target: 5, month: "2026-09", day: "2026-09-19" });
@@ -4326,14 +4326,14 @@ In `tooling/scripts/tests/tenancy.db.test.mjs`, in `before()`, after the line ` 
 After the line `  await seed("waitlist", { email: \`${key}@example.com\` }, null); probes.push(["waitlist", "email", \`${key}@example.com\`]);` add:
 
 ```js
-  // The lead finder's platform tables: the switch row is 00139's own; a prior is seeded and removed.
+  // The lead finder's platform tables: the switch row is 00140's own; a prior is seeded and removed.
   await seed("lead_niche_priors", { category_key: `tenancy_${Date.now()}` }, null); probes.push(["lead_niche_priors", "category_key", `tenancy_${Date.now()}`]);
 ```
 
 In `TENANT_TABLES`, after the `jobs:` entry (the last one), add:
 
 ```js
-  // The lead finder (00139): members read, nobody signed in writes a row; the
+  // The lead finder (00140): members read, nobody signed in writes a row; the
   // judgments and the counters are the service role's. The view runs under
   // the reader's own row security (security_invoker), and is not writable.
   lead_searches: ["member", () => ({ tenant_id: A, via: "people", card: "local_businesses", name: "stranger search", asked: "stranger", plan: {} })],
@@ -4373,7 +4373,7 @@ with
 ```js
   registration: "registration-sweep",
   snoozes: "wake-stale-snoozes",
-  // The lead finder (00139): a five-minute clock that asks the edge only when
+  // The lead finder (00140): a five-minute clock that asks the edge only when
   // a run is live or a round waits, and its nightly purge.
   leads: "leads-sweep",
   purge_leads: "purge-leads",
@@ -4427,9 +4427,9 @@ and after the line `> Nothing below this line is a plan to build them.` add:
 ```md
 >
 > **Lifted for Leads, 18 September 2026:** Ruben lifted "hidden until 100%" for the lead finder, table first
-> (docs/plans/2026-09-17-people-table-and-lead-finder.md). Release A (00139, the engine) lands with no screen and the
+> (docs/plans/2026-09-17-people-table-and-lead-finder.md). Release A (00140, the engine) lands with no screen and the
 > switch off; Leads becomes a scope of People (`clients/leads…`) in release B, built from `pages/people-table.jsx`
-> lifted out of `clients-a.jsx`. The seeded `pages/leads.jsx` is retired. The stored sets are 00139's: a lead's stage is
+> lifted out of `clients-a.jsx`. The seeded `pages/leads.jsx` is retired. The stored sets are 00140's: a lead's stage is
 > `ready`, `nurture`, `converted` or `archived` with a reason; `qualifying` and `new` are the mockup's and are never stored.
 ```
 
@@ -4443,13 +4443,13 @@ with
 
 ```ts
   // Lifted 18 Sep 2026 (Ruben): leads becomes a scope of People, clients/leads, in release B of the lead finder
-  // (docs/plans/2026-09-17-people-table-and-lead-finder.md); 00139 holds the engine. Until then this route stays demo.
+  // (docs/plans/2026-09-17-people-table-and-lead-finder.md); 00140 holds the engine. Until then this route stays demo.
   leads: "demo",     // retired into People: the booking is the conversion, and People shows who booked (SURFACE_RETIRED)
 ```
 
-In `docs/system-prd.md`, at the end of the paragraph beginning `The operator UI is a ported HTML mockup` (it ends `and none is built before then.`), append the sentence ` Ruben lifted the rule for the lead finder on 18 September 2026 (the table first): the mockup's Leads page is retired, release A of the finder (00139) is the engine with no screen, and Leads becomes a scope of People in release B.`
+In `docs/system-prd.md`, at the end of the paragraph beginning `The operator UI is a ported HTML mockup` (it ends `and none is built before then.`), append the sentence ` Ruben lifted the rule for the lead finder on 18 September 2026 (the table first): the mockup's Leads page is retired, release A of the finder (00140) is the engine with no screen, and Leads becomes a scope of People in release B.`
 
-And in the paragraph beginning `Closed since the first edition:` replace `(Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%)` with `(Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%; Leads lifted 18 Sep 2026 for the lead finder, 00139 being its engine)`.
+And in the paragraph beginning `Closed since the first edition:` replace `(Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%)` with `(Δ9, Δ10 — decided and written where the code is: hidden, revisited at 100%; Leads lifted 18 Sep 2026 for the lead finder, 00140 being its engine)`.
 
 Run: `node --conditions=react-server --import tsx --test tooling/scripts/tests/legacy-harness.test.mjs tooling/scripts/tests/route-policy.test.mjs tooling/scripts/tests/route-types.test.mjs`
 Expected: `# fail 0` (comments only: no surface, route or manifest changed).
@@ -4467,7 +4467,7 @@ Expected: no output. If main moved, `git rebase origin/main`, resolve anything i
 - [ ] **Step 3: Re-check the migration number, right before pushing**
 
 Run the command of Task 0, Step 4 again.
-Expected: nothing else holds 00139. If something does, `git mv supabase/migrations/00139_the_lead_finder_engine.sql supabase/migrations/<next>_the_lead_finder_engine.sql`, then find every mention with `grep -rn "00139" --include=*.sql --include=*.mjs --include=*.ts --include=*.md . | grep -v node_modules` and change each: the migration's own header and comments, `lead-search.ts`, `lead-judge.ts`, `enums.ts`, `config.ts`, `retention.ts`, `erasure.ts`, `ledger.ts`, `handlers.ts`, the five test files, `CLAUDE.md`, `surface-registry.ts`, `docs/system-prd.md` and this plan. Rebuild the dists (the contracts `.d.ts` carries the comments), `db reset`, regenerate the types, and commit.
+Expected: nothing else holds 00140. If something does, `git mv supabase/migrations/00140_the_lead_finder_engine.sql supabase/migrations/<next>_the_lead_finder_engine.sql`, then find every mention with `grep -rn "00140" --include=*.sql --include=*.mjs --include=*.ts --include=*.md . | grep -v node_modules` and change each: the migration's own header and comments, `lead-search.ts`, `lead-judge.ts`, `enums.ts`, `config.ts`, `retention.ts`, `erasure.ts`, `ledger.ts`, `handlers.ts`, the five test files, `CLAUDE.md`, `surface-registry.ts`, `docs/system-prd.md` and this plan. Rebuild the dists (the contracts `.d.ts` carries the comments), `db reset`, regenerate the types, and commit.
 
 - [ ] **Step 4: The whole unit suite, the lint, the types, the build**
 
@@ -4482,27 +4482,27 @@ Run these in a fresh shell without the `SUPABASE_*` variables:
 
 Run: `git rev-parse --abbrev-ref HEAD` (expected `feat/lead-finder-a1`), then `git push -u origin feat/lead-finder-a1`.
 
-Write this body to a file in your scratchpad with your file tool, then run `gh pr create --repo expectmeout/chanlytics-os --base main --head feat/lead-finder-a1 --title "The lead finder's engine: the data and the contracts (00139, release A1)" --body-file <that file>`:
+Write this body to a file in your scratchpad with your file tool, then run `gh pr create --repo expectmeout/chanlytics-os --base main --head feat/lead-finder-a1 --title "The lead finder's engine: the data and the contracts (00140, release A1)" --body-file <that file>`:
 
 ```md
 Release A1 of the lead finder, planned in docs/plans/2026-09-19-lead-finder-A1-data.md (PRD v3 §0, §12.3–12.6). No screen, no provider call, the switch off for everyone: the engine's data, its doors and RPCs, and the contracts.
 
 ## What changes
-- **00139.** Thirteen tables (a search, its rounds and runs, the judge's answers by operation id, the places found, duplicate listings, one membership per search per place, the counters, the undo records, learned exclusions, the never-again list, platform priors, the switch); row security in the 00002 shape with no write policy; the doors an owner's routes will call (`lead_search_create` reserves the count and the estimate in one transaction and writes the probe round and its start job; answer, stop, more, keep/exclude/put back, undo, rename, remove) and the RPCs the edge's jobs will call (claim, record, lease, release, `lead_collect_commit` as one page in one transaction, `lead_check_commit`, `lead_round_end`); `lead_searches_view`; `leads_page`; the guards (a round is final once ended; a claim and a webhook token are written once); the write-in link and the erasure; the clock, registered, that asks the edge only when there is lead work; the nightly purge.
+- **00140.** Thirteen tables (a search, its rounds and runs, the judge's answers by operation id, the places found, duplicate listings, one membership per search per place, the counters, the undo records, learned exclusions, the never-again list, platform priors, the switch); row security in the 00002 shape with no write policy; the doors an owner's routes will call (`lead_search_create` reserves the count and the estimate in one transaction and writes the probe round and its start job; answer, stop, more, keep/exclude/put back, undo, rename, remove) and the RPCs the edge's jobs will call (claim, record, lease, release, `lead_collect_commit` as one page in one transaction, `lead_check_commit`, `lead_round_end`); `lead_searches_view`; `leads_page`; the guards (a round is final once ended; a claim and a webhook token are written once); the write-in link and the erasure; the clock, registered, that asks the edge only when there is lead work; the nightly purge.
 - **Contracts.** `lead-search.ts`: the plan (zod 4) and its sentence, versions, the nine endings and their words, the cards' briefs, the estimate, `placesToAsk` (S6), `classify` (§0.1: code decides from the judge's per-criterion answers), `questionAfterProbe` (P4), the cleaner (§7.2), `leadMonth`. `lead-judge.ts`: the facts, the hand-written JSON schema, the rubric, the quoted content, the zod parser, `judgeOpId`. `JOB_KINDS` + 3 with their retry waits and a seam on `JobContext` the edge fills in A2; `EVENT_KINDS` + 2; `ROLE_PERMS.find` (owner only), restated once in SQL as `has_permission`; retention's three numbers; `leadSuppressionHash`.
 
 ## Proof
 `lead-search.test.mjs` (12), `lead-judge.test.mjs` (6) and `lead-jobs.test.mjs` (2) were red before their commits and green after; `lead-engine.db.test.mjs` (15) proves the engine on Postgres with real sessions: the reservation and the refusals in a sentence, the claim, the lease by owner and generation, the compare-and-set commit that never doubles, five asked and twenty qualified counting five, the shared-phone triple with no person made, keep/exclude/put back and undo by version, the hidden and out-of-area refusals, the check, Stop moving the generation, the write-in link, the erasure, a member's reads under row security, retention. The tenancy proof lists every new table and the view; the register lists the two clocks; the types and the sets are regenerated from the database.
 
 ## Order
-This PR carries a migration, so 00139 goes to production first (a dry run, the push, a read-back), and then it merges. The code is safe on either side of it: nothing calls a door until A2's routes exist, and the clock asks the edge for nothing until a round exists.
+This PR carries a migration, so 00140 goes to production first (a dry run, the push, a read-back), and then it merges. The code is safe on either side of it: nothing calls a door until A2's routes exist, and the clock asks the edge for nothing until a round exists.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 ```
 
 Wait for CI (`gh pr checks <number> --repo expectmeout/chanlytics-os --watch`). If a check fails, read its log and fix it. A red Database job with every step failing in about 2 seconds is a billing block; read the run's annotations. **Do not merge yet**: the PR carries a migration.
 
-- [ ] **Step 6: Push 00139 to production, then merge**
+- [ ] **Step 6: Push 00140 to production, then merge**
 
 The production push is the agent's (Ruben, 18 Sep). Run it from this worktree, on the PR's branch, once CI is green. A worktree has no Supabase link of its own: if `supabase/.temp/project-ref` is missing, copy the main checkout's `supabase/.temp` in first.
 
@@ -4511,7 +4511,7 @@ SB="$HOME/AppData/Local/npm-cache/_npx/b96a6bd565c470ce/node_modules/@supabase/c
 "$SB" db push --linked --dry-run </dev/null
 ```
 
-Expected: the dry run lists exactly `00139_the_lead_finder_engine.sql`. If it lists anything else, stop and find out why before pushing.
+Expected: the dry run lists exactly `00140_the_lead_finder_engine.sql`. If it lists anything else, stop and find out why before pushing.
 
 ```bash
 "$SB" db push --linked --yes </dev/null
@@ -4519,7 +4519,7 @@ Expected: the dry run lists exactly `00139_the_lead_finder_engine.sql`. If it li
 "$SB" db query --linked "select searches_on, tenants_on from public.lead_platform; select sweep, healthy, detail from public.sweep_health() where sweep in ('leads', 'purge_leads')"
 ```
 
-Expected: the head starts with `00139`; `searches_on` is `false` and `tenants_on` is `{}` (nobody may search until Ruben lists the nightly's workspace for A2, or flips the switch); both clocks are `healthy` (`leads` on the look it was seeded with, `purge_leads` inside its first 26 hours). Then merge, from a folder that is not a git checkout: `gh pr merge <number> --repo expectmeout/chanlytics-os --squash --delete-branch`.
+Expected: the head starts with `00140`; `searches_on` is `false` and `tenants_on` is `{}` (nobody may search until Ruben lists the nightly's workspace for A2, or flips the switch); both clocks are `healthy` (`leads` on the look it was seeded with, `purge_leads` inside its first 26 hours). Then merge, from a folder that is not a git checkout: `gh pr merge <number> --repo expectmeout/chanlytics-os --squash --delete-branch`.
 
 If Claude Code's auto-mode classifier refuses the push, never reroute it: finish everything else and hand Ruben these PowerShell one-liners, run from this worktree:
 
@@ -4531,16 +4531,24 @@ Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-lead-a1";
 Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-lead-a1"; & "$env:LOCALAPPDATA\npm-cache\_npx\b96a6bd565c470ce\node_modules\@supabase\cli-windows-x64\bin\supabase.exe" db push --linked
 ```
 
-**Phase 1 release A2 starts at the next free number.** A2 has no migration of its own (the interface's Migration 00139 is A1's whole database change); if A2 turns out to need one, it takes the number that is free then, never 00140 by assumption.
+**Phase 1 release A2 starts at the next free number.** A2 has no migration of its own (the interface's Migration 00140 is A1's whole database change); if A2 turns out to need one, it takes the number that is free then, never 00140 by assumption.
 
 ---
 
 
 ## Three things A2's proof found for A1 to close in Task 4, before the push
+**Closed in the migration, 19 September, each proven to fail against the unedited SQL.**
 
 - `lead_check_commit` must count a member that meets its email standard only through the round's reservation (the same path `lead_collect_commit` takes), never past it; A2's runner relies on that.
 - `lead_searches_view` must expose the latest round's `cost_usd` beside `judge_tokens` (the internal runner reports cost per Qualified lead from it).
 - `leads_page` must return `place_id` with each row (the labelled set is keyed by place id for G2).
+
+## What this branch's reviews changed after the plan was written
+
+A code-quality review of each task, probing the live database, found these before the migration was pushed. Every one is in the branch, with its own test or assert.
+- **The contracts (Tasks 1–2).** The question after 25 measures the Excluded share, not the Qualified share (under an email standard nothing is Qualified until the mailbox checks land, so it asked on almost every email search); it names only one of the plan's own exclusions, never a required criterion, and its first word counts what it names; only a required criterion gates the class (decision 26 as written), and a `seen` pass citing only the name or the category is a read; the parser accepts a `fail` citing a missing fact; `placesToAsk` asks for nothing when nothing remains; a ZIP ask brings no centre yet; format characters are stripped beside control characters.
+- **The engine (Tasks 3–4).** The clock wakes for any round that has not ended, so a round whose start job died no longer holds its reservation for ever; a day's cap is released against the row its reservation took (a round crossing UTC midnight was releasing other workspaces' platform reservation); `lead_check_commit` takes the check run and settles off its high-water mark, so a retried check charges once; the page commit and Stop lock the round before the run, which was an ABBA deadlock; the write-in trigger does one index lookup per identifier; `has_permission` is the doors' own; a failed collect can be scheduled again; a removed search charges nobody; a blanked lead is not written; the nightly purge has its two indexes.
+- **The tests (Task 5).** `numeric` arrives from PostgREST as a number, not a string; the top-up reserves 6, not 5, now that a spent round's check counts nothing; the clock's own block was missing.
 
 ## Proven before this plan was written
 
@@ -4560,8 +4568,8 @@ Everything below ran in a worktree at origin/main `fbc5d871` on 19 September 202
 - `node --check tooling/scripts/tests/lead-engine.db.test.mjs` → no output; `eslint` on it → no output; run without a database → `# tests 15`, `# skipped 15`.
 
 **The migration.** The local database was at 00133, so each run applied 00134, 00135, 00137 and 00138 first, all inside one transaction that ended in `rollback`.
-- `( echo 'begin;'; cat 00134… 00135… 00137… 00138… 00139_the_lead_finder_engine.sql; echo 'rollback;' ) | docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1` → the statements' own tags, `(0 rows)` twice (the two `cron.unschedule … where exists`), then `ROLLBACK`; exit 0; no `ERROR`.
-- The same, with a proof script of thirteen `do $$ … assert … $$` blocks between the migration and the rollback (a world of two workspaces, an owner, an operator and a viewer in the first and an owner in the second, `auth.uid()` simulated by `set_config('request.jwt.claim.sub', …, true)`, the member path under `set local role authenticated`) → its last line `PROVED: every block of prove-00139.sql held`; exit 0. The blocks: A the helpers and mirrors (`lead_month` in Chicago, the hash equal to contracts' `leadSuppressionHash` for `11111111-…:+15125550100` = `fac8c45f…9ac9`, `has_permission` per role, the switch off then listed, the prior); B create (paused, no_card with its event, the ids, the round's target 5 and reservation, all four counters, the job, the event; 496 refused `left 495` with its sentence; 495 taken; 1 refused `left 0` "You have found this month's 500 leads. Your leads renew on Oct 1."; a stranger's create raises 42501; an estimate over 25 raises 22023; the day cap at 11, a search at 9, the second refused, released by `lead_round_end`, the budget binding at 20 used + 9); C the run (claim once, record by the claimer only, lease 0 then held by another, a wrong generation/owner/offset refused, `counted 5, qualified 20, round_state probing`, the round's `allowance_used 5`, `cost_usd 0.02`, `judge_tokens 1200`, the month counter `5 used / 495 reserved`, the budget `0.02 / 0.53`, 20 leads, 5 counted members, the next collect once, the judgment once, the replay refused by offset with nothing doubled, a second page with the same op_id paying nothing and its next job written once, release by holder and generation only); D the shared-phone triple (three leads, one number, two delivered and marked with the person, no person made, three counted); E a duplicate folding into the lead held and two suppressed places skipped; F keep/exclude/put back/undo (round 2 ended and released, `8 used / 0 reserved`; an operator's keep refused; keep → op, version 2, counted this month, `9 used`; kept twice refused; undo with version 1 refused `changed`; undo with 2 → version 3, back in review, `8 used`; undone twice refused; exclude → owner's, free; put back → counted; a customer's place `hidden`; `out_of_area`; exclude on an excluded member refused `state`; an unknown lead `not_found`); G the check (the round to `checking` with the run succeeded and a check job; one member qualifying on `ok`, a bounce staying in review with the lead marked `invalid`; the last batch ending the round `few_new_matches` with `cost_usd 0.032`; a late page refused `ended`); H the guard (an ended round's state and target refused; the edge's insert of a seq-2 round refused); I answer/stop/more/rename/remove/undo_search (`nothing_to_add`; a top-up of seq 2 with target 5 and the plan's new version on the search; `live`; the question waiting; include with the wrong version raising 22023; include with version 3 running with the plan amended and a resume job; keep on a running round `state`; Stop moving the generation, writing the stop collect, `ending_pending stopped`, the round still running; the old worker refused `lease`; the abort ending it `stopped`; rename trimmed; an operator's remove refused; remove blanking all but the worked lead; removed twice refused; undo restoring all but the exported lead); J the write-in link (the desk's insert never links; the edge's links and converts with `contact.added {source: lead}`; erasing the person blanks the lead and hashes its number and place as `erased`); K the reads under row security (the owner's two searches with the latest round and counts, nothing of the other workspace, two pages without repeats, a page by distance, a stranger reading nothing); L retention and the clocks (set aside at 91 days, not yet blanked; an excluded place blanked at 31 days with the view's `excluded` unchanged; blanked at 181; both clocks scheduled and registered; `sweep_health()` nineteen rows with `leads` and `purge_leads` healthy; the clock recording a look and asking nothing when nothing is live); M the privileges (the service role's four tables refuse `authenticated` the privilege; `anon` holds nothing; a session reads and never writes; a door executable by `authenticated` and not `anon`; an RPC by `service_role` and not `authenticated`; trigger functions callable by nobody; every lead function pins `search_path`; row security on everywhere).
+- `( echo 'begin;'; cat 00134… 00135… 00137… 00138… 00140_the_lead_finder_engine.sql; echo 'rollback;' ) | docker exec -i supabase_db_chanlytics-messaging psql -U postgres -d postgres -v ON_ERROR_STOP=1` → the statements' own tags, `(0 rows)` twice (the two `cron.unschedule … where exists`), then `ROLLBACK`; exit 0; no `ERROR`.
+- The same, with a proof script of thirteen `do $$ … assert … $$` blocks between the migration and the rollback (a world of two workspaces, an owner, an operator and a viewer in the first and an owner in the second, `auth.uid()` simulated by `set_config('request.jwt.claim.sub', …, true)`, the member path under `set local role authenticated`) → its last line `PROVED: every block of prove-00140.sql held`; exit 0. The blocks: A the helpers and mirrors (`lead_month` in Chicago, the hash equal to contracts' `leadSuppressionHash` for `11111111-…:+15125550100` = `fac8c45f…9ac9`, `has_permission` per role, the switch off then listed, the prior); B create (paused, no_card with its event, the ids, the round's target 5 and reservation, all four counters, the job, the event; 496 refused `left 495` with its sentence; 495 taken; 1 refused `left 0` "You have found this month's 500 leads. Your leads renew on Oct 1."; a stranger's create raises 42501; an estimate over 25 raises 22023; the day cap at 11, a search at 9, the second refused, released by `lead_round_end`, the budget binding at 20 used + 9); C the run (claim once, record by the claimer only, lease 0 then held by another, a wrong generation/owner/offset refused, `counted 5, qualified 20, round_state probing`, the round's `allowance_used 5`, `cost_usd 0.02`, `judge_tokens 1200`, the month counter `5 used / 495 reserved`, the budget `0.02 / 0.53`, 20 leads, 5 counted members, the next collect once, the judgment once, the replay refused by offset with nothing doubled, a second page with the same op_id paying nothing and its next job written once, release by holder and generation only); D the shared-phone triple (three leads, one number, two delivered and marked with the person, no person made, three counted); E a duplicate folding into the lead held and two suppressed places skipped; F keep/exclude/put back/undo (round 2 ended and released, `8 used / 0 reserved`; an operator's keep refused; keep → op, version 2, counted this month, `9 used`; kept twice refused; undo with version 1 refused `changed`; undo with 2 → version 3, back in review, `8 used`; undone twice refused; exclude → owner's, free; put back → counted; a customer's place `hidden`; `out_of_area`; exclude on an excluded member refused `state`; an unknown lead `not_found`); G the check (the round to `checking` with the run succeeded and a check job; one member qualifying on `ok`, a bounce staying in review with the lead marked `invalid`; the last batch ending the round `few_new_matches` with `cost_usd 0.032`; a late page refused `ended`); H the guard (an ended round's state and target refused; the edge's insert of a seq-2 round refused); I answer/stop/more/rename/remove/undo_search (`nothing_to_add`; a top-up of seq 2 with target 5 and the plan's new version on the search; `live`; the question waiting; include with the wrong version raising 22023; include with version 3 running with the plan amended and a resume job; keep on a running round `state`; Stop moving the generation, writing the stop collect, `ending_pending stopped`, the round still running; the old worker refused `lease`; the abort ending it `stopped`; rename trimmed; an operator's remove refused; remove blanking all but the worked lead; removed twice refused; undo restoring all but the exported lead); J the write-in link (the desk's insert never links; the edge's links and converts with `contact.added {source: lead}`; erasing the person blanks the lead and hashes its number and place as `erased`); K the reads under row security (the owner's two searches with the latest round and counts, nothing of the other workspace, two pages without repeats, a page by distance, a stranger reading nothing); L retention and the clocks (set aside at 91 days, not yet blanked; an excluded place blanked at 31 days with the view's `excluded` unchanged; blanked at 181; both clocks scheduled and registered; `sweep_health()` nineteen rows with `leads` and `purge_leads` healthy; the clock recording a look and asking nothing when nothing is live); M the privileges (the service role's four tables refuse `authenticated` the privilege; `anon` holds nothing; a session reads and never writes; a door executable by `authenticated` and not `anon`; an RPC by `service_role` and not `authenticated`; trigger functions callable by nobody; every lead function pins `search_path`; row security on everywhere).
 - The generator's own query, run inside the same rolled-back transaction, returned 73 sets; rendered with the generator's `entry()` they differ from the committed `schema-sets.generated.ts` by exactly the `jobs.kind` change and the nineteen lead entries printed in Task 4, Step 3.
 
 **What was not run,** and where the plan runs it: `supabase db reset` and `gen:db-types` on the shared local stack (Task 4, Step 3, in the executor's own worktree), `lead-engine.db.test.mjs` through PostgREST (Task 5, Step 4: its assertions are the proof's blocks), the Database workflow (CI), the production push (Task 6).

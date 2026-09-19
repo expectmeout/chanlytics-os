@@ -112,6 +112,15 @@ export function verdictFor(job: { kind: string; attempts: number }): Verdict {
  */
 export const RETRY_WAITS_MS: Readonly<Record<string, readonly number[]>> = {
   email_ingest: [5 * 60_000, 30 * 60_000],
+  // The lead finder's three (00140). Each is written to be run again: a start
+  // claims its run row before it calls the provider, a collect commits a page
+  // by compare-and-set on the offset, a check commits by lead id. A
+  // provider's 429 or 5xx throws and lands here: two minutes covers a bad
+  // minute, ten a short outage; the third claim fails the row and the round
+  // ends "the source failed". Every wait outlasts the lease (jobs-ledger.test.mjs).
+  lead_round_start: [2 * 60_000, 10 * 60_000],
+  lead_collect: [2 * 60_000, 10 * 60_000],
+  lead_check: [2 * 60_000, 10 * 60_000],
 };
 
 /** How long a job that just threw waits before it is tried again; null when it is failed now. */

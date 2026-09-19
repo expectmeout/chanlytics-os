@@ -32,11 +32,31 @@ after(async () => {
 });
 
 test("a line_provision job is accepted, due now, and claimed like any other", { skip }, async () => {
-  const ins = await db.from("jobs").insert({ tenant_id: tenantId, kind: "line_provision", due_at: new Date(Date.now() - 1000).toISOString(), payload: { line_id: "00000000-0000-0000-0000-000000000001", by: "owner" } }).select("id").single();
-  assert.equal(ins.error, null, ins.error?.message);
-  const { data, error } = await db.rpc("claim_due_jobs", { p_limit: 5, p_lease_seconds: 60 });
-  assert.equal(error, null, error?.message);
-  const mine = (data ?? []).find((r) => r.id === ins.data.id);
+  const payload = { line_id: "00000000-0000-0000-0000-000000000001", by: "owner" };
+  const write = async () => {
+    const ins = await db.from("jobs").insert({ tenant_id: tenantId, kind: "line_provision", due_at: new Date(Date.now() - 1000).toISOString(), payload }).select("id").single();
+    assert.equal(ins.error, null, ins.error?.message);
+    return ins.data.id;
+  };
+  // The ledger is ONE queue and claim_due_jobs takes from all of it, by due
+  // date and nothing else. Two things follow, and other database suites run
+  // beside this one: a limit small enough to be filled by somebody else's
+  // older work would not reach this row (so the limit is generous), and
+  // another suite's claim can carry this row off between the insert and the
+  // call (so a row that went that way -- fired, on somebody's lease, not
+  // lost -- is written again and asked for again).
+  let mine = null;
+  for (let attempt = 1; attempt <= 5 && !mine; attempt += 1) {
+    const id = await write();
+    const { data, error } = await db.rpc("claim_due_jobs", { p_limit: 50, p_lease_seconds: 60 });
+    assert.equal(error, null, error?.message);
+    mine = (data ?? []).find((r) => r.id === id) ?? null;
+    if (!mine) {
+      const gone = await db.from("jobs").select("state, lease_until").eq("id", id).single();
+      assert.ok(gone.data && gone.data.state === "fired" && Date.parse(gone.data.lease_until) > Date.now(),
+        `attempt ${attempt}: the row did not come back, and no other claim is holding it either (${JSON.stringify(gone.data)})`);
+    }
+  }
   assert.ok(mine, "claimed by the heartbeat's own function");
   assert.equal(mine.kind, "line_provision");
   assert.equal(mine.payload.line_id, "00000000-0000-0000-0000-000000000001");

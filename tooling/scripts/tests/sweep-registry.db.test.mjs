@@ -1,9 +1,9 @@
 /**
  * Every clock is registered (00107), proved on a real Postgres: the register
- * names all seventeen cron jobs, the six that were never watched are judged
- * on their runs, a name that arrives without its job is refused, the upserts
- * the sweeps themselves make still land, and the alert stamp works on the
- * new rows.
+ * names all nineteen cron jobs, the nine that are judged on their runs are
+ * judged that way, a name that arrives without its job is refused, the
+ * upserts the sweeps themselves make still land, and the alert stamp works
+ * on the new rows.
  *
  * Runs the way jobs-outbox.db.test.mjs does: against the database
  * `supabase start` builds on this machine, never production.
@@ -38,8 +38,12 @@ const EVERY_CLOCK = {
   purge_rate_hits: "purge-rate-hits",
   registration: "registration-sweep",
   snoozes: "wake-stale-snoozes",
+  // The lead finder (00140): a five-minute clock that asks the edge only when
+  // a run is live or a round has not ended, and its nightly purge.
+  leads: "leads-sweep",
+  purge_leads: "purge-leads",
 };
-const RUN_JUDGED = ["partitions", "pauses", "purge_ask", "purge_cron_history", "purge_events", "purge_notifications", "purge_rate_hits", "snoozes"];
+const RUN_JUDGED = ["partitions", "pauses", "purge_ask", "purge_cron_history", "purge_events", "purge_leads", "purge_notifications", "purge_rate_hits", "snoozes"];
 
 let db;
 before(() => {

@@ -39,6 +39,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
   // revisited when the product is at 100%, and none of those features is built
   // before then. Nothing here is a promise to a customer or an operator.
+  // Lifted 18 Sep 2026 (Ruben): leads becomes a scope of People, clients/leads, in release B of the lead finder
+  // (docs/plans/2026-09-17-people-table-and-lead-finder.md); 00140 holds the engine. Until then this route stays demo.
   leads: "demo",     // retired into People: the booking is the conversion, and People shows who booked (SURFACE_RETIRED)
   segments: "real",  // People › Lists: the lists kept by hand and the computed ones, with their people
   pipeline: "demo",  // retired into People, like leads
