@@ -93,7 +93,7 @@ export interface LeadArea {
   label: string;
   /** Two letters. */
   state: string;
-  /** Null for a city ask until the probe's coordinates give one (§12.5, 31). */
+  /** Null for a city ask until the probe's coordinates give one, or a ZIP ask until A2 derives it from the ZCTA table (§12.5, 31). */
   center: { lat: number; lng: number } | null;
   radius_m: number;
   zip?: string;
@@ -159,7 +159,8 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z.object({
   if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
   const lowerTerms = p.terms.map((t) => t.toLowerCase());
   if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if ((p.area.kind === "radius" || p.area.kind === "zip") && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius or a ZIP needs a center", path: ["area", "center"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
 
@@ -414,7 +415,11 @@ export type LeadQuestion =
  * owner meant, from the most common exclusion. Only an exclusion's own tally
  * can be the topic: Include lifts an exclusion, and must never be offered
  * against a real requirement, so a place excluded by a required criterion is
- * not counted here. A term is dropped first when it is demonstrably the
+ * not counted here. The sentence's own lead word ("Most"/"Half"/"Some") comes
+ * from that chip's own share of the first n, never from everything excluded
+ * for any reason (P2, S12: a line claims only what it names); when more
+ * places were excluded than the chip accounts for, the sentence says so with
+ * "and other kinds of places". A term is dropped first when it is demonstrably the
  * problem and at least one other term with enough places is demonstrably
  * working; never when every term is bad, and never on the strength of a term
  * nobody else has tried. It never asks the owner to relax a fact.
@@ -430,9 +435,9 @@ export function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[])
   const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
   if (!top) return { ask: false };
   const textOf = (key: string) => lowerFirst(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
-  const share = excluded / n;
-  const lead = share >= 2 / 3 ? "Most" : share >= 0.5 ? "Half" : "Some";
-  const what = tally.size > 1 ? `${textOf(top[0])} and other kinds of places` : textOf(top[0]);
+  const namedShare = top[1] / n;
+  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
+  const what = excluded > top[1] ? `${textOf(top[0])} and other kinds of places` : textOf(top[0]);
   let dropTerm: string | null = null;
   if (plan.terms.length > 1) {
     const statOf = (term: string) => {

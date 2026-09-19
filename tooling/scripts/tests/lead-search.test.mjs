@@ -48,11 +48,19 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   assert.equal(planSentence(acronym), "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: CVS pharmacies.", "an acronym's own case survives: only a lowercase second letter gets folded");
 });
 
-test("the plan schema also refuses the same term twice, a radius or a ZIP with no center yet, and a state that is not a real US state or DC", () => {
+test("the plan schema also refuses the same term twice, a radius with no center, a ZIP with no zip code, and a state that is not a real US state or DC", () => {
   const p = plan();
   assert.throws(() => plan({ terms: ["Personal Trainer", "personal trainer"] }), /terms/i);
   assert.throws(() => plan({ area: { kind: "radius", label: "near me", state: "TX", center: null, radius_m: 5_000, query: "near me" } }), /center/i);
-  assert.throws(() => plan({ area: { kind: "zip", label: "78704", state: "TX", center: null, radius_m: 5_000, zip: "78704", query: "78704" } }), /center/i);
+  assert.doesNotThrow(
+    () => plan({ area: { kind: "zip", label: "78704", state: "TX", center: null, radius_m: 5_000, zip: "78704", query: "78704" } }),
+    "a ZIP ask is proposed before its center is known: A2 derives one from the ZCTA table",
+  );
+  assert.throws(
+    () => plan({ area: { kind: "zip", label: "78704", state: "TX", center: null, radius_m: 5_000, query: "78704" } }),
+    /zip/i,
+    "a ZIP ask still needs its zip code, center or no",
+  );
   assert.throws(() => plan({ area: { ...p.area, state: "ZZ" } }), /state/i);
   assert.doesNotThrow(() => plan({ area: { kind: "city", label: "Austin, TX", state: "TX", center: null, radius_m: 25_000, query: "Austin, TX, USA" } }), "a city may still wait for its center");
 });
@@ -145,7 +153,7 @@ test("the question fires under 60% of the first 25 and names the most common exc
   assert.equal(q.ask, true);
   assert.equal(q.criterionKey, "chain");
   assert.equal(q.dropTerm, "strength coach");
-  assert.equal(q.sentence, `Some of the first 25 are chain gyms, which I'm leaving out. Is that what you meant? I'm dropping "strength coach": it mostly returned those.`, "the 2 excluded by the website requirement are not tallied: only an exclusion's own count can be the topic");
+  assert.equal(q.sentence, `Some of the first 25 are chain gyms and other kinds of places, which I'm leaving out. Is that what you meant? I'm dropping "strength coach": it mostly returned those.`, "chain is still the topic asked about (the website requirement is never tallied), but the 2 excluded for it are real and the sentence owns them as \"other kinds of places\"");
   const half = questionAfterProbe(p, [...Array(12).fill(m("qualified")), ...Array(13).fill(m("excluded", "chain"))]);
   assert.equal(half.sentence, "Half of the first 25 are chain gyms, which I'm leaving out. Is that what you meant?");
   assert.equal(half.dropTerm, null, "one term of two returned everything: nothing to drop");
@@ -168,6 +176,23 @@ test("the question never proposes relaxing a required criterion: only an exclusi
   const m = (cls, excluded_by = null, term = "personal trainer") => ({ class: cls, excluded_by, term });
   const members = [...Array(5).fill(m("qualified")), ...Array(20).fill(m("excluded", "website"))];
   assert.deepEqual(questionAfterProbe(p, members), { ask: false }, "every excluded place failed the website requirement, not the chain exclusion: nothing to ask about that Include could honor");
+});
+
+test("the question's lead word counts what the sentence actually names, a chip's own share of the first n, never everything excluded for any reason (P2, S12): the rest is \"other kinds of places\", not folded into \"Most\"", () => {
+  const p = plan();
+  const m = (cls, excluded_by = null, term = "personal trainer") => ({ class: cls, excluded_by, term });
+  const mostlyRequired = questionAfterProbe(p, [...Array(5).fill(m("qualified")), ...Array(19).fill(m("excluded", "website")), m("excluded", "chain")]);
+  assert.equal(
+    mostlyRequired.sentence,
+    "Some of the first 25 are chain gyms and other kinds of places, which I'm leaving out. Is that what you meant?",
+    "1 of 25 is chain: \"Some\", never \"Most\" from the 20 excluded for any reason at all",
+  );
+  const allChain = questionAfterProbe(p, [...Array(5).fill(m("qualified")), ...Array(20).fill(m("excluded", "chain"))]);
+  assert.equal(
+    allChain.sentence,
+    "Most of the first 25 are chain gyms, which I'm leaving out. Is that what you meant?",
+    "20 of 25 really are chain: the claim and the lead word agree, with nothing left to call \"other kinds\"",
+  );
 });
 
 test("a term is dropped only when another term that returned enough places is demonstrably working; never when every term is bad, and never on the strength of a term nobody else has tried", () => {
