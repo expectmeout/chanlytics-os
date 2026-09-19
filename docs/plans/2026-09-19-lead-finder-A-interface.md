@@ -169,3 +169,10 @@ export function haversineM(a: {lat,lng}, b: {lat,lng}): number; export function 
 - `leads_page` keysets on one key spelled `<k>|<id>`.
 - The `sweep_status` clock for leads asks the edge only when work exists.
 - `lead_searches_view` is listed in the tenancy proof with the tables.
+
+## Three things A2's proof found for A1 to close in Task 4, before the push
+
+- `lead_check_commit` must count a member that meets its email standard only through the round's reservation (the same path `lead_collect_commit` takes), never past it; A2's runner relies on that.
+- `lead_searches_view` must expose the latest round's `cost_usd` beside `judge_tokens` (the internal runner reports cost per Qualified lead from it).
+- `leads_page` must return `place_id` with each row (the labelled set is keyed by place id for G2).
+

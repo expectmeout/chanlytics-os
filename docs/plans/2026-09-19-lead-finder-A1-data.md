@@ -12,7 +12,7 @@
 
 ## Read this first
 
-**The spec** is PRD v3, `docs/plans/2026-09-17-people-table-and-lead-finder.md`: §0 (the five contracts), §7, §10, §12.3 to §12.6, §13.3, §14 (release A) and §16 (18 to 32). **The interface** both release A plans share is `docs/plans/2026-09-19-lead-finder-A-interface.md` (in the planning session's scratchpad; its contents are restated here wherever a name or a shape is used, so this plan stands alone): where the interface and the PRD disagree the interface wins for names and shapes, the PRD for behaviour. **The review brief** is `docs/plans/2026-09-18-lead-finder-review.md` (E1 to E11, S1 to S18, G3). The v2 plan (`docs/plans/2026-09-18-lead-finder.md`, sub-plan 1a) is raw material only: its cleaner, prices, words and month survive; its migration and its plan, verdict and counting shapes do not, and the twenty defects the reviewer found in it are listed under *What this plan does not repeat* below.
+**The spec** is PRD v3, `docs/plans/2026-09-17-people-table-and-lead-finder.md`: §0 (the five contracts), §7, §10, §12.3 to §12.6, §13.3, §14 (release A) and §16 (18 to 32). **The interface** both release A plans share is `docs/plans/2026-09-19-lead-finder-A-interface.md` (its contents are restated here wherever a name or a shape is used, so this plan stands alone; its last section records where main's code made A1 depart from it): where the interface and the PRD disagree the interface wins for names and shapes, the PRD for behaviour. **The review brief** is `docs/plans/2026-09-18-lead-finder-review.md` (E1 to E11, S1 to S18, G3). The v2 plan (`docs/plans/2026-09-18-lead-finder.md`, sub-plan 1a) is raw material only: its cleaner, prices, words and month survive; its migration and its plan, verdict and counting shapes do not, and the twenty defects the reviewer found in it are listed under *What this plan does not repeat* below.
 
 **What A1 is, and is not.** A1 lands with the switch off for everyone and no workspace listed: nothing runs, nothing spends, no owner sees Leads. It carries every table of PRD §12.4, every door and RPC of the interface, the contracts, and their proofs. It carries no provider client, no judge call, no job handler body (the three kinds are declared and reach a seam the edge injects in A2), no webhook, no sweep handler (the clock is registered and asks the edge only when there is lead work, so before A2 it never asks), and no route.
 
@@ -4534,6 +4534,13 @@ Set-Location "C:\Users\Ruben\Documents\Claude Projects\Claude Video\cm-lead-a1";
 **Phase 1 release A2 starts at the next free number.** A2 has no migration of its own (the interface's Migration 00139 is A1's whole database change); if A2 turns out to need one, it takes the number that is free then, never 00140 by assumption.
 
 ---
+
+
+## Three things A2's proof found for A1 to close in Task 4, before the push
+
+- `lead_check_commit` must count a member that meets its email standard only through the round's reservation (the same path `lead_collect_commit` takes), never past it; A2's runner relies on that.
+- `lead_searches_view` must expose the latest round's `cost_usd` beside `judge_tokens` (the internal runner reports cost per Qualified lead from it).
+- `leads_page` must return `place_id` with each row (the labelled set is keyed by place id for G2).
 
 ## Proven before this plan was written
 
