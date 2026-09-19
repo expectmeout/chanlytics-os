@@ -521,7 +521,12 @@ test("rename is the operator's; remove is the owner's and blanks what is not bei
   assert.match(denied.error?.message ?? "", /Search not found/, "an operator may not remove");
   const every = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1)).map((x) => x.lead_id).sort();
   assert.equal(every.length, 28, "twenty on the first page, two more, five judged, one checked: every place this search judged");
-  const worked = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).eq("counted", true).limit(1)).at(0).lead_id;
+  // The lead being worked here, and the one exported below, are named. An
+  // unordered limit(1) hands a different row on a different database, and the
+  // retention test below acts on places by name: drawing 205 or 7 here would
+  // hold it back from the purge and fail a test three tests away.
+  const worked = (await leadByPlace("ChIJfixture0001")).id;
+  assert.equal((await member(ids.search1, worked)).counted, true, "counted, so the removal has something to keep");
   ok(await db.from("leads").update({ stage: "nurture" }).eq("id", worked));
   r = ok(await owner.client.rpc("lead_search_remove", { p_search_id: ids.search1 }));
   assert.ok(r.op_id, JSON.stringify(r));
@@ -537,7 +542,10 @@ test("rename is the operator's; remove is the owner's and blanks what is not bei
   for (const door of ["lead_member_keep", "lead_member_exclude", "lead_member_put_back"]) {
     assert.equal(ok(await owner.client.rpc(door, { p_search_id: ids.search1, p_lead_id: anyLead })).error, "removed", door);
   }
-  const exported = ok(await db.from("lead_search_members").select("lead_id").eq("search_id", ids.search1).not("blanked_at", "is", null).limit(1)).at(0).lead_id;
+  // Taken out of the workspace after the removal, so Undo must leave it where
+  // it is. Named, and not one of the three places retention acts on.
+  const exported = (await leadByPlace("ChIJfixture0010")).id;
+  assert.ok(blanked.includes(exported), "the lead that leaves is one the removal blanked");
   ok(await db.from("leads").update({ exported_at: new Date().toISOString() }).eq("id", exported));
   const undone = ok(await owner.client.rpc("lead_undo", { p_op_id: r.op_id, p_version: 1 }));
   assert.deepEqual(undone, { ok: true, restored: 26, kept: 1 }, "the exported lead stays as it is and stays charged");
@@ -648,19 +656,41 @@ test("the other three caps refuse in their own sentence: the month's searching b
   assert.equal(searchesNow, searchesWere, "a refusal writes no search, no round and no job: only the counter rows it had to take");
 });
 
-test("retention: an untouched lead is set aside at 90 days and blanked at 180; an excluded place is blanked at 30 but stays counted as left out", { skip }, async () => {
+test("retention: an untouched lead is set aside at 90 days and blanked at 180; an excluded place at 30 days loses its details when nothing else holds it and keeps its row when something does, and either way it stays counted as left out", { skip }, async () => {
   const old = await leadByPlace("ChIJfixture0007");
+  assert.deepEqual([old.stage, old.contact_id, old.contacted_at, old.exported_at], ["ready", null, null, null], "untouched: no person, no call, nothing taken out of the workspace");
   ok(await db.from("leads").update({ found_at: new Date(Date.now() - 91 * 86_400_000).toISOString() }).eq("id", old.id));
-  const ex = await leadByPlace("ChIJfixture0205");
-  ok(await db.from("lead_search_members").update({ created_at: new Date(Date.now() - 31 * 86_400_000).toISOString() }).eq("lead_id", ex.id));
+
+  // A place a search left out has two fates at 30 days, and they are
+  // different rows. 205 is a member of this one search and nobody has touched
+  // it, so the LEAD loses its details. 204 was taken out of the workspace, so
+  // the lead's own row stays as it was and the MEMBERSHIP loses the judgment
+  // instead. Both are named: which lead the removal exported is pinned above,
+  // exactly so that neither of these is held back by accident.
+  const free = await leadByPlace("ChIJfixture0205");
+  const held = await leadByPlace("ChIJfixture0204");
+  for (const [what, l] of [["205", free], ["204", held]]) {
+    const own = ok(await db.from("lead_search_members").select("search_id, class, blanked_at").eq("lead_id", l.id));
+    assert.deepEqual(own.map((m) => [m.search_id, m.class, m.blanked_at]), [[ids.search1, "excluded", null]], `${what}: one membership, left out of one search, and still there`);
+    assert.deepEqual([l.contact_id, l.contacted_at], [null, null], `${what}: no person and no call holds it`);
+  }
+  assert.equal(free.exported_at, null, "205: and nothing was taken out of the workspace, so nothing holds it at all");
+  ok(await db.from("leads").update({ exported_at: new Date().toISOString() }).eq("id", held.id));
+  ok(await db.from("lead_search_members").update({ created_at: new Date(Date.now() - 31 * 86_400_000).toISOString() }).in("lead_id", [free.id, held.id]));
+
   const before = ok(await db.from("lead_searches_view").select("excluded").eq("id", ids.search1).single()).excluded;
   ok(await db.rpc("purge_leads"));
   let l = ok(await db.from("leads").select("stage, closed_reason, blanked_at").eq("id", old.id).single());
   assert.deepEqual([l.stage, l.closed_reason, l.blanked_at], ["archived", "stale", null], "set aside at 90 days, not yet blanked");
-  const e = ok(await db.from("leads").select("blanked_at, place_id").eq("id", ex.id).single());
-  assert.ok(e.blanked_at && e.place_id === null, "an excluded place loses its details at 30 days");
+  const e = ok(await db.from("leads").select("blanked_at, place_id, business_name, phone_e164").eq("id", free.id).single());
+  assert.deepEqual([e.blanked_at !== null, e.place_id, e.business_name, e.phone_e164], [true, null, "", null], "an excluded place nothing else holds loses its details at 30 days");
+  const h = ok(await db.from("leads").select("blanked_at, place_id, business_name").eq("id", held.id).single());
+  assert.deepEqual([h.blanked_at, h.place_id, h.business_name], [null, "ChIJfixture0204", "Fixture 204"], "one that was taken out of the workspace keeps its row: the copy out there is not rewritten by this");
+  const hm = ok(await db.from("lead_search_members").select("blanked_at, judgment, reason, class").eq("lead_id", held.id).single());
+  assert.deepEqual([hm.blanked_at !== null, hm.judgment, hm.reason, hm.class], [true, {}, "", "excluded"], "its membership loses the judgment instead, and stays excluded");
   const after_ = ok(await db.from("lead_searches_view").select("excluded").eq("id", ids.search1).single()).excluded;
-  assert.equal(after_, before, "and stays counted as left out");
+  assert.equal(after_, before, "and either way it stays counted as left out");
+
   ok(await db.from("leads").update({ found_at: new Date(Date.now() - 181 * 86_400_000).toISOString() }).eq("id", old.id));
   ok(await db.rpc("purge_leads"));
   l = ok(await db.from("leads").select("blanked_at, business_name").eq("id", old.id).single());
