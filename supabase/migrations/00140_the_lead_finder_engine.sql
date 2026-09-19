@@ -29,6 +29,28 @@
 -- workspace's rows through row-level security (the 00002 shape) and write
 -- nothing directly.
 
+-- Wait no longer than three seconds for any lock this file needs. Two
+-- statements here take ACCESS EXCLUSIVE on a table a live workspace is
+-- reading -- the trigger on contacts (a drop takes it even when the trigger
+-- does not exist) and the CHECK on jobs -- and both are held until COMMIT
+-- while the rest of the file runs. Behind a long read, that queues every
+-- reader of contacts behind us: the receptionist stops answering. Better to
+-- fail and be run again in a quiet minute.
+--
+-- SET LOCAL, not SET: the Supabase CLI applies each migration file inside one
+-- transaction (with its own schema_migrations row), so LOCAL covers the whole
+-- file and no later migration on the same connection inherits it. Applied any
+-- other way -- a bare psql -f, say -- SET LOCAL does nothing, so the block
+-- below says so out loud rather than letting the precaution go missing.
+set local lock_timeout = '3s';
+do $$
+begin
+  raise notice 'lock_timeout for this migration: %', current_setting('lock_timeout');
+  if current_setting('lock_timeout') <> '3s' then
+    raise warning 'this file was applied outside a transaction, so SET LOCAL did nothing: run it inside begin/commit, or set lock_timeout yourself before it';
+  end if;
+end $$;
+
 /* ------------------------------------------------------------ 1. tables -- */
 
 -- The platform's switch, one row (13, 30). No member policy: read through
@@ -1302,27 +1324,63 @@ begin
   if coalesce(char_length(p_plan->>'name'), 0) not between 2 and 80 then raise exception 'plan.name' using errcode = '22023'; end if;
   if coalesce(char_length(p_plan->>'asked'), 0) not between 1 and 400 then raise exception 'plan.asked' using errcode = '22023'; end if;
   if jsonb_typeof(p_plan->'terms') <> 'array' or jsonb_array_length(p_plan->'terms') not between 1 and 5 then raise exception 'plan.terms' using errcode = '22023'; end if;
-  if jsonb_typeof(p_plan->'area') <> 'object' or p_plan->'area'->>'label' is null or p_plan->'area'->>'state' !~ '^[A-Z]{2}$'
-     or p_plan->'area'->>'kind' not in ('zip', 'city', 'radius') or coalesce((p_plan->'area'->>'radius_m')::integer, 0) <= 0
+  -- The same phrase twice is a term asked for nothing, and it is the provider
+  -- who is asked twice. Case does not make a second phrase.
+  if (select count(distinct lower(btrim(t))) from jsonb_array_elements_text(p_plan->'terms') t) <> jsonb_array_length(p_plan->'terms') then
+    raise exception 'plan.terms' using errcode = '22023';
+  end if;
+  if jsonb_typeof(p_plan->'area') <> 'object' or p_plan->'area'->>'label' is null
+     or p_plan->'area'->>'kind' not in ('zip', 'city', 'radius')
      or (jsonb_typeof(p_plan->'area'->'center') <> 'null' and (p_plan->'area'->'center'->>'lat' is null or p_plan->'area'->'center'->>'lng' is null)) then
     raise exception 'plan.area' using errcode = '22023';
   end if;
+  -- A whole number of metres, between the smallest area worth a run and the
+  -- largest the provider takes.
+  if jsonb_typeof(p_plan->'area'->'radius_m') <> 'number' or p_plan->'area'->>'radius_m' !~ '^\d+$'
+     or (p_plan->'area'->>'radius_m')::integer not between 500 and 200000 then
+    raise exception 'plan.area.radius_m' using errcode = '22023';
+  end if;
+  -- A real state or DC: the fifty and one LeadSearchPlanSchema holds. Two
+  -- capitals are not a place.
+  if p_plan->'area'->>'state' not in (
+    'AL', 'AK', 'AZ', 'AR', 'CA', 'CO', 'CT', 'DE', 'DC', 'FL', 'GA', 'HI', 'ID', 'IL', 'IN', 'IA', 'KS', 'KY', 'LA', 'ME', 'MD',
+    'MA', 'MI', 'MN', 'MS', 'MO', 'MT', 'NE', 'NV', 'NH', 'NJ', 'NM', 'NY', 'NC', 'ND', 'OH', 'OK', 'OR', 'PA', 'RI', 'SC',
+    'SD', 'TN', 'TX', 'UT', 'VT', 'VA', 'WA', 'WV', 'WI', 'WY') then
+    raise exception 'plan.area.state' using errcode = '22023';
+  end if;
+  -- The words the provider is actually given for the area.
+  if coalesce(char_length(btrim(p_plan->'area'->>'query')), 0) not between 2 and 120 then
+    raise exception 'plan.area.query' using errcode = '22023';
+  end if;
+  -- A ZIP ask needs its ZIP: A2 derives the centre from it.
+  if p_plan->'area'->>'kind' = 'zip' and coalesce(p_plan->'area'->>'zip', '') !~ '^\d{5}$' then
+    raise exception 'plan.area.zip' using errcode = '22023';
+  end if;
   if coalesce((p_plan->>'count')::integer, 0) not between 1 and 1000 then raise exception 'plan.count' using errcode = '22023'; end if;
   if p_plan->>'contact' not in ('phone', 'email') then raise exception 'plan.contact' using errcode = '22023'; end if;
-  if jsonb_typeof(p_plan->'criteria') <> 'array' then raise exception 'plan.criteria' using errcode = '22023'; end if;
+  if jsonb_typeof(p_plan->'criteria') <> 'array' or jsonb_array_length(p_plan->'criteria') > 8 then raise exception 'plan.criteria' using errcode = '22023'; end if;
   for v in select * from jsonb_array_elements(p_plan->'criteria') loop
     if v->>'key' !~ '^[a-z][a-z0-9_]{0,39}$' or v->>'text' is null or v->>'standard' not in ('likely', 'seen') or jsonb_typeof(v->'required') <> 'boolean' then
       raise exception 'plan.criteria[]' using errcode = '22023';
     end if;
   end loop;
-  if jsonb_typeof(p_plan->'exclusions') <> 'array' then raise exception 'plan.exclusions' using errcode = '22023'; end if;
+  if jsonb_typeof(p_plan->'exclusions') <> 'array' or jsonb_array_length(p_plan->'exclusions') > 8 then raise exception 'plan.exclusions' using errcode = '22023'; end if;
   for v in select * from jsonb_array_elements(p_plan->'exclusions') loop
     if v->>'key' !~ '^[a-z][a-z0-9_]{0,39}$' or v->>'text' is null or v->>'origin' not in ('claude', 'you_said') then
       raise exception 'plan.exclusions[]' using errcode = '22023';
     end if;
   end loop;
+  -- Every criterion and every exclusion has a key of its own, across both:
+  -- the judge answers by key, so two of a name is one answer lost.
+  if (select count(distinct x.k) from (
+        select v2->>'key' as k from jsonb_array_elements(p_plan->'criteria') v2
+        union all
+        select v2->>'key' from jsonb_array_elements(p_plan->'exclusions') v2) x)
+     <> jsonb_array_length(p_plan->'criteria') + jsonb_array_length(p_plan->'exclusions') then
+    raise exception 'plan.criteria[].key' using errcode = '22023';
+  end if;
 end $$;
-comment on function public.lead_plan_check(jsonb) is 'Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes.';
+comment on function public.lead_plan_check(jsonb) is 'Raises 22023 naming the key when a plan is not the shape LeadSearchPlanSchema describes: the same rules, including at most five terms and no phrase twice, at most eight criteria and eight exclusions with a key each, a radius of 500 to 200000 metres, a real state, the area''s query, and a ZIP for a ZIP ask. The door is granted to authenticated, so this is what a plan is held to when the route is stepped around.';
 revoke execute on function public.lead_plan_check(jsonb) from public, anon, authenticated;
 
 create or replace function public.lead_search_create(p_tenant_id uuid, p_plan jsonb, p_via text, p_estimate_usd numeric)

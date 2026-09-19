@@ -9404,6 +9404,464 @@ function deskSignMetadata(f) {
   return f ? { title: `Desk sign: ${deskSignVM(f).business}`, robots: { index: false, follow: false } } : notFoundPageMetadata();
 }
 
+// src/lead-search.ts
+import { z as z6 } from "zod";
+var LEAD_SEARCH_VIAS = ["people", "ask"];
+var LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"];
+var LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
+var LEAD_ROUND_ENDINGS = [
+  "target_reached",
+  "searched_everything",
+  "month_leads_used",
+  "budget_used",
+  "few_new_matches",
+  "stopped",
+  "source_failed",
+  "question_unanswered",
+  "paused"
+];
+var LEAD_ROUND_ANSWERS = ["keep", "include", "stop"];
+var LEAD_RUN_PURPOSES = ["discover", "check"];
+var LEAD_RUN_STATES = ["claimed", "starting", "running", "succeeded", "failed", "aborted", "timed_out", "unknown"];
+var LEAD_EMAIL_STATES = ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
+var LEAD_STAGES = ["ready", "nurture", "converted", "archived"];
+var LEAD_CLOSED_REASONS = ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
+var LEAD_FITS = ["strong", "look", "long"];
+var LEAD_COUNTER_KINDS = ["allowance", "budget", "day"];
+var LEAD_OPERATION_KINDS = ["undo_search", "keep", "exclude", "put_back", "include", "stop"];
+var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
+var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone"];
+var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased"];
+var LEAD_MONTHLY_ALLOWANCE = 500;
+var LEAD_MONTHLY_BUDGET_USD = 25;
+var LEAD_DAY_CAP_USD = 10;
+var LEAD_PLATFORM_DAY_CAP_USD = 50;
+var LEAD_QUESTION_THRESHOLD = 0.6;
+var LEAD_QUESTION_MIN_EVIDENCE = 10;
+var LEAD_PROBE_PLACES = 25;
+var LEAD_JUDGE_BATCH = 25;
+var LEAD_MAX_PLACES = 1e3;
+var LEAD_FACT_MAX = 120;
+var LEAD_REASON_MAX_WORDS = 12;
+var LEAD_ESTIMATE_MARGIN = 1.3;
+var LEAD_ASK_MIN_FACTOR = 1.2;
+var LEAD_ASK_MAX_FACTOR = 4;
+var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
+var US_STATES = {
+  alabama: "AL",
+  alaska: "AK",
+  arizona: "AZ",
+  arkansas: "AR",
+  california: "CA",
+  colorado: "CO",
+  connecticut: "CT",
+  delaware: "DE",
+  "district of columbia": "DC",
+  florida: "FL",
+  georgia: "GA",
+  hawaii: "HI",
+  idaho: "ID",
+  illinois: "IL",
+  indiana: "IN",
+  iowa: "IA",
+  kansas: "KS",
+  kentucky: "KY",
+  louisiana: "LA",
+  maine: "ME",
+  maryland: "MD",
+  massachusetts: "MA",
+  michigan: "MI",
+  minnesota: "MN",
+  mississippi: "MS",
+  missouri: "MO",
+  montana: "MT",
+  nebraska: "NE",
+  nevada: "NV",
+  "new hampshire": "NH",
+  "new jersey": "NJ",
+  "new mexico": "NM",
+  "new york": "NY",
+  "north carolina": "NC",
+  "north dakota": "ND",
+  ohio: "OH",
+  oklahoma: "OK",
+  oregon: "OR",
+  pennsylvania: "PA",
+  "rhode island": "RI",
+  "south carolina": "SC",
+  "south dakota": "SD",
+  tennessee: "TN",
+  texas: "TX",
+  utah: "UT",
+  vermont: "VT",
+  virginia: "VA",
+  washington: "WA",
+  "west virginia": "WV",
+  wisconsin: "WI",
+  wyoming: "WY"
+};
+var US_CODES = new Set(Object.values(US_STATES));
+var KEY = /^[a-z][a-z0-9_]{0,39}$/;
+var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+var words = (min, max) => z6.string().transform((s) => stripUnsafe(s).trim()).pipe(z6.string().min(min).max(max));
+var LeadSearchPlanSchema = z6.object({
+  version: z6.number().int().min(1),
+  card: z6.literal("local_businesses"),
+  name: words(2, 80),
+  asked: words(1, 400),
+  terms: z6.array(words(2, 60)).min(1).max(5),
+  area: z6.object({
+    kind: z6.enum(["zip", "city", "radius"]),
+    label: words(2, 80),
+    state: z6.string().regex(/^[A-Z]{2}$/),
+    center: z6.object({ lat: z6.number().min(-90).max(90), lng: z6.number().min(-180).max(180) }).nullable(),
+    radius_m: z6.number().int().min(500).max(2e5),
+    zip: z6.string().regex(/^\d{5}$/).optional(),
+    query: words(2, 120)
+  }),
+  count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
+  contact: z6.enum(["phone", "email"]),
+  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
+  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
+}).superRefine((p, ctx) => {
+  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
+  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
+  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
+  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
+});
+var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+var lowerFirst2 = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var list = (xs) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
+function planSentence(plan) {
+  const have = plan.criteria.map((c) => c.standard === "seen" ? `${lowerFirst2(c.text)} (confirmed)` : lowerFirst2(c.text));
+  const contact = plan.contact === "email" ? "then find their email and check it" : "a phone is enough";
+  const head = `Find ${plan.count} ${plan.name} in ${plan.area.label}${have.length ? ` ${list(have)}` : ""}, ${contact}.`;
+  const out = plan.exclusions.map((e) => lowerFirst2(e.text));
+  return out.length ? `${head} Leaving out: ${list(out)}.` : head;
+}
+function stableStringify(v) {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
+  if (v && typeof v === "object") {
+    const keys = Object.keys(v).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+var same = (a, b) => stableStringify(a) === stableStringify(b);
+function planVersionOf(plan, changed) {
+  const next = { ...plan, ...changed, version: plan.version };
+  const material = ["area", "count", "contact", "criteria", "exclusions"].some((k) => !same(plan[k], next[k]));
+  return { ...next, version: material ? plan.version + 1 : plan.version };
+}
+var LEAD_ENDING_WORDS = {
+  target_reached: "Found what you asked for",
+  searched_everything: "Searched everything this plan covers",
+  month_leads_used: "This month's leads are used",
+  budget_used: "This month's searching budget is used",
+  few_new_matches: "Few new matches",
+  stopped: "Stopped by you",
+  source_failed: "The source failed",
+  question_unanswered: "Question unanswered",
+  paused: "Paused for everyone"
+};
+function endingOfRound(x) {
+  if (x.counted >= x.target) return "target_reached";
+  if (x.paused) return "paused";
+  if (x.stopped) return "stopped";
+  if (x.sourceFailed) return "source_failed";
+  if (x.unanswered) return "question_unanswered";
+  if (x.allowanceLeft <= 0) return "month_leads_used";
+  if (x.budgetLeftUsd <= 0) return "budget_used";
+  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
+  return "few_new_matches";
+}
+var LEAD_CARDS = [
+  {
+    id: "local_businesses",
+    goodFor: [
+      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
+      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
+      "emails and social profiles from the business's own website",
+      "a mailbox check on the email found"
+    ],
+    notFor: [
+      "people at home, or anyone who is not a business",
+      "online sellers and shops with no local listing",
+      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
+      "businesses outside the US"
+    ],
+    settings: ["terms (up to five search phrases, widest first)", "area (a city, a ZIP, or a center and radius)", "count (1 to 1000)", "contact standard (phone, or email checked)"],
+    costPerPlaceUsd: 3e-3,
+    contactsPerPlaceUsd: 2e-3,
+    judgePerPlaceUsd: 23e-4,
+    checkPerEmailUsd: 89e-5,
+    startUsd: 5e-5,
+    maxPerTerm: 120,
+    examples: [
+      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
+      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
+      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
+    ],
+    approved: true
+  }
+];
+var cardOf = (plan) => {
+  const c = LEAD_CARDS.find((x) => x.id === plan.card);
+  if (!c) throw new Error(`no card ${plan.card}`);
+  return c;
+};
+var round4 = (n) => Math.round(n * 1e4) / 1e4;
+function estimateRoundUsd(plan, purpose, placesToAsk2) {
+  const c = cardOf(plan);
+  const places = Math.max(0, Math.floor(placesToAsk2));
+  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
+  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
+  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
+}
+function spread(total, n, cap2) {
+  const each = Math.min(cap2, Math.floor(total / n));
+  const rest = Math.min(total - each * n, n);
+  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
+}
+function placesToAsk(plan, remaining, yieldSoFar) {
+  const n = Math.max(1, plan.terms.length);
+  const cap2 = cardOf(plan).maxPerTerm;
+  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
+  if (yieldSoFar === null) {
+    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
+    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
+  }
+  const left = Math.max(1, Math.ceil(remaining));
+  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
+  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
+  const total = Math.min(LEAD_MAX_PLACES, cap2 * n, Math.ceil(clamped));
+  const perTerm = spread(total, n, cap2);
+  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
+}
+var LEAD_EMAIL_REASON = /^email:/;
+function classify(plan, answer, facts, emailState, inArea) {
+  const reasons = [];
+  const rubric = [
+    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
+    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
+  ];
+  let excludedBy = null;
+  let softFail = false;
+  let unknown = false;
+  for (const r of rubric) {
+    const a = answer.criteria.find((x) => x.key === r.key);
+    const verdict = a?.answer ?? "unknown";
+    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
+    if (verdict === "fail") {
+      if (r.required) {
+        excludedBy = excludedBy ?? r.key;
+        reasons.push(`fail:${r.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (verdict === "unknown") {
+      if (r.required) {
+        unknown = true;
+        reasons.push(`unknown:${r.key}`);
+      } else {
+        softFail = true;
+      }
+    } else if (r.standard === "seen" && readOnly) {
+      if (r.required) {
+        unknown = true;
+        reasons.push(`inferred:${r.key}`);
+      } else {
+        softFail = true;
+      }
+    }
+  }
+  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
+  if (!inArea) reasons.push("out_of_area");
+  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
+  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
+  const fit = softFail ? "long" : unknown ? "look" : "strong";
+  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
+}
+function questionAfterProbe(plan, members) {
+  const n = members.length;
+  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
+  const excluded = members.filter((m) => m.class === "excluded").length;
+  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
+  const tally = /* @__PURE__ */ new Map();
+  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
+  const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
+  if (!top) return { ask: false };
+  const textOf2 = (key) => lowerFirst2(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
+  const namedShare = top[1] / n;
+  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
+  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
+  let dropTerm = null;
+  if (plan.terms.length > 1) {
+    const statOf = (term) => {
+      const of = members.filter((m) => m.term === term);
+      return { count: of.length, excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0 };
+    };
+    for (const term of plan.terms) {
+      const s = statOf(term);
+      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
+      const anotherWorks = plan.terms.some((other) => other !== term && (() => {
+        const o = statOf(other);
+        return o.count >= 5 && o.excludedShare < 2 / 3;
+      })());
+      if (anotherWorks) {
+        dropTerm = term;
+        break;
+      }
+    }
+  }
+  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
+  return { ask: true, sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`, criterionKey: top[0], dropTerm };
+}
+var LEAD_PLATFORM_HOSTS = [
+  "vagaro.com",
+  "square.site",
+  "squareup.com",
+  "glossgenius.com",
+  "godaddysites.com",
+  "wixsite.com",
+  "business.site",
+  "facebook.com",
+  "instagram.com",
+  "linktr.ee",
+  "yelp.com",
+  "booksy.com",
+  "fresha.com",
+  "styleseat.com",
+  "schedulicity.com",
+  "mindbodyonline.com",
+  "setmore.com",
+  "acuityscheduling.com",
+  "google.com"
+];
+var LEAD_JUNK_EMAIL_DOMAINS = [
+  "vagaro.com",
+  "square.site",
+  "squareup.com",
+  "glossgenius.com",
+  "godaddy.com",
+  "wix.com",
+  "wixpress.com",
+  "sentry.io",
+  "example.com",
+  "domain.com",
+  "yourdomain.com",
+  "email.com"
+];
+var LEAD_PLACEHOLDER_LOCALS = [
+  "filler",
+  "yourdomain",
+  "youremail",
+  "your",
+  "example",
+  "email",
+  "name",
+  "user",
+  "username",
+  "test",
+  "noreply",
+  "no-reply",
+  "donotreply"
+];
+var LEAD_ROLE_LOCALS = ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"];
+var LEAD_FREE_MAIL = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "live.com", "msn.com", "me.com", "protonmail.com", "proton.me"];
+var DESK_LOCALS = ["intake", "info", "hello", "contact", "office", "team", "book", "booking", "bookings", "appointments", "studio", "frontdesk", "admin"];
+var has = (xs, v) => xs.includes(v);
+function cleanEmailCandidates(emails, host) {
+  const seen = /* @__PURE__ */ new Set();
+  const own = [];
+  const free = [];
+  const foreign = [];
+  const dropped = [];
+  for (const raw of emails) {
+    const fixed = String(raw ?? "").trim().replace(/^mailto:/i, "").replace(/@www\./i, "@");
+    const address = normalizeEmail(fixed);
+    if (!address) {
+      dropped.push({ email: String(raw ?? ""), why: "malformed" });
+      continue;
+    }
+    if (seen.has(address)) {
+      dropped.push({ email: address, why: "duplicate" });
+      continue;
+    }
+    seen.add(address);
+    const [local, domain] = address.split("@");
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
+      dropped.push({ email: address, why: "junk_domain" });
+      continue;
+    }
+    if (has(LEAD_PLACEHOLDER_LOCALS, local)) {
+      dropped.push({ email: address, why: "placeholder" });
+      continue;
+    }
+    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) {
+      dropped.push({ email: address, why: "role" });
+      continue;
+    }
+    if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) {
+      dropped.push({ email: address, why: "image" });
+      continue;
+    }
+    const isOwn2 = !!host && (domain === host || domain.endsWith(`.${host}`));
+    (isOwn2 ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
+  }
+  const deskRank = (a) => {
+    const i = DESK_LOCALS.indexOf(a.split("@")[0]);
+    return i < 0 ? DESK_LOCALS.length : i;
+  };
+  own.sort((a, b) => deskRank(a) - deskRank(b));
+  const foreignDomains = new Set(foreign.map((a) => a.split("@")[1]));
+  const keep = (xs, limit) => {
+    for (const x of xs.slice(limit)) dropped.push({ email: x, why: "over_limit" });
+    return xs.slice(0, limit);
+  };
+  const kept = [...keep(own, 5), ...keep(free, 3)];
+  if (foreignDomains.size <= 3) kept.push(...keep(foreign, 2));
+  else for (const x of foreign) dropped.push({ email: x, why: "foreign_list" });
+  return { kept, dropped };
+}
+var NANP = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
+function usPhone(raw) {
+  const e164 = normalizePhone(raw);
+  if (!e164 || !NANP.test(e164)) return null;
+  const ten = e164.slice(2);
+  if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
+  return e164;
+}
+function siteHost(url) {
+  if (!url) return null;
+  let host;
+  try {
+    host = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase();
+  } catch {
+    return null;
+  }
+  host = host.replace(/^www\./, "");
+  if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
+  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
+  return host;
+}
+function stateCode(raw) {
+  const s = String(raw ?? "").trim();
+  if (!s) return null;
+  const up = s.toUpperCase();
+  if (up.length === 2 && US_CODES.has(up)) return up;
+  return US_STATES[s.toLowerCase()] ?? null;
+}
+function leadMonth(zone, at2) {
+  const d = dayInZone(zone, at2.getTime());
+  return `${d.y}-${String(d.m).padStart(2, "0")}`;
+}
+
 // src/activity.ts
 var ACTIVITY_NOISE_PREFIXES = ["usage.", "webhook.", "ingest."];
 var WORDS = {
@@ -9475,6 +9933,8 @@ var WORDS = {
   "google.replied": "A Google review was answered",
   "mailbox.created": "The workspace's email address was set up",
   "mailbox.renamed": "The name on the workspace's email changed",
+  "lead.round": "A search for businesses",
+  "lead.no_card": "An ask no source covers yet",
   "workspace.created": "The workspace was created",
   "settings.changed": "Settings changed",
   "policy.changed": "An autonomy setting changed",
@@ -9580,6 +10040,26 @@ function activityWords(kind, payload) {
       if (outcome) bits.push(outcome);
       const n = num(p, "recipients") ?? num(p, "count");
       if (n !== null) bits.push(`${n} people`);
+      break;
+    }
+    case "lead.round": {
+      const state = str(p, "state");
+      if (state === "ended") {
+        bits.push("finished");
+        const ending = str(p, "ending");
+        if (ending && ending in LEAD_ENDING_WORDS) bits.push(LEAD_ENDING_WORDS[ending]);
+        const counted = num(p, "counted");
+        if (counted !== null) bits.push(`${counted} found`);
+      } else if (state) {
+        bits.push(state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " "));
+      }
+      break;
+    }
+    case "lead.no_card": {
+      const card = str(p, "card");
+      if (card) bits.push(card.replace(/_/g, " "));
+      const asked = str(p, "asked");
+      if (asked) bits.push(asked.slice(0, 80));
       break;
     }
     default:
@@ -10317,464 +10797,6 @@ function erasedEmailHash(tenantId, email) {
 }
 function leadSuppressionHash(tenantId, value) {
   return keyedDigest(tenantId, value);
-}
-
-// src/lead-search.ts
-import { z as z6 } from "zod";
-var LEAD_SEARCH_VIAS = ["people", "ask"];
-var LEAD_ROUND_PURPOSES = ["probe", "main", "topup", "renew"];
-var LEAD_ROUND_STATES = ["queued", "probing", "waiting_on_owner", "running", "checking", "ended"];
-var LEAD_ROUND_ENDINGS = [
-  "target_reached",
-  "searched_everything",
-  "month_leads_used",
-  "budget_used",
-  "few_new_matches",
-  "stopped",
-  "source_failed",
-  "question_unanswered",
-  "paused"
-];
-var LEAD_ROUND_ANSWERS = ["keep", "include", "stop"];
-var LEAD_RUN_PURPOSES = ["discover", "check"];
-var LEAD_RUN_STATES = ["claimed", "starting", "running", "succeeded", "failed", "aborted", "timed_out", "unknown"];
-var LEAD_EMAIL_STATES = ["none", "checking", "ok", "catch_all", "unknown", "invalid"];
-var LEAD_STAGES = ["ready", "nurture", "converted", "archived"];
-var LEAD_CLOSED_REASONS = ["said_no", "not_a_fit", "customer", "stale", "search_removed"];
-var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
-var LEAD_FITS = ["strong", "look", "long"];
-var LEAD_COUNTER_KINDS = ["allowance", "budget", "day"];
-var LEAD_OPERATION_KINDS = ["undo_search", "keep", "exclude", "put_back", "include", "stop"];
-var LEAD_PREFERENCE_KINDS = ["chain", "wrong_kind", "too_far"];
-var LEAD_SUPPRESSION_KINDS = ["email", "place", "phone"];
-var LEAD_SUPPRESSION_WHATS = ["email_opt_out", "customer", "erased"];
-var LEAD_MONTHLY_ALLOWANCE = 500;
-var LEAD_MONTHLY_BUDGET_USD = 25;
-var LEAD_DAY_CAP_USD = 10;
-var LEAD_PLATFORM_DAY_CAP_USD = 50;
-var LEAD_QUESTION_THRESHOLD = 0.6;
-var LEAD_QUESTION_MIN_EVIDENCE = 10;
-var LEAD_PROBE_PLACES = 25;
-var LEAD_JUDGE_BATCH = 25;
-var LEAD_MAX_PLACES = 1e3;
-var LEAD_FACT_MAX = 120;
-var LEAD_REASON_MAX_WORDS = 12;
-var LEAD_ESTIMATE_MARGIN = 1.3;
-var LEAD_ASK_MIN_FACTOR = 1.2;
-var LEAD_ASK_MAX_FACTOR = 4;
-var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
-var US_STATES = {
-  alabama: "AL",
-  alaska: "AK",
-  arizona: "AZ",
-  arkansas: "AR",
-  california: "CA",
-  colorado: "CO",
-  connecticut: "CT",
-  delaware: "DE",
-  "district of columbia": "DC",
-  florida: "FL",
-  georgia: "GA",
-  hawaii: "HI",
-  idaho: "ID",
-  illinois: "IL",
-  indiana: "IN",
-  iowa: "IA",
-  kansas: "KS",
-  kentucky: "KY",
-  louisiana: "LA",
-  maine: "ME",
-  maryland: "MD",
-  massachusetts: "MA",
-  michigan: "MI",
-  minnesota: "MN",
-  mississippi: "MS",
-  missouri: "MO",
-  montana: "MT",
-  nebraska: "NE",
-  nevada: "NV",
-  "new hampshire": "NH",
-  "new jersey": "NJ",
-  "new mexico": "NM",
-  "new york": "NY",
-  "north carolina": "NC",
-  "north dakota": "ND",
-  ohio: "OH",
-  oklahoma: "OK",
-  oregon: "OR",
-  pennsylvania: "PA",
-  "rhode island": "RI",
-  "south carolina": "SC",
-  "south dakota": "SD",
-  tennessee: "TN",
-  texas: "TX",
-  utah: "UT",
-  vermont: "VT",
-  virginia: "VA",
-  washington: "WA",
-  "west virginia": "WV",
-  wisconsin: "WI",
-  wyoming: "WY"
-};
-var US_CODES = new Set(Object.values(US_STATES));
-var KEY = /^[a-z][a-z0-9_]{0,39}$/;
-var stripUnsafe = (s) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
-var words = (min, max) => z6.string().transform((s) => stripUnsafe(s).trim()).pipe(z6.string().min(min).max(max));
-var LeadSearchPlanSchema = z6.object({
-  version: z6.number().int().min(1),
-  card: z6.literal("local_businesses"),
-  name: words(2, 80),
-  asked: words(1, 400),
-  terms: z6.array(words(2, 60)).min(1).max(5),
-  area: z6.object({
-    kind: z6.enum(["zip", "city", "radius"]),
-    label: words(2, 80),
-    state: z6.string().regex(/^[A-Z]{2}$/),
-    center: z6.object({ lat: z6.number().min(-90).max(90), lng: z6.number().min(-180).max(180) }).nullable(),
-    radius_m: z6.number().int().min(500).max(2e5),
-    zip: z6.string().regex(/^\d{5}$/).optional(),
-    query: words(2, 120)
-  }),
-  count: z6.number().int().min(1).max(LEAD_MAX_PLACES),
-  contact: z6.enum(["phone", "email"]),
-  criteria: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 120), standard: z6.enum(["likely", "seen"]), required: z6.boolean() })).max(8),
-  exclusions: z6.array(z6.object({ key: z6.string().regex(KEY), text: words(2, 80), origin: z6.enum(["claude", "you_said"]), category_key: z6.string().regex(KEY).optional() })).max(8)
-}).superRefine((p, ctx) => {
-  const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
-  if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
-  const lowerTerms = p.terms.map((t) => t.toLowerCase());
-  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
-  if (p.area.kind === "radius" && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius needs a center", path: ["area", "center"] });
-  if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
-  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
-});
-var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
-var lowerFirst2 = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
-var list = (xs) => xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
-function planSentence(plan) {
-  const have = plan.criteria.map((c) => c.standard === "seen" ? `${lowerFirst2(c.text)} (confirmed)` : lowerFirst2(c.text));
-  const contact = plan.contact === "email" ? "then find their email and check it" : "a phone is enough";
-  const head = `Find ${plan.count} ${plan.name} in ${plan.area.label}${have.length ? ` ${list(have)}` : ""}, ${contact}.`;
-  const out = plan.exclusions.map((e) => lowerFirst2(e.text));
-  return out.length ? `${head} Leaving out: ${list(out)}.` : head;
-}
-function stableStringify(v) {
-  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
-  if (v && typeof v === "object") {
-    const keys = Object.keys(v).sort();
-    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify(v[k])}`).join(",")}}`;
-  }
-  return JSON.stringify(v);
-}
-var same = (a, b) => stableStringify(a) === stableStringify(b);
-function planVersionOf(plan, changed) {
-  const next = { ...plan, ...changed, version: plan.version };
-  const material = ["area", "count", "contact", "criteria", "exclusions"].some((k) => !same(plan[k], next[k]));
-  return { ...next, version: material ? plan.version + 1 : plan.version };
-}
-var LEAD_ENDING_WORDS = {
-  target_reached: "Found what you asked for",
-  searched_everything: "Searched everything this plan covers",
-  month_leads_used: "This month's leads are used",
-  budget_used: "This month's searching budget is used",
-  few_new_matches: "Few new matches",
-  stopped: "Stopped by you",
-  source_failed: "The source failed",
-  question_unanswered: "Question unanswered",
-  paused: "Paused for everyone"
-};
-function endingOfRound(x) {
-  if (x.counted >= x.target) return "target_reached";
-  if (x.paused) return "paused";
-  if (x.stopped) return "stopped";
-  if (x.sourceFailed) return "source_failed";
-  if (x.unanswered) return "question_unanswered";
-  if (x.allowanceLeft <= 0) return "month_leads_used";
-  if (x.budgetLeftUsd <= 0) return "budget_used";
-  if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
-  return "few_new_matches";
-}
-var LEAD_CARDS = [
-  {
-    id: "local_businesses",
-    goodFor: [
-      "local businesses of a kind, in a city, a ZIP or around a point: the businesses that buy from you, or that your clients need next",
-      "their listing facts: name, category, address, phone, website, rating and review count, open or closed",
-      "emails and social profiles from the business's own website",
-      "a mailbox check on the email found"
-    ],
-    notFor: [
-      "people at home, or anyone who is not a business",
-      "online sellers and shops with no local listing",
-      "what a business stocks or sells inside (a listing does not show inventory: a seen standard on it cannot be met)",
-      "businesses outside the US"
-    ],
-    settings: ["terms (up to five search phrases, widest first)", "area (a city, a ZIP, or a center and radius)", "count (1 to 1000)", "contact standard (phone, or email checked)"],
-    costPerPlaceUsd: 3e-3,
-    contactsPerPlaceUsd: 2e-3,
-    judgePerPlaceUsd: 23e-4,
-    checkPerEmailUsd: 89e-5,
-    startUsd: 5e-5,
-    maxPerTerm: 120,
-    examples: [
-      "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
-      "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
-      "100 family law firms within 15 km of downtown Denver, email checked, leaving out referral networks"
-    ],
-    approved: true
-  }
-];
-var cardOf = (plan) => {
-  const c = LEAD_CARDS.find((x) => x.id === plan.card);
-  if (!c) throw new Error(`no card ${plan.card}`);
-  return c;
-};
-var round4 = (n) => Math.round(n * 1e4) / 1e4;
-function estimateRoundUsd(plan, purpose, placesToAsk2) {
-  const c = cardOf(plan);
-  const places = Math.max(0, Math.floor(placesToAsk2));
-  const perPlace = c.costPerPlaceUsd + c.contactsPerPlaceUsd + c.judgePerPlaceUsd + (plan.contact === "email" ? c.checkPerEmailUsd : 0);
-  const starts = plan.terms.length * (purpose === "probe" ? 1 : 1);
-  return round4((places * perPlace + starts * c.startUsd) * LEAD_ESTIMATE_MARGIN);
-}
-function spread(total, n, cap2) {
-  const each = Math.min(cap2, Math.floor(total / n));
-  const rest = Math.min(total - each * n, n);
-  return Array.from({ length: n }, (_, i) => Math.min(cap2, each + (i < rest ? 1 : 0)));
-}
-function placesToAsk(plan, remaining, yieldSoFar) {
-  const n = Math.max(1, plan.terms.length);
-  const cap2 = cardOf(plan).maxPerTerm;
-  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
-  if (yieldSoFar === null) {
-    const perTerm2 = spread(LEAD_PROBE_PLACES, n, cap2);
-    return { total: perTerm2.reduce((a, b) => a + b, 0), perTerm: perTerm2 };
-  }
-  const left = Math.max(1, Math.ceil(remaining));
-  const wanted = yieldSoFar > 0 ? left / yieldSoFar : Number.POSITIVE_INFINITY;
-  const clamped = Math.min(Math.max(wanted, left * LEAD_ASK_MIN_FACTOR), left * LEAD_ASK_MAX_FACTOR);
-  const total = Math.min(LEAD_MAX_PLACES, cap2 * n, Math.ceil(clamped));
-  const perTerm = spread(total, n, cap2);
-  return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
-}
-var LEAD_EMAIL_REASON = /^email:/;
-function classify(plan, answer, facts, emailState, inArea) {
-  const reasons = [];
-  const rubric = [
-    ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
-    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
-  ];
-  let excludedBy = null;
-  let softFail = false;
-  let unknown = false;
-  for (const r of rubric) {
-    const a = answer.criteria.find((x) => x.key === r.key);
-    const verdict = a?.answer ?? "unknown";
-    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
-    if (verdict === "fail") {
-      if (r.required) {
-        excludedBy = excludedBy ?? r.key;
-        reasons.push(`fail:${r.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (verdict === "unknown") {
-      if (r.required) {
-        unknown = true;
-        reasons.push(`unknown:${r.key}`);
-      } else {
-        softFail = true;
-      }
-    } else if (r.standard === "seen" && readOnly) {
-      if (r.required) {
-        unknown = true;
-        reasons.push(`inferred:${r.key}`);
-      } else {
-        softFail = true;
-      }
-    }
-  }
-  if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
-  if (!inArea) reasons.push("out_of_area");
-  if (plan.contact === "email" && emailState !== "ok") reasons.push(`email:${emailState}`);
-  if (plan.contact === "phone" && facts.phone_matches_site === null) reasons.push("phone:none");
-  const fit = softFail ? "long" : unknown ? "look" : "strong";
-  return { class: reasons.length ? "review" : "qualified", excluded_by: null, fit, reasons };
-}
-function questionAfterProbe(plan, members) {
-  const n = members.length;
-  if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
-  const excluded = members.filter((m) => m.class === "excluded").length;
-  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
-  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
-  const tally = /* @__PURE__ */ new Map();
-  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
-  const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
-  if (!top) return { ask: false };
-  const textOf2 = (key) => lowerFirst2(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
-  const namedShare = top[1] / n;
-  const lead = namedShare >= 2 / 3 ? "Most" : namedShare >= 0.5 ? "Half" : "Some";
-  const what = excluded > top[1] ? `${textOf2(top[0])} and other kinds of places` : textOf2(top[0]);
-  let dropTerm = null;
-  if (plan.terms.length > 1) {
-    const statOf = (term) => {
-      const of = members.filter((m) => m.term === term);
-      return { count: of.length, excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0 };
-    };
-    for (const term of plan.terms) {
-      const s = statOf(term);
-      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
-      const anotherWorks = plan.terms.some((other) => other !== term && (() => {
-        const o = statOf(other);
-        return o.count >= 5 && o.excludedShare < 2 / 3;
-      })());
-      if (anotherWorks) {
-        dropTerm = term;
-        break;
-      }
-    }
-  }
-  const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
-  return { ask: true, sentence: `${lead} of the first ${n} are ${what}, which I'm leaving out. Is that what you meant?${drop}`, criterionKey: top[0], dropTerm };
-}
-var LEAD_PLATFORM_HOSTS = [
-  "vagaro.com",
-  "square.site",
-  "squareup.com",
-  "glossgenius.com",
-  "godaddysites.com",
-  "wixsite.com",
-  "business.site",
-  "facebook.com",
-  "instagram.com",
-  "linktr.ee",
-  "yelp.com",
-  "booksy.com",
-  "fresha.com",
-  "styleseat.com",
-  "schedulicity.com",
-  "mindbodyonline.com",
-  "setmore.com",
-  "acuityscheduling.com",
-  "google.com"
-];
-var LEAD_JUNK_EMAIL_DOMAINS = [
-  "vagaro.com",
-  "square.site",
-  "squareup.com",
-  "glossgenius.com",
-  "godaddy.com",
-  "wix.com",
-  "wixpress.com",
-  "sentry.io",
-  "example.com",
-  "domain.com",
-  "yourdomain.com",
-  "email.com"
-];
-var LEAD_PLACEHOLDER_LOCALS = [
-  "filler",
-  "yourdomain",
-  "youremail",
-  "your",
-  "example",
-  "email",
-  "name",
-  "user",
-  "username",
-  "test",
-  "noreply",
-  "no-reply",
-  "donotreply"
-];
-var LEAD_ROLE_LOCALS = ["careers", "career", "jobs", "recruiting", "recruitment", "hr", "media", "press", "pr", "privacy", "legal", "webmaster", "abuse", "postmaster"];
-var LEAD_FREE_MAIL = ["gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "icloud.com", "aol.com", "live.com", "msn.com", "me.com", "protonmail.com", "proton.me"];
-var DESK_LOCALS = ["intake", "info", "hello", "contact", "office", "team", "book", "booking", "bookings", "appointments", "studio", "frontdesk", "admin"];
-var has = (xs, v) => xs.includes(v);
-function cleanEmailCandidates(emails, host) {
-  const seen = /* @__PURE__ */ new Set();
-  const own = [];
-  const free = [];
-  const foreign = [];
-  const dropped = [];
-  for (const raw of emails) {
-    const fixed = String(raw ?? "").trim().replace(/^mailto:/i, "").replace(/@www\./i, "@");
-    const address = normalizeEmail(fixed);
-    if (!address) {
-      dropped.push({ email: String(raw ?? ""), why: "malformed" });
-      continue;
-    }
-    if (seen.has(address)) {
-      dropped.push({ email: address, why: "duplicate" });
-      continue;
-    }
-    seen.add(address);
-    const [local, domain] = address.split("@");
-    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) {
-      dropped.push({ email: address, why: "junk_domain" });
-      continue;
-    }
-    if (has(LEAD_PLACEHOLDER_LOCALS, local)) {
-      dropped.push({ email: address, why: "placeholder" });
-      continue;
-    }
-    if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) {
-      dropped.push({ email: address, why: "role" });
-      continue;
-    }
-    if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) {
-      dropped.push({ email: address, why: "image" });
-      continue;
-    }
-    const isOwn2 = !!host && (domain === host || domain.endsWith(`.${host}`));
-    (isOwn2 ? own : has(LEAD_FREE_MAIL, domain) ? free : foreign).push(address);
-  }
-  const deskRank = (a) => {
-    const i = DESK_LOCALS.indexOf(a.split("@")[0]);
-    return i < 0 ? DESK_LOCALS.length : i;
-  };
-  own.sort((a, b) => deskRank(a) - deskRank(b));
-  const foreignDomains = new Set(foreign.map((a) => a.split("@")[1]));
-  const keep = (xs, limit) => {
-    for (const x of xs.slice(limit)) dropped.push({ email: x, why: "over_limit" });
-    return xs.slice(0, limit);
-  };
-  const kept = [...keep(own, 5), ...keep(free, 3)];
-  if (foreignDomains.size <= 3) kept.push(...keep(foreign, 2));
-  else for (const x of foreign) dropped.push({ email: x, why: "foreign_list" });
-  return { kept, dropped };
-}
-var NANP = /^\+1[2-9]\d{2}[2-9]\d{6}$/;
-function usPhone(raw) {
-  const e164 = normalizePhone(raw);
-  if (!e164 || !NANP.test(e164)) return null;
-  const ten = e164.slice(2);
-  if (/^(\d)\1{9}$/.test(ten) || ten === "1234567890") return null;
-  return e164;
-}
-function siteHost(url) {
-  if (!url) return null;
-  let host;
-  try {
-    host = new URL(/^https?:\/\//i.test(url) ? url : `https://${url}`).hostname.toLowerCase();
-  } catch {
-    return null;
-  }
-  host = host.replace(/^www\./, "");
-  if (!host.includes(".") || host.length > LEAD_FACT_MAX) return null;
-  if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
-  return host;
-}
-function stateCode(raw) {
-  const s = String(raw ?? "").trim();
-  if (!s) return null;
-  const up = s.toUpperCase();
-  if (up.length === 2 && US_CODES.has(up)) return up;
-  return US_STATES[s.toLowerCase()] ?? null;
-}
-function leadMonth(zone, at2) {
-  const d = dayInZone(zone, at2.getTime());
-  return `${d.y}-${String(d.m).padStart(2, "0")}`;
 }
 
 // src/lead-judge.ts

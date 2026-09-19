@@ -37,6 +37,12 @@ test("the words: a sentence per kind, the one or two fields a reader wants, noth
   assert.equal(activityWords("broadcast.sent", { sent: 38, held: 2 }), "A broadcast finished · 38 got it · 2 held");
   assert.equal(activityWords("settings.changed", { fields: ["hours", "closures", "calendar", "notifications", "extra"] }), "Settings changed · hours, closures, calendar, notifications");
   assert.equal(activityWords("line.texting_rejected", { error: "provided Opt-in information (30896 · MESSAGE_FLOW)", e164: "+19296566623" }), "The carriers sent the registration back · provided Opt-in information (30896 · MESSAGE_FLOW)");
+  assert.equal(activityWords("lead.round", { search_id: "s1", seq: 1, state: "queued", purpose: "probe", target: 12, by: "u1" }), "A search for businesses · started");
+  assert.equal(activityWords("lead.round", { state: "waiting_on_owner" }), "A search for businesses · waiting on your answer");
+  assert.equal(activityWords("lead.round", { state: "checking" }), "A search for businesses · checking");
+  assert.equal(activityWords("lead.round", { state: "ended", ending: "target_reached", counted: 12, cost_usd: 0.42 }), "A search for businesses · finished · Found what you asked for · 12 found", "the ending says itself in the words the rest of the product uses, and what it cost stays out of the log");
+  assert.equal(activityWords("lead.round", { state: "ended", ending: "not_an_ending" }), "A search for businesses · finished", "and an ending nothing names says nothing");
+  assert.equal(activityWords("lead.no_card", { card: "trade_shows", asked: "trade shows in Texas", by: "u1" }), "An ask no source covers yet · trade shows · trade shows in Texas", "the demand is the words, never a place");
   assert.equal(activityWords("channel.message_template_status_update", { waba_id: "1" }), "Channel · message template status update", "a computed kind reads as words, not as a key");
   assert.equal(activityWords("something.new", null), "Something · new");
   assert.equal(activityWords("message.received", "not an object"), "A customer wrote");

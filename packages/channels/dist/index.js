@@ -832,83 +832,6 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-var BUSINESS_INDUSTRIES = [
-  "AGRICULTURE",
-  "AUTOMOTIVE",
-  "BANKING",
-  "CONSTRUCTION",
-  "CONSUMER",
-  "EDUCATION",
-  "ELECTRONICS",
-  "ENERGY",
-  "ENGINEERING",
-  "FAST_MOVING_CONSUMER_GOODS",
-  "FINANCIAL",
-  "FINTECH",
-  "FOOD_AND_BEVERAGE",
-  "GOVERNMENT",
-  "HEALTHCARE",
-  "HOSPITALITY",
-  "INSURANCE",
-  "JEWELRY",
-  "LEGAL",
-  "MANUFACTURING",
-  "MEDIA",
-  "NOT_FOR_PROFIT",
-  "OIL_AND_GAS",
-  "ONLINE",
-  "PROFESSIONAL_SERVICES",
-  "RAW_MATERIALS",
-  "REAL_ESTATE",
-  "RELIGION",
-  "RETAIL",
-  "TECHNOLOGY",
-  "TELECOMMUNICATIONS",
-  "TRANSPORTATION",
-  "TRAVEL"
-];
-var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
-var BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
-var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
-var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
-var DEFAULT_COMPANY_TYPE = "private";
-function industryOf(v) {
-  const up = String(v ?? "").trim().toUpperCase();
-  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
-}
-function businessTypeOf(v) {
-  const s = String(v ?? "").trim();
-  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
-}
-function companyTypeOf(v) {
-  const s = String(v ?? "").trim().toLowerCase();
-  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
-}
-var PASSWORD_MIN = 12;
-var PASSWORD_WORDS = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
 var US_STATES = {
@@ -996,6 +919,83 @@ var LeadSearchPlanSchema = z6.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var BUSINESS_INDUSTRIES = [
+  "AGRICULTURE",
+  "AUTOMOTIVE",
+  "BANKING",
+  "CONSTRUCTION",
+  "CONSUMER",
+  "EDUCATION",
+  "ELECTRONICS",
+  "ENERGY",
+  "ENGINEERING",
+  "FAST_MOVING_CONSUMER_GOODS",
+  "FINANCIAL",
+  "FINTECH",
+  "FOOD_AND_BEVERAGE",
+  "GOVERNMENT",
+  "HEALTHCARE",
+  "HOSPITALITY",
+  "INSURANCE",
+  "JEWELRY",
+  "LEGAL",
+  "MANUFACTURING",
+  "MEDIA",
+  "NOT_FOR_PROFIT",
+  "OIL_AND_GAS",
+  "ONLINE",
+  "PROFESSIONAL_SERVICES",
+  "RAW_MATERIALS",
+  "REAL_ESTATE",
+  "RELIGION",
+  "RETAIL",
+  "TECHNOLOGY",
+  "TELECOMMUNICATIONS",
+  "TRANSPORTATION",
+  "TRAVEL"
+];
+var DEFAULT_INDUSTRY = "PROFESSIONAL_SERVICES";
+var BUSINESS_TYPES = ["Co-operative", "Corporation", "Limited Liability Corporation", "Non-profit Corporation", "Partnership"];
+var DEFAULT_BUSINESS_TYPE = "Limited Liability Corporation";
+var COMPANY_TYPES = ["government", "non-profit", "private", "public"];
+var DEFAULT_COMPANY_TYPE = "private";
+function industryOf(v) {
+  const up = String(v ?? "").trim().toUpperCase();
+  return BUSINESS_INDUSTRIES.includes(up) ? up : DEFAULT_INDUSTRY;
+}
+function businessTypeOf(v) {
+  const s = String(v ?? "").trim();
+  return BUSINESS_TYPES.includes(s) ? s : DEFAULT_BUSINESS_TYPE;
+}
+function companyTypeOf(v) {
+  const s = String(v ?? "").trim().toLowerCase();
+  return COMPANY_TYPES.includes(s) ? s : DEFAULT_COMPANY_TYPE;
+}
+var PASSWORD_MIN = 12;
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",

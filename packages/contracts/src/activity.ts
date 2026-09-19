@@ -1,4 +1,5 @@
 import { DECISION_VERBS, EVENT_KINDS, type DecisionVerb } from "./enums";
+import { LEAD_ENDING_WORDS, type LeadRoundEnding } from "./lead-search";
 import type { Tone } from "./tone";
 
 /**
@@ -68,6 +69,7 @@ const WORDS: Record<string, string> = {
   "google.linked": "A Google listing was linked", "google.unlinked": "The Google listing was unlinked", "google.reviews": "New Google reviews were read",
   "google.connected": "Google Business Profile was connected", "google.disconnected": "Google Business Profile was disconnected", "google.replied": "A Google review was answered",
   "mailbox.created": "The workspace's email address was set up", "mailbox.renamed": "The name on the workspace's email changed",
+  "lead.round": "A search for businesses", "lead.no_card": "An ask no source covers yet",
   "workspace.created": "The workspace was created", "settings.changed": "Settings changed", "policy.changed": "An autonomy setting changed",
   "billing.updated": "Billing changed", "billing.paused": "Billing paused the workspace", "billing.resumed": "Billing resumed the workspace",
   "ingest.allowlist_skip": "A message was skipped by the allowlist", "ingest.unreachable_sender": "A sender could not be answered",
@@ -117,6 +119,30 @@ export function activityWords(kind: string, payload: unknown): string {
     case "line.texting_rejected": case "line.failed": { const why = str(p, "error") ?? str(p, "reason"); if (why) bits.push(why.slice(0, 80)); break; }
     case "platform.acted": { const action = str(p, "action"); if (action) bits.push(action); break; }
     case "playbook.run": { const outcome = str(p, "outcome"); if (outcome) bits.push(outcome); const n = num(p, "recipients") ?? num(p, "count"); if (n !== null) bits.push(`${n} people`); break; }
+    case "lead.round": {
+      // One kind carries a round's whole life (00140), so the state says which
+      // moment this row is, and an ended one says why in the words the rest of
+      // the product already uses for the nine endings. What it cost is the
+      // workspace's business, not the log's.
+      const state = str(p, "state");
+      if (state === "ended") {
+        bits.push("finished");
+        const ending = str(p, "ending");
+        if (ending && ending in LEAD_ENDING_WORDS) bits.push(LEAD_ENDING_WORDS[ending as LeadRoundEnding]);
+        const counted = num(p, "counted");
+        if (counted !== null) bits.push(`${counted} found`);
+      } else if (state) {
+        bits.push(state === "queued" ? "started" : state === "waiting_on_owner" ? "waiting on your answer" : state.replace(/_/g, " "));
+      }
+      break;
+    }
+    case "lead.no_card": {
+      // An ask no source card covers, kept as demand: what was asked for, in
+      // the owner's own words, and never a place.
+      const card = str(p, "card"); if (card) bits.push(card.replace(/_/g, " "));
+      const asked = str(p, "asked"); if (asked) bits.push(asked.slice(0, 80));
+      break;
+    }
     default: break;
   }
   return bits.length ? `${base} · ${bits.join(" · ")}` : base;

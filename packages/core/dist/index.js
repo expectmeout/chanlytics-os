@@ -1745,31 +1745,6 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
-var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
-var PASSWORD_MIN = 12;
-var PASSWORD_WORDS = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
 var US_STATES = {
@@ -1857,6 +1832,31 @@ var LeadSearchPlanSchema = z6.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
+var PASSWORD_MIN = 12;
+var PASSWORD_WORDS = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -3513,31 +3513,6 @@ function isTimezone2(raw) {
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
-var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
-var PASSWORD_MIN2 = 12;
-var PASSWORD_WORDS2 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN2} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var LEAD_MAX_PLACES2 = 1e3;
 var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
 var US_STATES2 = {
@@ -3625,6 +3600,31 @@ var LeadSearchPlanSchema2 = z62.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES2.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var ACTIVITY_KINDS2 = [...DECISION_VERBS2, ...EVENT_KINDS2];
+var PASSWORD_MIN2 = 12;
+var PASSWORD_WORDS2 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN2} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA2 = {
   type: "object",
@@ -4532,31 +4532,6 @@ function isTimezone3(raw) {
 }
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
-var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
-var PASSWORD_MIN3 = 12;
-var PASSWORD_WORDS3 = {
-  label: "Password",
-  chooseLabel: "Choose a password",
-  newLabel: "New password",
-  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
-  wrong: "That email and password don't match an account.",
-  wrongNudge: "If you started with Google, use Continue with Google.",
-  codeInstead: "Email me a code instead",
-  passwordInstead: "Use your password instead",
-  forgot: "Forgot your password?",
-  /* ------------------------------------------------------------ the reset */
-  resetTitle: "Reset your password",
-  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
-  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
-  resetSubmit: "Set my password",
-  resetDone: "Your password is set \u2014 signing you in.",
-  /**
-   * A recovery code that did not verify. The address is already implied here
-   * (they typed it on the previous step), so this may say what is wrong.
-   */
-  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
-  backToSignIn: "Back to sign-in"
-};
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
 var US_STATES3 = {
@@ -4644,6 +4619,31 @@ var LeadSearchPlanSchema3 = z63.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES3.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
+var PASSWORD_MIN3 = 12;
+var PASSWORD_WORDS3 = {
+  label: "Password",
+  chooseLabel: "Choose a password",
+  newLabel: "New password",
+  hint: `At least ${PASSWORD_MIN3} characters. A long phrase beats a short puzzle.`,
+  wrong: "That email and password don't match an account.",
+  wrongNudge: "If you started with Google, use Continue with Google.",
+  codeInstead: "Email me a code instead",
+  passwordInstead: "Use your password instead",
+  forgot: "Forgot your password?",
+  /* ------------------------------------------------------------ the reset */
+  resetTitle: "Reset your password",
+  resetLead: "We'll send a 6-digit code to your work email. Enter it with the password you want.",
+  resetSent: (email) => `If ${email} can receive email, a 6-digit code is on its way. Enter it below with your new password.`,
+  resetSubmit: "Set my password",
+  resetDone: "Your password is set \u2014 signing you in.",
+  /**
+   * A recovery code that did not verify. The address is already implied here
+   * (they typed it on the previous step), so this may say what is wrong.
+   */
+  resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
+  backToSignIn: "Back to sign-in"
+};
 var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA3 = {
   type: "object",
