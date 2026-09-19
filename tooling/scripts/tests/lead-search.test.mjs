@@ -44,6 +44,17 @@ test("the plan schema keeps its keys unique and its shape whole; the sentence sa
   assert.throws(() => plan({ exclusions: [{ key: "website", text: "Chain gyms", origin: "claude" }] }), /key of its own/);
   assert.throws(() => plan({ count: 1001 }));
   assert.throws(() => plan({ area: { ...p.area, state: "Texas" } }));
+  const acronym = plan({ exclusions: [{ key: "cvs", text: "CVS pharmacies", origin: "claude" }] });
+  assert.equal(planSentence(acronym), "Find 200 personal trainers in Austin, TX with a website, then find their email and check it. Leaving out: CVS pharmacies.", "an acronym's own case survives: only a lowercase second letter gets folded");
+});
+
+test("the plan schema also refuses the same term twice, a radius or a ZIP with no center yet, and a state that is not a real US state or DC", () => {
+  const p = plan();
+  assert.throws(() => plan({ terms: ["Personal Trainer", "personal trainer"] }), /terms/i);
+  assert.throws(() => plan({ area: { kind: "radius", label: "near me", state: "TX", center: null, radius_m: 5_000, query: "near me" } }), /center/i);
+  assert.throws(() => plan({ area: { kind: "zip", label: "78704", state: "TX", center: null, radius_m: 5_000, zip: "78704", query: "78704" } }), /center/i);
+  assert.throws(() => plan({ area: { ...p.area, state: "ZZ" } }), /state/i);
+  assert.doesNotThrow(() => plan({ area: { kind: "city", label: "Austin, TX", state: "TX", center: null, radius_m: 25_000, query: "Austin, TX, USA" } }), "a city may still wait for its center");
 });
 
 test("a change to the area, count, contact standard, criteria or exclusions makes a new version; a rename does not", () => {
@@ -55,6 +66,12 @@ test("a change to the area, count, contact standard, criteria or exclusions make
   assert.equal(planVersionOf(p, { exclusions: [] }).version, 2, "Include removes a chip: a new version");
   assert.equal(planVersionOf(p, { criteria: [...p.criteria] }).version, 1, "the same criteria, restated, is no change");
   assert.equal(planVersionOf(planVersionOf(p, { count: 50 }), { count: 60 }).version, 3);
+  const reordered = {
+    query: p.area.query, radius_m: p.area.radius_m,
+    center: { lng: p.area.center.lng, lat: p.area.center.lat },
+    state: p.area.state, label: p.area.label, kind: p.area.kind,
+  };
+  assert.equal(planVersionOf(p, { area: reordered }).version, 1, "the same area, its keys (and its center's) written in another order, is no change");
 });
 
 test("the estimate comes from the card's prices with room: discovery, contacts, the judge, the check under an email standard, a start per term", () => {
@@ -76,6 +93,16 @@ test("placesToAsk spreads the probe's 25 across every term, and a later round as
   assert.ok(placesToAsk(plan({ terms: ["trainer", "coach", "gym", "studio", "fitness"] }), 400, 0.3).total <= LEAD_MAX_PLACES);
 });
 
+test("placesToAsk asks for nothing once nothing remains, and spreads a total smaller than the term count one place at a time", () => {
+  assert.deepEqual(placesToAsk(plan(), 0, 0.5), { total: 0, perTerm: [0, 0] }, "nothing left means nothing asked, whatever the yield");
+  assert.deepEqual(placesToAsk(plan(), -5, 0.5), { total: 0, perTerm: [0, 0] }, "a negative remainder is the same as none");
+  assert.deepEqual(
+    placesToAsk(plan({ terms: ["trainer", "coach", "gym", "studio", "fitness"] }), 1, 1),
+    { total: 2, perTerm: [1, 1, 0, 0, 0] },
+    "a total under the term count gives 1 to as many terms as it covers and 0 to the rest",
+  );
+});
+
 test("classify: everything passing under the standard qualifies; a required fail excludes with that key; unknown, a seen criterion with no fact cited, out of area, or the email standard not met is review", () => {
   const p = plan();
   const ok = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name", "reviews"] }]), facts(), "ok", true);
@@ -88,7 +115,9 @@ test("classify: everything passing under the standard qualifies; a required fail
   const inferred = classify(seen, answer([{ key: "otc", answer: "pass", facts: [] }]), facts(), "ok", true);
   assert.deepEqual([inferred.class, inferred.reasons], ["review", ["inferred:otc"]], "a seen criterion answered by inference goes to review");
   const cited = classify(seen, answer([{ key: "otc", answer: "pass", facts: ["category"] }]), facts(), "ok", true);
-  assert.equal(cited.class, "qualified");
+  assert.deepEqual([cited.class, cited.reasons], ["review", ["inferred:otc"]], "name and category are descriptions, not evidence: citing only one of them is still a read, not seen");
+  const citedProperly = classify(seen, answer([{ key: "otc", answer: "pass", facts: ["category", "reviews"] }]), facts(), "ok", true);
+  assert.equal(citedProperly.class, "qualified", "a fact beyond name or category is real evidence for a seen pass");
   const away = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", false);
   assert.deepEqual([away.class, away.reasons], ["review", ["out_of_area"]]);
   for (const state of ["catch_all", "unknown", "none", "invalid", "checking"]) {
@@ -101,9 +130,11 @@ test("classify: everything passing under the standard qualifies; a required fail
   const soft = plan({ criteria: [{ key: "website", text: "With a website", standard: "likely", required: false }] });
   const long = classify(soft, answer([{ key: "website", answer: "fail", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", true);
   assert.deepEqual([long.class, long.fit], ["qualified", "long"], "a preferred criterion that fails is a long shot, never an exclusion");
+  const optionalUnknown = classify(soft, answer([{ key: "website", answer: "unknown", facts: [] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", true);
+  assert.deepEqual([optionalUnknown.class, optionalUnknown.fit], ["qualified", "long"], "decision 26: only a required criterion gates the class; an optional one only ever lowers the fit band");
   const missing = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }]), facts(), "ok", true);
   assert.deepEqual([missing.class, missing.reasons], ["review", ["unknown:chain"]], "a criterion the judge did not answer is unknown");
-  assert.equal(classify(p, answer([{ key: "website", answer: "fail", facts: [] }, { key: "chain", answer: "fail", facts: [] }]), facts(), "ok", true).excluded_by, "website", "the first required fail names the reason");
+  assert.equal(classify(p, answer([{ key: "website", answer: "fail", facts: [] }, { key: "chain", answer: "fail", facts: [] }]), facts(), "ok", true).excluded_by, "chain", "an exclusion's required fail is tallied before a criterion's, so Include is never offered against a real requirement");
 });
 
 test("the question fires under 60% of the first 25 and names the most common exclusion; it drops a term that returned mostly the wrong kind; it never fires on too few, on enough, or when nothing was left out", () => {
@@ -114,7 +145,7 @@ test("the question fires under 60% of the first 25 and names the most common exc
   assert.equal(q.ask, true);
   assert.equal(q.criterionKey, "chain");
   assert.equal(q.dropTerm, "strength coach");
-  assert.equal(q.sentence, `Some of the first 25 are chain gyms and other kinds of places, which I'm leaving out. Is that what you meant? I'm dropping "strength coach": it mostly returned those.`);
+  assert.equal(q.sentence, `Some of the first 25 are chain gyms, which I'm leaving out. Is that what you meant? I'm dropping "strength coach": it mostly returned those.`, "the 2 excluded by the website requirement are not tallied: only an exclusion's own count can be the topic");
   const half = questionAfterProbe(p, [...Array(12).fill(m("qualified")), ...Array(13).fill(m("excluded", "chain"))]);
   assert.equal(half.sentence, "Half of the first 25 are chain gyms, which I'm leaving out. Is that what you meant?");
   assert.equal(half.dropTerm, null, "one term of two returned everything: nothing to drop");
@@ -125,11 +156,39 @@ test("the question fires under 60% of the first 25 and names the most common exc
   assert.equal(questionAfterProbe(plan({ terms: ["personal trainer"] }), members).dropTerm, null, "the only term is never dropped");
 });
 
-test("the ending of a round follows S7: what was done to it first, then the target, the allowance, the budget, then whether every term ran short", () => {
+test("the question is measured by the share excluded, not the share qualified yet: under an email standard almost nothing is Qualified before the mailbox checks land, so Review must not read as a no", () => {
+  const p = plan();
+  const m = (cls, excluded_by = null, term = "personal trainer") => ({ class: cls, excluded_by, term });
+  const members = [...Array(24).fill(m("review")), m("excluded", "chain")];
+  assert.deepEqual(questionAfterProbe(p, members), { ask: false }, "1 of 25 excluded is nowhere near the bar, however few are Qualified yet");
+});
+
+test("the question never proposes relaxing a required criterion: only an exclusion's own tally can be the topic asked about", () => {
+  const p = plan();
+  const m = (cls, excluded_by = null, term = "personal trainer") => ({ class: cls, excluded_by, term });
+  const members = [...Array(5).fill(m("qualified")), ...Array(20).fill(m("excluded", "website"))];
+  assert.deepEqual(questionAfterProbe(p, members), { ask: false }, "every excluded place failed the website requirement, not the chain exclusion: nothing to ask about that Include could honor");
+});
+
+test("a term is dropped only when another term that returned enough places is demonstrably working; never when every term is bad, and never on the strength of a term nobody else has tried", () => {
+  const p = plan();
+  const m = (cls, excluded_by = null, term = "personal trainer") => ({ class: cls, excluded_by, term });
+  const everyTermBad = questionAfterProbe(p, [
+    ...Array(2).fill(m("qualified", null, "personal trainer")), ...Array(11).fill(m("excluded", "chain", "personal trainer")),
+    ...Array(2).fill(m("qualified", null, "strength coach")), ...Array(10).fill(m("excluded", "chain", "strength coach")),
+  ]);
+  assert.equal(everyTermBad.dropTerm, null, "both terms are bad: dropping one would not fix the search");
+  const othersEmpty = questionAfterProbe(p, [
+    ...Array(2).fill(m("qualified", null, "personal trainer")), ...Array(23).fill(m("excluded", "chain", "personal trainer")),
+  ]);
+  assert.equal(othersEmpty.dropTerm, null, "\"strength coach\" returned nothing at all: it has not earned the claim that it works");
+});
+
+test("the ending of a round follows S7: the target overrides everything else, then what was done to it, then the allowance, the budget, then whether every term ran short", () => {
   const base = { counted: 10, target: 200, termsShort: [false, false], budgetLeftUsd: 5, allowanceLeft: 100, stopped: false, sourceFailed: false, unanswered: false, paused: false };
   assert.equal(endingOfRound({ ...base, paused: true, stopped: true }), "paused");
   assert.equal(endingOfRound({ ...base, stopped: true, sourceFailed: true }), "stopped");
-  assert.equal(endingOfRound({ ...base, sourceFailed: true, counted: 200 }), "source_failed");
+  assert.equal(endingOfRound({ ...base, sourceFailed: true, counted: 200 }), "target_reached", "the target reached on the very page that failed still counts: nothing outranks it");
   assert.equal(endingOfRound({ ...base, unanswered: true }), "question_unanswered");
   assert.equal(endingOfRound({ ...base, counted: 200 }), "target_reached");
   assert.equal(endingOfRound({ ...base, allowanceLeft: 0 }), "month_leads_used");
@@ -157,6 +216,8 @@ test("the cleaner keeps a business's own addresses first, says why each other wa
   assert.equal(kept.kept.length, 5);
   assert.equal(kept.kept[0], "intake@bigfirm.example", "a front-desk address ranks first");
   assert.equal(kept.dropped.filter((d) => d.why === "over_limit").length, 19);
+  const subdomain = cleanEmailCandidates(["x@sentry-next.wixpress.com"], "somebiz.example");
+  assert.deepEqual(subdomain.dropped, [{ email: "x@sentry-next.wixpress.com", why: "junk_domain" }], "a junk domain is matched by suffix, as siteHost matches a platform host");
 });
 
 test("phones, hosts and states are read by rules: placeholders and foreign numbers dropped, platforms are no site of their own, a state is its two letters", () => {
@@ -179,6 +240,13 @@ test("the month a lead counts in is the workspace's calendar month, in its zone"
   assert.equal(leadMonth("UTC", new Date("2026-12-31T23:59:59Z")), "2026-12");
 });
 
+test("a plan's own words are stripped of control and format characters before they can reach the rubric: a name cannot carry a bidi override or a hidden newline into the judge's prompt", () => {
+  const rlo = String.fromCharCode(0x202e);
+  const nl = String.fromCharCode(10);
+  const p = plan({ name: `personal${nl}trainers${rlo}` });
+  assert.equal(p.name, "personal trainers");
+});
+
 test("no word the product says names the vendor that runs the searches, in either module", () => {
   const strings = [];
   const seen = new WeakSet(); // zod schemas point back at themselves
@@ -189,6 +257,9 @@ test("no word the product says names the vendor that runs the searches, in eithe
   };
   walk({ ...searchWords });
   walk({ ...judgeWords });
+  walk(searchWords.planSentence(plan()));
+  walk(judgeWords.judgeSystemPrompt(plan()));
+  walk(Object.values(searchWords.LEAD_ENDING_WORDS));
   assert.ok(strings.length > 50, "the walk saw the words");
   assert.deepEqual(strings.filter((s) => /apify|compass|bounceverify|crawler/i.test(s)), []);
 });

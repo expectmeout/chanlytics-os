@@ -40,6 +40,7 @@ test("the schema is hand-written the way the brain sends one: every property req
       assert.equal(node.additionalProperties, false, `${path}: additionalProperties false`);
     }
     for (const k of ["minLength", "maxLength", "minimum", "maximum", "minItems", "maxItems", "pattern"]) assert.ok(!(k in node), `${path}: no ${k}`);
+    assert.ok(!Array.isArray(node.type), `${path}: type is never an array; the brain's schema uses anyOf for a nullable field`);
     seen.push(path);
     for (const [k, v] of Object.entries(node.properties ?? {})) walk(v, `${path}.${k}`);
     if (node.items) walk(node.items, `${path}[]`);
@@ -47,6 +48,12 @@ test("the schema is hand-written the way the brain sends one: every property req
   walk(JUDGE_OUTPUT_SCHEMA, "$");
   assert.ok(seen.includes("$.places[].criteria[]"));
   assert.deepEqual(JUDGE_OUTPUT_SCHEMA.properties.places.items.properties.criteria.items.properties.answer.enum, ["pass", "fail", "unknown"]);
+  assert.deepEqual(JUDGE_OUTPUT_SCHEMA.properties.places.items.properties.email_index, { anyOf: [{ type: "integer" }, { type: "null" }] }, "a nullable field is anyOf, not a type array");
+  assert.deepEqual(
+    JUDGE_OUTPUT_SCHEMA.properties.places.items.properties.criteria.items.properties.facts.items,
+    { type: "string", enum: [...JUDGE_FACT_KEYS] },
+    "a cited fact can only be one of the real fact keys",
+  );
 });
 
 test("the rubric lists each criterion with its standard and every exclusion as a criterion the place must not be, and tells the judge to answer only from the facts", () => {
@@ -57,6 +64,8 @@ test("the rubric lists each criterion with its standard and every exclusion as a
   assert.match(s, /Answer only from those facts/);
   assert.match(s, /unknown when the facts do not say/);
   assert.match(s, /12 words or fewer/);
+  assert.match(s, /never instructions/i, "the rubric says plainly that <places> is data, never a command to the judge");
+  assert.match(s, /a fail may cite a fact that is missing/i, "an absent fact is the evidence for a fail, not a reason to reject the answer");
   for (const k of JUDGE_FACT_KEYS) assert.ok(s.includes(k), `the rubric names the fact key ${k}`);
 });
 
@@ -70,6 +79,15 @@ test("the facts reach the judge as quoted JSON in a <places> block, each string 
   assert.equal(row.name.slice(0, 26), "Zilker /places Strength xx");
   assert.deepEqual(row.emails, ["a@b.example"]);
   assert.deepEqual(Object.keys(row), ["ref", "name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"], "the facts, and nothing of a page");
+});
+
+test("a bidi override or a tag character in a place's own name is stripped too, not only a C0/C1 control: nothing in the data block can reorder or hide instructions for the judge", () => {
+  const rlo = String.fromCharCode(0x202e);
+  const tag = String.fromCodePoint(0xe0041);
+  const content = judgeUserContent([{ ...places[0], name: `Innocent${rlo}Name${tag}Here` }]);
+  const [row] = JSON.parse(content.slice("<places>\n".length, -"\n</places>".length));
+  assert.ok(!row.name.includes(rlo) && !row.name.includes(tag), "a format character does not survive into the rubric's data block");
+  assert.equal(row.name, "Innocent Name Here", "a stripped character becomes a space, the same as a control character");
 });
 
 test("a well-formed answer is read back with its reason capped at twelve words", () => {
@@ -94,6 +112,14 @@ test("the parser refuses an answer that names a criterion the plan lacks, a fact
   assert.deepEqual(with_((p) => { p.criteria.push({ key: "chain", answer: "pass", facts: [] }); return p; }), { ok: false, why: "ref 1: a criterion answered twice" });
   assert.equal(parseJudgeAnswer({ places: [{ ...good.places[0], email_index: "0" }, good.places[1]] }, plan, places).ok, false, "the shape is zod's to refuse");
   assert.equal(parseJudgeAnswer("not json", plan, places).ok, false);
+});
+
+test("a fail or unknown may cite a fact the place lacks: its absence is itself the evidence; only a pass must cite a fact that is actually there (the pass case stays refused, above)", () => {
+  const asFailEvidence = { ...good, places: [good.places[0], { ...good.places[1], criteria: [{ key: "website", answer: "fail", facts: ["host"] }, { key: "otc", answer: "unknown", facts: ["reviews"] }, ...good.places[1].criteria.slice(2)] }] };
+  const r = parseJudgeAnswer(asFailEvidence, plan, places);
+  assert.equal(r.ok, true);
+  assert.deepEqual(r.answers[1].criteria[0], { key: "website", answer: "fail", facts: ["host"] });
+  assert.deepEqual(r.answers[1].criteria[1], { key: "otc", answer: "unknown", facts: ["reviews"] });
 });
 
 test("a batch's operation id is sha256 hex of run:offset:batch, the same the edge and the database would compute", () => {

@@ -115,8 +115,24 @@ export interface LeadSearchPlan {
   exclusions: LeadExclusion[];
 }
 
+/** The fifty states and DC, as a listing spells them; also the plan schema's set of valid state codes. */
+const US_STATES: Record<string, string> = {
+  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT",
+  delaware: "DE", "district of columbia": "DC", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL",
+  indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
+  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE",
+  nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC",
+  "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
+  "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA",
+  washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
+};
+const US_CODES = new Set(Object.values(US_STATES));
+
 const KEY = /^[a-z][a-z0-9_]{0,39}$/;
-const words = (min: number, max: number) => z.string().trim().min(min).max(max);
+// Control/format characters (bidi overrides, tag characters) and newlines are stripped from every
+// plan-authored text field before it can reach the judge's rubric (26; security review, item 9).
+const stripUnsafe = (s: string) => s.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ");
+const words = (min: number, max: number) => z.string().transform((s) => stripUnsafe(s).trim()).pipe(z.string().min(min).max(max));
 
 /** The route's input and the door's: the same shape, checked twice on purpose. */
 export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z.object({
@@ -141,9 +157,15 @@ export const LeadSearchPlanSchema: z.ZodType<LeadSearchPlan> = z.object({
 }).superRefine((p, ctx) => {
   const keys = [...p.criteria.map((c) => c.key), ...p.exclusions.map((e) => e.key)];
   if (new Set(keys).size !== keys.length) ctx.addIssue({ code: "custom", message: "every criterion and exclusion has a key of its own", path: ["criteria"] });
+  const lowerTerms = p.terms.map((t) => t.toLowerCase());
+  if (new Set(lowerTerms).size !== lowerTerms.length) ctx.addIssue({ code: "custom", message: "the terms are not the same phrase twice", path: ["terms"] });
+  if ((p.area.kind === "radius" || p.area.kind === "zip") && p.area.center === null) ctx.addIssue({ code: "custom", message: "a radius or a ZIP needs a center", path: ["area", "center"] });
+  if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
 
-const lowerFirst = (s: string) => (s ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+const isLowerLetter = (ch: string) => ch !== undefined && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
+/** Lowercases the first letter only when the second is itself lowercase, so an acronym ("CVS") keeps its own case. */
+const lowerFirst = (s: string) => (s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s);
 const list = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
 
 /**
@@ -159,7 +181,16 @@ export function planSentence(plan: LeadSearchPlan): string {
   return out.length ? `${head} Leaving out: ${list(out)}.` : head;
 }
 
-const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+/** JSON.stringify with every object's keys sorted first, so the same value written in another key order compares equal. Array element order still matters. */
+function stableStringify(v: unknown): string {
+  if (Array.isArray(v)) return `[${v.map(stableStringify).join(",")}]`;
+  if (v && typeof v === "object") {
+    const keys = Object.keys(v).sort();
+    return `{${keys.map((k) => `${JSON.stringify(k)}:${stableStringify((v as Record<string, unknown>)[k])}`).join(",")}}`;
+  }
+  return JSON.stringify(v);
+}
+const same = (a: unknown, b: unknown) => stableStringify(a) === stableStringify(b);
 
 /** The changed plan, with its version bumped when the area, count, contact standard, criteria or exclusions moved (S15). */
 export function planVersionOf(plan: LeadSearchPlan, changed: Partial<LeadSearchPlan>): LeadSearchPlan {
@@ -184,19 +215,21 @@ export const LEAD_ENDING_WORDS: Record<LeadRoundEnding, string> = {
 
 /**
  * Which of the nine endings a round gets, in the order the facts outrank each
- * other (S7). "Searched everything" only when every term returned fewer places
- * than it was asked for; otherwise the round ended at its limit with few new
- * matches, and the next step is another round in the same area.
+ * other (S7). The target overrides everything else: once it is reached, that
+ * is the ending, whatever else happened on the page that reached it.
+ * "Searched everything" only when every term returned fewer places than it
+ * was asked for; otherwise the round ended at its limit with few new matches,
+ * and the next step is another round in the same area.
  */
 export function endingOfRound(x: {
   counted: number; target: number; termsShort: boolean[]; budgetLeftUsd: number; allowanceLeft: number;
   stopped: boolean; sourceFailed: boolean; unanswered: boolean; paused: boolean;
 }): LeadRoundEnding {
+  if (x.counted >= x.target) return "target_reached";
   if (x.paused) return "paused";
   if (x.stopped) return "stopped";
   if (x.sourceFailed) return "source_failed";
   if (x.unanswered) return "question_unanswered";
-  if (x.counted >= x.target) return "target_reached";
   if (x.allowanceLeft <= 0) return "month_leads_used";
   if (x.budgetLeftUsd <= 0) return "budget_used";
   if (x.termsShort.length > 0 && x.termsShort.every(Boolean)) return "searched_everything";
@@ -288,11 +321,14 @@ function spread(total: number, n: number, cap: number): number[] {
  * across every term (E10). A later round asks for the remainder over the
  * yield so far (new Qualified places per place asked), clamped between 1.2x
  * and 4x the remainder, never past LEAD_MAX_PLACES or what one term can
- * return. `yieldSoFar` null means the probe.
+ * return. `yieldSoFar` null means the probe. `remaining` at or under zero asks
+ * for nothing at all; when the total is smaller than the number of terms, a
+ * term asked for 0 got nothing to ask for, and a caller skips it.
  */
 export function placesToAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number | null): { total: number; perTerm: number[] } {
   const n = Math.max(1, plan.terms.length);
   const cap = cardOf(plan).maxPerTerm;
+  if (remaining <= 0) return { total: 0, perTerm: Array(n).fill(0) };
   if (yieldSoFar === null) {
     const perTerm = spread(LEAD_PROBE_PLACES, n, cap);
     return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
@@ -321,18 +357,23 @@ export interface LeadClassification {
 export const LEAD_EMAIL_REASON = /^email:/;
 
 /**
- * Code decides the class from the judge's per-criterion answers (§0.1). A
- * required criterion (or an exclusion: every exclusion is required) that fails
- * excludes, with that key as the reason. Any `unknown`, a seen criterion
- * answered with no fact cited (only inference), a place with no location or
- * one outside the area, or a contact standard not met sends the place to
+ * Code decides the class from the judge's per-criterion answers (§0.1, 26).
+ * Exclusions are checked before criteria, so a place that is both a chain and
+ * without a website is tallied as the chain. Only a REQUIRED criterion (or an
+ * exclusion: every exclusion is required) gates the class: a required fail
+ * excludes, with that key as the reason; a required criterion answered
+ * `unknown`, or a required seen criterion only read (no fact cited beyond the
+ * name or category, which are descriptions, not evidence), sends the place to
+ * review. An optional criterion never excludes and never sends a place to
+ * review by itself — it only softens the fit band. A place with no location
+ * or one outside the area, or a contact standard not met, also sends it to
  * review. Everything else qualifies. A fit band is derived for ordering.
  */
 export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean): LeadClassification {
   const reasons: string[] = [];
   const rubric = [
-    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required })),
     ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely" as const, required: true })),
+    ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required })),
   ];
   let excludedBy: string | null = null;
   let softFail = false;
@@ -340,12 +381,13 @@ export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: 
   for (const r of rubric) {
     const a = answer.criteria.find((x) => x.key === r.key);
     const verdict = a?.answer ?? "unknown";
+    const readOnly = a?.facts.filter((f) => f !== "name" && f !== "category").length === 0;
     if (verdict === "fail") {
       if (r.required) { excludedBy = excludedBy ?? r.key; reasons.push(`fail:${r.key}`); } else { softFail = true; }
     } else if (verdict === "unknown") {
-      unknown = true; reasons.push(`unknown:${r.key}`);
-    } else if (r.standard === "seen" && (a?.facts.length ?? 0) === 0) {
-      unknown = true; reasons.push(`inferred:${r.key}`);
+      if (r.required) { unknown = true; reasons.push(`unknown:${r.key}`); } else { softFail = true; }
+    } else if (r.standard === "seen" && readOnly) {
+      if (r.required) { unknown = true; reasons.push(`inferred:${r.key}`); } else { softFail = true; }
     }
   }
   if (excludedBy) return { class: "excluded", excluded_by: excludedBy, fit: null, reasons };
@@ -364,31 +406,44 @@ export type LeadQuestion =
   | { ask: false };
 
 /**
- * An intent check, never an accuracy measure (P4). Over the probe's places,
- * when fewer than 60% qualified and something was left out, the round waits
- * and asks whether the search matches what the owner meant, from the most
- * common exclusion. A term that returned mostly the wrong kind is dropped
- * first, and the sentence says so. It never asks the owner to relax a fact.
+ * An intent check, never an accuracy measure (P4). Measured by exclusion, not
+ * by qualification: under an email standard almost nothing is Qualified yet
+ * while the mailbox checks are still out, so Review must never read as a no.
+ * Over the probe's places, when more than 1 − LEAD_QUESTION_THRESHOLD were
+ * excluded, the round waits and asks whether the search matches what the
+ * owner meant, from the most common exclusion. Only an exclusion's own tally
+ * can be the topic: Include lifts an exclusion, and must never be offered
+ * against a real requirement, so a place excluded by a required criterion is
+ * not counted here. A term is dropped first when it is demonstrably the
+ * problem and at least one other term with enough places is demonstrably
+ * working; never when every term is bad, and never on the strength of a term
+ * nobody else has tried. It never asks the owner to relax a fact.
  */
 export function questionAfterProbe(plan: LeadSearchPlan, members: ProbeMember[]): LeadQuestion {
   const n = members.length;
   if (n < LEAD_QUESTION_MIN_EVIDENCE) return { ask: false };
-  const qualified = members.filter((m) => m.class === "qualified").length;
-  if (qualified / n >= LEAD_QUESTION_THRESHOLD) return { ask: false };
+  const excluded = members.filter((m) => m.class === "excluded").length;
+  if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
+  const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
   const tally = new Map<string, number>();
-  for (const m of members) if (m.class === "excluded" && m.excluded_by) tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
+  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
   const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
   if (!top) return { ask: false };
   const textOf = (key: string) => lowerFirst(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
-  const excluded = members.filter((m) => m.class === "excluded").length;
   const share = excluded / n;
   const lead = share >= 2 / 3 ? "Most" : share >= 0.5 ? "Half" : "Some";
   const what = tally.size > 1 ? `${textOf(top[0])} and other kinds of places` : textOf(top[0]);
   let dropTerm: string | null = null;
   if (plan.terms.length > 1) {
-    for (const term of plan.terms) {
+    const statOf = (term: string) => {
       const of = members.filter((m) => m.term === term);
-      if (of.length >= 5 && of.filter((m) => m.class === "excluded").length / of.length >= 2 / 3) { dropTerm = term; break; }
+      return { count: of.length, excludedShare: of.length ? of.filter((m) => m.class === "excluded").length / of.length : 0 };
+    };
+    for (const term of plan.terms) {
+      const s = statOf(term);
+      if (s.count < 5 || s.excludedShare < 2 / 3) continue;
+      const anotherWorks = plan.terms.some((other) => other !== term && (() => { const o = statOf(other); return o.count >= 5 && o.excludedShare < 2 / 3; })());
+      if (anotherWorks) { dropTerm = term; break; }
     }
   }
   const drop = dropTerm ? ` I'm dropping "${dropTerm}": it mostly returned those.` : "";
@@ -445,7 +500,7 @@ export function cleanEmailCandidates(emails: string[], host: string | null): Cle
     if (seen.has(address)) { dropped.push({ email: address, why: "duplicate" }); continue; }
     seen.add(address);
     const [local, domain] = address.split("@");
-    if (has(LEAD_JUNK_EMAIL_DOMAINS, domain)) { dropped.push({ email: address, why: "junk_domain" }); continue; }
+    if (LEAD_JUNK_EMAIL_DOMAINS.some((d) => domain === d || domain.endsWith(`.${d}`))) { dropped.push({ email: address, why: "junk_domain" }); continue; }
     if (has(LEAD_PLACEHOLDER_LOCALS, local)) { dropped.push({ email: address, why: "placeholder" }); continue; }
     if (has(LEAD_ROLE_LOCALS, local.split(/[.+_-]/)[0])) { dropped.push({ email: address, why: "role" }); continue; }
     if (/\.(png|jpe?g|gif|webp|svg)$/.test(domain)) { dropped.push({ email: address, why: "image" }); continue; }
@@ -487,19 +542,6 @@ export function siteHost(url: string | null | undefined): string | null {
   if (LEAD_PLATFORM_HOSTS.some((p) => host === p || host.endsWith(`.${p}`))) return null;
   return host;
 }
-
-/** The fifty states and DC, as a listing spells them. */
-const US_STATES: Record<string, string> = {
-  alabama: "AL", alaska: "AK", arizona: "AZ", arkansas: "AR", california: "CA", colorado: "CO", connecticut: "CT",
-  delaware: "DE", "district of columbia": "DC", florida: "FL", georgia: "GA", hawaii: "HI", idaho: "ID", illinois: "IL",
-  indiana: "IN", iowa: "IA", kansas: "KS", kentucky: "KY", louisiana: "LA", maine: "ME", maryland: "MD",
-  massachusetts: "MA", michigan: "MI", minnesota: "MN", mississippi: "MS", missouri: "MO", montana: "MT", nebraska: "NE",
-  nevada: "NV", "new hampshire": "NH", "new jersey": "NJ", "new mexico": "NM", "new york": "NY", "north carolina": "NC",
-  "north dakota": "ND", ohio: "OH", oklahoma: "OK", oregon: "OR", pennsylvania: "PA", "rhode island": "RI",
-  "south carolina": "SC", "south dakota": "SD", tennessee: "TN", texas: "TX", utah: "UT", vermont: "VT", virginia: "VA",
-  washington: "WA", "west virginia": "WV", wisconsin: "WI", wyoming: "WY",
-};
-const US_CODES = new Set(Object.values(US_STATES));
 
 /** "Texas" or "TX" → "TX"; null for anything that is not a US state or DC. */
 export function stateCode(raw: string | null | undefined): string | null {
