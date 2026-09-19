@@ -196,8 +196,8 @@ The first pass designed one path: a B2B seller's search that goes well. These ar
 
 One listener, registered once, reading a keys ref. Row actions show on hover and on the keyboard cursor. Phase 0 ships `/`, J/K and the arrows, `x`/Space, Enter and Esc; Shift-extend, `F`, `C` and `⌘K` scoping arrive with Leads in Phase 1.
 
-### 6.6 Phone (≤ 720px)
-One slim bar holds the `People | Leads` switch, search and Find (✦); the work starts under it. A running search is a two-line card; the question after 25 is a card with two 44px answers; rows are cards with a 44px Call button; a lead opens full screen with Call and Email, and after a call the six outcomes as a 2 × 3 grid. Find opens a bottom sheet whose first control is hold-to-talk.
+### 6.6 Phone and tablet (≤ 900px cards; the slim bar under 720px)
+Cards, not columns, at 900px and under (Phase 0's breakpoint, which the Columns menu and the keyboard listener share; the design's 720px is the phone's slim bar, not the card rule). One slim bar holds the `People | Leads` switch, search and Find (✦); the work starts under it. A running search is a two-line card; the question after 25 is a card with two 44px answers; rows are cards with a 44px Call button; a lead opens full screen with Call and Email, and after a call the six outcomes as a 2 × 3 grid. Find opens a bottom sheet whose first control is hold-to-talk.
 
 ### 6.7 Accessibility
 Real buttons for names, headers, chips and tokens; `aria-sort` on the sorted header; `aria-selected` on rows; the focus ring token on the row cursor; states in words and shapes; the question strip is `role="alert"`; 44px targets on coarse pointers.
