@@ -175,7 +175,7 @@ test("full-fledged: month and agenda views, a date to jump to, windows that fit 
   assert.ok(sd.includes("days: String(w.days)") && sd.includes("if (from !== calendarFrom || days !== calendarDays) return;") && sd.includes("calendarDays = Math.min(63, Math.max(1, Math.round(days) || 63));"));
   assert.deepEqual((await importSrc("apps/dashboard/src/legacy-bridge/refresh-map.ts")).AFTER["PUT settings"]().map((o) => o.key), ["settings", "today", "calendar", "setup"], "hours, closures, rules and services saved in Settings reach the board, and Setup");
   const dayModule = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
-  assert.ok(dayModule.includes('data-testid="today-day"') && dayModule.includes('C.vm.feed.state !== "ok" || !window.__today) return null;'), "Today shows the day on the calendar, and nothing without a feed");
+  assert.ok(dayModule.includes('data-testid="today-day"') && dayModule.includes('if (C.vm.feed.state !== "ok") return null;') && dayModule.includes('data-testid="today-day-unreadable"'), "Today shows the day on the calendar, nothing without a feed, and says so about a feed it has and could not read (today-unreadable.test.mjs walks it)");
   const tools = readCode("apps/dashboard/src/server/ask/tools.ts");
   assert.ok(tools.includes('name: "get_calendar"') && tools.includes('case "get_calendar": out = await getCalendar(t, run.input); break;'));
   assert.ok(tools.includes("Nothing is booked from here — the booking link does that."));

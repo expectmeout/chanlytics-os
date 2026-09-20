@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { toTodayVM, todayPeriodLine, todayRunWords, todayRunApproved, todayLeaks, unreadCount, zoneDayKey, clockTime } from "@chanlytics/contracts";
+import { toTodayVM, todayPeriodLine, todayRunWords, todayRunApproved, todayLeaks, unreadCount, zoneDayKey, clockTime, feedProblemWords } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, again, all, find, byTestId, textOf, classes, press } from "./_legacy-react.mjs";
 
 const ZONE = "America/New_York";
@@ -17,7 +17,8 @@ const went = [];
 const asked = [];
 const flashes = [];
 const failed = new Set();
-installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: (k) => failed.has(k), __refreshSurface: () => {} });
+const refreshed = [];
+installLegacyReact({ __DEMO_MODE: false, __surfaceState: () => "live", __surfaceFailed: (k) => failed.has(k), __refreshSurface: (k) => refreshed.push(k) });
 const L = "../../../apps/dashboard/src/legacy";
 await import(`${L}/components/data-bits.jsx`);
 const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
@@ -86,7 +87,7 @@ const calendar = (blocks) => ({ vm: { timezone: ZONE, from: "2026-09-18", to: "2
 const bellRow = (id, kind, title, tone = "", about = null, to = "reports") => ({ id, kind, icon: "bell", tone, unread: true, time: "1h", title, message: "", about, actions: [{ label: "Open", to, primary: true }] });
 
 const set = (globals) => { for (const [k, v] of Object.entries(globals)) { if (v === undefined) delete W[k]; else W[k] = v; } };
-const clear = () => { set({ TODAY_DATA: undefined, __TODAY_SAMPLE: undefined, __REPORTS: undefined, __PEOPLE: undefined, __BROADCASTS: undefined, __CALENDAR: undefined, __PLAYBOOKS: undefined, __SETUP: undefined, __GOOGLE: undefined, __google: undefined, __notifs: undefined, __LIVE: undefined, __broadcasts: undefined, __inboxVerb: undefined }); failed.clear(); went.length = 0; asked.length = 0; flashes.length = 0; W.__DEMO_MODE = false; };
+const clear = () => { set({ TODAY_DATA: undefined, __TODAY_SAMPLE: undefined, __REPORTS: undefined, __PEOPLE: undefined, __BROADCASTS: undefined, __CALENDAR: undefined, __PLAYBOOKS: undefined, __SETUP: undefined, __GOOGLE: undefined, __google: undefined, __notifs: undefined, __LIVE: undefined, __broadcasts: undefined, __inboxVerb: undefined }); failed.clear(); refreshed.length = 0; went.length = 0; asked.length = 0; flashes.length = 0; W.__DEMO_MODE = false; };
 const draw = (Comp, props = {}) => { fresh(); return W.React.createElement(Comp, props); };
 const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).includes(words));
 const texts = (tree, cls) => all(tree, (n) => classes(n).includes(cls)).map(textOf);
@@ -259,11 +260,11 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   const waiting = byTestId(queue, "brief-run-row");
   const w = todayRunWords(broadcasts().rows[0]);
   assert.ok(textOf(waiting).includes(w.waiting.sentence) && textOf(waiting).includes(w.waiting.status[0]), textOf(waiting));
-  // Three rows on the card: two people and the run waiting for a word. The run that is only scheduled
-  // does not fit, so it is counted in the foot rather than drawn — nothing is dropped in silence.
-  assert.equal(byTestId(queue, "brief-run-soon"), null, "the scheduled run is past the card's three");
-  assert.match(textOf(find(queue, (n) => classes(n).includes("tq-foot"))), /1 more run in Campaigns/);
-  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 3, "the card is three rows");
+  // Four rows: the two people waiting, then both runs — the one waiting for a word, then the one under its
+  // veto window. Everything fits, so there is no foot; what does not fit is the next test's business.
+  assert.ok(byTestId(queue, "brief-run-soon"), "the scheduled run has a seat once the people are drawn");
+  assert.equal(find(queue, (n) => classes(n).includes("tq-foot")), null, "nothing was cut, so nothing is counted");
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 4, "the card is four rows");
   await press(buttons(waiting, "Approve")[0]);
   const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
   assert.equal(textOf(flashes.at(-1).msg), `${t.lead} ${t.rest}`);
@@ -276,6 +277,30 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the playbook runs/);
   // `rows` above counted the two run rows too (they are AttnRows as well); the runs are a FailedRead now, so what must stand is the queue's own.
   assert.equal(all(broke, (n) => classes(n).includes("cl-attn-row")).length, busy().queue.rows.length, "the rows themselves stand");
+});
+
+test("four rows: people take three while a run wants the fourth, and all four when none does", () => {
+  clear();
+  // Four people waiting — one more than the card gives them.
+  const vm = busy();
+  const first = vm.queue.rows[0];
+  vm.queue.rows = ["one", "two", "three", "four"].map((w, i) => ({ ...first, id: `q-${w}`, who: `Person ${w}`, cta: { ...first.cta }, also: null }));
+  set({ TODAY_DATA: vm, __BROADCASTS: broadcasts() });
+  const queue = byTestId(draw(W.AgentCommand), "today-queue");
+  const rows = all(queue, (n) => classes(n).includes("cl-attn-row"));
+  assert.equal(rows.length, 4, "the card is four rows");
+  assert.deepEqual(rows.map((r) => r.props["data-testid"]).slice(0, 3).map((d) => d.startsWith("queue-")), [true, true, true], "three of them are people");
+  assert.equal(rows[3].props["data-testid"], "brief-run-row", "and the fourth is the run waiting for a word — the decision no other row can stand in for");
+  // Nothing is dropped in silence: the fourth person and the second run are both counted, each with its door.
+  assert.match(textOf(find(queue, (n) => classes(n).includes("tq-foot"))), /1 more in the Inbox · 1 more run in Campaigns/);
+
+  // No run wants the seat, so a fourth person has it rather than leaving a hole.
+  set({ __BROADCASTS: { rows: [] } });
+  const only = byTestId(draw(W.AgentCommand), "today-queue");
+  const four = all(only, (n) => classes(n).includes("cl-attn-row"));
+  assert.equal(four.length, 4);
+  assert.deepEqual(four.map((r) => textOf(find(r, (n) => classes(n).includes("cl-attn-who")))), ["Person one", "Person two", "Person three", "Person four"]);
+  assert.equal(find(only, (n) => classes(n).includes("tq-foot")), null, "with the fourth person drawn there is nothing left to count");
 });
 
 /* ------------------------------------ the day ------------------------------------ */
@@ -296,6 +321,30 @@ test("the day: five rows and a line to the Calendar; a failed calendar read says
   assert.match(textOf(broke), /Couldn't read the calendar/);
   failed.clear();
   assert.equal(draw(W.TodayDay).rendered, null, "not read yet: the Calendar page's card says why");
+});
+
+test("a calendar it HAS and could not read says so where the day goes: the feed's own words, the Retry, the door", () => {
+  clear();
+  const c = calendar([]);
+  c.vm.feed = { ...c.vm.feed, state: "unavailable", problem: feedProblemWords("settings"), events: 0 };
+  set({ TODAY_DATA: busy(), __CALENDAR: c, __PLAYBOOKS: { rows: [] } });
+  const card = byTestId(draw(W.TodayDay), "today-day-unreadable");
+  // REGRESSION: this returned null. A working day and a broken feed drew exactly the same thing — nothing —
+  // so a bad calendar address survived two rounds of being looked straight at.
+  assert.ok(card, "the card is there");
+  const words = textOf(card);
+  assert.ok(words.includes("Couldn't read the calendar"), words);
+  assert.ok(words.includes(feedProblemWords("settings")), "the feed's own sentence, which names what to do");
+  assert.ok(words.includes("The queue and the day's numbers are current"), "what is beside it came from other reads and still stands");
+  press(byTestId(card, "today-day-unreadable-read-retry"));
+  assert.deepEqual(refreshed, ["calendar"], "one Retry, and it re-reads the calendar surface");
+  press(byTestId(card, "today-day-unreadable-open"));
+  assert.equal(went.at(-1), "calendar", "and a door to where the address lives");
+
+  // No calendar at all is not a fault: nothing failed, there is nothing to retry, and the invitation to connect
+  // one is the Calendar page's card to make — not a red word on a page about today's work.
+  c.vm.feed = { ...c.vm.feed, present: false, state: "none", problem: null };
+  assert.equal(draw(W.TodayDay).rendered, null, "no feed stays silent");
 });
 
 /* ------------------------------------ worth a look ------------------------------------ */

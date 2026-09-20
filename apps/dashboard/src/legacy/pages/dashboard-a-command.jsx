@@ -63,21 +63,33 @@ const LiveRail = ({ nav }) => {
 // run about to send is news. On a busy day four runs under six people put "Nothing sends until you say so" three
 // hundred pixels below the fold, said four times.
 /**
- * What the card draws, people and runs together. Today is a summary: past three rows it stops being one.
+ * What the card draws, people and runs together. Today is a summary: past four rows it stops being one.
+ *
+ * Three of the four are people and the fourth is kept for a run, because a run waiting for a word is a
+ * decision no other row can stand in for -- three people waiting used to take every seat, and Approve left
+ * the page on the day it mattered. When no run wants the seat a fourth person has it; a reserved row is only
+ * worth reserving while something needs it.
  *
  * The CAP IS HERE, not in contracts: TodayVM.queue.rows stays the whole queue the view model built, so the
  * four kinds still merge into one list by longest wait, and While you were away still knows every row the
  * queue holds when it decides what not to say twice. This only decides how many of them fit on the card.
  */
-const CARD_MAX = 3;
+const CARD_MAX = 4;
+const PEOPLE_MAX = 3;
+
+/** The runs that want a seat: one waiting for a word, and one inside the veto window, about to send. */
+const runsPending = () => {
+  const all = ((s) => (s && s.rows) || [])(tqSurface("__BROADCASTS"));
+  return {
+    waiting: all.filter((r) => r.state === "pending_approval"),
+    soon: all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now()),
+  };
+};
 
 const runRows = (nav, flash, verbKind, room) => {
-  const B = tqSurface("__BROADCASTS");
-  const all = (B && B.rows) || [];
   const api = tqSurface("__broadcasts");
   const refreshed = () => { const f = tqSurface("__refreshPlaybooks"); if (f) f(); };
-  const waiting = all.filter((r) => r.state === "pending_approval");
-  const soon = all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now());
+  const { waiting, soon } = runsPending();
   const words = (r) => window.__today.runs(r);
   const can = window.canDo && window.canDo("approve");
   const stop = async (r) => {
@@ -154,7 +166,10 @@ const TodayQueue = ({ vm }) => {
   // One primary verb on the page: the first row's. Every other verb is drawn, quietly.
   let primaryLeft = true;
   const verbKind = () => { const k = primaryLeft ? "primary" : "ghost"; primaryLeft = false; return k; };
-  const drawn = rows.slice(0, CARD_MAX).map((r) => (
+  // The run's seat, held only while a run wants it (CARD_MAX).
+  const wants = runsPending();
+  const peopleRoom = wants.waiting.length + wants.soon.length > 0 ? PEOPLE_MAX : CARD_MAX;
+  const drawn = rows.slice(0, peopleRoom).map((r) => (
     <window.AttnRow
       key={r.id}
       initials={r.initials}

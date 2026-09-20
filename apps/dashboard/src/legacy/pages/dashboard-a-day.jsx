@@ -3,7 +3,8 @@
 // is coming and when, what is open, what is closed — and the visit
 // playbooks' line. Reads the calendar and playbooks surfaces the page already
 // holds; the words are contracts/today.ts todayDay, published by the bridge
-// as window.__today. Silent without a feed: that is the Calendar page's card.
+// as window.__today. Silent without a feed -- that is the Calendar page's
+// card to make -- but never silent about a feed it HAS and could not read.
 // An appointment opens its person when the calendar names one, else the
 // Calendar; nothing is booked or changed from here. Five rows at most, the
 // rest a line to the Calendar (contracts TODAY_DAY_MAX); a calendar read that
@@ -33,10 +34,32 @@ const TodayDay = () => {
       </section>
     );
   }
-  if (!C || !C.vm || C.vm.feed.state !== "ok" || !window.__today) return null;
+  if (!C || !C.vm || !window.__today) return null;
+  const nav = (to) => window.appNavigate && window.appNavigate(to);
+  // A calendar IS connected and could not be read. This returned null, and the card was simply not there --
+  // a working day and a broken feed looked identical, which is how a bad address went two rounds unnoticed.
+  // It says so now, where the day goes, in the feed's own words, with the one Retry and the door to the
+  // address. The numbers beside it are from other reads and are still true, so the card says that too.
+  if (C.vm.feed.state === "unavailable") {
+    return (
+      <section className="td-day" data-testid="today-day-unreadable">
+        <FailedRead
+          kind="card"
+          what="the calendar"
+          why={C.vm.feed.problem}
+          body="The queue and the day's numbers are current."
+          surface="calendar"
+          also={{ label: "Open Calendar", onClick: () => nav("calendar"), testid: "today-day-unreadable-open" }}
+          testid="today-day-unreadable-read"
+        />
+      </section>
+    );
+  }
+  // No calendar connected: silent on purpose. Nothing has failed, there is nothing to retry, and the invitation
+  // to connect one is the Calendar page's card to make -- not a fault reported on a page about today's work.
+  if (C.vm.feed.state !== "ok") return null;
   const vm = window.__today.day(C.vm, P ? P.rows : null, people || null);
   if (!vm.frames.length) return null;
-  const nav = (to) => window.appNavigate && window.appNavigate(to);
   const open = (b) => nav(b.person ? `clients/${b.person.id}` : "calendar");
   // The channel a known person uses, as People knows it: a chat, or calls only.
   const peopleRows = people ? people.rows : [];
