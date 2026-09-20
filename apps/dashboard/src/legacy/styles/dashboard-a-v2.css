@@ -1265,3 +1265,71 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .tl-row { grid-template-columns: 24px minmax(0, 1fr); }
   .tl-acts { grid-column: 2; justify-content: flex-start; padding-top: 8px; }
 }
+
+/* ---- The canvas's proportions ("Today, redesigned") ------------------------
+   The page shipped with the queue's rows in People's strip grammar: a disc, one
+   line of copy, the verbs pinned right, the whole row a fixed height. Beside the
+   canvas it reads cramped, and the thing a person decides from -- the customer's
+   own words -- is the part that loses. So Today's rows stack: who and when, then
+   what they said, then what the receptionist could not finish, then the verbs
+   under it. The markup is unchanged and still AttnRow's, so People's strip and
+   Today keep one component; only Today's copy of it is laid out this way. */
+.tq .cl-attn-row {
+  grid-template-columns: minmax(0, 1fr);
+  height: auto;
+  align-items: start;
+  gap: 6px;
+  padding: 12px 18px;
+}
+/* The canvas names the person and drops the initials disc: at this size the two
+   words carry it, and the row gains the whole column. */
+.tq .cl-attn-avatar { display: none; }
+.tq .cl-attn-body { gap: 6px; }
+.tq .cl-attn-name { font-size: 13.5px; }
+.tq .cl-attn-meta { font-size: 12.5px; }
+.tq .cl-attn-sentence { font-size: 13.5px; line-height: 1.5; color: var(--ink); }
+/* What is left over may take a second line here; pinned right it could not. */
+.tq .cl-attn-status { font-size: 12.5px; line-height: 1.45; color: var(--ink-muted); white-space: normal; overflow: visible; text-overflow: clip; }
+.tq .cl-attn-acts { justify-self: start; display: inline-flex; gap: 8px; padding-top: 2px; }
+.tq .cl-attn-cta { font-size: 12.5px; padding: 8px 12px; border-radius: 8px; }
+
+/* One surface, not a bar over a list: the head loses its sunken fill and its rule,
+   and the sentence sits under the title instead of beside it. */
+.tq-head, .td-day-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 3px 12px;
+  padding: 14px 18px 10px;
+  background: transparent;
+  border-bottom: none;
+}
+.tq-title, .td-day-title { grid-column: 1; font-size: 13.5px; }
+.tq-sub, .td-day-sub { grid-column: 1; order: 0; flex-basis: auto; font-size: 12.5px; white-space: normal; overflow: visible; text-overflow: clip; }
+.tq-head > button, .td-day-head > button { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+.tq-live { padding: 10px 18px; }
+.tq-foot, .tq-failed, .tq-empty { padding-left: 18px; padding-right: 18px; }
+
+/* The day's rows: a wider time column, and air between them. */
+.td-frame { padding: 12px 18px 14px; gap: 12px; }
+.td-item { grid-template-columns: 52px 12px minmax(0, 1fr) auto; padding: 7px 0; }
+.td-item-start { font-size: 13px; }
+
+/* The standing line sits on a hairline, as the canvas draws it. */
+.today-standing { padding: 12px 0 10px; box-shadow: 0 1px 0 var(--line); }
+
+/* The figures take the canvas's tighter letter-spacing. */
+.tc-fig-n { letter-spacing: -0.025em; }
+
+/* The lines that are not numbers wear the canvas's glyph tile, not a bullet: at
+   this size a 4px dot carried no meaning, and the tile says which kind of line
+   it is before the sentence does. */
+.tc-beats .brief-beat { align-items: center; gap: 10px; }
+.brief-beat-glyph {
+  width: 24px; height: 24px; border-radius: 7px; flex: none;
+  display: grid; place-items: center;
+  background: var(--bg-sunken); color: var(--ink-muted);
+}
+.brief-beat-glyph.ok { color: var(--ok); }
+.brief-beat-glyph.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
+.brief-beat-glyph.danger { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }

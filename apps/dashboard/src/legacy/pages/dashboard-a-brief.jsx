@@ -39,7 +39,7 @@ const RunsDone = ({ nav }) => {
     const w = window.__today.runs(r).done;
     return (
       <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
-        <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+        <span className="brief-beat-glyph ok"><Icon name="bolt" size={12} /></span>
         <span className="brief-beat-text">
           <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"} at {timeOf(r.started_at)}: {w.counts}{w.still ? " · still sending" : ""}
         </span>
@@ -58,7 +58,7 @@ const SetupLine = ({ nav }) => {
   return (
     <div className="brief-beat" data-testid="brief-setup">
       {/* Not answering yet is a warning, not live state: never the coral accent. */}
-      <span className="brief-beat-dot" style={S.vm.readiness.answering ? undefined : { background: "var(--warn)" }} />
+      <span className={`brief-beat-glyph ${S.vm.readiness.answering ? "" : "warn"}`}><Icon name="settings" size={12} /></span>
       <span className="brief-beat-text">{S.vm.line}</span>
       <button className="brief-chip" onClick={() => nav("admin/setup")}>Open Setup <Icon name="arrow-right" size={10} /></button>
     </div>
@@ -76,7 +76,7 @@ const ReviewLine = ({ nav }) => {
   if (!line) return null;
   return (
     <div className="brief-beat" data-testid="brief-review">
-      <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+      <span className="brief-beat-glyph ok"><Icon name="star" size={12} /></span>
       <span className="brief-beat-text">{line.text}</span>
       <button className="brief-chip" onClick={() => nav(line.to)}>Open Reports <Icon name="arrow-right" size={10} /></button>
     </div>
@@ -193,7 +193,7 @@ const TodayCard = () => {
       <div className="brief-beats tc-beats" data-testid="today-recap">
         {quiet && (vm.standing.chips.length > 0 || quiet.launchpad) && (
           <div className="brief-beat" data-testid="brief-quiet-proof">
-            <span className="brief-beat-dot" />
+            <span className="brief-beat-glyph "><Icon name="check" size={12} /></span>
             <span className="brief-beat-text">
               {quiet.proof.filter((pr) => pr.label !== "Checked").map((pr) => `${pr.label}: ${pr.value}`).join(" · ")}
             </span>
@@ -205,7 +205,7 @@ const TodayCard = () => {
         {/* Everything the figures do not carry, crucially a reply that failed to deliver: the one line that must never be quiet. */}
         {(recap ? recap.sentences : []).filter((sn) => !sn.traffic).map((sn, i) => (
           <div key={`sn-${i}`} className="brief-beat">
-            <span className="brief-beat-dot" style={sn.warn ? { background: "var(--danger)" } : undefined} />
+            <span className={`brief-beat-glyph ${sn.warn ? "danger" : ""}`}><Icon name={sn.warn ? "alert" : "info"} size={12} /></span>
             <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger)" } : undefined}>{sn.text}</span>
             {sn.warn && (
               <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
@@ -216,7 +216,7 @@ const TodayCard = () => {
         {vm.callsRead === false && <FailedRead kind="line" what="the phone line's calls" body="The day's other numbers are current." surface="today" testid="brief-calls-failed" />}
         {(recap ? recap.receipts : []).map((r, i) => (
           <div key={i} className="brief-beat" data-testid="brief-receipt">
-            <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+            <span className="brief-beat-glyph ok"><Icon name="check" size={12} /></span>
             <span className="brief-beat-text">{r.at}: {r.text}</span>
             <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
           </div>
