@@ -146,7 +146,7 @@ const TodayQueue = ({ vm }) => {
       initials={r.initials}
       glyph={r.channel === "Phone" && /^[+\d(]/.test(r.who) ? "phone" : null}
       name={r.who}
-      meta={`${r.channel} · ${r.when}`}
+      meta={`${r.channel}, ${r.when}`}
       sentence={r.sentence}
       quoted={r.quoted}
       status={r.status}

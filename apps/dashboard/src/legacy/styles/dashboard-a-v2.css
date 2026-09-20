@@ -1333,3 +1333,50 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .brief-beat-glyph.ok { color: var(--ok); }
 .brief-beat-glyph.warn { background: color-mix(in oklab, var(--warn) 14%, transparent); color: var(--warn); }
 .brief-beat-glyph.danger { background: color-mix(in oklab, var(--danger) 14%, transparent); color: var(--danger); }
+
+/* ---- The canvas's finish ---------------------------------------------------
+   The proportions landed in #699; this is the rest of what the canvas draws
+   differently, every rule in Today's own scope. */
+
+/* The queue's row: the page's verb first, the customer's words plain (the
+   quotation marks already say whose they are), and the state as one calm line
+   rather than a coloured lead with a tinted tail. */
+.tq .cl-attn-cta.primary { order: -1; }
+.tq .cl-attn-sentence.quoted { font-style: normal; }
+.tq .cl-attn-status, .tq .cl-attn-status span { color: var(--ink-muted); }
+.tq .cl-attn-row[class*="tone-"] .cl-attn-status .lead { color: var(--ink); }
+
+/* Worth a look: the tag in words, not a red mono label; the arithmetic in the
+   mono, where a count reads as a count; a neutral tile, amber only where a
+   person is waiting. */
+.tl-tag { font-family: inherit; font-size: 11px; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--ink-dim); }
+.tl-row.tl-danger .tl-tag, .tl-row.tl-warn .tl-tag { color: var(--warn-ink); }
+.tl-math { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0; }
+.tl-glyph.tl-danger, .tl-glyph.tl-warn, .tl-glyph.tl-info { color: var(--ink-muted); background: var(--bg-sunken); }
+.tl-row.tl-danger .tl-glyph, .tl-row.tl-warn .tl-glyph { color: var(--warn-ink); background: var(--warn-soft); }
+
+/* The doors on the day's lines are links; the period's one door is the button. */
+.tc-beats .brief-chip { background: transparent; border-color: transparent; padding: 4px 6px; font-size: 12.5px; color: var(--ink-muted); border-radius: 8px; }
+.tc-beats .brief-chip:hover { background: var(--bg-hover); border-color: transparent; color: var(--ink); }
+.tc-foot { background: transparent; }
+.tc-foot .btn { border: 1px solid var(--line); background: var(--bg-raised); color: var(--ink-muted); padding: 8px 12px; border-radius: 8px; font-size: 12.5px; }
+.tc-foot .btn:hover { color: var(--ink); border-color: var(--line-strong); background: var(--bg-raised); }
+
+/* The two cards under the day's card go flat like the ones above them, and a
+   bell with nothing in it draws no zero. */
+.tsec-head { background: transparent; border-bottom: none; padding: 14px 18px 8px; }
+.tsec-title { font-size: 13.5px; }
+.tq-count.calm { display: none; }
+.tl-row { padding: 12px 18px; }
+
+/* The day's rows read across: the time, who, and what on the right. The rail
+   goes; now is the time in the accent, in weight. */
+.td-items::before { display: none; }
+.td-item { grid-template-columns: 52px minmax(0, 1fr); }
+.td-item-rail, .td-item-glyph { display: none; }
+.td-item-body { flex-direction: row; align-items: baseline; justify-content: space-between; gap: 4px 10px; flex-wrap: wrap; }
+.td-item-title { flex: 1 1 auto; display: block; font-size: 13px; font-weight: 400; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.td-item-sub { display: block; font-size: 12.5px; white-space: nowrap; }
+.td-item-flag { font-size: 12.5px; }
+.td-item-flag::before { display: none; }
+.td-item.now .td-item-time { font-weight: 500; }
