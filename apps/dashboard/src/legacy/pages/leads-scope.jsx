@@ -455,6 +455,106 @@ const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, revie
   );
 };
 
+/* --------------------------------------- the same leads, on the ground (D5) */
+// Every fact on this page is about a place, so the leads can be looked at as places. The plot is contracts'
+// (leadMapPlot): every lead the source gave a point, measured in metres from one centre and scaled into a square,
+// with the area the search asked for drawn around it. No projection of the world, no tile, and no request to
+// anybody -- the picture is made from what the search already found. (Streets would mean a tile provider, which is
+// a third-party request on every view; the seam for one is this square, and nothing above it would change.)
+const ldPinTone = (l, by) => {
+  if (by === "reach") return l.slots.mailbox.state === "ok" || l.slots.phone.state === "ok" ? "ok" : l.slots.mailbox.state === "none" && l.slots.phone.state === "none" ? "none" : "part";
+  if (by === "stage") return l.state;
+  return l.cls === "qualified" ? l.fit || "look" : l.cls === "review" ? "review" : "out";
+};
+const LEAD_MAP_BY = [{ id: "fit", label: "Fit" }, { id: "reach", label: "Reach" }, { id: "stage", label: "Stage" }];
+
+const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onNearby, canFind }) => {
+  const V = window.__LEAD_VM || {};
+  const byId = new Map(rows.map((l) => [l.id, l]));
+  const near = [...plot.pins].sort((a, b) => Math.hypot(a.x - 0.5, a.y - 0.5) - Math.hypot(b.x - 0.5, b.y - 0.5));
+  return (
+    <div className="ld-map" data-testid="lead-map">
+      <div className="ld-map-side">
+        <div className="ld-map-bar">
+          <span className="ld-map-count" data-testid="lead-map-count">{`${plot.pins.length} on the map`}</span>
+          <span className="sp" />
+          <span className="ld-map-by" role="group" aria-label="Colour the pins by">
+            {LEAD_MAP_BY.map((b) => (
+              <button key={b.id} type="button" className={`ld-band-fit${by === b.id ? " on" : ""}`} aria-pressed={by === b.id} onClick={() => onBy(b.id)} data-testid={`map-by-${b.id}`}>{b.label}</button>
+            ))}
+          </span>
+        </div>
+        <div className="ld-map-rows">
+          {near.map((p, i) => {
+            const l = byId.get(p.id);
+            return (
+              <div key={p.id} className={`ld-map-row${picked === p.id ? " on" : ""}`} data-testid="lead-map-row" onMouseEnter={() => onPick(p.id)} onClick={() => x.onOpen(p.id)}>
+                <span className="i">{i + 1}</span>
+                <LeadTile l={l} size={28} />
+                <div className="b">
+                  <div className="n">{l.name}</div>
+                  <div className="s">{l.sub}</div>
+                </div>
+                <span className={`ld-pin-dot tone-${ldPinTone(l, by)}`} aria-hidden="true" />
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="ld-map-main">
+        <div className="ld-map-plot" data-testid="lead-map-plot">
+          {plot.ring ? (
+            <span
+              className="ld-map-ring"
+              aria-hidden="true"
+              data-testid="lead-map-ring"
+              style={{ left: `${(plot.ring.x - plot.ring.r) * 100}%`, top: `${(plot.ring.y - plot.ring.r) * 100}%`, width: `${plot.ring.r * 200}%`, height: `${plot.ring.r * 200}%` }}
+            />
+          ) : null}
+          {plot.pins.map((p) => {
+            const l = byId.get(p.id);
+            return (
+              <button
+                key={p.id}
+                type="button"
+                className={`ld-pin tone-${ldPinTone(l, by)}${picked === p.id ? " on" : ""}`}
+                style={{ left: `${p.x * 100}%`, top: `${p.y * 100}%` }}
+                aria-label={`${l.name} — ${l.sub}`}
+                data-testid={`lead-pin-${p.id}`}
+                onMouseEnter={() => onPick(p.id)}
+                onFocus={() => onPick(p.id)}
+                onClick={() => x.onOpen(p.id)}
+              />
+            );
+          })}
+          {picked && byId.get(picked) ? (
+            <div className="ld-map-card" data-testid="lead-map-card">
+              <LeadTile l={byId.get(picked)} size={34} />
+              <div className="b">
+                <div className="n">{byId.get(picked).name}</div>
+                <div className="s">{byId.get(picked).sub}</div>
+              </div>
+              {byId.get(picked).slots.phone.value ? (
+                <button type="button" className="btn btn-sm btn-primary" onClick={() => x.onCall(picked)} data-testid="map-card-call"><Icon name="phone" size={11} /> Call</button>
+              ) : null}
+            </div>
+          ) : null}
+          <span className="ld-map-scale" data-testid="lead-map-scale">{V.leadMapAcross ? V.leadMapAcross(plot.spanM) : ""}</span>
+        </div>
+        <div className="ld-map-foot">
+          <span className="ld-map-note" data-testid="lead-map-note">The area this search asked for, and every lead it placed inside it.</span>
+          <span className="sp" />
+          {nearby.map((a) => (
+            <button key={a.label} type="button" className="ld-band-fit" onClick={() => onNearby(a)} data-testid={`map-nearby-${a.zip || a.label}`}>{a.label}</button>
+          ))}
+          <button type="button" className="btn btn-sm" onClick={onWiden} data-testid="map-widen" {...(canFind ? {} : window.gate("find", "search a wider area"))}>Search wider</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 /* --------------------------------------------------------------- the bulk bar */
 
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
@@ -618,6 +718,8 @@ const LeadsScope = (p) => {
                 </div>
                 <div className="cl-controls-right">
                   {/* Values ⁄ Signals (D5): the number and the address in the row, for anyone who dials from a desk phone; kept per viewer. */}
+                  {/* The same leads, as places (D5). */}
+                  <button type="button" className={`btn btn-ghost btn-sm${p.mapOpen ? " on" : ""}`} aria-pressed={!!p.mapOpen} onClick={() => p.onMap(!p.mapOpen)} data-testid="leads-map-toggle" title="See these leads on the ground"><Icon name="pin" size={12} /> {p.mapOpen ? "Table" : "Map"}</button>
                   <button type="button" className={`btn btn-ghost btn-sm ld-values${p.values ? " on" : ""}`} aria-pressed={!!p.values} onClick={() => p.onValues(!p.values)} data-testid="leads-values" title="Show the numbers and addresses in the rows">{p.values ? "Signals" : "Values"}</button>
                   <PeopleColumnsMenu open={p.colsOpen} onOpenChange={p.onColsOpen} options={p.colOptions} onPick={p.onPickColumn} buttonRef={p.colsButton} />
                   {p.canExport
@@ -669,6 +771,22 @@ const LeadsScope = (p) => {
 
           {L.readFailed
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
+            : p.mapOpen && p.plot && p.plot.pins.length
+            ? (
+              <LeadMap
+                rows={p.rows}
+                plot={p.plot}
+                by={p.mapBy}
+                onBy={p.onMapBy}
+                picked={p.mapPick}
+                onPick={p.onMapPick}
+                x={p.cellCtx}
+                onWiden={p.onWiden}
+                nearby={(search && search.round && search.round.nearby) || []}
+                onNearby={p.onNearby}
+                canFind={p.canFind}
+              />
+            )
             : p.view.cls === "review" && p.benchGroups.length
             ? (
               <LeadReviewBench
@@ -822,4 +940,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadMap, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });

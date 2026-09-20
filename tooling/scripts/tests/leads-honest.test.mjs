@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
-import { leadEndingLine, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadEndingLine, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -71,11 +71,11 @@ const leadRow = (over = {}) => ({
   ...over,
 });
 const ROW_DTOS = [
-  leadRow(),
-  leadRow({ id: "l2", place_id: "ChIJfixture0002", business_name: "Barton Creek Coaching", email: "team@bartoncreekcoaching.example", email_state: "catch_all", phone: "+15125550102", phone_agrees: false, website: "bartoncreekcoaching.example", rating: 4.8, reviews: 61, found_at: minsAgo(12), member: member({ fit: "look", reason: "Coaching studio, one location" }) }),
-  leadRow({ id: "l3", place_id: "ChIJfixture0003", business_name: "Lamar Strength Co.", email: "info@lamarstrength.example", email_state: "unknown", phone: "+15125550103", phone_agrees: false, website: "lamarstrength.example", rating: 4.6, reviews: 22, found_at: minsAgo(20), member: member({ class: "review", fit: "look", reason: "Couldn't check the email", reasons: ["email:unknown"] }) }),
-  leadRow({ id: "l4", place_id: "ChIJfixture0004", business_name: "GigaFit Austin", email: null, email_state: "none", email_checked_at: null, phone: "+15125550104", phone_agrees: false, website: "gigafit.example", rating: 4.1, reviews: 903, found_at: minsAgo(22), member: member({ class: "excluded", fit: null, reason: "A chain with 40 locations", excluded_by: "chain" }) }),
-  leadRow({ id: "l5", place_id: "ChIJfixture0005", business_name: "Pflugerville Training", email: null, email_state: "none", email_checked_at: null, phone: "+15125550105", phone_agrees: false, website: null, rating: 4.4, reviews: 12, found_at: minsAgo(24), member: member({ class: "excluded", fit: null, reason: "A dog trainer", excluded_by: "wrong_kind" }) }),
+  leadRow({ lat: 30.2672, lng: -97.7431 }),
+  leadRow({ id: "l2", lat: 30.3122, lng: -97.7431, place_id: "ChIJfixture0002", business_name: "Barton Creek Coaching", email: "team@bartoncreekcoaching.example", email_state: "catch_all", phone: "+15125550102", phone_agrees: false, website: "bartoncreekcoaching.example", rating: 4.8, reviews: 61, found_at: minsAgo(12), member: member({ fit: "look", reason: "Coaching studio, one location" }) }),
+  leadRow({ id: "l3", lat: 30.2672, lng: -97.6912, place_id: "ChIJfixture0003", business_name: "Lamar Strength Co.", email: "info@lamarstrength.example", email_state: "unknown", phone: "+15125550103", phone_agrees: false, website: "lamarstrength.example", rating: 4.6, reviews: 22, found_at: minsAgo(20), member: member({ class: "review", fit: "look", reason: "Couldn't check the email", reasons: ["email:unknown"] }) }),
+  leadRow({ id: "l4", lat: 30.2272, lng: -97.7431, place_id: "ChIJfixture0004", business_name: "GigaFit Austin", email: null, email_state: "none", email_checked_at: null, phone: "+15125550104", phone_agrees: false, website: "gigafit.example", rating: 4.1, reviews: 903, found_at: minsAgo(22), member: member({ class: "excluded", fit: null, reason: "A chain with 40 locations", excluded_by: "chain" }) }),
+  leadRow({ id: "l5", lat: 30.44, lng: -97.62, place_id: "ChIJfixture0005", business_name: "Pflugerville Training", email: null, email_state: "none", email_checked_at: null, phone: "+15125550105", phone_agrees: false, website: null, rating: 4.4, reviews: 12, found_at: minsAgo(24), member: member({ class: "excluded", fit: null, reason: "A dog trainer", excluded_by: "wrong_kind" }) }),
 ];
 const ROWS = ROW_DTOS.map((r) => toLeadRowVM(r, TZ, NOW));
 
@@ -258,7 +258,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsStanding: leadsStanding,
     // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
     // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
-    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY },
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross },
     __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
@@ -1071,4 +1071,45 @@ test("with no recogniser there is no mic, and a page drawn without Ask's hooks k
     globalThis.window.SpeechRecognition = SR;
     globalThis.window.AskHooks = H;
   }
+});
+
+// D5: every fact on this page is about a place, so the leads can be looked at as places. The picture is made from
+// what the search already found -- no tile, and no request to anybody.
+test("D5: the same leads, on the ground — a pin per lead the source placed, the pile beside it, and a wider search one press away", async () => {
+  fresh();
+  const at = () => draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  let tree = at();
+  assert.equal(byTestId(tree, "lead-map"), null, "a page opens on the rows");
+  click(byTestId(tree, "leads-map-toggle"));
+  tree = at();
+  const map = byTestId(tree, "lead-map");
+  assert.ok(map, "the map stands where the table stood");
+  assert.equal(find(tree, (n) => n.type === "table"), null);
+  const pins = all(map, (n) => /^lead-pin-/.test(String(n.props?.["data-testid"] || "")));
+  assert.deepEqual(pins.map((p) => p.props["data-testid"]), ["lead-pin-l1", "lead-pin-l2", "lead-pin-l3", "lead-pin-l4", "lead-pin-l5"], "one pin per lead the source placed");
+  assert.equal(textOf(byTestId(map, "lead-map-count")), "5 on the map");
+  assert.match(textOf(byTestId(map, "lead-map-scale")), /mi across$/, "how wide the square is, in the owner's own unit");
+  assert.equal(byTestId(map, "lead-map-ring"), null, "this search named a city and no centre yet, so no area is drawn");
+  assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 5, "the same leads beside it, nearest the middle first");
+  assert.match(pins[0].props["aria-label"], /^Zilker Strength Lab — /, "a pin says who it is and what it is");
+  assert.match(String(pins[0].props.className), /tone-strong/, "coloured by fit, to start");
+
+  pins[0].props.onMouseEnter();
+  tree = at();
+  assert.match(textOf(byTestId(tree, "lead-map-card")), /Zilker Strength Lab/, "the pin under the pointer names itself");
+  click(byTestId(tree, "map-by-reach"));
+  tree = at();
+  assert.match(String(byTestId(tree, "lead-pin-l1").props.className), /tone-ok/, "coloured by reach: a checked mailbox and a number two sources agree on");
+  assert.match(String(byTestId(tree, "lead-pin-l5").props.className), /tone-part/, "and one with only a number");
+
+  click(byTestId(tree, "lead-pin-l1"));
+  tree = at();
+  assert.equal(peeks.at(-1).vm.id, "l1", "a pin opens its lead, as a row does");
+
+  click(byTestId(tree, "map-widen"));
+  tree = at();
+  assert.deepEqual([finders.at(-1).stage, finders.at(-1).plan.area.radius_m], ["plan", 50000], "Search wider opens the plan with twice the ground, and starts nothing until it is approved");
+  click(byTestId(tree, "leads-map-toggle"));
+  tree = at();
+  assert.equal(byTestId(tree, "lead-map"), null, "and the rows come back");
 });

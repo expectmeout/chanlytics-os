@@ -11782,6 +11782,30 @@ function leadReviewGroups(rows, search) {
   }
   return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
+var M_PER_DEG_LAT = 111320;
+function leadMapPlot(rows, area) {
+  const placed = rows.filter((r) => !!r.point);
+  const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
+  if (!anchor || !placed.length && !area?.center) return { pins: [], ring: null, spanM: 0, center: anchor };
+  const perLng = M_PER_DEG_LAT * Math.cos(anchor.lat * Math.PI / 180);
+  const at2 = (p) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
+  const metres = placed.map((r) => at2(r.point));
+  const reach = Math.max(
+    area?.center && area.radius_m ? area.radius_m : 0,
+    ...metres.map((m) => Math.max(Math.abs(m.e), Math.abs(m.s))),
+    500
+  );
+  const half = reach * 1.12;
+  const spanM = Math.round(half * 2);
+  const into = (m) => ({ x: 0.5 + m.e / (half * 2), y: 0.5 + m.s / (half * 2) });
+  return {
+    pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
+    ring: area?.center && area.radius_m ? { ...into(at2(area.center)), r: area.radius_m / (half * 2) } : null,
+    spanM,
+    center: anchor
+  };
+}
+var leadMapAcross = (spanM) => spanM ? `${milesLabel(spanM)} across` : "";
 var LEAD_SLOT_WORDS = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
 function leadSlots(r) {
   const phone = !r.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} \u2014 you marked this number wrong`, copy: false } : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} \u2014 the same number on Google Maps and on their website`, copy: true } : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} \u2014 one source, their Google Maps listing`, copy: true };
@@ -12800,6 +12824,8 @@ export {
   leadExclusionWord,
   leadKindWord,
   leadLowerFirst,
+  leadMapAcross,
+  leadMapPlot,
   leadMonth,
   leadNoCardLine,
   leadNotBusinessesLine,

@@ -16,7 +16,7 @@ import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
-  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars,
+  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars, leadMapPlot,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
@@ -415,4 +415,27 @@ test("the peek knows who they are: their own words, where, whether they are open
   const before = toLeadPeekVM(row(), SEARCH_DONE, TZ, NOW);
   assert.deepEqual([before.about, before.today, before.image, before.reviewsDist, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null, null], "a lead from before D2 claims none of it");
   assert.match(before.found[0].what, /^On Google Maps, searching “/, "and is found the way it was");
+});
+
+// D5: the same leads, on the ground. A plot of one town, measured in metres from one centre -- no projection of
+// the world, no tile, and no request to anybody.
+test("D5: the map plots every lead the door placed, and the area the search asked for, in one square", () => {
+  const AREA = { kind: "city", label: "Austin, TX", state: "TX", center: { lat: 30.2672, lng: -97.7431 }, radius_m: 8000, query: "Austin, TX, USA" };
+  const at = (id, lat, lng) => ({ id, point: { lat, lng } });
+  const plot = leadMapPlot([at("a", 30.2672, -97.7431), at("b", 30.3122, -97.7431), at("c", 30.2672, -97.6912), { id: "d", point: null }], AREA);
+  assert.deepEqual(plot.pins.map((p) => p.id), ["a", "b", "c"], "a lead the source placed nowhere is not on it");
+  const a = plot.pins[0];
+  assert.deepEqual([Math.round(a.x * 1000) / 1000, Math.round(a.y * 1000) / 1000], [0.5, 0.5], "the centre of the area is the centre of the square");
+  assert.ok(plot.pins[1].y < 0.5, "north is up");
+  assert.ok(plot.pins[2].x > 0.5, "east is right");
+  assert.deepEqual(plot.ring, { x: 0.5, y: 0.5, r: plot.ring.r }, "the area sits where its centre is");
+  assert.ok(plot.ring.r > 0.4 && plot.ring.r < 0.5, "and fills the square with a margin, never touching its edge");
+  assert.deepEqual([plot.spanM > 8000 * 2, plot.center], [true, AREA.center]);
+  // A search with no centre yet: the leads alone make the picture, and no ring is drawn.
+  const loose = leadMapPlot([at("a", 30.2672, -97.7431), at("b", 30.2772, -97.7431)], { ...AREA, center: null });
+  assert.equal(loose.ring, null);
+  assert.deepEqual([loose.pins.length, loose.center], [2, { lat: 30.2672, lng: -97.7431 }]);
+  // One lead alone is a place, not a pinpoint; nothing placed at all is no plot.
+  assert.equal(leadMapPlot([at("a", 30.2672, -97.7431)], null).spanM, 1120);
+  assert.deepEqual(leadMapPlot([{ id: "d", point: null }], null), { pins: [], ring: null, spanM: 0, center: null });
 });

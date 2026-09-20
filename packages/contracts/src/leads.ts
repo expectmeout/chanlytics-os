@@ -1100,6 +1100,54 @@ export interface LeadSearchRoundDto {
   fits?: { strong: number; look: number; long: number };
 }
 export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
+/* ------------------------------------------------ the same leads, on the ground (D5) */
+
+export interface LeadMapPin { id: string; x: number; y: number }
+export interface LeadMapPlot {
+  /** Every lead the door gave a place, in a square of 0..1 with 0,0 at the top left. */
+  pins: LeadMapPin[];
+  /** The area the search asked for, when it has a centre: where it sits in the same square, and how wide. */
+  ring: { x: number; y: number; r: number } | null;
+  /** How many metres the square is across, for the scale bar; 0 when there was nothing to place. */
+  spanM: number;
+  /** What the square is centred on, so "widen the area" asks about the ground the owner is looking at. */
+  center: { lat: number; lng: number } | null;
+}
+/** Metres per degree, near enough for a city: a plot of one town, not a projection of the world. */
+const M_PER_DEG_LAT = 111_320;
+/**
+ * Where the leads sit on the ground, relative to each other and to the area the search asked for (D5). Everything
+ * is measured in metres from one centre and then scaled into a square, so the picture is honest at a town's size
+ * without a projection, a tile or a request to anyone. A lead the source placed nowhere is simply not on it.
+ */
+export function leadMapPlot(rows: { id: string; point: { lat: number; lng: number } | null }[], area: LeadArea | null): LeadMapPlot {
+  const placed = rows.filter((r): r is { id: string; point: { lat: number; lng: number } } => !!r.point);
+  const anchor = area?.center ?? (placed.length ? { lat: placed[0].point.lat, lng: placed[0].point.lng } : null);
+  if (!anchor || (!placed.length && !area?.center)) return { pins: [], ring: null, spanM: 0, center: anchor };
+  const perLng = M_PER_DEG_LAT * Math.cos((anchor.lat * Math.PI) / 180);
+  const at = (p: { lat: number; lng: number }) => ({ e: (p.lng - anchor.lng) * perLng, s: (anchor.lat - p.lat) * M_PER_DEG_LAT });
+  const metres = placed.map((r) => at(r.point));
+  // The square holds every lead and the whole of the area the search asked for, with a margin so nothing sits on
+  // the edge. Half a kilometre is the smallest it goes: one lead alone is a place, not a pinpoint.
+  const reach = Math.max(
+    area?.center && area.radius_m ? area.radius_m : 0,
+    ...metres.map((m) => Math.max(Math.abs(m.e), Math.abs(m.s))),
+    500,
+  );
+  const half = reach * 1.12;
+  const spanM = Math.round(half * 2);
+  const into = (m: { e: number; s: number }) => ({ x: 0.5 + m.e / (half * 2), y: 0.5 + m.s / (half * 2) });
+  return {
+    pins: placed.map((r, i) => ({ id: r.id, ...into(metres[i]) })),
+    ring: area?.center && area.radius_m ? { ...into(at(area.center)), r: area.radius_m / (half * 2) } : null,
+    spanM,
+    center: anchor,
+  };
+}
+
+/** How wide the square is, in the owner's own unit: "3.4 mi across", and nothing when there was nothing to place. */
+export const leadMapAcross = (spanM: number): string => (spanM ? `${milesLabel(spanM)} across` : "");
+
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
 /**
  * The month, as a surface says it (D5): how many of its leads are spoken for, how many are left, and the day it

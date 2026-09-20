@@ -1618,6 +1618,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [lightboxId, setLightboxId] = useState(null);
   const [fitChip, setFitChip] = useState(null);
   const [benchGroup, setBenchGroup] = useState(null);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapBy, setMapBy] = useState("fit");
+  const [mapPick, setMapPick] = useState(null);
 
   // One criterion of the Excluded view, from the chips at its head.
   const [chip, setChip] = useState(null);
@@ -2239,6 +2242,16 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         band={band}
         // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
         // the month is the surface's, so what a press costs is a number the owner can see.
+        // The same leads, on the ground (D5): the plot is contracts', from the points the door returned and the
+        // area the search asked for. A view whose leads the source placed nowhere has no map to draw.
+        mapOpen={mapOpen}
+        onMap={setMapOpen}
+        mapBy={mapBy}
+        onMapBy={setMapBy}
+        mapPick={mapPick}
+        onMapPick={setMapPick}
+        plot={mapOpen && window.__LEAD_VM && window.__LEAD_VM.leadMapPlot ? window.__LEAD_VM.leadMapPlot(rowsShown, (openSearch && openSearch.plan && openSearch.plan.area) || null) : null}
+        onWiden={() => { if (!openSearch) return; const a = openSearch.plan.area; onStripAction("nearby", { ...openSearch.plan, area: { ...a, radius_m: Math.min(60000, Math.round((a.radius_m || 8000) * 2)) } }); }}
         benchGroups={leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : []}
         benchGroup={benchGroup}
         onBenchGroup={setBenchGroup}

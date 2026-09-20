@@ -11,7 +11,7 @@ import * as ReactDOM from "react-dom";
 import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords, csvCell, LEAD_WORDS } from "@chanlytics/contracts";
 import {
   LEAD_COUNT_CHOICES, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords,
-  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadEndingLine, leadsFirstDayWays, leadUndoable, planCeiling, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY } from "@chanlytics/contracts";
+  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadEndingLine, leadsFirstDayWays, leadUndoable, planCeiling, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -37,7 +37,7 @@ declare global {
       planWhere: typeof planWhere; planArea: typeof planArea; planMinutes: typeof planMinutes; planVersionOf: typeof planVersionOf;
       LEAD_COUNT_CHOICES: typeof LEAD_COUNT_CHOICES; leadPlanLikely: typeof leadPlanLikely; leadPlanFacts: typeof leadPlanFacts;
       leadPlanAsk: typeof leadPlanAsk; leadEndingLine: typeof leadEndingLine;
-      planCeiling: typeof planCeiling; leadUndoable: typeof leadUndoable; leadReviewGroups: typeof leadReviewGroups; leadBand: typeof leadBand; leadReviewCosts: typeof leadReviewCosts; leadAskedFor: typeof leadAskedFor; LEAD_REVIEW_ACT_WORDS: typeof LEAD_REVIEW_ACT_WORDS; LEAD_REVIEW_GROUP_WHY: typeof LEAD_REVIEW_GROUP_WHY;
+      planCeiling: typeof planCeiling; leadUndoable: typeof leadUndoable; leadReviewGroups: typeof leadReviewGroups; leadBand: typeof leadBand; leadReviewCosts: typeof leadReviewCosts; leadAskedFor: typeof leadAskedFor; leadMapPlot: typeof leadMapPlot; leadMapAcross: typeof leadMapAcross; LEAD_REVIEW_ACT_WORDS: typeof LEAD_REVIEW_ACT_WORDS; LEAD_REVIEW_GROUP_WHY: typeof LEAD_REVIEW_GROUP_WHY;
     };
   }
 }
@@ -98,7 +98,7 @@ if (typeof window !== "undefined") {
   // One derivation per fact: __LEAD_WORDS holds the words, __LEAD_VM holds what
   // derives them, and the pages spell neither. Task 10 adds `leadStrip` to this
   // object; `leadEndingLine` is here, so the strip never spells an ending itself.
-  window.__LEAD_VM = { planWords, planSaid, planSentence, planWho, planWhere, planArea, planMinutes, planCeiling, planVersionOf, LEAD_COUNT_CHOICES, leadPlanLikely, leadPlanFacts, leadPlanAsk, leadEndingLine, leadUndoable, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY };
+  window.__LEAD_VM = { planWords, planSaid, planSentence, planWho, planWhere, planArea, planMinutes, planCeiling, planVersionOf, LEAD_COUNT_CHOICES, leadPlanLikely, leadPlanFacts, leadPlanAsk, leadEndingLine, leadUndoable, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadMapPlot, leadMapAcross };
 }
 
 export {};
