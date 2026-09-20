@@ -37,7 +37,15 @@ export { ASK_MODEL } from "@chanlytics/contracts";
  * answer or a stated failure.
  */
 
-const MAX_TOKENS = 1200;
+// The whole round: the model's thinking, every tool call it makes and, when it
+// answers in the same round, the answer itself. An act tool's arguments are
+// long -- propose_lead_search alone writes a who, a where, up to five terms,
+// six criteria and six exclusions -- and at 1200 the stream reached the cap in
+// the MIDDLE of that JSON. A cut-off tool call is not a smaller tool call: it
+// does not parse at all (see `argsOf`). A cap is not a spend, only a ceiling on
+// what may be generated, so raising it costs nothing on a turn that does not
+// need it.
+const MAX_TOKENS = 2400;
 const MAX_HISTORY = 12;
 const HISTORY_CHARS = 1200;
 /**
@@ -215,17 +223,41 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
     return { finish: null, citations: [], navigate: null, followups: [], language: input.language, ungrounded: false, tools: toolsUsed, proposals, latencyMs: Date.now() - t0, ...partial };
   };
 
+  /**
+   * A tool call's arguments, or null when they did not arrive whole.
+   *
+   * `parseInput` answers {} for JSON it cannot read, which is the right shape
+   * but the wrong fact: every required field then looks missing, and the model
+   * is told "the plan is not complete: looking_for Required" about a field it
+   * had just written. It reads that as its own mistake -- on the lead finder it
+   * told the owner it "hit a formatting snag" and gave up -- when what happened
+   * is that the round hit max_tokens mid-argument. Say that instead, so the
+   * retry is a shorter call rather than a guess at a field that was never wrong.
+   */
+  const argsOf = (b: RoundBlock): Record<string, unknown> | null => {
+    if (!b.json) return {};
+    try { return JSON.parse(b.json) as Record<string, unknown>; } catch { return null; }
+  };
+  const cutOff = (b: RoundBlock) => {
+    console.error("ask_tool_input_cut_off", JSON.stringify({ tool: b.name, bytes: b.json.length, tenant: input.tenantId }));
+    return { result: JSON.stringify({ error: "your call was cut off before its arguments were complete, so nothing was read; call it again with shorter values" }), isError: true };
+  };
+
   const propose = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
     input.emit({ t: "trace", text: proposalLabel(b.name) });
-    const p = await ports.propose(tc, b.name, parseInput(b.json));
+    const args = argsOf(b);
+    if (!args) return cutOff(b);
+    const p = await ports.propose(tc, b.name, args);
     if (p.proposal) proposals.push(p.proposal);
     return { result: p.result, isError: p.isError };
   };
 
   const read = async (b: RoundBlock) => {
     toolsUsed.push(b.name);
-    const out = await ports.tool(tc, { name: b.name, input: parseInput(b.json) });
+    const args = argsOf(b);
+    if (!args) return cutOff(b);
+    const out = await ports.tool(tc, { name: b.name, input: args });
     if (!out.isError) reads++;
     return { result: out.result, isError: out.isError };
   };
@@ -263,6 +295,14 @@ export async function runAskTurn(input: TurnInput, ports: AskPorts = askPorts())
 
       if (streamError && !blocks.length) {
         return done({ answer: es ? "Se cortó la conexión con el modelo. Inténtalo de nuevo." : "The connection to the model dropped. Try again.", failed: true, failure: streamError, rounds: round });
+      }
+      // The cap was reached. Whatever this round produced may be half-written,
+      // and a tool call that is half-written does not parse at all; it is caught
+      // where it is used (argsOf), but it is recorded here, because a turn that
+      // keeps hitting the cap is a budget that is too small and not a model
+      // that keeps changing its mind.
+      if (stopReason === "max_tokens") {
+        console.error("ask_round_hit_cap", JSON.stringify({ round, tools: blocks.filter((b) => b.type === "tool_use").map((b) => b.name), tenant: input.tenantId }));
       }
       if (stopReason === "refusal") {
         return done({ answer: es ? "No puedo responder a eso aquí." : "I can't answer that here.", failed: true, failure: "refusal", rounds: round });

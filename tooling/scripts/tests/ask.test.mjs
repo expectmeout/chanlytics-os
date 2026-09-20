@@ -387,7 +387,8 @@ test("cards: an act tool never acts, a proposal names its door and its undo, the
   assert.ok(pr.includes("that call is not in progress"));
   const loop = readCode("apps/dashboard/src/server/ask/loop.ts");
   assert.ok(loop.includes('const baseTools = [...READ_TOOLS, ...(input.role === "viewer" ? [] : ACT_TOOLS), FINISH_TOOL];'), "a viewer is never offered an act tool");
-  assert.ok(loop.includes("const p = await ports.propose(tc, b.name, parseInput(b.json));"), "an act tool becomes a proposal, never an action");
+  assert.ok(loop.includes("const p = await ports.propose(tc, b.name, args);"), "an act tool becomes a proposal, never an action");
+  assert.ok(loop.includes("if (!args) return cutOff(b);"), "a call whose arguments did not arrive whole is told so, not judged as a plan with every field missing");
   const prompt = readCode("apps/dashboard/src/server/ask/prompt.ts");
   assert.ok(prompt.includes("You never act.") && prompt.includes("never say it was sent, changed or done"));
   const store = readCode("apps/dashboard/src/server/ask/store.ts");

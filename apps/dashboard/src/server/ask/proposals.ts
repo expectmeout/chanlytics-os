@@ -555,8 +555,17 @@ async function proposePlaybook(t: ToolContext, input: Record<string, unknown>): 
  */
 async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>): Promise<ProposalOutcome> {
   if (t.role !== "owner") return refuse("only an owner can start a lead search; say so, and that an owner can ask");
+  // What a model writes that the schema, rightly, will not take as written:
+  // a key in Title-Case or with a hyphen, and a country with its code in
+  // brackets. Both are made the plan's own shape here; a key with no letters
+  // left is passed through so the schema says so in words. The place, when
+  // the model packs "Miami, FL" into one field, is the planner's to read
+  // (planArea in contracts): the composer and this tool must agree on it.
+  const keyed = String(input.category_key ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^[^a-z]+/, "").replace(/_+$/, "").slice(0, 40);
   const shaped = ProposeLeadSearchSchema.safeParse({
     ...input,
+    category_key: keyed || input.category_key,
+    country: String(input.country ?? "").replace(/\(.*?\)/g, "").trim(),
     city: str(input.city, 60) || null,
     zip: /^\d{5}$/.test(String(input.zip ?? "")) ? String(input.zip) : null,
     criteria: (Array.isArray(input.criteria) ? input.criteria : []).slice(0, 6),
