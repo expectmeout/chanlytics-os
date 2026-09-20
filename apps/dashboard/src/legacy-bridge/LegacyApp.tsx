@@ -31,6 +31,7 @@ import {
 import { hydrateSurfaceCache } from "./surface-cache";
 import { installInboxVerbs } from "./inbox-verbs";
 import { installPeopleCourier } from "./people-detail";
+import { installLeadsCourier, leadsOverride } from "./leads";
 import { installLists } from "./people-lists";
 import { installPolicyStore } from "./policy-store";
 import { installNotifications } from "./notifications";
@@ -58,6 +59,10 @@ import CreateWorkspace from "./CreateWorkspace";
 installClock();
 installInboxVerbs();
 installPeopleCourier();
+// The Leads scope of People: its surface reads by view and patches what is
+// already loaded, and its courier carries the acts, one named function per
+// door (leads.ts).
+installLeadsCourier();
 installLists();
 // After the manifest (which seeds window.POLICY) and before React: the
 // approval chips and the matrix read the workspace's real modes from the
@@ -102,7 +107,8 @@ markHydrated(hydrateSurfaceCache());
 // The mockup's own data-before-mount contract (boot gate).
 const REQUIRED = ["CHANLY", "INBOX_DATA", "CLIENTS", "FLEET_DATA", "CHANLY_DATA", "POLICY", "ChanlyticsApp"] as const;
 
-const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride, setupOverride, googleOverride, billingOverride];
+// leadsOverride rides beside peopleOverride: Leads is the other scope of that page.
+const SURFACES = [workspaceOverride, conversationsOverride, inboxOverride, todayOverride, settingsOverride, peopleOverride, leadsOverride, reportsOverride, liveOverride, broadcastsOverride, playbooksOverride, calendarOverride, notificationsOverride, setupOverride, googleOverride, billingOverride];
 const SURFACE_LABELS: Record<string, string> = { conversations: "Conversations", inbox: "Inbox", today: "Today", people: "People", reports: "Reports", live: "Calls", calendar: "Calendar" };
 
 // Which flipped surface backs each route, and which routes are real at all —

@@ -147,9 +147,11 @@ test.describe("People on a real workspace", () => {
       expect(has("Booked")).toBe(false);
       expect(has("Asked, never booked")).toBe(false);
     }
-    for (const gone of ["leads", "pipeline"]) {
+    // Leads came back on 18 Sep 2026 as a scope of People, so its old address
+    // lands on that scope; the Deal board still lands on the list of clients.
+    for (const [gone, lands] of [["leads", "#/clients/leads"], ["pipeline", "#/clients"]]) {
       await page.goto(`/#/${gone}`);
-      await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe("#/clients");
+      await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe(lands);
       await expect(page.getByTestId("people-standing")).toBeVisible();
     }
   });

@@ -39,9 +39,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
   // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
   // revisited when the product is at 100%, and none of those features is built
   // before then. Nothing here is a promise to a customer or an operator.
-  // Lifted 18 Sep 2026 (Ruben): leads becomes a scope of People, clients/leads, in release B of the lead finder
-  // (docs/plans/2026-09-17-people-table-and-lead-finder.md); 00140 holds the engine. Until then this route stays demo.
-  leads: "demo",     // retired into People: the booking is the conversion, and People shows who booked (SURFACE_RETIRED)
+  // Lifted 18 Sep 2026 (Ruben): a scope of People at clients/leads, fed by the leads surface.
+  leads: "real",     // the route itself still redirects (SURFACE_RETIRED): the scope is clients/leads
   segments: "real",  // People › Lists: the lists kept by hand and the computed ones, with their people
   pipeline: "demo",  // retired into People, like leads
   calendar: "real",  // the owner's calendar as the receptionist reads it: taken, open, closed — a viewer, never a scheduler
@@ -89,6 +88,10 @@ export const ROUTE_SURFACE: Record<string, string> = {
   inbox: "inbox",
   conversations: "conversations",
   clients: "people",
+  // The scope's own surface, so the gate waits for it before the Leads scope
+  // paints; the route `leads` itself redirects to `clients/leads`, and is here
+  // because a surface may only be classified real when an override feeds it.
+  leads: "leads",
   segments: "people",
   reports: "reports",
   live: "live",
@@ -169,6 +172,12 @@ export const SURFACE_DEFAULT_PARAM: Record<string, string> = {
  */
 export function routeSurfaceFor(page: string, param?: string | null): string | undefined {
   const pane = param || SURFACE_DEFAULT_PARAM[page];
+  // People has two scopes and they are fed by two surfaces. Leads is
+  // `clients/leads` with the view spelled after it (`clients/leads:s-…:l-…`),
+  // so the gate must be asked about the SCOPE, not the page: asked about
+  // "clients" it would wait for People's rows and paint the Leads scope with
+  // no searches, no rows and no counts for as long as its own read took.
+  if (page === "clients" && pane && /^leads(:|$)/.test(pane)) return ROUTE_SURFACE.leads;
   if (pane) {
     const specific = ROUTE_SURFACE[`${page}/${pane}`];
     if (specific) return specific;
@@ -191,9 +200,13 @@ export function surfaceStateFor(page: string, param?: string | null): SurfaceSta
  * booked appointment as the conversion, and People now shows who booked and
  * who asked and never did. A real workspace lands on People; the standalone
  * mockup keeps its pages.
+ *
+ * Leads came back on 18 September 2026 (Ruben), but not as a page of its own:
+ * it is a SCOPE of People, so the old address lands on `clients/leads` rather
+ * than on the list of clients. The Deal board stays retired.
  */
 export const SURFACE_RETIRED: Record<string, string> = {
-  leads: "clients",
+  leads: "clients/leads",
   pipeline: "clients",
 };
 

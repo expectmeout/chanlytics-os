@@ -25,6 +25,7 @@ import {
 } from "./surface-data";
 import { billingOverride } from "./billing";
 import { googleOverride } from "./google";
+import { leadsOverride } from "./leads";
 import { setupOverride } from "./setup";
 import { refreshSurfaces } from "./surface-runner";
 
@@ -32,6 +33,7 @@ const thread = () => [inboxOverride, conversationsOverride, todayOverride];
 const people = () => [peopleOverride];
 const runs = () => [playbooksOverride, broadcastsOverride];
 const templates = () => [settingsOverride, inboxOverride];
+const leads = () => [leadsOverride];
 const setup = () => [setupOverride];
 const google = () => [googleOverride, setupOverride];
 const billing = () => [billingOverride, setupOverride];
@@ -66,6 +68,22 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST segments": people,
   "PUT segments/[id]": people,
   "DELETE segments/[id]": people,
+  // Leads. Every one of these PATCHES: the surface re-reads the view and keeps
+  // the pages, the selection and the cursor the owner already has (leads.ts).
+  // Release B's own routes -- stage, bulk, erase, the two on a kept search, the
+  // Done strip's undo, the business line -- join this list in Task 4.4, with
+  // the route files that give them a key: every key here must be a route
+  // (typed-client.test.mjs), and until then the courier re-reads the same
+  // surfaces itself. `POST leads/[id]/stage` names People too: an Interested
+  // call makes a person.
+  "POST lead-searches": leads,
+  "POST lead-searches/[id]/answer": leads,
+  "POST lead-searches/[id]/more": leads,
+  "POST lead-searches/[id]/stop": leads,
+  "POST leads/[id]/keep": leads,
+  "POST leads/[id]/exclude": leads,
+  "POST leads/[id]/put-back": leads,
+  "POST lead-operations/[id]/undo": leads,
   // Outbound.
   "POST broadcasts": () => [broadcastsOverride],
   "POST broadcasts/[id]/approve": runs,
