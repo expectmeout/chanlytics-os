@@ -6,8 +6,9 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import vm from "node:vm";
+import * as contracts from "@chanlytics/contracts";
 import { todayLeaks, todayAwayGrouped, unreadCount } from "@chanlytics/contracts";
-import { todaySample, installTodaySample } from "../../../apps/dashboard/src/legacy-bridge/today-sample.ts";
+import { todaySample, installTodaySample, sampleDayOf } from "../../../apps/dashboard/src/legacy-bridge/today-sample.ts";
 
 // 4 PM in New York on Friday 18 September 2026: every "minutes ago" in the sample lands on this day.
 const NOW = Date.parse("2026-09-18T20:00:00Z");
@@ -143,4 +144,59 @@ test("on both daylight-saving days the day still opens at local midnight", () =>
     const inbound = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
     assert.equal(s.metrics.period.messages_in, inbound.length, `${iso}: the figures count from that midnight`);
   }
+});
+
+/**
+ * A busy day overflows every cap the page has, and the page stays a summary: six queue rows and a count of the rest,
+ * five on the day and a line to the Calendar, two things worth a look and "and N more", five in the away card and
+ * the rest counted in its foot. What the caps cut is said, never dropped. The mockup shows it at ?day=busy.
+ */
+test("a busy day overflows every cap and the page says what it cut", () => {
+  const { TODAY_DAY_MAX, TODAY_QUEUE_MAX, todayDay } = contracts;
+  const usual = todaySample(NOW);
+  const s = todaySample(NOW, "busy");
+  const t = s.TODAY_DATA;
+  assert.notEqual(s, usual, "another day is another sample");
+  assert.equal(todaySample(NOW, "busy"), s, "kept, like the usual one");
+
+  // The queue: twelve ask for a person; six are drawn, the rest counted, and the parts count the whole.
+  assert.ok(t.queue.rows.length + t.queue.more >= 10, `a busy queue: ${t.queue.rows.length} + ${t.queue.more}`);
+  assert.equal(t.queue.rows.length, TODAY_QUEUE_MAX);
+  assert.ok(t.queue.more >= 4, "the rest is counted, not dropped");
+  assert.ok(t.queue.parts.some((p) => /need you/.test(p)), t.queue.parts.join(" · "));
+
+  // The day: twelve today, five drawn, seven on the Calendar; the summary counts the day, not the rows.
+  const day = todayDay(s.__CALENDAR.vm, s.__PLAYBOOKS.rows, s.__PEOPLE);
+  const [today, tomorrow] = day.frames;
+  assert.equal(today.items.length, TODAY_DAY_MAX);
+  assert.equal(today.more, 12 - TODAY_DAY_MAX);
+  assert.equal(today.moreLine, `${12 - TODAY_DAY_MAX} more on the Calendar`);
+  assert.equal(today.summary.booked, "12 booked");
+  assert.equal(tomorrow.items.length, TODAY_DAY_MAX, "tomorrow is capped too");
+  assert.equal(tomorrow.moreLine, "2 more on the Calendar");
+
+  // Worth a look: at most two rows, the rest in one line.
+  const leaks = todayLeaks(s.__REPORTS, s.__PEOPLE, t.noReply);
+  assert.ok(leaks.rows.length <= 2, `${leaks.rows.length} rows`);
+
+  // The away card: five drawn, the rest counted in its foot, the queue's own rows never drawn twice.
+  const away = todayAwayGrouped(s.bell, t.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })), 5);
+  assert.ok(away.groups.length <= 5, `${away.groups.length} groups`);
+  assert.equal(away.total, unreadCount(s.bell));
+  // Deduped against the rows the queue DRAWS: a bell row about a handoff past the cap is news here, not a repeat.
+  assert.ok(away.queued >= 3 && away.queued <= t.queue.rows.length, `what the six drawn rows already hold: ${away.queued}`);
+
+  // Every figure still agrees with the rows under it, busy or not.
+  const since = Date.parse(s.metrics.window.since);
+  const inboundToday = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+  const by = Object.fromEntries(t.figures.map((f) => [f.id, f]));
+  assert.equal(by.messages.value, inboundToday.length);
+  assert.equal(by.calls.value, s.calls.filter((c) => c.started_at && Date.parse(c.started_at) >= since).length);
+  assert.equal(by.new.value, 2, "the busy threads are all older than today, so nobody new is invented");
+  for (const f of t.figures) if (f.receipt) assert.doesNotMatch(f.receipt.text, new RegExp(`\b${f.value}\b`), `${f.id}: the receipt repeats the figure`);
+
+  // The mockup's switch: the query names the day; nothing else does.
+  assert.equal(sampleDayOf({ location: { search: "?day=busy" } }), "busy");
+  assert.equal(sampleDayOf({ location: { search: "?bust=1" } }), "usual");
+  assert.equal(sampleDayOf({}), "usual");
 });
