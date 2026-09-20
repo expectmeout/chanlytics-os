@@ -160,7 +160,7 @@ function build(nowMs: number): TodaySample {
   const lastOut = outAi.filter((m) => m.status === "delivered").map((m) => m.created_at).sort().at(-1) ?? null;
   const tallyOf = (xs: readonly string[]) => xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {});
   const metrics: MetricsSummaryDto = {
-    workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+    workspace: { name: "Melany's Studio", timezone: ZONE, status: "active" },
     channels: [
       { kind: "whatsapp", status: "active", number: "+1 (305) 555-0100" },
       { kind: "voice", status: "active", number: "+1 (305) 555-0100" },
