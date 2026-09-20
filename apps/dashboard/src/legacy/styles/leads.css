@@ -739,3 +739,83 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-lb-side { border-left: 0; border-top: 1px solid var(--line); }
   .pk-band { height: 150px; }
 }
+
+/* ------------------------------ Needs review, as a workbench (D5) -- */
+/* The pile on the left in the order to work it, the group being worked in the middle as cards, and on the right
+   what each press does, what the search asked for, and where to look next when the round ran dry. */
+
+.ld-bench { display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; gap: 20px; padding: 14px var(--gutter-page) 32px; align-items: start; }
+.ld-bench-queue { display: flex; flex-direction: column; gap: 2px; }
+.ld-bench-qh { font-size: var(--text-xs); color: var(--ink-dim); padding: 0 2px 6px; }
+.ld-bench-g { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; font: inherit; text-align: left; cursor: pointer; }
+.ld-bench-g:hover { background: var(--bg-hover); }
+.ld-bench-g.on { border-color: var(--line); background: var(--bg-raised); box-shadow: var(--shadow-sm); }
+.ld-bench-g .n { font-family: var(--font-mono); font-size: var(--text-base); color: var(--ink-dim); text-align: right; }
+.ld-bench-g.on .n { color: var(--accent); }
+.ld-bench-g .l { font-size: var(--text-sm); color: var(--ink); }
+.ld-bench-g .a { grid-column: 2; font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-bench-g.mailbox_waiting .a { color: var(--ink-faint); }
+
+.ld-bench-main { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
+.ld-bench-head { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
+.ld-bench-t { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); display: flex; align-items: baseline; gap: 8px; }
+.ld-bench-t .count { font-family: var(--font-mono); font-size: var(--text-base); color: var(--ink-dim); }
+.ld-bench-why { margin: 5px 0 0; font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.5; max-width: 66ch; }
+.ld-bench-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+.ld-bench-cards { display: flex; flex-direction: column; }
+.ld-bench-card { display: grid; grid-template-columns: 40px minmax(0, 1fr) auto; gap: 12px; align-items: center; padding: 11px 16px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.ld-bench-card:last-child { border-bottom: 0; }
+.ld-bench-card:hover { background: var(--bg-hover); }
+.ld-bench-card .b { min-width: 0; }
+.ld-bench-card .n { display: flex; align-items: center; gap: 6px; }
+.ld-bench-card .s { font-size: var(--text-xs); color: var(--ink-dim); margin-top: 1px; }
+.ld-bench-card .w { font-size: var(--text-xs); color: var(--ink-muted); margin-top: 3px; line-height: 1.45; }
+.ld-bench-card .r { display: flex; align-items: center; gap: 14px; }
+.ld-bench-card-acts { display: inline-flex; gap: 2px; opacity: 0; }
+.ld-bench-card:hover .ld-bench-card-acts, .ld-bench-card:focus-within .ld-bench-card-acts { opacity: 1; }
+
+.ld-bench-side { display: flex; flex-direction: column; gap: 16px; }
+.ld-bench-block { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
+.ld-bench-cost { display: flex; flex-direction: column; gap: 1px; margin-top: 9px; }
+.ld-bench-cost b { font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.ld-bench-cost span { font-size: var(--text-xs); color: var(--ink-dim); line-height: 1.45; }
+.ld-bench-quiet { margin: 6px 0 0; font-size: var(--text-xs); color: var(--ink-dim); line-height: 1.45; }
+.ld-bench-asked-row { font-size: var(--text-sm); color: var(--ink-muted); margin-top: 5px; padding-left: 14px; position: relative; }
+.ld-bench-asked-row::before { content: ""; position: absolute; left: 0; top: 7px; width: 6px; height: 6px; border-radius: 50%; background: var(--ok); }
+.ld-bench-asked-row.exclusion::before { background: var(--ink-faint); }
+.ld-bench-nearby { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+
+@media (max-width: 1180px) {
+  .ld-bench { grid-template-columns: 260px minmax(0, 1fr); }
+  .ld-bench-side { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
+  .ld-bench-block { flex: 1 1 260px; }
+}
+@media (max-width: 900px) {
+  .ld-bench { grid-template-columns: 1fr; padding: 10px var(--gutter-page) 28px; gap: 14px; }
+  .ld-bench-queue { flex-direction: row; overflow-x: auto; gap: 6px; }
+  .ld-bench-qh { display: none; }
+  .ld-bench-g { flex: none; border: 1px solid var(--line); border-radius: var(--radius-full); padding: 7px 12px; grid-template-columns: auto auto; align-items: center; }
+  .ld-bench-g .a { display: none; }
+  .ld-bench-card-acts { opacity: 1; }
+  .ld-bench-card .r { flex-direction: column; align-items: flex-end; gap: 6px; }
+}
+
+/* --------------------------- one lead at a time, on a phone (D5) -- */
+.pk-deck { display: none; }
+.pk-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex: none; margin-right: 7px; display: inline-block; vertical-align: -1px; }
+.pk-chip.tone-ok .dot { background: var(--ok); }
+.pk-chip.tone-warn .dot { background: var(--warn); }
+.pk-chip.tone-bad .dot { background: var(--danger); }
+
+@media (max-width: 900px) {
+  /* Where you are in the pile, and the two ways through it -- a swipe does the same. */
+  .pk-deck { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); flex: none; }
+  .pk-deck-n { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
+  .pk-deck-btn { width: 44px; height: 36px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
+  .pk-deck-btn:disabled { color: var(--ink-faint); cursor: default; }
+  .pk-deck-btn.prev .icon { transform: rotate(180deg); }
+  /* Calling is what a phone is for: the act bar's own button is a thumb's. */
+  .pl-peek .pk-act { padding: 10px var(--gutter-page) calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .pl-peek .pk-act-main { min-height: 52px; font-size: var(--text-md); }
+  .pl-peek .pk-act .btn:not(.pk-act-main) { min-height: 52px; }
+}

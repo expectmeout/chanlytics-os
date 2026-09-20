@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
-import { ROLE_PERMS, estimateRoundUsd, placesToAsk, whyCannotSpend, leadDraftFooter, LEAD_NO_ADDRESS, LEAD_PROBE_PLACES, SPEND_LEADS } from "@chanlytics/contracts";
+import { ROLE_PERMS, estimateRoundUsd, placesToAsk, leadMonth, whyCannotSpend, leadDraftFooter, LEAD_NO_ADDRESS, LEAD_PROBE_PLACES, SPEND_LEADS } from "@chanlytics/contracts";
 import { PLAN } from "./_lead-fixtures.mjs";
 
 process.env.NEXT_PUBLIC_SUPABASE_URL ??= "http://127.0.0.1:1";
@@ -568,4 +568,19 @@ test("the mailto encodes each part once, keeps a quote and an ampersand, and bre
   const foot = leadDraftFooter("Melany's Beauty Salon", "1 Main St, Austin, TX 78701");
   const once = leadMailto("a@b.example", "s", `Hi.${foot}`);
   assert.equal(once, leadMailto("a@b.example", "s", `Hi.${foot}`.replace(/\n/g, "\r\n")), "a body that already carries CRLF is not doubled");
+});
+
+// D5: the month rides the first page, so the workbench says what a press costs without a read of its own.
+test("the first page of leads carries the month's standing; a later page carries neither the counts nor the month", async () => {
+  const period = leadMonth("America/Chicago", new Date());
+  const rpcs = doors();
+  const tables = { ...world({ role: "owner" }), lead_counters: [{ tenant_id: A, kind: "allowance", period, used: 250, reserved: 12 }] };
+  const first = await leads.GET.run(get(`${inA}&sort=fit&dir=asc&list=all&limit=50`), ctxOf(tables, {}, rpcs));
+  assert.deepEqual([first.month.used, first.month.left], [262, 238], "used and reserved are both spoken for, out of the month's whole");
+  assert.match(first.month.renewsOn, /^[A-Z][a-z]{2} \d{1,2}$/, "the day it renews, as the owner reads it");
+  assert.ok(first.counts, "the counts ride the first page too");
+  const later = await leads.GET.run(get(`${inA}&sort=fit&dir=asc&list=all&limit=50&after_key=k&after_id=${LEAD}`), ctxOf(tables, {}, rpcs));
+  assert.deepEqual([later.month, later.counts], [undefined, undefined], "paging asks for neither again");
+  const untouched = await leads.GET.run(get(`${inA}&sort=fit&dir=asc&list=all&limit=50`), ctxOf({ ...tables, lead_counters: [] }, {}, doors()));
+  assert.deepEqual([untouched.month.used, untouched.month.left], [0, 500], "nothing taken: the month's whole is contracts'");
 });

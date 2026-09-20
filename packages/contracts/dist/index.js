@@ -11105,6 +11105,14 @@ var LEAD_STAGE_WORDS = { ready: "Ready", nurture: "Contacted", converted: "Talki
 var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
 var LEAD_FIT_WORDS = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
 var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
+var LEAD_CALL_OUTCOME_TONES = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_LIST_WORDS = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
 var LEAD_SOURCE_WORD = "Google Maps listing";
@@ -11189,7 +11197,7 @@ var LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -11218,7 +11226,13 @@ var LEAD_WORDS = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LEAD_SUGGEST_DAYS = 7;
 var LEAD_PRIOR_MIN = 25;
@@ -11712,6 +11726,43 @@ function reviewGroupOf(reason) {
   if (reason.startsWith("inferred:")) return "read_only";
   if (reason === "out_of_area") return "out_of_area";
   return null;
+}
+var LEAD_REVIEW_ACT_WORDS = { check_again: "Check again", find_email: "Find an email", keep: "Keep", exclude: "Exclude" };
+var LEAD_REVIEW_GROUP_WHY = {
+  mailbox_waiting: "The mailbox check is still running on these. Nothing to press \u2014 they move on their own.",
+  checks_out: "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
+  mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
+  bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
+  no_email: "Their home, contact and about pages were read, and no address was on any of them.",
+  catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
+  unsure: "Claude could not tell from the listing or from their site.",
+  read_only: "Only the listing says so, and this search asked to see it for itself.",
+  out_of_area: "They sit outside the area you asked for, so they were not counted."
+};
+var LEAD_CHECK_CENTS_EACH = 0.089;
+var leadCheckAgainCents = (n) => Math.max(1, Math.round(n * LEAD_CHECK_CENTS_EACH));
+function leadReviewCosts(acts, n, month) {
+  const line = (a) => {
+    switch (a) {
+      case "keep":
+        return month ? `They join Ready and count against this month. ${n} of your ${month.left} left.` : "They join Ready and count against this month.";
+      case "exclude":
+        return "They don't count, and nothing is charged.";
+      case "check_again":
+        return `About ${leadCheckAgainCents(n)}\xA2. Their answer lands here in a few minutes.`;
+      case "find_email":
+        return "Claude reads their pages again for an address.";
+    }
+  };
+  return acts.map((act) => ({ act, label: LEAD_REVIEW_ACT_WORDS[act], line: line(act) }));
+}
+function leadAskedFor(search) {
+  const plan = search?.plan;
+  if (!plan) return [];
+  return [
+    ...plan.criteria.map((c) => ({ text: c.text, kind: "criterion" })),
+    ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" }))
+  ];
 }
 function leadReviewGroups(rows, search) {
   const by = /* @__PURE__ */ new Map();
@@ -12265,9 +12316,11 @@ export {
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASSUMED_YIELD,
   LEAD_CALL_OUTCOMES,
+  LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_QUESTION,
   LEAD_CARDS,
+  LEAD_CHECK_CENTS_EACH,
   LEAD_CHECK_GROUP_WORDS,
   LEAD_CHECK_KEYS,
   LEAD_CHECK_UNSURE,
@@ -12329,6 +12382,8 @@ export {
   LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
   LEAD_REMOVE_KEEPS,
+  LEAD_REVIEW_ACT_WORDS,
+  LEAD_REVIEW_GROUP_WHY,
   LEAD_REVIEW_GROUP_WORDS,
   LEAD_REVIEW_WORD,
   LEAD_ROLE_LOCALS,
@@ -12737,7 +12792,9 @@ export {
   lastChangedWords,
   leadAllowanceFact,
   leadAnd,
+  leadAskedFor,
   leadBand,
+  leadCheckAgainCents,
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
@@ -12752,6 +12809,7 @@ export {
   leadPlanLikely,
   leadRail,
   leadReachLine,
+  leadReviewCosts,
   leadReviewGroups,
   leadSearchWords,
   leadSlots,

@@ -55,7 +55,7 @@ const leadPeekFollows = (mode, armed) => (!mode || mode === "info") && !armed;
  * it fails to load -- with Expand and Close over it; then the identity: the name, the sub-line with today's hours,
  * their own words, and where they are with the distance.
  */
-const LeadPeekHead = ({ vm, onClose, onExpand }) => {
+const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
   const W = window.__LEAD_WORDS;
   return (
     <>
@@ -65,6 +65,15 @@ const LeadPeekHead = ({ vm, onClose, onExpand }) => {
         <button type="button" className="pk-band-expand" data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} />{W.expand}</button>
         <button type="button" className="pk-x pk-band-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
       </div>
+      {/* One lead at a time (D5), on a phone: where you are in the pile, and the two ways through it. A swipe does
+          the same, and both move the page's own cursor, so the rows behind the peek move with it. */}
+      {deck ? (
+        <div className="pk-deck" data-testid="peek-deck">
+          <button type="button" className="pk-deck-btn prev" aria-label={W.deckPrev} data-testid="peek-deck-prev" disabled={deck.at <= 1} onClick={deck.onPrev}><Icon name="chevron" size={13} /></button>
+          <span className="pk-deck-n" data-testid="peek-deck-at">{W.deckOf(deck.at, deck.of)}</span>
+          <button type="button" className="pk-deck-btn" aria-label={W.deckNext} data-testid="peek-deck-next" disabled={deck.at >= deck.of} onClick={deck.onNext}><Icon name="chevron" size={13} /></button>
+        </div>
+      ) : null}
       <div className="pk-identity" data-testid="peek-identity">
         <h2 className="pk-name" data-testid="peek-name">{vm.name}</h2>
         <div className="pk-sub-line">
@@ -200,7 +209,7 @@ const LeadSentAsk = ({ busy, on }) => {
 };
 
 /** "How did the call go?" -- the six outcomes, a note, and Save (PRD 9.4). On a phone they are a 2 x 3 grid. */
-const LeadCallAsk = ({ armed, busy, on }) => {
+const LeadCallAsk = ({ armed, busy, on, deck }) => {
   const W = window.__LEAD_WORDS;
   const note = (armed && armed.note) || "";
   const left = W.noteMax - note.length;
@@ -214,10 +223,10 @@ const LeadCallAsk = ({ armed, busy, on }) => {
             type="button"
             role="radio"
             aria-checked={armed && armed.outcome === o.id}
-            className={`pk-chip${armed && armed.outcome === o.id ? " on" : ""}`}
+            className={`pk-chip tone-${o.tone || "quiet"}${armed && armed.outcome === o.id ? " on" : ""}`}
             data-testid={`peek-outcome-${o.id}`}
             onClick={() => on.onOutcome(o.id)}
-          >{o.label}</button>
+          ><span className="dot" aria-hidden="true" />{o.label}</button>
         ))}
       </div>
       <input
@@ -232,8 +241,13 @@ const LeadCallAsk = ({ armed, busy, on }) => {
         onChange={(e) => on.onNote(e.target.value)}
       />
       <div className="pk-note-left" id="peek-note-left" data-testid="peek-note-left">{W.noteLeft(left, W.noteMax)}</div>
+      <div className="pk-note-left">{W.callSavedNote}</div>
       <div className="row">
         <button type="button" className="btn btn-primary btn-sm" disabled={busy || !(armed && armed.outcome)} data-testid="peek-call-save" onClick={on.onSaveCall}>{W.callSave}</button>
+        {/* On a phone the pile is the work: save this one and move on in one press (D5). */}
+        {deck && deck.at < deck.of
+          ? <button type="button" className="btn btn-sm" disabled={busy || !(armed && armed.outcome)} data-testid="peek-call-save-next" onClick={async () => { await on.onSaveCall(); deck.onNext(); }}>{W.callSaveNext}</button>
+          : null}
         <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-call-cancel" onClick={on.onCancelCall}>{W.callCancel}</button>
       </div>
     </div>
@@ -278,7 +292,7 @@ const LeadDraftPane = ({ vm, draft, busy, on }) => {
   );
 };
 
-const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
+const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
   const W = window.__LEAD_WORDS;
   return (
     <>
@@ -304,7 +318,7 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
       {mode === "why" ? <LeadNotFitWhy busy={busy} on={on} /> : null}
       <div className="pk-body">
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
-        {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} /> : null}
+        {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} deck={deck} /> : null}
         {/* The verdict (D5): the fit as a word and the sentence behind it, in a card that wears the fit's tint. */}
         <div className={`pk-verdict ${vm.fit.cls}`} data-testid="peek-verdict">
           <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
@@ -417,14 +431,30 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
  * One lead, beside the rows. role="dialog" with .pl-peek, which PL_OVERLAY names apart (the page's own overlay), so
  * J and K keep walking the rows behind it and Esc reaches the page's one listener.
  */
-const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false, ...on }) => {
+const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false, deck = null, ...on }) => {
   if (!vm) return null;
+  // A swipe is the deck's two buttons under a thumb (D5): 80px of travel, and only across, so a scroll is never
+  // a move. Nothing is kept between draws -- the start is a property of the element the browser hands back.
+  const swipe = deck
+    ? {
+        onTouchStart: (e) => { const t = e && e.touches && e.touches[0]; if (t) { e.currentTarget.dataset.sx = String(t.clientX); e.currentTarget.dataset.sy = String(t.clientY); } },
+        onTouchEnd: (e) => {
+          const t = e && e.changedTouches && e.changedTouches[0];
+          const sx = Number(e.currentTarget.dataset.sx);
+          const sy = Number(e.currentTarget.dataset.sy);
+          if (!t || Number.isNaN(sx)) return;
+          const dx = t.clientX - sx;
+          if (Math.abs(dx) < 80 || Math.abs(t.clientY - sy) > Math.abs(dx)) return;
+          if (dx < 0) deck.onNext(); else deck.onPrev();
+        },
+      }
+    : {};
   return (
-    <aside className="pk pl-peek" role="dialog" aria-label={vm.name} data-testid="lead-peek">
-      <LeadPeekHead vm={vm} onClose={on.onClose} onExpand={on.onExpand} />
+    <aside className="pk pl-peek" role="dialog" aria-label={vm.name} data-testid="lead-peek" {...swipe}>
+      <LeadPeekHead vm={vm} onClose={on.onClose} onExpand={on.onExpand} deck={deck} />
       {mode === "draft"
         ? <LeadDraftPane vm={vm} draft={draft} busy={busy} on={on} />
-        : <LeadPeekInfo vm={vm} mode={mode} armed={armed} busy={busy} on={on} />}
+        : <LeadPeekInfo vm={vm} mode={mode} armed={armed} busy={busy} on={on} deck={deck} />}
     </aside>
   );
 };

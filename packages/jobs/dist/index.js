@@ -1104,6 +1104,14 @@ var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
 var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_TONES = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS = {
@@ -1154,7 +1162,7 @@ var LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -1183,7 +1191,13 @@ var LEAD_WORDS = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LeadsQuerySchema = z7.object({
   list: z7.enum(LEAD_LISTS).default("all"),
@@ -7230,6 +7244,14 @@ var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES2 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
 var LEAD_CLOSED_WORDS2 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_TONES2 = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS2 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS2 = {
@@ -7280,7 +7302,7 @@ var LEAD_WORDS2 = {
   callQuestion: LEAD_CALL_QUESTION2,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS2[id] })),
+  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS2[id], tone: LEAD_CALL_OUTCOME_TONES2[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER2,
   noteMax: LEAD_NOTE_MAX2,
@@ -7309,7 +7331,13 @@ var LEAD_WORDS2 = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LeadsQuerySchema2 = z72.object({
   list: z72.enum(LEAD_LISTS2).default("all"),
@@ -9444,6 +9472,14 @@ var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES3 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS3 = ["chain", "wrong_kind", "too_far", "customer", "other"];
 var LEAD_CLOSED_WORDS3 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_TONES3 = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS3 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE3 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS3 = {
@@ -9494,7 +9530,7 @@ var LEAD_WORDS3 = {
   callQuestion: LEAD_CALL_QUESTION3,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS3[id] })),
+  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS3[id], tone: LEAD_CALL_OUTCOME_TONES3[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER3,
   noteMax: LEAD_NOTE_MAX3,
@@ -9523,7 +9559,13 @@ var LEAD_WORDS3 = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LeadsQuerySchema3 = z73.object({
   list: z73.enum(LEAD_LISTS3).default("all"),
@@ -10748,6 +10790,14 @@ var LEAD_SORTS22 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES22 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS22 = ["chain", "wrong_kind", "too_far", "customer", "other"];
 var LEAD_CLOSED_WORDS22 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_TONES22 = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS22 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE22 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS22 = {
@@ -10798,7 +10848,7 @@ var LEAD_WORDS22 = {
   callQuestion: LEAD_CALL_QUESTION22,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES22.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS22[id] })),
+  outcomes: LEAD_CALL_OUTCOMES22.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS22[id], tone: LEAD_CALL_OUTCOME_TONES22[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER22,
   noteMax: LEAD_NOTE_MAX22,
@@ -10827,7 +10877,13 @@ var LEAD_WORDS22 = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LeadsQuerySchema22 = z722.object({
   list: z722.enum(LEAD_LISTS22).default("all"),
@@ -11923,6 +11979,14 @@ var LEAD_SORTS32 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES32 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS32 = ["chain", "wrong_kind", "too_far", "customer", "other"];
 var LEAD_CLOSED_WORDS32 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_TONES32 = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS32 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE32 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS32 = {
@@ -11973,7 +12037,7 @@ var LEAD_WORDS32 = {
   callQuestion: LEAD_CALL_QUESTION32,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES32.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS32[id] })),
+  outcomes: LEAD_CALL_OUTCOMES32.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS32[id], tone: LEAD_CALL_OUTCOME_TONES32[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER32,
   noteMax: LEAD_NOTE_MAX32,
@@ -12002,7 +12066,13 @@ var LEAD_WORDS32 = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LeadsQuerySchema32 = z732.object({
   list: z732.enum(LEAD_LISTS32).default("all"),
@@ -13586,6 +13656,14 @@ var LEAD_SORTS4 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES4 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS4 = ["chain", "wrong_kind", "too_far", "customer", "other"];
 var LEAD_CLOSED_WORDS4 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_TONES4 = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS4 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_DRAFT_NOTE4 = "Your business address and a way to say no are added at the foot, as US law asks.";
 var LEAD_NOT_A_FIT_WORDS4 = {
@@ -13636,7 +13714,7 @@ var LEAD_WORDS4 = {
   callQuestion: LEAD_CALL_QUESTION4,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES4.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS4[id] })),
+  outcomes: LEAD_CALL_OUTCOMES4.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS4[id], tone: LEAD_CALL_OUTCOME_TONES4[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER4,
   noteMax: LEAD_NOTE_MAX4,
@@ -13665,7 +13743,13 @@ var LEAD_WORDS4 = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LeadsQuerySchema4 = z74.object({
   list: z74.enum(LEAD_LISTS4).default("all"),

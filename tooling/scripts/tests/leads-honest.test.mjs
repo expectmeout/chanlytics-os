@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
-import { leadEndingLine, leadReviewGroups, leadBand, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadEndingLine, leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -97,6 +97,7 @@ const surface = (over = {}) => ({
   view: { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" },
   route: "clients/leads",
   suggestions: null,
+  month: { used: 262, left: 238, renewsOn: "Oct 1" },
   tz: TZ,
   readFailed: false,
   fetchedAt: NOW.getTime(),
@@ -257,7 +258,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsStanding: leadsStanding,
     // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
     // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
-    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand },
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand, leadReviewCosts, leadAskedFor, LEAD_REVIEW_ACT_WORDS, LEAD_REVIEW_GROUP_WHY },
     __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
@@ -397,36 +398,46 @@ test("a suggestion picked on the first day fills the composer, and the composer 
 // D3: Needs review is a queue. Its head is one chip per thing that would resolve the leads in it; a chip selects
 // them; the bar offers what resolves that selection and nothing else; a resolver whose courier is not installed
 // is not drawn, so the bar never offers what the door cannot do.
-test("Needs review is a queue: a chip per resolver selects its leads, and the bar offers only what resolves them", async () => {
+test("Needs review is a workbench: the pile in the order to work it, the group's own leads as cards, one press per group, and what each press costs", async () => {
   fresh();
   let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
-  const chips = all(byTestId(tree, "lead-review-groups"), (n) => n.type === "button");
-  assert.deepEqual(chips.map((c) => textOf(c)), ["Their mail server wouldn't answer 1"], "one group, its count beside it");
-  chips[0].props.onClick();
-  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
-  const bar = byTestId(tree, "leads-bulk-bar");
-  assert.match(textOf(bar), /^1 selected/);
-  assert.ok(byTestId(bar, "leads-bulk-keep") && byTestId(bar, "leads-bulk-exclude"), "Keep and Exclude resolve a mail server that would not answer");
-  assert.equal(byTestId(bar, "leads-bulk-check-again"), null, "Check again waits for its courier (00145): nothing on the bar is a dead control");
-  assert.equal(byTestId(bar, "leads-bulk-find-email"), null);
-  byTestId(bar, "leads-bulk-keep").props.onClick();
+  const bench = byTestId(tree, "lead-bench");
+  assert.ok(bench, "Needs review stops being a tab on a table");
+  assert.equal(find(tree, (n) => n.type === "table"), null, "the table gives way to the bench: the pile is the work");
+  const queue = all(byTestId(bench, "lead-bench-queue"), (n) => n.props?.role === "tab");
+  assert.deepEqual(queue.map((q) => textOf(q)), ["1Their mail server wouldn't answerCheck again · Keep · Exclude"], "one row per thing that would resolve a pile, with its count and its acts in words");
+  assert.equal(textOf(byTestId(bench, "bench-title")), "Their mail server wouldn't answer1");
+  assert.match(textOf(byTestId(bench, "bench-why")), /^Their mail server did not answer the check/, "and a sentence saying what is true of every lead in it");
+  assert.deepEqual(all(bench, (n) => n.props?.["data-testid"] === "lead-bench-card").map((c) => textOf(byTestId(c, "bench-card-name"))), ["Lamar Strength Co."], "the group's own leads, as cards");
+  assert.equal(byTestId(bench, "bench-act-check_again"), null, "Check again waits for its courier (00145): nothing on the bench is a dead control");
+  assert.ok(byTestId(bench, "bench-act-keep") && byTestId(bench, "bench-act-exclude"), "Keep and Exclude resolve a mail server that would not answer");
+  assert.match(textOf(byTestId(bench, "bench-cost-keep")), /count against this month\. 1 of your 238 left\./, "what a press costs is the surface's own month, never a number the page made up");
+  assert.match(textOf(byTestId(bench, "bench-asked")), /With a website/, "and what the search asked for, in the owner's own words");
+  byTestId(bench, "bench-act-keep").props.onClick();
   await settle();
-  assert.deepEqual(calls.at(-1), ["bulk", { by: "ids", action: "keep", ids: ["l3"], search_id: SEARCH_A }], "Keep in bulk goes through the bulk door, naming the search the pile is read in");
+  assert.deepEqual(calls.at(-1), ["bulk", { by: "ids", action: "keep", ids: ["l3"], search_id: SEARCH_A }], "the bench's Keep is the same bulk door the bar presses");
   assert.equal(flashes.at(-1).msg, "Done.", "the door's own sentence is the flash");
 
+  // With its courier, Check again draws on the bar with its count and its cost.
   globalThis.window.__leadCheckAgain = async (ids) => { calls.push(["check_again", ids]); return ok({ scheduled: ids.length, skipped: 0, toast: "Checking 1 again." }); };
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
-  all(byTestId(tree, "lead-review-groups"), (n) => n.type === "button")[0].props.onClick();
-  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
-  assert.match(textOf(byTestId(tree, "leads-bulk-check-again")), /Check 1 again · about 1¢/, "with its courier, the act draws with its count and its cost");
-  byTestId(tree, "leads-bulk-check-again").props.onClick();
+  assert.equal(textOf(byTestId(tree, "bench-act-check_again")), "Check again 1");
+  assert.match(textOf(byTestId(tree, "bench-cost-check_again")), /About 1¢. Their answer lands here/, "the act, and what it costs, side by side");
+  byTestId(tree, "bench-act-check_again").props.onClick();
   await settle();
   assert.deepEqual(calls.at(-1), ["check_again", ["l3"]]);
   assert.equal(flashes.at(-1).msg, "Checking 1 again.");
   delete globalThis.window.__leadCheckAgain;
 
+  // A card's own Keep is the row's own door, one lead, as it is on a row.
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  byTestId(all(byTestId(tree, "lead-bench"), (n) => n.props?.["data-testid"] === "lead-bench-card")[0], "bench-card-keep").props.onClick({ stopPropagation() {} });
+  await settle();
+  assert.deepEqual(calls.at(-1), ["keep", { search_id: SEARCH_A, id: "l3" }]);
+
   fresh({ leads: surface({ rows: [] }) }); // the server answered the review view with nothing
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  assert.equal(byTestId(tree, "lead-bench"), null, "no pile, no bench");
   assert.match(textOf(tree), /Nothing needs a look./, "an empty queue says so");
 });
 

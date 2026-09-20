@@ -352,6 +352,109 @@ const LeadReviewGroups = ({ groups, onPick }) => (
   )
 );
 
+/* ------------------------------------------- Needs review, as a workbench (D5) */
+// Needs review stops being a tab on a table. The pile is on the left, in the order an owner works it (contracts'
+// leadReviewGroups: what settles itself, then what one press settles, then what needs an eye); the group being
+// worked is in the middle, as cards, with its own acts on a bar over them; and on the right, what each press does
+// and costs, what the search asked for, and -- when the round ran dry -- where to look next (00145's own areas).
+//
+// Every word here is contracts': the group's label and the sentence under it, the act's word, the cost line, the
+// criteria in the owner's own words. The acts are the same doors the bulk bar uses, so a press on the bench and a
+// press on the bar are one act.
+const LeadReviewBench = ({ groups, rows, groupKey, onGroup, search, month, review, x, onNearby }) => {
+  const V = window.__LEAD_VM || {};
+  const g = groups.find((y) => y.key === groupKey) || groups[0];
+  const ids = g.ids;
+  const cards = rows.filter((l) => ids.indexOf(l.id) >= 0);
+  const costs = V.leadReviewCosts ? V.leadReviewCosts(g.acts, ids.length, month) : [];
+  const asked = V.leadAskedFor ? V.leadAskedFor(search) : [];
+  const nearby = (search && search.round && search.round.nearby) || [];
+  const words = V.LEAD_REVIEW_ACT_WORDS || {};
+  // An act draws only where its door exists, as the bulk bar's do: nothing on this bench is ever dead.
+  const can = (a) => (a === "check_again" ? review.canCheckAgain : a === "find_email" ? review.canFindEmail : true);
+  const press = (a) => (a === "check_again" ? review.onCheckAgain(ids) : a === "find_email" ? review.onFindEmail(ids) : a === "keep" ? review.onKeep(ids) : review.onExclude(ids));
+  return (
+    <div className="ld-bench" data-testid="lead-bench">
+      <div className="ld-bench-queue" role="tablist" aria-label="What would resolve these leads" data-testid="lead-bench-queue">
+        <div className="ld-bench-qh">The pile, in the order to work it</div>
+        {groups.map((y) => (
+          <button key={y.key} type="button" role="tab" aria-selected={y.key === g.key} className={`ld-bench-g ${y.id}${y.key === g.key ? " on" : ""}`} onClick={() => onGroup(y.key)} data-testid={`bench-group-${y.key}`}>
+            <span className="n">{y.ids.length}</span>
+            <span className="l">{y.label}</span>
+            <span className="a">{y.acts.length ? y.acts.map((a) => words[a] || a).join(" · ") : "Resolves itself"}</span>
+          </button>
+        ))}
+      </div>
+
+      <div className="ld-bench-main">
+        <div className="ld-bench-head">
+          <h3 className="ld-bench-t" data-testid="bench-title">{g.label}<span className="count">{ids.length}</span></h3>
+          <p className="ld-bench-why" data-testid="bench-why">{(V.LEAD_REVIEW_GROUP_WHY || {})[g.id]}</p>
+          <div className="ld-bench-acts" data-testid="bench-acts">
+            {g.acts.filter(can).map((a) => (
+              <button key={a} type="button" className={`btn btn-sm${a === "keep" ? " btn-primary" : ""}`} onClick={() => press(a)} data-testid={`bench-act-${a}`} {...(x.canFind ? {} : window.gate("find", "work these leads"))}>
+                {words[a] || a} {ids.length}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="ld-bench-cards">
+          {cards.map((l) => (
+            <div key={l.id} id={`lead-${l.id}`} className="ld-bench-card" data-testid="lead-bench-card" onClick={() => x.onOpen(l.id)}>
+              <LeadTile l={l} size={40} />
+              <div className="b">
+                <div className="n">
+                  <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} data-testid="bench-card-name">{l.name}</button>
+                </div>
+                <div className="s">{l.sub}</div>
+                <div className="w">{l.why}</div>
+              </div>
+              <div className="r">
+                <span className="ld-slots values">
+                  <LeadSlot id={l.id} kind="phone" slot={l.slots.phone} values onPress={l.slots.phone.value && l.slots.phone.state !== "bad" ? () => x.onCall(l.id) : null} pressLabel="press to call" />
+                  <LeadSlot id={l.id} kind="mailbox" slot={l.slots.mailbox} values onPress={l.slots.mailbox.copy ? () => x.onCopy(l.id) : null} pressLabel="press to copy" />
+                </span>
+                <span className="ld-bench-card-acts">
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); x.onKeep(l.id); }} data-testid="bench-card-keep" {...(x.canFind ? {} : window.gate("find", "keep this lead"))}>{words.keep || "Keep"}</button>
+                  <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); x.onExclude(l.id); }} data-testid="bench-card-exclude" {...(x.canFind ? {} : window.gate("find", "exclude this lead"))}>{words.exclude || "Exclude"}</button>
+                </span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="ld-bench-side">
+        <div className="ld-bench-block" data-testid="lead-bench-costs">
+          <div className="pk-label">What each press does</div>
+          {costs.length === 0 ? <p className="ld-bench-quiet">Nothing to press: these settle themselves.</p> : null}
+          {costs.map((c) => (
+            <div key={c.act} className="ld-bench-cost" data-testid={`bench-cost-${c.act}`}>
+              <b>{c.label}</b>
+              <span>{c.line}</span>
+            </div>
+          ))}
+        </div>
+        {asked.length ? (
+          <div className="ld-bench-block" data-testid="bench-asked">
+            <div className="pk-label">What this search asked for</div>
+            {asked.map((a) => <div key={`${a.kind}-${a.text}`} className={`ld-bench-asked-row ${a.kind}`}>{a.text}</div>)}
+          </div>
+        ) : null}
+        {nearby.length ? (
+          <div className="ld-bench-block" data-testid="bench-dry">
+            <div className="pk-label">This round ran dry</div>
+            <p className="ld-bench-quiet">Nothing new was left where it looked. The nearest areas past it:</p>
+            <div className="ld-bench-nearby">
+              {nearby.map((a) => <button key={a.label} type="button" className="ld-band-fit" onClick={() => onNearby(a)} data-testid={`bench-nearby-${a.zip || a.label}`}>{a.label}</button>)}
+            </div>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+};
+
 /* --------------------------------------------------------------- the bulk bar */
 
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
@@ -562,10 +665,24 @@ const LeadsScope = (p) => {
 
           {search && p.band && <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />}
           {p.view.cls === "excluded" && <LeadExcludedChips chips={chips} active={p.chip} onPick={p.onPickChip} />}
-          {p.view.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups && <LeadReviewGroups groups={window.__LEAD_VM.leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />}
+          {p.view.cls === "review" && !p.benchGroups.length && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups && <LeadReviewGroups groups={window.__LEAD_VM.leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />}
 
           {L.readFailed
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
+            : p.view.cls === "review" && p.benchGroups.length
+            ? (
+              <LeadReviewBench
+                groups={p.benchGroups}
+                rows={p.rows}
+                groupKey={p.benchGroup}
+                onGroup={p.onBenchGroup}
+                search={search}
+                month={p.month}
+                review={p.review}
+                x={p.cellCtx}
+                onNearby={p.onNearby}
+              />
+            )
             : p.firstDay
             ? (
               <LeadsFirstDay
@@ -689,7 +806,8 @@ const LeadsScope = (p) => {
           });
           // Call is the acts' own: it arms "How did the call go?" and then hands the tel: to the browser, which
           // is exactly what C over the rows does (clients-a.jsx's callLead), so both end in the same place.
-          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} {...acts} />;
+          // The deck is a phone's (D5): one lead at a time, with the pile's place under the thumb.
+          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} deck={phone ? p.deck : null} {...acts} />;
         })()}
         {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same
             searches and the same New search. People's own sheet (clients-a.jsx), which owns its Esc, so the
@@ -704,4 +822,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadReviewBench, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
