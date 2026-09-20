@@ -75,7 +75,13 @@ function isPlatformDefault(url: string): boolean {
 }
 
 /** No real address holds these, and each is a character that could close the HTML attribute or SQL literal it sits in. */
-const UNSAFE_IN_AN_ADDRESS = /[\s"'<>\`{}|^]/;
+const UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
+
+/** True when the address holds something no address holds: a space, a quote, a bracket, or any control character. */
+function holdsUnsafe(url: string): boolean {
+  for (const ch of url) if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 0x20 || ch.charCodeAt(0) === 0x7f) return true;
+  return false;
+}
 
 /**
  * An href is HTML before it is an address: a browser decodes its entities before it fetches, and so must we. A real
@@ -113,7 +119,7 @@ function absolute(href: string, origin: string): string | null {
   // one that can be seen, and the photo takes over if it turns out it cannot.
   const secure = url.replace(/^http:\/\//i, "https://");
   // A builder's own default is refused here, so BOTH readings below fall through to whatever else the page declares.
-  if (UNSAFE_IN_AN_ADDRESS.test(secure)) return null;
+  if (holdsUnsafe(secure)) return null;
   // `https://host` and `https://host/` are the site's own front door: its home page is HTML, never an image.
   const slash = secure.indexOf("/", "https://".length);
   if (slash === -1 || slash === secure.length - 1) return null;
