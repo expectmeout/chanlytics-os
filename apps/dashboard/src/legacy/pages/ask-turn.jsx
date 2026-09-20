@@ -87,14 +87,19 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   const [armUndo, setArmUndo] = useAtState(false);
   const [busy, setBusy] = useAtState(false);
   const [err, setErr] = useAtState("");
+  // A lead_search card IS the finder's plan card (Task 9): its words are the
+  // same pickers, so a plan changed here and a plan changed on Leads cannot say
+  // different things. The edited plan and the open picker are this turn's.
+  const [edited, setEdited] = useAtState(null);
+  const [pick, setPick] = useAtState(null);
   const gateKey = (window.PROPOSAL_GATE || {})[p.kind] || "approve";
   const gated = window.canDo ? !window.canDo(gateKey) : false;
   const pl = p.payload || {};
   const record = (o) => { if (A && messageId && /^[0-9a-f-]{36}$/.test(messageId)) A.outcome(messageId, p.id, o); };
-  const approve = async () => {
+  const approveWith = async (proposal) => {
     if (busy || !A) return;
     setBusy(true); setErr("");
-    const r = await A.commit(p);
+    const r = await A.commit(proposal);
     setBusy(false);
     if (r.ok) {
       const at = Date.now();
@@ -105,6 +110,7 @@ const AskCard = ({ p, messageId, t, onNav }) => {
       record({ state: "failed", receipt: r.message, atMs: Date.now(), undo: null });
     }
   };
+  const approve = () => approveWith(p);
   const dismiss = () => { setState("dismissed"); record({ state: "dismissed", receipt: t.notNow, atMs: Date.now(), undo: null }); };
   const undo = async () => {
     if (busy || !A) return;
@@ -125,7 +131,21 @@ const AskCard = ({ p, messageId, t, onNav }) => {
   return (
     <div className={`ask-card ${state}`} data-testid="ask-card" data-kind={p.kind}>
       <div className="ask-card-head"><Icon name={ICON[p.kind] || "inbox"} size={12} />{p.title}<span className="ask-card-kind">{KIND[p.kind] || p.kind}</span></div>
-      <div className="ask-card-summary">{p.summary}</div>
+      {p.kind === "lead_search" && state === "idle" && pl.plan && window.LeadPlanCard
+        ? window.LeadPlanCard({
+          plan: edited || pl.plan,
+          view: pl.view || null,
+          facts: pl.facts || null,
+          busy,
+          refusal: err,
+          baseVersion: pl.plan.version || 1,
+          pick,
+          onPick: setPick,
+          onChange: setEdited,
+          onApprove: () => approveWith({ ...p, payload: { ...pl, plan: edited || pl.plan } }),
+          onBack: () => { if (A) A.editReply(p); },
+        })
+        : <div className="ask-card-summary">{p.summary}</div>}
       {p.kind === "reply" && pl.price_warning && state === "idle" && <div className="ask-card-note">{t.priceNote}</div>}
       {p.kind === "reply" && pl.window_open === false && state === "idle" && <div className="ask-card-note">{t.windowNote}</div>}
       {state === "idle" && (

@@ -161,10 +161,10 @@ test("the card carries the facts under the sentence: what a search would skip, w
   assert.deepEqual(out.proposal.payload.facts, {
     dupes: 172,
     leadsLeft: 328,
-    bound: "month",
+    bound: "allowance",
     prior: { places: 1200, matched: 700, with_email: 406 },
     priorOf: "personal_trainer",
-    cannotSee: [],
+    cannotSee: null,
     renewsOn: "Oct 1",
     nearby: [],
   });

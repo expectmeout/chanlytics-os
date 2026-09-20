@@ -516,7 +516,7 @@ test("the plan card's facts are the month's own numbers and what past searches m
   const rpcs = doors();
   const ctx = ctxOf(world({ role: "owner" }), {}, rpcs);
   const bare = await planFacts(ctx, A);
-  assert.deepEqual([bare.dupes, bare.leadsLeft, bare.prior, bare.priorOf, bare.cannotSee, bare.nearby], [322, 486, null, null, [], []]);
+  assert.deepEqual([bare.dupes, bare.leadsLeft, bare.prior, bare.priorOf, bare.cannotSee, bare.nearby], [322, 486, null, null, null, []]);
   assert.equal(bare.renewsOn, "Oct 1", "the month the leads come back");
   // The two caps are sized to run out together (500 leads for $25), so which
   // binds is which one this workspace is nearer: $1.50 spent on 14 leads is
@@ -524,10 +524,13 @@ test("the plan card's facts are the month's own numbers and what past searches m
   assert.equal(bare.bound, "budget");
   const slow = world({ role: "owner" });
   slow.lead_counters = [{ tenant_id: A, kind: "allowance", period: "2026-09", used: 400, reserved: 0 }, { tenant_id: A, kind: "budget", period: "2026-09", used: 5, reserved: 0 }];
-  assert.deepEqual([(await planFacts(ctxOf(slow, {}, rpcs), A)).bound, (await planFacts(ctxOf(slow, {}, rpcs), A)).leadsLeft], ["month", 100], "400 of the month's leads found for $5: the leads bind first");
-  const withPrior = await planFacts(ctx, A, { categoryKey: "personal_trainer", nearby: ["South Austin"] });
+  assert.deepEqual([(await planFacts(ctxOf(slow, {}, rpcs), A)).bound, (await planFacts(ctxOf(slow, {}, rpcs), A)).leadsLeft], ["allowance", 100], "400 of the month's leads found for $5: the leads bind first");
+  // The card's area picker offers areas, not words: what it hands the plan is
+  // what a round would be started with.
+  const southAustin = { kind: "city", label: "South Austin, TX", state: "TX", center: { lat: 30.2276, lng: -97.7713 }, radius_m: 15_000, query: "South Austin, TX, USA" };
+  const withPrior = await planFacts(ctx, A, { categoryKey: "personal_trainer", nearby: [southAustin] });
   assert.deepEqual(withPrior.prior, { places: 1200, matched: 700, with_email: 406 });
-  assert.deepEqual([withPrior.priorOf, withPrior.nearby], ["personal_trainer", ["South Austin"]]);
+  assert.deepEqual([withPrior.priorOf, withPrior.nearby], ["personal_trainer", [southAustin]]);
   const spent = world({ role: "owner" });
   spent.lead_counters = [{ tenant_id: A, kind: "allowance", period: "2026-09", used: 10, reserved: 0 }, { tenant_id: A, kind: "budget", period: "2026-09", used: 24, reserved: 0 }];
   assert.equal((await planFacts(ctxOf(spent, {}, rpcs), A)).bound, "budget", "the money runs out before the leads do");

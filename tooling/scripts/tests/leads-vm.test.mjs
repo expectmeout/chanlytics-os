@@ -17,8 +17,9 @@ import {
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadRowVM, leadRail, leadsStanding,
   leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
+  leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
-import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS } from "../../../packages/contracts/src/lead-search.ts";
+import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------ the fixtures */
 
@@ -226,4 +227,44 @@ test("a kept search says what was asked, in the owner's words and the date they 
   });
   assert.deepEqual(leadSearchWords({ ...s, plan: { criteria: [], exclusions: [] } }, "America/Chicago").askedLine, "You asked on Sep 18: “personal trainers in Austin with a website, about 200”.", "nothing left out, nothing said about it");
   assert.deepEqual(leadSearchWords(null, "America/Chicago"), { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS }, "a search the page does not hold says nothing about what was asked");
+});
+
+/* ------------------------------------------------- the plan card's words (Task 9) */
+
+const CARD_PLAN = LeadSearchPlanSchema.parse({
+  version: 1, card: "local_businesses", name: "personal trainers", asked: "200 personal trainers in Austin with a website",
+  terms: ["personal trainer", "strength coach", "fitness coach"],
+  area: { kind: "city", label: "Austin, TX", state: "TX", center: { lat: 30.2672, lng: -97.7431 }, radius_m: 25_000, query: "Austin, TX, USA" },
+  count: 200, contact: "email",
+  criteria: [{ key: "website", text: "With a website", standard: "likely", required: true }],
+  exclusions: [{ key: "chain", text: "Chain gyms", origin: "claude" }],
+});
+
+const PLAN_FACTS = { dupes: 14, leadsLeft: 486, bound: null, prior: { places: 1_200, matched: 700, with_email: 406 }, priorOf: "trainers", cannotSee: null, renewsOn: "Oct 1", nearby: [] };
+
+test("the plan card's facts are the PRD's three, in leads, with no dollar meter", () => {
+  assert.deepEqual(leadPlanFacts(CARD_PLAN, PLAN_FACTS), [
+    "About 8 minutes — leave the page if you like",
+    "Skips the 14 already yours",
+    "Counts only matches you can reach · 486 left this month",
+  ]);
+  assert.equal(/\$/.test(leadPlanFacts(CARD_PLAN, PLAN_FACTS).join(" ")), false);
+});
+
+test("Likely says what past searches found, and a kind never searched says the share is checked after the first 25", () => {
+  assert.deepEqual(leadPlanLikely(CARD_PLAN, PLAN_FACTS), { emailPct: 58, phonePct: 42, line: "About 116 will have an email; the rest you call · from past searches for trainers" });
+  const fresh = leadPlanLikely(CARD_PLAN, { ...PLAN_FACTS, prior: null });
+  assert.deepEqual(fresh, { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." });
+  const thin = leadPlanLikely(CARD_PLAN, { ...PLAN_FACTS, prior: { places: 12, matched: 7, with_email: 4 } });
+  assert.equal(thin.emailPct, null, "too few places judged to say a number from");
+});
+
+test("when a limit binds, the count is clamped to what is left, the button says that number and one sentence says why", () => {
+  assert.deepEqual(leadPlanAsk(CARD_PLAN, PLAN_FACTS), { count: 200, label: "Find 200 leads", covers: null });
+  const budget = leadPlanAsk(CARD_PLAN, { ...PLAN_FACTS, leadsLeft: 60, bound: "budget" });
+  assert.deepEqual(budget, { count: 60, label: "Find 60 leads", covers: "Emails for personal trainers are hard to find, so this month covers about 60 more. Find 60 now?" });
+  const month = leadPlanAsk(CARD_PLAN, { ...PLAN_FACTS, leadsLeft: 36, bound: "allowance" });
+  assert.deepEqual(month, { count: 36, label: "Find 36 leads", covers: "You have 36 leads left this month. Your leads renew on Oct 1." });
+  assert.equal(/\$/.test(`${budget.covers} ${month.covers}`), false, "no dollar meter, ever");
+  assert.equal(leadPlanAsk(CARD_PLAN, { ...PLAN_FACTS, leadsLeft: 600, bound: "allowance" }).covers, null, "a limit above the ask does not bind");
 });

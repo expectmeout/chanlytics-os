@@ -6,11 +6,11 @@
  */
 import {
   AppError,
-  LEAD_CHECK_KEYS, LEAD_DRAFT_JSON_SCHEMA, LEAD_EMAIL_WORDS, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NO_ADDRESS, LEAD_PROBE_PLACES,
+  LEAD_ASSUMED_YIELD, LEAD_CHECK_KEYS, LEAD_DRAFT_JSON_SCHEMA, LEAD_EMAIL_WORDS, LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_NO_ADDRESS, LEAD_PROBE_PLACES,
   LEAD_STAGE_WORDS, LEAD_SUGGEST_DAYS, LEAD_SUGGEST_JSON_SCHEMA, LEAD_SUGGEST_UNAVAILABLE,
   LeadDraftAnswerSchema, LeadSuggestAnswerSchema,
   clockDate, estimateRoundUsd, leadDraftFooter, leadMonth, leadReachLine, parseTenantConfig, placesToAsk, siteHost, stageArgs, wallClockAt,
-  type LeadCheck, type LeadCheckKey, type LeadClass, type LeadCounts, type LeadEmailState, type LeadNichePrior, type LeadPlanFacts,
+  type LeadArea, type LeadCheck, type LeadCheckKey, type LeadClass, type LeadCounts, type LeadEmailState, type LeadNichePrior, type LeadPlanFacts,
   type LeadRoundEnding, type LeadRoundPurpose, type LeadRowDto, type LeadSearchDto, type LeadSearchPlan, type LeadStage, type LeadStageInput,
   type LeadSuggestionsDto, type LeadsBulkInput, type LeadsQuery,
 } from "@chanlytics/contracts";
@@ -135,8 +135,8 @@ export function refusalOf(a: DoorAnswer): AppError | null {
   }
 }
 
-/** The yield assumed before a probe has measured one: half the places qualify. */
-export const ASSUMED_YIELD = 0.5;
+/** The yield assumed before a probe has measured one: half the places qualify (contracts' LEAD_ASSUMED_YIELD, which the plan card's minutes read too). */
+export const ASSUMED_YIELD = LEAD_ASSUMED_YIELD;
 
 /**
  * What a round is expected to cost, from the card's brief prices: the probe and
@@ -496,7 +496,7 @@ export async function nichePrior(ctx: Pick<RouteContext, "supabase">, categoryKe
 export async function planFacts(
   ctx: Pick<RouteContext, "supabase">,
   tenantId: string,
-  opts: { categoryKey?: string | null; nearby?: string[]; cannotSee?: string[]; now?: Date } = {},
+  opts: { categoryKey?: string | null; nearby?: LeadArea[]; cannotSee?: LeadPlanFacts["cannotSee"]; now?: Date } = {},
 ): Promise<LeadPlanFacts> {
   // The month, and the day it renews, are the BUSINESS's (lead_month): a turn
   // that carries its own moment hands it in rather than reading the server's.
@@ -514,8 +514,11 @@ export async function planFacts(
   // names the budget for the other. Neither touched binds nothing.
   const usedLeads = LEAD_MONTHLY_ALLOWANCE - leadsLeft;
   const usedUsd = LEAD_MONTHLY_BUDGET_USD - budgetLeftUsd;
+  // The word is A's own counter kind (LEAD_COUNTER_KINDS: allowance | budget |
+  // day), so the card, the door and the ledger all call the month's leads the
+  // same thing.
   const bound: LeadPlanFacts["bound"] =
-    usedLeads === 0 && usedUsd === 0 ? null : leadsLeft / LEAD_MONTHLY_ALLOWANCE <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD ? "month" : "budget";
+    usedLeads === 0 && usedUsd === 0 ? null : leadsLeft / LEAD_MONTHLY_ALLOWANCE <= budgetLeftUsd / LEAD_MONTHLY_BUDGET_USD ? "allowance" : "budget";
   return {
     // Every lead this workspace already owns is one a new search skips: the
     // place is already theirs, so it is never counted or charged twice.
@@ -524,7 +527,7 @@ export async function planFacts(
     bound,
     prior,
     priorOf: prior ? opts.categoryKey ?? null : null,
-    cannotSee: opts.cannotSee ?? [],
+    cannotSee: opts.cannotSee ?? null,
     renewsOn: renewsOnOf(timezone, now),
     nearby: opts.nearby ?? [],
   };

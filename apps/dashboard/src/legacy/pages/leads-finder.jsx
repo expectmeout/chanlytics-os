@@ -96,12 +96,162 @@ const leadFinderApprove = async (proposal, plan, set) => {
   return r;
 };
 
-// The card's body until Task 9: the plan as the one sentence contracts spells.
-const LeadPlanCard = ({ plan }) => (plan ? (
-  <div className="lf-plan" data-testid="lead-plan">
-    <p className="lf-sentence" data-testid="plan-sentence">{(window.__LEAD_VM || {}).planSaid(plan)}</p>
-  </div>
-) : null);
+/* --------------------------------------------------------- the pickers -- */
+
+// A picker is a button that opens a listbox of its own. It is not in
+// PL_OVERLAY (the finder is the page's own overlay), so the page's keys stay
+// awake behind it; Esc closes the picker here, before the page's listener.
+const LeadPick = ({ id, label, cls, title, open, options, onOpen, onPick }) => (
+  <span className="lf-pick">
+    <button
+      type="button"
+      className={`tok ${cls || ""} ${open ? "open" : ""}`}
+      data-testid={`plan-${id}`}
+      title={title || label}
+      aria-haspopup="listbox"
+      aria-expanded={!!open}
+      onClick={() => onOpen(open ? null : id)}
+      onKeyDown={(e) => { if (e.key === "Escape" && open) { e.preventDefault(); e.stopPropagation(); onOpen(null); } }}
+    >
+      {label}
+    </button>
+    {open ? (
+      <span className="lf-pop" role="listbox" aria-label={title || label} data-testid={`plan-${id}-options`}>
+        {options.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            className={`lf-pop-row ${o.on ? "on" : ""}`}
+            role="option"
+            aria-selected={!!o.on}
+            data-testid={`plan-${id}-${o.id}`}
+            onClick={() => { onOpen(null); onPick(o); }}
+          >
+            <span className="tab">{o.label}</span>
+            {o.note ? <span className="r">{o.note}</span> : null}
+          </button>
+        ))}
+        {options.length === 0 ? <span className="lf-pop-note">Change what I asked to change this.</span> : null}
+      </span>
+    ) : null}
+  </span>
+);
+
+/* ------------------------------------------------------- the plan card -- */
+
+/**
+ * The plan as one sentence whose words are pickers, what it leaves out, how
+ * many are likely to have an email, the facts in leads, and the two buttons
+ * (sections 8.3, 0.1, 0.2). A picked word re-plans here, on the page, through
+ * planVersionOf and planWords: no model call, ever.
+ */
+const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick = null, onPick = () => {}, onChange, onApprove, onBack }) => {
+  const C = window.__LEAD_VM || {};
+  if (!plan) return null;
+  const f = facts || { dupes: 0, leadsLeft: 0, bound: null, prior: null, priorOf: null, cannotSee: null, renewsOn: "", nearby: [] };
+  const change = (over) => onChange(C.planVersionOf(plan, over));
+  const likely = C.leadPlanLikely(plan, f);
+  const ask = C.leadPlanAsk(plan, f);
+  const cannot = f.cannotSee && plan.criteria.some((c) => c.key === f.cannotSee.key && c.standard === "seen") ? f.cannotSee : null;
+  const options = (id) => {
+    if (id === "count") {
+      const choices = C.LEAD_COUNT_CHOICES || [50, 100, 200, 500];
+      const counts = choices.includes(plan.count) ? [...choices] : [...choices, plan.count].sort((a, b) => a - b);
+      return counts.map((n) => ({ id: String(n), label: String(n), note: `about ${C.planMinutes({ ...plan, count: n })} min`, on: n === plan.count, apply: () => change({ count: n }) }));
+    }
+    if (id === "area") {
+      return [plan.area, ...(f.nearby || [])].map((a) => ({ id: a.label, label: C.planWhere(a), on: a.label === plan.area.label, apply: () => change({ area: a }) }));
+    }
+    if (id === "contact") {
+      return [
+        { id: "email", label: "then find their email and check it", on: plan.contact === "email", apply: () => change({ contact: "email" }) },
+        { id: "phone", label: "a phone is enough", note: "goes further this month", on: plan.contact === "phone", apply: () => change({ contact: "phone" }) },
+      ];
+    }
+    if (id === "who") return [];
+    const c = plan.criteria.filter((x) => x.key === id)[0];
+    if (!c) return [];
+    return [
+      { id: "seen", label: "It has to be seen", on: c.standard === "seen", apply: () => change({ criteria: plan.criteria.map((x) => (x.key === c.key ? { ...x, standard: "seen" } : x)) }) },
+      { id: "likely", label: "Claude's read is enough", on: c.standard === "likely", apply: () => change({ criteria: plan.criteria.map((x) => (x.key === c.key ? { ...x, standard: "likely" } : x)) }) },
+      { id: "drop", label: "Take it out of the plan", apply: () => change({ criteria: plan.criteria.filter((x) => x.key !== c.key) }) },
+    ];
+  };
+  const words = C.planWords(plan).map((w, i) => {
+    if (!w.pick) return <span key={`w${i}`}>{w.text}</span>;
+    const id = w.pick === "criterion" ? w.key : w.pick === "where" ? "area" : w.pick;
+    return (
+      <LeadPick
+        key={`w${i}`}
+        id={id}
+        cls={w.pick === "count" ? "num" : ""}
+        label={w.text}
+        title={{ count: "Change how many", who: "Change who you want", area: "Change where to look", contact: "Change what to find" }[id] || "Change how sure this has to be"}
+        open={pick === id}
+        options={options(id)}
+        onOpen={onPick}
+        onPick={(o) => o.apply()}
+      />
+    );
+  });
+  return (
+    <div className="lf-plan" data-testid="lead-plan">
+      <p className="lf-sentence" data-testid="plan-sentence">{words}</p>
+      {plan.version > baseVersion ? <span className="lf-changed" data-testid="plan-changed">changed</span> : null}
+      {cannot ? (
+        <div className="lf-cannot" role="status" data-testid="plan-cannot-see">
+          <Icon name="dashring" size={13} />
+          <span>A listing doesn't show that, so "{cannot.text}" can't be confirmed. Nothing has been spent.</span>
+          <button type="button" className="btn btn-sm" data-testid="plan-take-likely" onClick={() => change({ criteria: plan.criteria.map((x) => (x.key === cannot.key ? { ...x, standard: "likely", text: cannot.likely } : x)) })}>{cannot.likely}</button>
+          <button type="button" className="btn btn-ghost btn-sm" data-testid="plan-drop-unseen" onClick={() => change({ criteria: plan.criteria.filter((x) => x.key !== cannot.key) })}>Take it out</button>
+        </div>
+      ) : null}
+      {plan.exclusions.length ? (
+        <div className="lf-leaving" data-testid="plan-leaving">
+          <span>Leaving out</span>
+          {plan.exclusions.map((e) => (
+            <span key={e.key} className="tok-x" data-testid={`plan-leaving-${e.key}`}>
+              {e.text}
+              <button type="button" aria-label={`Keep ${e.text}`} title="Don't leave these out" onClick={() => change({ exclusions: plan.exclusions.filter((x) => x.key !== e.key) })}><Icon name="x" size={11} /></button>
+            </span>
+          ))}
+        </div>
+      ) : null}
+      <div className="lf-likely" data-testid="plan-likely">
+        {likely.emailPct === null ? null : (
+          <span className="bar" aria-hidden="true">
+            <span className="b-email" style={{ width: `${likely.emailPct}%` }} />
+            <span className="b-phone" style={{ width: `${likely.phonePct}%` }} />
+          </span>
+        )}
+        <span>{likely.line}</span>
+      </div>
+      <div className="lf-facts" data-testid="plan-facts">
+        {C.leadPlanFacts(plan, f).map((t, i) => (
+          <span key={t} className="lf-fact">
+            <Icon name={["clock", "users", "shield"][i] || "shield"} size={13} />
+            {t}
+          </span>
+        ))}
+      </div>
+      {ask.covers ? <p className="lf-said" data-testid="plan-covers">{ask.covers}</p> : null}
+      {refusal ? <p className="field-error" role="alert" data-testid="plan-refusal">{refusal}</p> : null}
+      <div className="lf-actions">
+        <button
+          type="button"
+          className="btn btn-primary btn-lg"
+          data-testid="plan-approve"
+          disabled={!!busy || !!cannot || ask.count < 1}
+          onClick={() => onApprove(ask.count === plan.count ? plan : C.planVersionOf(plan, { count: ask.count }))}
+        >
+          <Icon name="sparkle" size={13} />{busy ? "Starting…" : ask.label}
+        </button>
+        <button type="button" className="btn btn-ghost" data-testid="plan-back" onClick={onBack}>Change what I asked</button>
+        {view && view.title ? <span className="lf-said" data-testid="plan-title">{view.title}</span> : null}
+      </div>
+    </div>
+  );
+};
 
 /* -------------------------------------------------------- the composer -- */
 
@@ -206,4 +356,4 @@ const LeadFinder = ({
   );
 };
 
-Object.assign(window, { LeadFinder, LeadPlanCard, leadFinderPlan, leadFinderApprove, leadFinderAsk });
+Object.assign(window, { LeadFinder, LeadPlanCard, LeadPick, leadFinderPlan, leadFinderApprove, leadFinderAsk });

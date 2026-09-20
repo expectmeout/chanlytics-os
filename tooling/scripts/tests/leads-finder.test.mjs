@@ -9,8 +9,8 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadSearchPlanSchema, planSentence } from "../../../packages/contracts/src/lead-search.ts";
-import { leadEndingLine } from "../../../packages/contracts/src/leads.ts";
+import { LeadSearchPlanSchema, LEAD_COUNT_CHOICES, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords } from "../../../packages/contracts/src/lead-search.ts";
+import { leadEndingLine, leadPlanAsk, leadPlanFacts, leadPlanLikely } from "../../../packages/contracts/src/leads.ts";
 
 let cells = [];
 let seq = 0;
@@ -31,11 +31,10 @@ globalThis.React = {
 };
 globalThis.ReactDOM = { createPortal: (n) => n };
 globalThis.window = globalThis.window || {};
-// The derivations bag seed-globals.ts publishes. Task 9 writes planWords and
-// its family and Task 10 leadStrip; until then the placeholder card reads the
-// one sentence contracts already spells, and this bag is grown as they land.
+// The derivations bag seed-globals.ts publishes: the card and the strip read
+// every word they say from it, never from a spelling of their own.
 Object.assign(globalThis.window, {
-  __LEAD_VM: { planSaid: planSentence, leadEndingLine },
+  __LEAD_VM: { planWords, planSaid, planWhere, planWho, planArea, planMinutes, planSentence, planVersionOf, LEAD_COUNT_CHOICES, leadEndingLine, leadPlanLikely, leadPlanFacts, leadPlanAsk },
 });
 await import("../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
@@ -207,4 +206,118 @@ test("the finder is the page's own overlay, and Enter plans what was typed", () 
   assert.equal(planned, 2);
   assert.equal(byTestId(drawFinder(page({ words: "" }).st), "finder-plan").props.disabled, true, "nothing typed, nothing to plan");
   assert.equal(globalThis.window.LeadFinder({ open: false, stage: "compose", words: "", onWords() {}, onPlan() {}, onApprove() {}, onBack() {}, onClose() {} }), null);
+});
+
+/* ------------------------------------------------- Task 9: the plan card */
+
+const drawCard = (st, over = {}) => {
+  seq = 0;
+  return globalThis.window.LeadPlanCard({
+    plan: st.plan, view: { title: "Find 200 personal trainers" }, facts: FACTS, busy: false, refusal: st.refusal,
+    baseVersion: 1, pick: st.pick, onPick: (v) => { st.pick = v; },
+    onChange: (p) => { st.plan = p; }, onApprove: () => {}, onBack: () => {}, ...over,
+  });
+};
+/** Open a picker and take one of its options: what a mouse does, in two presses. */
+const pickOption = (st, id, option, over = {}) => {
+  click(byTestId(drawCard(st, over), `plan-${id}`));
+  click(byTestId(drawCard(st, over), `plan-${id}-${option}`));
+};
+
+test("a changed count re-plans without the model, and a changed area makes a new version the owner approves", () => {
+  const sent = [];
+  globalThis.window.__ask = { send: async (i) => { sent.push(i); } };
+  const st = { plan: PLAN, pick: null, refusal: null };
+  assert.equal(textOf(byTestId(drawCard(st), "plan-sentence")), "Find 200 personal trainers in Austin, TX with a website, then find their email and check it.");
+  pickOption(st, "count", "50");
+  assert.equal(textOf(byTestId(drawCard(st), "plan-sentence")), "Find 50 personal trainers in Austin, TX with a website, then find their email and check it.");
+  assert.equal(st.plan.version, 2, "the count is one of the five that make a new version (S15; planVersionOf on main)");
+  const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
+  assert.match(textOf(counts), /about 3 min/, "every count says about how long it takes");
+  st.pick = null;
+  pickOption(st, "area", "Round Rock, TX");
+  assert.equal(st.plan.version, 3, "and so is the area");
+  assert.equal(textOf(byTestId(drawCard(st), "plan-sentence")), "Find 50 personal trainers in Round Rock, TX with a website, then find their email and check it.");
+  assert.equal(textOf(byTestId(drawCard(st), "plan-changed")), "changed");
+  assert.equal(sent.length, 0, "no model call: a picked word re-plans on the page");
+});
+
+test("the contact standard is in the sentence and its picker switches it, and the sentence says so", () => {
+  const st = { plan: PLAN, pick: null, refusal: null };
+  const tok = byTestId(drawCard(st), "plan-contact");
+  assert.equal(textOf(tok), "then find their email and check it");
+  assert.equal(tok.props["aria-haspopup"], "listbox");
+  pickOption(st, "contact", "phone");
+  assert.equal(textOf(byTestId(drawCard(st), "plan-contact")), "a phone is enough");
+  assert.equal(st.plan.version, 2, "the contact standard makes a new version");
+  const open = (click(byTestId(drawCard(st), "plan-contact")), drawCard(st));
+  const box = byTestId(open, "plan-contact-options");
+  assert.equal(box.props.role, "listbox");
+  assert.deepEqual(all(box, (n) => n.props?.role === "option").map((n) => n.props["aria-selected"]), [false, true]);
+  assert.equal(press(byTestId(open, "plan-contact"), "Escape"), true, "Esc closes the picker here, before the page's listener");
+  assert.equal(st.pick, null);
+});
+
+test("a criterion says how sure it has to be, and a fact the card cannot see is said before anything is spent, with the likely version offered", () => {
+  const seen = planVersionOf(PLAN, { criteria: [{ key: "otc", text: "Already sell OTC medicine", standard: "seen", required: true }] });
+  const cannotSee = { key: "otc", text: "Already sell OTC medicine", likely: "Could sell OTC medicine" };
+  const st = { plan: seen, pick: null, refusal: null };
+  const facts = { ...FACTS, cannotSee };
+  const tree = drawCard(st, { facts });
+  assert.match(textOf(byTestId(tree, "plan-sentence")), /already sell OTC medicine \(confirmed\)/);
+  assert.match(textOf(byTestId(tree, "plan-cannot-see")), /can't be confirmed\. Nothing has been spent\./);
+  assert.equal(byTestId(tree, "plan-approve").props.disabled, true, "nothing starts until the owner chooses");
+  click(byTestId(tree, "plan-take-likely"));
+  assert.deepEqual([st.plan.criteria[0].standard, st.plan.criteria[0].text], ["likely", "Could sell OTC medicine"]);
+  assert.equal(byTestId(drawCard(st, { facts }), "plan-approve").props.disabled, false, "chosen: it can start");
+  assert.equal(byTestId(drawCard(st, { facts }), "plan-cannot-see"), null);
+  const other = { plan: seen, pick: null, refusal: null };
+  click(byTestId(drawCard(other, { facts }), "plan-drop-unseen"));
+  assert.deepEqual(other.plan.criteria, [], "or the criterion goes, and the sentence with it");
+});
+
+test("Leaving out is chips the owner can take back, Likely says what past searches found, and the facts are in leads with no dollar meter", () => {
+  const st = { plan: PLAN, pick: null, refusal: null };
+  const tree = drawCard(st);
+  assert.equal(textOf(byTestId(tree, "plan-likely")), "About 116 will have an email; the rest you call · from past searches for trainers");
+  assert.equal(textOf(byTestId(tree, "plan-facts")), "About 8 minutes — leave the page if you likeSkips the 14 already yoursCounts only matches you can reach · 486 left this month");
+  assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
+  const chip = byTestId(tree, "plan-leaving-chain");
+  assert.match(textOf(chip), /Chain gyms/);
+  click(find(chip, (n) => n.type === "button"));
+  assert.deepEqual(st.plan.exclusions, [], "the chip is removable");
+  assert.equal(st.plan.version, 2, "and that is a new version");
+  assert.equal(byTestId(drawCard(st), "plan-leaving"), null);
+  const fresh = drawCard({ plan: PLAN, pick: null, refusal: null }, { facts: { ...FACTS, prior: null } });
+  assert.equal(textOf(byTestId(fresh, "plan-likely")), "How many have an email is checked after the first 25.");
+});
+
+test("Find N leads commits the card through the route, and a refusal is said under the button in the route's words", async () => {
+  const committed = [];
+  globalThis.window.__ask = { commit: async (p) => { committed.push(p); return { ok: false, message: "This month's searching budget is used. A smaller search, or a phone standard, may still fit." }; } };
+  const { st, set } = page({ stage: "plan", proposal: CARD, plan: PLAN });
+  await globalThis.window.leadFinderApprove(st.proposal, st.plan, set);
+  assert.equal(committed.length, 1);
+  assert.equal(committed[0].payload.plan.count, 200, "the plan the card holds, not the one the model first wrote");
+  assert.deepEqual([st.stage, st.open], ["plan", true], "a refused start leaves the card where it was");
+  const refused = byTestId(drawCard({ plan: PLAN, pick: null, refusal: st.refusal }), "plan-refusal");
+  assert.equal(textOf(refused), "This month's searching budget is used. A smaller search, or a phone standard, may still fit.");
+  assert.equal(refused.props.role, "alert");
+  globalThis.window.__ask = { commit: async () => ({ ok: true, receipt: "Finding 200 personal trainers. It carries on if you leave; Leads shows it.", undo: { search_id: "s1" } }) };
+  const ok = page({ stage: "plan", proposal: CARD, plan: PLAN, words: "x" });
+  const r = await globalThis.window.leadFinderApprove(ok.st.proposal, ok.st.plan, ok.set);
+  assert.deepEqual([r.ok, ok.st.open, ok.st.stage, ok.st.proposal, ok.st.words], [true, false, "compose", null, ""], "the strip takes over from the surface's newest search");
+});
+
+test("near the month's limit the card offers what is left and says when the leads renew", () => {
+  const st = { plan: PLAN, pick: null, refusal: null };
+  const month = drawCard(st, { facts: { ...FACTS, leadsLeft: 36, bound: "allowance" } });
+  assert.equal(textOf(byTestId(month, "plan-approve")), "Find 36 leads");
+  assert.equal(textOf(byTestId(month, "plan-covers")), "You have 36 leads left this month. Your leads renew on Oct 1.");
+  const budget = drawCard(st, { facts: { ...FACTS, leadsLeft: 60, bound: "budget" } });
+  assert.equal(textOf(byTestId(budget, "plan-covers")), "Emails for personal trainers are hard to find, so this month covers about 60 more. Find 60 now?");
+  let approved = null;
+  click(byTestId(drawCard(st, { facts: { ...FACTS, leadsLeft: 36, bound: "allowance" }, onApprove: (p) => { approved = p; } }), "plan-approve"));
+  assert.deepEqual([approved.count, approved.version], [36, 2], "the clamped count is what is approved, as a new version");
+  assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
 });
