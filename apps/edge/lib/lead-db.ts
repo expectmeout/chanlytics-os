@@ -23,7 +23,9 @@ const runOf = (r: RunRow): LeadRunRow => ({ ...r, purpose: r.purpose as LeadRunR
 
 export function leadDb(db: Db): LeadDb {
   // The generated types name each function; the argument object is the function's own.
-  const rpc = db.rpc as unknown as Rpc;
+  // Called ON the client and never lifted off it: SupabaseClient.rpc reads `this.rest`,
+  // so a detached `db.rpc` throws against a real client (gate G3).
+  const rpc: Rpc = (fn, args) => (db as unknown as { rpc: Rpc }).rpc(fn, args);
   const bool = async (name: string, args: Record<string, unknown>): Promise<boolean> => must<unknown>(name, await rpc(name, args)) === true;
   const json = async <T>(name: string, args: Record<string, unknown>): Promise<T> => must<T>(name, (await rpc(name, args)) as { data: T | null; error: { message: string } | null });
   return {
