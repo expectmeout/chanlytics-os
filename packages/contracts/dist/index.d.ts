@@ -10961,6 +10961,7 @@ declare const LEAD_REVIEW_GROUP_WORDS: {
     readonly mailbox_silent: "Their mail server wouldn't answer";
     readonly bad_email: "Their email bounces";
     readonly no_email: "No email on their site";
+    readonly no_phone: "No phone on their listing";
     readonly catch_all: "Unconfirmed — the mailbox accepts any address";
     readonly unsure: "Couldn't tell if";
     readonly read_only: "Only the listing says so";

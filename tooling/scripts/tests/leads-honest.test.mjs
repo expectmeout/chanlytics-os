@@ -1090,6 +1090,7 @@ test("D5: the same leads, on the ground — a pin per lead the source placed, th
   assert.equal(textOf(byTestId(map, "lead-map-count")), "5 on the map");
   assert.match(textOf(byTestId(map, "lead-map-scale")), /mi across$/, "how wide the square is, in the owner's own unit");
   assert.equal(byTestId(map, "lead-map-ring"), null, "this search named a city and no centre yet, so no area is drawn");
+  assert.equal(textOf(byTestId(map, "lead-map-note")), "Every lead these searches placed on the ground.", "and the line under it says which picture this is, rather than claiming a ring that is not there");
   assert.equal(all(map, (n) => n.props?.["data-testid"] === "lead-map-row").length, 5, "the same leads beside it, nearest the middle first");
   assert.match(pins[0].props["aria-label"], /^Zilker Strength Lab — /, "a pin says who it is and what it is");
   assert.match(String(pins[0].props.className), /tone-strong/, "coloured by fit, to start");
