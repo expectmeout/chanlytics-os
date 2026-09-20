@@ -1772,7 +1772,7 @@ test("the same moment is the same day, kept rather than rebuilt on every draw", 
   const a = todaySample(NOW);
   assert.equal(a, todaySample(NOW));
   assert.notEqual(a, todaySample(NOW + 60_000), "another moment is another day");
-  assert.equal(a.TODAY_DATA.standing.eyebrow.split(" · ").at(-1), "Melany's Beauty Salon");
+  assert.equal(a.TODAY_DATA.standing.eyebrow.split(" · ").at(-1), "Melany's Studio");
 });
 
 test("every figure agrees with the threads and calls under it", () => {
@@ -1881,7 +1881,6 @@ import {
   type BroadcastDto,
   type BroadcastVM,
   type LiveVM,
-  type BellRow,
   type TodayVM,
   type PlaybookCardLike,
 } from "@chanlytics/contracts";
@@ -1891,6 +1890,23 @@ import type { ReportsSurface } from "./surface-data";
 
 const ZONE = "America/New_York";
 const MIN = 60_000;
+
+/**
+ * The row the popover draws (apps/dashboard/src/legacy-bridge/notifications.ts's own `BellRow`), redeclared here:
+ * that file imports ./api, which this browser-only sample may not.
+ */
+interface BellRow {
+  id: string;
+  kind: string;
+  icon: string;
+  tone: string;
+  unread: boolean;
+  time: string;
+  title: string;
+  message: string;
+  about: { type: string; id: string } | null;
+  actions: Array<{ label: string; to: string; primary: boolean }>;
+}
 
 export interface TodaySample {
   TODAY_DATA: TodayVM;
@@ -1957,10 +1973,10 @@ function build(nowMs: number): TodaySample {
     thread("cv-renata", contact("k-renata", "Renata Solís", "0101"), [msg("m-r1", "in", "Hi! Do you have anything for a gel manicure this Saturday?", ago(410)), msg("m-r2", "ai", "Hi Renata! Saturday I have 10:00 and 2:00 open for a gel manicure. Which suits you?", ago(409))]),
     thread("cv-marco", contact("k-marco", "Marco Ibáñez", "0102", { phone_e164: null, email: "marco@example.com" }), [msg("m-m1", "in", "Do you do men's cuts? Looking for something this week.", ago(300), "email"), msg("m-m2", "ai", "We do. This week I have Thursday 5:30 PM and Friday 11:00 AM. Shall I hold one?", ago(298), "email")]),
     thread("cv-dulce", contact("k-dulce", "Dulce Amaro", "0103"), [msg("m-d0", "in", "Booking for the 12th please", at(9, 0, -9), "sms"), msg("m-d1", "ai", "Done: the 12th at 3:00 PM.", at(9, 1, -9), "sms"), msg("m-d2", "in", "Can I bring my sister too?", ago(150), "sms")]),
-    thread("cv-ana", contact("k-ana", "Ana Reyes", "0104"), [msg("m-a0", "in", "Hi, can I book a balayage?", at(10, 0, -8)), msg("m-a1", "ai", "Of course. Friday 10:30 AM is open.", at(10, 1, -8)), msg("m-a2", "in", "I'd rather talk to a person about a refund for last time.", ago(95))], { state: "needs_human", last_wa_inbound_at: ago(95) }),
+    thread("cv-ana", contact("k-ana", "Ana Reyes", "0104"), [msg("m-a0", "in", "Hi, can I book a color treatment?", at(10, 0, -8)), msg("m-a1", "ai", "Of course. Friday 10:30 AM is open.", at(10, 1, -8)), msg("m-a2", "in", "I'd rather talk to a person about a refund for last time.", ago(95))], { state: "needs_human", last_wa_inbound_at: ago(95) }),
     thread("cv-kenia", contact("k-kenia", "Kenia Duarte", "0105"), [], { state: "needs_human" }),
-    thread("cv-priya", contact("k-priya", "Priya Nair", "0106"), [msg("m-p1", "in", "Do you do balayage on Sundays?", ago(130)), msg("m-p2", "failed", "We're closed Sundays, but Saturday 1:00 PM is open if that works.", ago(129))], { last_wa_inbound_at: ago(130) }),
-    thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
+    thread("cv-priya", contact("k-priya", "Priya Nair", "0106"), [msg("m-p0", "in", "Do you do color treatments?", at(10, 0, -12)), msg("m-p0r", "ai", "We do — I can check this week's times if you'd like.", at(10, 1, -12)), msg("m-p1", "in", "Do you do color treatments on Sundays?", ago(130)), msg("m-p2", "failed", "We're closed Sundays, but Saturday 1:00 PM is open if that works.", ago(129))], { last_wa_inbound_at: ago(130) }),
+    thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b0", "in", "Do you have anything this week for a gloss?", at(9, 0, -20)), msg("m-b0r", "ai", "Thursday 9:00 works — see you then.", at(9, 1, -20)), msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
     thread("cv-sofia", contact("k-sofia", "Sofía Mendes", "0108"), [msg("m-s1", "in", "Can you hold the 3 PM for me? I'll confirm tonight.", ago(21 * 60))], { last_wa_inbound_at: ago(21 * 60) }),
   ];
   const escalations: Array<EscalationDto & { conversation_id: string }> = [
@@ -1989,11 +2005,11 @@ function build(nowMs: number): TodaySample {
   const lastOut = outAi.filter((m) => m.status === "delivered").map((m) => m.created_at).sort().at(-1) ?? null;
   const tallyOf = (xs: readonly string[]) => xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {});
   const metrics: MetricsSummaryDto = {
-    workspace: { name: "Melany's Beauty Salon", timezone: ZONE, status: "active" },
+    workspace: { name: "Melany's Studio", timezone: ZONE, status: "active" },
     channels: [
       { kind: "whatsapp", status: "active", number: "+1 (305) 555-0100" },
       { kind: "voice", status: "active", number: "+1 (305) 555-0100" },
-      { kind: "email", status: "active", address: "hello@melanys.example" },
+      { kind: "email", status: "active", number: null, address: "hello@melanys.example" },
     ],
     window: { days: 1, since, since_local: `${today}T00:00:00`, now_local: naiveLocal(nowMs, ZONE) },
     now: {
@@ -2020,7 +2036,7 @@ function build(nowMs: number): TodaySample {
     hours: null, closures: [], rules: null, services: [], booking_link: null,
     next_opening: { start: at(13, 0), end: at(13, 30) },
     days: [
-      { key: dayKey(0), items: [item("a1", 9, 0, 60, "Gloss", person("k-bea", "Bea Lind")), item("a2", 10, 30, 90, "Balayage", person("k-ana", "Ana Reyes")), item("a3", 12, 0, 45, "Cut"), item("a4", 14, 0, 60, "Gel manicure", person("k-renata", "Renata Solís")), item("a5", 15, 30, 30, "Consultation"), item("a6", 17, 0, 90, "Color", person("k-dulce", "Dulce Amaro"))], windows: [{ start: at(13, 0), end: at(13, 30) }, { start: at(16, 0), end: at(17, 0) }] },
+      { key: dayKey(0), items: [item("a1", 9, 0, 60, "Gloss", person("k-bea", "Bea Lind")), item("a2", 10, 30, 90, "Color treatment", person("k-ana", "Ana Reyes")), item("a3", 12, 0, 45, "Cut"), item("a4", 14, 0, 60, "Gel manicure", person("k-renata", "Renata Solís")), item("a5", 15, 30, 30, "Consultation"), item("a6", 17, 0, 90, "Color", person("k-dulce", "Dulce Amaro"))], windows: [{ start: at(13, 0), end: at(13, 30) }, { start: at(16, 0), end: at(17, 0) }] },
       { key: dayKey(1), items: [item("b1", 9, 30, 60, "Cut", person("k-marco", "Marco Ibáñez"), 1), item("b2", 11, 0, 60, "Gloss", null, 1), item("b3", 15, 0, 60, "Gel manicure", person("k-priya", "Priya Nair"), 1)], windows: [{ start: at(12, 0, 1), end: at(15, 0, 1) }, { start: at(16, 0, 1), end: at(18, 0, 1) }] },
       ...[2, 3, 4, 5, 6].map((d) => ({ key: dayKey(d), items: [], windows: [] })),
     ],
@@ -2152,6 +2168,8 @@ export function installTodaySample(win: Record<string, unknown>, nowMs: number =
   put("__surfaceFailed", () => false);
 }
 ```
+
+(This block is the file as committed. Four things the real types and rules forced while it was first written: `BellRow` lives in the bridge's `notifications.ts`, which imports `./api`, so the sample declares its own identical interface; the email wire carries `number: null`; Bea's and Priya's threads hold an earlier exchange so only Renata and Marco are new today, as the figure says; and `trade-neutral.test.mjs` refuses a salon's words in bridge code, so the business is "Melany's Studio" and its copy says "color treatment".)
 
 - [ ] **Step 4: `serve-legacy.mjs` builds both samples.** Replace the block from `const SAMPLE = path.join(...)` through the end of `reportsSampleBundle` (the `return built.js; }`) with:
 
