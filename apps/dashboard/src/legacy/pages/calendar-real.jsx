@@ -109,7 +109,51 @@ const CrWindow = ({ w, hours }) => {
 // phone puts its person in People on its own — when an owner opens this
 // board, and every hour by the sweep — and a person nobody wants is deleted
 // from their profile.
-const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
+/** "1h", "45m", "1h 30m" — the same words the day's rows use (contracts durationLabel). */
+const crDur = (min) => {
+  if (!Number.isFinite(min) || min <= 0) return "";
+  const h = Math.floor(min / 60), m = Math.round(min % 60);
+  return h ? (m ? `${h}h ${m}m` : `${h}h`) : `${m}m`;
+};
+
+/**
+ * When it is, said the way a person asks it: the day relative to now first, because "Tomorrow" is what an
+ * owner checks for, and the date after it for the ones that are neither today nor tomorrow.
+ */
+const crWhen = (day, todayKey) => {
+  if (day.today) return "Today";
+  if (!todayKey || !day.key) return null;
+  const at = (k) => Date.UTC(+k.slice(0, 4), +k.slice(5, 7) - 1, +k.slice(8, 10));
+  const days = Math.round((at(day.key) - at(todayKey)) / 86400000);
+  return days === 1 ? "Tomorrow" : days === -1 ? "Yesterday" : null;
+};
+
+/**
+ * Whether the notes say anything the panel has not already said. A booking tool writes the person's name and
+ * number into the event's description, and this dialog prints both above it; a box repeating them is noise
+ * a reader has to look past. Strip what is already shown, and if no letter or digit survives, there is
+ * nothing to show.
+ */
+const crNotesWorth = (desc, person, contacts) => {
+  if (!desc) return null;
+  let rest = desc;
+  const shown = [person?.name, ...(contacts?.phones ?? []), ...(contacts?.e164 ?? []), ...(contacts?.emails ?? [])].filter(Boolean);
+  for (const s of shown) rest = rest.split(s).join(" ");
+  // A number written differently is the same number, so its digits decide — the last ten of them, because
+  // "+1 917 555 0103" and "(917) 555-0103" are one number with and without its country code.
+  for (const ph of [...(contacts?.phones ?? []), ...(contacts?.e164 ?? [])]) {
+    const digits = String(ph).replace(/\D/g, "").slice(-10);
+    if (digits.length >= 7) rest = rest.replace(new RegExp(digits.split("").join("\\D*"), "g"), " ");
+  }
+  return /[a-z0-9]/i.test(rest) ? desc : null;
+};
+
+// Published like crStep and crTrapTab are, so the decisions can be run in a test rather than read.
+window.crDur = crDur;
+window.crWhen = crWhen;
+window.crNotesWorth = crNotesWorth;
+
+const CrPanel = ({ b, day, todayKey, source, bookingLink, onCopyLink, onClose }) => {
   // A dialog: focus goes into it as it opens and back to what opened it as it
   // closes, Tab stays inside, and Escape (the page's key handler) closes it.
   // It was a borrowed modal with none of that, over a board the arrows moved.
@@ -121,6 +165,12 @@ const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
   }, []);
   const contacts = b.contacts || { phones: [], emails: [] };
   const e164 = contacts.e164 || [];
+  // The day before and after this board's today, so "Tomorrow" can be said without a second clock.
+  const when = crWhen(day, todayKey);
+  // A time that has gone is said so: an owner reading a finished appointment should not be deciding about it.
+  const state = day.past ? { text: "Done", tone: "past" } : null;
+  const namedInTitle = !!(b.person && b.person.name && String(b.title || "").toLowerCase().includes(String(b.person.name).toLowerCase()));
+  const notes = crNotesWorth(b.description, b.person, { ...contacts, e164 });
   const found = [...contacts.phones, ...contacts.emails];
   // The link into their thread, the way the People rows and the profile hand it over:
   // a plain text while their reply window is open, the approved template once it has closed.
@@ -135,10 +185,17 @@ const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
       <div ref={boxRef} className="ask-modal cal-ev" role="dialog" aria-modal="true" aria-labelledby="cal-panel-title" tabIndex={-1} onKeyDown={(e) => { if (e.key === "Tab") crTrapTab(e, boxRef.current); }} onClick={(e) => e.stopPropagation()} data-testid="cal-panel">
         <section className="st-modal-section">
           <div className="st-modal-name" id="cal-panel-title">{b.title}</div>
-          <div className="cal-ev-cancel-hint" style={{ marginTop: 4 }}>{day.long} · {b.time}</div>
+          <div className="cal-ev-when" data-testid="cal-panel-when">
+            {when && <b className="cal-ev-when-rel">{when}</b>}
+            <span>{when ? day.date || day.long : day.long}</span>
+            <span>{b.time}</span>
+            {b.dur > 0 && <span className="cal-ev-when-dur">{crDur(b.dur)}</span>}
+            {state && <span className={`cal-ev-state ${state.tone}`} data-testid="cal-panel-state">{state.text}</span>}
+          </div>
           {b.person ? (
             <div className="cal-ev-who" data-testid="cal-panel-person">
-              <Icon name="users" size={12} /> <b>{b.person.name}</b> is in People
+              <Icon name="users" size={12} />
+              {namedInTitle ? <span>In People</span> : <><b>{b.person.name}</b> is in People</>}
               {b.person.via && <span className="cal-ev-via">matched by {b.person.via}</span>}
             </div>
           ) : found.length > 0 ? (
@@ -152,7 +209,12 @@ const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
             </div>
           ) : null}
           {b.location && <div className="cal-ev-detail" data-testid="cal-panel-where"><span className="cal-ev-detail-key">Where</span><span>{b.location}</span></div>}
-          {b.description && <div className="cal-ev-desc" data-testid="cal-panel-desc">{b.description}</div>}
+          {notes && (
+            <div className="cal-ev-detail" data-testid="cal-panel-desc">
+              <span className="cal-ev-detail-key">Notes</span>
+              <span className="cal-ev-desc">{notes}</span>
+            </div>
+          )}
           <div className="cal-ev-note">From {source}. The receptionist treats this time as taken; to change or cancel it, edit it there.</div>
         </section>
         <footer className="st-modal-foot">
@@ -167,11 +229,11 @@ const CrPanel = ({ b, day, source, bookingLink, onCopyLink, onClose }) => {
                 <Icon name="calendar" size={12} /> {b.person.replyOpen ? "Text the booking link" : "Send the booking-link template"}
               </button>
             )}
+          </div>
+          <div className="st-modal-foot-actions">
             {bookingLink && (
               <button className="btn btn-ghost btn-sm" data-testid="cal-panel-copy-link" title={bookingLink} onClick={onCopyLink}>Copy the booking link</button>
             )}
-          </div>
-          <div className="st-modal-foot-actions">
             <button className="btn btn-sm" onClick={onClose}>Close</button>
           </div>
         </footer>
@@ -622,7 +684,7 @@ const CalendarReal = ({ initialDay = null }) => {
         </div>
       </div>
 
-      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} source={vm.feed.source || "your calendar"} bookingLink={vm.bookingLink} onCopyLink={copyLink} onClose={() => setOpenId(null)} />}
+      {openBlock && <CrPanel b={openBlock.b} day={openBlock.d} todayKey={vm.today} source={vm.feed.source || "your calendar"} bookingLink={vm.bookingLink} onCopyLink={copyLink} onClose={() => setOpenId(null)} />}
       {toastNode}
     </div>
   );
