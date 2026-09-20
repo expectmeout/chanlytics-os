@@ -9677,6 +9677,7 @@ var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
 var LEAD_KIND_KEY = "kind";
 var leadKindWord = (name) => `Not one of the ${name}`;
+var LEAD_UNREACHABLE_KEY = "unreachable";
 var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
@@ -9819,6 +9820,9 @@ function planSentence(plan) {
   return `${planSaid(plan)}${planLeavingOut(plan)}`;
 }
 var LEAD_COUNT_CHOICES = [50, 100, 200, 500];
+function planCeiling(plan) {
+  return Math.floor(plan.terms.length * cardOf(plan).maxPerTerm * LEAD_ASSUMED_YIELD);
+}
 function planMinutes(plan) {
   const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
   return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
@@ -9881,7 +9885,8 @@ var LEAD_CARDS = [
     checkPerEmailUsd: 89e-5,
     startUsd: 5e-5,
     maxPerTerm: 120,
-    placesPerMinute: 50,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
     examples: [
       "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
@@ -9925,6 +9930,7 @@ function placesToAsk(plan, remaining, yieldSoFar) {
 }
 var LEAD_EMAIL_REASON = /^email:/;
 function classify(plan, answer, facts, emailState, inArea) {
+  if (facts.phone_matches_site === null && facts.emails.length === 0) return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons = [];
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely", required: true },
@@ -11114,16 +11120,18 @@ var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 var LEAD_SUPPRESSING_WHY = "customer";
 var LEAD_REVIEW_WORD = "Needs review";
 var LEAD_LEFT_OUT_WORD = "Left out";
+var LEAD_UNREACHABLE_WORD = "No way to reach them";
 var LEAD_CHECK_GROUP_WORDS = { seen: "Seen", read: "Claude's read" };
 var LEAD_CHECK_UNSURE = "Couldn't tell";
 var LEAD_CHECK_WORDS = {
-  on_maps: { yes: "Open for business", no: "Not open for business", unknown: LEAD_CHECK_UNSURE },
-  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: LEAD_CHECK_UNSURE },
-  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: LEAD_CHECK_UNSURE },
-  mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: LEAD_CHECK_UNSURE },
-  independent: { yes: "Not a chain", no: "Part of a chain", unknown: LEAD_CHECK_UNSURE },
-  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: LEAD_CHECK_UNSURE },
-  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: LEAD_CHECK_UNSURE }
+  // Each unknown names what could not be told: four rows of "Couldn't tell" told the owner nothing.
+  on_maps: { yes: "Open for business", no: "Not open for business", unknown: "Open for business: couldn't tell" },
+  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: "In the area: couldn't tell" },
+  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: "Phone on two sources: couldn't tell" },
+  mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: "Mailbox: couldn't tell" },
+  independent: { yes: "Not a chain", no: "Part of a chain", unknown: "Independent: couldn't tell" },
+  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: "The kind you asked for: couldn't tell" },
+  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: "Their own address: couldn't tell" }
 };
 var LEAD_MAILBOX_WORDS = {
   none: "No email found on their site",
@@ -11283,8 +11291,9 @@ function leadEndingLine(ending, f) {
     case "few_new_matches":
       return {
         mark,
-        title: `All ${plural6(f.seen, one, f.name)} in ${f.area} are already yours.`,
-        parts: f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : [],
+        // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
+        title: `Found all ${plural6(f.seen, one, f.name)} in ${f.area}`,
+        parts: [yours, ...f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : []],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null
       };
     case "stopped":
@@ -11478,10 +11487,16 @@ function leadDraftFooter(business, address) {
 ${business} \xB7 ${address}
 Not interested? Reply "no thanks" and I won't write again.`;
 }
+var LEAD_UNDO_MS = 24 * 60 * 6e4;
+function leadUndoable(s, now) {
+  const r = s?.round;
+  return !!r && !r.undo_op_id && !!r.ended_at && now.getTime() - Date.parse(r.ended_at) < LEAD_UNDO_MS;
+}
 function leadExclusionWord(search, key) {
   if (!key) return LEAD_LEFT_OUT_WORD;
   const plan = search?.plan;
   if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
+  if (key === LEAD_UNREACHABLE_KEY) return LEAD_UNREACHABLE_WORD;
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return ex.text;
   const cr = plan?.criteria.find((c) => c.key === key);
@@ -11500,7 +11515,7 @@ function toLeadPeekVM(r, search, tz, now) {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
   const sub = [r.category, area].filter(Boolean).join(" \xB7 ") + (r.places > 1 ? ` \xB7 ${r.places} locations` : "");
-  const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : m.class === "review" ? LEAD_REVIEW_WORD : leadExclusionWord(search, m.excluded_by);
+  const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
   const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
   const emailNote = r.email ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} \xB7 checked ${clockIn(tz, r.email_checked_at, now)}` : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.` : LEAD_MAILBOX_WORDS[r.email_state] : LEAD_NO_EMAIL_LINE;
@@ -11632,7 +11647,7 @@ function toLeadRowVM(r, tz, now) {
   };
 }
 var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
-function leadRail(counts, searches) {
+function leadRail(counts, searches, now = /* @__PURE__ */ new Date()) {
   const ids = ["all", "ready", "nurture", "converted", ...counts.said_no > 0 ? ["said_no"] : [], "not_a_fit"];
   return {
     lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
@@ -11640,6 +11655,7 @@ function leadRail(counts, searches) {
       id: s.id,
       name: s.name,
       count: s.round?.counted ?? 0,
+      undoable: leadUndoable(s, now),
       mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null
     }))
   };
@@ -11667,7 +11683,8 @@ function leadPlanLikely(plan, facts) {
 function leadPlanFacts(plan, facts) {
   return [
     `About ${planMinutes(plan)} minutes \u2014 leave the page if you like`,
-    `Skips the ${facts.dupes} already yours`,
+    // No number: the card cannot know how many of THIS search's places are already here until it has looked.
+    "Anything already yours is skipped",
     `Counts only matches you can reach \xB7 ${leadAllowanceFact(facts.leadsLeft)}`
   ];
 }
@@ -12133,6 +12150,9 @@ export {
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
   LEAD_TALKING_NOTE,
+  LEAD_UNDO_MS,
+  LEAD_UNREACHABLE_KEY,
+  LEAD_UNREACHABLE_WORD,
   LEAD_WORDS,
   LIMIT_TIERS,
   LINE_CREDENTIALS_SENTENCE,
@@ -12528,6 +12548,7 @@ export {
   leadReachLine,
   leadSearchWords,
   leadSuppressionHash,
+  leadUndoable,
   leadsFirstDayWays,
   leadsRoute,
   leadsStanding,
@@ -12609,6 +12630,7 @@ export {
   placesToAsk,
   planArea,
   planBilling,
+  planCeiling,
   planLeadSearch,
   planLeavingOut,
   planMinutes,
