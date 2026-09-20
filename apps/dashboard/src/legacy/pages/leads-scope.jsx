@@ -543,7 +543,9 @@ const LeadMap = ({ rows, plot, by, onBy, picked, onPick, x, onWiden, nearby, onN
           <span className="ld-map-scale" data-testid="lead-map-scale">{V.leadMapAcross ? V.leadMapAcross(plot.spanM) : ""}</span>
         </div>
         <div className="ld-map-foot">
-          <span className="ld-map-note" data-testid="lead-map-note">The area this search asked for, and every lead it placed inside it.</span>
+          {/* A city ask has no centre until its probe measures one, so there is often no area to draw. The line
+              under the plot says which picture this is, rather than claiming a ring that is not there. */}
+          <span className="ld-map-note" data-testid="lead-map-note">{plot.ring ? "The area this search asked for, and every lead it placed inside it." : "Every lead these searches placed on the ground."}</span>
           <span className="sp" />
           {nearby.map((a) => (
             <button key={a.label} type="button" className="ld-band-fit" onClick={() => onNearby(a)} data-testid={`map-nearby-${a.zip || a.label}`}>{a.label}</button>
