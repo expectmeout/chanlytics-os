@@ -40203,7 +40203,7 @@ function discoveryEnding(round, runs, x) {
 }
 
 // src/leads/mark.ts
-var HEAD_MAX = 64e3;
+var HEAD_MAX = 96e3;
 var HREF_MAX = 500;
 function headOf(html) {
   const start = html.slice(0, HEAD_MAX);

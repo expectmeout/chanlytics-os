@@ -216,6 +216,25 @@ test("the mark a site declares: a said logo beats an icon, an icon beats a favic
   assert.equal(leadMarkFrom(head(`<link rel="icon" href="/${"x".repeat(600)}.png">`), O), null, "an address longer than the column holds is no address");
 });
 
+// A Portland comic shop declares three icons and the reader found none of them: its head closes at 78KB, because
+// WordPress inlines the whole stylesheet before it gets to saying what the site's icon is. A cap below what the
+// caller fetched does not protect anything -- it just calls a mark absent that is sitting in the text we hold.
+test("the mark a site declares: the head is read as far as it was handed to us, not as far as is comfortable", () => {
+  const O = "https://bookswithpictures.example";
+  const inlined = (bytes) => `<style>${"a{color:red}".repeat(Math.ceil(bytes / 12))}</style>`;
+  const page = (bytes) => `<!doctype html><html><head>${inlined(bytes)}<link rel="apple-touch-icon" href="/mark.png"></head><body></body></html>`;
+
+  const real = page(72_000);
+  assert.ok(real.indexOf("apple-touch-icon") > 64_000, "the fixture has to put the icon past the cap this test exists for");
+  assert.ok(real.length < 96_000, "and inside what a collect actually fetches");
+  assert.equal(leadMarkFrom(real, O), `${O}/mark.png`, "70KB of stylesheet before the icon is an ordinary page, not a hostile one");
+
+  // Still capped, because a caller is not required to have capped anything: past the fetch's own limit, we stop.
+  assert.equal(leadMarkFrom(page(140_000), O), null, "a head that runs past what a collect would ever fetch is not read to its end");
+  // And a page that never closes its head is read from the start, as it always was.
+  assert.equal(leadMarkFrom(`<html>${inlined(70_000)}<link rel="icon" href="/i.png">`, O), `${O}/i.png`);
+});
+
 // A mark the WEBSITE BUILDER put there is not the company's mark. Found by running the reader against 315 real lead
 // sites: seven Squarespace shops all answered with Squarespace's own default favicon, and seven Wix shops with Wix's.
 // Storing that draws one stranger's logo on seven different leads, which is worse than the initials it replaced.

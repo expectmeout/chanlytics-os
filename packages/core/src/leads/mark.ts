@@ -25,8 +25,15 @@
  * hero photograph as often as not, and a photograph is what we already have.
  */
 
-/** Past this the head is not a head, and a page that never closes one is a page we stop reading. */
-const HEAD_MAX = 64_000;
+/**
+ * Past this the head is not a head, and a page that never closes one is a page we stop reading.
+ *
+ * It must not sit below what the caller fetches (`PAGE_MAX_BYTES` on the edge, 96KB), or the reader stops short of
+ * text it was handed and calls a mark absent that is there. A Portland comic shop inlines 70KB of stylesheet before
+ * it says what its icon is -- its head closes at 78KB, and at the old 64KB this read none of the three it declares.
+ * Real pages put the head's last words a long way down; only a page with no `</head>` at all is cut here.
+ */
+const HEAD_MAX = 96_000;
 /** The column keeps an address, not a document. */
 const HREF_MAX = 500;
 
