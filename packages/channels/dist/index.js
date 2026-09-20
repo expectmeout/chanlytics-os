@@ -857,6 +857,7 @@ var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
+var LEAD_KIND_KEY = "kind";
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
 var US_STATES = {
   alabama: "AL",
@@ -1188,6 +1189,7 @@ function judgeSystemPrompt(plan) {
   lines.push(`The search: ${plan.count} ${plan.name} in ${plan.area.label}.`);
   lines.push("For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say unknown when the facts do not say; never guess a fail.");
   lines.push("A fail may cite a fact that is missing (its absence is the evidence); a pass must cite a fact that is actually there.");
+  lines.push(`- ${LEAD_KIND_KEY}: the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`);
   for (const c of plan.criteria) {
     const bar = c.standard === "seen" ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown" : "Claude's read of the facts is enough (likely)";
     lines.push(`- ${c.key}: ${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`);
@@ -1242,7 +1244,7 @@ function parseJudgeAnswer(raw, plan, places) {
   const parsed2 = AnswerSchema.safeParse(raw);
   if (!parsed2.success) return { ok: false, why: `shape: ${parsed2.error.issues[0]?.message ?? "invalid"}` };
   const byRef = new Map(places.map((p) => [p.ref, p]));
-  const wanted = [...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
+  const wanted = [LEAD_KIND_KEY, ...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
   const answers = [];
   const seen = /* @__PURE__ */ new Set();
   for (const a of parsed2.data.places) {

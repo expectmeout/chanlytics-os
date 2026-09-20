@@ -72,6 +72,22 @@ export const LEAD_MAX_PLACES = 1000;
 export const LEAD_FACT_MAX = 120;
 /** The judge's one reason, in words (§0.1). */
 export const LEAD_REASON_MAX_WORDS = 12;
+
+/**
+ * The engine's own first criterion, on every plan: the place is the kind of
+ * business the search names (PRD §7 step 4, "the right kind of business or
+ * not"). It is not one the owner writes and not one the plan stores -- the
+ * rubric asks it, the class rule reads it, the validator expects it, all by
+ * this key -- because the first real searches showed what happens without
+ * it: a photographer prospecting wedding planners was handed two other
+ * photographers, a band and a caterer as Qualified, since the only criterion
+ * on the plan was "could recommend a photographer", and all of them could.
+ * A likely standard, because its evidence IS the name and category, which a
+ * seen standard is not allowed to rest on.
+ */
+export const LEAD_KIND_KEY = "kind";
+/** What the Excluded chip says for a place that was the wrong kind: "Not a wedding planner". */
+export const leadKindWord = (name: string): string => `Not one of the ${name}`;
 /** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */
 export const LEAD_ASSUMED_YIELD = 0.5;
 /** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
@@ -483,6 +499,7 @@ export const LEAD_EMAIL_REASON = /^email:/;
 export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean): LeadClassification {
   const reasons: string[] = [];
   const rubric = [
+    { key: LEAD_KIND_KEY, standard: "likely" as const, required: true },
     ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely" as const, required: true })),
     ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required })),
   ];

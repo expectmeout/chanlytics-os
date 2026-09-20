@@ -28,7 +28,9 @@ const plan = (over = {}) => LeadSearchPlanSchema.parse({
   ...over,
 });
 const facts = (over = {}) => ({ ref: 1, name: "Zilker Strength", category: "Personal trainer", city: "Austin", state: "TX", host: "zilkerstrength.example", rating: 4.9, reviews: 41, emails: ["hello@zilkerstrength.example"], phone_matches_site: true, ...over });
-const answer = (criteria, over = {}) => ({ ref: 1, criteria, email_index: 0, reason: "An independent trainer with a site.", ...over });
+// A whole answer carries the engine's own kind criterion first (LEAD_KIND_KEY); a test that leaves it out is asking
+// about a place whose kind the judge did not say, which is review, and says so by giving it explicitly.
+const answer = (criteria, over = {}) => ({ ref: 1, criteria: criteria.some((c) => c.key === "kind") ? criteria : [{ key: "kind", answer: "pass", facts: ["category"] }, ...criteria], email_index: 0, reason: "An independent trainer with a site.", ...over });
 
 test("the decisions are the constants the PRD names, and the nine endings are one closed set with words", () => {
   assert.deepEqual([LEAD_MONTHLY_ALLOWANCE, LEAD_MONTHLY_BUDGET_USD, LEAD_DAY_CAP_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_QUESTION_THRESHOLD, LEAD_PROBE_PLACES, LEAD_JUDGE_BATCH, LEAD_MAX_PLACES], [500, 25, 10, 50, 0.6, 25, 25, 1000]);
@@ -118,6 +120,17 @@ test("classify: everything passing under the standard qualifies; a required fail
   assert.deepEqual(ok, { class: "qualified", excluded_by: null, fit: "strong", reasons: [] });
   const chain = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "fail", facts: ["name"] }]), facts(), "ok", true);
   assert.deepEqual(chain, { class: "excluded", excluded_by: "chain", fit: null, reasons: ["fail:chain"] });
+  // The engine's own first criterion (PRD §7 step 4): a photographer is not a wedding planner, however well it
+  // could recommend one. On the first real search that was the only criterion, and two photographers, a band and a
+  // caterer were handed to a wedding photographer as Qualified.
+  const wrongKind = classify(p, answer([{ key: "kind", answer: "fail", facts: ["category"] }, { key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", true);
+  assert.deepEqual(wrongKind, { class: "excluded", excluded_by: "kind", fit: null, reasons: ["fail:kind"] }, "the wrong kind of business is Excluded, by the kind");
+  const kindUnsure = classify(p, answer([{ key: "kind", answer: "unknown", facts: [] }, { key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", true);
+  assert.deepEqual([kindUnsure.class, kindUnsure.fit, kindUnsure.reasons], ["review", "look", ["unknown:kind"]], "a kind the facts do not settle is a look, never a guess either way");
+  const kindByCategory = classify(p, answer([{ key: "kind", answer: "pass", facts: ["category"] }, { key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "pass", facts: ["name"] }]), facts(), "ok", true);
+  assert.equal(kindByCategory.class, "qualified", "the kind rests on the category by design: a likely standard, never held to seen's bar");
+  assert.equal(searchWords.LEAD_KIND_KEY, "kind");
+  assert.equal(searchWords.leadKindWord("wedding and event planners"), "Not one of the wedding and event planners", "what the Excluded chip says");
   const unsure = classify(p, answer([{ key: "website", answer: "pass", facts: ["host"] }, { key: "chain", answer: "unknown", facts: [] }]), facts(), "ok", true);
   assert.deepEqual([unsure.class, unsure.fit, unsure.reasons], ["review", "look", ["unknown:chain"]]);
   const seen = plan({ criteria: [{ key: "otc", text: "Already sell OTC medicine", standard: "seen", required: true }], exclusions: [] });

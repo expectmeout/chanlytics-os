@@ -145,11 +145,13 @@ export function fakeJudge(model = "claude-opus-5-fixture") {
       const answers = places.map((p) => {
         const kind = LABELS.get(p.name) ?? "unknown";
         const facts = ["name", "category"].filter((k) => p[k] !== null);
-        // Every criterion and every exclusion (contracts' rubric): an exclusion fails when the place is what is left out.
-        const rubric = [...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
+        // The engine's own kind criterion first (contracts LEAD_KIND_KEY), then every criterion and every exclusion
+        // (contracts' rubric): an exclusion fails when the place is what is left out; the kind fails when it is
+        // another kind of business, which is what "other" labels.
+        const rubric = ["kind", ...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
         const criteria = rubric.map((key) => ({
           key,
-          answer: kind === "unknown" ? "unknown" : kind === "fit" ? "pass" : kind === "chain" && (key === "independent" || key === "chains") ? "fail" : kind === "other" && key === "right_kind" ? "fail" : "pass",
+          answer: kind === "unknown" ? "unknown" : kind === "fit" ? "pass" : kind === "chain" && (key === "independent" || key === "chains") ? "fail" : kind === "other" && (key === "kind" || key === "right_kind") ? "fail" : "pass",
           facts,
         }));
         return { ref: p.ref, criteria, email_index: p.emails.length ? 0 : null, reason: kind === "fit" ? "Independent studio with its own site" : kind === "chain" ? "Part of a gym chain" : kind === "other" ? "Another kind of business" : "The facts do not say" };

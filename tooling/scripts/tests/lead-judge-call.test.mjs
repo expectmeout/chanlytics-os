@@ -14,8 +14,9 @@ const places = [
   { ref: 1, name: "PowerGym Austin #13", category: "Gym", city: "Austin", state: "TX", host: "place0013.example", rating: 4.1, reviews: 900, emails: [], phone_matches_site: false },
 ];
 const good = { places: [
-  { ref: 0, criteria: [{ key: "right_kind", answer: "pass", facts: ["category"] }, { key: "independent", answer: "pass", facts: ["name", "reviews"] }, { key: "chains", answer: "pass", facts: ["name"] }], email_index: 0, reason: "Independent studio with its own site" },
-  { ref: 1, criteria: [{ key: "right_kind", answer: "pass", facts: ["category"] }, { key: "independent", answer: "fail", facts: ["name"] }, { key: "chains", answer: "fail", facts: ["name"] }], email_index: null, reason: "Part of a gym chain" },
+  // The engine's own kind criterion (LEAD_KIND_KEY) is answered beside the plan's, as the parser requires of a real answer.
+  { ref: 0, criteria: [{ key: "kind", answer: "pass", facts: ["category"] }, { key: "right_kind", answer: "pass", facts: ["category"] }, { key: "independent", answer: "pass", facts: ["name", "reviews"] }, { key: "chains", answer: "pass", facts: ["name"] }], email_index: 0, reason: "Independent studio with its own site" },
+  { ref: 1, criteria: [{ key: "kind", answer: "pass", facts: ["category"] }, { key: "right_kind", answer: "pass", facts: ["category"] }, { key: "independent", answer: "fail", facts: ["name"] }, { key: "chains", answer: "fail", facts: ["name"] }], email_index: null, reason: "Part of a gym chain" },
 ] };
 const reply = (json, over = {}) => ({ model: "claude-opus-5-20260301", stop_reason: "end_turn", content: [{ type: "text", text: JSON.stringify(json) }], usage: { input_tokens: 900, output_tokens: 120 }, ...over });
 function client(fn) {
@@ -34,7 +35,7 @@ test("one structured call: the model, low effort, the schema, six thousand token
   assert.ok(p.messages[0].content.includes("<places>"));
   assert.equal(a.model, "claude-opus-5-20260301", "the model that answered, not the one asked");
   assert.equal(a.tokens, 1020);
-  assert.deepEqual(a.answers.map((x) => [x.ref, x.email_index, x.criteria[1].answer]), [[0, 0, "pass"], [1, null, "fail"]]);
+  assert.deepEqual(a.answers.map((x) => [x.ref, x.email_index, x.criteria.find((c) => c.key === "independent").answer]), [[0, 0, "pass"], [1, null, "fail"]]);
   assert.match(a.requestHash, /^[0-9a-f]{64}$/);
 });
 

@@ -11,7 +11,7 @@
  */
 import { z } from "zod";
 import type { LeadSearchPlan } from "./lead-search";
-import { LEAD_FACT_MAX, LEAD_REASON_MAX_WORDS } from "./lead-search";
+import { LEAD_FACT_MAX, LEAD_KIND_KEY, LEAD_REASON_MAX_WORDS } from "./lead-search";
 
 /* ----------------------------------------------------------- the facts -- */
 
@@ -100,6 +100,7 @@ export function judgeSystemPrompt(plan: LeadSearchPlan): string {
   lines.push(`The search: ${plan.count} ${plan.name} in ${plan.area.label}.`);
   lines.push("For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say unknown when the facts do not say; never guess a fail.");
   lines.push("A fail may cite a fact that is missing (its absence is the evidence); a pass must cite a fact that is actually there.");
+  lines.push(`- ${LEAD_KIND_KEY}: the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`);
   for (const c of plan.criteria) {
     const bar = c.standard === "seen"
       ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown"
@@ -175,7 +176,7 @@ export function parseJudgeAnswer(raw: unknown, plan: LeadSearchPlan, places: Pla
   const parsed = AnswerSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, why: `shape: ${parsed.error.issues[0]?.message ?? "invalid"}` };
   const byRef = new Map(places.map((p) => [p.ref, p]));
-  const wanted = [...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
+  const wanted = [LEAD_KIND_KEY, ...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
   const answers: JudgePlaceAnswer[] = [];
   const seen = new Set<number>();
   for (const a of parsed.data.places) {
