@@ -659,7 +659,8 @@ export function leadDraftFooter(business: string, address: string): string {
 
 export interface LeadPeekReach {
   phone: { value: string; note: string; tel: string | null; wrong: boolean } | null;
-  email: { value: string; note: string; standard: string; state: LeadEmailState; word: string; address: string | null; canDraft: boolean };
+  /** `standard` is null beside an address that checks out: there it would be a line saying nothing (D5). */
+  email: { value: string; note: string; standard: string | null; state: LeadEmailState; word: string; address: string | null; canDraft: boolean };
   locked: { title: string; line: string };
 }
 export interface LeadPeekVM {
@@ -690,6 +691,10 @@ export interface LeadPeekVM {
   facts: { k: string; v: string }[];
   /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
   checksSummary: string;
+  /** One mark per check, in the order they were made: the strip beside the head, so the shape of the evidence reads at a glance. */
+  checkDots: ("yes" | "unknown" | "no")[];
+  /** "Found 3 ways, 2:02 PM · #9 for “independent bookstore”": the line the trace folds under. */
+  foundSummary: string;
   /** "1.2 mi", from the search's centre; "" when the search has none. */
   distance: string;
   cls: LeadClass;
@@ -840,6 +845,9 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     ...(failed ? [`${failed} failed`] : []),
   ].join(" · ");
   const rated = r.rating === null || r.rating === undefined ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  // The trace is always three lines: the listing, their site, the mailbox. The head says how many so the panel can
+  // fold it away and still say what happened.
+  const foundWays: number = 3;
   const facts: LeadPeekVM["facts"] = [
     ...(r.category ? [{ k: "Kind", v: r.category }] : []),
     ...(r.price ? [{ k: "Price", v: r.price }] : []),
@@ -858,6 +866,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     week: leadWeekBars(r.hours ?? [], tz, now),
     facts,
     checksSummary,
+    checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,
@@ -886,7 +895,9 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       email: {
         value: r.email ?? "No email on their site",
         note: emailNote,
-        standard,
+        // The standard explains a lead the mailbox did not settle. Beside an address that checks out it is a line
+        // saying nothing, on every good lead: null there, so the peek reads shorter where there is nothing to say.
+        standard: r.email_state === "ok" ? null : standard,
         state: r.email_state,
         word: LEAD_EMAIL_WORDS[r.email_state],
         address: r.email,
@@ -899,6 +910,10 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       { how: "read", label: LEAD_CHECK_GROUP_WORDS.read, checks: read },
     ].filter((g) => g.checks.length > 0) as LeadPeekVM["groups"],
     others,
+    foundSummary: [
+      `Found ${foundWays} way${foundWays === 1 ? "" : "s"}, ${clockIn(tz, r.found_at, now)}`,
+      ...(term && r.rank ? [`#${r.rank} for “${term}”`] : []),
+    ].join(" · "),
     found: [
       // The rank it was found at rides the first line when the listing gave one: "#3 for “wedding planner”".
       { at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`) : "On a Google Maps listing" },

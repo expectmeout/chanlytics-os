@@ -10678,10 +10678,11 @@ interface LeadPeekReach {
         tel: string | null;
         wrong: boolean;
     } | null;
+    /** `standard` is null beside an address that checks out: there it would be a line saying nothing (D5). */
     email: {
         value: string;
         note: string;
-        standard: string;
+        standard: string | null;
         state: LeadEmailState;
         word: string;
         address: string | null;
@@ -10734,6 +10735,10 @@ interface LeadPeekVM {
     }[];
     /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
     checksSummary: string;
+    /** One mark per check, in the order they were made: the strip beside the head, so the shape of the evidence reads at a glance. */
+    checkDots: ("yes" | "unknown" | "no")[];
+    /** "Found 3 ways, 2:02 PM · #9 for “independent bookstore”": the line the trace folds under. */
+    foundSummary: string;
     /** "1.2 mi", from the search's centre; "" when the search has none. */
     distance: string;
     cls: LeadClass;

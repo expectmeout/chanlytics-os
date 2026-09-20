@@ -214,7 +214,8 @@ test("a catch-all email reads Unconfirmed, wears the dashed ring and says the se
   const { tree } = page({ vm: vmOf({ email_state: "catch_all" }) }).draw();
   assert.equal(textOf(byTestId(tree, "peek-email-word")), "Unconfirmed");
   assert.equal(textOf(byTestId(tree, "peek-email-note")), "Their server accepts every address, so the check can't tell");
-  assert.equal(textOf(byTestId(tree, "peek-email-standard")), LEAD_CONTACT_STANDARD_WORDS.email);
+  assert.equal(textOf(byTestId(tree, "peek-email-standard")), LEAD_CONTACT_STANDARD_WORDS.email, "a mailbox the check could not settle says what this search asked for");
+  assert.equal(byTestId(page().draw().tree, "peek-email-standard"), null, "beside an address that checks out it would be a line saying nothing");
   const shape = find(byTestId(tree, "peek-email"), (n) => /ld-shape-catch_all/.test(n.props?.className || ""));
   assert.ok(shape, "the dashed ring, not a check");
   assert.equal(all(byTestId(tree, "peek-email"), (n) => /ld-shape-ok/.test(n.props?.className || "")).length, 0);
@@ -625,8 +626,10 @@ test("D5: the peek opens on a photo band with Expand, decides with a verdict car
   assert.match(textOf(rated), /^What people say5\.016 reviews/);
   assert.equal(all(byTestId(rated, "peek-rated-bars"), (n) => n.props?.className === "ld-bar-row").length, 5, "one bar a star");
   assert.equal(textOf(byTestId(rated, "peek-claimed")), "Listing not claimed by the owner", "whether anyone watches the listing sits with what people say");
-  assert.equal(textOf(byTestId(tree, "peek-checks-summary")), "Checked7 checks passed");
-  assert.equal(byTestId(tree, "peek-checks").props.open, true, "open by default");
+  assert.equal(textOf(byTestId(tree, "peek-checks-summary")), "7 checks passed", "the strip and the words, with the label gone: the head is the summary");
+  assert.equal(byTestId(tree, "peek-checks").props.open, undefined, "folded away, so the act at the foot is reachable without scrolling past seven rows");
+  assert.equal(all(byTestId(tree, "peek-check-dots"), (n) => String(n.props?.className || "").startsWith("pk-dot ")).length, 7, "one mark a check, in the order they were made");
+  assert.equal(textOf(byTestId(tree, "peek-found-summary")), "Found 3 ways, 2:14 PM · #3 for “personal trainer”", "and the trace folds under one line that says it");
   const act = byTestId(tree, "peek-act");
   assert.equal(tree.props.children.at(-1).rendered.props.children.at(-1), act, "the act bar is the peek's last child: it never scrolls away");
   assert.equal(textOf(byTestId(act, "peek-act-call")), "Call +15125550142");

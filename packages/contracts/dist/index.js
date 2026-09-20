@@ -11608,6 +11608,7 @@ function toLeadPeekVM(r, search, tz, now) {
     ...failed ? [`${failed} failed`] : []
   ].join(" \xB7 ");
   const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const foundWays = 3;
   const facts = [
     ...r.category ? [{ k: "Kind", v: r.category }] : [],
     ...r.price ? [{ k: "Price", v: r.price }] : [],
@@ -11626,6 +11627,7 @@ function toLeadPeekVM(r, search, tz, now) {
     week: leadWeekBars(r.hours ?? [], tz, now),
     facts,
     checksSummary,
+    checkDots: m.checks.map((c) => c.answer),
     distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,
@@ -11652,7 +11654,9 @@ function toLeadPeekVM(r, search, tz, now) {
       email: {
         value: r.email ?? "No email on their site",
         note: emailNote,
-        standard,
+        // The standard explains a lead the mailbox did not settle. Beside an address that checks out it is a line
+        // saying nothing, on every good lead: null there, so the peek reads shorter where there is nothing to say.
+        standard: r.email_state === "ok" ? null : standard,
         state: r.email_state,
         word: LEAD_EMAIL_WORDS[r.email_state],
         address: r.email,
@@ -11665,6 +11669,10 @@ function toLeadPeekVM(r, search, tz, now) {
       { how: "read", label: LEAD_CHECK_GROUP_WORDS.read, checks: read }
     ].filter((g) => g.checks.length > 0),
     others,
+    foundSummary: [
+      `Found ${foundWays} way${foundWays === 1 ? "" : "s"}, ${clockIn(tz, r.found_at, now)}`,
+      ...term && r.rank ? [`#${r.rank} for \u201C${term}\u201D`] : []
+    ].join(" \xB7 "),
     found: [
       // The rank it was found at rides the first line when the listing gave one: "#3 for “wedding planner”".
       { at: clockIn(tz, r.found_at, now), what: term ? r.rank ? `On Google Maps, #${r.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D` : "On a Google Maps listing" },
