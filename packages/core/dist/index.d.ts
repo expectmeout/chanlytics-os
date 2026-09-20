@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember } from '@chanlytics/contracts';
+import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember } from '@chanlytics/contracts';
 import { Json, Database } from '@chanlytics/db';
 
 /**
@@ -519,7 +519,8 @@ interface SendQueuedPorts {
     deliver: Door;
     /** The thread flagged for a person, with why. */
     escalate(conversationId: string, reason: string, details: string): Promise<unknown>;
-    alert(subject: string, body: string): Promise<void>;
+    /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
+    alert(news: JobNews): Promise<void>;
     /** The platform's own pager, for a provider refusing every send on a wire. */
     page?(key: string, subject: string, body: string): Promise<unknown>;
 }
@@ -629,7 +630,8 @@ interface BroadcastBatchPorts {
         sent: number;
         held: number;
     }): Promise<void>;
-    alert(subject: string, body: string): Promise<void>;
+    /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
+    alert(news: JobNews): Promise<void>;
     now(): number;
     sleep(ms: number): Promise<void>;
 }
