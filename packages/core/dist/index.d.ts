@@ -1587,6 +1587,13 @@ declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", te
 
 declare const JUDGE_REFUSED_REASON = "the judge could not read these";
 declare const FACT_MAX = 120;
+/**
+ * How long one judge call may take, said once here: apps/edge/lib/lead-wires.ts
+ * binds it on the client (with no retry of the SDK's own, so this is the real
+ * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
+ * started with less time left than it may take.
+ */
+declare const JUDGE_TIMEOUT_MS = 40000;
 /** A fact as the judge sees it: one line, no control characters, at most 120 characters. */
 declare function fact(v: string | null): string | null;
 /** Listing facts only, never a page's words (PRD §7.1). */
@@ -1596,6 +1603,8 @@ interface JudgedBatch {
     judgment: CollectJudgment | null;
     model: string | null;
     refused: boolean;
+    /** Why the judge refused, in its own word ("max_tokens", "stop"): the members say the plan's sentence, and this is what the collect's line logs. */
+    why: string | null;
 }
 declare function opIdFor(runId: string, fromOffset: number, batch: number): string;
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
@@ -1718,12 +1727,28 @@ declare const FIRST_COLLECT_SECONDS = 20;
 declare const POLL_SECONDS = 15;
 declare const PAGE_ITEMS = 100;
 declare const CHECK_BATCH = 500;
-/** No provider or model call starts with less than this left before the function is killed. */
+/** No provider call starts with less than this left before the function is killed. */
 declare const DEADLINE_MARGIN_MS = 8000;
+/**
+ * The judge's own margin: it may take its whole timeout to answer, so it is
+ * never started with less than that left. A margin shorter than the call it
+ * guards buys nothing -- the function is killed mid-call, the page is never
+ * committed, and the batch is paid for twice when the job is tried again.
+ */
+declare const JUDGE_MARGIN_MS = 40000;
 /** An unknown start with no run at the provider after this long is failed. */
 declare const UNKNOWN_START_GRACE_MS: number;
 /** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */
 declare const INPUT_MARKER = "chanlyticsRunId";
+/**
+ * How far into the provider's own list a lost start is looked for: the list
+ * answers a hundred runs since a time (channels apify.ts), and ours can be
+ * anywhere in it -- a round starting three terms, or another search on the
+ * same account, pushes it down. The list carries no input, so there is no
+ * cheaper way than reading each run's input key until ours is found; stopping
+ * at twenty failed a run the provider was still charging for.
+ */
+declare const PROVIDER_RUN_PAGE = 100;
 declare const OUT_OF_AREA_REASON = "outside the area you asked for";
 declare const NO_LOCATION_REASON = "no location on the listing";
 declare const CLOSED_REASON = "closed on Google Maps";
@@ -1741,6 +1766,8 @@ type StartOutcome = {
 } | {
     kind: "paused";
 } | {
+    kind: "spent";
+} | {
     kind: "started";
     phase: Phase;
     runs: {
@@ -1756,6 +1783,8 @@ type CollectOutcome = {
 } | {
     kind: "round_ended";
 } | {
+    kind: "round_closing";
+} | {
     kind: "busy";
 } | {
     kind: "lost";
@@ -1768,6 +1797,7 @@ type CollectOutcome = {
     toOffset: number;
     runState: LeadRunState | null;
     roundState: LeadRoundState | null;
+    judgeRefused: string | null;
 } | {
     kind: "checked";
     results: number;
@@ -1807,6 +1837,8 @@ declare function collect(p: LeadPorts, runId: string, seq: string, owner: string
 type CheckOutcome = {
     kind: "not_open";
 } | {
+    kind: "paused";
+} | {
     kind: "nothing_to_check";
 } | {
     kind: "started";
@@ -1829,4 +1861,4 @@ type ReconcileOutcome = {
 /** An unknown start is reconciled against the provider's own list; ours carry the run row id in their input (PRD §0.5, E1). */
 declare function reconcileUnknownRuns(p: LeadPorts, unknownRuns: LeadRunRow[]): Promise<ReconcileOutcome[]>;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckOutcome, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type IncomingEmail, JUDGE_REFUSED_REASON, type JudgedBatch, LEASE_SECONDS, type LatLng, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PERSON_CONTROL_MAX_S, POLL_SECONDS, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, UNKNOWN_START_GRACE_MS, type WakePorts, type Wire, type WirePayload, afterProbe, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, emailSender, eraseBlobThread, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, identityOf, inArea, ingestEmail, isFreeMail, judgeBatch, mainAsk, medianCenter, memberOf, opIdFor, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyToConversation, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckOutcome, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type IncomingEmail, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, UNKNOWN_START_GRACE_MS, type WakePorts, type Wire, type WirePayload, afterProbe, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, emailSender, eraseBlobThread, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, identityOf, inArea, ingestEmail, isFreeMail, judgeBatch, mainAsk, medianCenter, memberOf, opIdFor, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyToConversation, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, wake, whatsappSender, yieldOf, zctaCenter };

@@ -13,6 +13,13 @@ import type { CollectJudgment } from "./ports";
 
 export const JUDGE_REFUSED_REASON = "the judge could not read these";
 export const FACT_MAX = 120;
+/**
+ * How long one judge call may take, said once here: apps/edge/lib/lead-wires.ts
+ * binds it on the client (with no retry of the SDK's own, so this is the real
+ * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
+ * started with less time left than it may take.
+ */
+export const JUDGE_TIMEOUT_MS = 40_000;
 
 /** A fact as the judge sees it: one line, no control characters, at most 120 characters. */
 export function fact(v: string | null): string | null {
@@ -42,6 +49,8 @@ export interface JudgedBatch {
   judgment: CollectJudgment | null;
   model: string | null;
   refused: boolean;
+  /** Why the judge refused, in its own word ("max_tokens", "stop"): the members say the plan's sentence, and this is what the collect's line logs. */
+  why: string | null;
 }
 
 export function opIdFor(runId: string, fromOffset: number, batch: number): string {
@@ -50,7 +59,7 @@ export function opIdFor(runId: string, fromOffset: number, batch: number): strin
 
 /** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
 export async function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string): Promise<JudgedBatch> {
-  if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false };
+  if (!places.length) return { answers: new Map(), judgment: null, model: null, refused: false, why: null };
   let last: { refused: true; why: string } | null = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const a = await judge.judge(plan, places);
@@ -63,7 +72,8 @@ export async function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places:
       judgment: { op_id: opId, batch: 0, request_hash: a.requestHash, answer: a.raw, model: a.model, tokens: a.tokens },
       model: a.model,
       refused: false,
+      why: null,
     };
   }
-  return { answers: new Map(), judgment: null, model: null, refused: true, ...(last ? {} : {}) };
+  return { answers: new Map(), judgment: null, model: null, refused: true, why: last?.why ?? null };
 }

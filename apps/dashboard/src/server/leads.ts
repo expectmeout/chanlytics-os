@@ -73,16 +73,27 @@ export function refusalOf(a: DoorAnswer): AppError | null {
     case "kind":
       return new AppError("conflict", "That change cannot be undone.", 409);
     default:
-      return new AppError("validation", String(a.error).replace(/_/g, " "), 400);
+      // A door said something this build has no sentence for. The owner gets
+      // one plain sentence rather than a de-underscored word out of the
+      // database; the code goes to the log, where it can be looked up.
+      console.warn("lead_door_refusal_unknown", JSON.stringify({ error: String(a.error).slice(0, 80) }));
+      return new AppError("conflict", "Something about this search stopped that from going through. Reload and try again.", 409);
   }
 }
 
 /** The yield assumed before a probe has measured one: half the places qualify. */
 export const ASSUMED_YIELD = 0.5;
 
-/** What a round is expected to cost, from the card's brief prices: the probe and its main phase for a first round, the main phase alone after. */
-export function estimateForRound(plan: LeadSearchPlan, purpose: LeadRoundPurpose): number {
-  const main = estimateRoundUsd(plan, "main", placesToAsk(plan, plan.count, ASSUMED_YIELD).total);
+/**
+ * What a round is expected to cost, from the card's brief prices: the probe and
+ * its main phase for a first round, the main phase alone after. A top-up runs
+ * to the count minus what already counted (00140's lead_search_more sets that
+ * as its target), so that is what it is priced for -- pricing the whole count
+ * reserves money the round will never be allowed to spend.
+ */
+export function estimateForRound(plan: LeadSearchPlan, purpose: LeadRoundPurpose, counted = 0): number {
+  const wanted = purpose === "topup" ? Math.max(1, plan.count - counted) : plan.count;
+  const main = estimateRoundUsd(plan, "main", placesToAsk(plan, wanted, ASSUMED_YIELD).total);
   if (purpose !== "probe") return Math.round(main * 100) / 100;
   return Math.round((estimateRoundUsd(plan, "probe", LEAD_PROBE_PLACES) + main) * 100) / 100;
 }

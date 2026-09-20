@@ -35,7 +35,12 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     now: () => new Date(),
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,
-    // Once per key: a second row for the same run and seq is an answer, not an error (00140's index on lead_collect).
+    // scheduleJobOnce is once per key only where a unique index says so, and
+    // of these three only lead_collect has one (00140's jobs_lead_collect_once,
+    // on the run and the seq of every collect that has not failed for good): a
+    // second row for the same page is answered as the fact it is. A second
+    // lead_round_start or lead_check is simply inserted, and what keeps those
+    // from doing anything twice is the claim and the lease, not the ledger.
     schedule: async (kind, payload, runAfterSeconds) => {
       await scheduleJobOnce(ctx.db, { tenantId: job.tenant_id, kind, dueAt: new Date(Date.now() + runAfterSeconds * 1000), payload: payload as Json });
     },

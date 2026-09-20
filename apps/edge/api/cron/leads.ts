@@ -37,7 +37,8 @@ export async function POST(request: Request): Promise<Response> {
       db.from("lead_runs").select("id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at").in("state", ["claimed", "starting", "running", "unknown"]),
       db.from("lead_runs").select("id, tenant_id, round_id, purpose, state, apify_run_id, claimed_by, claimed_at, lease_owner, lease_gen, lease_until, created_at").not("lease_owner", "is", null),
       db.from("jobs").select("payload").eq("kind", "lead_collect").in("state", ["scheduled", "fired"]),
-      db.from("lead_rounds").select("id, tenant_id, state, waiting_since").eq("state", "waiting_on_owner"),
+      // Every round that has not ended, not only one waiting: a round whose start job died sits in 'queued' with no run, and only the sweep ends it (00140's trigger_leads_sweep).
+      db.from("lead_rounds").select("id, tenant_id, state, waiting_since, created_at").neq("state", "ended"),
     ]);
     for (const r of [live, leased, jobs, waiting]) if (r.error) throw new Error(r.error.message);
     const scheduled = new Set((jobs.data ?? []).map((j) => String((j.payload as { run_id?: unknown } | null)?.run_id ?? "")));
@@ -52,7 +53,7 @@ export async function POST(request: Request): Promise<Response> {
 
   const actions = planLeadSweep({ runs, rounds }, now);
   const wires = leadWires();
-  const counts = { collected: 0, aborted: 0, reconciled: 0, marked_unknown: 0, released: 0, questions_ended: 0, failed: 0, source: wires ? "on" : "off" };
+  const counts = { collected: 0, aborted: 0, reconciled: 0, marked_unknown: 0, released: 0, questions_ended: 0, rounds_ended: 0, failed: 0, source: wires ? "on" : "off" };
   const ledger = leadDb(db);
   const ports: LeadPorts | null = wires
     ? {
@@ -94,6 +95,13 @@ export async function POST(request: Request): Promise<Response> {
           const { error } = await db.rpc("lead_round_end", { p_round_id: a.roundId, p_ending: "question_unanswered" });
           if (error) throw new Error(error.message);
           counts.questions_ended += 1;
+          break;
+        }
+        case "end_stuck": {
+          // Nothing live and an hour gone: the round ends, and its allowance and its share of the day's cap come back (00140's lead_round_end).
+          const { error } = await db.rpc("lead_round_end", { p_round_id: a.roundId, p_ending: "source_failed" });
+          if (error) throw new Error(error.message);
+          counts.rounds_ended += 1;
           break;
         }
         case "orphan": {

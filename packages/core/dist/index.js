@@ -39538,6 +39538,7 @@ async function runIdFor(roundId, phase, term) {
 // src/leads/judge.ts
 var JUDGE_REFUSED_REASON = "the judge could not read these";
 var FACT_MAX = 120;
+var JUDGE_TIMEOUT_MS = 4e4;
 function fact(v) {
   if (v === null) return null;
   const s = v.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ").trim().slice(0, FACT_MAX);
@@ -39561,7 +39562,7 @@ function opIdFor(runId, fromOffset, batch) {
   return judgeOpId(runId, fromOffset, batch);
 }
 async function judgeBatch(judge, plan, places, opId) {
-  if (!places.length) return { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false };
+  if (!places.length) return { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false, why: null };
   let last = null;
   for (let attempt = 0; attempt < 2; attempt++) {
     const a = await judge.judge(plan, places);
@@ -39573,10 +39574,11 @@ async function judgeBatch(judge, plan, places, opId) {
       answers: new Map(a.answers.map((x) => [x.ref, x])),
       judgment: { op_id: opId, batch: 0, request_hash: a.requestHash, answer: a.raw, model: a.model, tokens: a.tokens },
       model: a.model,
-      refused: false
+      refused: false,
+      why: null
     };
   }
-  return { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: true, ...last ? {} : {} };
+  return { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: true, why: last?.why ?? null };
 }
 
 // src/leads/sizing.ts
@@ -39602,7 +39604,9 @@ function probeYield(contact, members) {
 function runCaps(plan, perTerm, reservedLeftUsd) {
   const wants = perTerm.map((n) => estimateRoundUsd({ ...plan, terms: [plan.terms[0] ?? ""] }, "main", n));
   const sum = wants.reduce((a, b) => a + b, 0);
-  const scale = sum > reservedLeftUsd && sum > 0 ? Math.max(0, reservedLeftUsd) / sum : 1;
+  const left = Math.max(0, reservedLeftUsd);
+  if (left < MAPS_CAP_FLOOR_USD) return wants.map(() => 0);
+  const scale = sum > left && sum > 0 ? left / sum : 1;
   return wants.map((w) => Math.max(MAPS_CAP_FLOOR_USD, Math.round(w * scale * 100) / 100));
 }
 
@@ -39657,8 +39661,10 @@ var POLL_SECONDS = 15;
 var PAGE_ITEMS = 100;
 var CHECK_BATCH = 500;
 var DEADLINE_MARGIN_MS = 8e3;
+var JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
 var UNKNOWN_START_GRACE_MS = 10 * 6e4;
 var INPUT_MARKER = "chanlyticsRunId";
+var PROVIDER_RUN_PAGE = 100;
 var OUT_OF_AREA_REASON = "outside the area you asked for";
 var NO_LOCATION_REASON = "no location on the listing";
 var CLOSED_REASON = "closed on Google Maps";
@@ -39673,7 +39679,7 @@ var iso = (d) => d.toISOString();
 var isRefused = (e) => e?.name === "ApifyRefused";
 var isRetryable = (e) => e?.name === "ApifyRetryable";
 var minute = (p) => Math.floor(p.now().getTime() / 6e4);
-var outOfTime = (p) => p.now().getTime() + DEADLINE_MARGIN_MS > p.deadline;
+var outOfTime = (p, marginMs = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
 var webhookUrl = (p, runRowId, token) => `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
 var targetOf = (round) => round.purpose === "probe" ? round.plan.count : round.target;
 var wasJudged = (m) => {
@@ -39683,7 +39689,7 @@ var wasJudged = (m) => {
 async function findOurRun(p, actor, row) {
   const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * 6e4);
   const runs = await p.apify.listActorRuns(actor, iso(since));
-  for (const r of runs.slice(0, 20)) {
+  for (const r of runs.slice(0, PROVIDER_RUN_PAGE)) {
     const input = await p.apify.runInput(r.id);
     if (input && input[INPUT_MARKER] === row.id) return r;
   }
@@ -39718,6 +39724,11 @@ async function startRound(p, roundId, owner, resume = false) {
     await p.db.roundEnd(round.id, "paused");
     return { kind: "paused" };
   }
+  const leftUsd = round.cost_reserved_usd - round.cost_usd;
+  if (leftUsd <= 0) {
+    await p.db.roundEnd(round.id, "budget_used");
+    return { kind: "spent" };
+  }
   const plan = round.plan;
   const card = CARDS[plan.card];
   const phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
@@ -39731,10 +39742,10 @@ async function startRound(p, roundId, owner, resume = false) {
     const y = round.purpose === "probe" ? probeYield(plan.contact, judged) : 0.5;
     ask = mainAsk(plan, targetOf(round) - counted, y, round.question?.dropTerm ?? null);
   }
-  const caps = runCaps(plan, ask.perTerm, round.cost_reserved_usd - round.cost_usd);
+  const caps = runCaps(plan, ask.perTerm, leftUsd);
   const wanted = [];
   for (const [i, term] of ask.terms.entries()) {
-    if (ask.perTerm[i] <= 0) continue;
+    if (ask.perTerm[i] <= 0 || caps[i] <= 0) continue;
     const id = await runIdFor(round.id, phase, term);
     wanted.push({ id, term, hash: await sha256Hex2(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
   }
@@ -39868,10 +39879,14 @@ async function collect(p, runId, seq, owner) {
   const round = await p.db.round(run.round_id);
   if (!round) return { kind: "gone" };
   if (run.purpose === "check") return collectCheck(p, round, run, owner);
-  if (seq === "stop" || seq === "stop.b") return stopRun(p, round, run, owner);
+  if (seq === "stop" || seq.startsWith("stop.")) return stopRun(p, round, run, owner);
   if (round.state === "ended") {
     if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
     return { kind: "round_ended" };
+  }
+  if (round.state === "checking" || round.ending_pending !== null) {
+    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => void 0);
+    return { kind: "round_closing" };
   }
   if (!run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) return { kind: "not_started" };
   const gen = await p.db.runLease(run.id, owner, LEASE_SECONDS);
@@ -39907,7 +39922,8 @@ async function collectHeld(p, round, run, owner, gen) {
   }
   const members = await p.db.membersOfRound(round.id);
   const geo = phase === "probe" ? { center: areaCenter(plan), radiusM: plan.area.radius_m } : centerOf(plan, members);
-  let from = run.read_offset;
+  const base = run.read_offset;
+  let from = base;
   const seen = run.items_seen;
   let items = [];
   if (datasetId && !alreadyFinal) {
@@ -39921,6 +39937,7 @@ async function collectHeld(p, round, run, owner, gen) {
   let cursor = 0;
   let lastRoundState = null;
   let lastRunState = null;
+  let judgeRefused = null;
   do {
     const { end, prepared } = takeBatch(card, items, cursor);
     const isLastOfPage = end >= items.length;
@@ -39944,10 +39961,11 @@ async function collectHeld(p, round, run, owner, gen) {
       rows.push({ prep, shares: [...idn.shares, ...within.get(prep.clean.raw.placeId) ?? []], duplicateOf: dup });
       if (!prep.rule && !dup) toJudge.push({ prep, ref: toJudge.length });
     }
-    let judged = { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false };
+    let judged = { answers: /* @__PURE__ */ new Map(), judgment: null, model: null, refused: false, why: null };
     if (toJudge.length) {
-      if (outOfTime(p)) throw new LeadRetry("out of time before the judge");
+      if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
       judged = await judgeBatch(p.judge, plan, toJudge.map((t) => factsOf(t.ref, t.prep.clean)), opIdFor(run.id, from, 0));
+      if (judged.refused && judged.why) judgeRefused = judged.why;
     }
     const places = rows.map((r) => {
       const ref = toJudge.find((t) => t.prep === r.prep)?.ref;
@@ -39956,7 +39974,7 @@ async function collectHeld(p, round, run, owner, gen) {
       return memberOf(plan, run.term ?? "", r.prep.clean, answer, judged.judgment?.op_id ?? null, judged.model, rule, geo, r.shares, r.duplicateOf);
     });
     newMembers.push(...places);
-    const to = from + end;
+    const to = base + end;
     const runDone = isLastOfPage && pageShort && remoteFinal;
     const stopHere = !isLastOfPage && outOfTime(p);
     const next = runDone ? null : !isLastOfPage && !stopHere ? null : { kind: "lead_collect", seq: `p${to}`, run_after_seconds: isLastOfPage && pageShort ? POLL_SECONDS : 0 };
@@ -39980,7 +39998,7 @@ async function collectHeld(p, round, run, owner, gen) {
     cursor = end;
     if (stopHere || runDone) break;
   } while (cursor < items.length);
-  return { kind: "committed", commits, toOffset: from, runState: lastRunState, roundState: lastRoundState };
+  return { kind: "committed", commits, toOffset: from, runState: lastRunState, roundState: lastRoundState, judgeRefused };
 }
 function memberRows(places, term) {
   return places.map((x) => ({
@@ -40038,7 +40056,7 @@ async function stopRun(p, round, run, owner) {
   if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id);
   const gen = await p.db.runLease(run.id, owner, LEASE_SECONDS);
   if (gen === null) {
-    await p.schedule("lead_collect", { run_id: run.id, seq: "stop.b" }, 30);
+    await p.schedule("lead_collect", { run_id: run.id, seq: `stop.${minute(p)}` }, 30);
     return { kind: "busy" };
   }
   try {
@@ -40068,6 +40086,11 @@ async function check(p, roundId, batch, owner) {
   const card = CARDS[round.plan.card];
   const all = checkable(await p.db.membersOfRound(round.id));
   const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
+  if (!await p.db.leadSearchesOn(round.tenant_id)) {
+    if (slice.length) await p.db.checkCommit(round.id, null, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })), 0, false);
+    await p.db.roundEnd(round.id, "paused");
+    return { kind: "paused" };
+  }
   if (!slice.length) {
     if (batch === 0 && round.state === "checking") await p.db.checkCommit(round.id, null, [], 0, true);
     return { kind: "nothing_to_check" };
@@ -40190,7 +40213,9 @@ export {
   FIRST_COLLECT_SECONDS,
   IDEMPOTENCY_WINDOW_MS,
   INPUT_MARKER,
+  JUDGE_MARGIN_MS,
   JUDGE_REFUSED_REASON,
+  JUDGE_TIMEOUT_MS,
   LEASE_SECONDS,
   LeadRetry,
   MAPS_CAP_FLOOR_USD,
@@ -40203,6 +40228,7 @@ export {
   PAGE_ITEMS,
   PERSON_CONTROL_MAX_S,
   POLL_SECONDS,
+  PROVIDER_RUN_PAGE,
   RADIUS_MAX_M,
   RADIUS_MIN_M,
   SEND_GRACE_MS,

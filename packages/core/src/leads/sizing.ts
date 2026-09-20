@@ -52,6 +52,11 @@ export function probeYield(contact: LeadContactStandard, members: { class: LeadM
 export function runCaps(plan: LeadSearchPlan, perTerm: number[], reservedLeftUsd: number): number[] {
   const wants = perTerm.map((n) => estimateRoundUsd({ ...plan, terms: [plan.terms[0] ?? ""] }, "main", n));
   const sum = wants.reduce((a, b) => a + b, 0);
-  const scale = sum > reservedLeftUsd && sum > 0 ? Math.max(0, reservedLeftUsd) / sum : 1;
+  const left = Math.max(0, reservedLeftUsd);
+  // The floor is a floor on a cap, never a licence to spend what the round has
+  // not reserved: with less left than one run's floor, every term gets nothing
+  // and the round starts nothing (runner startRound).
+  if (left < MAPS_CAP_FLOOR_USD) return wants.map(() => 0);
+  const scale = sum > left && sum > 0 ? left / sum : 1;
   return wants.map((w) => Math.max(MAPS_CAP_FLOOR_USD, Math.round(w * scale * 100) / 100));
 }

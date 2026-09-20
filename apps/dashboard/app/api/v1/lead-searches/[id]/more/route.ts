@@ -28,7 +28,7 @@ export const POST = write({
       p_search_id: search.id,
       p_purpose: input.purpose,
       p_plan: plan as unknown as Json,
-      p_estimate_usd: estimateForRound(plan, input.purpose),
+      p_estimate_usd: estimateForRound(plan, input.purpose, search.counted),
     });
     if (error) throw new Error(`lead_search_more: ${error.message}`);
     const a = answerOf(data);

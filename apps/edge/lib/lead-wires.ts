@@ -13,10 +13,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createHmac } from "node:crypto";
 import { apifyClient, leadJudge, LEAD_JUDGE_DEFAULT_MODEL, type ApifyClient, type LeadJudge, type LeadJudgeClient } from "./workspace/channels.js";
+import { JUDGE_TIMEOUT_MS } from "./workspace/core.js";
 
 const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
-/** Under the job's 45-second yield, so a slow answer is a retry rather than a killed run. */
-const JUDGE_TIMEOUT_MS = 40_000;
 
 export interface LeadWires {
   apify: ApifyClient;
@@ -48,7 +47,10 @@ export function leadJudgeFallbacks(v: string | undefined = process.env.LEAD_JUDG
 }
 
 // output_config and fallbacks predate the SDK pin's types; the API accepts them (brain.ts:54).
-const realJudgeClient = (): LeadJudgeClient => new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 1 }) as unknown as LeadJudgeClient;
+// No retry of the SDK's own: a second try doubles the window the runner's
+// JUDGE_MARGIN_MS guards, and a slow answer is the ledger's retry to make, not
+// the client's inside a job that is about to be killed.
+const realJudgeClient = (): LeadJudgeClient => new Anthropic({ timeout: JUDGE_TIMEOUT_MS, maxRetries: 0 }) as unknown as LeadJudgeClient;
 let judgeClientFor: () => LeadJudgeClient = realJudgeClient;
 /** Tests hand in their own; null restores the real one. */
 export function setLeadJudgeClient(f: (() => LeadJudgeClient) | null): void {

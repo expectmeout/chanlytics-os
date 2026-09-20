@@ -5,13 +5,13 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { startRound, collect, check, reconcileUnknownRuns, LeadRetry, INPUT_MARKER, OUT_OF_AREA_REASON, CLOSED_REASON } from "../../../packages/core/src/leads/runner.ts";
-import { JUDGE_REFUSED_REASON } from "../../../packages/core/src/leads/judge.ts";
+import { startRound, collect, check, reconcileUnknownRuns, LeadRetry, INPUT_MARKER, OUT_OF_AREA_REASON, CLOSED_REASON, JUDGE_MARGIN_MS } from "../../../packages/core/src/leads/runner.ts";
+import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS } from "../../../packages/core/src/leads/judge.ts";
 import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
 import { ApifyRefused, ApifyRetryable } from "../../../packages/channels/src/apify.ts";
 import { leadDb } from "../../../apps/edge/lib/lead-db.ts";
 import { leadWorld, sha256, webhookToken, TENANT } from "./_lead-world.mjs";
-import { PLAN, mapsItem } from "./_lead-fixtures.mjs";
+import { PLAN, actorRun, mapsItem } from "./_lead-fixtures.mjs";
 
 const OWNER = "job-1";
 function world(over = {}) {
@@ -81,6 +81,22 @@ test("a start whose answer was lost stays unknown and is never started again; th
   assert.deepEqual((await reconcileUnknownRuns(p3("sweep"), w3.runs())).map((d) => d.kind), ["failed", "failed"]);
 });
 
+test("an unknown start is looked for in the provider's whole list: a run pushed past the newest twenty by a round's other terms, or another search on the same account, is still found", async () => {
+  const { w, p } = world();
+  const real = w.apify.startRun;
+  let n = 0;
+  w.apify.startRun = async (...a) => { n += 1; if (n === 1) { await real(...a); throw new ApifyRetryable(null, "the provider did not answer"); } return real(...a); };
+  assert.deepEqual((await startRound(p(), w.round().id, OWNER)).runs.map((r) => r.kind), ["unknown", "started"]);
+  const ours = w.runs()[0];
+  // Thirty runs of somebody else's on the same account, all newer: ours is thirtieth in the list.
+  const mine = w.apify.state.runs;
+  const others = {};
+  for (let i = 0; i < 30; i++) others[`RunOther${i}`] = actorRun({ id: `RunOther${i}`, startedAt: "2026-09-19T12:00:30.000Z" });
+  w.apify.state.runs = { ...others, ...mine };
+  assert.deepEqual(await reconcileUnknownRuns(p("sweep"), [ours]), [{ runId: ours.id, kind: "reconciled" }]);
+  assert.deepEqual([w.runs()[0].state, w.runs()[0].apify_run_id], ["running", "RunFake0001"], "a run the provider is charging for is never left unsettled");
+});
+
 test("a busy provider throws for the ledger; the job tried again finds its own claim and starts the rows it left, looking at the provider first", async () => {
   const { w, p } = world();
   const real = w.apify.startRun;
@@ -99,6 +115,15 @@ test("the switch: a workspace no longer listed while searches are off is 'paused
   w.T.lead_platform[0].tenants_on = [];
   assert.deepEqual(await startRound(p(), w.round().id, OWNER), { kind: "paused" });
   assert.deepEqual([w.round().state, w.round().ending, w.apify.calls.length], ["ended", "paused", 0]);
+});
+
+test("nothing left of what the round reserved: nothing is started, and the round says the budget is used", async () => {
+  const { w, p } = world();
+  const round = w.round();
+  round.cost_usd = round.cost_reserved_usd;
+  assert.deepEqual(await startRound(p(), round.id, OWNER), { kind: "spent" });
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "budget_used"]);
+  assert.deepEqual([w.apify.calls.length, w.runs().length], [0, 0], "the actor's cap floor is a floor on a cap, not a licence to spend what was never reserved");
 });
 
 async function probed(over = {}) {
@@ -181,9 +206,38 @@ test("out of time before the judge is a retry for the ledger, with nothing commi
   await assert.rejects(collect(p("c1", { deadline: w.clock.ms }), r1.id, "p0", "c1"), LeadRetry);
   assert.equal(w.members().length, 0);
   assert.equal(w.judge.calls.length, 0);
+  // The judge's margin covers the judge's own timeout: a call that may take
+  // forty seconds is never started with twenty left, or the function is killed
+  // mid-call and the batch is paid for twice.
+  assert.ok(JUDGE_MARGIN_MS >= JUDGE_TIMEOUT_MS, `the margin (${JUDGE_MARGIN_MS}) must cover the call it guards (${JUDGE_TIMEOUT_MS})`);
+  const reads = w.apify.calls.length;
+  await assert.rejects(collect(p("c1b", { deadline: w.clock.ms + 20_000 }), r1.id, "p0", "c1b"), LeadRetry);
+  assert.ok(w.apify.calls.length > reads, "twenty seconds is room enough to read the run and its items");
+  assert.equal(w.judge.calls.length, 0, "and not room enough to ask the judge");
+  assert.equal(w.members().length, 0, "nothing is committed");
   w.rpcs.lead_run_lease({ p_run_id: r1.id, p_owner: "somebody", p_seconds: 90 });
   assert.deepEqual(await collect(p("c1"), r1.id, "p0", "c1"), { kind: "busy" });
   assert.ok(w.jobsOf("lead_collect").some((j) => j.payload.seq === "p0.b"));
+});
+
+test("a page bigger than one judge batch: every batch is committed where the last one ended, and the next poll reads on from there without skipping a place the owner paid for", async () => {
+  const { w, p } = world();
+  await startRound(p(), w.round().id, OWNER);
+  const r1 = w.runs()[0];
+  // Sixty places in one dataset, the run still going: three batches of the judge's twenty-five.
+  w.apify.state.datasets[r1.dataset_id] = Array.from({ length: 60 }, (_, i) => mapsItem(200 + i));
+  const pairs = [];
+  const realCommit = w.rpcs.lead_collect_commit;
+  w.rpcs.lead_collect_commit = (a) => { pairs.push([a.p_from_offset, a.p_to_offset]); return realCommit(a); };
+  const out = await collect(p("c1"), r1.id, "p0", "c1");
+  assert.deepEqual([out.kind, out.commits, out.toOffset], ["committed", 3, 60]);
+  assert.deepEqual(pairs, [[0, 25], [25, 50], [50, 60]], "the offset is the page's own, never the running one added to itself");
+  assert.deepEqual([w.runs()[0].read_offset, w.runs()[0].items_seen], [60, 60], "what was read and what was seen are one number");
+  assert.equal(w.members().length, 60, "and no place is lost between the batches");
+  const next = w.jobsOf("lead_collect").find((j) => j.payload.run_id === r1.id && j.payload.seq !== "p0");
+  assert.equal(next.payload.seq, "p60", "the poll that rides the commit names the offset it stopped at");
+  await collect(p("c2"), r1.id, next.payload.seq, "c2");
+  assert.deepEqual(w.apify.calls.filter((c) => c.op === "listItems" && c.datasetId === r1.dataset_id).map((c) => c.offset), [0, 60], "the second poll reads on from sixty, not past it");
 });
 
 test("the commit is one call guarded by the lease's generation and the offset: a stale generation and a stale offset are refused, and Stop moves the generation", async () => {
@@ -238,6 +292,43 @@ test("Stop: the run is aborted at the provider and the round goes to its checks 
   assert.deepEqual([done.kind, done.last], ["checked", true]);
   assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"]);
   assert.ok(w.T.leads.filter((l) => l.email).every((l) => l.email_state === "ok"));
+});
+
+test("the switch, read before the checker too: with searches off nothing is started, the addresses still waiting say they could not be checked, and the round ends paused", async () => {
+  const { w, p } = await probed({ plan: { ...PLAN, contact: "email" } });
+  const [r1, r2] = w.runs();
+  await collect(p("c1"), r1.id, "p0", "c1");
+  w.rpcs.lead_round_stop({ p_search_id: w.search().id });
+  await collect(p("s1"), r2.id, "stop", "s1");
+  assert.equal(w.round().state, "checking");
+  const started = w.apify.calls.filter((c) => c.op === "startRun").length;
+  const waiting = w.T.leads.filter((l) => l.email_state === "checking").length;
+  assert.ok(waiting > 0, "there are addresses to check");
+  w.T.lead_platform[0].tenants_on = [];
+  assert.deepEqual(await check(p("k1"), w.round().id, 0, "k1"), { kind: "paused" });
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, started, "no checker run is started");
+  assert.equal(w.runs().filter((r) => r.purpose === "check").length, 0, "and no row to claim, lease or collect");
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "paused"]);
+  assert.equal(w.T.leads.filter((l) => l.email_state === "unknown").length, waiting, "every address that was waiting says it could not be checked");
+});
+
+test("a poll the door never cancelled, arriving after Stop: it decides nothing, the round stays stopped, and no new money reaches the provider", async () => {
+  const good = { ...PLAN, count: 60, criteria: [{ key: "right_kind", text: "a place", standard: "likely", required: false }], exclusions: [] };
+  const { w, p } = await probed({ plan: good });
+  const [r1, r2] = w.runs();
+  await collect(p("c1"), r1.id, "p0", "c1");
+  w.rpcs.lead_round_stop({ p_search_id: w.search().id });
+  assert.deepEqual(await collect(p("s1"), r2.id, "stop", "s1"), { kind: "stopped" });
+  assert.deepEqual([w.round().state, w.round().ending_pending], ["checking", "stopped"]);
+  const started = w.apify.calls.filter((c) => c.op === "startRun").length;
+  const members = w.members().length;
+  // The first run's own poll, scheduled before the Stop and never cancelled.
+  assert.deepEqual(await collect(p("c9"), r1.id, "p0", "c9"), { kind: "round_closing" });
+  assert.deepEqual([w.round().state, w.round().ending_pending], ["checking", "stopped"], "a round on its way out is never sent back to running");
+  assert.equal(w.jobsOf("lead_round_start").filter((j) => j.payload.resume).length, 0, "and nothing of it is resumed");
+  assert.equal(w.members().length, members, "the stale page commits nothing");
+  for (const j of w.jobsOf("lead_round_start")) await startRound(p("j9"), j.payload.round_id, "j9", j.payload.resume === true);
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, started, "Stop is the last word: nothing is started again");
 });
 
 test("the checks decide the email standard: a review held only for its email becomes qualified and counts when the mailbox answers ok", async () => {

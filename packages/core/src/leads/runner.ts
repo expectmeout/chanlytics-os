@@ -30,7 +30,7 @@ import { discoveryEnding, FINAL_RUN_STATES, runStateOf, termsShortOf } from "./e
 import { inArea, haversineM, medianCenter, radiusFromSpread, type LatLng } from "./geo";
 import { runIdFor, sha256Hex } from "./ids";
 import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "./identity";
-import { JUDGE_REFUSED_REASON, factsOf, judgeBatch, opIdFor, type JudgedBatch } from "./judge";
+import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, factsOf, judgeBatch, opIdFor, type JudgedBatch } from "./judge";
 import type { CollectCommitResult, CollectPage, CollectPlace, LeadMemberRow, LeadPorts, LeadRoundRow, LeadRunRow, LeadShare } from "./ports";
 import { afterProbe } from "./question";
 import { mainAsk, probeAsk, probeYield, runCaps } from "./sizing";
@@ -40,12 +40,28 @@ export const FIRST_COLLECT_SECONDS = 20;
 export const POLL_SECONDS = 15;
 export const PAGE_ITEMS = 100;
 export const CHECK_BATCH = 500;
-/** No provider or model call starts with less than this left before the function is killed. */
+/** No provider call starts with less than this left before the function is killed. */
 export const DEADLINE_MARGIN_MS = 8_000;
+/**
+ * The judge's own margin: it may take its whole timeout to answer, so it is
+ * never started with less than that left. A margin shorter than the call it
+ * guards buys nothing -- the function is killed mid-call, the page is never
+ * committed, and the batch is paid for twice when the job is tried again.
+ */
+export const JUDGE_MARGIN_MS = JUDGE_TIMEOUT_MS;
 /** An unknown start with no run at the provider after this long is failed. */
 export const UNKNOWN_START_GRACE_MS = 10 * 60_000;
 /** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */
 export const INPUT_MARKER = "chanlyticsRunId";
+/**
+ * How far into the provider's own list a lost start is looked for: the list
+ * answers a hundred runs since a time (channels apify.ts), and ours can be
+ * anywhere in it -- a round starting three terms, or another search on the
+ * same account, pushes it down. The list carries no input, so there is no
+ * cheaper way than reading each run's input key until ours is found; stopping
+ * at twenty failed a run the provider was still charging for.
+ */
+export const PROVIDER_RUN_PAGE = 100;
 export const OUT_OF_AREA_REASON = "outside the area you asked for";
 export const NO_LOCATION_REASON = "no location on the listing";
 export const CLOSED_REASON = "closed on Google Maps";
@@ -66,7 +82,7 @@ const iso = (d: Date) => d.toISOString();
 const isRefused = (e: unknown): boolean => (e as { name?: string } | null)?.name === "ApifyRefused";
 const isRetryable = (e: unknown): e is { name: string; status: number | null } => (e as { name?: string } | null)?.name === "ApifyRetryable";
 const minute = (p: LeadPorts) => Math.floor(p.now().getTime() / 60_000);
-const outOfTime = (p: LeadPorts) => p.now().getTime() + DEADLINE_MARGIN_MS > p.deadline;
+const outOfTime = (p: LeadPorts, marginMs: number = DEADLINE_MARGIN_MS) => p.now().getTime() + marginMs > p.deadline;
 const webhookUrl = (p: LeadPorts, runRowId: string, token: string) => `${p.webhookBase}/api/apify-webhook?run=${encodeURIComponent(runRowId)}&token=${encodeURIComponent(token)}`;
 /** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
 export const targetOf = (round: LeadRoundRow): number => (round.purpose === "probe" ? round.plan.count : round.target);
@@ -82,13 +98,14 @@ export type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "so
 export type StartOutcome =
   | { kind: "not_open" }
   | { kind: "paused" }
+  | { kind: "spent" }
   | { kind: "started"; phase: Phase; runs: { term: string; kind: TermOutcome }[] };
 
 /** The provider's run that carries this row's id in its input, if one exists. */
 async function findOurRun(p: LeadPorts, actor: string, row: LeadRunRow): Promise<{ id: string; status: string; datasetId: string | null } | null> {
   const since = new Date(Date.parse(row.claimed_at ?? row.created_at) - 5 * 60_000);
   const runs = await p.apify.listActorRuns(actor, iso(since));
-  for (const r of runs.slice(0, 20)) {
+  for (const r of runs.slice(0, PROVIDER_RUN_PAGE)) {
     const input = (await p.apify.runInput(r.id)) as Record<string, unknown> | null;
     if (input && input[INPUT_MARKER] === row.id) return r;
   }
@@ -134,6 +151,14 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     await p.db.roundEnd(round.id, "paused");
     return { kind: "paused" };
   }
+  // What this round still has reserved. Nothing left starts nothing: the
+  // actor's cap floor is a floor on a cap, never a licence to spend money the
+  // round never reserved (S6), so the round ends on the word for it instead.
+  const leftUsd = round.cost_reserved_usd - round.cost_usd;
+  if (leftUsd <= 0) {
+    await p.db.roundEnd(round.id, "budget_used");
+    return { kind: "spent" };
+  }
   const plan = round.plan;
   const card = CARDS[plan.card];
   const phase: Phase = round.purpose === "probe" && !resume && round.state !== "running" ? "probe" : "main";
@@ -149,12 +174,12 @@ export async function startRound(p: LeadPorts, roundId: string, owner: string, r
     const y = round.purpose === "probe" ? probeYield(plan.contact, judged) : 0.5;
     ask = mainAsk(plan, targetOf(round) - counted, y, round.question?.dropTerm ?? null);
   }
-  const caps = runCaps(plan, ask.perTerm, round.cost_reserved_usd - round.cost_usd);
+  const caps = runCaps(plan, ask.perTerm, leftUsd);
 
   const wanted: { id: string; term: string; hash: string; places: number; cap: number }[] = [];
   for (const [i, term] of ask.terms.entries()) {
-    // placesToAsk may give a term nothing at all when little is left (S6): a run asked for no places is never started.
-    if (ask.perTerm[i] <= 0) continue;
+    // placesToAsk may give a term nothing at all when little is left (S6): a run asked for no places, or with nothing left to cap it, is never started.
+    if (ask.perTerm[i] <= 0 || caps[i] <= 0) continue;
     const id = await runIdFor(round.id, phase, term);
     wanted.push({ id, term, hash: await sha256Hex(await p.webhookToken(id)), places: ask.perTerm[i], cap: caps[i] });
   }
@@ -201,9 +226,10 @@ export type CollectOutcome =
   | { kind: "gone" }
   | { kind: "not_started" }
   | { kind: "round_ended" }
+  | { kind: "round_closing" }
   | { kind: "busy" }
   | { kind: "lost"; why: Exclude<CollectCommitResult, { ok: true }>["why"] }
-  | { kind: "committed"; commits: number; toOffset: number; runState: LeadRunState | null; roundState: LeadRoundState | null }
+  | { kind: "committed"; commits: number; toOffset: number; runState: LeadRunState | null; roundState: LeadRoundState | null; judgeRefused: string | null }
   | { kind: "checked"; results: number; last: boolean }
   | { kind: "stopped" }
   | { kind: "polling" };
@@ -295,10 +321,21 @@ export async function collect(p: LeadPorts, runId: string, seq: string, owner: s
   const round = await p.db.round(run.round_id);
   if (!round) return { kind: "gone" };
   if (run.purpose === "check") return collectCheck(p, round, run, owner);
-  if (seq === "stop" || seq === "stop.b") return stopRun(p, round, run, owner);
+  if (seq === "stop" || seq.startsWith("stop.")) return stopRun(p, round, run, owner);
   if (round.state === "ended") {
     if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => undefined);
     return { kind: "round_ended" };
+  }
+  // A round on its way out decides nothing more (PRD §0.5, decision 17). Stop
+  // bumps the generation and schedules its own collect, but it never cancels
+  // the polls already out: one of those, arriving after the round reached its
+  // checks or had an ending left pending, would read the run as final, ask
+  // roundDecision for a verdict and either start the next phase at the
+  // provider or write over the ending the owner asked for. Nothing is
+  // committed here, and anything still running is stopped.
+  if (round.state === "checking" || round.ending_pending !== null) {
+    if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id).catch(() => undefined);
+    return { kind: "round_closing" };
   }
   if (!run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) return { kind: "not_started" };
   const gen = await p.db.runLease(run.id, owner, LEASE_SECONDS);
@@ -336,7 +373,13 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
   const members = await p.db.membersOfRound(round.id);
   const geo = phase === "probe" ? { center: areaCenter(plan), radiusM: plan.area.radius_m } : centerOf(plan, members);
 
-  let from = run.read_offset;
+  // The page's own base: takeBatch answers an index into `items`, so both ends
+  // of every batch are measured from where this page started reading. `from`
+  // walks the batches; the base never moves, or a second batch would be added
+  // to an offset that already absorbed the first and the next poll would skip
+  // what the owner paid for.
+  const base = run.read_offset;
+  let from = base;
   const seen = run.items_seen;
   let items: unknown[] = [];
   if (datasetId && !alreadyFinal) {
@@ -350,6 +393,7 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
   let cursor = 0;
   let lastRoundState: LeadRoundState | null = null;
   let lastRunState: LeadRunState | null = null;
+  let judgeRefused: string | null = null;
 
   do {
     const { end, prepared } = takeBatch(card, items, cursor);
@@ -377,10 +421,12 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
       if (!prep.rule && !dup) toJudge.push({ prep, ref: toJudge.length });
     }
     // The judge: one call for the batch, kept by operation id; refused twice is Needs review (§7.1).
-    let judged: JudgedBatch = { answers: new Map(), judgment: null, model: null, refused: false };
+    let judged: JudgedBatch = { answers: new Map(), judgment: null, model: null, refused: false, why: null };
     if (toJudge.length) {
-      if (outOfTime(p)) throw new LeadRetry("out of time before the judge");
+      if (outOfTime(p, JUDGE_MARGIN_MS)) throw new LeadRetry("out of time before the judge");
       judged = await judgeBatch(p.judge, plan, toJudge.map((t) => factsOf(t.ref, t.prep.clean)), opIdFor(run.id, from, 0));
+      // The members say the plan's sentence; the judge's own word for the refusal rides the outcome, so the collect's line says why.
+      if (judged.refused && judged.why) judgeRefused = judged.why;
     }
     const places = rows.map((r) => {
       const ref = toJudge.find((t) => t.prep === r.prep)?.ref;
@@ -390,7 +436,7 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
     });
     newMembers.push(...places);
 
-    const to = from + end;
+    const to = base + end;
     const runDone = isLastOfPage && pageShort && remoteFinal;
     const stopHere = !isLastOfPage && outOfTime(p);
     // The next collect rides the commit when this invocation will not read on: the page ended, or time is short.
@@ -416,7 +462,7 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
     if (stopHere || runDone) break;
   } while (cursor < items.length);
 
-  return { kind: "committed", commits, toOffset: from, runState: lastRunState, roundState: lastRoundState };
+  return { kind: "committed", commits, toOffset: from, runState: lastRunState, roundState: lastRoundState, judgeRefused };
 }
 
 /** The rows just committed, as members of the round, for a decision made in the same invocation. */
@@ -480,7 +526,9 @@ async function stopRun(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner
   if (run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) await p.apify.abortRun(run.apify_run_id);
   const gen = await p.db.runLease(run.id, owner, LEASE_SECONDS);
   if (gen === null) {
-    await p.schedule("lead_collect", { run_id: run.id, seq: "stop.b" }, 30);
+    // Keyed by the minute, as the checker's poll is: a Stop that meets a busy
+    // lease twice would otherwise ask for the one row it already has out.
+    await p.schedule("lead_collect", { run_id: run.id, seq: `stop.${minute(p)}` }, 30);
     return { kind: "busy" };
   }
   try {
@@ -499,7 +547,7 @@ async function stopRun(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, owner
 
 /* ------------------------------------------------------------- the check */
 
-export type CheckOutcome = { kind: "not_open" } | { kind: "nothing_to_check" } | { kind: "started"; emails: number; more: boolean } | { kind: "already" } | { kind: "unknown" } | { kind: "refused" };
+export type CheckOutcome = { kind: "not_open" } | { kind: "paused" } | { kind: "nothing_to_check" } | { kind: "started"; emails: number; more: boolean } | { kind: "already" } | { kind: "unknown" } | { kind: "refused" };
 
 /** The members whose picked address still waits for its check, in one fixed order. */
 export function checkable(members: LeadMemberRow[]): LeadMemberRow[] {
@@ -512,6 +560,15 @@ export async function check(p: LeadPorts, roundId: string, batch: number, owner:
   const card = CARDS[round.plan.card];
   const all = checkable(await p.db.membersOfRound(round.id));
   const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
+  // The switch, read before anything reaches the provider, as a start reads it
+  // (§0.5). The mailbox check is money too: with searches off the addresses
+  // still waiting say "Couldn't check", and the round ends the word the
+  // endings carry for it.
+  if (!(await p.db.leadSearchesOn(round.tenant_id))) {
+    if (slice.length) await p.db.checkCommit(round.id, null, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown" as const, checked_at: iso(p.now()) })), 0, false);
+    await p.db.roundEnd(round.id, "paused");
+    return { kind: "paused" };
+  }
   if (!slice.length) {
     if (batch === 0 && round.state === "checking") await p.db.checkCommit(round.id, null, [], 0, true);
     return { kind: "nothing_to_check" };
