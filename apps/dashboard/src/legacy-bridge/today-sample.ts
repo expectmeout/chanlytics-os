@@ -22,6 +22,7 @@ import {
   toBroadcastVM,
   toLiveVM,
   zoneDayKey,
+  zoneMidnight,
   clockTime,
   agoLabel,
   SERVER_KEY_PREFIX,
@@ -45,26 +46,12 @@ import {
 import { reportsSample } from "./reports-sample";
 import { TODAY_HELPERS } from "./today";
 import type { ReportsSurface } from "./surface-data";
+// The row the popover draws, from the bridge that owns it. `import type` is erased, so notifications.ts's
+// own `./api` import never reaches this browser-only bundle.
+import type { BellRow } from "./notifications";
 
 const ZONE = "America/New_York";
 const MIN = 60_000;
-
-/**
- * The row the popover draws (apps/dashboard/src/legacy-bridge/notifications.ts's own `BellRow`), redeclared here:
- * that file imports ./api, which this browser-only sample may not.
- */
-interface BellRow {
-  id: string;
-  kind: string;
-  icon: string;
-  tone: string;
-  unread: boolean;
-  time: string;
-  title: string;
-  message: string;
-  about: { type: string; id: string } | null;
-  actions: Array<{ label: string; to: string; primary: boolean }>;
-}
 
 export interface TodaySample {
   TODAY_DATA: TodayVM;
@@ -97,20 +84,12 @@ function naiveLocal(ms: number, zone: string): string {
   return `${p.year}-${p.month}-${p.day}T${p.hour}:${p.minute}:${p.second}`;
 }
 
-/** Midnight of the business's day, as an instant. */
-function midnightMs(ms: number, zone: string): number {
-  const local = naiveLocal(ms, zone);
-  const offset = Date.parse(`${local}Z`) - ms;
-  const [y, m, d] = local.slice(0, 10).split("-").map(Number);
-  return Date.UTC(y, m - 1, d) - offset;
-}
-
 const phone = (last4: string) => `+1305555${last4}`;
 
 function build(nowMs: number): TodaySample {
   const now = new Date(nowMs);
   const today = zoneDayKey(nowMs, ZONE);
-  const midnight = midnightMs(nowMs, ZONE);
+  const midnight = zoneMidnight(ZONE, today);
   /** An instant `min` minutes before now. */
   const ago = (min: number) => new Date(nowMs - min * MIN).toISOString();
   /** An instant at h:mm today on the business's clock. */
