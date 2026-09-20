@@ -143,7 +143,8 @@ test("while you were away: the bell's unread rows, newest first as the bell orde
 
 test("the wiring: the bridge publishes them, Reports lends its tile, the page composes below the core in order", () => {
   const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
-  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };") && bridge.includes("window.__today = TODAY_HELPERS;"));
+  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"), "the helpers, in order");
+  assert.ok(bridge.includes("window.__today = TODAY_HELPERS;"), "installed, not re-listed");
   assert.ok(readCode("apps/dashboard/src/legacy/pages/reports.jsx").includes("Object.assign(window, { RpTile });"), "the tile is shared, not copied");
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-week.jsx");
   for (const s of [

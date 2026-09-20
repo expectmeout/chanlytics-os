@@ -5,8 +5,9 @@
  * calendar's verbs are, so the page composes and never derives. The mockup's
  * sample (today-sample.ts) publishes the same object, so the two cannot drift.
  *
- * `facts`, `dayLine`, `week`, `journey` and `away` are the period card's and
- * the journey's; they leave with those cards in the page PR.
+ * `week` and `journey` are the period card's and the journey's, `dayLine` the
+ * hero's sentence; `facts` and `away` no page reads any more. All five leave in
+ * the page PR.
  */
 import { todayDay, todayDayFacts, todayDayLine, todayWeek, todayJourney, todayAway, todayAwayGrouped, todayLeaks, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved } from "@chanlytics/contracts";
 
