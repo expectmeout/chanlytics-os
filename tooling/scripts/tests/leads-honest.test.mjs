@@ -531,3 +531,61 @@ test("no word the Leads scope says names the vendor, and no number on it is a do
   const bad = said.filter((s) => /apify|compass|bounceverify|\$\d/i.test(s));
   assert.deepEqual(bad, [], "the owner sees Claude finding businesses, and one unit: leads");
 });
+
+/* ---------------------------- the classes, and their acts ---------------------------- */
+
+test("a Needs review row offers Keep and Exclude, an Excluded row offers Put back, and each toasts with Undo through its operation", async () => {
+  fresh();
+  let tree = draw();
+  const review = rowOf(tree, "l3");
+  assert.ok(byTestId(review, "lead-keep") && byTestId(review, "lead-exclude"), "Keep counts it; Exclude is free");
+  assert.equal(byTestId(review, "lead-put-back"), null);
+  const excluded = rowOf(tree, "l4");
+  assert.ok(byTestId(excluded, "lead-put-back"), "Put back is the owner's override");
+  assert.equal(byTestId(excluded, "lead-keep"), null);
+  click(byTestId(review, "lead-keep"));
+  await settle();
+  assert.deepEqual(calls.at(-1), ["keep", { search_id: SEARCH_A, id: "l3" }], "the lead names the search whose class it is in");
+  assert.equal(textOf(flashes.at(-1).msg), "Kept. It counts as a lead this month.");
+  await flashes.at(-1).undo();
+  assert.deepEqual(calls.at(-1), ["undo", { op: "op-k", version: 4 }], "Undo names the operation and the version it saw, never rows");
+  click(byTestId(rowOf(draw(), "l4"), "lead-put-back"));
+  await settle();
+  assert.deepEqual(calls.at(-1), ["putBack", { search_id: SEARCH_A, id: "l4" }]);
+  assert.equal(textOf(flashes.at(-1).msg), "Put back. It counts as a lead now.");
+  click(byTestId(rowOf(draw(), "l3"), "lead-exclude"));
+  await settle();
+  assert.deepEqual(calls.at(-1), ["exclude", { search_id: SEARCH_A, id: "l3" }]);
+  assert.equal(textOf(flashes.at(-1).msg), "Excluded. Nothing counted.");
+});
+
+test("a refused Keep is the route's sentence, and nothing says it was kept", async () => {
+  fresh({ refuse: { ok: false, status: 409, code: "conflict", message: "This place is hidden: it is already a customer, or was erased." } });
+  click(byTestId(rowOf(draw(), "l3"), "lead-keep"));
+  await settle();
+  assert.equal(flashes.at(-1).tone, "danger");
+  assert.match(textOf(flashes.at(-1).msg), /already a customer/);
+});
+
+test("an operator sees Find leads, Keep, Exclude and Put back refusing in the gate's sentence, and F does nothing for them", () => {
+  fresh({ role: "operator" });
+  const tree = draw();
+  const gated = (n) => [n.props["aria-disabled"], n.props["aria-description"]];
+  assert.deepEqual(gated(byTestId(tree, "leads-find")), [true, "Only an owner can find leads."]);
+  assert.deepEqual(gated(byTestId(rowOf(tree, "l3"), "lead-keep")), [true, "Only an owner can keep this lead."]);
+  assert.deepEqual(gated(byTestId(rowOf(tree, "l3"), "lead-exclude")), [true, "Only an owner can exclude this lead."]);
+  assert.deepEqual(gated(byTestId(rowOf(tree, "l4"), "lead-put-back")), [true, "Only an owner can put this lead back."]);
+  assert.equal(press("f"), false, "and the key is not theirs either");
+  assert.equal(finders.length, 0);
+});
+
+test("the Excluded view's chips count by criterion, and each narrows the rows", () => {
+  fresh();
+  let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-excluded` });
+  const chips = all(byTestId(tree, "lead-excluded-chips"), (n) => n.props?.["data-testid"]?.startsWith("lead-chip-")).map((n) => textOf(n).trim());
+  assert.deepEqual(chips, ["Chain 1", "Wrong kind 1"]);
+  click(byTestId(tree, "lead-chip-Chain"));
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-excluded` });
+  assert.deepEqual(names(tree), ["GigaFit Austin"]);
+  assert.deepEqual(all(byTestId(tree, "lead-classes"), (n) => n.props?.role === "tab").map((n) => [textOf(n).trim(), n.props["aria-selected"]]), [["Qualified 2", false], ["Needs review 1", false], ["Excluded 1", true]], "the three classes, each a view of the search");
+});

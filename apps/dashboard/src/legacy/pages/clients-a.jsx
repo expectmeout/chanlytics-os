@@ -1894,6 +1894,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     plFlash({ msg: said, ...leadUndo(r) });
   };
   const searchOf = (l) => (leadView && leadView.searchId) || (l && l.searchId) || null;
+  // Keep counts the place as Qualified the month it is kept; Exclude is free; Put back is the owner's override
+  // of an exclusion, through the door that counts (PRD 8.7). Each names the search whose class it is in, which
+  // is what release A's routes take ({ search_id }); the door answers the operation, and the toast offers it.
+  const keepLead = (id) => leadAct(() => window.__leadKeep(searchOf(leadById(id)), id), <>Kept. It counts as a lead this month.</>);
+  const excludeLead = (id) => leadAct(() => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded. Nothing counted.</>);
+  const putBackLead = (id) => leadAct(() => window.__leadPutBack(searchOf(leadById(id)), id), <>Put back. It counts as a lead now.</>);
   // The owner's own phone dials; coming back to the tab asks how it went (Task 14).
   const callLead = (id) => {
     const l = leadById(id);
@@ -1954,6 +1960,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       onOpen: setPeekId,
       onCall: callLead,
       onCopy: copyLead,
+      onKeep: keepLead,
+      onExclude: excludeLead,
+      onPutBack: putBackLead,
       hasCenter: colCtx.hasCenter,
       canFind,
     };
@@ -2005,6 +2014,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onScope={(to) => nav(to === "leads" ? "clients/leads" : "clients")}
         onPickList={(id) => goto({ list: id, searchId: leadView.searchId })}
         onPickSearch={(id) => nav(window.__leadsRouteOf({ searchId: leadView.searchId === id ? null : id, list: leadView.list, cls: null }))}
+        onPickClass={(cls) => { setChip(null); goto({ cls }); }}
         chip={chip}
         onPickChip={setChip}
         onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: null }))}
@@ -2034,6 +2044,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         flash={plFlash}
         onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId })}
         onCall={callLead}
+        onKeep={keepLead}
+        onExclude={excludeLead}
+        onPutBack={putBackLead}
         onCopy={copyLead}
         onStripAction={() => {}}
         onMore={() => window.__leadsMore && window.__leadsMore()}

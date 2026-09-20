@@ -12,12 +12,17 @@
 
 /* ------------------------------------------------------------------ the row */
 
-// Call and Copy on every row, on hover and on the keyboard's cursor. Keep, Exclude and Put back join them in
-// Task 11 (Qualified, Needs review and Excluded).
-const LeadRowActions = ({ l, onCall, onCopy }) => (
+// The row's acts: Call and Copy on every row, on hover and on the keyboard's cursor; and the class's own three
+// (§8.7, S9): Keep and Exclude move a place out of Needs review, Put back is the owner's override of an
+// exclusion. All three count, so all three are the owner's permission `find`; anyone else sees them on the page,
+// in the tab order, saying why when pressed (window.gate, data-bits.jsx), never disabled and never silent.
+const LeadRowActions = ({ l, onCall, onCopy, onKeep, onExclude, onPutBack, canFind }) => (
   <span className="cl-row-actions ld-row-actions">
     {l.phone && !l.phoneWrong && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onCall(l.id); }} title="Call from your phone" aria-label={`Call ${l.name}`} data-testid="lead-call"><Icon name="phone" size={11} /></button>}
     {l.email && l.emailState !== "invalid" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onCopy(l.id); }} title="Copy the email" aria-label={`Copy ${l.name}'s email`} data-testid="lead-copy"><Icon name="copy" size={11} /></button>}
+    {l.cls === "review" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onKeep(l.id); }} data-testid="lead-keep" {...(canFind ? {} : window.gate("find", "keep this lead"))}>Keep</button>}
+    {l.cls === "review" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onExclude(l.id); }} data-testid="lead-exclude" {...(canFind ? {} : window.gate("find", "exclude this lead"))}>Exclude</button>}
+    {l.cls === "excluded" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onPutBack(l.id); }} data-testid="lead-put-back" {...(canFind ? {} : window.gate("find", "put this lead back"))}>Put back</button>}
   </span>
 );
 
@@ -119,6 +124,41 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, onPickList, onPickSearch
   </>
 );
 
+/* ------------------------------------------------- the three classes (§8.7) */
+
+// Qualified · Needs review · Excluded, under the search that is open: each a count and a view (c-qualified,
+// c-review, c-excluded). The class is not a stage (§9.1): it says whether the place met the plan.
+const LEAD_CLASS_WORDS = { qualified: "Qualified", review: "Needs review", excluded: "Excluded" };
+const LeadClassTabs = ({ counts, cls, onPick }) => (
+  <div className="ld-classes" role="tablist" aria-label="What the search made of each place" data-testid="lead-classes">
+    {["qualified", "review", "excluded"].map((k) => (
+      <button key={k} type="button" role="tab" aria-selected={cls === k} className={`ld-class ${k} ${cls === k ? "on" : ""}`} onClick={() => onPick(cls === k ? null : k)} data-testid={`lead-class-${k}`}>
+        {LEAD_CLASS_WORDS[k]} <span className="count">{counts[k]}</span>
+      </button>
+    ))}
+  </div>
+);
+
+// The Excluded view's head: what each criterion left out, most first, each one narrowing the rows (§8.7). The
+// counts are the loaded rows' own `excludedBy` (lead_search_members.excluded_by, said in words by toLeadRowVM),
+// so the chips say what is on screen.
+const ldExcludedChips = (rows) => {
+  const by = new Map();
+  for (const l of rows) if (l.cls === "excluded" && l.excludedBy) by.set(l.excludedBy, (by.get(l.excludedBy) || 0) + 1);
+  return [...by.entries()].map(([key, count]) => ({ key, count })).sort((a, b) => b.count - a.count);
+};
+const LeadExcludedChips = ({ chips, active, onPick }) => (
+  chips.length === 0 ? null : (
+    <div className="ld-chips" data-testid="lead-excluded-chips">
+      {chips.map((c) => (
+        <button key={c.key} type="button" className={`ld-chip ${active === c.key ? "on" : ""}`} aria-pressed={active === c.key} onClick={() => onPick(active === c.key ? null : c.key)} data-testid={`lead-chip-${c.key}`}>
+          {c.key} <span className="count">{c.count}</span>
+        </button>
+      ))}
+    </div>
+  )
+);
+
 /* --------------------------------------------------------------- the bulk bar */
 
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
@@ -152,6 +192,7 @@ const LeadsScope = (p) => {
   const L = p.surface;
   const rail = p.rail;
   const standing = p.standing;
+  const chips = ldExcludedChips(L.rows);
   const search = p.search;
   return (
     <div className="clients leads-scope">
@@ -207,6 +248,9 @@ const LeadsScope = (p) => {
           )}
 
           {search && <LeadStrip vm={p.strip} onAction={p.onStripAction} />}
+
+          {search && <LeadClassTabs counts={{ qualified: search.round.qualified, review: search.round.review, excluded: search.round.excluded }} cls={p.view.cls} onPick={p.onPickClass} />}
+          {p.view.cls === "excluded" && <LeadExcludedChips chips={chips} active={p.chip} onPick={p.onPickChip} />}
 
           {L.readFailed
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
@@ -270,4 +314,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadsRailRows, LEAD_COLUMNS, LEAD_SORT_KEYS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadsRailRows, LeadClassTabs, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
