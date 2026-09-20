@@ -2587,10 +2587,12 @@ export type Database = {
       }
       leads: {
         Row: {
+          about: string | null
           blanked_at: string | null
           business_name: string
           category: string | null
           city: string | null
+          claimed: boolean | null
           closed_reason: string | null
           contact_id: string | null
           contacted_at: string | null
@@ -2602,32 +2604,43 @@ export type Database = {
           email_state: string
           erased_at: string | null
           exported_at: string | null
+          facebook_url: string | null
           found_at: string
+          hours: Json
           id: string
+          image_url: string | null
           instagram_url: string | null
           last_note: string | null
           last_outcome: string | null
           lat: number | null
+          linkedin_url: string | null
           lng: number | null
+          maps_url: string | null
           phone_e164: string | null
           phone_sources: number
           phone_wrong: boolean
           place_id: string | null
           postal_code: string | null
+          price: string | null
+          rank: number | null
           rating: number | null
           region: string | null
           reviews: number | null
+          reviews_dist: Json | null
           stage: string
           street: string | null
           tenant_id: string
+          tiktok_url: string | null
           version: number
           website_host: string | null
         }
         Insert: {
+          about?: string | null
           blanked_at?: string | null
           business_name?: string
           category?: string | null
           city?: string | null
+          claimed?: boolean | null
           closed_reason?: string | null
           contact_id?: string | null
           contacted_at?: string | null
@@ -2639,32 +2652,43 @@ export type Database = {
           email_state?: string
           erased_at?: string | null
           exported_at?: string | null
+          facebook_url?: string | null
           found_at?: string
+          hours?: Json
           id?: string
+          image_url?: string | null
           instagram_url?: string | null
           last_note?: string | null
           last_outcome?: string | null
           lat?: number | null
+          linkedin_url?: string | null
           lng?: number | null
+          maps_url?: string | null
           phone_e164?: string | null
           phone_sources?: number
           phone_wrong?: boolean
           place_id?: string | null
           postal_code?: string | null
+          price?: string | null
+          rank?: number | null
           rating?: number | null
           region?: string | null
           reviews?: number | null
+          reviews_dist?: Json | null
           stage?: string
           street?: string | null
           tenant_id: string
+          tiktok_url?: string | null
           version?: number
           website_host?: string | null
         }
         Update: {
+          about?: string | null
           blanked_at?: string | null
           business_name?: string
           category?: string | null
           city?: string | null
+          claimed?: boolean | null
           closed_reason?: string | null
           contact_id?: string | null
           contacted_at?: string | null
@@ -2676,24 +2700,33 @@ export type Database = {
           email_state?: string
           erased_at?: string | null
           exported_at?: string | null
+          facebook_url?: string | null
           found_at?: string
+          hours?: Json
           id?: string
+          image_url?: string | null
           instagram_url?: string | null
           last_note?: string | null
           last_outcome?: string | null
           lat?: number | null
+          linkedin_url?: string | null
           lng?: number | null
+          maps_url?: string | null
           phone_e164?: string | null
           phone_sources?: number
           phone_wrong?: boolean
           place_id?: string | null
           postal_code?: string | null
+          price?: string | null
+          rank?: number | null
           rating?: number | null
           region?: string | null
           reviews?: number | null
+          reviews_dist?: Json | null
           stage?: string
           street?: string | null
           tenant_id?: string
+          tiktok_url?: string | null
           version?: number
           website_host?: string | null
         }
@@ -4090,9 +4123,11 @@ export type Database = {
           p_tenant_id: string
         }
         Returns: {
+          about: string
           business_name: string
           category: string
           city: string
+          claimed: boolean
           class: string
           closed_reason: string
           contact_id: string
@@ -4107,15 +4142,20 @@ export type Database = {
           email_state: string
           excluded_by: string
           exported_at: string
+          facebook_url: string
           fit: string
           found_at: string
+          hours: Json
+          image_url: string
           instagram_url: string
           judgment: Json
           last_note: string
           last_outcome: string
           lat: number
           lead_id: string
+          linkedin_url: string
           lng: number
+          maps_url: string
           member_id: string
           page_key: string
           phone_e164: string
@@ -4124,16 +4164,20 @@ export type Database = {
           place_id: string
           places: number
           postal_code: string
+          price: string
+          rank: number
           rating: number
           reason: string
           region: string
           reviews: number
+          reviews_dist: Json
           round_id: string
           search_id: string
           shares: Json
           sort_key: string
           stage: string
           street: string
+          tiktok_url: string
           version: number
           website_host: string
         }[]

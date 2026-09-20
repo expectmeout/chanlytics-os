@@ -382,6 +382,7 @@ test("the shared-phone triple: three places with one number, one already in the 
   ids.run2 = run.id; ids.gen2 = run.gen;
 });
 
+
 test("a duplicate listing folds into the lead already held; an erased or customer place is never inserted (erasure mid-run)", { skip }, async () => {
   const held = (await leadByPlace("ChIJfixture0101")).id;
   ok(await db.from("lead_suppressions").insert([
@@ -977,4 +978,39 @@ test("A2: erasure mid-run: a place suppressed between the read and the commit is
   const held = members.find((m) => m.lead_id === farLead.id);
   assert.ok(held, JSON.stringify(members));
   assert.deepEqual([held.class, held.reason, held.judgment.reasons, held.distance_m > 250_000], ["review", OUT_OF_AREA_REASON, ["out_of_area"], true]);
+});
+
+// D2 (00144): what the listing shows about the business rides the same commit, comes back from leads_page, fills an
+// already-known place only where it was empty, and goes with the rest when the lead is blanked. Its own search, round
+// and run, made the way leads.db.test.mjs makes them, so nothing it counts moves a number another test pins.
+test("the lead carries what the listing shows: written by the commit, read by the page, filled where empty for a known place, blanked with the rest", { skip }, async () => {
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "wedding venues", asked: "wedding venues in Austin", plan: plan(5) }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({ tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: plan(5), plan_version: 1, target: 5, state: "queued", month: leadMonth(TZ, new Date()), day: "2026-09-20", platform_day: "2026-09-20", allowance_reserved: 5 }).select("id").single()).id;
+  const run = await runOf(round, "wedding venue", "w9");
+  const shown = {
+    about: "Waterfront venue for weddings.", hours: [{ day: "Monday", hours: "9 AM to 6 PM" }], image_url: "https://lh3.example/p.jpg", price: "$$",
+    reviews_dist: { one: 1, two: 0, three: 2, four: 8, five: 30 }, facebook_url: "https://www.facebook.example/p", linkedin_url: null, tiktok_url: null,
+    claimed: true, maps_url: "https://maps.example/?cid=904", rank: 3,
+  };
+  const rich = place(904, "qualified");
+  rich.place = { ...rich.place, ...shown };
+  // A round starts queued and the first page moves it, as the shared-phone test above does.
+  let r = ok(await commit(run.id, "w9", run.gen, 0, 1, { places: [rich], round: { state: "probing" } }));
+  assert.equal(r.counted, 1);
+  const rows = ok(await owner.client.rpc("leads_page", { p_tenant_id: A, p_search_id: search, p_class: "qualified", p_sort: "found", p_after_key: null, p_limit: 50 }));
+  const row = rows.find((x) => x.place_id === "ChIJfixture0904");
+  assert.deepEqual([row.about, row.hours, row.image_url, row.price, row.reviews_dist, row.facebook_url, row.linkedin_url, row.claimed, row.maps_url, row.rank],
+    [shown.about, shown.hours, shown.image_url, shown.price, shown.reviews_dist, shown.facebook_url, null, shown.claimed, shown.maps_url, shown.rank], "the page returns what the commit wrote");
+  // The same place found again by another page: what it already shows stays; what was empty is filled; nothing else moves.
+  const lead = await leadByPlace("ChIJfixture0904");
+  ok(await db.from("leads").update({ stage: "nurture" }).eq("id", lead.id));
+  const again = place(904, "qualified");
+  again.place = { ...again.place, about: "A different line.", linkedin_url: "https://www.linkedin.example/p", claimed: false };
+  r = ok(await commit(run.id, "w9", run.gen, 1, 2, { places: [again] }));
+  const after = ok(await db.from("leads").select("about, linkedin_url, claimed, stage").eq("id", lead.id).single());
+  assert.deepEqual(after, { about: shown.about, linkedin_url: "https://www.linkedin.example/p", claimed: true, stage: "nurture" }, "filled where empty, kept where not, and the worked stage untouched");
+  // Blanked with the rest.
+  ok(await db.rpc("lead_blank", { p_lead_id: lead.id }));
+  const blanked = ok(await db.from("leads").select("about, hours, image_url, reviews_dist, facebook_url, linkedin_url, claimed, maps_url, rank, email").eq("id", lead.id).single());
+  assert.deepEqual(blanked, { about: null, hours: [], image_url: null, reviews_dist: null, facebook_url: null, linkedin_url: null, claimed: null, maps_url: null, rank: null, email: null });
 });
