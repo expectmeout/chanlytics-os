@@ -185,6 +185,16 @@ export const LEAD_WORDS = {
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close",
 } as const;
 
 
@@ -657,6 +667,21 @@ export interface LeadPeekVM {
   image: string | null;
   reviewsDist: [number, number, number, number, number] | null;
   claimedNote: string | null;
+  /* ---- D5: the peek re-cut ---- */
+  /** The tile behind the photo band: initials on the kind's tint, drawn when there is no photo or it fails to load. */
+  tile: { initials: string; tint: number };
+  /** "4.7" and "1,284", apart; null where the source does not rate. */
+  rated: { score: string; count: string } | null;
+  /** The two reach slots, as the row wears them. */
+  slots: { phone: LeadSlot; mailbox: LeadSlot };
+  /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
+  week: LeadWeekRow[];
+  /** "From the listing": the facts about the place the expanded photo lists beside it. */
+  facts: { k: string; v: string }[];
+  /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
+  checksSummary: string;
+  /** "1.2 mi", from the search's centre; "" when the search has none. */
+  distance: string;
   cls: LeadClass;
   stage: LeadStage;
   stages: { id: "ready" | "nurture" | "converted"; label: string; on: boolean }[];
@@ -683,6 +708,34 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
   if (!h) return null;
   return /^closed/i.test(h.hours) ? "Closed today" : `Open today · ${h.hours}`;
 }
+/** One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser cannot draw. */
+export interface LeadWeekRow { day: string; hours: string; bar: { x: number; w: number } | null; today: boolean }
+const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
+const hourOf = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0)) + (m ? Number(m) / 60 : 0);
+/**
+ * The week's hours as bars (D5): "9 AM to 6 PM" is a bar from 37.5% to 75% of the day, "Open 24 hours" the whole
+ * day, "Closed" no bar, and a line the parser cannot read keeps its words and draws nothing. Overnight hours run to
+ * the end of the day. The listing's own order is kept; today is the business's own day (tz).
+ */
+export function leadWeekBars(hours: { day: string; hours: string }[], tz: string, now: Date): LeadWeekRow[] {
+  const today = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  return hours.map((h) => {
+    const text = h.hours.trim();
+    let bar: LeadWeekRow["bar"] = null;
+    if (/^open 24 hours$/i.test(text)) bar = { x: 0, w: 100 };
+    else if (!/^closed/i.test(text)) {
+      const m = text.match(CLOCK);
+      if (m) {
+        const a = hourOf(m[1], m[2], m[3]);
+        let b = hourOf(m[4], m[5], m[6]);
+        if (b <= a) b = 24;
+        bar = { x: Math.round((a / 24) * 1000) / 10, w: Math.round(((b - a) / 24) * 1000) / 10 };
+      }
+    }
+    return { day: h.day, hours: text, bar, today: h.day.toLowerCase() === today };
+  });
+}
+
 /** "101 Biscayne Blvd, Miami, FL 33132", with the Maps page when the listing has one. */
 export function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">): { line: string; href: string | null } | null {
   const town = [r.city, r.state].filter(Boolean).join(", ") + (r.postal_code ? ` ${r.postal_code}` : "");
@@ -767,10 +820,35 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       : `Their website, ${host}: an email on the contact page`
     : "No website to check";
   const term = search?.plan.terms[0] ?? null;
+  // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
+  const passed = m.checks.filter((c) => c.answer === "yes").length;
+  const unsure = m.checks.filter((c) => c.answer === "unknown").length;
+  const failed = m.checks.filter((c) => c.answer === "no").length;
+  const checksSummary = m.checks.length === 0 ? "" : [
+    `${passed} check${passed === 1 ? "" : "s"} passed`,
+    ...(unsure ? [`${unsure} couldn't tell`] : []),
+    ...(failed ? [`${failed} failed`] : []),
+  ].join(" · ");
+  const rated = r.rating === null || r.rating === undefined ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const facts: LeadPeekVM["facts"] = [
+    ...(r.category ? [{ k: "Kind", v: r.category }] : []),
+    ...(r.price ? [{ k: "Price", v: r.price }] : []),
+    ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.count} review${r.reviews === 1 ? "" : "s"}` }] : []),
+    ...(r.claimed === true ? [{ k: "Listing", v: "Claimed by the owner" }] : r.claimed === false ? [{ k: "Listing", v: "Not claimed by the owner" }] : []),
+    ...(term && r.rank ? [{ k: "Found at", v: `#${r.rank} for “${term}”` }] : []),
+    ...(r.places > 1 ? [{ k: "Other listings", v: `${r.places} listings for this business` }] : []),
+  ];
   return {
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category) },
+    rated,
+    slots: leadSlots(r),
+    week: leadWeekBars(r.hours ?? [], tz, now),
+    facts,
+    checksSummary,
+    distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,
     where: leadWhere(r),

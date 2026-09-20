@@ -88,6 +88,11 @@ const LD_SLOT_SHAPES = {
   bad: <><circle cx="8" cy="8" r="5.5" /><path d="M5 11l6-6" /></>,
   checking: <circle cx="8" cy="8" r="5.5" strokeDasharray="17 17" />,
 };
+/** The shape alone, for the peek's reach rows: the same five, the same colours. */
+const LeadSlotShape = ({ state }) => {
+  const p = { width: 14, height: 14, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" };
+  return <span className={`ld-slot ld-slot-${state}`}><span className={`ld-slot-shape${state === "checking" ? " spin" : ""}`}><svg {...p}>{LD_SLOT_SHAPES[state]}</svg></span></span>;
+};
 const LeadSlot = ({ id, kind, slot, values, onPress, pressLabel }) => {
   const tipId = `${id}-${kind}-tip`;
   const p = { width: 14, height: 14, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" };
@@ -679,6 +684,8 @@ const LeadsScope = (p) => {
             setArmed: p.onArmed,
             setDraft: p.onDraftState,
             setPeekId: p.onPeekId,
+            // The photo, expanded (D5): the page's own lightbox state.
+            expand: p.onExpandPhoto,
           });
           // Call is the acts' own: it arms "How did the call go?" and then hands the tel: to the browser, which
           // is exactly what C over the rows does (clients-a.jsx's callLead), so both end in the same place.
@@ -688,6 +695,8 @@ const LeadsScope = (p) => {
             searches and the same New search. People's own sheet (clients-a.jsx), which owns its Esc, so the
             page's one listener holds still while it is open (keys.sheetOpen). Last in the tree, after
             everything whose state a stub React keys by order. */}
+        {/* The photo, expanded (D5): the peek's own view model, drawn large with the facts about the place beside it. */}
+        {p.lightbox && window.LeadLightbox ? <window.LeadLightbox vm={p.lightbox} onClose={p.onCloseLightbox} /> : null}
         {phone && p.listsOpen && ListsSheet && <ListsSheet onClose={p.onCloseLists}>{railRows}</ListsSheet>}
         {p.toastNode}
       </div>
@@ -695,4 +704,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadTip, LeadCard, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadSlotShape, LeadTip, LeadCard, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });

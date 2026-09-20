@@ -2124,11 +2124,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     sheetOpen: listsOpen,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
-    peekOpen: onLeads && !!peekId,
+    peekOpen: onLeads && (!!peekId || !!lightboxId),
     // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
     // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the finder, the
     // Columns menu, the selection.
-    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId }),
+    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
     finderOpen: onLeads && finderOpen,
     closeFinder: () => setFinderOpen(false),
     canFind,
@@ -2320,7 +2320,10 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onPeekId={setPeekId}
         onOpenPerson={onOpenProfile}
         flash={plFlash}
-        onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId })}
+        onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId })}
+        onExpandPhoto={setLightboxId}
+        lightbox={lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null}
+        onCloseLightbox={() => setLightboxId(null)}
         onCall={callLead}
         onKeep={keepLead}
         onExclude={excludeLead}

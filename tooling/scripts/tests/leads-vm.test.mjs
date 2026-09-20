@@ -16,7 +16,7 @@ import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
-  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf,
+  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
@@ -358,6 +358,25 @@ test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on,
   assert.deepEqual(st({ stage: "archived", closed_reason: "not_a_fit" }), ["out", "Not a fit", null]);
   assert.deepEqual(st({ member: { ...row().member, class: "review", fit: "look", reasons: ["email:unknown"] } }), ["review", null, "Their mail server wouldn't answer"], "a waiting row names the thing that resolves it");
   assert.deepEqual(st({ member: { ...row().member, class: "excluded", fit: null, excluded_by: "chain" } }), ["out", "Left out", null]);
+});
+
+test("D5: the week's hours as bars, and the peek's own additions -- the tile, the rating apart, the checks' head, the facts", () => {
+  const bars = leadWeekBars([{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Tuesday", hours: "Closed" }, { day: "Wednesday", hours: "Open 24 hours" }, { day: "Thursday", hours: "10:30 AM to 1 AM" }, { day: "Friday", hours: "by appointment" }], TZ, NOW);
+  assert.deepEqual(bars.map((b) => [b.day, b.bar, b.today]), [
+    ["Monday", { x: 37.5, w: 37.5 }, false], ["Tuesday", null, false], ["Wednesday", { x: 0, w: 100 }, false],
+    ["Thursday", { x: 43.8, w: 56.3 }, false], ["Friday", null, true],
+  ], "a bar across the day; closed and unreadable lines draw nothing and keep their words; overnight runs to the end of the day");
+  assert.equal(bars[4].hours, "by appointment");
+  const vm = toLeadPeekVM(row({ hours: [{ day: "Friday", hours: "6 AM to 8 PM" }], claimed: false, price: "$$", rank: 3, places: 2, member: { ...row().member, checks: [
+    { key: "on_maps", how: "seen", answer: "yes", source: "Google Maps", reason: null },
+    { key: "mailbox", how: "seen", answer: "unknown", source: "Mailbox check", reason: null },
+    { key: "independent", how: "read", answer: "no", source: "Claude", reason: "a franchise" },
+  ] } }), SEARCH_DONE, TZ, NOW);
+  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer") }, { score: "5.0", count: "16" }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
+  assert.deepEqual(vm.week.map((d) => [d.day, d.today, d.bar]), [["Friday", true, { x: 25, w: 58.3 }]]);
+  assert.deepEqual(vm.facts, [{ k: "Kind", v: "Personal trainer" }, { k: "Price", v: "$$" }, { k: "Rated", v: "5.0 from 16 reviews" }, { k: "Listing", v: "Not claimed by the owner" }, { k: "Found at", v: "#3 for “personal trainer”" }, { k: "Other listings", v: "2 listings for this business" }]);
+  assert.deepEqual([vm.slots.phone.state, vm.slots.mailbox.state], ["ok", "ok"]);
+  assert.equal(toLeadPeekVM(row({ member: { ...row().member, checks: [] } }), SEARCH_DONE, TZ, NOW).checksSummary, "", "no checks, no head");
 });
 
 test("D5: the band is the search's whole shape, and the fit split is worth drawing only when the fits differ", () => {

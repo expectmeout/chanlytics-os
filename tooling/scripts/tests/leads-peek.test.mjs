@@ -68,7 +68,7 @@ await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");   // Task 2's: LeadShape is its, and this file draws it
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
-for (const k of ["LeadPeek", "LeadShape", "LeadPeekActions", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
+for (const k of ["LeadPeek", "LeadShape", "LeadPeekActions", "LeadLightbox", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
 globalThis.window.__LEAD_WORDS = LEAD_WORDS;
 
 /* ------------------------------------------------------------ the helpers */
@@ -157,6 +157,7 @@ const page = (over = {}) => {
     exclude: (id) => flashes.push({ msg: `exclude ${id}` }),
     putBack: (id) => flashes.push({ msg: `put back ${id}` }),
     copyEmail: (id) => copied.push(`email ${id}`),
+    expand: (id) => opened.push(`expand ${id}`),
     dial: (href) => dialled.push(href),
     setPeekId: (v) => { st.peekId = v; },
     setMode: (v) => { st.mode = v; },
@@ -597,4 +598,75 @@ test("the peek shows who they are: the photo as the mark, their own words, where
   reset();
   tree = page({ vm: vmOf({}) }).draw().tree;
   for (const id of ["peek-photo", "peek-about", "peek-today", "peek-claimed", "peek-facebook", "peek-maps"]) assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
+});
+
+
+/* ======================================================= D5: the peek re-cut ==== */
+
+test("D5: the peek opens on a photo band with Expand, decides with a verdict card, says what people say, folds the checks under their head, and pins the act", async () => {
+  reset();
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => ({ day, hours: day === "Sunday" ? "Closed" : "9 AM to 6 PM" }));
+  const shown = page({ vm: vmOf({ about: "Coaching only.", street: "1200 Barton Springs Rd", city: "Austin", state: "TX", postal_code: "78704", hours: days, image_url: "https://lh3.example/p.jpg", claimed: false, price: "$$", rank: 3, reviews_dist: { one: 0, two: 1, three: 1, four: 4, five: 10 }, maps_url: "https://maps.example/?cid=1" }) });
+  const { tree, acts } = shown.draw();
+  const band = byTestId(tree, "peek-photo-band");
+  assert.ok(band, "the head is a photo band");
+  assert.equal(byTestId(band, "peek-photo").props.src, "https://lh3.example/p.jpg");
+  assert.equal(byTestId(band, "peek-close").props.id, "lead-peek-close", "Close keeps its id: focus lands on it when the peek opens");
+  await press(byTestId(band, "peek-expand"));
+  assert.deepEqual(opened, [`expand ${LEAD}`], "Expand hands the lead to the page's lightbox");
+  const identity = byTestId(tree, "peek-identity");
+  assert.equal(textOf(byTestId(identity, "peek-name")), "Travis Heights Coaching Co.");
+  assert.equal(textOf(byTestId(identity, "peek-today")), "Open today · 9 AM to 6 PM", "today's hours sit on the sub-line");
+  assert.equal(textOf(byTestId(identity, "peek-distance")), "1.5 mi");
+  assert.equal(textOf(byTestId(identity, "peek-about")), "Coaching only.");
+  assert.ok(byTestId(tree, "peek-verdict"), "the fit is a card");
+  assert.equal(textOf(byTestId(tree, "peek-fit")), "Strong fit. Independent coaching · 5.0 from 16 reviews · email checked");
+  const rated = byTestId(tree, "peek-rated");
+  assert.match(textOf(rated), /^What people say5\.016 reviews/);
+  assert.equal(all(byTestId(rated, "peek-rated-bars"), (n) => n.props?.className === "ld-bar-row").length, 5, "one bar a star");
+  assert.equal(textOf(byTestId(rated, "peek-claimed")), "Listing not claimed by the owner", "whether anyone watches the listing sits with what people say");
+  assert.equal(textOf(byTestId(tree, "peek-checks-summary")), "Checked7 checks passed");
+  assert.equal(byTestId(tree, "peek-checks").props.open, true, "open by default");
+  const act = byTestId(tree, "peek-act");
+  assert.equal(tree.props.children.at(-1).rendered.props.children.at(-1), act, "the act bar is the peek's last child: it never scrolls away");
+  assert.equal(textOf(byTestId(act, "peek-act-call")), "Call +15125550142");
+  await press(byTestId(act, "peek-act-call"));
+  assert.deepEqual(dialled, ["tel:+15125550142"], "the act bar's Call is the phone row's");
+  assert.equal(byTestId(act, "peek-act-copy").props["aria-label"], "Copy the email");
+  // No number: the draft is the act. No rating: no rated card, and the unclaimed note stays with the identity.
+  const bare = page({ vm: vmOf({ phone: null, rating: null, reviews: null, claimed: false }) }).draw().tree;
+  assert.ok(byTestId(bare, "peek-act-draft"), "with no number the draft is the act");
+  assert.equal(byTestId(bare, "peek-rated"), null);
+  assert.equal(textOf(byTestId(byTestId(bare, "peek-identity"), "peek-claimed")), "Listing not claimed by the owner");
+  void acts;
+});
+
+test("D5: the photo expanded is a dialog of its own -- the photo or the tile, where it sits, the week's hours as bars with today marked, the listing's facts, Open in Maps -- and Esc closes it before anything else", () => {
+  reset();
+  const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => ({ day, hours: day === "Sunday" ? "Closed" : "9 AM to 6 PM" }));
+  const vm = vmOf({ street: "1200 Barton Springs Rd", city: "Austin", state: "TX", postal_code: "78704", hours: days, image_url: "https://lh3.example/p.jpg", claimed: true, price: "$$", rank: 3, maps_url: "https://maps.example/?cid=1", places: 2 });
+  const closed = [];
+  const tree = globalThis.LeadLightbox({ vm, onClose: () => closed.push(1) });
+  const box = byTestId(tree, "lead-lightbox");
+  assert.equal(box.props.role, "dialog");
+  assert.equal(/\bpl-peek\b/.test(box.props.className), true, "the page's own overlay, so Esc reaches the page's listener");
+  assert.equal(find(byTestId(box, "lightbox-photo"), (n) => n.type === "img").props.src, "https://lh3.example/p.jpg");
+  assert.equal(textOf(byTestId(box, "lightbox-where")), "Where it sits1200 Barton Springs Rd, Austin, TX 787041.5 mi from the search's centre");
+  const week = all(byTestId(box, "lightbox-week"), (n) => n.props?.["data-testid"] === "lightbox-day");
+  assert.equal(week.length, 7);
+  assert.deepEqual(week.map((d) => /\btoday\b/.test(d.props.className)), [false, false, false, false, true, false, false], "NOW is a Friday in America/Chicago");
+  assert.equal(find(week[6], (n) => n.props?.className === "ld-lb-bar"), null, "Sunday: closed, no bar");
+  assert.deepEqual(find(week[0], (n) => n.props?.className === "ld-lb-bar").props.style, { left: "37.5%", width: "37.5%" }, "9 AM to 6 PM as a bar across the day");
+  assert.deepEqual(all(byTestId(box, "lightbox-facts"), (n) => n.props?.className === "ld-lb-fact").map(textOf), ["KindPersonal trainer", "Price$$", "Rated5.0 from 16 reviews", "ListingClaimed by the owner", "Found at#3 for “personal trainer”", "Other listings2 listings for this business"]);
+  assert.equal(byTestId(box, "lightbox-maps").props.href, "https://maps.example/?cid=1");
+  byTestId(box, "lightbox-close").props.onClick();
+  assert.deepEqual(closed, [1]);
+  // A lead with no photo draws the tile, and says so.
+  const noPhoto = globalThis.LeadLightbox({ vm: vmOf({ hours: [] }), onClose: () => {} });
+  assert.match(textOf(byTestId(noPhoto, "lightbox-photo")), /No photo on the listing/);
+  assert.equal(byTestId(noPhoto, "lightbox-week"), null, "no hours, no block");
+  // Esc: the lightbox first.
+  const steps = [];
+  const out = globalThis.leadPeekEscape({ mode: "why", armed: { asked: true }, setMode: () => steps.push("mode"), setArmed: () => steps.push("armed"), setPeekId: () => steps.push("peek"), lightbox: LEAD, setLightbox: (v) => steps.push(`lightbox:${v}`) });
+  assert.deepEqual([out, steps], ["lightbox", ["lightbox:null"]]);
 });

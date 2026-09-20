@@ -11208,7 +11208,17 @@ var LEAD_WORDS = {
   about: "About",
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close"
 };
 var LEAD_SUGGEST_DAYS = 7;
 var LEAD_PRIOR_MIN = 25;
@@ -11503,6 +11513,26 @@ function leadTodayLine(hours, tz, now) {
   if (!h) return null;
   return /^closed/i.test(h.hours) ? "Closed today" : `Open today \xB7 ${h.hours}`;
 }
+var CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
+var hourOf = (h, m, ap) => Number(h) % 12 + (ap.toUpperCase() === "PM" ? 12 : 0) + (m ? Number(m) / 60 : 0);
+function leadWeekBars(hours, tz, now) {
+  const today = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  return hours.map((h) => {
+    const text = h.hours.trim();
+    let bar = null;
+    if (/^open 24 hours$/i.test(text)) bar = { x: 0, w: 100 };
+    else if (!/^closed/i.test(text)) {
+      const m = text.match(CLOCK);
+      if (m) {
+        const a = hourOf(m[1], m[2], m[3]);
+        let b = hourOf(m[4], m[5], m[6]);
+        if (b <= a) b = 24;
+        bar = { x: Math.round(a / 24 * 1e3) / 10, w: Math.round((b - a) / 24 * 1e3) / 10 };
+      }
+    }
+    return { day: h.day, hours: text, bar, today: h.day.toLowerCase() === today };
+  });
+}
 function leadWhere(r) {
   const town = [r.city, r.state].filter(Boolean).join(", ") + (r.postal_code ? ` ${r.postal_code}` : "");
   const line = [r.street, town].filter(Boolean).join(", ");
@@ -11555,10 +11585,34 @@ function toLeadPeekVM(r, search, tz, now) {
   const host = r.website;
   const siteLine = host ? r.email_state === "none" ? `Their website, ${host}: no email on the home, contact or about pages` : `Their website, ${host}: an email on the contact page` : "No website to check";
   const term = search?.plan.terms[0] ?? null;
+  const passed = m.checks.filter((c) => c.answer === "yes").length;
+  const unsure = m.checks.filter((c) => c.answer === "unknown").length;
+  const failed = m.checks.filter((c) => c.answer === "no").length;
+  const checksSummary = m.checks.length === 0 ? "" : [
+    `${passed} check${passed === 1 ? "" : "s"} passed`,
+    ...unsure ? [`${unsure} couldn't tell`] : [],
+    ...failed ? [`${failed} failed`] : []
+  ].join(" \xB7 ");
+  const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const facts = [
+    ...r.category ? [{ k: "Kind", v: r.category }] : [],
+    ...r.price ? [{ k: "Price", v: r.price }] : [],
+    ...rated ? [{ k: "Rated", v: `${rated.score} from ${rated.count} review${r.reviews === 1 ? "" : "s"}` }] : [],
+    ...r.claimed === true ? [{ k: "Listing", v: "Claimed by the owner" }] : r.claimed === false ? [{ k: "Listing", v: "Not claimed by the owner" }] : [],
+    ...term && r.rank ? [{ k: "Found at", v: `#${r.rank} for \u201C${term}\u201D` }] : [],
+    ...r.places > 1 ? [{ k: "Other listings", v: `${r.places} listings for this business` }] : []
+  ];
   return {
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category) },
+    rated,
+    slots: leadSlots(r),
+    week: leadWeekBars(r.hours ?? [], tz, now),
+    facts,
+    checksSummary,
+    distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,
     where: leadWhere(r),
@@ -12705,6 +12759,7 @@ export {
   leadTintOf,
   leadTodayLine,
   leadUndoable,
+  leadWeekBars,
   leadWhere,
   leadsFirstDayWays,
   leadsRoute,

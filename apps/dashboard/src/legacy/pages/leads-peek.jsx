@@ -29,8 +29,9 @@ const ldCheckMark = (how, answer) => {
   return <span className="pk-ck-mark pk-ck-check"><svg {...p}><path d={LD_MARKS.check} /></svg></span>;
 };
 
-/** Esc backs out one step: the question it asked, then the pane it opened, then the peek itself. */
-const leadPeekEscape = ({ mode, armed, setMode, setArmed, setPeekId }) => {
+/** Esc backs out one step: the photo it expanded, the question it asked, then the pane it opened, then the peek itself. */
+const leadPeekEscape = ({ mode, armed, setMode, setArmed, setPeekId, lightbox = null, setLightbox = null }) => {
+  if (lightbox && setLightbox) { setLightbox(null); return "lightbox"; }
   if (armed && armed.asked) { setArmed(null); return "armed"; }
   if (mode && mode !== "info") { setMode("info"); return "mode"; }
   setPeekId(null);
@@ -49,17 +50,125 @@ const leadPeekFocus = (peekId, cursor) => {
 /** The peek follows the row cursor only while it is just showing the lead: a question or a draft holds it still. */
 const leadPeekFollows = (mode, armed) => (!mode || mode === "info") && !armed;
 
-const LeadPeekHead = ({ vm, onClose }) => {
+/**
+ * The head (D5): a photo band -- the listing's photo, or the tile's initials on the kind's tint when there is none or
+ * it fails to load -- with Expand and Close over it; then the identity: the name, the sub-line with today's hours,
+ * their own words, and where they are with the distance.
+ */
+const LeadPeekHead = ({ vm, onClose, onExpand }) => {
   const W = window.__LEAD_WORDS;
   return (
-    <div className="pk-head">
-      <span className="pk-mark" aria-hidden="true">{vm.image ? <img src={vm.image} alt="" loading="lazy" data-testid="peek-photo" /> : vm.mark}</span>
-      <div className="pk-titles">
-        <h2 className="pk-name" data-testid="peek-name">{vm.name}</h2>
-        <div className="pk-sub" data-testid="peek-sub">{vm.sub}</div>
+    <>
+      <div className={`pk-band tint-${vm.tile.tint}${vm.image ? " has-img" : ""}`} data-testid="peek-photo-band">
+        <span className="pk-band-initials" aria-hidden="true">{vm.tile.initials}</span>
+        {vm.image ? <img src={vm.image} alt="" loading="lazy" data-testid="peek-photo" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : null}
+        <button type="button" className="pk-band-expand" data-testid="peek-expand" onClick={onExpand}><Icon name="external" size={11} />{W.expand}</button>
+        <button type="button" className="pk-x pk-band-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
       </div>
-      <button type="button" className="pk-x" id="lead-peek-close" aria-label={W.close} data-testid="peek-close" onClick={onClose}><Icon name="x" size={16} /></button>
+      <div className="pk-identity" data-testid="peek-identity">
+        <h2 className="pk-name" data-testid="peek-name">{vm.name}</h2>
+        <div className="pk-sub-line">
+          <span className="pk-sub" data-testid="peek-sub">{vm.sub}</span>
+          {vm.today ? <span className={`pk-today${/^Closed/.test(vm.today) ? " closed" : ""}`} data-testid="peek-today"><Icon name="clock" size={11} />{vm.today}</span> : null}
+        </div>
+        {vm.about ? <p className="pk-about" data-testid="peek-about">{vm.about}</p> : null}
+        {vm.where ? (
+          <div className="pk-where" data-testid="peek-where-block">
+            {vm.where.href
+              ? <a href={vm.where.href} target="_blank" rel="noopener noreferrer" data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</a>
+              : <span data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</span>}
+            {vm.distance ? <span className="pk-distance" data-testid="peek-distance">{vm.distance}</span> : null}
+          </div>
+        ) : null}
+        {!vm.rated && vm.claimedNote ? <div className="pk-where"><span className="pk-quiet" data-testid="peek-claimed"><Icon name="info" size={12} />{vm.claimedNote}</span></div> : null}
+      </div>
+    </>
+  );
+};
+
+/** What people say (D5): the score large, the count, one bar a star, and whether anyone watches the listing. */
+const LeadPeekRated = ({ vm }) => {
+  const W = window.__LEAD_WORDS;
+  const dist = vm.reviewsDist;
+  const total = dist ? dist.reduce((a, b) => a + b, 0) || 1 : 1;
+  return (
+    <div className="pk-rated" data-testid="peek-rated">
+      <div className="pk-label">{W.ratedHeading}</div>
+      <div className="pk-rated-head">
+        <span className="pk-rated-score">{vm.rated.score}</span>
+        <span className="pk-rated-count">{vm.rated.count} reviews</span>
+      </div>
+      {dist ? (
+        <div className="pk-rated-bars" data-testid="peek-rated-bars">
+          {[5, 4, 3, 2, 1].map((star) => (
+            <div key={star} className="ld-bar-row">
+              <span className="k">{star}</span>
+              <span className="ld-bar"><span style={{ width: `${Math.round((dist[star - 1] / total) * 100)}%` }} /></span>
+              <span className="n">{dist[star - 1].toLocaleString("en-US")}</span>
+            </div>
+          ))}
+        </div>
+      ) : null}
+      {vm.claimedNote ? <div className="pk-rated-note"><span className="pk-quiet" data-testid="peek-claimed"><Icon name="info" size={12} />{vm.claimedNote}</span></div> : null}
     </div>
+  );
+};
+
+/**
+ * The photo, expanded (D5): the one photo the listing gave (or the tile), and beside it what is about the place --
+ * where it sits, the week's hours as bars, and the listing's facts. The page's own overlay (.pl-peek), so Esc reaches
+ * the page's one listener and closes this first.
+ */
+const LeadLightbox = ({ vm, onClose }) => {
+  const W = window.__LEAD_WORDS;
+  return (
+    <>
+      <div className="ld-lightbox-backdrop" onClick={onClose} />
+      <div className="ld-lightbox pl-peek" role="dialog" aria-label={`${W.photos}: ${vm.name}`} data-testid="lead-lightbox">
+        <div className="ld-lb-head">
+          <div className="ld-lb-titles">
+            <div className="ld-lb-name">{vm.name}</div>
+            <div className="ld-lb-sub">{vm.sub}</div>
+          </div>
+          <span className="sp" />
+          {vm.links.maps ? <a className="btn btn-ghost btn-sm" href={vm.links.maps.href} target="_blank" rel="noopener noreferrer" data-testid="lightbox-maps"><Icon name="pin" size={12} />{W.openMaps}</a> : null}
+          <button type="button" className="pk-x" aria-label={W.closePhotos} data-testid="lightbox-close" onClick={onClose}><Icon name="x" size={16} /></button>
+        </div>
+        <div className="ld-lb-body">
+          <div className={`ld-lb-photo tint-${vm.tile.tint}${vm.image ? " has-img" : ""}`} data-testid="lightbox-photo">
+            <span className="ld-lb-initials" aria-hidden="true">{vm.tile.initials}</span>
+            {vm.image ? <img src={vm.image} alt="" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} /> : <span className="ld-lb-nophoto">{W.noPhoto}</span>}
+          </div>
+          <div className="ld-lb-side">
+            {vm.where ? (
+              <div className="ld-lb-block" data-testid="lightbox-where">
+                <div className="pk-label">{W.whereSits}</div>
+                <div className="ld-lb-line">{vm.where.line}</div>
+                {vm.distance ? <div className="ld-lb-quiet">{vm.distance} from the search's centre</div> : null}
+              </div>
+            ) : null}
+            {vm.week.length ? (
+              <div className="ld-lb-block" data-testid="lightbox-week">
+                <div className="pk-label">{W.openHours}</div>
+                {vm.week.map((d) => (
+                  <div key={d.day} className={`ld-lb-day${d.today ? " today" : ""}`} data-testid="lightbox-day">
+                    <span className="d">{d.day.slice(0, 3)}</span>
+                    <span className="ld-lb-track">{d.bar ? <span className="ld-lb-bar" style={{ left: `${d.bar.x}%`, width: `${d.bar.w}%` }} /> : null}</span>
+                    <span className="h">{d.hours}</span>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+            {vm.facts.length ? (
+              <div className="ld-lb-block" data-testid="lightbox-facts">
+                <div className="pk-label">{W.fromListing}</div>
+                {vm.facts.map((f) => <div key={f.k} className="ld-lb-fact"><span className="k">{f.k}</span><span className="v">{f.v}</span></div>)}
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </>
   );
 };
 
@@ -196,19 +305,10 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
       <div className="pk-body">
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} /> : null}
-        <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
-        {/* Who they are, from what the listing shows (D2): their own words, where, whether they are open today, and
-            whether anyone is watching the listing. Each line only when the listing said; a lead from before says nothing. */}
-        {vm.about ? <p className="pk-about" data-testid="peek-about">{vm.about}</p> : null}
-        {vm.where || vm.today || vm.claimedNote ? (
-          <div className="pk-where" data-testid="peek-where-block">
-            {vm.where ? (vm.where.href
-              ? <a href={vm.where.href} target="_blank" rel="noopener noreferrer" data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</a>
-              : <span data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</span>) : null}
-            {vm.today ? <span data-testid="peek-today"><Icon name="clock" size={12} />{vm.today}</span> : null}
-            {vm.claimedNote ? <span className="pk-quiet" data-testid="peek-claimed"><Icon name="info" size={12} />{vm.claimedNote}</span> : null}
-          </div>
-        ) : null}
+        {/* The verdict (D5): the fit as a word and the sentence behind it, in a card that wears the fit's tint. */}
+        <div className={`pk-verdict ${vm.fit.cls}`} data-testid="peek-verdict">
+          <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
+        </div>
         {vm.cls === "review" ? (
           <div className="pk-decide" data-testid="peek-decide">
             <button type="button" className="btn btn-sm" data-testid="peek-keep" onClick={() => on.onKeep(vm.id)} {...window.gate("find", "keep this lead")}>{W.keep}</button>
@@ -254,8 +354,10 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
             <span />
           </div>
         </div>
-        <div data-testid="peek-checks">
-          <div className="pk-label">{W.checked}</div>
+        {vm.rated ? <LeadPeekRated vm={vm} /> : null}
+        {/* The checks fold under their own head (D5): how many passed, how many could not be told, open by default. */}
+        <details className="pk-box" open data-testid="peek-checks">
+          <summary className="pk-box-head" data-testid="peek-checks-summary"><span className="pk-label">{W.checked}</span><span className="pk-box-sum">{vm.checksSummary}</span></summary>
           {vm.groups.map((g) => (
             <div key={g.how} className={`pk-group pk-group-${g.how}`} data-testid={`peek-checks-${g.how}`}>
               <div className="pk-group-label">{g.label}</div>
@@ -270,7 +372,7 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
               </div>
             </div>
           ))}
-        </div>
+        </details>
         {vm.others ? (
           <details className="pk-alt" data-testid="peek-others">
             <summary data-testid="peek-others-summary">{vm.others.summary}</summary>
@@ -286,18 +388,26 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
             ))}
           </div>
         </div>
+        <div className="pk-links" data-testid="peek-links">
+          {vm.links.website
+            ? <a className="btn btn-ghost btn-sm" href={vm.links.website.href} target="_blank" rel="noopener noreferrer" data-testid="peek-website"><Icon name="external" size={12} />{vm.links.website.label}</a>
+            : <span className="pk-rn" data-testid="peek-no-website">{W.noWebsite}</span>}
+          {vm.links.instagram
+            ? <a className="btn btn-ghost btn-sm" href={vm.links.instagram.href} target="_blank" rel="noopener noreferrer" data-testid="peek-instagram"><Icon name="instagram" size={12} />{W.instagram}</a>
+            : null}
+          {[["facebook", "globe"], ["linkedin", "globe"], ["tiktok", "globe"], ["maps", "pin"]].map(([k, icon]) => (vm.links[k]
+            ? <a key={k} className="btn btn-ghost btn-sm" href={vm.links[k].href} target="_blank" rel="noopener noreferrer" data-testid={`peek-${k}`}><Icon name={icon} size={12} />{vm.links[k].label}</a>
+            : null))}
+        </div>
       </div>
-      <div className="pk-foot">
-        {vm.links.website
-          ? <a className="btn btn-ghost btn-sm" href={vm.links.website.href} target="_blank" rel="noopener noreferrer" data-testid="peek-website"><Icon name="external" size={12} />{vm.links.website.label}</a>
-          : <span className="pk-rn" data-testid="peek-no-website">{W.noWebsite}</span>}
-        <span className="sp" />
-        {vm.links.instagram
-          ? <a className="btn btn-ghost btn-sm" href={vm.links.instagram.href} target="_blank" rel="noopener noreferrer" data-testid="peek-instagram"><Icon name="instagram" size={12} />{W.instagram}</a>
-          : null}
-        {[["facebook", "globe"], ["linkedin", "globe"], ["tiktok", "globe"], ["maps", "pin"]].map(([k, icon]) => (vm.links[k]
-          ? <a key={k} className="btn btn-ghost btn-sm" href={vm.links[k].href} target="_blank" rel="noopener noreferrer" data-testid={`peek-${k}`}><Icon name={icon} size={12} />{vm.links[k].label}</a>
-          : null))}
+      {/* The act never scrolls away (D5): Call when there is a number, else the draft; Copy beside it. */}
+      <div className="pk-foot pk-act" data-testid="peek-act">
+        {vm.reach.phone && vm.reach.phone.tel
+          ? <button type="button" className="btn btn-primary pk-act-main" data-testid="peek-act-call" onClick={() => on.onCall(vm.id)}><Icon name="phone" size={13} />{`${W.call} ${vm.reach.phone.value}`}</button>
+          : vm.reach.email.canDraft
+            ? <button type="button" className="btn btn-primary pk-act-main" data-testid="peek-act-draft" onClick={() => on.onDraft(vm.id)}><Icon name="edit" size={13} />{W.draft}</button>
+            : <span className="pk-rn pk-act-none" data-testid="peek-act-none">Nothing to press yet: no number and no address.</span>}
+        {vm.reach.email.canDraft ? <button type="button" className="btn btn-sm" aria-label={W.copyAria} data-testid="peek-act-copy" onClick={() => on.onCopy(vm.id)}><Icon name="copy" size={12} />{W.copy}</button> : null}
       </div>
     </>
   );
@@ -311,7 +421,7 @@ const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false,
   if (!vm) return null;
   return (
     <aside className="pk pl-peek" role="dialog" aria-label={vm.name} data-testid="lead-peek">
-      <LeadPeekHead vm={vm} onClose={on.onClose} />
+      <LeadPeekHead vm={vm} onClose={on.onClose} onExpand={on.onExpand} />
       {mode === "draft"
         ? <LeadDraftPane vm={vm} draft={draft} busy={busy} on={on} />
         : <LeadPeekInfo vm={vm} mode={mode} armed={armed} busy={busy} on={on} />}
@@ -349,6 +459,8 @@ const LeadPeekActions = (p) => {
   const dial = p.dial || ((href) => { if (href && window.location && window.location.assign) window.location.assign(href); });
   return {
     onClose: () => { p.setArmed(null); p.setMode("info"); p.setDraft(null); p.setPeekId(null); },
+    // The photo, expanded (D5): the page's own state, handed in as `expand`.
+    onExpand: () => { if (p.expand) p.expand(vm.id); },
     onStage: (stage) => post({ kind: "stage", stage }, "Not changed"),
     onBack: () => p.setMode("info"),
     onNotAFit: () => p.setMode("why"),
@@ -414,4 +526,4 @@ const leadArmOnReturn = (armed, setArmed) => {
 
 // LeadNotFitWhy is published because the bulk bar asks the same five whys for a selection (Task 15): one list,
 // declared here where it is drawn first, never a second copy in leads-scope.jsx.
-Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn });
+Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, LeadLightbox, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn });

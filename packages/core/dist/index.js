@@ -1955,7 +1955,17 @@ var LEAD_WORDS = {
   about: "About",
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close"
 };
 var LeadsQuerySchema = z7.object({
   list: z7.enum(LEAD_LISTS).default("all"),
@@ -4192,7 +4202,17 @@ var LEAD_WORDS2 = {
   about: "About",
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE2,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close"
 };
 var LeadsQuerySchema2 = z72.object({
   list: z72.enum(LEAD_LISTS2).default("all"),
@@ -5417,7 +5437,17 @@ var LEAD_WORDS3 = {
   about: "About",
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE3,
-  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE3
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE3,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close"
 };
 var LeadsQuerySchema3 = z73.object({
   list: z73.enum(LEAD_LISTS3).default("all"),
