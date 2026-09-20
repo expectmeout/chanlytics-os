@@ -308,6 +308,11 @@ export const LEAD_COUNT_CHOICES = [50, 100, 200, 500] as const;
  * a probe has measured one, the probe's own 25, and the card's rate. Never
  * under two minutes: a search that answers faster still reads as a moment.
  */
+/** The most one area's terms can yield at the assumed rate: terms × the card's per-term cap × the yield. Above it the picker says so. */
+export function planCeiling(plan: LeadSearchPlan): number {
+  return Math.floor(plan.terms.length * cardOf(plan).maxPerTerm * LEAD_ASSUMED_YIELD);
+}
+
 export function planMinutes(plan: LeadSearchPlan): number {
   const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
   return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
@@ -412,7 +417,8 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     checkPerEmailUsd: 0.00089,
     startUsd: 0.00005,
     maxPerTerm: 120,
-    placesPerMinute: 50,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
     examples: [
       "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",

@@ -921,7 +921,7 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   fresh({ leads: surface({ searches: [done, waiting] }) });
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   const s = strips.at(-1);
-  assert.deepEqual(s.vm.actions.map((a) => a.id), ["carry_on", "undo"], "one next step, and the day's Undo");
+  assert.deepEqual(s.vm.actions.map((a) => a.id), ["carry_on", "review", "excluded"], "one next step, and the piles the ending's numbers open");
   s.onAction("carry_on", s.vm.actions[0].arg);
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
   assert.deepEqual(calls.filter((c) => c[0] !== "view"), [], "Carry on opens the plan; nothing runs until it is approved");
@@ -943,14 +943,20 @@ test("an ending's one next step opens the plan and starts nothing until it is ap
   assert.deepEqual([view[1].sort, view[1].dir], ["fit", "asc"], "Sort by fit is a new read of the same view, never a re-order of the rows on the page");
 });
 
-test("Undo on an ended strip removes the untouched leads and credits the month, and its own toast puts them back", async () => {
+test("the search menu removes the untouched leads and credits the month, named for what it does, and its toast puts them back", async () => {
   const justNow = new Date(Date.now() - 60_000).toISOString();
   const done = { ...search(), round: { ...search().round, ended_at: justNow, undo_op_id: null, undo_version: null } };
   fresh({ leads: surface({ searches: [done, waiting] }) });
   draw({ leadsRoute: `leads:s-${SEARCH_A}` });
-  const undo = strips.at(-1).vm.actions.find((a) => a.id === "undo");
-  assert.deepEqual(undo.arg, { searchId: SEARCH_A }, "POST lead-searches/[id]/undo takes the search");
-  await strips.at(-1).onAction("undo", undo.arg);
+  // Not on the strip: an "Undo" beside "the 61 found are yours" read as deleting what was just paid for.
+  assert.ok(!strips.at(-1).vm.actions.some((a) => a.id === "undo"), "the strip carries the ending and its next step, never a control that removes leads");
+  const menu = menus.find((m) => m.title === `What ${done.name} asked for`);
+  const item = menu.items.find((i) => i.label === "Remove the ones you haven't touched");
+  assert.ok(item, "the menu names what it removes");
+  assert.match(item.meta, /given back this month/);
+  const waitingMenu = menus.find((m) => m.title === `What ${waiting.name} asked for`);
+  assert.ok(!waitingMenu.items.some((i) => i.label === "Remove the ones you haven't touched"), "a round still running has nothing to remove yet");
+  item.onClick();
   await settle();
   assert.deepEqual(calls.at(-1), ["search_undo", { id: SEARCH_A }]);
   assert.equal(textOf(flashes.at(-1).msg), "Removed 160 · 160 given back");

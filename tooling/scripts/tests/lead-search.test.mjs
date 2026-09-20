@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import {
   LeadSearchPlanSchema, planSentence, planVersionOf, estimateRoundUsd, placesToAsk, classify, questionAfterProbe,
   endingOfRound, cleanEmailCandidates, usPhone, siteHost, stateCode, leadMonth,
-  planWords, planWho, planWhere, planArea, planMinutes, planSaid, planLeavingOut, LEAD_COUNT_CHOICES, LEAD_ASSUMED_YIELD,
+  planWords, planWho, planWhere, planArea, planCeiling, planMinutes, planSaid, planLeavingOut, LEAD_COUNT_CHOICES, LEAD_ASSUMED_YIELD,
   LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LEAD_CARDS, LEAD_PROBE_PLACES, LEAD_MAX_PLACES, LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD, LEAD_DAY_CAP_USD, LEAD_PLATFORM_DAY_CAP_USD, LEAD_QUESTION_THRESHOLD, LEAD_JUDGE_BATCH,
   LEAD_ESTIMATE_MARGIN,
@@ -351,7 +351,11 @@ test("the sentence is the plan card's words joined: every picker is one word of 
 test("the count picker's options each say about how long they take, and a plan never claims under two minutes", () => {
   const three = (n) => plan({ count: n, terms: ["personal trainer", "strength coach", "fitness coach"] });
   assert.deepEqual([...LEAD_COUNT_CHOICES], [50, 100, 200, 500]);
-  assert.deepEqual(LEAD_COUNT_CHOICES.map((n) => planMinutes(three(n))), [3, 5, 8, 8], "the canvas's 3, 5 and 8; 500 is the same round, capped at what one round may ask for");
-  assert.equal(planMinutes(plan({ count: 1 })), 2, "never under two minutes");
+  // Measured over five real searches (20 Sep 2026): 8 places a minute, not the canvas's 50. 500 is the same round
+  // as 200, capped at what one round may ask for -- and the picker says so instead of quoting 200's time twice.
+  assert.deepEqual(LEAD_COUNT_CHOICES.map((n) => planMinutes(three(n))), [16, 28, 48, 48]);
+  assert.equal(planCeiling(three(50)), 180, "three terms, 120 places each, half of them qualifying: what one area's terms can yield");
+  assert.deepEqual(LEAD_COUNT_CHOICES.map((n) => n > planCeiling(three(n))), [false, false, true, true], "200 and 500 are more than one area likely holds");
+  assert.ok(planMinutes(plan({ count: 1 })) >= 2, "never under two minutes: the probe alone is 25 places");
   assert.equal(LEAD_ASSUMED_YIELD, 0.5);
 });

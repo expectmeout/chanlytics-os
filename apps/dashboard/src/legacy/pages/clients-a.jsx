@@ -2223,6 +2223,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onRenameCancel={() => setRenaming(null)}
         removing={removing}
         onRemoveAsk={(s) => { setRemoveError(null); setRemoving(s); }}
+        onUndo={(s) => undoRound(s.id)}
         onRemoveYes={removeSearch}
         onRemoveNo={() => { setRemoving(null); setRemoveError(null); }}
         removeBusy={leadBusy}

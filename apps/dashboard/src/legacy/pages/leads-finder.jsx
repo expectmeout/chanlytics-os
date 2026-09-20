@@ -271,7 +271,9 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
     if (id === "count") {
       const choices = C.LEAD_COUNT_CHOICES || [50, 100, 200, 500];
       const counts = choices.includes(plan.count) ? [...choices] : [...choices, plan.count].sort((a, b) => a - b);
-      return counts.map((n) => ({ id: String(n), label: String(n), note: `about ${C.planMinutes({ ...plan, count: n })} min`, on: n === plan.count, apply: () => change({ count: n }) }));
+      // A count one area cannot hold says so, rather than quoting a time it will not take: five real searches all
+      // ended "few new matches" short of 50, because three terms return the same places.
+      return counts.map((n) => ({ id: String(n), label: String(n), note: C.planCeiling && n > C.planCeiling(plan) ? "more than this area likely holds" : `about ${C.planMinutes({ ...plan, count: n })} min`, on: n === plan.count, apply: () => change({ count: n }) }));
     }
     if (id === "area") {
       return [plan.area, ...(f.nearby || [])].map((a) => ({ id: a.label, label: C.planWhere(a), on: a.label === plan.area.label, apply: () => change({ area: a }) }));
@@ -285,9 +287,9 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
     if (id === "who") return [];
     const c = plan.criteria.filter((x) => x.key === id)[0];
     if (!c) return [];
+    // How sure a criterion has to be is the planner's call (it knows what a listing can show); the owner's choice
+    // on one is whether it stays. Rewording it is "Change what I asked".
     return [
-      { id: "seen", label: "It has to be seen", on: c.standard === "seen", apply: () => change({ criteria: plan.criteria.map((x) => (x.key === c.key ? { ...x, standard: "seen" } : x)) }) },
-      { id: "likely", label: "Claude's read is enough", on: c.standard === "likely", apply: () => change({ criteria: plan.criteria.map((x) => (x.key === c.key ? { ...x, standard: "likely" } : x)) }) },
       { id: "drop", label: "Take it out of the plan", apply: () => change({ criteria: plan.criteria.filter((x) => x.key !== c.key) }) },
     ];
   };
@@ -300,7 +302,7 @@ const LeadPlanCard = ({ plan, view, facts, busy, refusal, baseVersion = 1, pick 
         id={id}
         cls={w.pick === "count" ? "num" : ""}
         label={w.text}
-        title={{ count: "Change how many", who: "Change who you want", area: "Change where to look", contact: "Change what to find" }[id] || "Change how sure this has to be"}
+        title={{ count: "Change how many", who: "Change who you want", area: "Change where to look", contact: "Change what to find" }[id] || "Keep or take out"}
         open={pick === id}
         options={options(id)}
         onOpen={onPick}
@@ -485,7 +487,6 @@ const LeadFinder = ({
  * word is spelled twice; with no `leadEndingLine` in the bag an ended round
  * draws no strip at all, rather than a sentence of this file's own making.
  */
-const LEAD_UNDO_MS = 24 * 3600000;
 const LEAD_ROUND_MAKERS = ["more", "nearby", "look_further", "carry_on", "try_again", "answer_now"];
 /** The first 25 size the rest of a round (S6): contracts' LEAD_PROBE_PLACES. */
 const LEAD_PROBE_SEEN = 25;
@@ -530,12 +531,10 @@ const ldStripOf = (s, now, nearby) => {
   if (!r) return { state: "ended", alert: false, title: `Nothing has run for ${who} yet`, parts: [], progress: null, actions: [] };
   const counted = r.counted;
   const progress = r.target > 0 ? Math.min(1, counted / r.target) : null;
-  // Undo removes the leads the owner has not touched and gives their month back
-  // (POST lead-searches/[id]/undo). It is offered for a day after the round
-  // ended, and not once it has been used: the view then carries the operation
-  // the toast's own Undo puts back (undo_op_id, undo_version).
-  const undoable = !r.undo_op_id && !!r.ended_at && now.getTime() - Date.parse(r.ended_at) < LEAD_UNDO_MS;
-  const undo = undoable ? [{ id: "undo", label: "Undo", arg: { searchId: s.id } }] : [];
+  // Removing the untouched leads (POST lead-searches/[id]/undo) is the search
+  // menu's, named for what it removes and gives back (contracts leadUndoable):
+  // an "Undo" here, beside "the 24 found are yours", read as deleting what was
+  // just paid for.
 
   if (r.state === "waiting_on_owner" && r.question) {
     const out = ldLeftOut(plan, r.question.criterion_key);
@@ -574,7 +573,7 @@ const ldStripOf = (s, now, nearby) => {
 
   // Every ending is said once, by contracts' leadEndingLine. The strip composes:
   // the sentence's own next step, then Sort by fit where the table is worth
-  // re-ordering, then Undo while the round's operation is still open.
+  // re-ordering, then the piles the ending's numbers open.
   if (!C.leadEndingLine) return null;
   const line = C.leadEndingLine(r.ending || "paused", ldEndingFacts(C, s, nearby));
   const step = line.step
@@ -583,7 +582,13 @@ const ldStripOf = (s, now, nearby) => {
   const sorts = counted > 0 && (r.ending === "target_reached" || r.ending === "searched_everything") && (!line.step || line.step.id !== "sort_fit")
     ? [{ id: "sort_fit", label: "Sort by fit" }]
     : [];
-  return { state: "ended", alert: false, title: line.title, parts: line.parts, progress: 1, actions: [...step, ...sorts, ...undo] };
+  // The ending's numbers are the way into each pile: quiet links, never beside
+  // a primary step that already opens one of them.
+  const piles = [
+    ...(r.review > 0 ? [{ id: "review", label: `${r.review} need a look`, arg: "review" }] : []),
+    ...(r.excluded > 0 ? [{ id: "excluded", label: `${r.excluded} left out`, arg: "excluded" }] : []),
+  ].filter((a) => !line.step || line.step.id !== a.id);
+  return { state: "ended", alert: false, title: line.title, parts: line.parts, progress: 1, actions: [...step, ...sorts, ...piles] };
 };
 
 /**

@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadSearchPlanSchema, LEAD_COUNT_CHOICES, LEAD_ROUND_ENDINGS, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords } from "../../../packages/contracts/src/lead-search.ts";
+import { LeadSearchPlanSchema, LEAD_COUNT_CHOICES, LEAD_ROUND_ENDINGS, planArea, planCeiling, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords } from "../../../packages/contracts/src/lead-search.ts";
 import { leadEndingLine, leadPlanAsk, leadPlanFacts, leadPlanLikely } from "../../../packages/contracts/src/leads.ts";
 
 let cells = [];
@@ -34,7 +34,7 @@ globalThis.window = globalThis.window || {};
 // The derivations bag seed-globals.ts publishes: the card and the strip read
 // every word they say from it, never from a spelling of their own.
 Object.assign(globalThis.window, {
-  __LEAD_VM: { planWords, planSaid, planWhere, planWho, planArea, planMinutes, planSentence, planVersionOf, LEAD_COUNT_CHOICES, leadEndingLine, leadPlanLikely, leadPlanFacts, leadPlanAsk },
+  __LEAD_VM: { planWords, planSaid, planWhere, planWho, planArea, planMinutes, planCeiling, planSentence, planVersionOf, LEAD_COUNT_CHOICES, leadEndingLine, leadPlanLikely, leadPlanFacts, leadPlanAsk },
 });
 await import("../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
@@ -240,7 +240,7 @@ test("a changed count re-plans without the model, and a changed area makes a new
   assert.equal(textOf(byTestId(drawCard(st), "plan-sentence")), "Find 50 personal trainers in Austin, TX with a website, then find their email and check it.");
   assert.equal(st.plan.version, 2, "the count is one of the five that make a new version (S15; planVersionOf on main)");
   const counts = byTestId((click(byTestId(drawCard(st), "plan-count")), drawCard(st)), "plan-count-50");
-  assert.match(textOf(counts), /about 3 min/, "every count says about how long it takes");
+  assert.match(textOf(counts), /about 16 min/, "every count says about how long it takes, at the rate five real searches measured");
   st.pick = null;
   pickOption(st, "area", "Round Rock, TX");
   assert.equal(st.plan.version, 3, "and so is the area");
@@ -287,7 +287,7 @@ test("Leaving out is chips the owner can take back, Likely says what past search
   const st = { plan: PLAN, pick: null, refusal: null };
   const tree = drawCard(st);
   assert.equal(textOf(byTestId(tree, "plan-likely")), "About 116 will have an email; the rest you call · from past searches for trainers");
-  assert.equal(textOf(byTestId(tree, "plan-facts")), "About 8 minutes — leave the page if you likeSkips the 14 already yoursCounts only matches you can reach · 486 left this month");
+  assert.equal(textOf(byTestId(tree, "plan-facts")), "About 48 minutes — leave the page if you likeAnything already yours is skippedCounts only matches you can reach · 486 left this month");
   assert.equal(/\$/.test(textOf(tree)), false, "there is no dollar meter");
   const chip = byTestId(tree, "plan-leaving-chain");
   assert.match(textOf(chip), /Chain gyms/);
@@ -353,7 +353,7 @@ test("the running strip says what is true, and its Stop is the only thing to pre
   const acted = [];
   const tree = drawStrip(SEARCH, acted);
   assert.equal(textOf(byTestId(tree, "strip-title")), "Finding personal trainers in Austin, TX");
-  assert.equal(textOf(byTestId(tree, "strip-parts")), " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 5 min left");
+  assert.equal(textOf(byTestId(tree, "strip-parts")), " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 27 min left");
   assert.equal(byTestId(tree, "lead-strip").props.role, "status");
   assert.equal(all(tree, (n) => n.type === "button").length, 1, "nothing else on a running round is the owner's to press");
   click(byTestId(tree, "strip-stop"));
@@ -393,8 +393,8 @@ test("after Stop the strip says the emails of the found are still being checked,
   const done = drawStrip(withRound({ state: "ended", ending: "stopped", counted: 61, ended_at: "2026-09-19T14:30:00Z" }), acted);
   assert.equal(textOf(byTestId(done, "strip-title")), "Stopped at 61");
   click(byTestId(done, "strip-carry_on"));
-  click(byTestId(done, "strip-undo"));
-  assert.deepEqual([acted[0][0], acted[0][1].count, acted[1]], ["carry_on", 200, ["undo", { searchId: "5e000000-0000-4000-8000-000000000001" }]], "Carry on hands back the plan to approve; Undo hands back the search");
+  assert.equal(byTestId(done, "strip-undo"), null, "removing the untouched leads is the search menu's, not the strip's");
+  assert.deepEqual([acted[0][0], acted[0][1].count], ["carry_on", 200], "Carry on hands back the plan to approve");
 });
 
 test("every ending is one strip with one next step, and each draws its own words", () => {
@@ -405,8 +405,10 @@ test("every ending is one strip with one next step, and each draws its own words
     assert.match(strip.props.className, /\bdone\b/, ending);
     assert.equal(strip.props.role, "status", ending);
     assert.ok(textOf(byTestId(tree, "strip-title")).length > 0, ending);
-    const buttons = all(tree, (n) => n.type === "button");
-    assert.ok(buttons.length <= 3, `${ending}: ${buttons.length} buttons`);
+    // One next step and Sort by fit at most; the ending's numbers ("14 need a look", "4 left out") are quiet links
+    // into their piles and are not pressed to decide anything.
+    const buttons = all(tree, (n) => n.type === "button" && n.props?.className !== "lnk");
+    assert.ok(buttons.length <= 2, `${ending}: ${buttons.length} buttons`);
     assert.ok(leadStrip(withRound({ state: "ended", ending, counted: 61, ended_at: "2026-09-19T14:30:00Z" }), NOW).actions.filter((a) => globalThis.window.LEAD_ROUND_MAKERS.includes(a.id)).length <= 1, `${ending} offers more than one next step`);
     assert.equal(/\$|apify|compass|bounceverify/i.test(textOf(tree)), false, `${ending} says something it must not: ${textOf(tree)}`);
     assert.equal(/undefined|NaN|null/.test(textOf(tree)), false, `${ending}: ${textOf(tree)}`);
@@ -424,25 +426,26 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
   assert.deepEqual(
     LEAD_ROUND_ENDINGS.map((e) => { const v = leadStrip(ended(e), NOW); return [e, [v.title, ...v.parts].join(" \u00b7 "), ids(v)]; }),
     [
-      ["target_reached", "Found 61 personal trainers \u00b7 34 you can email \u00b7 27 by phone \u00b7 40 left out", ["excluded", "sort_fit", "undo"]],
-      ["searched_everything", "Found 61 personal trainers \u00b7 everything these searches returned in Austin, TX", ["nearby", "sort_fit", "undo"]],
-      ["month_leads_used", "Stopped at 61 \u00b7 this month's leads are used \u00b7 the 61 found are yours", ["undo"]],
-      ["budget_used", "Stopped at 61 \u00b7 this month's searching is used up \u00b7 the 61 found are yours", ["undo"]],
-      ["few_new_matches", "All 40 personal trainers in Austin, TX are already yours.", ["undo"]],
-      ["stopped", "Stopped at 61 \u00b7 the 61 found are yours \u00b7 nothing else was counted", ["carry_on", "undo"]],
-      ["source_failed", "Stopped at 40: the source stopped answering \u00b7 the 61 found are yours \u00b7 nothing more was counted", ["try_again", "undo"]],
-      ["question_unanswered", "Stopped after a day without your answer \u00b7 the 61 found before it asked are yours", ["answer_now", "undo"]],
-      ["paused", "Lead searches are paused for now \u00b7 your leads are all here \u00b7 nothing is being counted", ["undo"]],
+      ["target_reached", "Found 61 personal trainers \u00b7 34 you can email \u00b7 27 by phone \u00b7 40 left out", ["excluded", "sort_fit"]],
+      ["searched_everything", "Found 61 personal trainers \u00b7 everything these searches returned in Austin, TX", ["nearby", "sort_fit", "excluded"]],
+      ["month_leads_used", "Stopped at 61 \u00b7 this month's leads are used \u00b7 the 61 found are yours", ["excluded"]],
+      ["budget_used", "Stopped at 61 \u00b7 this month's searching is used up \u00b7 the 61 found are yours", ["excluded"]],
+      ["few_new_matches", "Found all 40 personal trainers in Austin, TX \u00b7 the 61 found are yours", ["excluded"]],
+      ["stopped", "Stopped at 61 \u00b7 the 61 found are yours \u00b7 nothing else was counted", ["carry_on", "excluded"]],
+      ["source_failed", "Stopped at 40: the source stopped answering \u00b7 the 61 found are yours \u00b7 nothing more was counted", ["try_again", "excluded"]],
+      ["question_unanswered", "Stopped after a day without your answer \u00b7 the 61 found before it asked are yours", ["answer_now", "excluded"]],
+      ["paused", "Lead searches are paused for now \u00b7 your leads are all here \u00b7 nothing is being counted", ["excluded"]],
     ],
   );
   assert.equal(leadStrip(ended("target_reached"), NOW).actions[0].label, "40 left out");
   assert.equal(leadStrip(ended("searched_everything"), NOW).actions[0].label, "Find 139 more nearby");
   const nearby = leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW, { nearby: ["Alpine", "Fort Davis"] });
   assert.equal(nearby.title, "There are 3 personal trainers in Austin, TX, and all of them are chain gyms, which you asked me to leave out.");
-  assert.deepEqual([nearby.parts, ids(nearby)], [["Nothing was counted."], ["nearby", "undo"]], "nothing was counted, so nothing is worth re-sorting");
-  assert.deepEqual(ids(leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW)), ["undo"], "with nowhere else to look there is no next step to offer");
-  assert.equal(ids(leadStrip(ended("target_reached", { ended_at: "2026-09-18T10:00:00Z" }), NOW)).includes("undo"), false, "over a day later there is nothing to undo");
-  assert.equal(ids(leadStrip(ended("target_reached", { undo_op_id: "5e000000-0000-4000-8000-0000000000b1", undo_version: 1 }), NOW)).includes("undo"), false, "already undone: the view carries the operation the toast puts back");
+  assert.deepEqual([nearby.parts, ids(nearby)], [["Nothing was counted."], ["nearby", "excluded"]], "nothing was counted, so nothing is worth re-sorting; the 3 left out are a link");
+  assert.deepEqual(ids(leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW)), ["excluded"], "with nowhere else to look there is no next step to offer");
+  // Removing the untouched leads is the search menu's now, named for what it does (contracts leadUndoable); an
+  // "Undo" on the strip beside "the 61 found are yours" read as deleting what was just paid for.
+  for (const e of LEAD_ROUND_ENDINGS) assert.equal(ids(leadStrip(ended(e), NOW)).includes("undo"), false, `${e}: the strip never offers Undo`);
   assert.equal(ids(leadStrip(SEARCH, NOW)).includes("undo"), false, "a round still going has nothing to undo");
 });
 

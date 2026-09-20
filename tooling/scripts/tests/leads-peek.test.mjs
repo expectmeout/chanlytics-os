@@ -242,7 +242,7 @@ test("a criterion Claude could not tell says so, in its own group, and never a c
   const unsure = CHECKS.map((c) => (c.key === "independent" ? { ...c, answer: "unknown", reason: "the listing does not say" } : c));
   const { tree } = page({ vm: vmOf({ member: { checks: unsure } }) }).draw();
   const ck = byTestId(tree, "peek-check-independent");
-  assert.equal(textOf(find(ck, (n) => n.props?.className === "pk-ck-t")), `${LEAD_CHECK_UNSURE} — the listing does not say`);
+  assert.equal(textOf(find(ck, (n) => n.props?.className === "pk-ck-t")), "Independent: couldn't tell — the listing does not say", "the row names what could not be told, then why");
   assert.equal(/\bwarn\b/.test(ck.props.className), true);
   assert.equal(all(ck, (n) => /pk-ck-check/.test(n.props?.className || "")).length, 0);
 });
@@ -276,7 +276,7 @@ test("a Needs review lead says so and offers Keep and Exclude; an Excluded one s
   reset();
   const out = page({ vm: vmOf({ member: { class: "excluded", fit: null, excluded_by: "chain", reason: "Part of Crunch Fitness, a chain with many locations" } }) });
   tree = out.draw().tree;
-  assert.equal(textOf(byTestId(tree, "peek-fit")), "Chain gyms. Part of Crunch Fitness, a chain with many locations", "the owner's own word for the criterion");
+  assert.equal(textOf(byTestId(tree, "peek-fit")), "Left out — Chain gyms. Part of Crunch Fitness, a chain with many locations", "what happened first, then the owner's own word for the criterion, then the judge's reason");
   assert.equal(byTestId(tree, "peek-stage"), null, "an excluded place has no stage");
   assert.equal(textOf(byTestId(tree, "peek-left-out")), "Left out of this search. It doesn't count.");
   await press(byTestId(tree, "peek-put-back"));

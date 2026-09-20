@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
-  toLeadRowVM, leadRail, leadsStanding,
+  toLeadRowVM, leadRail, leadUndoable, leadsStanding,
   leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
@@ -142,7 +142,13 @@ test("one row is words and shapes, never a stored value: the fit band, the email
 });
 
 test("the rail and the standing line count what the lists hold, and say who needs you", () => {
-  const rail = leadRail(COUNTS, [SEARCH_WAITING, SEARCH_DONE]);
+  const rail = leadRail(COUNTS, [SEARCH_WAITING, SEARCH_DONE], NOW);
+  // The rail row says whether the search's untouched leads may still be removed, so the menu reads it off the row.
+  assert.deepEqual(rail.searches.map((s) => s.undoable), [false, leadUndoable(SEARCH_DONE, NOW)]);
+  assert.equal(leadUndoable({ round: { undo_op_id: null, ended_at: new Date(NOW.getTime() - 60_000).toISOString() } }, NOW), true);
+  assert.equal(leadUndoable({ round: { undo_op_id: "op-1", ended_at: new Date(NOW.getTime() - 60_000).toISOString() } }, NOW), false, "used once");
+  assert.equal(leadUndoable({ round: { undo_op_id: null, ended_at: new Date(NOW.getTime() - 25 * 3_600_000).toISOString() } }, NOW), false, "a day is the window");
+  assert.equal(leadUndoable({ round: null }, NOW), false);
   assert.deepEqual(rail.lists.map((l) => [l.label, l.count]), [["All leads", 322], ["Ready", 272], ["Contacted", 31], ["Talking", 9], ["Said no", 6], ["Not a fit", 4]]);
   assert.deepEqual(rail.searches.map((s) => s.mark), ["question", null]);
   assert.deepEqual(rail.searches.map((s) => [s.name, s.count]), [["Chiropractors · Round Rock", 25], ["Personal trainers · Austin", 161]]);
@@ -189,7 +195,8 @@ test("the endings read as the States artboard wrote them", () => {
   );
   assert.equal(said(line("month_leads_used", { counted: 464 })), "Stopped at 464 · this month's leads are used · the 464 found are yours");
   assert.equal(said(line("budget_used")), "Stopped at 61 · this month's searching is used up · the 61 found are yours");
-  assert.equal(said(line("few_new_matches", { name: "chiropractors", seen: 64 })), "All 64 chiropractors in Austin are already yours. · Look further out, in Round Rock and Pflugerville?");
+  // "already yours" read as dedupe, and it stood beside an Undo. "Found all" says what happened: the area ran dry.
+  assert.equal(said(line("few_new_matches", { name: "chiropractors", seen: 64 })), "Found all 64 chiropractors in Austin · the 61 found are yours · Look further out, in Round Rock and Pflugerville?");
   assert.equal(said(line("stopped", { checking: true })), "Stopping · checking the emails of the 61 found · nothing else was counted");
   assert.equal(said(line("stopped")), "Stopped at 61 · the 61 found are yours · nothing else was counted");
   assert.equal(said(line("source_failed")), "Stopped at 86: the source stopped answering · the 61 found are yours · nothing more was counted");
@@ -244,8 +251,9 @@ const PLAN_FACTS = { dupes: 14, leadsLeft: 486, bound: null, prior: { places: 1_
 
 test("the plan card's facts are the PRD's three, in leads, with no dollar meter", () => {
   assert.deepEqual(leadPlanFacts(CARD_PLAN, PLAN_FACTS), [
-    "About 8 minutes — leave the page if you like",
-    "Skips the 14 already yours",
+    "About 48 minutes — leave the page if you like",
+    // No number: the card cannot know how many of THIS search's places are already here until it has looked.
+    "Anything already yours is skipped",
     "Counts only matches you can reach · 486 left this month",
   ]);
   assert.equal(/\$/.test(leadPlanFacts(CARD_PLAN, PLAN_FACTS).join(" ")), false);
