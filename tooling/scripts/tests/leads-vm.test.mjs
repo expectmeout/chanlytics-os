@@ -132,7 +132,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     email: "hello@zilkerstrength.example", emailState: "ok", emailLabel: "hello@zilkerstrength.example", emailWord: "Checked",
     phone: "+15125550101", phoneAgrees: true, phoneWrong: false,
     reach: { email: { address: "hello@zilkerstrength.example", state: "ok", word: "Checked" }, phone: { number: "+15125550101", agrees: true } },
-    image: null,
+    image: null, reasons: [],
     why: "Independent studio, one location, coaching only", rating: "5.0 · 16", reviewsTitle: "",
     stage: "ready", stageLabel: "Ready", foundLabel: "6m", foundAt: "Sep 18, 2026 · 2:14 PM",
     distance: "1.2 mi", source: "Google Maps listing", host: "zilkerstrength.example",
@@ -285,11 +285,11 @@ test("when a limit binds, the count is clamped to what is left, the button says 
 });
 
 test("Needs review is grouped by what resolves it, in the order an owner would work it", () => {
-  const rv = (id, reasons) => row({ id, member: { ...row().member, class: "review", fit: "look", reasons } });
+  const rv = (id, reasons) => ({ id, cls: "review", reasons });
   const rows = [
     rv("a", ["email:checking"]), rv("b", ["email:unknown"]), rv("c", ["email:none"]), rv("d", ["email:catch_all"]),
     rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]),
-    row({ id: "q" }),
+    { id: "q", cls: "qualified", reasons: [] },
   ];
   const groups = leadReviewGroups(rows, SEARCH_DONE);
   assert.deepEqual(groups.map((g) => [g.id, g.label, g.ids, g.acts]), [
@@ -302,7 +302,8 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
     ["out_of_area", "Just outside the area you asked for", ["g"], ["keep", "exclude"]],
   ], "one group per resolver, a lead in the first group that fits it, the criterion named in the owner's words, a qualified row in none");
   assert.deepEqual(leadReviewGroups([], SEARCH_DONE), []);
-  assert.deepEqual(leadReviewGroups([row({ id: "old", member: { ...row().member, class: "review" } })], SEARCH_DONE), [], "a row from before D3 carries no reasons and lands in no group");
+  assert.deepEqual(leadReviewGroups([{ id: "old", cls: "review", reasons: [] }], SEARCH_DONE), [], "a row from before D3 carries no reasons and lands in no group");
+  assert.deepEqual(toLeadRowVM(row({ member: { ...row().member, class: "review", reasons: ["email:none"] } }), TZ, NOW).reasons, ["email:none"], "the row VM carries them, so the page can group without the DTO");
 });
 
 // D2: who they are, from what the listing shows. NOW is a Friday in America/Chicago.

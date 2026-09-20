@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
-import { leadEndingLine, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadEndingLine, leadReviewGroups, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -73,7 +73,7 @@ const leadRow = (over = {}) => ({
 const ROW_DTOS = [
   leadRow(),
   leadRow({ id: "l2", place_id: "ChIJfixture0002", business_name: "Barton Creek Coaching", email: "team@bartoncreekcoaching.example", email_state: "catch_all", phone: "+15125550102", phone_agrees: false, website: "bartoncreekcoaching.example", rating: 4.8, reviews: 61, found_at: minsAgo(12), member: member({ fit: "look", reason: "Coaching studio, one location" }) }),
-  leadRow({ id: "l3", place_id: "ChIJfixture0003", business_name: "Lamar Strength Co.", email: "info@lamarstrength.example", email_state: "unknown", phone: "+15125550103", phone_agrees: false, website: "lamarstrength.example", rating: 4.6, reviews: 22, found_at: minsAgo(20), member: member({ class: "review", fit: "look", reason: "Couldn't check the email" }) }),
+  leadRow({ id: "l3", place_id: "ChIJfixture0003", business_name: "Lamar Strength Co.", email: "info@lamarstrength.example", email_state: "unknown", phone: "+15125550103", phone_agrees: false, website: "lamarstrength.example", rating: 4.6, reviews: 22, found_at: minsAgo(20), member: member({ class: "review", fit: "look", reason: "Couldn't check the email", reasons: ["email:unknown"] }) }),
   leadRow({ id: "l4", place_id: "ChIJfixture0004", business_name: "GigaFit Austin", email: null, email_state: "none", email_checked_at: null, phone: "+15125550104", phone_agrees: false, website: "gigafit.example", rating: 4.1, reviews: 903, found_at: minsAgo(22), member: member({ class: "excluded", fit: null, reason: "A chain with 40 locations", excluded_by: "chain" }) }),
   leadRow({ id: "l5", place_id: "ChIJfixture0005", business_name: "Pflugerville Training", email: null, email_state: "none", email_checked_at: null, phone: "+15125550105", phone_agrees: false, website: null, rating: 4.4, reviews: 12, found_at: minsAgo(24), member: member({ class: "excluded", fit: null, reason: "A dog trainer", excluded_by: "wrong_kind" }) }),
 ];
@@ -257,7 +257,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsStanding: leadsStanding,
     // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
     // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
-    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip },
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups },
     __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
@@ -387,6 +387,38 @@ test("a suggestion picked on the first day fills the composer, and the composer 
   find(byTestId(tree, "leads-first-day"), (n) => n.type === "button" && n.props?.className === "q").props.onClick();
   tree = draw();
   assert.equal(finders[finders.length - 1].words, "gyms in Denver", "the words land in the composer the owner then edits");
+});
+
+// D3: Needs review is a queue. Its head is one chip per thing that would resolve the leads in it; a chip selects
+// them; the bar offers what resolves that selection and nothing else; a resolver whose courier is not installed
+// is not drawn, so the bar never offers what the door cannot do.
+test("Needs review is a queue: a chip per resolver selects its leads, and the bar offers only what resolves them", async () => {
+  fresh();
+  let tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  const chips = all(byTestId(tree, "lead-review-groups"), (n) => n.type === "button");
+  assert.deepEqual(chips.map((c) => textOf(c)), ["Their mail server wouldn't answer 1"], "one group, its count beside it");
+  chips[0].props.onClick();
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  const bar = byTestId(tree, "leads-bulk-bar");
+  assert.match(textOf(bar), /^1 selected/);
+  assert.ok(byTestId(bar, "leads-bulk-keep") && byTestId(bar, "leads-bulk-exclude"), "Keep and Exclude resolve a mail server that would not answer");
+  assert.equal(byTestId(bar, "leads-bulk-check-again"), null, "Check again waits for its courier (00145): nothing on the bar is a dead control");
+  assert.equal(byTestId(bar, "leads-bulk-find-email"), null);
+  byTestId(bar, "leads-bulk-keep").props.onClick();
+  await settle();
+  assert.deepEqual(calls.at(-1), ["keep", { search_id: SEARCH_A, id: "l3" }], "Keep in bulk goes through the row's own door, once per lead");
+  assert.match(textOf(flashes.at(-1).msg), /^Kept 1./);
+
+  globalThis.window.__leadCheckAgain = async (ids) => { calls.push(["check_again", ids]); return ok({ scheduled: ids.length, skipped: 0 }); };
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  all(byTestId(tree, "lead-review-groups"), (n) => n.type === "button")[0].props.onClick();
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  assert.match(textOf(byTestId(tree, "leads-bulk-check-again")), /Check 1 again · about 1¢/, "with its courier, the act draws with its count and its cost");
+  delete globalThis.window.__leadCheckAgain;
+
+  fresh({ leads: surface({ rows: [] }) }); // the server answered the review view with nothing
+  tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
+  assert.match(textOf(tree), /Nothing needs a look./, "an empty queue says so");
 });
 
 test("the rail counts what the lists hold, a waiting search wears a question mark, and the standing line says who needs you", () => {

@@ -1945,6 +1945,18 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // Keep counts the place as Qualified the month it is kept; Exclude is free; Put back is the owner's override
   // of an exclusion, through the door that counts (PRD 8.7). Each names the search whose class it is in, which
   // is what release A's routes take ({ search_id }); the door answers the operation, and the toast offers it.
+  // The same door, once per lead, one flash for the lot: what a selection's Keep or Exclude does until 00145's
+  // bulk door takes the ids in one call (D3 Task 3). A refusal stops the run and says which lead refused.
+  const leadActEach = async (ids, act, msg) => {
+    if (leadBusy) return;
+    setLeadBusy(true);
+    let refused = null;
+    for (const id of ids) { const r = await act(id); if (!r || !r.ok) { refused = r; break; } }
+    setLeadBusy(false);
+    if (refused) { plFlash(window.refusalToast(refused, "Not all of them")); return; }
+    setSel(new Set());
+    plFlash({ msg });
+  };
   const keepLead = (id) => leadAct(() => window.__leadKeep(searchOf(leadById(id)), id), <>Kept. It counts as a lead this month.</>);
   const excludeLead = (id) => leadAct(() => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded. Nothing counted.</>);
   const putBackLead = (id) => leadAct(() => window.__leadPutBack(searchOf(leadById(id)), id), <>Put back. It counts as a lead now.</>);
@@ -2189,11 +2201,30 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onScrolled={setScrolledX}
         filtered={filtered}
         onClearFilters={() => { setQ(""); setChip(null); goto({ list: "all", cls: null }); }}
-        empty={{ title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
+        empty={leadView.cls === "review"
+          ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
+          : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
         sel={sel}
         onToggle={toggleSel}
         onToggleAll={toggleAll}
         onClearSel={() => { setSel(new Set()); setAllMatching(false); }}
+        onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
+        // Needs review's resolvers (D3). Keep and Exclude go through the same doors a row's own Keep and Exclude use,
+        // one lead at a time until 00145's bulk door lands; Check again and Find an email draw only once their
+        // couriers exist, so the bar never offers what the door cannot do.
+        review={{
+          actsFor: (ids) => {
+            const V = window.__LEAD_VM || {};
+            const groups = V.leadReviewGroups ? V.leadReviewGroups(leads.rows.filter((l) => ids.indexOf(l.id) >= 0), openSearch) : [];
+            return [...new Set(groups.flatMap((g) => g.acts))];
+          },
+          canCheckAgain: typeof window.__leadCheckAgain === "function",
+          canFindEmail: typeof window.__leadFindEmail === "function",
+          onCheckAgain: (ids) => window.__leadCheckAgain && leadAct(() => window.__leadCheckAgain(ids), <>Checking {ids.length} again.</>),
+          onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
+          onKeep: (ids) => leadActEach(ids, (id) => window.__leadKeep(searchOf(leadById(id)), id), <>Kept {ids.length}. They count as leads this month.</>),
+          onExclude: (ids) => leadActEach(ids, (id) => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded {ids.length}. Nothing counted.</>),
+        }}
         allMatching={allMatching}
         onSelectAllMatching={() => setAllMatching(true)}
         bulkView={{ list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }}

@@ -918,11 +918,11 @@ export interface LeadReviewGroup { id: LeadReviewGroupId; key: string; label: st
  * resolve it. A lead with two reasons sits in the first group that fits it, in the order above; a group about one
  * criterion names it in the owner's own words from the plan, and two criteria make two groups.
  */
-export function leadReviewGroups(rows: LeadRowDto[], search: LeadSearchDto | null): LeadReviewGroup[] {
+export function leadReviewGroups(rows: { id: string; cls: LeadClass; reasons: string[] }[], search: LeadSearchDto | null): LeadReviewGroup[] {
   const by = new Map<string, LeadReviewGroup>();
   for (const r of rows) {
-    if (r.member.class !== "review") continue;
-    const reasons = r.member.reasons ?? [];
+    if (r.cls !== "review") continue;
+    const reasons = r.reasons ?? [];
     const picked = REVIEW_GROUP_ORDER.find((g) => reasons.some((x) => reviewGroupOf(x) === g));
     if (!picked) continue;
     const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
@@ -986,6 +986,8 @@ export interface LeadRowVM {
   /** The two contacts as one glance (D2's Reach column), and the listing's photo for the row's mark. */
   reach: { email: { address: string; state: LeadEmailState; word: string } | null; phone: { number: string; agrees: boolean } | null };
   image: string | null;
+  /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
+  reasons: string[];
   why: string; rating: string;
   /** The spread of reviews, "5★ 30 · 4★ 8 · 3★ 2 · 2★ 0 · 1★ 1", for the Rating cell's title; blank when the listing did not say. */
   reviewsTitle: string;
@@ -1052,6 +1054,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
       phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null,
     },
     image: r.image_url ?? null,
+    reasons: m.reasons ?? [],
     why: m.reason,
     rating,
     reviewsTitle: r.reviews_dist ? `5★ ${r.reviews_dist.five} · 4★ ${r.reviews_dist.four} · 3★ ${r.reviews_dist.three} · 2★ ${r.reviews_dist.two} · 1★ ${r.reviews_dist.one}` : "",
