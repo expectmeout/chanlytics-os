@@ -819,3 +819,58 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .pl-peek .pk-act-main { min-height: 52px; font-size: var(--text-md); }
   .pl-peek .pk-act .btn:not(.pk-act-main) { min-height: 52px; }
 }
+
+/* ------------------------- the same leads, on the ground (D5) -- */
+/* A plot of one town from the points the search already found: no tile, no third-party request. The square is the
+   seam a street layer would slide under, and nothing above it would change. */
+
+.ld-map { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; padding: 12px var(--gutter-page) 28px; align-items: start; }
+.ld-map-side { border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-raised); }
+.ld-map-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
+.ld-map-bar .sp { flex: 1; }
+.ld-map-count { font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
+.ld-map-by { display: inline-flex; gap: 4px; }
+.ld-map-rows { max-height: 520px; overflow: auto; }
+.ld-map-row { display: grid; grid-template-columns: 20px 28px minmax(0, 1fr) 10px; gap: 9px; align-items: center; padding: 7px 12px; border-bottom: 1px solid var(--line); cursor: pointer; }
+.ld-map-row:last-child { border-bottom: 0; }
+.ld-map-row:hover, .ld-map-row.on { background: var(--bg-hover); }
+.ld-map-row .i { font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); text-align: right; }
+.ld-map-row .n { font-size: var(--text-sm); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ld-map-row .s { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.ld-map-main { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ld-map-plot {
+  position: relative; width: 100%; padding-top: 68%; border: 1px solid var(--line); border-radius: var(--radius-lg);
+  background:
+    linear-gradient(var(--line) 1px, transparent 1px) 0 0 / 100% 12.5%,
+    linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0 / 12.5% 100%,
+    var(--bg-sunken);
+  overflow: hidden;
+}
+.ld-map-ring { position: absolute; border: 1px dashed var(--accent); border-radius: 50%; background: var(--accent-soft); }
+.ld-pin, .ld-pin-dot { width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--bg-raised); background: var(--ink-faint); padding: 0; }
+.ld-pin { position: absolute; transform: translate(-50%, -50%); cursor: pointer; transition: transform var(--duration-fast) var(--ease-out); }
+.ld-pin:hover, .ld-pin.on { transform: translate(-50%, -50%) scale(1.5); z-index: 2; }
+.ld-pin:focus-visible { outline: 0; box-shadow: var(--focus-ring); }
+.ld-pin-dot { display: inline-block; }
+.tone-strong, .tone-ok, .tone-ready { background: var(--ok); }
+.tone-look, .tone-part, .tone-review { background: var(--warn); }
+.tone-long, .tone-none { background: var(--ink-faint); }
+.tone-out, .tone-bad { background: var(--danger); }
+.tone-contacted { background: var(--line-strong); }
+.tone-talking { background: var(--info); }
+.ld-map-card { position: absolute; left: 12px; bottom: 12px; right: 12px; max-width: 380px; display: flex; align-items: center; gap: 10px; padding: 9px 11px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); box-shadow: var(--shadow-md); }
+.ld-map-card .b { min-width: 0; flex: 1; }
+.ld-map-card .n { font-size: var(--text-sm); font-weight: var(--weight-medium); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ld-map-card .s { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ld-map-scale { position: absolute; right: 10px; top: 8px; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-dim); }
+.ld-map-foot { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ld-map-foot .sp { flex: 1; }
+.ld-map-note { font-size: var(--text-xs); color: var(--ink-dim); }
+
+@media (max-width: 900px) {
+  .ld-map { grid-template-columns: 1fr; padding: 8px var(--gutter-page) 24px; }
+  .ld-map-main { order: -1; }
+  .ld-map-plot { padding-top: 88%; }
+  .ld-map-rows { max-height: none; }
+}
