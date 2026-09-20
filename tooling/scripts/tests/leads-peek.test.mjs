@@ -670,3 +670,48 @@ test("D5: the photo expanded is a dialog of its own -- the photo or the tile, wh
   const out = globalThis.leadPeekEscape({ mode: "why", armed: { asked: true }, setMode: () => steps.push("mode"), setArmed: () => steps.push("armed"), setPeekId: () => steps.push("peek"), lightbox: LEAD, setLightbox: (v) => steps.push(`lightbox:${v}`) });
   assert.deepEqual([out, steps], ["lightbox", ["lightbox:null"]]);
 });
+
+test("D5, on a phone: one lead at a time — where it sits in the pile, the two ways through it, a swipe, and Save and go to the next", async () => {
+  reset();
+  const moved = [];
+  const deck = { at: 3, of: 19, onPrev: () => moved.push("prev"), onNext: () => moved.push("next") };
+  const P = page();
+  const acts = globalThis.LeadPeekActions(P.p);
+  const withDeck = (over = {}) => { seq = 0; return globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, deck, ...acts, ...over }); };
+  let tree = withDeck();
+  assert.equal(textOf(byTestId(tree, "peek-deck-at")), "3 of 19", "where this lead sits in the pile");
+  byTestId(tree, "peek-deck-next").props.onClick();
+  byTestId(tree, "peek-deck-prev").props.onClick();
+  assert.deepEqual(moved, ["next", "prev"], "the two ways through it");
+  assert.equal(byTestId(withDeck({ deck: { ...deck, at: 1 } }), "peek-deck-prev").props.disabled, true, "nowhere to go back to");
+
+  // A swipe is the same two presses under a thumb: 80px across, and a scroll is never a move.
+  const el = { dataset: {} };
+  const swipe = (dx, dy) => {
+    tree.props.onTouchStart({ touches: [{ clientX: 300, clientY: 200 }], currentTarget: el });
+    tree.props.onTouchEnd({ changedTouches: [{ clientX: 300 + dx, clientY: 200 + dy }], currentTarget: el });
+  };
+  swipe(-120, 6);
+  assert.equal(moved.at(-1), "next", "a swipe left is the next lead");
+  swipe(140, -4);
+  assert.equal(moved.at(-1), "prev", "a swipe right is the one before");
+  const before = moved.length;
+  swipe(-40, 10);
+  swipe(-120, 300);
+  assert.equal(moved.length, before, "a short drag and a scroll move nothing");
+
+  // Back from the call: the six outcomes wear their dots, the sheet says what saving does, and one press saves and moves on.
+  const armed = { kind: "call", leadId: LEAD, asked: true, outcome: "interested", note: "" };
+  const sheet = byTestId(withDeck({ armed }), "peek-call-ask");
+  assert.ok(find(byTestId(sheet, "peek-outcome-interested"), (n) => n.props?.className === "dot"), "each outcome wears its dot, beside its word");
+  assert.match(textOf(sheet), /Saving moves them to Talking/);
+  await press(byTestId(sheet, "peek-call-save-next"));
+  assert.equal(moved.at(-1), "next", "saved, and on to the next");
+  assert.equal(byTestId(withDeck({ armed, deck: { ...deck, at: 19 } }), "peek-call-save-next"), null, "on the last of the pile there is nowhere to go next");
+
+  // A desktop has no deck at all: no place line, no swipe.
+  seq = 0;
+  const desk = globalThis.LeadPeek({ vm: P.p.vm, mode: "info", armed: null, draft: null, ...acts });
+  assert.equal(byTestId(desk, "peek-deck"), null);
+  assert.equal(desk.props.onTouchStart, undefined);
+});

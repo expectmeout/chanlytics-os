@@ -1856,6 +1856,15 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // hovered row does (clients.css).
   const [cursor, setCursor] = useState(null);
   React.useEffect(() => { setCursor((c) => (c && shownIds.includes(c) ? c : null)); }, [shownIds.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The peek's deck (D5): the lead before or after the one open, by the order on screen. It moves the cursor too,
+  // so the rows behind it follow and the keyboard carries on from where the thumb left off.
+  const deckMove = (step) => {
+    const i = shownIds.indexOf(peekId);
+    const to = shownIds[step > 0 ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1)];
+    if (!to || to === peekId) return;
+    setCursor(to);
+    setPeekId(to);
+  };
   const moveCursor = (step) => setCursor((c) => {
     const i = c ? shownIds.indexOf(c) : -1;
     return shownIds[step > 0 ? Math.min(shownIds.length - 1, i + 1) : Math.max(0, i - 1)];
@@ -2318,6 +2327,16 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
         talk={talk}
         peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
+        // Where this lead sits in the pile, and the two ways through it (D5). Moving the deck moves the page's own
+        // cursor as J and K do, so the rows behind the peek move with it.
+        deck={peekId && shownIds.indexOf(peekId) >= 0
+          ? {
+            at: shownIds.indexOf(peekId) + 1,
+            of: shownIds.length,
+            onPrev: () => deckMove(-1),
+            onNext: () => deckMove(1),
+          }
+          : null}
         peekMode={peekMode}
         onPeekMode={setPeekMode}
         armed={armed}

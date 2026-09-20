@@ -799,3 +799,23 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
   .ld-bench-card-acts { opacity: 1; }
   .ld-bench-card .r { flex-direction: column; align-items: flex-end; gap: 6px; }
 }
+
+/* --------------------------- one lead at a time, on a phone (D5) -- */
+.pk-deck { display: none; }
+.pk-chip .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-faint); flex: none; margin-right: 7px; display: inline-block; vertical-align: -1px; }
+.pk-chip.tone-ok .dot { background: var(--ok); }
+.pk-chip.tone-warn .dot { background: var(--warn); }
+.pk-chip.tone-bad .dot { background: var(--danger); }
+
+@media (max-width: 900px) {
+  /* Where you are in the pile, and the two ways through it -- a swipe does the same. */
+  .pk-deck { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 10px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); flex: none; }
+  .pk-deck-n { font-family: var(--font-mono); font-size: var(--text-xs); color: var(--ink-dim); }
+  .pk-deck-btn { width: 44px; height: 36px; display: grid; place-items: center; border: 0; border-radius: var(--radius-md); background: transparent; color: var(--ink-muted); cursor: pointer; }
+  .pk-deck-btn:disabled { color: var(--ink-faint); cursor: default; }
+  .pk-deck-btn.prev .icon { transform: rotate(180deg); }
+  /* Calling is what a phone is for: the act bar's own button is a thumb's. */
+  .pl-peek .pk-act { padding: 10px var(--gutter-page) calc(10px + env(safe-area-inset-bottom, 0px)); }
+  .pl-peek .pk-act-main { min-height: 52px; font-size: var(--text-md); }
+  .pl-peek .pk-act .btn:not(.pk-act-main) { min-height: 52px; }
+}

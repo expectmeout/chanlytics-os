@@ -11105,6 +11105,14 @@ var LEAD_STAGE_WORDS = { ready: "Ready", nurture: "Contacted", converted: "Talki
 var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
 var LEAD_FIT_WORDS = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
 var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
+var LEAD_CALL_OUTCOME_TONES = {
+  interested: "ok",
+  call_back: "warn",
+  voicemail: "quiet",
+  no_answer: "quiet",
+  not_interested: "bad",
+  wrong_number: "bad"
+};
 var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 var LEAD_LIST_WORDS = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
 var LEAD_SOURCE_WORD = "Google Maps listing";
@@ -11189,7 +11197,7 @@ var LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -11218,7 +11226,13 @@ var LEAD_WORDS = {
   fromListing: "From the listing",
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
-  closePhotos: "Close"
+  closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at2, of) => `${at2} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in."
 };
 var LEAD_SUGGEST_DAYS = 7;
 var LEAD_PRIOR_MIN = 25;
@@ -12302,6 +12316,7 @@ export {
   LEAD_ASK_MIN_FACTOR,
   LEAD_ASSUMED_YIELD,
   LEAD_CALL_OUTCOMES,
+  LEAD_CALL_OUTCOME_TONES,
   LEAD_CALL_OUTCOME_WORDS,
   LEAD_CALL_QUESTION,
   LEAD_CARDS,

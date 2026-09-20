@@ -49,6 +49,10 @@ export const LEAD_CLOSED_WORDS: Record<(typeof LEAD_CLOSED_REASONS)[number], str
 export const LEAD_FIT_WORDS: Record<(typeof LEAD_FITS)[number], string> = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
 /** Claims only what the check saw (S12): a catch-all server accepts anything, so the check cannot tell. */
 export const LEAD_EMAIL_WORDS: Record<(typeof LEAD_EMAIL_STATES)[number], string> = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
+/** How an outcome reads at a glance (D5): the dot beside its word, never colour alone -- the word is always there. */
+export const LEAD_CALL_OUTCOME_TONES: Record<(typeof LEAD_CALL_OUTCOMES)[number], "ok" | "warn" | "quiet" | "bad"> = {
+  interested: "ok", call_back: "warn", voicemail: "quiet", no_answer: "quiet", not_interested: "bad", wrong_number: "bad",
+};
 export const LEAD_CALL_OUTCOME_WORDS: Record<(typeof LEAD_CALL_OUTCOMES)[number], string> = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
 /** The rail's six lists, said once (§6.1). `leadRail` draws from here and nowhere else. */
 export const LEAD_LIST_WORDS: Record<LeadList, string> = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
@@ -165,7 +169,7 @@ export const LEAD_WORDS = {
   callQuestion: LEAD_CALL_QUESTION,
   callSave: "Save",
   callCancel: "I didn't call",
-  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id], tone: LEAD_CALL_OUTCOME_TONES[id] })),
   noteLabel: "A note about the call",
   notePlaceholder: LEAD_NOTE_PLACEHOLDER,
   noteMax: LEAD_NOTE_MAX,
@@ -195,6 +199,12 @@ export const LEAD_WORDS = {
   openMaps: "Open in Maps",
   ratedHeading: "What people say",
   closePhotos: "Close",
+  // D5, on a phone: one lead at a time, and the question when you are back from the call.
+  deckOf: (at: number, of: number) => `${at} of ${of}`,
+  deckPrev: "The lead before",
+  deckNext: "The next lead",
+  callSaveNext: "Save and go to the next",
+  callSavedNote: "Saving moves them to Talking. They join People when they write or call in.",
 } as const;
 
 
