@@ -350,7 +350,7 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
                 <span className="pk-rw" data-testid="peek-email-word">{vm.reach.email.word}</span>
               </div>
               <div className="pk-rn" data-testid="peek-email-note">{vm.reach.email.note}</div>
-              <div className="pk-rn" data-testid="peek-email-standard">{vm.reach.email.standard}</div>
+              {vm.reach.email.standard ? <div className="pk-rn" data-testid="peek-email-standard">{vm.reach.email.standard}</div> : null}
             </div>
             {vm.reach.email.canDraft ? (
               <span className="pk-rr-acts">
@@ -369,9 +369,14 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
           </div>
         </div>
         {vm.rated ? <LeadPeekRated vm={vm} /> : null}
-        {/* The checks fold under their own head (D5): how many passed, how many could not be told, open by default. */}
-        <details className="pk-box" open data-testid="peek-checks">
-          <summary className="pk-box-head" data-testid="peek-checks-summary"><span className="pk-label">{W.checked}</span><span className="pk-box-sum">{vm.checksSummary}</span></summary>
+        {/* The checks fold away (D5): the strip says the shape of the evidence and the head says it in words, so the
+            act at the foot is reachable without scrolling past seven rows nobody is reading twice. */}
+        <details className="pk-box" data-testid="peek-checks">
+          <summary className="pk-box-head" data-testid="peek-checks-summary">
+            <span className="pk-dots" aria-hidden="true" data-testid="peek-check-dots">{vm.checkDots.map((d, i) => <span key={`${d}-${i}`} className={`pk-dot ${d}`} />)}</span>
+            <span className="pk-box-sum">{vm.checksSummary}</span>
+            <Icon name="chevron-down" size={12} />
+          </summary>
           {vm.groups.map((g) => (
             <div key={g.how} className={`pk-group pk-group-${g.how}`} data-testid={`peek-checks-${g.how}`}>
               <div className="pk-group-label">{g.label}</div>
@@ -394,14 +399,19 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
             {vm.others.picked ? <p className="pk-alt-why" data-testid="peek-others-why">{vm.others.picked}</p> : null}
           </details>
         ) : null}
-        <div data-testid="peek-found">
-          <div className="pk-label">{W.found}</div>
+        {/* How it was found folds the same way: one line says it, and the three steps are behind it. */}
+        <details className="pk-box" data-testid="peek-found">
+          <summary className="pk-box-head" data-testid="peek-found-summary">
+            <Icon name="clock" size={12} />
+            <span className="pk-box-sum">{vm.foundSummary}</span>
+            <Icon name="chevron-down" size={12} />
+          </summary>
           <div className="pk-tl">
             {vm.found.map((f) => (
               <div className="pk-tr" key={f.what}><span className="t">{f.at}</span><span>{f.what}</span></div>
             ))}
           </div>
-        </div>
+        </details>
         <div className="pk-links" data-testid="peek-links">
           {vm.links.website
             ? <a className="btn btn-ghost btn-sm" href={vm.links.website.href} target="_blank" rel="noopener noreferrer" data-testid="peek-website"><Icon name="external" size={12} />{vm.links.website.label}</a>
