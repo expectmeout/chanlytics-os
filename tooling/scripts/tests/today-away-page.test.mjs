@@ -5,7 +5,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayAwayGrouped, todayDay, todayDayFacts, todayDayLine, todayWeek, todayJourney, todayAway, todayLeaks, unreadCount } from "@chanlytics/contracts";
+import { todayAwayGrouped, todayDay, todayLeaks, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, unreadCount } from "@chanlytics/contracts";
 import { installLegacyReact, fresh, find, byTestId, textOf } from "./_legacy-react.mjs";
 
 installLegacyReact({ __DEMO_MODE: false });
@@ -19,8 +19,8 @@ const news = (id, title) => ({ id, kind: "review", title, message: "", tone: "ok
 const draw = (rows, cvs) => {
   fresh();
   globalThis.__notifs = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {} };
-  globalThis.__today = { awayGrouped: todayAwayGrouped, day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway, leaks: todayLeaks };
-  globalThis.TODAY_DATA = { queue: { rows: cvs.map((id) => ({ also: { conversationId: id } })) } };
+  globalThis.__today = { awayGrouped: todayAwayGrouped, day: todayDay, leaks: todayLeaks, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved };
+  globalThis.TODAY_DATA = { queue: { rows: cvs.map((id) => ({ conversationId: id, callId: null })) } };
   return globalThis.React.createElement(globalThis.TodayAway, {});
 };
 const byClass = (tree, cls) => find(tree, (n) => String(n.props?.className || "").includes(cls));
