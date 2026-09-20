@@ -5287,7 +5287,15 @@ function durationLabel(minutes) {
   return h ? m ? `${h}h ${m}m` : `${h}h` : `${m}m`;
 }
 var FLAG_WORDS = { needs_you: "Needs you \u2014 in Inbox", waiting_on_you: "Waiting on you \u2014 in Inbox" };
-function todayDay(cal, playbooks, people = null) {
+var TODAY_DAY_MAX = 5;
+function capDay(items, max) {
+  if (items.length <= max) return items;
+  const keep = /* @__PURE__ */ new Set();
+  for (const i of items) if (i.phase !== "past" && keep.size < max) keep.add(i.id);
+  for (const i of [...items].reverse()) if (i.phase === "past" && keep.size < max) keep.add(i.id);
+  return items.filter((i) => keep.has(i.id));
+}
+function todayDay(cal, playbooks, people = null, max = TODAY_DAY_MAX) {
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null };
   const feed = cal.feed.state;
   const idx = cal.days.findIndex((d) => d.today);
@@ -5321,13 +5329,17 @@ function todayDay(cal, playbooks, people = null) {
     });
     const items = [...d.allDay.map((b) => item(b, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
+    const shown = capDay(items, max);
+    const more = items.length - shown.length;
     return {
       key: d.key,
       label: `${d.today ? "Today" : "Tomorrow"} \xB7 ${d.long}`,
       today: d.today,
       past: d.past,
       closed: d.closed,
-      items,
+      items: shown,
+      more,
+      moreLine: more ? `${more} more on the Calendar` : null,
       summary: items.length ? { booked: `${items.length} booked`, flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null } : null,
       open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label)
     };
@@ -5338,87 +5350,6 @@ function todayDay(cal, playbooks, people = null) {
     reminders = visit.length === 0 ? { text: "No visit reminders yet \u2014 a playbook can text the day before an appointment and the day after a visit.", to: "outbound" } : { text: visit.map((p) => `${p.trigger === "visit_tomorrow" ? "Visit reminder" : "After the visit"}: ${p.candidates} ${p.candidates === 1 ? "person" : "people"} \xB7 next run ${p.next}`).join(" \xB7 "), to: "outbound" };
   }
   return { feed, frames, nextOpening: feed === "ok" && cal.stats.next !== "\u2014" ? cal.stats.next : null, reminders };
-}
-function todayDayFacts(cal, agg) {
-  if (!cal || cal.feed.state !== "ok") return [];
-  const out = [];
-  const today = cal.days.find((d) => d.today);
-  if (today) {
-    const n = today.blocks.length + today.allDay.length;
-    const hint = today.closed.yes ? `closed today${today.closed.note ? ` \xB7 ${today.closed.note}` : ""}` : cal.stats.next !== "\u2014" ? `next open time ${cal.stats.next}` : void 0;
-    out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
-  }
-  if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
-  return out;
-}
-function todayDayLine(cal, agg) {
-  const facts = todayDayFacts(cal, agg);
-  if (!facts.length) return null;
-  const said = facts.map((f) => {
-    const what = f.label === "Appointments today" ? `${f.value} appointment${f.value === "1" ? "" : "s"} today` : `${f.value} booked ahead`;
-    return f.hint ? `${what}, ${f.hint}` : what;
-  });
-  return `${said.join(". ")}.`;
-}
-function todayWeek(r) {
-  if (!r) return null;
-  const cm = r.campaigns;
-  const find = (id) => cm ? cm.tiles.find((t) => t.id === id) : void 0;
-  const sent = find("sent");
-  const noCampaign = !cm || cm.empty || !sent || sent.value === "0";
-  const reasons = (r.vm.reasons ?? []).filter((x) => x.value > 0).slice(0, 5);
-  const conversations = {
-    id: "conversations",
-    label: "Conversations",
-    tiles: r.vm.tiles,
-    chips: reasons.map((x) => ({ label: x.label, value: String(x.value) })),
-    // No "N never got an answer" line here: the Receptionist answered tile
-    // already carries "4 unanswered" in its own meta, and todayLeaks says it in
-    // words above. A third printing on one page is what this pass is removing.
-    // `r.vm` cannot be missing: when the main report read fails the surface is
-    // unavailable and this function is never reached, so the field is total
-    // without a second rule on the page.
-    numbersRead: true,
-    note: r.vm.empty ? "Nobody wrote or called in this period." : null,
-    to: "reports"
-  };
-  const campaigns = {
-    id: "campaigns",
-    label: "Campaigns",
-    tiles: cm && !noCampaign ? cm.tiles : [],
-    chips: [],
-    numbersRead: !!cm,
-    // A read that failed is NOT "nothing went out": that sentence is a fact
-    // about the business, and nothing in this path knows whether it is true.
-    // The page says the one "couldn't read" instead -- and the note stays null
-    // on purpose, so a browser still holding the old page (no `numbersRead`
-    // branch) degrades to silence rather than to the false sentence.
-    note: cm ? noCampaign ? "No campaign message went out in this period." : null : null,
-    to: "broadcasts"
-  };
-  const b = r.booking;
-  const bookingTiles = !b.present || b.pct === null ? [] : [
-    { id: "asked", label: "Wrote or called", value: String(b.asked ?? 0), meta: `in the last ${r.vm.rangeLabel}`, delta: null, spark: [] },
-    { id: "booked", label: "On the calendar", value: String(b.booked ?? 0), meta: "have an appointment ahead", delta: null, spark: [] },
-    { id: "rate", label: "Asked \u2192 booked", value: `${b.pct}%`, meta: b.headline, delta: null, spark: [] }
-  ];
-  const booking = {
-    id: "booking",
-    label: "Booking",
-    tiles: bookingTiles,
-    chips: [],
-    numbersRead: true,
-    note: bookingTiles.length ? null : b.present ? "Nobody wrote or called, so there was nothing to book." : b.sub,
-    to: b.present ? "reports" : "calendar"
-  };
-  const views = [conversations, campaigns, booking];
-  const full = views.find((v) => v.tiles.length > 0);
-  return {
-    label: `Last ${r.vm.rangeLabel}`,
-    sub: `${r.vm.since} \u2013 ${r.vm.until}`,
-    views,
-    initial: full ? full.id : "conversations"
-  };
 }
 function todayPeriodLine(r) {
   if (!r || !r.vm) return null;
@@ -5450,15 +5381,6 @@ function todayRunsSub(n) {
 }
 function todayRunApproved(label, n, when) {
   return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
-}
-function todayJourney(people) {
-  if (!people) return null;
-  const group = (name) => people.lists.filter((l) => l.group === name).map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
-  return { rows: group("journey"), reach: group("reach"), note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
-}
-function todayAway(rows, max = 5) {
-  const fresh = rows.filter((r) => r.unread);
-  return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
 }
 var TODAY_LEAK_MAX = 2;
 var LEAK_ORDER = ["never-booked", "unanswered", "unreachable", "quiet"];
@@ -12284,6 +12206,7 @@ export {
   TOAST_MS,
   TOAST_TONES,
   TOAST_UNDO_MS,
+  TODAY_DAY_MAX,
   TODAY_LEAK_MAX,
   TODAY_QUEUE_MAX,
   TONES2 as TONES,
@@ -12754,19 +12677,14 @@ export {
   toTodayVM,
   toVisitDto,
   toastShape,
-  todayAway,
   todayAwayGrouped,
   todayDay,
-  todayDayFacts,
-  todayDayLine,
-  todayJourney,
   todayLeaks,
   todayPeriodLine,
   todayProof,
   todayRunApproved,
   todayRunWords,
   todayRunsSub,
-  todayWeek,
   tomorrowAtIn,
   trialOffer,
   trialWords,
