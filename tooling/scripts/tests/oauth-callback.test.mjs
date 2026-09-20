@@ -14,14 +14,32 @@ const at = (rel) => pathToFileURL(path.join(ROOT, rel)).href;
 const { callbackPlan, safeNext, OAUTH_FAILED } = await import(at("apps/dashboard/src/server/oauth-callback.ts"));
 
 test("the callback exchanges a code and lands on this site only", () => {
-  assert.deepEqual(callbackPlan({ code: "abc", next: "/#/inbox", error: null }), { exchange: "abc", to: "/#/inbox" });
-  assert.deepEqual(callbackPlan({ code: "abc", next: null, error: null }), { exchange: "abc", to: "/" });
+  assert.deepEqual(callbackPlan({ code: "abc", next: "/#/inbox", error: null }), { exchange: "abc", to: "/#/inbox", refused: null });
+  assert.deepEqual(callbackPlan({ code: "abc", next: null, error: null }), { exchange: "abc", to: "/", refused: null });
   // Nothing to exchange is a sign-in to start, not an error page; the
   // provider's own refusal says so once.
-  assert.deepEqual(callbackPlan({ code: null, next: "/x", error: null }), { exchange: null, to: "/login" });
-  assert.deepEqual(callbackPlan({ code: null, next: null, error: "access_denied" }), { exchange: null, to: OAUTH_FAILED });
-  assert.deepEqual(callbackPlan({ code: "abc", next: null, error: "server_error" }), { exchange: null, to: OAUTH_FAILED }, "a code beside an error is not exchanged");
+  assert.deepEqual(callbackPlan({ code: null, next: "/x", error: null }), { exchange: null, to: "/login", refused: null });
+  assert.deepEqual(callbackPlan({ code: null, next: null, error: "access_denied" }), { exchange: null, to: OAUTH_FAILED, refused: { error: "access_denied", code: null, description: null } });
+  const beside = callbackPlan({ code: "abc", next: null, error: "server_error" });
+  assert.equal(beside.exchange, null, "a code beside an error is not exchanged");
+  assert.equal(beside.to, OAUTH_FAILED);
   assert.equal(OAUTH_FAILED, "/login?error=oauth");
+});
+
+test("a refusal keeps its reason for the log: the code and the description, clipped to one line", () => {
+  // The three fields Supabase sends. The last two are the only place the
+  // reason is said -- a wrong client secret reads exactly like this -- and the
+  // callback used to read `error` alone.
+  const said = callbackPlan({ code: null, next: "/", error: "server_error", errorCode: "unexpected_failure", errorDescription: "Unable to exchange external code: 4/0AbC" });
+  assert.deepEqual(said.refused, { error: "server_error", code: "unexpected_failure", description: "Unable to exchange external code: 4/0AbC" });
+  assert.equal(said.to, OAUTH_FAILED, "the page still hears one neutral sentence");
+  // A query string is written by whoever builds the link: one line, 200 characters.
+  const long = callbackPlan({ code: null, next: null, error: "x", errorCode: "  ", errorDescription: `a\r\nb${"c".repeat(400)}` });
+  assert.equal(long.refused.code, null, "blank is absent");
+  assert.equal(long.refused.description.length, 200);
+  assert.ok(!/[\r\n]/.test(long.refused.description));
+  // No refusal, nothing to log.
+  assert.equal(callbackPlan({ code: "abc", next: "/", error: null, errorCode: "ignored", errorDescription: "ignored" }).refused, null);
 });
 
 test("`next` is a path on this site, or the root", () => {

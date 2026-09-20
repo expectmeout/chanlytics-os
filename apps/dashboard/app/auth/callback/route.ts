@@ -19,8 +19,17 @@ import { callbackPlan, OAUTH_FAILED } from "@/server/oauth-callback";
  */
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const plan = callbackPlan({ code: url.searchParams.get("code"), next: url.searchParams.get("next"), error: url.searchParams.get("error") });
+  const plan = callbackPlan({
+    code: url.searchParams.get("code"),
+    next: url.searchParams.get("next"),
+    error: url.searchParams.get("error"),
+    errorCode: url.searchParams.get("error_code"),
+    errorDescription: url.searchParams.get("error_description"),
+  });
   let to = plan.to;
+  // The provider refused, or Supabase did on its behalf, before there was a
+  // code to exchange. The reason is in the query and nowhere else on this side.
+  if (plan.refused) console.warn("oauth_provider_refused", JSON.stringify(plan.refused));
   if (plan.exchange) {
     const supabase = await createClient();
     const { error } = await supabase.auth.exchangeCodeForSession(plan.exchange);
