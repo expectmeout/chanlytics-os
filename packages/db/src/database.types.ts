@@ -2619,6 +2619,7 @@ export type Database = {
           linkedin_url: string | null
           lng: number | null
           maps_url: string | null
+          neighborhood: string | null
           phone_e164: string | null
           phone_sources: number
           phone_wrong: boolean
@@ -2667,6 +2668,7 @@ export type Database = {
           linkedin_url?: string | null
           lng?: number | null
           maps_url?: string | null
+          neighborhood?: string | null
           phone_e164?: string | null
           phone_sources?: number
           phone_wrong?: boolean
@@ -2715,6 +2717,7 @@ export type Database = {
           linkedin_url?: string | null
           lng?: number | null
           maps_url?: string | null
+          neighborhood?: string | null
           phone_e164?: string | null
           phone_sources?: number
           phone_wrong?: boolean
@@ -3701,6 +3704,8 @@ export type Database = {
           excluded: number | null
           id: string | null
           judge_tokens: number | null
+          long: number | null
+          look: number | null
           name: string | null
           nearby: Json | null
           plan: Json | null
@@ -3713,6 +3718,7 @@ export type Database = {
           round_id: string | null
           seq: number | null
           state: string | null
+          strong: number | null
           target: number | null
           tenant_id: string | null
           undo_op_id: string | null
@@ -4166,6 +4172,7 @@ export type Database = {
           lng: number
           maps_url: string
           member_id: string
+          neighborhood: string
           page_key: string
           phone_e164: string
           phone_sources: number

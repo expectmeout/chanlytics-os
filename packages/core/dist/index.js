@@ -40317,6 +40317,7 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       rating: c.raw.rating,
       reviews: c.raw.reviews,
       // What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4).
+      neighborhood: excluded ? null : c.raw.neighborhood,
       about: excluded ? null : c.raw.about,
       hours: excluded ? [] : c.raw.hours,
       image_url: excluded ? null : c.raw.imageUrl,

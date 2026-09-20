@@ -1267,6 +1267,8 @@ interface LeadColumns {
     lng: number | null;
     website_host: string | null;
     instagram_url: string | null;
+    /** The neighbourhood the listing names (D5, 00146): "Hawthorne", for the row's one line about where. */
+    neighborhood: string | null;
     /** What the listing shows about the business (D2, 00144): written for a lead, null or empty for a left-out place. */
     about: string | null;
     hours: {

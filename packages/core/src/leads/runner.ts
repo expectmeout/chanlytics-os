@@ -291,6 +291,7 @@ export function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: J
       email_state: excluded ? "none" : emailState,
       rating: c.raw.rating, reviews: c.raw.reviews,
       // What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4).
+      neighborhood: excluded ? null : c.raw.neighborhood,
       about: excluded ? null : c.raw.about, hours: excluded ? [] : c.raw.hours, image_url: excluded ? null : c.raw.imageUrl,
       price: excluded ? null : c.raw.price, reviews_dist: excluded ? null : c.raw.reviewsDist,
       facebook_url: excluded ? null : c.raw.facebook, linkedin_url: excluded ? null : c.raw.linkedin, tiktok_url: excluded ? null : c.raw.tiktok,
