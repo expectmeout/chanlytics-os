@@ -64,7 +64,7 @@ export function mapsItem(n, over = {}) {
     permanentlyClosed: false,
     temporarilyClosed: false,
     location: { lat: AUSTIN.lat + (n % 7) * 0.01, lng: AUSTIN.lng - (n % 5) * 0.01 },
-    description: "a page's own words: never read",
+    description: "Independent strength studio in South Austin.",
     // What the listing shows about the business (D2): kept for the owner's peek, never handed to the judge.
     ownerDescription: "Family-run since 2009.",
     openingHours: [{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Sunday", hours: "Closed" }],
