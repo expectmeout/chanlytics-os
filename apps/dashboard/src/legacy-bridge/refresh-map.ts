@@ -102,7 +102,8 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "POST lines/forwarding/test": setup,
   "POST setup/request": setup,
   "PUT business-record": setup,
-  "POST mailboxes": setup,
+  // Making the mailbox adds a line, so the count above the work changes with it.
+  "POST mailboxes": () => [setupOverride, todayOverride],
   "PUT mailboxes/[id]": setup,
   "POST billing/resume": billing,
   "POST billing/sync": billing,

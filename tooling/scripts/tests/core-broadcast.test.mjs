@@ -58,7 +58,7 @@ test("a paused workspace fails the run with its reason and tells the owner, befo
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(ops(), ["fail", "alert"]);
   assert.deepEqual(log[0], ["fail", "b1", "paused"]);
-  assert.match(log[1][2], /paused until billing resumes, so nothing went out/);
+  assert.match(log[1][1].body, /paused until billing resumes, so nothing went out/);
 });
 
 test("a template Meta withdrew fails the broadcast before a single send; a scheduled run is marked sending first", async () => {
@@ -66,7 +66,7 @@ test("a template Meta withdrew fails the broadcast before a single send; a sched
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(ops(), ["startSending", "fail", "alert"]);
   assert.deepEqual(log[1], ["fail", "b1", "template_not_approved"]);
-  assert.match(log[2][2], /no longer approved by WhatsApp/);
+  assert.match(log[2][1].body, /no longer approved by WhatsApp/);
   const missing = fakes({ template: null });
   await sendBroadcastBatch(missing.ports, cmd());
   assert.deepEqual(missing.ops(), ["startSending", "fail", "alert"]);
@@ -146,11 +146,11 @@ test("a wire that is down stops the run at the first person it cannot reach, say
   assert.deepEqual(marks(), [["k1", "failed", OUTCOME_UNKNOWN], ["k1", "failed", "send_failed"]]);
   assert.deepEqual(ops(), ["startSending", "mark", "deliver", "mark", "fail", "alert"], "one person claimed and through the door, then the run stops");
   assert.deepEqual(log[4], ["fail", "b1", "wire_unavailable"]);
-  assert.match(log[5][2], /the number is not connected/);
+  assert.match(log[5][1].body, /the number is not connected/);
   const token = fakes({ deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "bad token", messageId: "m-k1" } });
   await sendBroadcastBatch(token.ports, cmd());
   assert.deepEqual(token.log.find((l) => l[0] === "fail"), ["fail", "b1", "wire_unavailable"], "a provider refusing the credentials is the wire, not the person");
-  assert.match(token.log.at(-1)[2], /HTTP 401/);
+  assert.match(token.log.at(-1)[1].body, /HTTP 401/);
 });
 
 test("the door's answer is the row's: refused holds with the door's reason, failed is a failed row with the message it wrote", async () => {
@@ -200,9 +200,29 @@ test("people still queued: the next batch is scheduled, unless a cancel landed m
   const { ports, log } = fakes({ remaining: 0, tally: { sent: 1, held: 1 } });
   await sendBroadcastBatch(ports, cmd());
   assert.deepEqual(log.at(-2), ["finish", "b1", { sent: 1, held: 1 }]);
-  assert.equal(log.at(-1)[1], "Broadcast “Spring offer” sent");
-  assert.match(log.at(-1)[2], /^1 person got it; 1 held back \(no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish\)\. Replies land in the Inbox\.$/);
+  const news = log.at(-1)[1];
+  // REGRESSION: kept as "job_failed", a finished broadcast was counted into
+  // Today's "N jobs did not finish", in warn amber, above everything else.
+  assert.equal(news.kind, "broadcast_sent", "a broadcast that went out is not a job that did not finish");
+  assert.deepEqual([news.route, news.about], ["broadcasts", { type: "broadcast", id: "b1" }]);
+  assert.equal(news.subject, "Broadcast “Spring offer” sent");
+  assert.match(news.body, /^1 person got it; 1 held back \(no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish\)\. Replies land in the Inbox\.$/);
   assert.equal(BROADCAST_CHUNK, 25);
+});
+
+test("every way a broadcast can stop says it stopped, and none of them says a job did not finish", async () => {
+  const paused = fakes({ workspacePaused: true });
+  await sendBroadcastBatch(paused.ports, cmd());
+  const withdrawn = fakes({ template: { ...approved, meta_status: "rejected" } });
+  await sendBroadcastBatch(withdrawn.ports, cmd());
+  const down = fakes({ deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m-k1" }, remaining: 1 });
+  await sendBroadcastBatch(down.ports, cmd());
+  for (const f of [paused, withdrawn, down]) {
+    const n = f.log.at(-1)[1];
+    assert.equal(n.kind, "broadcast_stopped");
+    assert.equal(n.route, "broadcasts");
+    assert.deepEqual(n.about, { type: "broadcast", id: "b1" });
+  }
 });
 
 test("a resumed batch reads the message a dying run left rather than sending it again", async () => {

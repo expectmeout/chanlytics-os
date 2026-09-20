@@ -39,7 +39,6 @@ import {
   type ConversationDto,
   type EscalationDto,
   type MessageDto,
-  type MetricsSummaryDto,
   type PersonDetailDto,
   type PersonDecisionDto,
   type PersonEscalationDto,
@@ -51,6 +50,7 @@ import { listPolicies } from "@chanlytics/db";
 import type { RouteContext } from "../with-route";
 import { CALL_COLUMNS, CONVERSATION_COLUMNS, MESSAGE_COLUMNS, groupMessages, toCallDto, toConversationDto } from "../dto";
 import { listPeople } from "../people";
+import { metricsSummaryFor } from "../metrics";
 import { withVisits } from "@/server/calendar";
 import { listPlaybooks } from "../playbooks";
 import { calendarWeek } from "../calendar";
@@ -81,17 +81,17 @@ const obj = (properties: Record<string, unknown>, required: string[] = []) => ({
 export const READ_TOOLS: ToolDef[] = [
   {
     name: "get_today",
-    description: "The Today page: who needs a person right now, drafts about to send, today's calls, the standing of the receptionist and the day's counts. Start here for 'how are we doing', 'what needs me', 'brief me'.",
+    description: "The Today page: who needs a person right now, the WhatsApp threads whose free-reply window is closing while the customer waits, today's calls, the standing of the receptionist and the day's counts. It holds no drafts: the workspace snapshot's held_drafts and list_threads filter=held have them. Start here for 'how are we doing', 'what needs me', 'brief me'.",
     input_schema: obj({}),
   },
   {
     name: "list_threads",
-    description: "WhatsApp threads from the Inbox, each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
+    description: "Threads from the Inbox on every wire — WhatsApp, text or email, whichever the customer last wrote on, named per row in `channel` — each with its last three messages (who wrote, what). filter: needs_you (handed to a person), held (a draft waiting to send), waiting (taken over by a person), snoozed, recent (all, newest first). Call get_thread only when more of one conversation is needed.",
     input_schema: obj({ filter: { type: "string", enum: ["needs_you", "held", "waiting", "snoozed", "recent"] } }, ["filter"]),
   },
   {
     name: "get_thread",
-    description: "One WhatsApp conversation: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
+    description: "One conversation, on whichever wire it runs — WhatsApp, text or email, named in `channel`: the person, its state, the last messages with who wrote them, and why the receptionist answered or held as it did. Use the conversation id from list_threads, get_today or search_people. more=true returns the longer history.",
     input_schema: obj({ conversation_id: { type: "string" }, more: { type: "boolean" } }, ["conversation_id"]),
   },
   {
@@ -248,23 +248,43 @@ function dayKey(iso: string | null | undefined, tz: string): string | null {
 
 async function getToday(t: ToolContext): Promise<unknown> {
   const { supabase } = t.ctx;
-  const [m, { convs, escalations }, calls] = await Promise.all([
-    supabase.rpc("metrics_summary", { p_tenant_id: t.tenantId, p_days: 1 }),
+  const [metrics, { convs, escalations }, calls] = await Promise.all([
+    // The same door the page's Today reads through, so Ask counts the same
+    // lines, including the workspace's email one, which is not a routing row.
+    metricsSummaryFor(supabase, t.tenantId, 1),
     loadConversations(t),
     loadCalls(t).catch(() => [] as CallDto[]),
   ]);
-  if (m.error) throw new Error(m.error.message);
-  const metrics = m.data as unknown as MetricsSummaryDto;
-  if (!metrics || (metrics as unknown as { error?: string }).error) throw new Error("metrics unavailable");
+  if (!metrics) throw new Error("metrics unavailable");
   const vm = toTodayVM(metrics, convs, escalations, calls, t.now);
   for (const r of vm.needsYou?.rows ?? []) t.read.thread.add(r.conversationId);
+  // A row this read RETURNS is a row a citation may name (see the header).
+  // These were returned and not recorded, so the assistant could warn about a
+  // closing window and then be unable to open the thread it had just named.
+  for (const r of vm.windowClosing?.rows ?? []) t.read.thread.add(r.id.replace(/^wc-/, ""));
   for (const c of calls) t.read.call.add(c.id);
   return {
     standing: { headline: vm.standing.headline, detail: vm.standing.detail, tone: vm.standing.tone, chips: vm.standing.chips.map((c) => c.text) },
     needs_you: vm.needsYou
       ? { count: vm.needsYou.count, rows: vm.needsYou.rows.slice(0, ASK_CAPS.needsRows).map((r) => ({ conversation_id: r.conversationId, route: `inbox/th-${r.conversationId}`, who: r.who, reason: r.reason, waited: r.waited, quote: r.quote })) }
       : null,
-    drafts_about_to_send: vm.windowClosing ? vm.windowClosing.rows.map((r) => r.text) : [],
+    // NOT drafts, and not nearly. Every row here is a thread where the CUSTOMER
+    // spoke last and nobody has written back (today.ts closingConvs), with
+    // WhatsApp's free window running out. Under its old name,
+    // `drafts_about_to_send`, the assistant read a person being ignored as a
+    // reply already on its way out and told the owner to do nothing. The rule
+    // comes from the contracts' own hint, so it is spelled in one place; null
+    // when nothing is closing, as the view model itself is.
+    reply_window_closing: vm.windowClosing
+      ? {
+          note: vm.windowClosing.hint,
+          rows: vm.windowClosing.rows.map((r) => ({
+            conversation_id: r.id.replace(/^wc-/, ""),
+            route: r.to,
+            text: r.text,
+          })),
+        }
+      : null,
     recap: vm.recap ? { sentences: vm.recap.sentences.map((s) => s.text), facts: vm.recap.facts.map((f) => `${f.label}: ${f.value}`) } : null,
     calls: vm.calls ? { line: vm.calls.line, rows: vm.calls.rows.slice(0, 5).map((r) => ({ call_id: r.id.replace(/^cv-/, ""), route: `conversations/${r.id}`, who: r.who, at: r.at, duration: r.duration, note: r.note })) } : null,
     quiet: vm.quiet ? { headline: vm.quiet.headline, sub: vm.quiet.sub } : null,
@@ -277,7 +297,7 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
   const { convs, escalations } = await loadConversations(t);
   const byConv = new Map(escalations.map((e) => [e.conversation_id, e]));
   const vms = convs.map((c) => toInboxThreadVM(c, byConv.get(c.id) ?? null, t.timezone, t.now));
-  const picked = vms.filter((v) => {
+  const matching = vms.filter((v) => {
     switch (filter) {
       case "needs_you": return v.needsYou;
       case "held": return !!v.veto || !!v.heldDraft;
@@ -285,11 +305,14 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
       case "snoozed": return v.state === "snoozed";
       default: return true;
     }
-  }).slice(0, ASK_CAPS.threads);
+  });
+  // Counted BEFORE the cap, like search_people's `matches` a few functions
+  // down. Counted after, "total_matching" reported 20 for 25 held drafts.
+  const picked = matching.slice(0, ASK_CAPS.threads);
   for (const v of picked) t.read.thread.add(v.conversationId);
   return {
     filter,
-    total_matching: vms.filter((v) => picked.includes(v) || filter === "recent").length,
+    total_matching: matching.length,
     threads: picked.map((v) => ({
       conversation_id: v.conversationId,
       route: `inbox/th-${v.conversationId}`,
@@ -304,7 +327,10 @@ async function listThreads(t: ToolContext, input: Record<string, unknown>): Prom
       last_at: v.lastAtFull,
       waiting_min: v.waitingMin ?? null,
       window_open: v.windowOpen,
-      tags: v.tags,
+      // Which wire, from the one derivation (threadChannelOf/replyVia). This
+      // said `tags`, which toInboxThreadVM sets to [] on every real thread --
+      // a field that has never carried anything.
+      channel: v.replyVia,
     })),
   };
 }
@@ -341,6 +367,7 @@ async function getThread(t: ToolContext, input: Record<string, unknown>): Promis
     contact_id: dto.contact.id || null,
     contact_route: dto.contact.id ? `clients/${dto.contact.id}` : null,
     who: vm.who,
+    channel: vm.replyVia,
     state: vm.needsYou ? "needs you" : vm.takenOver ? "waiting on you" : vm.state === "snoozed" ? "snoozed" : vm.optedOut ? "opted out" : "answering",
     escalation: esc ? { id: (esc as EscalationDto).id, reason: ESCALATION_REASON_LABELS[(esc as EscalationDto).reason] ?? (esc as EscalationDto).reason, details: (esc as EscalationDto).details } : null,
     window_open: vm.windowOpen,

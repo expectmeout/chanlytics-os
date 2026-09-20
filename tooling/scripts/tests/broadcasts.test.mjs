@@ -208,7 +208,7 @@ const world = () => ({
 test("the job's ports fail CLOSED: a read that did not happen never answers 'not paused', 'Meta withdrew it' or 'they have not been messaged'", async () => {
   const sent = [];
   const ctx = (db) => ({
-    db, wire: {}, alert: async (subject, body) => sent.push([subject, body]),
+    db, wire: {}, alert: async (news) => sent.push([news.subject, news.body]),
     eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000,
   });
   const job = { id: "j1", tenant_id: TID, kind: "broadcast_send", payload: { broadcast_id: "b1" } };

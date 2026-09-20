@@ -50,6 +50,11 @@ test("the wiring: the table and its doors, the route, the surface, the bell read
   // Moved out of fire.ts when a second place could fail a job: the stale-jobs
   // sweep alerts too, and two copies of who-may-be-told is how a business's
   // delivery failure once reached a different business's owner.
-  assert.ok(readCode("apps/edge/lib/job-alert.ts").includes('kind: "job_failed", route: "inbox",'));
+  assert.ok(readCode("apps/edge/lib/job-alert.ts").includes("{ kind: news.kind, route: news.route,"), "the job that raises the alert decides what it is; this file only decides who may be told");
+  // The look and the door of a broadcast that finished: good news, on the page it happened on.
+  const done = serverNotificationRows({ seen_at: null, notifications: [row({ kind: "broadcast_sent", title: "Broadcast “Spring offer” sent", route: "broadcasts" })] });
+  assert.deepEqual([done[0].icon, done[0].tone, done[0].action, done[0].to], ["check", "ok", "Open Broadcasts", "broadcasts"]);
+  const stopped = serverNotificationRows({ seen_at: null, notifications: [row({ kind: "broadcast_stopped", title: "Broadcast “Spring offer” stopped", route: "broadcasts" })] });
+  assert.deepEqual([stopped[0].icon, stopped[0].tone, stopped[0].action, stopped[0].to], ["alert", "warn", "Open Broadcasts", "broadcasts"]);
   assert.ok(readCode("apps/edge/lib/playbooks.ts").includes('kind: "playbook",') && readCode("apps/edge/lib/waba-events.ts").includes("await notify(target, { kind: described.kind, route: described.route,"), "the change decides its kind and its door (describeWabaChange); the sender never re-derives them");
 });

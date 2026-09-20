@@ -100,17 +100,49 @@ function ago(ms: number, nowMs: number): string {
   return agoWords(ms, nowMs, { dateAfterMs: QUIET_AFTER_MS, date: (at) => DATE_FMT.format(new Date(at)) });
 }
 
+/**
+ * A wire, in the owner's words: the one place a `tenant_channels.kind` (or
+ * email, which has no row there) becomes a word for a sentence. Today's chips,
+ * its count, its alert and its proof rows read it, so no page can print "sms".
+ *
+ * Three maps look like this one and answer different questions, deliberately:
+ * `REPORT_CHANNELS` (reports.ts) labels a MEASUREMENT ("Calls", not "Phone
+ * line"); `THREAD_CHANNEL_WORDS` (viewmodels.ts) and `PERSON_CHANNEL_WORDS`
+ * (people.ts) label what a MESSAGE arrived on; the Connections titles name the
+ * product ("WhatsApp Business"). This one names the wire.
+ */
+export const CHANNEL_KIND_WORDS: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram",
+};
+
+/** The word for a wire; an unknown kind is capitalised rather than shouted as a column value. */
+export function channelKindWords(kind: string): string {
+  return CHANNEL_KIND_WORDS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+
+/**
+ * The wires the receptionist answers on by itself. Email is not one: every
+ * email waits for a person (mailbox.ts EMAIL_NOT_ANSWERED_SENTENCE, and
+ * setup.ts's `answering`, which counts WhatsApp and the phone line only).
+ * When the receptionist learns to draft email, this is the line that changes.
+ */
+export const CHANNEL_ANSWERED: ReadonlySet<string> = new Set(["whatsapp", "voice", "sms"]);
+
 const KIND_META: Record<string, { name: string; what: string; icon: ChannelVM["icon"]; noun: string }> = {
-  whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: "Phone line", what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
-  sms: { name: "SMS", what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: "Email", what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: "Instagram", what: "Direct messages", icon: "instagram", noun: "message" },
+  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" },
 };
 
 export function toChannelVM(dto: ChannelDto, now = new Date()): ChannelVM {
   const nowMs = now.getTime();
-  const meta = KIND_META[dto.kind] ?? { name: dto.kind.charAt(0).toUpperCase() + dto.kind.slice(1), what: "", icon: "chat" as const, noun: "message" };
+  const meta = KIND_META[dto.kind] ?? { name: channelKindWords(dto.kind), what: "", icon: "chat" as const, noun: "message" };
   const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
   const on = dto.status === "active";
   let health: ChannelHealth;

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { read, workspace } from "@/server/route";
-import { AppError, type MetricsSummaryDto } from "@chanlytics/contracts";
+import { metricsSummaryFor } from "@/server/metrics";
+import { AppError } from "@chanlytics/contracts";
 
 const Query = z.object({
   /** 1 to 90; one by default. */
@@ -29,15 +30,10 @@ export const GET = read({
   handle: async ({ ctx, member, input }) => {
     const days = Math.min(90, Math.max(1, Number(input.days ?? 1) || 1));
     const tenantId = member.tenantId;
-    const { data, error } = await ctx.supabase.rpc("metrics_summary", {
-      p_tenant_id: tenantId,
-      p_days: days,
-    });
-    if (error) throw new Error(error.message);
-    if (!data || (data as { error?: string }).error) {
-      throw new AppError("not_found", "Workspace metrics unavailable.", 404);
-    }
-    // The function answers JSON; the contract names its shape, as the reports do.
-    return { metrics: data as unknown as MetricsSummaryDto, workspaceId: tenantId };
+    // The function answers the routing rows; the workspace's email line is
+    // added beside them (server/metrics.ts), so Today counts every wire.
+    const metrics = await metricsSummaryFor(ctx.supabase, tenantId, days);
+    if (!metrics) throw new AppError("not_found", "Workspace metrics unavailable.", 404);
+    return { metrics, workspaceId: tenantId };
   },
 });

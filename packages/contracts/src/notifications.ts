@@ -172,6 +172,17 @@ export function applyReadState(items: NotificationItem[], state: NotificationRea
     .map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
 }
 
+/**
+ * The number on the bell's badge.
+ *
+ * Lives here because two surfaces say it: the badge itself, and Today's
+ * "While you were away" head. They were two spellings of one fact and read
+ * 4 and 0 on the same screen.
+ */
+export function unreadCount(rows: readonly { unread: boolean }[]): number {
+  return rows.filter((r) => r.unread).length;
+}
+
 /** "now", "5m", "2h", "3d" — the bell's clock (the Inbox has its own `ago`). */
 /** The bell's time: one family with every other surface (time.ts). */
 export function agoLabel(atMs: number, now: number): string {
@@ -184,8 +195,38 @@ export const ALERT_KINDS: readonly NotificationKind[] = ["needs_you", "held_draf
 /* ------------------------------------------------- rows the workspace keeps */
 
 /** What the edge writes when it raises an alert: the same kinds it emails. */
-export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked"] as const;
+export const SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped"] as const;
 export type ServerNotificationKind = (typeof SERVER_NOTIFICATION_KINDS)[number];
+
+/**
+ * What a BACKGROUND JOB's alert can be. Four things, and a job says which;
+ * none of them is read back off the subject.
+ *
+ * Every alert a job raised used to be kept as `job_failed`, because the one
+ * place that addressed it hard-coded that kind for all six of its callers. A
+ * broadcast that ran to completion ("Broadcast “Spring offer” sent, 38 people
+ * got it") was therefore counted into Today's "6 jobs did not finish", in
+ * warn amber, above everything else on the page, with a button to the Inbox.
+ * Same defect as 00134's, where a template's approval arrived as the phone
+ * number's bad news.
+ */
+export type JobNewsKind = Extract<ServerNotificationKind, "job_failed" | "broadcast_sent" | "broadcast_stopped" | "handoff">;
+
+/**
+ * One alert from a job: what it IS, where its button goes, and the words.
+ * The verb that raises it decides `kind` and `route`; the sender never
+ * re-derives either (the rule waba-events.ts already follows). How it then
+ * reads is SERVER_LOOK's, and how it groups is today.ts AWAY_NOUN's.
+ */
+export interface JobNews {
+  kind: JobNewsKind;
+  /** A hash route without the leading "#/". */
+  route: string;
+  subject: string;
+  body: string;
+  /** What it is about, when it is one thing. */
+  about?: { type: string; id: string } | null;
+}
 
 export interface NotificationDto {
   id: string;
@@ -228,7 +269,12 @@ const SERVER_LOOK: Record<string, { icon: string; tone: "" | "ok" | "warn"; acti
   template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
   template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  /** A broadcast that ran to completion: good news, on the page it happened on. */
+  broadcast_sent: { icon: "check", tone: "ok", action: "Open Broadcasts", to: "broadcasts" },
+  /** A broadcast that did not go out, or stopped partway. */
+  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   /** A review on Google: good news with somewhere to read it. */

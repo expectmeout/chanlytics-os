@@ -1,4 +1,4 @@
-/* global React, Icon */
+/* global React, Icon, FailedRead */
 // Below the queue and the day: the few things worth a look that no row above
 // says on its own, how the day and the period are going, where people are,
 // and what happened while the owner was away. Each reads a surface the page
@@ -116,7 +116,10 @@ const TodayPulse = () => {
               ))}
             </div>
           )}
-          {view.note && <div className="tw-note" data-testid="today-week-note">{view.note}</div>}
+          {/* A read that failed is its own state, said the one way the product says it (data-bits FailedRead). */}
+          {view.numbersRead === false
+            ? <FailedRead kind="line" className="tw-failed" what="the campaign numbers" body="The conversation and booking numbers in this card are current." surface="reports" testid="today-week-failed" />
+            : view.note && <div className="tw-note" data-testid="today-week-note">{view.note}</div>}
         </div>
       )}
     </section>
@@ -173,6 +176,11 @@ const TodayJourney = () => {
 // conversations at the top of this very page were said again here. Now a
 // conversation already in the queue is dropped, like rows group and say how
 // many, and a warning never sorts below good news.
+//
+// The head is the bell's own number, so the two badges on this screen never
+// disagree, and the foot accounts for every unread row that is not drawn --
+// including the ones the queue above already holds. Both sentences come from
+// contracts; this file draws them.
 const TodayAway = () => {
   const api = !window.__DEMO_MODE && window.__notifs ? window.__notifs : null;
   const [rows, setRows] = React.useState(() => (api ? api.feed() : []));
@@ -185,7 +193,7 @@ const TodayAway = () => {
   if (!api || !window.__today) return null;
   const T = window.TODAY_DATA;
   const inQueue = T ? T.queue.rows.map((r) => r.also && r.also.conversationId).filter(Boolean) : [];
-  const { groups, more, total } = window.__today.awayGrouped(rows, inQueue, 5);
+  const { groups, total, foot, empty } = window.__today.awayGrouped(rows, inQueue, 5);
   // A group is read and dismissed whole: its rows say one thing, so they go together.
   const open = (g, to) => { g.ids.forEach((id) => api.read(id)); twNav(to); };
   const drop = (g) => g.ids.forEach((id) => api.dismiss(id));
@@ -196,8 +204,8 @@ const TodayAway = () => {
         <span className={`tq-count ${total ? "" : "calm"}`}>{total}</span>
         {total > 0 && <button className="btn btn-ghost btn-sm" onClick={() => api.seenAll()}>Mark all read</button>}
       </div>
-      {groups.length === 0 ? (
-        <div className="tq-empty" data-testid="today-away-empty"><Icon name="check" size={14} /> All caught up.</div>
+      {empty ? (
+        <div className="tq-empty" data-testid="today-away-empty"><Icon name={empty.icon} size={14} /> {empty.text}</div>
       ) : (
         <div className="ta-list">
           {groups.map((g) => {
@@ -221,7 +229,7 @@ const TodayAway = () => {
           })}
         </div>
       )}
-      {more > 0 && <div className="tq-foot"><span>{more} more in the bell</span></div>}
+      {foot && <div className="tq-foot"><span>{foot}</span></div>}
     </section>
   );
 };

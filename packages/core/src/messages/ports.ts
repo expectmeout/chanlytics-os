@@ -3,7 +3,7 @@
  * what each means. The adapter that knows the tables and the runtime's
  * services is packages/jobs/src/handlers.ts.
  */
-import type { SendPurpose } from "@chanlytics/contracts";
+import type { JobNews, SendPurpose } from "@chanlytics/contracts";
 import type { Json } from "@chanlytics/db";
 import type { Delivered, Delivery } from "../deliver";
 
@@ -22,7 +22,8 @@ export interface SendQueuedPorts {
   deliver: Door;
   /** The thread flagged for a person, with why. */
   escalate(conversationId: string, reason: string, details: string): Promise<unknown>;
-  alert(subject: string, body: string): Promise<void>;
+  /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
+  alert(news: JobNews): Promise<void>;
   /** The platform's own pager, for a provider refusing every send on a wire. */
   page?(key: string, subject: string, body: string): Promise<unknown>;
 }
@@ -86,7 +87,8 @@ export interface BroadcastBatchPorts {
   tally(id: string): Promise<{ sent: number; held: number }>;
   /** sending → sent, and the event with the tally. */
   finish(id: string, tally: { sent: number; held: number }): Promise<void>;
-  alert(subject: string, body: string): Promise<void>;
+  /** Tell this workspace's people. The news says what it IS (contracts JobNews); a caller cannot leave that to the sender. */
+  alert(news: JobNews): Promise<void>;
   now(): number;
   sleep(ms: number): Promise<void>;
 }

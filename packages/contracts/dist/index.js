@@ -4500,11 +4500,14 @@ function applyReadState(items, state) {
   const gone = new Set(state.dismissed);
   return items.filter((i) => !gone.has(i.key)).map((i) => ({ ...i, unread: i.at > state.seenAt && !read.has(i.key) }));
 }
+function unreadCount(rows) {
+  return rows.filter((r) => r.unread).length;
+}
 function agoLabel(atMs, now) {
   return agoShort(atMs, now);
 }
 var ALERT_KINDS = ["needs_you", "held_draft", "missed_call"];
-var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked"];
+var SERVER_NOTIFICATION_KINDS = ["handoff", "deadman", "call", "number", "sweep", "job_failed", "playbook", "calendar_people", "alert", "review", "billing", "template_ready", "template_blocked", "broadcast_sent", "broadcast_stopped"];
 var SERVER_LOOK = {
   handoff: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
   deadman: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
@@ -4525,7 +4528,12 @@ var SERVER_LOOK = {
   template_ready: { icon: "check", tone: "ok", action: "Open Templates", to: "messages" },
   template_blocked: { icon: "alert", tone: "warn", action: "Open Templates", to: "messages" },
   sweep: { icon: "alert", tone: "warn", action: "Open Connections", to: "admin/integrations" },
+  /** A JOB that did not finish, and nothing else. See JobNewsKind. */
   job_failed: { icon: "alert", tone: "warn", action: "Open the Inbox", to: "inbox" },
+  /** A broadcast that ran to completion: good news, on the page it happened on. */
+  broadcast_sent: { icon: "check", tone: "ok", action: "Open Broadcasts", to: "broadcasts" },
+  /** A broadcast that did not go out, or stopped partway. */
+  broadcast_stopped: { icon: "alert", tone: "warn", action: "Open Broadcasts", to: "broadcasts" },
   playbook: { icon: "bolt", tone: "ok", action: "Open Playbooks", to: "outbound" },
   calendar_people: { icon: "users", tone: "ok", action: "Open People", to: "clients" },
   /** A review on Google: good news with somewhere to read it. */
@@ -4588,10 +4596,84 @@ function dedupeFeed(rows) {
   return rows.filter((r) => !(r.key.startsWith(SERVER_KEY_PREFIX) && r.about?.type === "conversation" && covered.has(r.about.id)));
 }
 
+// src/channels.ts
+var channelIsOn = (c) => typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
+function channelFor(rows, kind) {
+  const mine = rows.filter((c) => c.kind === kind);
+  if (mine.length === 0) return null;
+  const on = mine.filter(channelIsOn);
+  const pool = on.length > 0 ? on : mine;
+  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
+}
+var DAY_MS5 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+function ago2(ms2, nowMs) {
+  return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS2, date: (at2) => DATE_FMT.format(new Date(at2)) });
+}
+var CHANNEL_KIND_WORDS = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+function channelKindWords(kind) {
+  return CHANNEL_KIND_WORDS[kind] ?? kind.charAt(0).toUpperCase() + kind.slice(1);
+}
+var CHANNEL_ANSWERED = /* @__PURE__ */ new Set(["whatsapp", "voice", "sms"]);
+var KIND_META = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
+function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
+  const nowMs = now.getTime();
+  const meta = KIND_META[dto.kind] ?? { name: channelKindWords(dto.kind), what: "", icon: "chat", noun: "message" };
+  const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
+  const on = dto.status === "active";
+  let health;
+  let healthLabel;
+  if (!on) {
+    health = "off";
+    healthLabel = dto.kind === "voice" ? "Switched off \u2014 calls are picked up without your facts and are not recorded; Chanlytics is told, you are not" : `Switched off \u2014 ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
+  } else if (last === null) {
+    health = "unused";
+    healthLabel = `On \u2014 no ${meta.noun} has arrived yet`;
+  } else if (nowMs - last <= QUIET_AFTER_MS2) {
+    health = "receiving";
+    healthLabel = `Receiving \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
+  } else {
+    health = "quiet";
+    healthLabel = `Quiet \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
+  }
+  return {
+    id: dto.id,
+    kind: dto.kind,
+    name: meta.name,
+    what: meta.what,
+    icon: meta.icon,
+    number: formatPhoneDisplay(dto.number_e164),
+    on,
+    health,
+    healthLabel,
+    lastInboundMs: last,
+    quality: dto.quality ?? null,
+    qualityEvent: dto.quality_event ?? null,
+    messagingLimit: dto.messaging_limit ?? null,
+    created_at: dto.created_at
+  };
+}
+
 // src/today.ts
+function emailWires(email) {
+  return email?.ready && email.mailbox ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }] : [];
+}
 var TODAY_QUEUE_MAX = 6;
 var QUOTE_MAX = 240;
-var CHANNEL_LABEL = { whatsapp: "WhatsApp", voice: "Phone line" };
+var andList = (xs) => xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 function tzClock(iso, tz, now) {
   const t = tzTime(iso, tz);
   if (!iso || !t) return t;
@@ -4685,12 +4767,23 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const clock2 = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
   const datePart = valid ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} \xB7 ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}` : "";
   const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
-  const chips = m.channels.map((c) => ({
-    text: `${CHANNEL_LABEL[c.kind] ?? c.kind} ${c.status === "active" ? "connected" : "disconnected"}`,
-    ok: c.status === "active"
+  const wires = m.channels.map((c) => ({
+    kind: c.kind,
+    label: channelKindWords(c.kind),
+    on: c.status === "active",
+    where: c.address ?? c.number ?? null
   }));
-  const down = m.channels.filter((c) => c.status !== "active");
-  const alert = m.workspace.status === "paused" ? "This workspace is paused \u2014 the receptionist is not answering anything." : down.length ? `${down.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ")} ${down.length > 1 ? "are" : "is"} disconnected \u2014 messages coming in are not being answered.` : null;
+  const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
+  const down = wires.filter((w) => !w.on);
+  const on = wires.filter((w) => w.on);
+  const up = on.length;
+  const lines = {
+    text: m.linesRead === false ? "the email line could not be counted" : wires.length ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected` : "no lines connected yet",
+    down: down.length > 0
+  };
+  const alert = m.workspace.status === "paused" ? "This workspace is paused \u2014 the receptionist is not answering anything." : down.length ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected \u2014 messages coming in are not being answered.` : null;
+  const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
+  const queueEmpty = m.workspace.status === "paused" ? { title: "Nothing in the queue \u2014 the workspace is paused, so nothing is being answered.", sub: "nothing in the queue", glyph: "alert", tone: "warn", testid: "today-queue-empty-paused" } : down.length ? { title: "Nothing in the queue \u2014 new messages go unanswered until the line is back.", sub: "nothing in the queue", glyph: "alert", tone: "warn", testid: "today-queue-empty-down" } : wires.length === 0 ? { title: "Nothing in the queue \u2014 nothing can come in until a line is connected.", sub: "nothing in the queue", glyph: "phone", tone: "", testid: "today-queue-empty-unconnected" } : answered.length === 0 ? on.every((w) => w.kind === "email") ? { title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`, sub: "nothing in the queue", glyph: "mail", tone: "", testid: "today-queue-empty-unanswered" } : { title: "Nothing in the queue \u2014 no line the receptionist answers is connected.", sub: "nothing in the queue", glyph: "phone", tone: "", testid: "today-queue-empty-unanswered" } : { title: "All caught up \u2014 the receptionist is answering on its own.", sub: "nothing needs you", glyph: "check", tone: "ok", testid: "today-queue-empty-ok" };
   const byConv = new Map(conversations.map((c) => [c.id, c]));
   const openEsc = escalations.filter((e) => e.state === "open").filter((e) => {
     const conv = byConv.get(e.conversation_id);
@@ -4773,13 +4866,14 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     const gap = live.last_outbound_at && live.last_inbound_at && new Date(live.last_outbound_at) > new Date(live.last_inbound_at) ? Math.round(
       (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1e3
     ) : null;
-    const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
-    const plural5 = m.channels.length > 1 ? "are" : "is";
-    const sub = m.channels.length === 0 ? "No phone line or WhatsApp number is connected yet, so nothing can come in." : lastIn ? `${names} ${plural5} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural5} connected. No messages have arrived yet.`;
+    const names = andList(wires.map((w) => w.label));
+    const plural5 = wires.length > 1 ? "are" : "is";
+    const sub = wires.length === 0 ? "No line is connected yet, so nothing can come in." : lastIn ? `${names} ${plural5} connected. The last message arrived ${lastIn}${gap !== null && gap > 0 && gap < 3600 ? `, and the receptionist answered ${secondsPhrase(gap)} later.` : "."}` : `${names} ${plural5} connected. No messages have arrived yet.`;
     return {
       standing: {
         eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
         chips,
+        lines,
         alert: null,
         greeting,
         headline: "Nothing has come in yet today.",
@@ -4792,18 +4886,20 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
       pulse: null,
       calls: null,
       callsRead,
-      queue: { rows: [], more: 0, parts: [] },
+      queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock2,
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
         proof: [
-          ...m.channels.length === 0 ? [{ label: "Channels", value: "none connected yet" }] : [],
-          ...m.channels.map((c) => ({
-            label: CHANNEL_LABEL[c.kind] ?? c.kind,
-            // "on" / "off" in the owner's words, never the column's value.
-            value: `${c.number ?? "connected"} \xB7 ${c.status === "active" ? "on" : "off"}`
+          ...wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : [],
+          ...wires.map((w) => ({
+            label: w.label,
+            // "on" / "off" in the owner's words, never the column's value. A
+            // wire with nothing to name it by says only that: "connected · on"
+            // was two words for one fact.
+            value: w.where ? `${w.where} \xB7 ${w.on ? "on" : "off"}` : w.on ? "on" : "off"
           })),
           { label: "Checked", value: "just now" }
         ],
@@ -4850,7 +4946,11 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (p.answered_by_ai && !headlineCoversTraffic) {
     sentences.push({
-      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`,
+      // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
+      // no channel predicate (00037_hygiene.sql), so an email it answered is
+      // in this count. Every other sentence in this file already says just
+      // "the receptionist".
+      text: `The receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${p.conversations_active ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}` : ""}.`,
       traffic: true
     });
   }
@@ -4965,6 +5065,10 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     const last = [...c.messages].reverse().find((x) => x.sender === "customer");
     const who = contactName(c);
     queueAll.push({
+      // "WhatsApp" is right here even when the last written message came by
+      // email: the row is about WhatsApp's window (waWindow on the thread's
+      // last WhatsApp inbound), which is the one wire that has one. The
+      // handoff row above names the wire the reply would go out on instead.
       id: `q-w-${c.id}`,
       kind: "window",
       who,
@@ -5013,11 +5117,12 @@ function toTodayVM(m, conversations, escalations, calls, now = /* @__PURE__ */ n
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : ""
   ].filter(Boolean);
-  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts: parts2 };
+  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts: parts2, empty: queueEmpty };
   return {
     standing: {
       eyebrow: `${datePart} \xB7 ${clock2} \xB7 ${m.workspace.name}`,
       chips,
+      lines,
       alert,
       greeting,
       headline,
@@ -5134,9 +5239,10 @@ function todayDayLine(cal, agg) {
 }
 function todayWeek(r) {
   if (!r) return null;
-  const find = (id) => r.campaigns.tiles.find((t) => t.id === id);
+  const cm = r.campaigns;
+  const find = (id) => cm ? cm.tiles.find((t) => t.id === id) : void 0;
   const sent = find("sent");
-  const noCampaign = r.campaigns.empty || !sent || sent.value === "0";
+  const noCampaign = !cm || cm.empty || !sent || sent.value === "0";
   const reasons = (r.vm.reasons ?? []).filter((x) => x.value > 0).slice(0, 5);
   const conversations = {
     id: "conversations",
@@ -5146,15 +5252,25 @@ function todayWeek(r) {
     // No "N never got an answer" line here: the Receptionist answered tile
     // already carries "4 unanswered" in its own meta, and todayLeaks says it in
     // words above. A third printing on one page is what this pass is removing.
+    // `r.vm` cannot be missing: when the main report read fails the surface is
+    // unavailable and this function is never reached, so the field is total
+    // without a second rule on the page.
+    numbersRead: true,
     note: r.vm.empty ? "Nobody wrote or called in this period." : null,
     to: "reports"
   };
   const campaigns = {
     id: "campaigns",
     label: "Campaigns",
-    tiles: noCampaign ? [] : r.campaigns.tiles,
+    tiles: cm && !noCampaign ? cm.tiles : [],
     chips: [],
-    note: noCampaign ? "No campaign message went out in this period." : null,
+    numbersRead: !!cm,
+    // A read that failed is NOT "nothing went out": that sentence is a fact
+    // about the business, and nothing in this path knows whether it is true.
+    // The page says the one "couldn't read" instead -- and the note stays null
+    // on purpose, so a browser still holding the old page (no `numbersRead`
+    // branch) degrades to silence rather than to the false sentence.
+    note: cm ? noCampaign ? "No campaign message went out in this period." : null : null,
     to: "broadcasts"
   };
   const b = r.booking;
@@ -5168,6 +5284,7 @@ function todayWeek(r) {
     label: "Booking",
     tiles: bookingTiles,
     chips: [],
+    numbersRead: true,
     note: bookingTiles.length ? null : b.present ? "Nobody wrote or called, so there was nothing to book." : b.sub,
     to: b.present ? "reports" : "calendar"
   };
@@ -5258,10 +5375,23 @@ var AWAY_NOUN = {
   // One sync can approve several at once, and several rejections read as one
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
-  template_blocked: ["template cannot be sent", "templates cannot be sent"]
+  template_blocked: ["template cannot be sent", "templates cannot be sent"],
+  // "A broadcast finished" is already this repo's word for the event
+  // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
+  // the same thing about the same fact.
+  broadcast_sent: ["broadcast finished", "broadcasts finished"],
+  broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"]
 };
 var AWAY_TONE_RANK = { warn: 0, "": 1, ok: 2 };
 var AWAY_GROUP_MIN = 2;
+var AWAY_EMPTY_CLEAR = "All caught up.";
+var AWAY_EMPTY_QUEUED = "Everything new is already in the queue above.";
+function awayFoot(more, queued, drew) {
+  if (more <= 0 || !drew) return null;
+  const head = `${more} more in the bell`;
+  if (queued <= 0) return head;
+  return queued === more ? `${head}, already in the queue above` : `${head}, ${queued} of them already in the queue above`;
+}
 function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const covered = new Set(inQueue);
   const idOf = (r) => r.id ?? r.key ?? "";
@@ -5297,7 +5427,11 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
   const sorted = groups.map((g, i) => ({ g, i })).sort((x, y) => rank(x.g) - rank(y.g) || x.i - y.i).map((x) => x.g);
   const shown = sorted.slice(0, max);
   const stoodFor = shown.reduce((n, g) => n + g.count, 0);
-  return { groups: shown, more: Math.max(0, fresh.length - stoodFor), total: fresh.length };
+  const total = unreadCount(rows);
+  const queued = total - fresh.length;
+  const more = Math.max(0, total - stoodFor);
+  const empty = fresh.length ? null : total === 0 ? { icon: "check", text: AWAY_EMPTY_CLEAR } : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
+  return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
 }
 
 // src/ask.ts
@@ -6700,7 +6834,7 @@ function overLimitRefusal(h, audience) {
 }
 
 // src/playbooks.ts
-var DAY_MS5 = 864e5;
+var DAY_MS6 = 864e5;
 var PLAYBOOK_TRIGGERS = [
   { id: "quiet_30", label: "Win-back", list: "quiet", cls: "reengage", kind: "list", hint: "Nothing heard in 30 days" },
   { id: "new_week", label: "Welcome", list: "new_week", cls: "campaign", kind: "list", hint: "First contact in the last 7 days" },
@@ -6719,7 +6853,7 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_NAME_MAX = 80;
 function triggerOf(id) {
@@ -6732,14 +6866,14 @@ function eligibleForPlaybook(rows, p, touches, nowMs) {
   if (t.kind === "visit") {
     const pool2 = eligibleFor(rows, "everyone", null, null, purpose).filter((r) => {
       if (!r.calendarTz) return false;
-      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS5));
-      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS5)) && !r.booked;
+      if (p.trigger === "visit_tomorrow") return r.nextVisitDate !== null && r.nextVisitDate === localDate(r.calendarTz, new Date(nowMs + DAY_MS6));
+      return r.lastVisitDate !== null && r.lastVisitDate === localDate(r.calendarTz, new Date(nowMs - DAY_MS6)) && !r.booked;
     });
     pool2.sort((a, b) => p.trigger === "visit_tomorrow" ? (a.nextVisitMs ?? 0) - (b.nextVisitMs ?? 0) : (a.lastVisitMs ?? 0) - (b.lastVisitMs ?? 0));
     return pool2;
   }
   const pool = t.list ? eligibleFor(rows, "list", t.list, null, purpose) : eligibleFor(rows, "everyone", null, null, purpose);
-  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS5;
+  const gapMs = (p.trigger === "everyone_monthly" ? p.cadence_days : p.gap_days) * DAY_MS6;
   const picked = pool.filter((r) => {
     const mine = touches.byThis.get(r.id);
     if (mine !== void 0 && nowMs - mine < gapMs) return false;
@@ -6842,7 +6976,7 @@ function visitDayWord(visit, tz, sendAt, assumed) {
   if (!sendAt) return assumed;
   const visitDay2 = localDate(tz, new Date(visit.start));
   const sendDay = localDate(tz, sendAt);
-  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS5);
+  const delta = Math.round((Date.parse(`${visitDay2}T00:00:00Z`) - Date.parse(`${sendDay}T00:00:00Z`)) / DAY_MS6);
   if (delta === 1) return "tomorrow";
   if (delta === 0) return "today";
   if (delta === -1) return "yesterday";
@@ -6992,13 +7126,13 @@ var REPORT_RANGES = [
   { days: 30, id: "30d", label: "30 days" },
   { days: 90, id: "90d", label: "90 days" }
 ];
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 function dayDate(day) {
   const [y, m, d] = day.split("-").map(Number);
   return new Date(y, (m ?? 1) - 1, d ?? 1);
 }
 function fmtDay(day) {
-  return DATE_FMT.format(dayDate(day));
+  return DATE_FMT2.format(dayDate(day));
 }
 function fmtSeconds(s) {
   if (s == null || !Number.isFinite(s)) return "\u2014";
@@ -7467,66 +7601,6 @@ function toCampaignReportVM(dto) {
   };
 }
 var CAMPAIGN_REPORT_RANGES = REPORT_RANGES;
-
-// src/channels.ts
-var channelIsOn = (c) => typeof c.on === "boolean" ? c.on : (c.status ?? "active") === "active";
-function channelFor(rows, kind) {
-  const mine = rows.filter((c) => c.kind === kind);
-  if (mine.length === 0) return null;
-  const on = mine.filter(channelIsOn);
-  const pool = on.length > 0 ? on : mine;
-  return [...pool].sort((a, b) => Date.parse(a.created_at ?? "") - Date.parse(b.created_at ?? ""))[0] ?? pool[0];
-}
-var DAY_MS6 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS6;
-var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-function ago2(ms2, nowMs) {
-  return agoWords(ms2, nowMs, { dateAfterMs: QUIET_AFTER_MS2, date: (at2) => DATE_FMT2.format(new Date(at2)) });
-}
-var KIND_META = {
-  whatsapp: { name: "WhatsApp Business", what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
-  voice: { name: "Phone line", what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
-  sms: { name: "SMS", what: "Text messages", icon: "chat", noun: "message" },
-  email: { name: "Email", what: "Email", icon: "mail", noun: "email" },
-  instagram: { name: "Instagram", what: "Direct messages", icon: "instagram", noun: "message" }
-};
-function toChannelVM(dto, now = /* @__PURE__ */ new Date()) {
-  const nowMs = now.getTime();
-  const meta = KIND_META[dto.kind] ?? { name: dto.kind.charAt(0).toUpperCase() + dto.kind.slice(1), what: "", icon: "chat", noun: "message" };
-  const last = dto.last_inbound_at ? new Date(dto.last_inbound_at).getTime() : null;
-  const on = dto.status === "active";
-  let health;
-  let healthLabel;
-  if (!on) {
-    health = "off";
-    healthLabel = dto.kind === "voice" ? "Switched off \u2014 calls are picked up without your facts and are not recorded; Chanlytics is told, you are not" : `Switched off \u2014 ${meta.noun}s to it are neither answered nor recorded; Chanlytics is told they are arriving, you are not`;
-  } else if (last === null) {
-    health = "unused";
-    healthLabel = `On \u2014 no ${meta.noun} has arrived yet`;
-  } else if (nowMs - last <= QUIET_AFTER_MS2) {
-    health = "receiving";
-    healthLabel = `Receiving \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
-  } else {
-    health = "quiet";
-    healthLabel = `Quiet \xB7 last ${meta.noun} ${ago2(last, nowMs)}`;
-  }
-  return {
-    id: dto.id,
-    kind: dto.kind,
-    name: meta.name,
-    what: meta.what,
-    icon: meta.icon,
-    number: formatPhoneDisplay(dto.number_e164),
-    on,
-    health,
-    healthLabel,
-    lastInboundMs: last,
-    quality: dto.quality ?? null,
-    qualityEvent: dto.quality_event ?? null,
-    messagingLimit: dto.messaging_limit ?? null,
-    created_at: dto.created_at
-  };
-}
 
 // src/report-facts.ts
 var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -10712,7 +10786,9 @@ var SCHEMA_SETS = {
     "review",
     "billing",
     "template_ready",
-    "template_blocked"
+    "template_blocked",
+    "broadcast_sent",
+    "broadcast_stopped"
   ],
   "playbooks.policy_class": ["reengage", "campaign", "booking"],
   "playbooks.state": ["running", "paused"],
@@ -11102,7 +11178,9 @@ export {
   CAPABILITY_KINDS,
   CARRIERS,
   CARRIER_WORDS,
+  CHANNEL_ANSWERED,
   CHANNEL_KINDS,
+  CHANNEL_KIND_WORDS,
   CHECKOUT_OUTCOME_WORDS,
   COMPANY_TYPES,
   CONFIDENCE_STEPS,
@@ -11401,6 +11479,7 @@ export {
   capabilityStatus,
   changedConfigFields,
   channelFor,
+  channelKindWords,
   channelsOf2 as channelsOf,
   checkedWords,
   citationRoute,
@@ -11468,6 +11547,7 @@ export {
   eligibleForPlaybook,
   emailLeftOutOf,
   emailNotConfirmed,
+  emailWires,
   emptyAudienceRefusal,
   emptyBusinessRecord,
   emptyReadSet,
@@ -11799,6 +11879,7 @@ export {
   triggerOf,
   tzClock,
   unknownDetails,
+  unreadCount,
   usPhone,
   usableDeviceTimezone,
   validateTemplateDraft,

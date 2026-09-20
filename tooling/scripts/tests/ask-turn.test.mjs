@@ -434,3 +434,57 @@ test("the real ports are the real modules, and an override reaches only the fiel
   assert.equal(real.propose, buildProposal);
   assert.equal(real.round, runRound);
 });
+
+const M2 = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeee2";
+/** metrics_summary as 00037_hygiene.sql returns it: a calm day with one message and one call. */
+const METRICS = {
+  workspace: { name: "Harbor", timezone: TZ, status: "active" },
+  channels: [{ kind: "whatsapp", status: "active", number: "+19295550100" }],
+  window: { days: 1, since: "2026-09-14T04:00:00+00:00", since_local: "2026-09-14T00:00:00", now_local: "2026-09-14T10:00:00" },
+  now: { escalations_open: 0, oldest_open_escalation_at: null, threads_needing_human: 0, threads_snoozed: 0, threads_awaiting_reply: 1, last_inbound_at: null, last_outbound_at: null },
+  period: {
+    messages_in: 1, messages_out_ai: 0, messages_out_you: 0, conversations_active: 1,
+    answered_by_ai: 0, answered_by_you: 0, unanswered_in_window: 1, median_reply_seconds_ai: null,
+    send_failures: 0, escalations_new: 0, escalation_reasons: {},
+    calls: 1, call_seconds: 200, call_sentiments: {}, calls_voicemail: 0, new_contacts: 0,
+  },
+};
+
+test("REGRESSION: Today's reply-window rows are the opposite of drafts -- the customer spoke last and nobody has written back", async () => {
+  // The field was `drafts_about_to_send`. The prompt's glossary tells the model
+  // a held draft "sends itself when the window ends", so under that name the
+  // assistant reported a customer being IGNORED as a reply already on its way
+  // out, and the owner's correct action was the opposite of the implied one.
+  const closing = conversation(C2, {
+    last_wa_inbound_at: iso(NOW.getTime() - 22 * 3600_000),
+    last_message_at: iso(NOW.getTime() - 22 * 3600_000),
+  });
+  const theirs = message(M2, C2, {
+    sender: "customer", // the schema's word; 'client' is not one
+    body: "Can you fit me in Saturday?",
+    created_at: iso(NOW.getTime() - 22 * 3600_000),
+    channel_ts: iso(NOW.getTime() - 22 * 3600_000),
+  });
+  const ctx = ctxFor(tables({ conversations: [closing], messages: [theirs] }), { ...RPCS, metrics_summary: () => METRICS });
+  const tc = newToolContext(ctx, A, "operator", TZ, NOW);
+  const out = await runTool(tc, { name: "get_today", input: {} });
+  assert.equal(out.isError, false, out.result);
+  const today = JSON.parse(out.result);
+
+  assert.ok(!("drafts_about_to_send" in today), "no field on Today claims to carry drafts");
+  assert.doesNotMatch(out.result, /draft/i, "a Today read holds no draft of any kind: the snapshot's held_drafts and list_threads filter=held do");
+
+  assert.match(today.reply_window_closing.note, /24 hours/, "the rule is the contracts' own hint, not a second spelling");
+  assert.deepEqual(
+    today.reply_window_closing.rows.map((r) => [r.conversation_id, r.route]),
+    [[C2, `inbox/th-${C2}`]],
+    "the row names the thread and where it opens",
+  );
+  assert.match(today.reply_window_closing.rows[0].text, /window closes/);
+  assert.ok(tc.read.thread.has(C2), "a row this read returned may be cited and navigated to");
+
+  // list_threads: the count is of everything that matched, not of what the cap kept, and every row names its wire.
+  const listed = JSON.parse((await runTool(tc, { name: "list_threads", input: { filter: "recent" } })).result);
+  assert.equal(listed.total_matching, listed.threads.length);
+  assert.ok(listed.threads.every((th) => typeof th.channel === "string" && th.channel.length > 0 && !("tags" in th)), "a wire on every row; no field that never carried anything");
+});

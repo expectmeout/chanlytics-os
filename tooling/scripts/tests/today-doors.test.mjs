@@ -219,3 +219,16 @@ test("REGRESSION: with no line connected, Today does not say the receptionist is
     delete globalThis.window.__SETUP;
   }
 });
+
+test("REGRESSION: an email-only workspace is not told nothing can come in, nor that the receptionist is answering", () => {
+  globalThis.window.__SETUP = { vm: { line: null, readiness: { answering: false } } };
+  try {
+    const vm = todayWith([{ kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" }]);
+    const said = textOf(mountHero(vm)) + textOf(mountQueue(vm));
+    assert.match(said, /1 of 1 line connected/, "REGRESSION: the page counted the routing rows, and email is not one");
+    assert.ok(!said.includes("nothing can come in"), "email comes in");
+    assert.ok(!said.includes("answering on its own"), "the receptionist does not answer email");
+    assert.ok(!said.includes("nothing needs you"), `the heading does not reassure over a line nobody answers: ${said}`);
+    assert.match(said, /every email waits for you in the Inbox/);
+  } finally { delete globalThis.window.__SETUP; }
+});

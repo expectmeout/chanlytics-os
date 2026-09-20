@@ -316,3 +316,65 @@ test("when something needs you, the traffic narrative moves to sentences", () =>
   assert.match(vm.standing.headline, /needs you/);
   assert.ok(vm.recap.sentences.some((x) => /answered 2 messages/.test(x.text)));
 });
+
+test("REGRESSION: the day's recap never calls the count a WhatsApp count -- answered_by_ai spans every wire", () => {
+  // metrics_summary takes answered_by_ai from first_replies with no channel
+  // predicate (00037_hygiene.sql), so a reply the receptionist sent by email
+  // is in it. The sentence said "The WhatsApp receptionist answered N
+  // messages" over that -- the same lie person-identity.test.mjs pins on a
+  // thread's byline, and the same one threadChannelOf exists to end.
+  const m = metrics({
+    now: { escalations_open: 1, oldest_open_escalation_at: "2026-08-27T14:05:00Z" },
+    period: { messages_in: 2, answered_by_ai: 2, conversations_active: 1 },
+  });
+  const esc = [{ id: "e1", conversation_id: "c1", reason: "human_token", details: null, state: "open", created_at: "2026-08-27T14:05:00Z" }];
+  const emailed = conv({ messages: [{ ...conv().messages[0], channel: "email" }] });
+  const vm = toTodayVM(m, [emailed], esc, [], NOW);
+  const line = vm.recap.sentences.find((s) => /answered/.test(s.text));
+  assert.equal(line.text, "The receptionist answered 2 messages from 1 person.");
+  assert.ok(
+    vm.recap.sentences.every((s) => !/WhatsApp/.test(s.text)),
+    vm.recap.sentences.map((s) => s.text).join(" | "),
+  );
+});
+
+test("the count above the work sees every wire, and calls each one what the owner does", () => {
+  const EMAIL = { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" };
+  const all = toTodayVM(metrics({ channels: [
+    { kind: "whatsapp", status: "active", number: "+19177724072" },
+    { kind: "sms", status: "active", number: "+13083368109" },
+    EMAIL,
+  ] }), [], [], [], NOW);
+  assert.deepEqual(all.standing.lines, { text: "3 of 3 lines connected", down: false });
+  assert.deepEqual(all.standing.chips.map((c) => c.text), ["WhatsApp connected", "Texting connected", "Email connected"]);
+  assert.equal(all.queue.empty.sub, "nothing needs you", "WhatsApp and texts are answered: the reassurance stands");
+
+  // REGRESSION: the sms row a provisioned line writes was printed as its column value.
+  const smsOff = toTodayVM(metrics({ channels: [
+    { kind: "whatsapp", status: "active", number: "+19177724072" },
+    { kind: "sms", status: "disabled", number: "+13083368109" },
+    EMAIL,
+  ] }), [], [], [], NOW);
+  assert.deepEqual(smsOff.standing.lines, { text: "2 of 3 lines connected", down: true });
+  assert.equal(smsOff.standing.alert, "Texting is disconnected — messages coming in are not being answered.");
+  assert.equal(smsOff.queue.empty.testid, "today-queue-empty-down");
+
+  // REGRESSION: "2 of 2 lines connected" on a workspace whose only line is email.
+  const only = toTodayVM(metrics({ channels: [EMAIL] }), [], [], [], NOW);
+  assert.deepEqual(only.standing.lines, { text: "1 of 1 line connected", down: false });
+  assert.equal(only.quiet.sub, "Email is connected. No messages have arrived yet.");
+  assert.ok(only.quiet.proof.some((p) => p.label === "Email" && p.value === "bestmovers@mail.chanlytics.com · on"));
+  // and it is not congratulated: the receptionist does not answer email.
+  assert.equal(only.queue.empty.testid, "today-queue-empty-unanswered");
+  assert.match(only.queue.empty.title, /every email waits for you in the Inbox/);
+  assert.equal(only.queue.empty.sub, "nothing in the queue", "the heading does not say 'nothing needs you' over a line nobody answers");
+
+  const none = toTodayVM(metrics({ channels: [] }), [], [], [], NOW);
+  assert.deepEqual(none.standing.lines, { text: "no lines connected yet", down: false });
+  assert.equal(none.queue.empty.testid, "today-queue-empty-unconnected");
+
+  // A mailbox that could not be read is a line that could not be counted: its own state, never a shorter count.
+  const short = toTodayVM({ ...metrics(), linesRead: false }, [], [], [], NOW);
+  assert.deepEqual(short.standing.lines, { text: "the email line could not be counted", down: false });
+  assert.deepEqual(short.standing.chips.map((c) => c.text), ["WhatsApp connected", "Phone line connected"], "what WAS read still stands");
+});

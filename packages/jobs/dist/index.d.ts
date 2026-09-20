@@ -1,5 +1,5 @@
 import { Database, Json } from '@chanlytics/db';
-import { JobKind } from '@chanlytics/contracts';
+import { JobKind, JobNews } from '@chanlytics/contracts';
 import { SupabaseClient } from '@supabase/supabase-js';
 import { ReceivedEmail } from '@chanlytics/channels';
 import { Wire, EmailIngestPorts, IncomingEmail } from '@chanlytics/core';
@@ -207,7 +207,8 @@ interface JobContext {
      * from the environment.
      */
     wire: Wire;
-    alert: (subject: string, body: string) => Promise<void>;
+    /** Tell this job's tenant. The news carries its own kind and door (contracts JobNews); the runtime that addresses it never chooses them. */
+    alert: (news: JobNews) => Promise<void>;
     /**
      * The platform's own pager, for a condition that is the platform's: a
      * provider refusing sends with 401 or 403 is credentials, not content.
@@ -396,7 +397,7 @@ interface TickPorts {
     defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
     /** Never throws: a write that failed comes back as a row with its error. */
     settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
-    alert(job: LedgerRow, subject: string, body: string): Promise<void>;
+    alert(job: LedgerRow, news: JobNews): Promise<void>;
     log: TickLog;
     now(): number;
 }

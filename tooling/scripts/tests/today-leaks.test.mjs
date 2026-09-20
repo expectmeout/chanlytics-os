@@ -7,7 +7,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayLeaks, todayAwayGrouped, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
+import { todayLeaks, todayAwayGrouped, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
 
 const list = (id, label, count, action = null) => ({ id, label, group: "journey", count, action });
 const act = (cta, to, enabled = true) => ({ text: "", cta, to, enabled });
@@ -116,7 +116,8 @@ test("a conversation already in the queue above is not said again here", () => {
   ];
   const out = todayAwayGrouped(rows, ["cv-1", "cv-2"]);
   assert.deepEqual(out.groups.map((g) => g.row.id), ["n:3"]);
-  assert.equal(out.total, 1, "the count is what is left, not what the bell holds");
+  assert.equal(out.total, 3, "the head IS what the bell holds; the foot says how many of them are not drawn here");
+  assert.equal(out.more, 2);
   const noQueue = todayAwayGrouped(rows, []);
   assert.equal(noQueue.groups.length, 2, "two handoffs group; without the queue they still belong here");
   assert.equal(noQueue.groups[0].title, "2 conversations need you");
@@ -133,7 +134,7 @@ test("REGRESSION: the DERIVED \"needs you\" row is dropped too -- it is the one 
   const rows = [derived("cv-1"), derived("cv-2"), bell("n:9", "review", "1 new rating on Google", "ok")];
   const out = todayAwayGrouped(rows, ["cv-1", "cv-2"]);
   assert.deepEqual(out.groups.map((g) => g.row.id), ["n:9"], "REGRESSION: a conversation in the queue was said twice on one page");
-  assert.equal(out.total, 1);
+  assert.equal(out.total, 3, "dropped from the list, still counted on the head -- it is still in the bell");
   // Not in the queue: it belongs here, and it is still never grouped -- a
   // conversation waiting for a person is one person, not a count.
   const still = todayAwayGrouped(rows, ["cv-1"]);
@@ -163,6 +164,24 @@ test("twelve calls from the same line are one row that says twelve, and the warn
   assert.equal(calls.count, 12);
   assert.equal(calls.ids.length, 12, "read and dismiss must reach every row the group swallowed");
   assert.equal(calls.row.id, "c0", "the newest of the group is the one it shows");
+});
+
+test("two broadcasts that went out are not counted into the jobs that did not finish", () => {
+  // The whole defect, on the page: six rows under one amber heading, two of
+  // them the best news the workspace had that day.
+  const rows = [
+    bell("j1", "job_failed", "A outbound_send job did not finish", "warn"),
+    bell("b1", "broadcast_sent", "Broadcast “Spring offer” sent", "ok"),
+    bell("b2", "broadcast_sent", "Broadcast “Winter hours” sent", "ok"),
+  ];
+  const { groups, total } = todayAwayGrouped(rows, [], 5);
+  assert.equal(total, 3);
+  assert.deepEqual(groups.map((g) => g.title ?? g.row.title), [
+    "A outbound_send job did not finish",
+    "2 broadcasts finished",
+  ], "the failure stands alone; the two sends are their own group, in their own words");
+  assert.equal(groups[0].count, 1, "one job did not finish, not three");
+  assert.equal(groups[1].row.tone, "ok", "and good news does not outrank the warning");
 });
 
 test("a template that can be sent does not wear a warning's colour, and neither reads as the number's news", () => {
@@ -213,7 +232,52 @@ test("read rows are not away rows, the cap counts groups, and an empty bell says
   assert.equal(out.groups.length, 5);
   assert.equal(out.more, 2);
   assert.equal(out.total, 7);
-  assert.deepEqual(todayAwayGrouped([]), { groups: [], more: 0, total: 0 });
+  assert.deepEqual(todayAwayGrouped([]), { groups: [], total: 0, more: 0, queued: 0, foot: null, empty: { icon: "check", text: "All caught up." } });
+});
+
+test("the head is the bell's own number, and the head, the rows and the foot add up", () => {
+  const rows = [
+    bell("n:1", "handoff", "Zoe Martin needs you", "warn", { type: "conversation", id: "cv-1" }),
+    bell("n:2", "handoff", "Daniela Reyes needs you", "warn", { type: "conversation", id: "cv-2" }),
+    bell("n:3", "review", "1 new rating on Google", "ok"),
+    { id: "n:4", kind: "alert", title: "read already", message: "", tone: "", icon: "bell", unread: false, about: null },
+  ];
+  const out = todayAwayGrouped(rows, ["cv-1", "cv-2"], 5);
+  assert.equal(out.total, unreadCount(rows), "the card's head and the bell's badge are one number");
+  assert.equal(out.total, 3, "the read row is in neither");
+  assert.equal(out.queued, 2);
+  const onScreen = out.groups.reduce((n, g) => n + g.count, 0);
+  assert.equal(out.total, onScreen + out.more, "head = what is drawn + what the foot says");
+  assert.equal(out.foot, "2 more in the bell, already in the queue above", "true of the bell, because both rows are in it");
+  assert.equal(out.empty, null);
+});
+
+test("REGRESSION: a card empty only because the queue above has everything does not say \"All caught up.\" beside a bell of 4", () => {
+  const rows = ["cv-1", "cv-2", "cv-3", "cv-4"].map((cv, i) => ({
+    id: `needs:th-${cv}`, key: `needs:th-${cv}`, kind: "needs_you", title: `person ${i} needs you`,
+    message: "", tone: "warn", icon: "alert", unread: true, about: null,
+  }));
+  const out = todayAwayGrouped(rows, ["cv-1", "cv-2", "cv-3", "cv-4"], 5);
+  assert.deepEqual(out.groups, [], "none of them is said twice on one page");
+  assert.equal(out.total, 4, "REGRESSION: the head read 0 and the badge two inches away read 4");
+  assert.equal(out.queued, 4);
+  assert.deepEqual(out.empty, { icon: "arrow-up", text: "Everything new is already in the queue above." });
+  assert.ok(!out.empty.text.includes("caught up"), "four things are unread: there is nothing to congratulate");
+  assert.equal(out.foot, null, "the head has said 4 and the line above says where they are: a number is said once");
+});
+
+test("under the cap and already in the queue are two different absences, and the foot names both", () => {
+  const rows = [
+    ...Array.from({ length: 7 }, (_, i) => bell(`k${i}`, "billing", `row ${i}`)),
+    bell("q1", "handoff", "Zoe Martin needs you", "warn", { type: "conversation", id: "cv-1" }),
+    bell("q2", "handoff", "Emily Chen needs you", "warn", { type: "conversation", id: "cv-2" }),
+  ];
+  const out = todayAwayGrouped(rows, ["cv-1", "cv-2"], 5);
+  assert.equal(out.total, 9);
+  assert.equal(out.queued, 2);
+  assert.equal(out.more, 4, "two left under the cap and two the queue above already holds");
+  assert.equal(out.foot, "4 more in the bell, 2 of them already in the queue above");
+  assert.equal(/(\d+) more/.exec(out.foot)[1], "4", "the foot's first number is the one that makes head = drawn + more");
 });
 
 test("a row the bell keyed rather than numbered still carries its id through a group", () => {

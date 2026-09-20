@@ -7,6 +7,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { todayWeek, todayJourney, todayAway } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
+import { installLegacyReact, fresh, again, byTestId, textOf } from "./_legacy-react.mjs";
 
 const tile = (id, label, value) => ({ id, label, value, meta: "", delta: null, spark: [] });
 const reports = (over = {}) => ({
@@ -21,6 +22,16 @@ const reports = (over = {}) => ({
   booking: { present: true, headline: "3 of 12 booked", sub: "25% of the people who wrote or called in the last 7 days have an appointment on the calendar", pct: 25, asked: 12, booked: 3 },
   ...(({ vm: _vm, ...rest }) => rest)(over),
 });
+
+/* The card itself, drawn on the stub React the legacy tree's tests use: one
+   defect below is a throw during render, and only a render can catch it. */
+const refreshed = [];
+installLegacyReact({ __DEMO_MODE: false, RpTile: "RpTile", appNavigate: () => {}, __refreshSurface: (k) => refreshed.push(k) });
+await import("../../../apps/dashboard/src/legacy/components/data-bits.jsx");
+const { installToday } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
+installToday();
+await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-week.jsx");
+const TodayPulse = globalThis.window.TodayPulse;
 
 test("the period keeps Reports' own tiles and range, and each of its three reads is a view with its own tiles", () => {
   const vm = todayWeek(reports());
@@ -65,6 +76,33 @@ test("a message nobody answered is NOT said a third time here, and an empty peri
   const empty = todayWeek(reports({ vm: { empty: true, tiles: [] } }));
   assert.equal(empty.views[0].note, "Nobody wrote or called in this period.");
   assert.equal(empty.initial, "campaigns", "the card opens on the view that has something in it");
+});
+
+test("REGRESSION: the offers read failed -- the period card stands, the Campaigns view says so, and Today is not replaced by an error", () => {
+  const vm = todayWeek(reports({ campaigns: null }));
+  assert.ok(vm, "todayWeek read r.campaigns.tiles of null here, and the shell's boundary took the whole page with it");
+  const camp = vm.views.find((v) => v.id === "campaigns");
+  assert.equal(camp.numbersRead, false, "its own state: unread, never 'nothing went out'");
+  assert.deepEqual(camp.tiles, [], "and no zeros standing in for numbers nobody read");
+  assert.equal(camp.note, null, "the page says it once, with the FailedRead");
+  assert.equal(vm.initial, "conversations", "the card opens on a read that worked");
+  assert.deepEqual(vm.views.filter((v) => v.numbersRead).map((v) => v.id), ["conversations", "booking"]);
+
+  globalThis.window.__REPORTS = reports({ campaigns: null });
+  fresh();
+  refreshed.length = 0;
+  const first = TodayPulse();
+  assert.ok(byTestId(first, "today-week"), "REGRESSION: this render threw, and the owner got 'This surface hit an error'");
+  assert.ok(byTestId(first, "today-week-tiles-conversations"), "the numbers that WERE read are on screen");
+  byTestId(first, "today-week-view-campaigns").props.onClick();
+  const picked = again(() => TodayPulse());
+  const failed = byTestId(picked, "today-week-failed");
+  assert.ok(failed, "the one way 'couldn't read' is said");
+  assert.match(textOf(failed), /Couldn't read the campaign numbers/);
+  assert.equal(byTestId(picked, "today-week-note"), null, "never 'No campaign message went out in this period.'");
+  assert.equal(byTestId(picked, "today-week-tiles-campaigns"), null);
+  byTestId(picked, "today-week-failed-retry").props.onClick();
+  assert.deepEqual(refreshed, ["reports"], "Retry re-reads the one surface, not the page");
 });
 
 test("the journey: People's lists with their counts, a row to the list, the step where it has one; reach comes with it", () => {

@@ -56,7 +56,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   // template going out under a subscription that stopped.
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
-    await ports.alert(`Broadcast “${b.name}” not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again.");
+    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast “${b.name}” not sent`, body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings › Billing and send it again." });
     return;
   }
   // Only while still scheduled: a cancel that landed between the read above
@@ -67,7 +67,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
-    await ports.alert(`Broadcast “${b.name}” stopped`, `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.`);
+    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast “${b.name}” stopped`, body: `The template “${b.template_name}” is no longer approved by WhatsApp, so nothing was sent.` });
     return;
   }
   // WHICH yes this send needs. Meta's category is the authority — it can
@@ -183,7 +183,7 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
     // burning everyone still queued as refused and ending as "sent".
     const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
     await ports.fail(b.id, "wire_unavailable");
-    await ports.alert(`Broadcast “${b.name}” stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.`);
+    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast “${b.name}” stopped`, body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings › Channels and send it again.` });
     return "stop";
   };
 
@@ -225,8 +225,14 @@ export async function sendBroadcastBatch(ports: BroadcastBatchPorts, cmd: Broadc
 
   const { sent, held } = await ports.tally(b.id);
   await ports.finish(b.id, { sent, held });
-  await ports.alert(
-    `Broadcast “${b.name}” sent`,
-    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`,
-  );
+  // The run FINISHED. Said as what it is, not as a job that did not finish,
+  // which is what every alert from this file was kept as until 00141, so two
+  // completed broadcasts were counted into Today's "6 jobs did not finish".
+  await ports.alert({
+    kind: "broadcast_sent",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast “${b.name}” sent`,
+    body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`,
+  });
 }

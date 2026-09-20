@@ -82,7 +82,9 @@ test("the cap and the rest: six rows on Today, the rest counted for the Inbox li
   assert.equal(vm.queue.rows.length, 6);
   assert.equal(vm.queue.more, 3, "eight handoffs and the closing window: six shown, three more");
   const quiet = toTodayVM(metrics({ period: { ...metrics().period, messages_in: 0, calls: 0, messages_out_you: 0 }, now: { ...metrics().now, escalations_open: 0 } }), [], [], [], NOW);
-  assert.deepEqual(quiet.queue, { rows: [], more: 0, parts: [] });
+  assert.deepEqual({ rows: quiet.queue.rows, more: quiet.queue.more, parts: quiet.queue.parts }, { rows: [], more: 0, parts: [] });
+  // What the empty queue means is contracts' sentence: both lines are up and the receptionist answers on them.
+  assert.deepEqual([quiet.queue.empty.testid, quiet.queue.empty.sub], ["today-queue-empty-ok", "nothing needs you"]);
 });
 
 test("the wiring: one row component for People and Today, the queue in the command slot, the hero keeping only the narrative, the runs split between them", () => {

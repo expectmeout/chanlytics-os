@@ -81,5 +81,17 @@ export async function sendQueued(ports: SendQueuedPorts, cmd: SendQueuedCommand)
     : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
-  await ports.alert(`Reply delivery failed: ${to}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
+  // The line above just flagged the thread, so this is a conversation that
+  // needs a person: the same thing a WhatsApp handoff is, drawn the same way,
+  // and its button opens THAT thread rather than the Inbox's front page. The
+  // job itself completes; it never was "a job did not finish". (Today drops an
+  // away-row whose conversation the queue already shows, so this row usually
+  // appears only as the thread at the top of the page, which is where it is.)
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${p.conversation_id}`,
+    about: { type: "conversation", id: p.conversation_id },
+    subject: `Reply delivery failed: ${to}`,
+    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`,
+  });
 }

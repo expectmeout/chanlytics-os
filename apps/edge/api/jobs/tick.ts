@@ -98,7 +98,7 @@ export async function POST(request: Request): Promise<Response> {
         fail: (job, reason) => failJob(db, job, reason),
         defer: (job, untilIso, reason) => deferJob(db, job, untilIso, reason),
         settle: (job, certain) => settleJob(db, job, certain),
-        alert: (job, subject, body) => alertFor(db, job)(subject, body),
+        alert: (job, news) => alertFor(db, job)(news),
         log: L,
         now: Date.now,
       },
