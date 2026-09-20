@@ -1397,3 +1397,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
   .tq .cl-attn-row[data-testid="brief-run-row"], .tq .cl-attn-row[data-testid="brief-run-soon"] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
   .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-acts, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-acts { grid-column: 2; grid-row: 1; padding-top: 0; }
 }
+
+/* Every row leads with its own verb, not only the row that carries the page's
+   primary: the canvas reads "Open and reply · Snooze" on each. The verb is the
+   button AttnRow marks attention-cta; the second word follows it. */
+.tq .cl-attn-cta[data-testid="attention-cta"] { order: -1; }
