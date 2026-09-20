@@ -1703,8 +1703,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
  * calendar's verbs are, so the page composes and never derives. The mockup's
  * sample (today-sample.ts) publishes the same object, so the two cannot drift.
  *
- * `facts`, `dayLine`, `week`, `journey` and `away` are the period card's and
- * the journey's; they leave with those cards in the page PR.
+ * `week` and `journey` are the period card's and the journey's, `dayLine` the
+ * hero's sentence; `facts` and `away` no page reads any more. All five leave in
+ * the page PR.
  */
 import { todayDay, todayDayFacts, todayDayLine, todayWeek, todayJourney, todayAway, todayAwayGrouped, todayLeaks, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved } from "@chanlytics/contracts";
 
@@ -1726,7 +1727,8 @@ export function installToday(): void {
 
 ```js
   const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
-  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };") && bridge.includes("window.__today = TODAY_HELPERS;"));
+  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"), "the helpers, in order");
+  assert.ok(bridge.includes("window.__today = TODAY_HELPERS;"), "installed, not re-listed");
 ```
 
 - [ ] **Step 3: Run and commit**
@@ -2365,7 +2367,8 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
 
 ```js
   const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
-  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped };") && bridge.includes("window.__today = TODAY_HELPERS;"));
+  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped };"), "the helpers, in order");
+  assert.ok(bridge.includes("window.__today = TODAY_HELPERS;"), "installed, not re-listed");
 ```
   and
 ```js
