@@ -429,7 +429,7 @@ const LeadFinder = ({
       {composing && refusal ? <p className="lf-said" role="status" data-testid="finder-refusal">{refusal}</p> : null}
       {composing && suggestions && suggestions.items && suggestions.items.length ? (
         <div className="lf-examples" data-testid="finder-suggestions">
-          <div className="lf-ex-h">Suggested for {suggestions.forWho}, from what your business does</div>
+          <div className="lf-ex-h">Suggested from what your business does</div>
           {suggestions.items.slice(0, 3).map((s) => (
             <button key={s.words} type="button" className="lf-ex" data-testid="finder-suggestion" onClick={() => onWords(s.words)}>
               <Icon name="search" size={13} />

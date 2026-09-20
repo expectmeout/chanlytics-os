@@ -19,7 +19,19 @@ export const FACT_MAX = 120;
  * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
  * started with less time left than it may take.
  */
-export const JUDGE_TIMEOUT_MS = 40_000;
+export const JUDGE_TIMEOUT_MS = 28_000;
+
+/**
+ * Why 28 and not more. A collect is claimed up to CLAIM_FOR_MS (20s) into a
+ * tick and handed a deadline LEAD_YIELD_AT_MS (52s) from the tick's start
+ * (packages/jobs ledger.ts), so the least it is promised is 32 seconds; it
+ * reads its page from the provider first (PAGE_READ_ALLOWANCE_MS), and the
+ * judge, which is never started with less than its own timeout left
+ * (runner.ts JUDGE_MARGIN_MS), must fit in what remains. Core does not import
+ * the ledger, so tick-geometry.test.mjs holds these numbers to each other.
+ * A low-effort structured call over 25 places answers in well under this.
+ */
+export const PAGE_READ_ALLOWANCE_MS = 4_000;
 
 /** A fact as the judge sees it: one line, no control characters, at most 120 characters. */
 export function fact(v: string | null): string | null {

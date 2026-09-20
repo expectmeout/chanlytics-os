@@ -40,6 +40,32 @@ export const CLAIM_FOR_MS = 20_000;
  */
 export const YIELD_AT_MS = 45_000;
 
+/**
+ * The ceiling every tick function runs under (apps/edge/vercel.json: 60s).
+ * Stated here because the lead job's window below is measured from it.
+ */
+export const FUNCTION_CEILING_MS = 60_000;
+
+/**
+ * The deadline a LEAD job is handed, from the tick's start. A broadcast's
+ * deadline stops fifteen seconds short of the ceiling so a send in flight can
+ * come back; a lead job guards every call it makes with its own margin
+ * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * ever in flight past its deadline and it needs no room after it. Its
+ * deadline sits at the ceiling less the kill margin the runner already keeps.
+ *
+ * Why this exists: the runner would not start the judge with less than the
+ * judge's whole timeout left, which is right; but the last job a tick claims
+ * (CLAIM_FOR_MS in) had YIELD_AT_MS - CLAIM_FOR_MS = 25 seconds to its
+ * deadline against a 40-second judge, so only a collect claimed in a tick's
+ * first seconds ever judged, and every other one retried into the same
+ * arithmetic until the ledger gave up ("out of time before the judge", three
+ * attempts, failed). The window a lead job is promised is
+ * LEAD_YIELD_AT_MS - CLAIM_FOR_MS, and core's judge timeout is sized to fit
+ * inside it; tick-geometry.test.mjs holds the two to that.
+ */
+export const LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - 8_000;
+
 /** Claims allowed for internal work before it is failed and reported. */
 export const MAX_ATTEMPTS = 3;
 

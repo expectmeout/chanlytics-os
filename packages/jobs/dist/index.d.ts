@@ -40,6 +40,30 @@ declare const CLAIM_FOR_MS = 20000;
  * before the ceiling: room for the send already in flight to come back.
  */
 declare const YIELD_AT_MS = 45000;
+/**
+ * The ceiling every tick function runs under (apps/edge/vercel.json: 60s).
+ * Stated here because the lead job's window below is measured from it.
+ */
+declare const FUNCTION_CEILING_MS = 60000;
+/**
+ * The deadline a LEAD job is handed, from the tick's start. A broadcast's
+ * deadline stops fifteen seconds short of the ceiling so a send in flight can
+ * come back; a lead job guards every call it makes with its own margin
+ * (core runner.ts DEADLINE_MARGIN_MS, JUDGE_MARGIN_MS), so nothing of its is
+ * ever in flight past its deadline and it needs no room after it. Its
+ * deadline sits at the ceiling less the kill margin the runner already keeps.
+ *
+ * Why this exists: the runner would not start the judge with less than the
+ * judge's whole timeout left, which is right; but the last job a tick claims
+ * (CLAIM_FOR_MS in) had YIELD_AT_MS - CLAIM_FOR_MS = 25 seconds to its
+ * deadline against a 40-second judge, so only a collect claimed in a tick's
+ * first seconds ever judged, and every other one retried into the same
+ * arithmetic until the ledger gave up ("out of time before the judge", three
+ * attempts, failed). The window a lead job is promised is
+ * LEAD_YIELD_AT_MS - CLAIM_FOR_MS, and core's judge timeout is sized to fit
+ * inside it; tick-geometry.test.mjs holds the two to that.
+ */
+declare const LEAD_YIELD_AT_MS: number;
 /** Claims allowed for internal work before it is failed and reported. */
 declare const MAX_ATTEMPTS = 3;
 /**
@@ -406,6 +430,8 @@ interface TickOptions {
     claimForMs: number;
     /** Handlers are handed `start + yieldAtMs` as their deadline. */
     yieldAtMs: number;
+    /** A kind's own yield, when it differs (a lead job's, ledger.ts LEAD_YIELD_AT_MS); `yieldAtMs` otherwise. */
+    yieldAtFor?: (kind: string) => number | undefined;
     leaseSeconds: number;
 }
 interface TickCounts {
@@ -418,4 +444,4 @@ interface TickCounts {
 }
 declare function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts>;
 
-export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, type JobContext, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };
+export { CLAIM_FOR_MS, type ClaimedJob, type Db, type EscalationOutcome, FUNCTION_CEILING_MS, type JobContext, LEAD_YIELD_AT_MS, LEASE_SECONDS, type LedgerRow, MAX_ATTEMPTS, MAX_RESUMES, RETRY_WAITS_MS, RUN_INTERRUPTED, SPEAKS_TO_A_PERSON, type ScheduleParams, type Settled, type TerminalJob, type TickCounts, type TickFields, type TickLog, type TickOptions, type TickPorts, type Verdict, YIELD_AT_MS, cancelJobsFor, claimNext, completeJob, deferJob, dispatchJob, failJob, incomingEmailOf, retryWait, runTick, saySettled, scheduleJob, scheduleJobOnce, settleJob, upsertEscalation, verdictFor };

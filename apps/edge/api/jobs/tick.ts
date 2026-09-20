@@ -26,7 +26,7 @@ import { provisionLineJob } from "../../lib/line-provision-job.js";
 import { leadPipeline } from "../../lib/lead-pipeline.js";
 import {
   runTick, claimNext, completeJob, failJob, deferJob, settleJob, dispatchJob, scheduleJob,
-  CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS,
+  CLAIM_FOR_MS, YIELD_AT_MS, LEAD_YIELD_AT_MS, LEASE_SECONDS,
 } from "../../lib/workspace/jobs.js";
 
 /** This many failures in one heartbeat are the platform's, not any owner's. */
@@ -106,7 +106,7 @@ export async function POST(request: Request): Promise<Response> {
         log: L,
         now: Date.now,
       },
-      { claimForMs: CLAIM_FOR_MS, yieldAtMs: YIELD_AT_MS, leaseSeconds: LEASE_SECONDS },
+      { claimForMs: CLAIM_FOR_MS, yieldAtMs: YIELD_AT_MS, yieldAtFor: (kind) => (kind.startsWith("lead_") ? LEAD_YIELD_AT_MS : undefined), leaseSeconds: LEASE_SECONDS },
     );
     L.info("jobs_tick", { ...counts });
     // Many failures in one heartbeat are also the platform's condition: one page

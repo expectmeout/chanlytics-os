@@ -1993,6 +1993,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const finderApprove = async (plan) => {
     const r = await window.leadFinderApprove(finderProposal, plan, finderSet);
     if (r && r.ok) setFinderMore(null);
+    // A new search lands the owner on it: the strip narrating the run, the
+    // classes filling, the address the search's own. Without this they stayed
+    // on All leads with a live dot in the rail and nothing saying what was
+    // happening -- the receipt's "Leads shows it" was a promise the page had
+    // not kept. A top-up or an answer is on a search already open, so it stays.
+    const started = r && r.ok && r.undo && r.undo.search_id;
+    if (started && !leadView.searchId && window.__leadsRouteOf) nav(window.__leadsRouteOf({ searchId: started, list: "all", cls: null }));
     return r;
   };
   // A next step opens the plan card with what would run; nothing starts until the owner approves it there.

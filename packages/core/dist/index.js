@@ -39944,7 +39944,8 @@ async function runIdFor(roundId, phase, term) {
 // src/leads/judge.ts
 var JUDGE_REFUSED_REASON = "the judge could not read these";
 var FACT_MAX = 120;
-var JUDGE_TIMEOUT_MS = 4e4;
+var JUDGE_TIMEOUT_MS = 28e3;
+var PAGE_READ_ALLOWANCE_MS = 4e3;
 function fact(v) {
   if (v === null) return null;
   const s = v.replace(/[\p{Cc}\p{Cf}]/gu, " ").replace(/\s+/g, " ").trim().slice(0, FACT_MAX);
@@ -40632,6 +40633,7 @@ export {
   NO_LOCATION_REASON,
   OUT_OF_AREA_REASON,
   PAGE_ITEMS,
+  PAGE_READ_ALLOWANCE_MS,
   PERSON_CONTROL_MAX_S,
   POLL_SECONDS,
   PROVIDER_RUN_PAGE,

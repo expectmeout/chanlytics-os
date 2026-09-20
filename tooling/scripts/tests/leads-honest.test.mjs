@@ -870,6 +870,36 @@ test("the running strip's Stop reaches the stop route, and the question's Yes an
   assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "stop" }]);
 });
 
+// The commit answers with the search it started (commit.ts, undo.search_id). The page used to leave the owner on All
+// leads with a live dot in the rail and no strip: the receipt said "Leads shows it", and Leads did not.
+test("approving a new plan lands on the search it started, where the strip is; a top-up stays where it is", async () => {
+  fresh();
+  const NEW = "3d1d5c1e-0000-4000-8000-00000000c0de";
+  globalThis.window.__ask.commit = async () => ({ ok: true, receipt: "Finding 50 gyms.", undo: { search_id: NEW } });
+  draw();
+  press("f");
+  draw();
+  const f = finders.at(-1);
+  assert.equal(f.open, true);
+  // Ask answers the turn with a card, as the real loop does; the finder then approves it through the commit.
+  const card = { id: "p-new", kind: "lead_search", needs: "owner", title: "Find 50 gyms", summary: "", payload: { plan: PLAN, view: { title: "Find 50 gyms" }, facts: null }, undo: "Stop the search" };
+  globalThis.window.__ask.send = async (_req, on) => { on({ t: "final", message: { text: "", proposals: [card] } }); };
+  await f.onPlan("50 gyms in Austin");
+  await settle();
+  draw();
+  assert.equal(finders.at(-1).stage, "plan", "the card is up");
+  await finders.at(-1).onApprove({ ...PLAN, count: 50 });
+  await settle();
+  assert.equal(went.at(-1), `clients/leads:s-${NEW}`, "straight to the new search, its strip and its classes");
+  went.length = 0;
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  strips.at(-1).onAction("include", "chain");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  await finders.at(-1).onApprove(finders.at(-1).plan);
+  await settle();
+  assert.ok(!went.some((w) => w.includes("clients/leads:s-")), "an answer on an open search does not move the owner off it");
+});
+
 test("Include opens the plan with that exclusion taken back and starts nothing; approving it answers with the version the owner saw", async () => {
   fresh();
   draw({ leadsRoute: `leads:s-${SEARCH_B}` });
