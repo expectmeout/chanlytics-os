@@ -744,8 +744,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* The pile on the left in the order to work it, the group being worked in the middle as cards, and on the right
    what each press does, what the search asked for, and where to look next when the round ran dry. */
 
-.ld-bench { display: grid; grid-template-columns: 300px minmax(0, 1fr) 300px; gap: 20px; padding: 14px var(--gutter-page) 32px; align-items: start; }
-.ld-bench-queue { display: flex; flex-direction: column; gap: 2px; }
+.ld-bench { display: flex; flex-wrap: wrap; gap: 18px 20px; padding: 14px var(--gutter-page) 32px; align-items: flex-start; }
+.ld-bench-queue { flex: 1 1 240px; min-width: 210px; max-width: 320px; display: flex; flex-direction: column; gap: 2px; }
 .ld-bench-qh { font-size: var(--text-xs); color: var(--ink-dim); padding: 0 2px 6px; }
 .ld-bench-g { display: grid; grid-template-columns: 26px minmax(0, 1fr); gap: 4px 10px; align-items: baseline; padding: 9px 10px; border: 1px solid transparent; border-radius: var(--radius-md); background: transparent; font: inherit; text-align: left; cursor: pointer; }
 .ld-bench-g:hover { background: var(--bg-hover); }
@@ -756,9 +756,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-g .a { grid-column: 2; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-bench-g.mailbox_waiting .a { color: var(--ink-faint); }
 
-.ld-bench-main { min-width: 0; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
+.ld-bench-main { flex: 999 1 420px; min-width: 340px; border: 1px solid var(--line); border-radius: var(--radius-lg); background: var(--bg-raised); overflow: hidden; }
 .ld-bench-head { padding: 14px 16px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
-.ld-bench-t { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); display: flex; align-items: baseline; gap: 8px; }
+.ld-bench-t { margin: 0; font-size: var(--text-lg); font-weight: var(--weight-semibold); display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; overflow-wrap: anywhere; }
 .ld-bench-t .count { font-family: var(--font-mono); font-size: var(--text-base); color: var(--ink-dim); }
 .ld-bench-why { margin: 5px 0 0; font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.5; max-width: 66ch; }
 .ld-bench-acts { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
@@ -774,7 +774,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-card-acts { display: inline-flex; gap: 2px; opacity: 0; }
 .ld-bench-card:hover .ld-bench-card-acts, .ld-bench-card:focus-within .ld-bench-card-acts { opacity: 1; }
 
-.ld-bench-side { display: flex; flex-direction: column; gap: 16px; }
+.ld-bench-side { flex: 1 1 260px; min-width: 240px; display: flex; flex-direction: column; gap: 16px; }
 .ld-bench-block { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 12px 14px; }
 .ld-bench-cost { display: flex; flex-direction: column; gap: 1px; margin-top: 9px; }
 .ld-bench-cost b { font-size: var(--text-sm); font-weight: var(--weight-medium); }
@@ -785,13 +785,9 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-bench-asked-row.exclusion::before { background: var(--ink-faint); }
 .ld-bench-nearby { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
 
-@media (max-width: 1180px) {
-  .ld-bench { grid-template-columns: 260px minmax(0, 1fr); }
-  .ld-bench-side { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; }
-  .ld-bench-block { flex: 1 1 260px; }
-}
 @media (max-width: 900px) {
-  .ld-bench { grid-template-columns: 1fr; padding: 10px var(--gutter-page) 28px; gap: 14px; }
+  .ld-bench { padding: 10px var(--gutter-page) 28px; gap: 14px; }
+  .ld-bench-queue, .ld-bench-main, .ld-bench-side { flex-basis: 100%; max-width: none; min-width: 0; }
   .ld-bench-queue { flex-direction: row; overflow-x: auto; gap: 6px; }
   .ld-bench-qh { display: none; }
   .ld-bench-g { flex: none; border: 1px solid var(--line); border-radius: var(--radius-full); padding: 7px 12px; grid-template-columns: auto auto; align-items: center; }
@@ -824,8 +820,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 /* A plot of one town from the points the search already found: no tile, no third-party request. The square is the
    seam a street layer would slide under, and nothing above it would change. */
 
-.ld-map { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; padding: 12px var(--gutter-page) 28px; align-items: start; }
-.ld-map-side { border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-raised); }
+.ld-map { display: flex; flex-wrap: wrap; gap: 16px; padding: 12px var(--gutter-page) 28px; align-items: flex-start; }
+.ld-map-side { flex: 1 1 300px; min-width: 260px; max-width: 380px; border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; background: var(--bg-raised); }
 .ld-map-bar { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--line); background: var(--bg-sunken); }
 .ld-map-bar .sp { flex: 1; }
 .ld-map-count { font-size: var(--text-xs); color: var(--ink-dim); font-variant-numeric: tabular-nums; }
@@ -838,7 +834,7 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-map-row .n { font-size: var(--text-sm); color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .ld-map-row .s { font-size: var(--text-xs); color: var(--ink-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
-.ld-map-main { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.ld-map-main { flex: 999 1 420px; min-width: 320px; display: flex; flex-direction: column; gap: 8px; }
 .ld-map-plot {
   position: relative; width: 100%; padding-top: 68%; border: 1px solid var(--line); border-radius: var(--radius-lg);
   background:
@@ -869,7 +865,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .ld-map-note { font-size: var(--text-xs); color: var(--ink-dim); }
 
 @media (max-width: 900px) {
-  .ld-map { grid-template-columns: 1fr; padding: 8px var(--gutter-page) 24px; }
+  .ld-map { padding: 8px var(--gutter-page) 24px; }
+  .ld-map-side, .ld-map-main { flex-basis: 100%; max-width: none; min-width: 0; }
   .ld-map-main { order: -1; }
   .ld-map-plot { padding-top: 88%; }
   .ld-map-rows { max-height: none; }
