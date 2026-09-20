@@ -37,6 +37,7 @@ declare global {
       planWhere: typeof planWhere; planArea: typeof planArea; planMinutes: typeof planMinutes; planVersionOf: typeof planVersionOf;
       LEAD_COUNT_CHOICES: typeof LEAD_COUNT_CHOICES; leadPlanLikely: typeof leadPlanLikely; leadPlanFacts: typeof leadPlanFacts;
       leadPlanAsk: typeof leadPlanAsk; leadEndingLine: typeof leadEndingLine;
+      planCeiling: typeof planCeiling; leadUndoable: typeof leadUndoable;
     };
   }
 }
