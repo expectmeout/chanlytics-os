@@ -7,7 +7,11 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayLeaks, todayAwayGrouped, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
+import { todayLeaks as todayLeaksV2, todayAwayGrouped, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
+
+// v2 returns { rows, more } and takes who is waiting before the cap; the rules pinned below are about the rows, so
+// they read them through this and stay as written.
+const todayLeaks = (r, p, max) => todayLeaksV2(r, p, [], max).rows;
 
 const list = (id, label, count, action = null) => ({ id, label, group: "journey", count, action });
 const act = (cta, to, enabled = true) => ({ text: "", cta, to, enabled });
@@ -286,4 +290,96 @@ test("a row the bell keyed rather than numbered still carries its id through a g
     { key: "bell:2", kind: "call", title: "b", message: "", tone: "", icon: "phone", unread: true },
   ];
   assert.deepEqual(todayAwayGrouped(rows).groups[0].ids, ["bell:1", "bell:2"]);
+});
+
+/* ------------------------------ worth a look, v2 ------------------------------ */
+
+test("each row wears a word and an icon for its tone, and offers Ask its own facts", () => {
+  const { rows } = todayLeaksV2(reports(), people());
+  assert.deepEqual(rows.map((l) => [l.id, l.tag, l.icon]), [["never-booked", "Booking gap", "calendar"], ["unanswered", "No reply", "alert"]]);
+  assert.equal(rows[0].ask, "18 people wrote or called in the last 30 days. Not one of them is on the calendar. Why is that?");
+  const { rows: reach } = todayLeaksV2(reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } }), people());
+  assert.deepEqual(reach.map((l) => [l.id, l.tag, l.icon]), [["unreachable", "Reach", "users"], ["quiet", "Gone quiet", "clock"]]);
+  assert.equal(reach[0].text, "7 people have said yes to messages, but nobody has said yes to offers.", "the sentence the nightly pins stays");
+  assert.deepEqual([reach[0].cta.label, reach[0].also.label], ["Open People", "Get their yes to offers"], "and so do its two doors");
+});
+
+test("a third problem is counted, not dropped in silence", () => {
+  const all = todayLeaksV2(reports(), people(), [], 4);
+  assert.equal(all.rows.length, 4);
+  assert.equal(all.more, 0);
+  const two = todayLeaksV2(reports(), people());
+  assert.equal(two.rows.length, TODAY_LEAK_MAX);
+  assert.equal(two.more, 2, "the two it did not draw");
+  assert.equal(two.moreLine, "and 2 more", "said by contracts, drawn by the page");
+  assert.equal(all.moreLine, null);
+  assert.deepEqual(todayLeaksV2(null, null), { rows: [], more: 0, moreLine: null });
+});
+
+test("the unanswered row names who is waiting, up to two, from the threads Today holds", () => {
+  const waiting = [
+    { conversationId: "cv-d", who: "Dulce Amaro", sinceMs: 1, to: "inbox/th-cv-d" },
+    { conversationId: "cv-r", who: "Renata Solís", sinceMs: 2, to: "inbox/th-cv-r" },
+    { conversationId: "cv-x", who: "Ana", sinceMs: 3, to: "inbox/th-cv-x" },
+  ];
+  const row = todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "unanswered");
+  assert.deepEqual(row.people, [{ id: "cv-d", name: "Dulce Amaro", to: "inbox/th-cv-d" }, { id: "cv-r", name: "Renata Solís", to: "inbox/th-cv-r" }]);
+  assert.equal(row.text, "4 customer messages never got an answer at all.", "the count stays Reports'; the names are the threads waiting now");
+  assert.deepEqual(todayLeaksV2(reports(), people()).rows.find((l) => l.id === "unanswered").people, []);
+  assert.deepEqual(todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "never-booked").people, [], "only the unanswered row names people");
+});
+
+/* ------------------------------ while you were away, v2 ------------------------------ */
+
+test("the dedupe covers all four queue kinds: a closing window's thread, a call worth a listen, a call-back's call", () => {
+  const rows = [
+    bell("n:1", "handoff", "Zoe Martin needs you", "warn", { type: "conversation", id: "cv-1" }),
+    { ...bell("draft:m-9", "held_draft", "A reply to Renata is waiting for you"), actions: [{ label: "Review", to: "inbox/th-cv-w", primary: true }] },
+    { ...bell("call:k-3", "missed_call", "Missed call · Kenia", "warn"), actions: [{ label: "See the call", to: "conversations/cv-k-3", primary: true }] },
+    bell("n:7", "call", "+1 (929) 370-9606 phoned", "", { type: "call", id: "k-9" }),
+    bell("n:8", "review", "1 new rating on Google", "ok"),
+  ];
+  const queue = [
+    { conversationId: "cv-1", callId: null },                 // a handoff
+    { conversationId: "cv-w", callId: null },                 // a reply window closing
+    { conversationId: null, callId: "k-3" },                  // a call worth a listen
+    { conversationId: "cv-k", callId: "k-9" },                // a call-back and its call
+  ];
+  const out = todayAwayGrouped(rows, queue, 5);
+  assert.deepEqual(out.groups.map((g) => g.row.id), ["n:8"], "every row about something the queue above holds is dropped");
+  assert.equal(out.total, 5, "and still counted on the head, because it is still in the bell");
+  assert.equal(out.queued, 4);
+  assert.equal(out.foot, "4 more in the bell, already in the queue above");
+  const strings = todayAwayGrouped(rows, ["cv-1"], 5);
+  assert.deepEqual(strings.groups.map((g) => g.row.id), ["call:k-3", "draft:m-9", "n:7", "n:8"], "a bare string is still a conversation id; the warning sorts first, as ever");
+});
+
+/* ------------------------------ the period, in one line ------------------------------ */
+
+test("the last seven days in one sentence, in Reports' own numbers and words", () => {
+  const r = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "23", meta: "", delta: null, spark: [], compare: "up from 19" }, { id: "calls", label: "Calls", value: "4", meta: "", delta: null, spark: [], compare: null }], answered: { totals: { in: 23, ai: 21, you: 1, none: 1 } }, replyTime: { count: 21, medianLabel: "34s" }, rangeLabel: "7 days" } });
+  assert.deepEqual(todayPeriodLine(r), { text: "Last 7 days: 23 customer messages (up from 19), 91% answered by the receptionist, median reply 34s, 4 calls.", to: "reports" });
+  const quiet = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "0", meta: "", delta: null, spark: [] }], answered: { totals: { in: 0, ai: 0, you: 0, none: 0 } }, empty: true, rangeLabel: "30 days" } });
+  assert.equal(todayPeriodLine(quiet).text, "Last 30 days: nobody wrote or called.");
+  const noReplies = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "2", meta: "", delta: null, spark: [] }], answered: { totals: { in: 2, ai: 0, you: 2, none: 0 } }, replyTime: { count: 0, medianLabel: "—" }, rangeLabel: "7 days" } });
+  assert.equal(todayPeriodLine(noReplies).text, "Last 7 days: 2 customer messages, 0% answered by the receptionist.", "no median without a reply; no calls without one; no comparison without one");
+  assert.equal(todayPeriodLine(null), null);
+  assert.equal(todayPeriodLine(reports({ campaigns: null })).to, "reports", "the offers' read failing touches nothing here (#686's first defect)");
+});
+
+/* ------------------------------ the runs' words ------------------------------ */
+
+test("the sentences the queue and the card say about a playbook's run come from here, without an em dash", () => {
+  const run = { id: "b1", state: "pending_approval", playbook_id: "pb-1", name: "Win-back", audience: { label: "Win-back" }, recipient_count: 3, scheduled_for: "2026-09-15T13:00:00Z", started_at: null, when: "today 9:00 AM", counts: { sent: 0, replied: 0 } };
+  const w = todayRunWords(run);
+  assert.equal(w.people, "3 people");
+  assert.deepEqual(w.waiting, { sentence: "3 people. Nothing sends until you say so.", status: ["Waiting for your approval"] });
+  assert.deepEqual(w.soon, { meta: "Playbook · sends today 9:00 AM", sentence: "3 people. Stop it if you'd rather not.", status: ["Scheduled", "sends today 9:00 AM"] });
+  assert.deepEqual(todayRunWords({ ...run, state: "sent", counts: { sent: 6, replied: 1 } }).done, { counts: "6 sent, 1 replied", still: false });
+  assert.deepEqual(todayRunWords({ ...run, state: "sending", recipient_count: 1, counts: { sent: 1, replied: 0 } }).done, { counts: "1 sent", still: true });
+  assert.equal(todayRunWords({ ...run, recipient_count: 1 }).people, "1 person");
+  assert.equal(todayRunsSub(2), "2 runs waiting");
+  assert.equal(todayRunsSub(1), "1 run waiting");
+  assert.equal(todayRunsSub(0), null);
+  assert.equal(todayRunApproved("Win-back", 3, "sending now"), "Win-back approved: 3 people, sending now");
 });
