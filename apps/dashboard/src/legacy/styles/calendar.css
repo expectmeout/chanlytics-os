@@ -597,3 +597,25 @@
   html.legacy-on .cal-views .cl-tab { min-height: 38px; }
   .cal-tools .cal-service { height: 44px; }
 }
+
+/* ---- The appointment dialog ------------------------------------------------
+   It was a title, a date, a sentence, and a bordered box that looked like a
+   field a person could type in but was the event's own notes. */
+
+/* When it is, in the order a person asks: the relative day, then the date, the
+   time, and how long it runs. Dots between, so it reads as one line. */
+.cal-ev-when { display: flex; align-items: baseline; flex-wrap: wrap; gap: 4px 8px; margin-top: 5px; font-size: 12px; color: var(--ink-dim); line-height: 1.45; }
+.cal-ev-when > span + span::before, .cal-ev-when-rel + span::before { content: "·"; color: var(--line-strong); margin-right: 8px; }
+.cal-ev-when-rel { font-weight: 500; color: var(--ink); }
+.cal-ev-when-dur { font-variant-numeric: tabular-nums; }
+/* A time that has gone says so, quietly: nothing here is a decision any more. */
+.cal-ev-state { font-size: 11px; padding: 1px 7px; border-radius: 999px; background: var(--bg-sunken); color: var(--ink-muted); border: 1px solid var(--line); }
+.cal-ev-state::before { content: none; }
+
+/* The notes wear the same key and value as Where, because they are the same
+   kind of thing: something the event carried. A border and a fill made them a
+   text field, and a reader tried to edit them. */
+.cal-ev-desc { margin-top: 0; padding: 0; border: none; border-radius: 0; background: transparent; font-size: 12.5px; line-height: 1.45; color: var(--ink); white-space: pre-wrap; overflow-wrap: anywhere; max-height: 200px; overflow: auto; }
+
+/* Three verbs and a Close on one row at 480px is a clipped word: they wrap. */
+.cal-ev-foot-left { flex-wrap: wrap; }
