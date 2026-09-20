@@ -499,6 +499,83 @@
       "rate": "google_search",
       "spend": false
     },
+    "POST lead-operations/[id]/undo": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST lead-searches/[id]/answer": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_answer",
+      "spend": false
+    },
+    "POST lead-searches/[id]/more": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_search",
+      "spend": true
+    },
+    "GET lead-searches/[id]": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST lead-searches/[id]/stop": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_answer",
+      "spend": false
+    },
+    "GET lead-searches": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
+    "POST lead-searches": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_search",
+      "spend": true
+    },
+    "POST leads/[id]/exclude": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST leads/[id]/keep": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST leads/[id]/put-back": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "GET leads": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": null,
+      "spend": false
+    },
     "POST lines/buy": {
       "kind": "write",
       "scope": "workspace",
