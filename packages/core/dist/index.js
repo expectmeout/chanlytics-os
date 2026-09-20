@@ -40226,8 +40226,14 @@ function isPlatformDefault(url) {
   const bare = url.slice(url.indexOf("//") + 2).split(/[?#]/)[0].toLowerCase();
   return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
 }
+var UNSAFE_IN_AN_ADDRESS = /[\s"'<>\`{}|^]/;
+function decodeEntities(s) {
+  if (!s.includes("&")) return s;
+  const chr = (n, had) => n > 0 && n < 1114112 ? String.fromCodePoint(n) : had;
+  return s.replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had)).replace(/&#(\d+);/g, (had, d) => chr(Number(d), had)).replace(/&amp;/gi, "&").replace(/&quot;/gi, '"').replace(/&apos;/gi, "'").replace(/&lt;/gi, "<").replace(/&gt;/gi, ">");
+}
 function absolute(href, origin) {
-  const raw = href.trim();
+  const raw = decodeEntities(href.trim());
   if (!raw || raw.length > HREF_MAX) return null;
   if (/^data:|^javascript:/i.test(raw)) return null;
   let url = raw;
@@ -40236,6 +40242,7 @@ function absolute(href, origin) {
   else if (!/^https?:\/\//i.test(raw)) url = `${origin}/${raw.replace(/^\.\//, "")}`;
   if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
   const secure = url.replace(/^http:\/\//i, "https://");
+  if (UNSAFE_IN_AN_ADDRESS.test(secure)) return null;
   return isPlatformDefault(secure) ? null : secure;
 }
 function scoreOf(rel, type, href, side) {
