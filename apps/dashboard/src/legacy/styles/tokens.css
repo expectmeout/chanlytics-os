@@ -187,7 +187,7 @@
   --ok-ink: var(--ok);
   --warn-ink: var(--warn);
   --info-ink: oklch(0.72 0.12 235);
-  --danger-ink: var(--danger);
+  --danger-ink: oklch(0.62 0.2 27); /* --danger is 4.15:1 on --bg-raised; the ink clears 4.5 at 0.62 */
 }
 
 /* ============================================================

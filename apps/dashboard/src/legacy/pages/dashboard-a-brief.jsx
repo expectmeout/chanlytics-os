@@ -206,7 +206,7 @@ const TodayCard = () => {
         {(recap ? recap.sentences : []).filter((sn) => !sn.traffic).map((sn, i) => (
           <div key={`sn-${i}`} className="brief-beat">
             <span className={`brief-beat-glyph ${sn.warn ? "danger" : ""}`}><Icon name={sn.warn ? "alert" : "info"} size={12} /></span>
-            <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger)" } : undefined}>{sn.text}</span>
+            <span className="brief-beat-text" style={sn.warn ? { color: "var(--danger-ink)" } : undefined}>{sn.text}</span>
             {sn.warn && (
               <button className="brief-chip" onClick={() => nav(sn.to || "inbox")}>See the thread <Icon name="arrow-right" size={10} /></button>
             )}
