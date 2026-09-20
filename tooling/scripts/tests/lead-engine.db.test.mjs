@@ -187,6 +187,38 @@ after(async () => {
 const ids = {}; // what the tests hand each other, in order
 const platformDays = new Set(); // the UTC day rows this suite's rounds reserved in: they carry no workspace, so they never cascade
 
+// The plan card is the only thing that reads the month's two ceilings, and it
+// reads them as the member, through the dashboard's own client. lead_counters
+// is revoked from authenticated and has no policy (00140), so the card's read
+// of the table raised every time and Ask answered "that could not be checked":
+// no owner could ever be shown a plan, and nothing was ever searched.
+test("the month's ceilings are read through a door, because the table is nobody's to read", { skip }, async () => {
+  const period = leadMonth(TZ, new Date());
+  ok(await db.from("lead_counters").insert({ tenant_id: A, kind: "allowance", period, used: 40, reserved: 10 }));
+  ok(await db.from("lead_counters").insert({ tenant_id: A, kind: "budget", period, used: 3, reserved: 1 }));
+
+  // What the card used to do, and why it could not.
+  const direct = await owner.client.from("lead_counters").select("used, reserved").eq("tenant_id", A);
+  assert.ok(direct.error || (direct.data ?? []).length === 0, "the table itself is closed to a member");
+
+  // What it does now: one read, both ceilings, this workspace's own.
+  const mine = ok(await owner.client.rpc("lead_month_used", { p_tenant_id: A, p_period: period }));
+  assert.deepEqual(mine, { allowance: { used: 40, reserved: 10 }, budget: { used: 3, reserved: 1 } });
+
+  // A month nothing has spent in is zeros, never a missing row the card must guess at.
+  assert.deepEqual(ok(await owner.client.rpc("lead_month_used", { p_tenant_id: A, p_period: "1999-01" })),
+    { allowance: { used: 0, reserved: 0 }, budget: { used: 0, reserved: 0 } });
+
+  // Finding is the owner's alone, so reading what finding has left is too.
+  const byOperator = await operator.client.rpc("lead_month_used", { p_tenant_id: A, p_period: period });
+  assert.ok(byOperator.error, "an operator cannot read the month's ceilings");
+  const byStranger = await stranger.client.rpc("lead_month_used", { p_tenant_id: A, p_period: period });
+  assert.ok(byStranger.error, "and neither can an owner of another workspace");
+
+  ok(await db.from("lead_counters").delete().eq("tenant_id", A).eq("period", period));
+  ok(await db.from("lead_counters").delete().eq("tenant_id", A).eq("period", "1999-01"));
+});
+
 test("has_permission is ROLE_PERMS in SQL: every role and permission agree, and find is the owner's alone", { skip }, async () => {
   const who = { owner: owner.userId, operator: operator.userId };
   for (const [role, perms] of Object.entries(ROLE_PERMS)) {

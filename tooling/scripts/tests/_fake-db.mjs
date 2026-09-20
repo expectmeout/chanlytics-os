@@ -96,6 +96,28 @@ function matches(row, filters) {
 export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
   const seen = [];
 
+  /**
+   * The doors this file can answer out of the tables it already holds, so a
+   * suite does not model what the database derives.
+   *
+   * `lead_month_used` (00143) is the plan card's read of the month's two
+   * ceilings. It is a door and not a table read because lead_counters has no
+   * member policy and select revoked from authenticated (00140) -- the card
+   * used to read the table here, where the fake answered happily, and raised
+   * for every owner in production. Modelled from the same rows a fixture sets,
+   * and a suite may still override it by name.
+   */
+  const derived = {
+    lead_month_used: ({ p_tenant_id, p_period }) => {
+      const n = (v) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
+      const of = (kind) => {
+        const c = (tables.lead_counters ?? []).find((x) => x.tenant_id === p_tenant_id && x.kind === kind && x.period === p_period);
+        return { used: n(c?.used), reserved: n(c?.reserved) };
+      };
+      return { allowance: of("allowance"), budget: of("budget") };
+    },
+  };
+
   const from = (table) => {
     const q = { table, op: "select", values: null, filters: [], columns: null, limit: null, order: null, orders: [], range: null };
     const rows = () => (tables[table] ??= []);
@@ -267,7 +289,7 @@ export function fakeDb(tables, faults = {}, rpcs = {}, opts = {}) {
      *   that quietly called an unmodelled function would otherwise pass.
      */
     rpc(name, args) {
-      const fn = rpcs[name];
+      const fn = rpcs[name] ?? derived[name];
       if (!fn) throw new Error(`fakeDb: rpc(${name}) is not modelled; add it to fakeDb's third argument`);
       seen.push({ rpc: name, args });
       // The ENVELOPE, not the value. supabase-js hands back { data, error } and
