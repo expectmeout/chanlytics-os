@@ -4769,7 +4769,27 @@ function secondsPhrase(s) {
   const r = s % 60;
   return r ? `${m}m ${r}s` : `${m}m`;
 }
-var timesWord = (n) => n === 1 ? "once" : n === 2 ? "twice" : `${n} times`;
+var COUNT_WORDS = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine" };
+var countWord = (n) => COUNT_WORDS[n] ?? String(n);
+var timesWords = (n) => n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`;
+var REASON_WHY = {
+  human_token: "because a customer asked for a person",
+  non_text: "for something it can't read",
+  refusal: "because it declined to answer",
+  rate_cap: "because the reply limit was reached",
+  policy_block: "because your reply setting held it",
+  policy_ask: "for a booking or a question set to Ask me first",
+  person_hold: "because it was held for you",
+  carriers: "while waiting on carriers",
+  email_review: "because they wrote by email",
+  send_failed: "because a reply failed to send",
+  deadman: "because no answer came in time",
+  brain_error: "because it hit an error",
+  manual: "because you flagged it",
+  opt_out: "because they asked to stop",
+  callback: "because they need a call back"
+};
+var reasonWhy = (r) => REASON_WHY[r] ?? reasonShort(r) ?? r;
 var plural2 = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 var capitalize2 = (s) => s ? s[0].toUpperCase() + s.slice(1) : s;
 var wireWord = (w) => w === "WhatsApp" ? w : w.toLowerCase();
@@ -4817,10 +4837,25 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
     p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : ""
   ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
-  const whyStopped = reasons.length ? `${reasons.map(([r, n], i) => `${i === 0 ? capitalize2(reasonShort(r) || r) : reasonShort(r) || r}: ${timesWord(n)}`).join("; ")}.` : "";
-  const resolvedNote = resolved && p.escalations_new ? `${plural2(resolved, "handover")} already resolved.` : "";
-  const sentNote = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural2(p.messages_out_ai, "message")} in all.` : p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
-  const answeredWhy = [whyStopped, resolvedNote, sentNote].filter(Boolean);
+  const handedOver = p.escalations_new;
+  let handovers = "";
+  if (handedOver) {
+    const lead = `Handed over ${timesWords(handedOver)}`;
+    if (!reasons.length) {
+      handovers = `${lead}, ${handedOver === 1 ? "already resolved" : handedOver === 2 ? "both already resolved" : "all already resolved"}.`;
+    } else if (reasons.length === 1 && reasons[0][1] === handedOver) {
+      const [r, n] = reasons[0];
+      handovers = `${lead}, ${n === 1 ? "" : n === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
+    } else {
+      const parts2 = reasons.map(([r, n]) => `${timesWords(n)} ${reasonWhy(r)}`).join(", ");
+      const done = resolved ? ` ${capitalize2(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.` : "";
+      handovers = `${lead}: ${parts2}.${done}`;
+    }
+  }
+  const answeredItself = handedOver && p.answered_by_ai ? "The rest it answered itself." : "";
+  const sentMore = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural2(p.messages_out_ai, "message")} in all.` : "";
+  const sentEach = p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
+  const answeredWhy = (handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]).filter(Boolean);
   const answered = {
     id: "answered",
     label: "answered by the receptionist",
@@ -6493,11 +6528,11 @@ function templateBlocked(t) {
   }
   return null;
 }
-var COUNT_WORDS = ["", "one", "two", "three", "four", "five"];
+var COUNT_WORDS2 = ["", "one", "two", "three", "four", "five"];
 function blockedWords(reasons) {
   const seen = /* @__PURE__ */ new Map();
   for (const r of reasons) seen.set(r, (seen.get(r) ?? 0) + 1);
-  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
+  const parts2 = [...seen].map(([reason, n]) => `${COUNT_WORDS2[n] ?? n} ${n === 1 ? "has" : "have"} ${reason}`);
   return parts2.length > 1 ? `${parts2.slice(0, -1).join(", ")} and ${parts2[parts2.length - 1]}` : parts2[0];
 }
 function sendableTemplates(list2) {
@@ -6508,7 +6543,7 @@ function sendableTemplates(list2) {
   const n = blocked.length;
   const reasons = blocked.map((t) => templateBlocked(t));
   const words2 = n === 1 ? `it has ${reasons[0]}` : blockedWords(reasons);
-  const many = COUNT_WORDS[n] ?? String(n);
+  const many = COUNT_WORDS2[n] ?? String(n);
   const lead = n === 1 ? "One of your messages" : `${many[0].toUpperCase()}${many.slice(1)} of your messages`;
   return {
     sendable,

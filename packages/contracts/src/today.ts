@@ -379,7 +379,34 @@ function secondsPhrase(s: number): string {
 }
 
 /** "once", "twice", "3 times". */
-const timesWord = (n: number): string => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+/** Small counts as words, so a receipt can never repeat its figure's digit: "three times", "Two are already resolved." */
+const COUNT_WORDS: Record<number, string> = { 1: "one", 2: "two", 3: "three", 4: "four", 5: "five", 6: "six", 7: "seven", 8: "eight", 9: "nine" };
+const countWord = (n: number): string => COUNT_WORDS[n] ?? String(n);
+const timesWords = (n: number): string => (n === 1 ? "once" : n === 2 ? "twice" : `${countWord(n)} times`);
+
+/**
+ * Why the receptionist handed a thread over, as the tail of "Handed over once, ...": each reason with the word that
+ * joins it. Never more than the data knows: non_text is "something it can't read", not a photo, because it may have
+ * been audio, a sticker or a document. A reason with no words here falls back to People's short form.
+ */
+const REASON_WHY: Record<string, string> = {
+  human_token: "because a customer asked for a person",
+  non_text: "for something it can't read",
+  refusal: "because it declined to answer",
+  rate_cap: "because the reply limit was reached",
+  policy_block: "because your reply setting held it",
+  policy_ask: "for a booking or a question set to Ask me first",
+  person_hold: "because it was held for you",
+  carriers: "while waiting on carriers",
+  email_review: "because they wrote by email",
+  send_failed: "because a reply failed to send",
+  deadman: "because no answer came in time",
+  brain_error: "because it hit an error",
+  manual: "because you flagged it",
+  opt_out: "because they asked to stop",
+  callback: "because they need a call back",
+};
+const reasonWhy = (r: string): string => REASON_WHY[r] ?? reasonShort(r) ?? r;
 
 const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
 
@@ -487,13 +514,36 @@ function figuresOf(
     p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
     p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
   ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
-  // One sentence, so only its first reason is capitalised: "Asked for a person: once; sent something the receptionist can't read: once."
-  const whyStopped = reasons.length ? `${reasons.map(([r, n], i) => `${i === 0 ? capitalize(reasonShort(r) || r) : reasonShort(r) || r}: ${timesWord(n)}`).join("; ")}.` : "";
-  const resolvedNote = resolved && p.escalations_new ? `${plural(resolved, "handover")} already resolved.` : "";
-  // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: equal is one reply each, more
-  // is more than one thing said; fewer means one reply answered several asks, which is not worth a sentence.
-  const sentNote = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
-  const answeredWhy = [whyStopped, resolvedNote, sentNote].filter(Boolean);
+  // The why as a person would say it: how many times it handed over, why each time, and that the rest it answered
+  // itself. It was a ledger ("Asked for a person: once; sent something the receptionist can't read: once."); the
+  // canvas wrote the same facts as a sentence, and a sentence is what an owner reads. Counts are words, so the
+  // receipt can never repeat the figure's digit; the handovers are the SQL's count, the reasons are today's open ones.
+  const handedOver = p.escalations_new;
+  let handovers = "";
+  if (handedOver) {
+    const lead = `Handed over ${timesWords(handedOver)}`;
+    if (!reasons.length) {
+      // Every one already resolved: nothing open to give a reason for.
+      handovers = `${lead}, ${handedOver === 1 ? "already resolved" : handedOver === 2 ? "both already resolved" : "all already resolved"}.`;
+    } else if (reasons.length === 1 && reasons[0][1] === handedOver) {
+      // One reason for all of them: "once, because ...", "twice, both times because ...", "three times, each time ...".
+      const [r, n] = reasons[0];
+      handovers = `${lead}, ${n === 1 ? "" : n === 2 ? "both times " : "each time "}${reasonWhy(r)}.`;
+    } else {
+      // The breakdown, most common first; what is already resolved is not in the list, so it is said after.
+      const parts = reasons.map(([r, n]) => `${timesWords(n)} ${reasonWhy(r)}`).join(", ");
+      const done = resolved ? ` ${capitalize(countWord(resolved))} ${resolved === 1 ? "is" : "are"} already resolved.` : "";
+      handovers = `${lead}: ${parts}.${done}`;
+    }
+  }
+  // answered_by_ai is the asks it answered on its own, so with a handover on the day those are "the rest".
+  const answeredItself = handedOver && p.answered_by_ai ? "The rest it answered itself." : "";
+  // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: more is more than one thing
+  // said, worth a sentence; equal is one reply each, worth saying only when there is nothing else to say; fewer means
+  // one reply answered several asks, which is not worth a sentence.
+  const sentMore = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : "";
+  const sentEach = p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
+  const answeredWhy = (handedOver ? [handovers, answeredItself, sentMore] : [sentMore || sentEach]).filter(Boolean);
   const answered: TodayFigureVM = {
     id: "answered",
     label: "answered by the receptionist",
