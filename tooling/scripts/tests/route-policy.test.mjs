@@ -25,7 +25,7 @@ const API = path.join(here, "../../../apps/dashboard/app/api/v1");
 const FILE = path.join(here, "route-policy.json");
 const METHODS = ["GET", "POST", "PUT", "PATCH", "DELETE"];
 /** Public by design, behind the middleware's PUBLIC_PATHS: there is no member to resolve. */
-const OWN_DOOR = new Set(["signup"]);
+const OWN_DOOR = new Set(["signup", "calendar/filler.ics"]);
 
 const files = [];
 (function walk(dir) {
