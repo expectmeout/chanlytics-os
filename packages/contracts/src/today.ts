@@ -33,7 +33,7 @@ import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { reasonShort } from "./people";
 import { clipAtWord } from "./viewmodels";
-import { conversationOfNeedsKey, unreadCount } from "./notifications";
+import { conversationOfNeedsKey, callOfKey, unreadCount } from "./notifications";
 import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
 import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
 
@@ -161,6 +161,10 @@ export interface TodaySentenceVM {
 export interface TodayQueueRowVM {
   id: string;
   kind: "handoff" | "callback" | "window" | "call";
+  /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
+  conversationId: string | null;
+  /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
+  callId: string | null;
   who: string;
   initials: string;
   /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is
@@ -204,6 +208,32 @@ export interface TodayQueueEmptyVM {
   testid: string;
 }
 
+export type TodayFigureId = "messages" | "answered" | "calls" | "new";
+
+/**
+ * One of the day's four figures: the number, its word, the clause always drawn under it, and the why behind it with
+ * one door. A receipt adds to its figure and never repeats its number or its clause, so nothing is said twice and
+ * nothing an owner needs lives only behind a hover.
+ */
+export interface TodayFigureVM {
+  id: TodayFigureId;
+  label: string;
+  value: number;
+  meta: string;
+  receipt: { text: string; door: { label: string; to: string } | null } | null;
+}
+
+/** A thread where the customer wrote last and nothing went back for an hour or more, and nobody was handed it. */
+export interface TodayNoReplyVM {
+  conversationId: string;
+  who: string;
+  sinceMs: number;
+  to: string;
+}
+
+/** A message with nothing back for this long is one nobody answered; the receptionist answers in seconds. */
+export const NO_REPLY_AFTER_MS = 3_600_000;
+
 export interface TodayVM {
   standing: {
     eyebrow: string;
@@ -216,32 +246,33 @@ export interface TodayVM {
      */
     lines: { text: string; down: boolean };
     alert: string | null;
-    greeting: string;
+    /** Ask reads these three; the page draws none of them. */
     headline: string;
     detail: string | null;
     tone: "needs" | "calm" | "alert";
   };
+  /** Ask's rows: the same escalations the queue draws, read once. */
   needsYou: { count: number; hint: string; rows: TodayNeedsRowVM[]; empty: string | null } | null;
   windowClosing: { label: string; hint: string; rows: Array<{ id: string; text: string; to: string }> } | null;
+  /** Ask reads the sentences and the facts; the page draws the sentences that are not numbers and the receipts. */
   recap: {
     label: string;
-    /** The day's numbers in one sentence. They were six stat cards over two sentences that said them again. */
     line: string;
     sentences: TodaySentenceVM[];
     facts: TodayFactVM[];
     receipts: Array<{ at: string; text: string; to: string }>;
   } | null;
-  /** Answered-by-AI ratio for the hero arc — null when nothing came in
-   *  (an arc of 0/0 is a gauge with no needle). */
-  pulse: { num: number; den: number } | null;
+  /** The day's own figures, in order: customer messages, answered by the receptionist, calls, new people. Null on a day with nothing at all. */
+  figures: TodayFigureVM[] | null;
+  /** When the last message arrived and how long the answer took. Always said: on a day with traffic it is the messages figure's clause, on a quiet day the card's line. */
+  proof: string;
+  /** Who is waiting with nothing back, oldest first, for Worth a look to name. */
+  noReply: TodayNoReplyVM[];
   calls: { line: string; rows: TodayCallRowVM[] } | null;
-  /** Whether the calls read succeeded; false means the rows above omit the phone, and the brief says so. */
+  /** Whether the calls read succeeded; false means the rows above omit the phone, and the card says so. */
   callsRead: boolean;
-  /** Everything that asks for a person, in one row grammar, longest wait first. */
-  /** The rows, the rest as a count, and what the rows hold in words: "2 need you", "1 reply window closing", "1 call worth a listen". */
+  /** Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what the rows hold in words. */
   queue: { rows: TodayQueueRowVM[]; more: number; parts: string[]; empty: TodayQueueEmptyVM };
-  launchpad: Array<{ label: string; to: string }>;
-  updatedAt: string;
   quiet: {
     headline: string;
     sub: string;
@@ -339,7 +370,7 @@ function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null 
   }
 }
 
-/** "41s" / "1m 12s". Seconds are exact here — this is a measured median. */
+/** "41s" / "1m 12s". Seconds are exact here: this is a measured median. */
 function secondsPhrase(s: number): string {
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -347,7 +378,180 @@ function secondsPhrase(s: number): string {
   return r ? `${m}m ${r}s` : `${m}m`;
 }
 
+/** "once", "twice", "3 times". */
+const timesWord = (n: number): string => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+
+const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
+const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** A wire's word inside a sentence: "by WhatsApp", "by email", "by text". */
+const wireWord = (w: string): string => (w === "WhatsApp" ? w : w.toLowerCase());
+
+/** Counts by key, most first, then by name; a count that is not a positive number is nothing. */
+const counted = (o: Record<string, unknown> | null | undefined): Array<[string, number]> =>
+  Object.entries(o ?? {})
+    .map(([k, v]): [string, number] => [k, Math.max(0, Math.round(Number(v) || 0))])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+const tally = (xs: readonly string[]): Array<[string, number]> => counted(xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
+
+/** A caller the voice provider could not name is counted in the clause, never named in the receipt by these words. */
+const UNNAMED_CALLER = new Set(["Caller ID withheld", "Unknown caller", "Unknown"]);
+
+/** How long after the last message the last reply went out, when it did within the hour; null otherwise. */
+function replyGapSeconds(live: { last_inbound_at: string | null; last_outbound_at: string | null }): number | null {
+  if (!live.last_outbound_at || !live.last_inbound_at) return null;
+  const gap = Math.round((new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1000);
+  return gap > 0 && gap < 3600 ? gap : null;
+}
+
+/**
+ * The proof the lines are listening: when the last message arrived and how long the receptionist took to answer it.
+ * Always said, never gated on the queue: on this workspace (no traffic, three open escalations) it was suppressed
+ * exactly when an owner needed it. On a day with traffic it is the messages figure's clause; on a quiet day the
+ * card's line, and the quiet card's own sentence ends with it, so the two cannot drift.
+ */
+export function todayProof(live: { last_inbound_at: string | null; last_outbound_at: string | null }, tz: string, now: Date): string {
+  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
+  if (!lastIn) return "No messages have arrived yet.";
+  const gap = replyGapSeconds(live);
+  return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
+}
+
 const SENT = ["sent", "delivered", "read"];
+
+/**
+ * The day's four figures, from the fields Today has fetched on every load and never read (period.new_contacts,
+ * call_sentiments, calls_voicemail, messages_out_ai) and from the threads, calls and escalations the page holds.
+ * Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
+ *
+ * A figure is the SQL's count over the whole day; the page holds the newest hundred threads and the open
+ * escalations. So a receipt makes an absolute claim ("All by WhatsApp.", "both on WhatsApp") only when what the page
+ * holds accounts for the figure's own total, and otherwise says what it is counting ("Of the 4 in the Inbox: ...").
+ */
+function figuresOf(
+  m: MetricsSummaryDto,
+  conversations: ConversationDto[],
+  callsInWindow: CallDto[],
+  /** The escalations read as it came (state=open): not `openEsc`, which drops the ones a person has taken over. */
+  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+  tz: string,
+  now: Date,
+): TodayFigureVM[] | null {
+  const p = m.period;
+  const live = m.now;
+  if (p.messages_in + p.calls + p.new_contacts === 0) return null;
+  const windowMs = new Date(m.window.since).getTime();
+  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) => x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
+
+  // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp, which
+  // is what every row was before the column said (viewmodels.ts writtenChannelOf). The receipt says nothing when the
+  // read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
+  const gap = replyGapSeconds(live);
+  const lastAt = tzClock(live.last_inbound_at, tz, now);
+  const wires = tally(conversations.flatMap((c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))));
+  const held = wires.reduce((s, [, n]) => s + n, 0);
+  const split = andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`));
+  const messages: TodayFigureVM = {
+    id: "messages",
+    label: "customer messages",
+    value: p.messages_in,
+    meta: lastAt ? `last at ${lastAt}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}` : "none yet",
+    receipt: wires.length
+      ? {
+          // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
+          text: held !== p.messages_in
+            ? held === 1
+              ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+              : wires.length === 1
+                ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
+                : `Of the ${held} in the Inbox: ${split}.`
+            : wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${split}.`,
+          door: { label: "Open the Inbox", to: "inbox" },
+        }
+      : null,
+  };
+
+  // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as
+  // the why. The clause is the SQL's count of handovers opened today; the reasons are today's escalations as the page
+  // holds them (the open ones: the read is state=open), so a handover already resolved is counted, not named.
+  // period.escalation_reasons is every OPEN escalation whatever its age (00037_hygiene.sql), so it is not read here:
+  // a clause about today with a breakdown about all time contradicted itself on the first workspace that opened it.
+  // The raw read, not the queue's list: a handover a teammate has taken over is still open, not resolved.
+  const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
+  const reasons = tally(todays.map((e) => e.reason));
+  const resolved = Math.max(0, p.escalations_new - todays.length);
+  const answeredMeta = [
+    p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
+    p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
+  ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
+  // One sentence, so only its first reason is capitalised: "Asked for a person: once; sent something the receptionist can't read: once."
+  const whyStopped = reasons.length ? `${reasons.map(([r, n], i) => `${i === 0 ? capitalize(reasonShort(r) || r) : reasonShort(r) || r}: ${timesWord(n)}`).join("; ")}.` : "";
+  const resolvedNote = resolved && p.escalations_new ? `${plural(resolved, "handover")} already resolved.` : "";
+  // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: equal is one reply each, more
+  // is more than one thing said; fewer means one reply answered several asks, which is not worth a sentence.
+  const sentNote = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
+  const answeredWhy = [whyStopped, resolvedNote, sentNote].filter(Boolean);
+  const answered: TodayFigureVM = {
+    id: "answered",
+    label: "answered by the receptionist",
+    value: p.answered_by_ai,
+    meta: answeredMeta,
+    receipt: answeredWhy.length
+      ? { text: answeredWhy.join(" "), door: p.escalations_new ? { label: "See the handovers", to: "inbox" } : null }
+      : null,
+  };
+
+  // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why. A caller is
+  // named once, by name or number; a withheld or unknown caller is in the clause's count and never in the sentence.
+  const moods = counted(p.call_sentiments);
+  const moodOf = ([mood, n]: [string, number]) => (n === p.calls ? (p.calls === 1 ? `it as ${mood.toLowerCase()}` : `all of them as ${mood.toLowerCase()}`) : `${n} as ${mood.toLowerCase()}`);
+  const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
+  const voicemail = [...new Map(callsInWindow.filter((c) => c.in_voicemail).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])).values()].filter((who) => !UNNAMED_CALLER.has(who));
+  const voicemailWords = voicemail.length ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.` : "";
+  const callsMeta = [
+    p.call_seconds > 0 ? (p.call_seconds < 60 ? "under a minute on the phone" : `${Math.round(p.call_seconds / 60)} min on the phone`) : "",
+    p.calls_voicemail ? `${p.calls_voicemail} to voicemail` : "",
+  ].filter(Boolean).join(", ") || (p.calls ? "none connected" : "none yet");
+  const calls: TodayFigureVM = {
+    id: "calls",
+    label: "calls",
+    value: p.calls,
+    meta: callsMeta,
+    receipt: moodWords || voicemailWords ? { text: [moodWords, voicemailWords].filter(Boolean).join(" "), door: { label: "Open the calls", to: "conversations/phone" } } : null,
+  };
+
+  // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
+  // contacts created today; the threads the page holds may be fewer (a name is said only for a person the figure
+  // counts) or more (someone who existed before and wrote for the first time today is not new), so a wire or a name
+  // is said only when the two agree.
+  const newThreads = conversations.filter((c) => {
+    const first = [...c.messages].filter((x) => x.meta?.backfill !== true).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+    return !!first && first.sender === "customer" && fresh(first);
+  });
+  const agree = p.new_contacts > 0 && newThreads.length === p.new_contacts;
+  const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
+  const names = agree ? newThreads.map((c) => contactName(c)) : [];
+  const said = names.slice(0, 3);
+  const newPeople: TodayFigureVM = {
+    id: "new",
+    label: "new people",
+    value: p.new_contacts,
+    meta: !p.new_contacts
+      ? "nobody new yet"
+      : !agree
+        ? "first contact today"
+        : newWires.length === 1
+          ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
+          : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
+    receipt: said.length
+      ? { text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } }
+      : null,
+  };
+  return [messages, answered, calls, newPeople];
+}
 
 export function toTodayVM(
   m: MetricsSummaryDto,
@@ -359,7 +563,7 @@ export function toTodayVM(
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
-  // Null: the calls read failed. The brief says so rather than counting none.
+  // Null: the calls read failed. The card says so rather than counting none.
   const callsRead = calls !== null;
   const callDtos = calls ?? [];
 
@@ -367,13 +571,10 @@ export function toTodayVM(
   // parsing it as a local Date yields the salon's own hour and weekday.
   const localNow = new Date(m.window.now_local);
   const valid = !Number.isNaN(localNow.getTime());
-  const hour = valid ? localNow.getHours() : now.getHours();
   const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-  // The mockup's eyebrow rhythm: "Saturday · April 26 · 12:04"
   const datePart = valid
     ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} · ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
     : "";
-  const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
 
   // One normalisation of the wires for the five things Today says about them:
   // the chips, the count above the work, the alert, the empty queue and the
@@ -448,28 +649,59 @@ export function toTodayVM(
   // the same threads by the same rule.
   const needsYouCount = openEsc.length;
 
-  const needsRows: TodayNeedsRowVM[] = openEsc.map((e) => {
-    const conv = byConv.get(e.conversation_id);
+  const sinceMs = new Date(m.window.since).getTime();
+  const callsInWindow = callDtos.filter(
+    (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs,
+  );
+  const callMinutes = Math.round(p.call_seconds / 60);
 
+  // The newest call a thread holds: a call-back's row opens it, and a call-back with no thread is named by it.
+  const callByConv = new Map<string, CallDto>();
+  for (const c of callDtos) {
+    if (!c.conversation_id) continue;
+    const prev = callByConv.get(c.conversation_id);
+    if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
+  }
+  const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+
+  // ONE reading of each open escalation. Ask's rows (needsYou) and the queue's handoff and call-back rows were two
+  // derivations of the same list, and they disagreed on a call-back: Ask never saw the to-do the phone receptionist
+  // left, and named a caller with no thread "Unknown" where the queue named the call.
+  const escRecords = openEsc.map((e) => {
+    const conv = byConv.get(e.conversation_id);
+    const call = e.reason === "callback" ? callByConv.get(e.conversation_id) ?? null : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     return {
-      id: `th-${e.conversation_id}`,
-      conversationId: e.conversation_id,
-      escalationId: e.id,
-      who: conv ? contactName(conv) : "Unknown",
-      reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
-      waited: formatWaited(waitedMs),
+      e,
+      conv,
+      call,
+      waitedMs,
       warn: waitedMs > 30 * 60000,
+      since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "",
-      meta: conv ? contactMeta(conv, threadChannelWords(conv.messages)) : "WhatsApp",
-      windowNote: closes ? `Reply window closes ${closes}` : null,
-      to: `inbox/th-${e.conversation_id}`,
+      who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
+      closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null,
     };
   });
+
+  const needsRows: TodayNeedsRowVM[] = escRecords.map((r) => ({
+    id: `th-${r.e.conversation_id}`,
+    conversationId: r.e.conversation_id,
+    escalationId: r.e.id,
+    who: r.who,
+    reason: ESCALATION_REASON_LABELS[r.e.reason] ?? r.e.reason,
+    waited: formatWaited(r.waitedMs),
+    warn: r.warn,
+    // The customer's words; for a call-back with none, the to-do the phone receptionist left.
+    quote: r.quote || (r.e.reason === "callback" ? say(r.e.details) : ""),
+    // A call-back is the phone's, whatever wire the thread's words travelled; the queue's row says "Phone" too.
+    meta: r.e.reason === "callback" ? (r.conv ? contactMeta(r.conv, "Phone") : "Phone") : r.conv ? contactMeta(r.conv, threadChannelWords(r.conv.messages)) : "WhatsApp",
+    windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
+    to: `inbox/th-${r.e.conversation_id}`,
+  }));
 
   // Threads where the customer spoke last and the free-reply window is running
   // out. Rendered ONLY when at least one qualifies — an empty deadline board
@@ -497,20 +729,36 @@ export function toTodayVM(
       };
     });
 
-  const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = callDtos.filter(
-    (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs,
-  );
-  const callMinutes = Math.round(p.call_seconds / 60);
+  // Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the
+  // thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
+  // row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
+  // said twice). The identity was in the conversations read all along and only the count survived into the view model.
+  const closingSet = new Set(closingConvs.map((c) => c.id));
+  const noReply: TodayNoReplyVM[] = conversations
+    .flatMap((c) => {
+      // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
+      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
+      const { standing } = standingOf({
+        state: c.state, paused_until: c.paused_until, assignee_user_id: c.assignee_user_id,
+        assignee_is_me: c.assignee_is_me, open_escalation: false,
+      }, now.getTime());
+      if (standing !== "quiet" && standing !== "needs_you") return [];
+      const last = c.messages[c.messages.length - 1];
+      if (!last || last.sender !== "customer") return [];
+      const lastMs = new Date(last.created_at).getTime();
+      if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
+      return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
+    })
+    .sort((a, b) => a.sinceMs - b.sinceMs);
+
+  const proof = todayProof(live, tz, now);
+  const figures = figuresOf(m, conversations, callsInWindow, escalations, tz, now);
 
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
 
-  // The hero's stat strip is part of the design and always renders — a zero
-  // is a real measurement, and "—" is a real "not enough data yet". What
-  // never appears is a delta, a percentage, or a sparkline: a jump from 1
-  // message to 3 is not "+200%", and the mockup's own delta logic painted a
-  // FASTER reply time red.
+  // Ask's four facts. A zero is a real measurement, and "—" is a real "not enough data yet"; never a delta, a
+  // percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
   const facts: TodayFactVM[] = [
     { label: "Messages in", value: String(p.messages_in) },
     { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
@@ -519,9 +767,7 @@ export function toTodayVM(
       : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
     { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
   ];
-  const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
-  // The day's traffic as one sentence, for the line under the work. The hero said these numbers three times: a strip
-  // of stat cards, two of the sentences beneath it, and the arc's own ratio.
+  // The day's traffic as one sentence, for Ask; the page draws the figures instead.
   const trafficParts: string[] = [];
   if (p.messages_in > 0) {
     trafficParts.push(
@@ -539,35 +785,20 @@ export function toTodayVM(
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (isQuiet) {
-    const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
-    const gap =
-      live.last_outbound_at && live.last_inbound_at &&
-      new Date(live.last_outbound_at) > new Date(live.last_inbound_at)
-        ? Math.round(
-            (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1000,
-          )
-        : null;
     const names = andList(wires.map((w) => w.label));
-    const plural = wires.length > 1 ? "are" : "is";
+    const pluralVerb = wires.length > 1 ? "are" : "is";
     // A workspace with no wire yet is a new owner's first Today — it must not
     // read " is connected." with nothing in front of it, and it must not name
     // the only two wires this sentence used to know about.
     const sub = wires.length === 0
       ? "No line is connected yet, so nothing can come in."
-      : lastIn
-        ? `${names} ${plural} connected. The last message arrived ${lastIn}${
-            gap !== null && gap > 0 && gap < 3600
-              ? `, and the receptionist answered ${secondsPhrase(gap)} later.`
-              : "."
-          }`
-        : `${names} ${plural} connected. No messages have arrived yet.`;
+      : `${names} ${pluralVerb} connected. ${proof}`;
     return {
       standing: {
         eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
         chips,
         lines,
         alert: null,
-        greeting,
         headline: "Nothing has come in yet today.",
         detail: null,
         tone: "calm",
@@ -575,12 +806,12 @@ export function toTodayVM(
       needsYou: null,
       windowClosing: null,
       recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
-      pulse: null,
+      figures: null,
+      proof,
+      noReply,
       calls: null,
       callsRead,
       queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
-      launchpad: [{ label: "Conversations", to: "conversations" }],
-      updatedAt: clock,
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
@@ -652,15 +883,9 @@ export function toTodayVM(
     }
   }
 
-  /* ---- recap: four facts, no deltas, no sparklines ----
-     A jump from 1 message yesterday to 3 today is not "+200%", and the
-     mockup's own delta logic painted a FASTER reply time red.
-
-     Sentences carry only what the HEADLINE does not already say. When nothing
-     needs you, the headline is "The receptionist handled everything — N
-     messages and M calls", so repeating those counts here would be the brief
-     reading its own first line back. When something DOES need you, the
-     headline is spent on that, and the narrative belongs here instead. */
+  /* ---- Ask's recap sentences: only what the HEADLINE does not already say. When nothing needs you, the headline
+     is "The receptionist handled everything — N messages and M calls", so repeating those counts here would be the
+     brief reading its own first line back. When something DOES need you, the headline is spent on that. ---- */
   const sentences: TodaySentenceVM[] = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (p.answered_by_ai && !headlineCoversTraffic) {
@@ -688,10 +913,9 @@ export function toTodayVM(
   if (p.messages_out_you) {
     sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
   }
-  // A reply that never reached the customer is the one recap line that must
-  // never be quiet — the send already escalated, but the brief saying
-  // "handled everything" while a message died in transit would be a lie of
-  // omission.
+  // A reply that never reached the customer is the one line that must never be
+  // quiet — the send already escalated, but a card saying "handled everything"
+  // while a message died in transit would be a lie of omission.
   if (p.send_failures) {
     // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
     // opened the Inbox list, where the owner had to go looking.
@@ -791,49 +1015,34 @@ export function toTodayVM(
   /* ---- the queue: everything that asks for a person, in one row grammar.
      The longest wait first; a closing window by how soon it closes; a call
      worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
-  const callByConv = new Map<string, CallDto>();
-  for (const c of callDtos) {
-    if (!c.conversation_id) continue;
-    const prev = callByConv.get(c.conversation_id);
-    if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
-  }
-  const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
   const queueAll: TodayQueueRowVM[] = [];
-  for (const e of openEsc) {
-    const conv = byConv.get(e.conversation_id);
-    const waitedMs = now.getTime() - new Date(e.created_at).getTime();
-    const since = tzSince(e.created_at, tz, now) ?? "";
-    const warn = waitedMs > 30 * 60000;
+  for (const r of escRecords) {
+    const e = r.e;
     if (e.reason === "callback") {
       // The phone receptionist could not finish it: the to-do it left is the
       // sentence, the call itself is where the verb goes, Done resolves it.
-      const call = callByConv.get(e.conversation_id) ?? null;
-      const who = conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : "Unknown caller";
       queueAll.push({
-        id: `q-${e.id}`, kind: "callback", who, initials: initialsOf(who), channel: "Phone",
-        when: `waited ${formatWaited(waitedMs)}`,
+        id: `q-${e.id}`, kind: "callback", conversationId: e.conversation_id, callId: r.call ? r.call.id : null,
+        who: r.who, initials: initialsOf(r.who), channel: "Phone",
+        when: `waited ${formatWaited(r.waitedMs)}`,
         sentence: say(e.details) || "The caller needs a call back.", quoted: false,
-        status: ["Needs a call back", `since ${since}`], tone: "escalated", warn,
-        cta: { label: "Open the call", to: call ? `conversations/cv-${call.id}` : `inbox/th-${e.conversation_id}` },
+        status: ["Needs a call back", `since ${r.since}`], tone: "escalated", warn: r.warn,
+        cta: { label: "Open the call", to: r.call ? `conversations/cv-${r.call.id}` : `inbox/th-${e.conversation_id}` },
         also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
-        waitedMs,
+        waitedMs: r.waitedMs,
       });
       continue;
     }
-    const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
-    const quote = lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "";
-    const who = conv ? contactName(conv) : "Unknown";
-    const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     queueAll.push({
-      id: `q-${e.id}`, kind: "handoff", who, initials: initialsOf(who), channel: conv ? threadChannelWords(conv.messages) : "WhatsApp",
-      when: `waited ${formatWaited(waitedMs)}`,
-      sentence: quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!quote,
-      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${since}`, ...(closes ? [`reply window closes ${closes}`] : [])],
-      tone: "escalated", warn,
+      id: `q-${e.id}`, kind: "handoff", conversationId: e.conversation_id, callId: null,
+      who: r.who, initials: initialsOf(r.who), channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
+      when: `waited ${formatWaited(r.waitedMs)}`,
+      sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!r.quote,
+      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${r.since}`, ...(r.closes ? [`reply window closes ${r.closes}`] : [])],
+      tone: "escalated", warn: r.warn,
       cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
       also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
-      waitedMs,
+      waitedMs: r.waitedMs,
     });
   }
   for (const c of closingConvs) {
@@ -846,7 +1055,7 @@ export function toTodayVM(
       // email: the row is about WhatsApp's window (waWindow on the thread's
       // last WhatsApp inbound), which is the one wire that has one. The
       // handoff row above names the wire the reply would go out on instead.
-      id: `q-w-${c.id}`, kind: "window", who, initials: initialsOf(who), channel: "WhatsApp",
+      id: `q-w-${c.id}`, kind: "window", conversationId: c.id, callId: null, who, initials: initialsOf(who), channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
       sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
       status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
@@ -860,7 +1069,7 @@ export function toTodayVM(
     const c = callsInWindow.find((k) => k.id === r.id);
     const wanted = say(c?.wanted);
     queueAll.push({
-      id: `q-c-${r.id}`, kind: "call", who: r.who, initials: initialsOf(r.who), channel: "Phone",
+      id: `q-c-${r.id}`, kind: "call", conversationId: c?.conversation_id ?? null, callId: r.id, who: r.who, initials: initialsOf(r.who), channel: "Phone",
       when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
       sentence: wanted || r.note, quoted: false,
       status: [wanted ? r.note : "Worth a listen"], tone: "warn", warn: false,
@@ -886,7 +1095,6 @@ export function toTodayVM(
       chips,
       lines,
       alert,
-      greeting,
       headline,
       detail,
       tone,
@@ -909,7 +1117,9 @@ export function toTodayVM(
         }
       : null,
     recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
-    pulse,
+    figures,
+    proof,
+    noReply,
     callsRead,
     calls: p.calls
       ? {
@@ -919,13 +1129,7 @@ export function toTodayVM(
           rows: callRows,
         }
       : null,
-    launchpad: [
-      { label: `Inbox — ${needsYouCount} need you`, to: "inbox" },
-      { label: "Conversations", to: "conversations" },
-      ...(p.calls ? [{ label: `Calls — ${p.calls} today`, to: "conversations/phone" }] : []),
-    ],
     queue,
-    updatedAt: clock,
     quiet: null,
   };
 }
@@ -1112,6 +1316,8 @@ export interface WeekTileLike {
   meta: string;
   delta: { text: string; tone: "pos" | "neg" | "" } | null;
   spark: number[];
+  /** The period before, in counts ("up from 99"), as Reports says it; null with nothing to compare. */
+  compare?: string | null;
 }
 /** What the Reports surface publishes, as far as Today reads it. */
 export interface ReportsLike {
@@ -1123,9 +1329,15 @@ export interface ReportsLike {
     empty: boolean;
     tiles: WeekTileLike[];
     /** Who answered the period's customer messages: `none` is the number nobody ever answered. */
-    answered?: { totals: { in: number; ai: number; you: number; none: number } };
+    answered?: { totals: { in: number; ai: number; you: number; none: number }; share?: number | null };
     /** Why the receptionist stopped, most common first — the period's "driven by". */
     reasons?: Array<{ id: string; label: string; value: number }>;
+    /** The reply time as Reports computes it; the period line says the median once. */
+    replyTime?: { count: number; medianLabel: string };
+    /** Reports' own words for the period ("Last 7 days"), so the foot line never spells them a second time. */
+    period?: { now: string };
+    /** Reports' own count of the period's calls: a number, never a tile's formatted value. */
+    calls?: { total: number };
   };
   /** Null: the offers' read failed on its own and the receptionist's own numbers still stand (the bridge's D9 catch). */
   campaigns: { tiles: WeekTileLike[]; empty: boolean } | null;
@@ -1245,6 +1457,83 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
   };
 }
 
+/**
+ * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
+ * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
+ * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
+ * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `replyTime.medianLabel`, its
+ * `calls.total`. It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it
+ * took the whole page down.
+ */
+export function todayPeriodLine(r: ReportsLike | null): { text: string; to: "reports" } | null {
+  if (!r || !r.vm) return null;
+  const v = r.vm;
+  const lead = v.period?.now ?? `Last ${v.rangeLabel}`;
+  if (v.empty) return { text: `${lead}: nobody wrote or called.`, to: "reports" };
+  const a = v.answered;
+  if (!a) return null;
+  const messages = v.tiles.find((t) => t.id === "messages");
+  const parts = [`${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`];
+  if (a.share !== undefined && a.share !== null) parts.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
+  if (v.replyTime && v.replyTime.count > 0) parts.push(`median reply ${v.replyTime.medianLabel}`);
+  const callCount = v.calls ? v.calls.total : 0;
+  if (callCount) parts.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
+  return { text: `${lead}: ${parts.join(", ")}.`, to: "reports" };
+}
+
+/* ------------------------------ the runs' words ------------------------------ */
+
+/** A broadcast or a playbook's run as the broadcasts surface publishes it (toBroadcastVM), as far as the words read it. */
+export interface RunLike {
+  state: string;
+  recipient_count: number;
+  /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
+  when: string;
+  counts: { sent: number; replied: number };
+}
+
+export interface TodayRunWordsVM {
+  /** "3 people" */
+  people: string;
+  /** A run waiting for a word. */
+  waiting: { sentence: string; status: string[] };
+  /** A run under the veto window: scheduled, not yet sending. */
+  soon: { meta: string; sentence: string; status: string[] };
+  /** A run that went out today: what it earned so far, and whether it is still sending. */
+  done: { counts: string; still: boolean };
+}
+
+/**
+ * Every sentence with a number the queue and the day's card say about a playbook's run. The page kept seven of
+ * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
+ * stated in this file's own header and enforced next door on Reports. The page keeps deciding WHICH rows wait, are
+ * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
+ * sends until you say so."), where the page had a middle dot and no capital.
+ */
+export function todayRunWords(r: RunLike): TodayRunWordsVM {
+  const people = `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
+  const sent = `${r.counts.sent} sent`;
+  return {
+    people,
+    waiting: { sentence: `${people}. Nothing sends until you say so.`, status: ["Waiting for your approval"] },
+    soon: { meta: `Playbook · sends ${r.when}`, sentence: `${people}. Stop it if you'd rather not.`, status: ["Scheduled", `sends ${r.when}`] },
+    done: { counts: r.counts.replied ? `${sent}, ${r.counts.replied} replied` : sent, still: r.state === "sending" },
+  };
+}
+
+/** "2 runs waiting" beside the queue's own parts; null when none waits. */
+export function todayRunsSub(n: number): string | null {
+  return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
+}
+
+/**
+ * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
+ * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.
+ */
+export function todayRunApproved(label: string, n: number, when: string): { lead: string; rest: string } {
+  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
+}
+
 /** A People list as the People surface publishes it. */
 export interface JourneyListLike {
   id: string;
@@ -1302,14 +1591,33 @@ export type TodayLeakId = "never-booked" | "unanswered" | "unreachable" | "quiet
 export interface TodayLeakVM {
   id: TodayLeakId;
   tone: "danger" | "warn" | "info";
+  /** The tone as a word, so severity never rides on colour alone: "Booking gap", "No reply", "Reach", "Gone quiet". */
+  tag: string;
+  /** The tone's icon (the legacy Icon set). */
+  icon: "calendar" | "alert" | "users" | "clock";
   /** The problem, in one sentence, with the number in it. */
   text: string;
   /** The arithmetic behind the sentence, so nobody has to take it on faith. */
   math: string;
+  /**
+   * Who is waiting NOW with nothing back, up to two, on the unanswered row: the threads Today holds. They are not the
+   * count's own subjects (the count is Reports' over its period), so the page draws them under "Waiting now" and
+   * never as the people the sentence counts.
+   */
+  people: Array<{ id: string; name: string; to: string }>;
+  /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
+  ask: string;
   /** The door. */
   cta: { label: string; to: string };
   /** The act, when the list this is about has one it can actually run. */
   also: { label: string; to: string } | null;
+}
+
+/** The rows that made the cut, how many qualified past the cap, and the line that says so ("and 2 more"). */
+export interface TodayLeaksVM {
+  rows: TodayLeakVM[];
+  more: number;
+  moreLine: string | null;
 }
 
 /** What People publishes, as far as this reads it. */
@@ -1330,11 +1638,16 @@ export const TODAY_LEAK_MAX = 2;
  */
 const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "unreachable", "quiet"];
 
+// The arithmetic was written to sit under the sentence ("of 21 in the last 30 days"); as a sentence of its own it takes a capital.
+const askWhy = (text: string, math: string): string => `${text} ${capitalize(math)}. Why is that?`;
+
 export function todayLeaks(
   reports: ReportsLike | null,
   people: PeopleListsLike | null,
+  /** Who is waiting with nothing back, from the day's view model (`noReply`); the unanswered row names two of them. */
+  noReply: readonly TodayNoReplyVM[] = [],
   max = TODAY_LEAK_MAX,
-): TodayLeakVM[] {
+): TodayLeaksVM {
   const found = new Map<TodayLeakId, TodayLeakVM>();
   const list = (id: string) => (people ? people.lists.find((l) => l.id === id) ?? null : null);
   const step = (id: string) => {
@@ -1348,13 +1661,19 @@ export function todayLeaks(
     const asked = b.asked ?? 0;
     const booked = b.booked ?? 0;
     const never = list("asked_never_booked");
+    const text = booked === 0
+      ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
+      : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+    const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
     found.set("never-booked", {
       id: "never-booked",
       tone: "danger",
-      text: booked === 0
-        ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
-        : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`,
-      math: never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline,
+      tag: "Booking gap",
+      icon: "calendar",
+      text,
+      math,
+      people: [],
+      ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
       also: step("asked_never_booked"),
     });
@@ -1363,13 +1682,20 @@ export function todayLeaks(
   const a = reports && reports.vm.answered ? reports.vm.answered.totals : null;
   // Two, not one: a single message nobody answered can be a wrong number or a
   // STOP, and this rule has no act to offer, only a door to Reports where the
-  // tile already prints the figure. Two is a pattern.
+  // tile already prints the figure. Two is a pattern. The count is Reports'
+  // over its period; the names are the threads waiting right now.
   if (reports && a && a.none >= 2) {
+    const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
+    const math = `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
     found.set("unanswered", {
       id: "unanswered",
       tone: "danger",
-      text: `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`,
-      math: `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`,
+      tag: "No reply",
+      icon: "alert",
+      text,
+      math,
+      people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
+      ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
       also: null,
     });
@@ -1381,11 +1707,17 @@ export function todayLeaks(
   const offers = list("offers_ok");
   // Three, for the same reason: one person who said yes is not yet a list.
   if (yes && offers && yes.count >= 3 && offers.count === 0) {
+    const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`;
+    const math = "a broadcast reaches only the second yes · 0 can receive one";
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",
-      text: `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`,
-      math: "a broadcast reaches only the second yes · 0 can receive one",
+      tag: "Reach",
+      icon: "users",
+      text,
+      math,
+      people: [],
+      ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
       also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
     });
@@ -1393,17 +1725,26 @@ export function todayLeaks(
 
   const quiet = list("quiet");
   if (quiet && quiet.count >= 5) {
+    const text = `${quiet.count} people have not heard from you in 30 days.`;
+    const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
     found.set("quiet", {
       id: "quiet",
       tone: "info",
-      text: `${quiet.count} people have not heard from you in 30 days.`,
-      math: people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list",
+      tag: "Gone quiet",
+      icon: "clock",
+      text,
+      math,
+      people: [],
+      ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
       also: step("quiet"),
     });
   }
 
-  return LEAK_ORDER.map((id) => found.get(id)).filter((x): x is TodayLeakVM => !!x).slice(0, max);
+  const all = LEAK_ORDER.map((id) => found.get(id)).filter((x): x is TodayLeakVM => !!x);
+  const more = Math.max(0, all.length - max);
+  // A third problem is counted, never dropped in silence; the page draws this line, it does not compose it.
+  return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };
 }
 
 /* --------------------------- while you were away ------------------------- */
@@ -1419,7 +1760,13 @@ export interface AwayRowLike {
   tone: "" | "ok" | "warn";
   icon: string;
   about?: { type: string; id: string } | null;
+  /** Where the row's button goes (the bell's rows carry it as actions[0].to): a held draft is keyed by its message and names its thread only here. */
+  to?: string;
+  actions?: Array<{ to: string }>;
 }
+
+/** What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread. */
+export type AwayQueueRef = string | { conversationId?: string | null; callId?: string | null };
 
 export interface AwayGroupVM<T extends AwayRowLike> {
   /** The row itself when it stands alone; the newest of the group otherwise. */
@@ -1512,7 +1859,7 @@ export interface TodayAwayVM<T extends AwayRowLike> {
   total: number;
   /** Of `total`, how many are not on screen: under the cap, or in the queue above. */
   more: number;
-  /** Of `more`, the ones dropped because their conversation is in the queue above. */
+  /** Of `more`, the ones dropped because the queue above already holds what they are about: their thread or their call. */
   queued: number;
   /** The foot, when a row is drawn and something unread is not on screen. */
   foot: string | null;
@@ -1524,8 +1871,8 @@ export interface TodayAwayVM<T extends AwayRowLike> {
  * What happened while the owner was away, as Today reads it rather than as
  * the bell lists it.
  *
- * Three rules, and each one was a real page: a conversation already sitting
- * in the queue at the top of this page is NOT repeated here; twelve calls
+ * Three rules, and each one was a real page: a row about anything already sitting
+ * in the queue at the top of this page (its thread or its call) is NOT repeated here; twelve calls
  * from the same line become one row that says twelve, because five identical
  * "No conversation happened" cards pushed a WhatsApp quality downgrade and
  * three failed jobs off the bottom; and a warning sorts above good news, so
@@ -1533,22 +1880,31 @@ export interface TodayAwayVM<T extends AwayRowLike> {
  */
 export function todayAwayGrouped<T extends AwayRowLike>(
   rows: readonly T[],
-  inQueue: readonly string[] = [],
+  inQueue: readonly AwayQueueRef[] = [],
   max = 5,
 ): TodayAwayVM<T> {
-  const covered = new Set(inQueue);
+  const convs = new Set(inQueue.flatMap((q) => { const id = typeof q === "string" ? q : q.conversationId; return id ? [id] : []; }));
+  const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
   const idOf = (r: T) => r.id ?? r.key ?? "";
-  // A row about a conversation says so in two different ways, and only one of
+  // A row about a conversation says so in three different ways, and only one of
   // them is `about`. A KEPT row (the edge wrote it) carries the subject; a
-  // DERIVED one is computed from the Inbox this browser holds and carries
-  // nothing but its key. On a real workspace the derived row is the one that
-  // survives -- dedupeFeed drops the kept row while it stands -- so reading
-  // `about` alone found none of them, and Today printed the three
-  // conversations at the top of the page again, here, as three more rows.
+  // DERIVED "needs you" row is computed from the Inbox this browser holds and
+  // carries nothing but its key; a DERIVED held draft is keyed by its message
+  // and names its thread only through its door. A call is a kept row's subject
+  // or a derived missed call's key. Reading `about` alone printed the three
+  // conversations at the top of the page again, here; reading the thread key
+  // alone covered two of the queue's four kinds, so a closing window's thread
+  // printed again and a call's row never could be covered.
+  const door = (r: T) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : undefined);
   const aboutQueued = (r: T) => {
-    if (r.about && r.about.type === "conversation" && covered.has(r.about.id)) return true;
+    if (r.about && r.about.type === "conversation" && convs.has(r.about.id)) return true;
+    if (r.about && r.about.type === "call" && callsQueued.has(r.about.id)) return true;
     const cv = conversationOfNeedsKey(idOf(r));
-    return cv !== null && covered.has(cv);
+    if (cv !== null && convs.has(cv)) return true;
+    const call = callOfKey(idOf(r));
+    if (call !== null && callsQueued.has(call)) return true;
+    const to = door(r);
+    return !!to && to.startsWith("inbox/th-") && convs.has(to.slice("inbox/th-".length));
   };
   const fresh = rows.filter((r) => r.unread && !aboutQueued(r));
 

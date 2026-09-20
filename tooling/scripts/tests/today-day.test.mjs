@@ -68,7 +68,9 @@ test("the facts beside the recap's: appointments today with the next open time o
 });
 
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway, awayGrouped: todayAwayGrouped, leaks: todayLeaks };"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
+  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway };"), "the helpers, in order");
+  assert.ok(bridge.includes("window.__today = TODAY_HELPERS;"), "installed, not re-listed");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");

@@ -150,8 +150,9 @@ test("the harness is a demo, and the app is not", () => {
   assert.match(readCode(`${LEGACY}-bridge/seed-globals.ts`), /window\.__DEMO_MODE = false/);
 });
 
-test("the mockup draws Reports from the sample, loaded right after the stand-ins (serve-legacy.mjs builds it)", () => {
-  // A plain script, outside the .jsx lists above: the bridge never loads it, because a workspace draws its own numbers.
+test("the mockup draws Reports and Today from their samples, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {
+  // Plain scripts, outside the .jsx lists above: the bridge never loads them, because a workspace draws its own numbers.
   const tags = [...html.matchAll(/<script[^>]*\bsrc="([^"?]+)[^"]*"/g)].map((m) => m[1]);
   assert.equal(tags[tags.indexOf(STUBS) + 1], "data/reports-sample.js", "the demo's Reports reads window.__reportsSample");
+  assert.equal(tags[tags.indexOf(STUBS) + 2], "data/today-sample.js", "the demo's Today reads what installTodaySample published");
 });
