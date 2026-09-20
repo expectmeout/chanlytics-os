@@ -190,6 +190,17 @@
 .pk-ask .t { font-size: 13px; font-weight: 500; }
 .pk-ask .row { display: flex; gap: 6px; flex-wrap: wrap; }
 
+.pk-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.pk-chip { height: 30px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--line); background: var(--bg-raised); font-family: inherit; font-size: 12.5px; color: var(--ink); cursor: pointer; }
+.pk-chip.on { border-color: var(--ink); box-shadow: 0 0 0 1px var(--ink) inset; }
+.pk-input { width: 100%; height: 32px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 0 10px; font-family: inherit; font-size: 12.5px; color: var(--ink); }
+.pk-note-left { font-size: 11px; color: var(--ink-dim); }
+
+.pk-nf { position: absolute; right: 14px; top: 118px; width: 268px; z-index: 12; background: var(--bg-raised); border: 1px solid var(--line); border-radius: 10px; box-shadow: var(--shadow-lg); padding: 6px; }
+.pk-nf .pop-h { font-size: 9.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: var(--ink-dim); padding: 6px 8px 4px; }
+.pk-nf .pop-row { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 6px; font-size: 12.5px; color: var(--ink); border: 0; background: transparent; width: 100%; text-align: left; font-family: inherit; cursor: pointer; }
+.pk-nf .pop-row:hover { background: var(--bg-hover); }
+
 /* The shape an email state wears beside its word (PRD 10.4). */
 .ld-shape { display: inline-grid; place-items: center; flex: none; }
 .ld-shape-ok { color: var(--ok-ink); }
@@ -355,6 +366,18 @@
   .pl-peek .pk-decide, .pl-peek .pk-foot { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
   .pl-peek .pk-decide .btn, .pl-peek .pk-foot .btn { min-height: 48px; justify-content: center; border-radius: var(--radius-md); }
   .pl-peek .pk-foot .sp { display: none; }
+
+  /* The six outcomes are a 2 x 3 grid of 44px targets (PRD 9.4). Task 18's
+     block is the only place this file says anything about .pk-* on a phone;
+     Task 14 names the rule and leaves it here. */
+  .pl-peek .pk-chips { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .pl-peek .pk-chip { min-height: 44px; display: grid; place-items: center; border-radius: var(--radius-md); font-size: var(--text-md); }
+  .pl-peek .pk-input { height: 44px; font-size: var(--text-md); }
+
+  /* The why list carries .pl-peek because PL_OVERLAY judges its role="menu" by
+     that class. The full-screen rule above is the peek's own; the list stays
+     the popover it is on a desktop, inside the peek that is now the screen. */
+  .pk .pk-nf.pl-peek { position: absolute; inset: auto; right: 14px; top: 118px; width: 268px; background: var(--bg-raised); border: 1px solid var(--line); box-shadow: var(--shadow-lg); }
 
   /* Find opens a sheet from the bottom, and hold-to-talk is its first control. */
   .pl-finder { border-radius: var(--radius-xl) var(--radius-xl) 0 0; padding: 8px var(--gutter-page) 18px; display: flex; flex-direction: column; gap: 14px; max-height: 88vh; overflow: auto; }

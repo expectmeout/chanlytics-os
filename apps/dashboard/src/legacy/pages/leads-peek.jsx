@@ -63,6 +63,19 @@ const LeadPeekHead = ({ vm, onClose }) => {
   );
 };
 
+/** "What makes it not a fit?" -- five whys, one tap each (PRD 9.5). It teaches nothing in this release. */
+const LeadNotFitWhy = ({ busy, on }) => {
+  const W = window.__LEAD_WORDS;
+  return (
+    <div className="pop pk-nf pl-peek" role="menu" aria-label={W.notFitTitle} data-testid="peek-why">
+      <div className="pop-h">{W.notFitTitle}</div>
+      {W.whys.map((w) => (
+        <button key={w.id} type="button" role="menuitem" className="pop-row" disabled={busy} data-testid={`peek-why-${w.id}`} onClick={() => on.onWhy(w.id)}>{w.label}</button>
+      ))}
+    </div>
+  );
+};
+
 /** "Did you send it?" -- asked when the owner comes back to the tab, never before (PRD 9.3). */
 const LeadSentAsk = ({ busy, on }) => {
   const W = window.__LEAD_WORDS;
@@ -72,6 +85,47 @@ const LeadSentAsk = ({ busy, on }) => {
       <div className="row">
         <button type="button" className="btn btn-primary btn-sm" disabled={busy} data-testid="peek-sent-yes" onClick={on.onSaidSent}>{W.sentYes}</button>
         <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-sent-no" onClick={on.onNotYet}>{W.sentNo}</button>
+      </div>
+    </div>
+  );
+};
+
+/** "How did the call go?" -- the six outcomes, a note, and Save (PRD 9.4). On a phone they are a 2 x 3 grid. */
+const LeadCallAsk = ({ armed, busy, on }) => {
+  const W = window.__LEAD_WORDS;
+  const note = (armed && armed.note) || "";
+  const left = W.noteMax - note.length;
+  return (
+    <div className="pk-ask" role="group" aria-label={W.callQuestion} data-testid="peek-call-ask">
+      <div className="t">{W.callQuestion}</div>
+      <div className="pk-chips" role="radiogroup" aria-label={W.callQuestion}>
+        {W.outcomes.map((o) => (
+          <button
+            key={o.id}
+            type="button"
+            role="radio"
+            aria-checked={armed && armed.outcome === o.id}
+            className={`pk-chip${armed && armed.outcome === o.id ? " on" : ""}`}
+            data-testid={`peek-outcome-${o.id}`}
+            onClick={() => on.onOutcome(o.id)}
+          >{o.label}</button>
+        ))}
+      </div>
+      <input
+        className="pk-input"
+        type="text"
+        value={note}
+        maxLength={W.noteMax}
+        placeholder={W.notePlaceholder}
+        aria-label={W.noteLabel}
+        aria-describedby="peek-note-left"
+        data-testid="peek-note"
+        onChange={(e) => on.onNote(e.target.value)}
+      />
+      <div className="pk-note-left" id="peek-note-left" data-testid="peek-note-left">{W.noteLeft(left, W.noteMax)}</div>
+      <div className="row">
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !(armed && armed.outcome)} data-testid="peek-call-save" onClick={on.onSaveCall}>{W.callSave}</button>
+        <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-call-cancel" onClick={on.onCancelCall}>{W.callCancel}</button>
       </div>
     </div>
   );
@@ -138,8 +192,10 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
           </>
         )}
       </div>
+      {mode === "why" ? <LeadNotFitWhy busy={busy} on={on} /> : null}
       <div className="pk-body">
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
+        {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} /> : null}
         <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
         {vm.cls === "review" ? (
           <div className="pk-decide" data-testid="peek-decide">
@@ -281,11 +337,22 @@ const LeadPeekActions = (p) => {
     onStage: (stage) => post({ kind: "stage", stage }, "Not changed"),
     onBack: () => p.setMode("info"),
     onNotAFit: () => p.setMode("why"),
+    onWhy: async (why) => { p.setMode("info"); await post({ kind: "not_a_fit", why }, "Not set aside"); },
     onKeep: p.keep,
     onExclude: p.exclude,
     onPutBack: p.putBack,
     onCopy: p.copyEmail,
-    onCall: () => dial(vm.reach.phone ? vm.reach.phone.tel : null),
+    // The owner's own phone dials; the question waits until they are back at the tab.
+    onCall: () => { armFor("call"); dial(vm.reach.phone ? vm.reach.phone.tel : null); },
+    onOutcome: (outcome) => p.setArmed({ ...p.armed, outcome }),
+    onNote: (note) => p.setArmed({ ...p.armed, note: note.slice(0, window.__LEAD_WORDS.noteMax) }),
+    onCancelCall: () => p.setArmed(null),
+    onSaveCall: async () => {
+      const a = p.armed;
+      if (!a || !a.outcome) return;
+      p.setArmed(null);
+      await post({ kind: "outcome", outcome: a.outcome, ...(a.note ? { note: a.note } : {}) }, "Not recorded");
+    },
     // The draft: the route writes it and builds the mailto:, so the page encodes nothing.
     onDraft: async () => {
       p.setMode("draft");
@@ -330,4 +397,6 @@ const leadArmOnReturn = (armed, setArmed) => {
   };
 };
 
-Object.assign(window, { LeadPeek, LeadPeekActions, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn });
+// LeadNotFitWhy is published because the bulk bar asks the same five whys for a selection (Task 15): one list,
+// declared here where it is drawn first, never a second copy in leads-scope.jsx.
+Object.assign(window, { LeadPeek, LeadPeekActions, LeadNotFitWhy, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn });

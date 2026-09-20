@@ -448,3 +448,132 @@ test("Copy copies the subject and the body and arms the same question", async ()
   assert.equal(P.st.armed.kind, "sent");
   assert.equal(flashes.at(-1).msg, "Copied the email.");
 });
+
+/* ================================================= Task 14: the calls ==== */
+
+test("Call dials tel: from the peek and asks how it went when the tab comes back; the six are one radiogroup and the note says its cap", async () => {
+  reset();
+  const P = page();
+  await press(byTestId(P.draw().tree, "peek-call"));
+  assert.deepEqual(dialled, ["tel:+15125550142"]);
+  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["call", false]);
+  assert.equal(byTestId(P.draw().tree, "peek-call-ask"), null);
+  const stop = globalThis.leadArmOnReturn(P.st.armed, P.p.setArmed);
+  for (const fn of listeners.visibilitychange || []) fn();
+  stop();
+  const { tree } = P.draw();
+  assert.equal(textOf(find(byTestId(tree, "peek-call-ask"), (n) => n.props?.className === "t")), "How did the call go?");
+  const chips = find(tree, (n) => n.props?.className === "pk-chips");
+  assert.equal(chips.props.role, "radiogroup");
+  assert.deepEqual(all(chips, (n) => n.props?.role === "radio").map(textOf), ["Interested", "Call back later", "Not interested", "Left a voicemail", "No answer", "Wrong number"]);
+  assert.equal(byTestId(tree, "peek-note").props.maxLength, 280);
+  assert.equal(textOf(byTestId(tree, "peek-note-left")), "Up to 280 characters");
+  assert.equal(byTestId(tree, "peek-call-save").props.disabled, true, "Save waits for an outcome");
+});
+
+test("Interested says they are in People now and offers to open them, with no Undo", async () => {
+  reset();
+  const courier = courierOf({ stage: () => ({ ok: true, data: { stage: "converted", closed_reason: null, contact_id: "c-77", existed: false, converted: true, op_id: "op-4", version: 7, toast: "Travis Heights Coaching Co. is in People now, with this call on their page.", undo: null } }) });
+  const P = page({ courier, armed: { kind: "call", leadId: LEAD, asked: true, outcome: null, note: "" } });
+  await press(byTestId(P.draw().tree, "peek-outcome-interested"));
+  byTestId(P.draw().tree, "peek-note").props.onChange({ target: { value: "Wants a call Tuesday" } });
+  assert.equal(textOf(byTestId(P.draw().tree, "peek-note-left")), "260 left");
+  await press(byTestId(P.draw().tree, "peek-call-save"));
+  await settle();
+  assert.deepEqual(courier.seen[0], ["stage", LEAD, { kind: "outcome", outcome: "interested", note: "Wants a call Tuesday" }]);
+  assert.equal(flashes[0].msg, "Travis Heights Coaching Co. is in People now, with this call on their page.");
+  assert.equal(flashes[0].undo, undefined, "a person made is not undone from a toast");
+  assert.equal(flashes[0].action.label, "Open");
+  flashes[0].action.onClick();
+  assert.deepEqual(opened, ["c-77"]);
+});
+
+test("the other five post what they say, each with Undo; a wrong number keeps the stage and strikes the phone", async () => {
+  for (const [outcome, stage, toast] of [
+    ["call_back", "nurture", "Marked contacted."],
+    ["voicemail", "nurture", "Marked contacted."],
+    ["no_answer", "nurture", "Marked contacted."],
+    ["not_interested", "archived", "Marked as said no."],
+    ["wrong_number", "ready", "That number is marked wrong."],
+  ]) {
+    reset();
+    const courier = courierOf({ stage: () => ({ ok: true, data: { stage, closed_reason: stage === "archived" ? "said_no" : null, contact_id: null, existed: false, converted: false, op_id: "op-5", version: 8, toast, undo: { op_id: "op-5", version: 8 } } }) });
+    const P = page({ courier, armed: { kind: "call", leadId: LEAD, asked: true, outcome: null, note: "" } });
+    await press(byTestId(P.draw().tree, `peek-outcome-${outcome}`));
+    await press(byTestId(P.draw().tree, "peek-call-save"));
+    await settle();
+    assert.deepEqual(courier.seen[0], ["stage", LEAD, { kind: "outcome", outcome }], outcome);
+    assert.equal(flashes[0].msg, toast, outcome);
+    assert.equal(typeof flashes[0].undo, "function", outcome);
+    assert.deepEqual(opened, [], outcome);
+  }
+  reset();
+  const { tree } = page({ vm: vmOf({ phone_wrong: true }) }).draw();
+  assert.equal(/\bwrong\b/.test(byTestId(tree, "peek-phone-value").props.className), true);
+  assert.equal(byTestId(tree, "peek-call"), null, "a number marked wrong is not dialled again");
+  assert.equal(textOf(find(byTestId(tree, "peek-phone"), (n) => n.props?.className === "pk-rn")), "You marked this number wrong.");
+});
+
+test("I didn't call clears the question and posts nothing", async () => {
+  reset();
+  const courier = courierOf();
+  const P = page({ courier, armed: { kind: "call", leadId: LEAD, asked: true, outcome: "voicemail", note: "" } });
+  await press(byTestId(P.draw().tree, "peek-call-cancel"));
+  assert.equal(P.st.armed, null);
+  assert.deepEqual(courier.seen, []);
+});
+
+/* =============================================== Task 15: Not a fit ====== */
+
+test("Not a fit asks why in five ways, and the list teaches nothing in this release", async () => {
+  reset();
+  const P = page();
+  await press(byTestId(P.draw().tree, "peek-not-a-fit"));
+  const { tree } = P.draw();
+  const why = byTestId(tree, "peek-why");
+  assert.equal(why.props.role, "menu");
+  assert.equal(textOf(find(why, (n) => n.props?.className === "pop-h")), "What makes it not a fit?");
+  assert.deepEqual(all(why, (n) => n.props?.role === "menuitem").map(textOf), [
+    LEAD_NOT_A_FIT_WORDS.chain, LEAD_NOT_A_FIT_WORDS.wrong_kind, LEAD_NOT_A_FIT_WORDS.too_far, LEAD_NOT_A_FIT_WORDS.customer, LEAD_NOT_A_FIT_WORDS.other,
+  ]);
+  assert.equal(/learn|next searches|you said/i.test(textOf(why)), false, "the scoped learning and the you-said chips are release C");
+});
+
+test("Already a customer hides the place and says so; the other four close the lead and say Not a fit; each has Undo", async () => {
+  for (const [why, toast] of [
+    ["customer", "Hidden from every future search."],
+    ["chain", "Not a fit."],
+    ["wrong_kind", "Not a fit."],
+    ["too_far", "Not a fit."],
+    ["other", "Not a fit."],
+  ]) {
+    reset();
+    const courier = courierOf({ stage: () => ({ ok: true, data: { stage: "archived", closed_reason: why === "customer" ? "customer" : "not_a_fit", contact_id: null, existed: false, converted: false, op_id: "op-6", version: 9, toast, undo: { op_id: "op-6", version: 9 } } }) });
+    const P = page({ courier });
+    await press(byTestId(P.draw().tree, "peek-not-a-fit"));
+    await press(byTestId(P.draw().tree, `peek-why-${why}`));
+    await settle();
+    assert.deepEqual(courier.seen[0], ["stage", LEAD, { kind: "not_a_fit", why }], why);
+    assert.equal(flashes[0].msg, toast, why);
+    await flashes[0].undo();
+    assert.deepEqual(courier.seen[1], ["undo", "op-6", 9], why);
+    assert.equal(P.st.mode, "info", "the why list closes behind the answer");
+  }
+});
+
+test("no word the peek says names the vendor, or a dollar", () => {
+  reset();
+  const states = ["ok", "catch_all", "unknown", "invalid", "none", "checking"];
+  for (const email_state of states) {
+    for (const cls of ["qualified", "review", "excluded"]) {
+      const vm = vmOf({ email_state, member: { class: cls, fit: cls === "qualified" ? "strong" : null, excluded_by: cls === "excluded" ? "chain" : null } });
+      for (const mode of ["info", "why"]) {
+        for (const armed of [null, { kind: "sent", leadId: LEAD, asked: true }, { kind: "call", leadId: LEAD, asked: true, outcome: null, note: "" }]) {
+          const P = page({ vm, mode, armed });
+          const said = textOf(P.draw().tree);
+          assert.equal(/apify|compass|bounceverify|crawler|\$\d/i.test(said), false, `${email_state}/${cls}/${mode}: ${said.slice(0, 120)}`);
+        }
+      }
+    }
+  }
+});
