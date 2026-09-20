@@ -35,7 +35,8 @@
   gap: 2px;
   margin: 12px 12px 2px;
   padding: 2px;
-  background: var(--bg-active);
+  background: var(--bg);
+  border: 1px solid var(--line);
   border-radius: var(--radius-md);
   flex: none;
 }
