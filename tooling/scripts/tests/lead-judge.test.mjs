@@ -26,8 +26,8 @@ const places = [
 ];
 const good = {
   places: [
-    { ref: 1, criteria: [{ key: "website", answer: "pass", facts: ["host"] }, { key: "otc", answer: "unknown", facts: [] }, { key: "chain", answer: "pass", facts: ["name", "reviews"] }], email_index: 0, reason: "Independent trainer with a site of their own." },
-    { ref: 2, criteria: [{ key: "website", answer: "fail", facts: [] }, { key: "otc", answer: "unknown", facts: [] }, { key: "chain", answer: "unknown", facts: ["name"] }], email_index: null, reason: "No site listed." },
+    { ref: 1, criteria: [{ key: "website", answer: "pass", facts: ["host"] }, { key: "otc", answer: "unknown", facts: [] }, { key: "chain", answer: "pass", facts: ["name", "reviews"] }, { key: "kind", answer: "pass", facts: ["category"] }], email_index: 0, reason: "Independent trainer with a site of their own." },
+    { ref: 2, criteria: [{ key: "website", answer: "fail", facts: [] }, { key: "otc", answer: "unknown", facts: [] }, { key: "chain", answer: "unknown", facts: ["name"] }, { key: "kind", answer: "unknown", facts: ["name"] }], email_index: null, reason: "No site listed." },
   ],
 };
 
@@ -58,6 +58,7 @@ test("the schema is hand-written the way the brain sends one: every property req
 
 test("the rubric lists each criterion with its standard and every exclusion as a criterion the place must not be, and tells the judge to answer only from the facts", () => {
   const s = judgeSystemPrompt(plan);
+  assert.ok(s.includes("- kind: the place is one of the personal trainers the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]"), "the engine's own first criterion, on every plan (PRD 7 step 4)");
   assert.match(s, /- website: With a website \[required; Claude's read of the facts is enough \(likely\)\]/);
   assert.match(s, /- otc: Already sell OTC medicine \[preferred; must be SEEN in the facts/);
   assert.match(s, /- chain: the place is NOT Chain gyms \[required; fail when the place is what is left out\]/);
@@ -95,7 +96,7 @@ test("a well-formed answer is read back with its reason capped at twelve words",
   assert.equal(r.ok, true);
   assert.equal(r.answers[0].reason, "one two three four five six seven eight nine ten eleven twelve");
   assert.deepEqual(r.answers.map((a) => a.ref), [1, 2]);
-  assert.deepEqual(r.answers[1].criteria.map((c) => c.answer), ["fail", "unknown", "unknown"]);
+  assert.deepEqual(r.answers[1].criteria.map((c) => c.answer), ["fail", "unknown", "unknown", "unknown"]);
 });
 
 test("the parser refuses an answer that names a criterion the plan lacks, a fact the place lacks, an email index out of range, a missing or doubled place, or a criterion left unanswered", () => {
@@ -108,7 +109,8 @@ test("the parser refuses an answer that names a criterion the plan lacks, a fact
   assert.deepEqual(with_((p) => { p.ref = 9; return p; }), { ok: false, why: "ref 9 is not among the places" });
   assert.deepEqual(parseJudgeAnswer({ places: [good.places[0]] }, plan, places), { ok: false, why: "ref 2 not answered" });
   assert.deepEqual(parseJudgeAnswer({ places: [good.places[0], good.places[0]] }, plan, places), { ok: false, why: "ref 1 answered twice" });
-  assert.deepEqual(with_((p) => { p.criteria = p.criteria.slice(0, 2); return p; }), { ok: false, why: "ref 1: criterion chain not answered" });
+  assert.deepEqual(with_((p) => { p.criteria = p.criteria.filter((c) => c.key !== "chain"); return p; }), { ok: false, why: "ref 1: criterion chain not answered" });
+  assert.deepEqual(with_((p) => { p.criteria = p.criteria.filter((c) => c.key !== "kind"); return p; }), { ok: false, why: "ref 1: criterion kind not answered" }, "the engine's own kind criterion is owed an answer like any other");
   assert.deepEqual(with_((p) => { p.criteria.push({ key: "chain", answer: "pass", facts: [] }); return p; }), { ok: false, why: "ref 1: a criterion answered twice" });
   assert.equal(parseJudgeAnswer({ places: [{ ...good.places[0], email_index: "0" }, good.places[1]] }, plan, places).ok, false, "the shape is zod's to refuse");
   assert.equal(parseJudgeAnswer("not json", plan, places).ok, false);

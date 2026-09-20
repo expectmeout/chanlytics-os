@@ -3699,6 +3699,7 @@ var LEAD_PROBE_PLACES = 25;
 var LEAD_JUDGE_BATCH = 25;
 var LEAD_MAX_PLACES2 = 1e3;
 var LEAD_FACT_MAX = 120;
+var LEAD_KIND_KEY = "kind";
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
@@ -3869,6 +3870,7 @@ function placesToAsk(plan, remaining, yieldSoFar) {
 function classify(plan, answer, facts, emailState, inArea2) {
   const reasons = [];
   const rubric = [
+    { key: LEAD_KIND_KEY, standard: "likely", required: true },
     ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
     ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
   ];

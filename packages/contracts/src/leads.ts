@@ -15,7 +15,7 @@
 import { z } from "zod";
 import {
   LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
-  LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
+  LEAD_KIND_KEY, leadKindWord, LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
@@ -655,6 +655,7 @@ export interface LeadPeekVM {
 export function leadExclusionWord(search: LeadSearchDto | null, key: string | null): string {
   if (!key) return LEAD_LEFT_OUT_WORD;
   const plan = search?.plan;
+  if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return ex.text;
   const cr = plan?.criteria.find((c) => c.key === key);

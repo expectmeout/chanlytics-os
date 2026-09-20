@@ -9640,6 +9640,8 @@ var LEAD_JUDGE_BATCH = 25;
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_REASON_MAX_WORDS = 12;
+var LEAD_KIND_KEY = "kind";
+var leadKindWord = (name) => `Not one of the ${name}`;
 var LEAD_ASSUMED_YIELD = 0.5;
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
@@ -9890,6 +9892,7 @@ var LEAD_EMAIL_REASON = /^email:/;
 function classify(plan, answer, facts, emailState, inArea) {
   const reasons = [];
   const rubric = [
+    { key: LEAD_KIND_KEY, standard: "likely", required: true },
     ...plan.exclusions.map((e) => ({ key: e.key, standard: "likely", required: true })),
     ...plan.criteria.map((c) => ({ key: c.key, standard: c.standard, required: c.required }))
   ];
@@ -11443,6 +11446,7 @@ Not interested? Reply "no thanks" and I won't write again.`;
 function leadExclusionWord(search, key) {
   if (!key) return LEAD_LEFT_OUT_WORD;
   const plan = search?.plan;
+  if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return ex.text;
   const cr = plan?.criteria.find((c) => c.key === key);
@@ -11685,6 +11689,7 @@ function judgeSystemPrompt(plan) {
   lines.push(`The search: ${plan.count} ${plan.name} in ${plan.area.label}.`);
   lines.push("For every place, answer each criterion below with pass, fail or unknown, and list the fact keys you used (name, category, city, state, host, rating, reviews, emails, phone_matches_site). Say unknown when the facts do not say; never guess a fail.");
   lines.push("A fail may cite a fact that is missing (its absence is the evidence); a pass must cite a fact that is actually there.");
+  lines.push(`- ${LEAD_KIND_KEY}: the place is one of the ${plan.name} the search is for -- that kind of business itself, not a neighbour, supplier, competitor or a business that merely serves them [required; Claude's read of the name and category is enough (likely)]`);
   for (const c of plan.criteria) {
     const bar = c.standard === "seen" ? "must be SEEN in the facts: pass only when a fact you cite shows it; a read from the name or category alone is unknown" : "Claude's read of the facts is enough (likely)";
     lines.push(`- ${c.key}: ${c.text} [${c.required ? "required" : "preferred"}; ${bar}]`);
@@ -11739,7 +11744,7 @@ function parseJudgeAnswer(raw, plan, places) {
   const parsed = AnswerSchema.safeParse(raw);
   if (!parsed.success) return { ok: false, why: `shape: ${parsed.error.issues[0]?.message ?? "invalid"}` };
   const byRef = new Map(places.map((p) => [p.ref, p]));
-  const wanted = [...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
+  const wanted = [LEAD_KIND_KEY, ...plan.criteria.map((c) => c.key), ...plan.exclusions.map((e) => e.key)];
   const answers = [];
   const seen = /* @__PURE__ */ new Set();
   for (const a of parsed.data.places) {
@@ -12039,6 +12044,7 @@ export {
   LEAD_FREE_MAIL,
   LEAD_JUDGE_BATCH,
   LEAD_JUNK_EMAIL_DOMAINS,
+  LEAD_KIND_KEY,
   LEAD_LEFT_OUT_WORD,
   LEAD_LISTS,
   LEAD_LIST_WORDS,
@@ -12475,6 +12481,7 @@ export {
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
+  leadKindWord,
   leadMonth,
   leadNoCardLine,
   leadNotBusinessesLine,
