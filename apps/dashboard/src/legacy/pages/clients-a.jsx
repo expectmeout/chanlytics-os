@@ -1617,6 +1617,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [values, setValues] = useState(ldValuesPref());
   const [lightboxId, setLightboxId] = useState(null);
   const [fitChip, setFitChip] = useState(null);
+  const [benchGroup, setBenchGroup] = useState(null);
 
   // One criterion of the Excluded view, from the chips at its head.
   const [chip, setChip] = useState(null);
@@ -2227,6 +2228,13 @@ function ldValuesPref() { try { return !!window.localStorage && window.localStor
         filtered={filtered}
         onClearFilters={() => { setQ(""); setChip(null); setFitChip(null); goto({ list: "all", cls: null }); }}
         band={band}
+        // Needs review, as a workbench (D5): the groups are contracts', the pile is the rows this view loaded, and
+        // the month is the surface's, so what a press costs is a number the owner can see.
+        benchGroups={leadView.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups ? window.__LEAD_VM.leadReviewGroups(leads.rows, openSearch) : []}
+        benchGroup={benchGroup}
+        onBenchGroup={setBenchGroup}
+        month={leads.month}
+        onNearby={(area) => onStripAction("nearby", { ...openSearch.plan, area })}
         fit={fitChip}
         onPickFit={setFitChip}
         values={values}

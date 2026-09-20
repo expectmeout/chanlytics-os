@@ -1004,6 +1004,48 @@ function reviewGroupOf(reason: string): LeadReviewGroupId | null {
   if (reason === "out_of_area") return "out_of_area";
   return null;
 }
+export const LEAD_REVIEW_ACT_WORDS: Record<LeadReviewAct, string> = { check_again: "Check again", find_email: "Find an email", keep: "Keep", exclude: "Exclude" };
+/** Why a pile is waiting, in a sentence: what was looked at, and what is true of every lead in it. */
+export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
+  mailbox_waiting: "The mailbox check is still running on these. Nothing to press — they move on their own.",
+  checks_out: "Their address answered after this month's leads were spoken for, so they are waiting for you to keep them.",
+  mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
+  bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
+  no_email: "Their home, contact and about pages were read, and no address was on any of them.",
+  catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
+  unsure: "Claude could not tell from the listing or from their site.",
+  read_only: "Only the listing says so, and this search asked to see it for itself.",
+  out_of_area: "They sit outside the area you asked for, so they were not counted.",
+};
+/** A mailbox re-check, in cents an address (the source card's own price): what "Check again" says it costs. */
+export const LEAD_CHECK_CENTS_EACH = 0.089;
+export const leadCheckAgainCents = (n: number): number => Math.max(1, Math.round(n * LEAD_CHECK_CENTS_EACH));
+/**
+ * What each press on the bench does, and what it costs (D5). One derivation, because the bar offers the acts and
+ * the column beside it explains them: a Keep that spends a lead of the month says so with the number left.
+ */
+export function leadReviewCosts(acts: LeadReviewAct[], n: number, month: LeadMonthDto | null): { act: LeadReviewAct; label: string; line: string }[] {
+  const line = (a: LeadReviewAct): string => {
+    switch (a) {
+      case "keep": return month
+        ? `They join Ready and count against this month. ${n} of your ${month.left} left.`
+        : "They join Ready and count against this month.";
+      case "exclude": return "They don't count, and nothing is charged.";
+      case "check_again": return `About ${leadCheckAgainCents(n)}¢. Their answer lands here in a few minutes.`;
+      case "find_email": return "Claude reads their pages again for an address.";
+    }
+  };
+  return acts.map((act) => ({ act, label: LEAD_REVIEW_ACT_WORDS[act], line: line(act) }));
+}
+/** What a search asked for, in the owner's own words: its criteria, then what it leaves out (D5's right column). */
+export function leadAskedFor(search: LeadSearchDto | null): { text: string; kind: "criterion" | "exclusion" }[] {
+  const plan = search?.plan;
+  if (!plan) return [];
+  return [
+    ...plan.criteria.map((c) => ({ text: c.text, kind: "criterion" as const })),
+    ...plan.exclusions.map((e) => ({ text: e.text, kind: "exclusion" as const })),
+  ];
+}
 export interface LeadReviewGroup { id: LeadReviewGroupId; key: string; label: string; ids: string[]; acts: LeadReviewAct[] }
 /**
  * Needs review as a queue: one group per thing that would resolve it, each with the leads in it and the acts that
