@@ -2616,6 +2616,7 @@ type Database = {
                     lat: number | null;
                     linkedin_url: string | null;
                     lng: number | null;
+                    logo_url: string | null;
                     maps_url: string | null;
                     neighborhood: string | null;
                     phone_e164: string | null;
@@ -2665,6 +2666,7 @@ type Database = {
                     lat?: number | null;
                     linkedin_url?: string | null;
                     lng?: number | null;
+                    logo_url?: string | null;
                     maps_url?: string | null;
                     neighborhood?: string | null;
                     phone_e164?: string | null;
@@ -2714,6 +2716,7 @@ type Database = {
                     lat?: number | null;
                     linkedin_url?: string | null;
                     lng?: number | null;
+                    logo_url?: string | null;
                     maps_url?: string | null;
                     neighborhood?: string | null;
                     phone_e164?: string | null;
@@ -4374,6 +4377,7 @@ type Database = {
                     lead_id: string;
                     linkedin_url: string;
                     lng: number;
+                    logo_url: string;
                     maps_url: string;
                     member_id: string;
                     neighborhood: string;

@@ -14,6 +14,7 @@ import { judgeBatch, factsOf, fact, JUDGE_REFUSED_REASON } from "../../../packag
 import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
 import { afterProbe } from "../../../packages/core/src/leads/question.ts";
 import { discoveryEnding, termsShortOf, runStateOf } from "../../../packages/core/src/leads/endings.ts";
+import { leadMarkFrom } from "../../../packages/core/src/leads/mark.ts";
 import { runIdFor, sha256Hex } from "../../../packages/core/src/leads/ids.ts";
 import { PLAN, mapsItem, fakeJudge } from "./_lead-fixtures.mjs";
 
@@ -178,4 +179,36 @@ test("nearestAreas: the nearest ZIP centres past the ring, nearest first, each a
   }
   assert.deepEqual(nearestAreas(austin, { excludeWithinM: 15_000, take: 3, maxM: 10_000 }), [], "nothing between a ring wider than the ceiling");
   assert.equal(nearestAreas(austin, { excludeWithinM: 0, take: 1 })[0].query.endsWith(", USA"), true, "no state: the query still names the country");
+});
+
+// D6: the business's own mark, read off its own home page. No request, no state, no lead -- the runner does the
+// fetching inside its own time, and this only reads.
+test("the mark a site declares: a said logo beats an icon, an icon beats a favicon, and nothing is better than a guess", () => {
+  const O = "https://zilkerstrength.example";
+  const head = (inner) => `<!doctype html><html><head>${inner}</head><body><p>not read</p></body></html>`;
+  // 1. A logo the site says is its logo wins outright, as a string or as an image object, and escaped slashes resolve.
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"@type":"Organization","logo":"https:\\/\\/cdn.example\\/mark.png"}</script><link rel="apple-touch-icon" href="/t.png">`), O), "https://cdn.example/mark.png");
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"logo":{"@type":"ImageObject","url":"/brand/logo.svg"}}</script>`), O), `${O}/brand/logo.svg`);
+  // 2. An apple-touch-icon beats a plain icon; the biggest one wins inside its own tier.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/favicon.png" sizes="32x32"><link rel="apple-touch-icon" href="/apple-180.png" sizes="180x180"><link rel="apple-touch-icon" sizes="120x120" href="/apple-120.png">`), O), `${O}/apple-180.png`);
+  // 3. An SVG icon stands with the apple icons: sharp at any size.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/favicon.ico"><link rel="icon" type="image/svg+xml" href="/mark.svg">`), O), `${O}/mark.svg`);
+  // 4. A .ico is last: sixteen pixels of mush beside a 48px tile.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/icon-64.png" sizes="64x64">`), O), `${O}/icon-64.png`);
+  // However the page quoted it, and wherever it pointed.
+  assert.equal(leadMarkFrom(head(`<link rel=icon href=//cdn.example/i.png>`), O), "https://cdn.example/i.png");
+  assert.equal(leadMarkFrom(head(`<link rel='apple-touch-icon' href='./img/mark.png'>`), O), `${O}/img/mark.png`);
+  assert.equal(leadMarkFrom(head(`<link rel="ICON" HREF="https://other.example/m.png">`), O), "https://other.example/m.png");
+  // What it will not answer.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="data:image/png;base64,AAAA">`), O), null, "bytes are not an address");
+  assert.equal(leadMarkFrom(head(`<link rel="mask-icon" href="/pin.svg" color="#000">`), O), null, "a monochrome silhouette is never the mark");
+  assert.equal(leadMarkFrom(head(`<meta property="og:image" content="/hero.jpg">`), O), null, "a hero photograph is what we already have");
+  assert.equal(leadMarkFrom(head(`<link rel="stylesheet" href="/a.css"><link rel="canonical" href="/">`), O), null);
+  assert.equal(leadMarkFrom(head(""), O), null);
+  assert.equal(leadMarkFrom("", O), null);
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/i.png">`), "not a site"), null, "an origin that is not one resolves nothing");
+  // The body is not the head: a page that never closes one is read only as far as it is worth reading.
+  assert.equal(leadMarkFrom(`<head></head><body><link rel="apple-touch-icon" href="/b.png"></body>`, O), null, "what the body says about icons is not the head's word");
+  assert.equal(leadMarkFrom(`<html><link rel="icon" href="/i.png">`, O), `${O}/i.png`, "a page with no </head> is still read from the start");
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/${"x".repeat(600)}.png">`), O), null, "an address longer than the column holds is no address");
 });

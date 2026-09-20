@@ -28,6 +28,7 @@ import { CARDS, CHECKER_RUN_TIMEOUT_SECS, MAPS_RUN_TIMEOUT_SECS, areaCenter, typ
 import { cleanPlace, type CleanPlace } from "./clean";
 import { discoveryEnding, FINAL_RUN_STATES, runStateOf, termsShortOf } from "./endings";
 import { inArea, haversineM, medianCenter, nearestAreas, radiusFromSpread, type LatLng } from "./geo";
+import { leadMarkFrom } from "./mark";
 import { runIdFor, sha256Hex } from "./ids";
 import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "./identity";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, factsOf, judgeBatch, opIdFor, type JudgedBatch } from "./judge";
@@ -296,6 +297,8 @@ export function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: J
       price: excluded ? null : c.raw.price, reviews_dist: excluded ? null : c.raw.reviewsDist,
       facebook_url: excluded ? null : c.raw.facebook, linkedin_url: excluded ? null : c.raw.linkedin, tiktok_url: excluded ? null : c.raw.tiktok,
       claimed: excluded ? null : c.raw.claimed, maps_url: excluded ? null : c.raw.mapsUrl, rank: excluded ? null : c.raw.rank,
+      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below.
+      logo_url: null,
     },
     member: {
       judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
@@ -450,6 +453,8 @@ async function collectHeld(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow, o
       const rule = r.duplicateOf && !r.prep.rule ? { class: "excluded" as const, reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" } : r.prep.rule;
       return memberOf(plan, run.term ?? "", r.prep.clean, answer, judged.judgment?.op_id ?? null, judged.model, rule, geo, r.shares, r.duplicateOf);
     });
+    // Their own marks, read from their own sites, before the page is committed with everything else about them.
+    await markPlaces(p, places);
     newMembers.push(...places);
 
     const to = base + end;
@@ -571,6 +576,36 @@ export type CheckOutcome = { kind: "not_open" } | { kind: "paused" } | { kind: "
 export type CheckAgain = { nonce: string; leadIds: string[] };
 /** A run started by Check again: the door's nonce is in its term, so the round may have ended by the time it commits. */
 export const isAgainRun = (run: Pick<LeadRunRow, "purpose" | "term">): boolean => run.purpose === "check" && (run.term ?? "").startsWith("again:");
+
+/**
+ * The business's own mark (D6), for the places this page is about to commit: one small GET of each new lead's home
+ * page, read for the logo it declares (mark.ts). It is the last thing the collect does and the first thing it gives
+ * up: a page that does not answer inside the allowance, or a collect already short of time, simply commits leads
+ * with no mark, and the next round's copy of that place fills it where it was empty.
+ *
+ * A left-out place is never marked, as it stores none of the rest (§0.4), and a place with no site has nothing to read.
+ */
+export const MARK_ALLOWANCE_MS = 5_000;
+export const MARK_AT_ONCE = 6;
+export async function markPlaces(p: LeadPorts, places: CollectPlace[]): Promise<number> {
+  const fetchText = p.fetchText;
+  if (!fetchText) return 0;
+  const want = places.filter((x) => x.member.class !== "excluded" && !!x.place.website_host);
+  const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + MARK_ALLOWANCE_MS);
+  let marked = 0;
+  for (let i = 0; i < want.length; i += MARK_AT_ONCE) {
+    const left = until - p.now().getTime();
+    if (left <= 250) break;
+    await Promise.all(want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
+      const origin = `https://${x.place.website_host}`;
+      const html = await fetchText(origin, left).catch(() => null);
+      if (!html) return;
+      const mark = leadMarkFrom(html, origin);
+      if (mark) { x.place.logo_url = mark; marked += 1; }
+    }));
+  }
+  return marked;
+}
 
 /** The members whose picked address still waits for its check, in one fixed order. */
 export function checkable(members: LeadMemberRow[]): LeadMemberRow[] {

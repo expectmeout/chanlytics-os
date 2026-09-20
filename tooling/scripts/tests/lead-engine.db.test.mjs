@@ -128,6 +128,7 @@ let a2Started = 0;
  * provider and the judge faked (_lead-fixtures.mjs), scheduleJobOnce for the next job, and
  * the webhook token derived as the edge derives it, under the test secret _lead-world.mjs holds.
  */
+const pages = {};
 function a2World(base) {
   const apify = fakeApify();
   apify.state.started = a2Started;
@@ -141,7 +142,7 @@ function a2World(base) {
   };
   const wires = { apify, judge, webhookBase: "https://edge.example", webhookToken };
   const ports = (owner) => ({
-    db: leadDb(db), apify, judge, now: () => new Date(), webhookBase: wires.webhookBase, webhookToken: wires.webhookToken,
+    db: leadDb(db), apify, judge, now: () => new Date(), webhookBase: wires.webhookBase, webhookToken: wires.webhookToken, fetchText: async (url) => pages[url] ?? null,
     schedule: async (kind, payload, secs) => { await scheduleJobOnce(db, { tenantId: A, kind, dueAt: new Date(Date.now() + secs * 1000), payload }); },
     deadline: Date.now() + 45_000, owner,
   });
@@ -799,6 +800,20 @@ const NO_EDGE = "missing cron_sweep_key or edge_base_url in Vault";
  * because the predicate is the whole database's: other database suites run
  * beside this one and their open rounds are lead work too.
  */
+/**
+ * The same turn, judged against the counts the predicate itself reads. This suite shares its database with every
+ * other, and the counts are read before the clock asks, so work that arrives in between makes one turn disagree
+ * with itself. A turn that disagrees is taken again: three in a row is the predicate, not the traffic.
+ */
+async function turnAgrees(why) {
+  let turn = null;
+  for (let i = 0; i < 3; i += 1) {
+    turn = await turnTheClock(why);
+    if (turn.asked === (turn.open > 0 || turn.live > 0)) return turn;
+  }
+  return assert.fail(`${why}: the clock and the database disagreed three turns running: ${JSON.stringify(turn)}`);
+}
+
 async function turnTheClock(why) {
   const was = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
   const mark = `lead-engine ${Math.random().toString(36).slice(2)}`;
@@ -828,8 +843,7 @@ test("the clock asks the edge exactly when the database holds lead work, and rec
     ok(await db.from("lead_rounds").delete().eq("tenant_id", id));
   }
   assert.deepEqual(ok(await db.from("lead_rounds").select("id").eq("tenant_id", A)), [], "none of this suite's rounds is left");
-  let turn = await turnTheClock("nothing of this suite's left");
-  assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `with none of this suite's work left, the clock answered the database: ${JSON.stringify(turn)}`);
+  let turn = await turnAgrees("nothing of this suite's left");
 
   // A round queued with no run at all: its start job died before it wrote
   // one, and nothing but the sweep can end it and give its reservation back.
@@ -839,9 +853,8 @@ test("the clock asks the edge exactly when the database holds lead work, and rec
   assert.ok(made.round_id, JSON.stringify(made));
   assert.equal(ok(await db.from("lead_rounds").select("state").eq("id", made.round_id).single()).state, "queued");
   assert.deepEqual(ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id)), [], "and nothing has run for it");
-  turn = await turnTheClock("a round of this suite's own, queued, with no run");
+  turn = await turnAgrees("a round of this suite's own, queued, with no run");
   assert.ok(turn.open >= 1, "this suite's own round is open");
-  assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `the clock answered the database: ${JSON.stringify(turn)}`);
   assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
 });
 
@@ -1099,4 +1112,26 @@ test("the row reads the neighbourhood and the band reads the fit split: written 
   assert.deepEqual([lead1.neighborhood, lead2.neighborhood], ["Hawthorne", "Irvington"], "kept where it was said, filled where it was empty");
   ok(await db.rpc("lead_blank", { p_lead_id: lead1.id }));
   assert.equal(ok(await db.from("leads").select("neighborhood").eq("id", lead1.id).single()).neighborhood, null, "blanked with the rest");
+});
+
+// D6 (00147): the business's own mark rides the same commit as every other fact about it, comes back from
+// leads_page, fills a known place only where it was empty, and goes with the rest when the lead is blanked.
+test("the lead wears its own mark: written by the commit, returned by the page, filled where empty, blanked with the rest", { skip }, async () => {
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "barbers", asked: "barbers in Austin", plan: plan(5) }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({ tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: plan(5), plan_version: 1, target: 5, state: "queued", allowance_reserved: 5, cost_reserved_usd: 1, month: leadMonth(TZ, new Date()), day: "2026-09-20", platform_day: "2026-09-20" }).select("id").single()).id;
+  const run = await runOf(round, "barber", "w-m6");
+  const marked = (n, logo) => { const x = place(n, "qualified"); x.place = { ...x.place, logo_url: logo }; return x; };
+  let r = ok(await commit(run.id, "w-m6", run.gen, 0, 1, { judgment: null, places: [marked(931, "https://cdn.example/mark.png"), marked(932, null)], usage_usd: 0, items_seen: 2, run_state: null, next: null, round: { state: "probing", question: null, ending: null } }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const rows = ok(await owner.client.rpc("leads_page", { p_tenant_id: A, p_search_id: search, p_class: "qualified", p_sort: "found", p_after_key: null, p_limit: 50 }));
+  assert.equal(rows.find((x) => x.place_id === "ChIJfixture0931").logo_url, "https://cdn.example/mark.png", "the page returns what the commit wrote");
+  assert.equal(rows.find((x) => x.place_id === "ChIJfixture0932").logo_url, null, "a site that declared none keeps none");
+  // The same place found again: a mark it already wears stays, and one it was missing is filled.
+  r = ok(await commit(run.id, "w-m6", run.gen, 1, 2, { judgment: null, places: [marked(931, "https://cdn.example/other.png"), marked(932, "https://place932.example/icon.svg")], usage_usd: 0, items_seen: 2, run_state: null, next: null, round: null }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const one = await leadByPlace("ChIJfixture0931");
+  const two = await leadByPlace("ChIJfixture0932");
+  assert.deepEqual([one.logo_url, two.logo_url], ["https://cdn.example/mark.png", "https://place932.example/icon.svg"], "kept where it was worn, filled where it was empty");
+  ok(await db.rpc("lead_blank", { p_lead_id: one.id }));
+  assert.equal(ok(await db.from("leads").select("logo_url").eq("id", one.id).single()).logo_url, null, "blanked with the rest");
 });

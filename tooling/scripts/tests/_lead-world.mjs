@@ -38,7 +38,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
   };
   /** What the commit refuses by value (00140 hashes; the rows in lead_suppressions carry the real hash for the adapter's read). */
   const suppressedValues = new Set();
-  const w = { T, clock };
+  const w = { T, clock, pages: {} };
 
   /** scheduleJobOnce's rule, with 00140's index on lead_collect's run and seq modelled. */
   w.scheduleOnce = async (kind, dueAt, payload) => {
@@ -296,9 +296,10 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
   };
   w.judge = fakeJudge();
   /** The wires the edge would bind (lead-wires.ts), over the fakes. */
-  w.wires = { apify, judge: w.judge, webhookBase: "https://edge.example", webhookToken };
+  // The home pages this world serves, by origin (D6): what markPlaces reads a lead's own mark from.
+  w.wires = { apify, judge: w.judge, webhookBase: "https://edge.example", webhookToken, fetchText: async (url) => w.pages[url] ?? null };
   w.ports = (owner, over = {}) => ({
-    db: over.db, apify, judge: w.judge, now: clock.now, webhookBase: "https://edge.example", webhookToken, schedule: (kind, payload, secs) => w.scheduleOnce(kind, clock.ms + secs * 1000, payload).then(() => undefined), deadline: clock.ms + 45_000, owner, ...over,
+    db: over.db, apify, judge: w.judge, now: clock.now, webhookBase: "https://edge.example", webhookToken, fetchText: async (url) => w.pages[url] ?? null, schedule: (kind, payload, secs) => w.scheduleOnce(kind, clock.ms + secs * 1000, payload).then(() => undefined), deadline: clock.ms + 45_000, owner, ...over,
   });
 
   /* ------------------------------------------------------------ the rows */
