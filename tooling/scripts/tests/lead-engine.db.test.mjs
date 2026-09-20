@@ -825,14 +825,20 @@ test("the clock asks the edge exactly when the database holds lead work, and rec
 test("A2: two starts of one round make one set of run rows and reach the provider once; the loser sees the rows already taken", { skip }, async () => {
   const made = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: plan(20), p_via: "people", p_estimate_usd: 1 }));
   const w = a2World(126);
-  const first = await startRound(w.ports("job-a"), made.round_id, "job-a");
-  const second = await startRound(w.ports("job-b"), made.round_id, "job-b");
-  assert.deepEqual(first.runs.map((r) => r.kind), ["started", "started"]);
-  assert.deepEqual(second.runs.map((r) => r.kind), ["already", "already"]);
-  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2, "one provider run per term, whoever starts");
+  // At the same time, not one after the other: run them in turn and the second
+  // reads the rows already started and never reaches lead_run_claim at all.
+  // Together, the claim itself is what decides, one row at a time.
+  const [first, second] = await Promise.all([
+    startRound(w.ports("job-a"), made.round_id, "job-a"),
+    startRound(w.ports("job-b"), made.round_id, "job-b"),
+  ]);
+  const kinds = [...first.runs, ...second.runs].map((r) => r.kind);
+  assert.equal(kinds.filter((k) => k === "started").length, 2, `one start per term across both jobs: ${kinds}`);
+  assert.ok(kinds.every((k) => ["started", "already", "someone_elses"].includes(k)), `whoever loses a row is refused by the claim, never by a throw: ${kinds}`);
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2, "one provider run per term, whoever wins the claim");
   const runs = ok(await db.from("lead_runs").select("id, state, claimed_by, apify_run_id, webhook_token_hash").eq("round_id", made.round_id).order("term"));
   assert.equal(runs.length, 2);
-  assert.ok(runs.every((r) => r.state === "running" && r.claimed_by === "job-a" && r.apify_run_id));
+  assert.ok(runs.every((r) => r.state === "running" && ["job-a", "job-b"].includes(r.claimed_by) && r.apify_run_id));
   assert.deepEqual(runs.map((r) => r.id),
     [await runIdFor(made.round_id, "probe", "personal trainer"), await runIdFor(made.round_id, "probe", "strength coach")],
     "each row's id is derived from the round, the phase and the term");
@@ -850,10 +856,13 @@ test("A2: a late webhook schedules the final collect once: three deliveries, one
     const body = JSON.stringify({ eventType: "ACTOR.RUN.SUCCEEDED", eventData: { actorRunId: runRow.apify_run_id }, resource: { id: runRow.apify_run_id, status: "SUCCEEDED" } });
     const deliver = async (token) => (await door.POST(new Request(`https://edge.example/api/apify-webhook?run=${runRow.id}&token=${token}`, { method: "POST", headers: { "content-type": "application/json" }, body }), { waitUntil: () => {} })).status;
     const token = await w.wires.webhookToken(runRow.id);
+    const finals = async () => ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "lead_collect").in("state", ["scheduled", "fired"]))
+      .filter((j) => j.payload.run_id === runRow.id && j.payload.seq === "final").length;
     assert.equal(await deliver(await w.wires.webhookToken(ids.a2.runs[1])), 401, "another row's token");
+    // Counted here, before any good delivery: after one, the once-per-key index would hide a job the 401 had written.
+    assert.equal(await finals(), 0, "a wrong token writes nothing");
     assert.deepEqual([await deliver(token), await deliver(token), await deliver(token)], [200, 200, 200]);
-    const jobs = ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "lead_collect").in("state", ["scheduled", "fired"]));
-    assert.equal(jobs.filter((j) => j.payload.run_id === runRow.id && j.payload.seq === "final").length, 1);
+    assert.equal(await finals(), 1);
   } finally {
     setPg(null);
   }
@@ -868,10 +877,18 @@ test("A2: a collect commits one batch of the probe through the real adapter; a s
   assert.ok(members.length >= 12, `one member per place of the page: ${members.length}`);
   assert.ok(members.every((m) => Array.isArray(m.judgment.reasons)), "the reason tokens ride the judgment, for lead_check_commit to read");
   ok(await owner.client.rpc("lead_round_stop", { p_search_id: ids.a2.search }));
+  // Stop left an ending pending on the round. The poll the door never
+  // cancelled arrives now: it commits nothing and decides nothing, or it would
+  // write over the ending the owner asked for and start the next phase.
   const stale = await collect(w.ports("collect-2"), runs[1], "p0", "collect-2");
-  assert.equal(stale.kind, "committed", "a fresh lease carries the moved generation");
+  assert.equal(stale.kind, "round_closing", "a poll that lands after Stop is refused, not committed");
   const gen = ok(await db.rpc("lead_run_lease", { p_run_id: runs[1], p_owner: "collect-3", p_seconds: 60 }));
-  assert.deepEqual(await w.db.collectCommit(runs[1], "collect-3", gen - 1, 0, 0, { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: null }), { ok: false, why: "lease" });
+  // The row's own offset, so only the generation is wrong: 00140 checks the
+  // lease before the offset, and a made-up offset would answer "lease" here
+  // whatever the generation was.
+  const at = ok(await db.from("lead_runs").select("read_offset").eq("id", runs[1]).single()).read_offset;
+  const page = { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: null };
+  assert.deepEqual(await w.db.collectCommit(runs[1], "collect-3", gen - 1, at, at, page), { ok: false, why: "lease" });
 });
 
 test("A2: Stop during the checks: the round ends 'stopped' only after the last check commits", { skip }, async () => {
