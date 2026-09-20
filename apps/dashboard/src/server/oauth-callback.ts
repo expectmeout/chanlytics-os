@@ -17,15 +17,41 @@ export function safeNext(next: string | null | undefined): string {
   return n;
 }
 
+/**
+ * What came back instead of a code, kept FOR THE LOG and never for the page.
+ *
+ * Supabase returns a refusal as three query fields -- `error`, `error_code`
+ * and `error_description` -- and the last two are the only place the reason
+ * is ever said: "Unable to exchange external code" is a wrong client secret,
+ * "Signups not allowed" is a console switch, `access_denied` is a person who
+ * pressed Cancel. This used to read `error` alone and drop the rest, so seven
+ * sign-ins failed in production inside a week and nothing on this side could
+ * say why. The page still says one neutral sentence; the log says which.
+ *
+ * Clipped, because a query string is written by whoever builds the link.
+ */
+export interface CallbackRefusal {
+  error: string;
+  code: string | null;
+  description: string | null;
+}
+
+const clip = (s: string | null | undefined): string | null => {
+  const t = (s ?? "").replace(/[\r\n]+/g, " ").trim();
+  return t ? t.slice(0, 200) : null;
+};
+
 export interface CallbackPlan {
   /** The code to exchange for a session, or null when there is nothing to exchange. */
   exchange: string | null;
   /** Where the browser goes: the asked-for page after a code; sign-in when there was none, saying why when the provider said. */
   to: string;
+  /** The provider's refusal, when there was one: what the route logs. */
+  refused: CallbackRefusal | null;
 }
 
-export function callbackPlan(q: { code: string | null; next: string | null; error: string | null }): CallbackPlan {
-  if (q.error) return { exchange: null, to: OAUTH_FAILED };
-  if (!q.code) return { exchange: null, to: "/login" };
-  return { exchange: q.code, to: safeNext(q.next) };
+export function callbackPlan(q: { code: string | null; next: string | null; error: string | null; errorCode?: string | null; errorDescription?: string | null }): CallbackPlan {
+  if (q.error) return { exchange: null, to: OAUTH_FAILED, refused: { error: clip(q.error) ?? "unknown", code: clip(q.errorCode), description: clip(q.errorDescription) } };
+  if (!q.code) return { exchange: null, to: "/login", refused: null };
+  return { exchange: q.code, to: safeNext(q.next), refused: null };
 }
