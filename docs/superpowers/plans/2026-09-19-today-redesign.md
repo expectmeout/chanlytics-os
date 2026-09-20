@@ -49,10 +49,10 @@ Names and wording here are final; a task that needs something else says so in it
 
 | id | label | value | meta (always under the figure) | receipt text (hover, focus, tap) | door |
 |---|---|---|---|---|---|
-| messages | customer messages | `messages_in` | `last at {tzClock(last_inbound_at)}` + `, answered in {secondsPhrase(gap)}` when the last reply came within the hour after it; `none yet` with no inbound | the day's inbound customer messages by wire: `All by WhatsApp.` for one wire, else `6 by WhatsApp, 2 by email and 1 by text.` (counts descending; `wireWord` lowercases every wire but WhatsApp); null when the read holds no message with a wire | Open the Inbox → `inbox` |
-| answered | answered by the receptionist | `answered_by_ai` | `typically in {secondsPhrase(median)}` + `, {n} handed over` (or `none handed over` when it answered and never stopped); `nothing to answer yet` with no median and no handover | the handovers by reason, `capitalize(reasonShort(r)): {timesWord(n)}` joined with `; ` and a period, then `It sent {messages_out_ai} messages in all.` when it sent more than it answered, else `One reply each.`; null with no handover and nothing sent | See the handovers → `inbox` (null with no handover) |
-| calls | calls | `calls` | `{n} min on the phone` (`under a minute on the phone` below 60s) + `, {v} to voicemail`; `none yet` with no call | `The voice provider read {andList(moods)}.` where a mood is `all of them as positive` when it is every call, else `2 as positive`; then `{andList(names)} reached voicemail.` for the callers the calls read holds in voicemail; null with neither | Open the calls → `conversations/phone` |
-| new | new people | `new_contacts` | one wire: `on WhatsApp` (one person), `both on WhatsApp` (two), `all on WhatsApp` (more); several: `on WhatsApp and email`; `first contact today` when the read names nobody; `nobody new yet` at zero | `{andList(first three names)}{ and N more} wrote for the first time today.` from the conversations whose first non-backfill message is the customer's and today; null with no name | Open People → `clients/seg:new_week` |
+| messages | customer messages | `messages_in` | `last at {tzClock(last_inbound_at)}` + `, answered in {secondsPhrase(gap)}` when the last reply came within the hour after it; `none yet` with no inbound | the day's inbound customer messages the page holds, by wire (a message with no wire named is WhatsApp): when they account for the figure, `All by WhatsApp.` for one wire, else `2 by WhatsApp, 1 by email and 1 by text.` (counts descending, then by name; `wireWord` lowercases every wire but WhatsApp); when the page holds fewer than the figure, `Of the 4 in the Inbox: ...` (`The one the Inbox holds came by WhatsApp.` for one); null when the read holds none | Open the Inbox → `inbox` |
+| answered | answered by the receptionist | `answered_by_ai` | `typically in {secondsPhrase(median)}` + `, {escalations_new} handed over` (or `none handed over` when it answered and never stopped); `none answered yet` with a message in and nothing answered; `nothing to answer yet` with nothing in | today's OPEN escalations as the page holds them, by reason (`period.escalation_reasons` is every open escalation whatever its age, and is not read): `Asked for a person: once; sent something the receptionist can't read: once.` (first reason capitalised); then `{n} handovers already resolved.` when `escalations_new` exceeds them; then `It sent {messages_out_ai} messages in all.` when it sent more than it answered, `One reply each.` when the two are equal, nothing when it sent fewer; null with nothing to say | See the handovers → `inbox` (null when `escalations_new` is 0) |
+| calls | calls | `calls` | `{n} min on the phone` (`under a minute on the phone` under 60s; nothing at 0s) + `, {v} to voicemail`; `none connected` with calls and no seconds and no voicemail; `none yet` with no call | `The voice provider read {andList(moods)}.` where a mood is `all of them as positive` when it is every call (`it as positive` for one call), else `2 as positive`; then `{andList(names)} reached voicemail.` for the callers the calls read holds in voicemail, each once, up to three then `and N more`, never a withheld or unknown caller; null with neither | Open the calls → `conversations/phone` |
+| new | new people | `new_contacts` | only when the threads whose first real message is the customer's and today are exactly `new_contacts`: one wire `on WhatsApp` (one person), `both on WhatsApp` (two), `all on WhatsApp` (more), several `on WhatsApp and email`; `first contact today` when they differ; `nobody new yet` at zero | when they agree: `{andList(first three names, then "N more")} wrote for the first time today.`; null otherwise (a person who existed before and wrote for the first time today is not new, and a name is said only for someone the figure counts) | Open People → `clients/seg:new_week` |
 
   A receipt adds to its figure: it never contains the figure's value or any number in its clause (a contracts test checks every figure on every fixture with a word-bounded regex).
 - `TodayQueueRowVM` gains `conversationId: string | null` (handoff, callback, window: the thread; call: the call's thread or null) and `callId: string | null` (callback: the call-back's newest call; call: the call; else null).
@@ -151,16 +151,21 @@ const busyThreads = () => [
   thread("cv-a", "Ana Reyes", [at("2026-08-20T09:00:00Z"), at("2026-08-27T14:50:00Z")], { state: "needs_human" }),
 ];
 const busyCalls = () => [callRow("k1", { sentiment: "Positive" }), callRow("k2", { sentiment: "Neutral", started_at: "2026-08-27T12:00:00Z" }), callRow("k3", { in_voicemail: true, sentiment: null, summary: null, contact: { display_name: "Kenia Duarte", wa_profile_name: null, phone_e164: "+13475550199" }, started_at: "2026-08-27T13:50:00Z" })];
+/** The two handovers the metrics count, as the escalations read holds them: both opened today, both still open. */
+const busyEsc = () => [
+  { id: "e-a", conversation_id: "cv-a", reason: "human_token", details: null, state: "open", created_at: "2026-08-27T14:51:00Z" },
+  { id: "e-d", conversation_id: "cv-d", reason: "non_text", details: null, state: "open", created_at: "2026-08-27T12:05:00Z" },
+];
 
 test("the day's four figures, each with the clause under it and the why behind it", () => {
-  const vm = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW);
+  const vm = toTodayVM(busyDay(), busyThreads(), busyEsc(), busyCalls(), NOW);
   assert.deepEqual(vm.figures.map((f) => [f.id, f.label, f.value]), [["messages", "customer messages", 9], ["answered", "answered by the receptionist", 7], ["calls", "calls", 3], ["new", "new people", 2]]);
   const by = Object.fromEntries(vm.figures.map((f) => [f.id, f]));
   assert.equal(by.messages.meta, "last at 10:38 AM, answered in 41s", "the proof rides the messages figure");
-  // The threads the page holds carry four of today's nine: the receipt splits what the read holds, by wire, most first.
-  assert.deepEqual(by.messages.receipt, { text: "2 by WhatsApp, 1 by email and 1 by text.", door: { label: "Open the Inbox", to: "inbox" } }, "the day's inbound messages by wire, from the threads the page holds");
+  // The threads the page holds carry four of today's nine: the receipt says what it counted, by wire, most first.
+  assert.deepEqual(by.messages.receipt, { text: "Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text.", door: { label: "Open the Inbox", to: "inbox" } }, "never an absolute claim from a partial read");
   assert.equal(by.answered.meta, "typically in 34s, 2 handed over");
-  assert.deepEqual(by.answered.receipt, { text: "Asked for a person: once; sent something the receptionist can't read: once. It sent 11 messages in all.", door: { label: "See the handovers", to: "inbox" } });
+  assert.deepEqual(by.answered.receipt, { text: "Asked for a person: once; sent something the receptionist can't read: once. It sent 11 messages in all.", door: { label: "See the handovers", to: "inbox" } }, "the reasons are today's escalations as the page holds them, never period.escalation_reasons, which counts every open one whatever its age");
   assert.equal(by.calls.meta, "7 min on the phone, 1 to voicemail");
   assert.deepEqual(by.calls.receipt, { text: "The voice provider read 2 as positive and 1 as neutral. Kenia Duarte reached voicemail.", door: { label: "Open the calls", to: "conversations/phone" } });
   assert.equal(by.new.meta, "on email and WhatsApp", "the wires the new people wrote on: most first, then by name, the one rule every split here follows");
@@ -170,7 +175,7 @@ test("the day's four figures, each with the clause under it and the why behind i
 
 test("a receipt adds to its figure: it never says the figure's own number again", () => {
   const fixtures = [
-    toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW),
+    toTodayVM(busyDay(), busyThreads(), busyEsc(), busyCalls(), NOW),
     toTodayVM(metrics({ now: { last_inbound_at: "2026-08-27T14:38:00Z", last_outbound_at: "2026-08-27T14:38:41Z" }, period: { messages_in: 4, messages_out_ai: 4, answered_by_ai: 4, median_reply_seconds_ai: 20, calls: 2, call_seconds: 120, call_sentiments: { Positive: 2 }, new_contacts: 1 } }), busyThreads().slice(0, 1), [], [callRow("k1"), callRow("k2")], NOW),
   ];
   for (const vm of fixtures) {
@@ -182,19 +187,52 @@ test("a receipt adds to its figure: it never says the figure's own number again"
   const same = fixtures[1].figures.find((f) => f.id === "answered");
   assert.equal(same.receipt.text, "One reply each.", "four answered with four sent: the count is not said twice");
   const one = fixtures[1].figures.find((f) => f.id === "messages");
-  assert.equal(one.receipt.text, "All by WhatsApp.", "one wire: no count beside the figure");
+  assert.equal(one.receipt.text, "The one the Inbox holds came by WhatsApp.", "one of four held: what it counted, not 'All by WhatsApp'");
   const all = fixtures[1].figures.find((f) => f.id === "calls");
   assert.equal(all.receipt.text, "The voice provider read all of them as positive.", "two of two: not '2 as positive' beside the figure 2");
+  const held = toTodayVM(metrics({ period: { messages_in: 1, messages_out_ai: 1, answered_by_ai: 1, conversations_active: 1, new_contacts: 1 } }), busyThreads().slice(0, 1), [], [], NOW);
+  assert.equal(held.figures.find((f) => f.id === "messages").receipt.text, "All by WhatsApp.", "one held of one: the whole day, so the absolute is true");
+  assert.equal(held.figures.find((f) => f.id === "new").meta, "on WhatsApp");
+});
+
+test("the sentences stay true where the SQL's counts and the page's rows disagree", () => {
+  // Two handovers opened today, both resolved since: the read (state=open) holds neither, and the receipt counts them rather than naming a reason it cannot see.
+  const resolved = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).figures.find((f) => f.id === "answered");
+  assert.equal(resolved.meta, "typically in 34s, 2 handed over");
+  assert.equal(resolved.receipt.text, "2 handovers already resolved. It sent 11 messages in all.");
+  // One reply answered three asks: nothing to say about it.
+  const grouped = toTodayVM(metrics({ period: { messages_in: 3, messages_out_ai: 1, answered_by_ai: 3, conversations_active: 1 } }), [], [], [], NOW).figures.find((f) => f.id === "answered");
+  assert.equal(grouped.meta, "none handed over");
+  assert.equal(grouped.receipt, null, "REGRESSION: 'One reply each.' over one reply to three messages");
+  // One call: "it", not "all of them".
+  const single = toTodayVM(metrics({ period: { calls: 1, call_seconds: 90, call_sentiments: { Positive: 1 } } }), [], [], [callRow("k1")], NOW).figures.find((f) => f.id === "calls");
+  assert.equal(single.receipt.text, "The voice provider read it as positive.");
+  // Every call to voicemail, nobody on the phone; the same number twice is one caller; a withheld caller is counted, never named.
+  const vmail = [callRow("v1", { in_voicemail: true, sentiment: null, duration_ms: 0 }), callRow("v2", { in_voicemail: true, sentiment: null, duration_ms: 0 }), callRow("v3", { in_voicemail: true, sentiment: null, duration_ms: 0, from_e164: null, contact: null })];
+  const voicemail = toTodayVM(metrics({ period: { calls: 3, call_seconds: 0, call_sentiments: {}, calls_voicemail: 3 } }), [], [], vmail, NOW).figures.find((f) => f.id === "calls");
+  assert.equal(voicemail.meta, "3 to voicemail", "REGRESSION: 'under a minute on the phone' with nobody on the phone");
+  assert.equal(voicemail.receipt.text, "+1 (347) 555-0188 reached voicemail.", "one caller, once; the withheld one is in the clause's count");
+  // A person who existed before and wrote for the first time today is not new: no name beside "nobody new yet".
+  const notNew = toTodayVM(metrics({ period: { messages_in: 1, messages_out_ai: 1, answered_by_ai: 1, conversations_active: 1, new_contacts: 0 } }), busyThreads().slice(0, 1), [], [], NOW).figures.find((f) => f.id === "new");
+  assert.deepEqual([notNew.meta, notNew.receipt], ["nobody new yet", null], "REGRESSION: 'nobody new yet' beside a named person");
+  // Two new people counted, one thread held: no wire claimed for two from one, no name for the one the page cannot see.
+  const partial = toTodayVM(metrics({ period: { messages_in: 2, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 2, new_contacts: 2 } }), busyThreads().slice(0, 1), [], [], NOW).figures.find((f) => f.id === "new");
+  assert.deepEqual([partial.meta, partial.receipt], ["first contact today", null]);
+  // Four new people, all held: three named, the fourth counted.
+  const four = busyThreads().slice(0, 2).concat([thread("cv-n3", "Noor Haddad", [at("2026-08-27T10:00:00Z")]), thread("cv-n4", "Iris Kowalski", [at("2026-08-27T10:30:00Z")])]);
+  const many = toTodayVM(metrics({ period: { messages_in: 4, conversations_active: 4, new_contacts: 4 } }), four, [], [], NOW).figures.find((f) => f.id === "new");
+  assert.equal(many.receipt.text, "Renata Solís, Marco Ibáñez, Noor Haddad and 1 more wrote for the first time today.", "one 'and', as andList says it");
+  assert.equal(many.meta, "on WhatsApp and email", "three on WhatsApp, one by email: most first");
 });
 
 test("a figure with nothing to add has no receipt; a day with nothing at all has no figures, and the proof is still said", () => {
-  // The SQL counted one message; the conversations read holds no thread for it, so there is nothing to split.
-  const thin = toTodayVM(metrics({ period: { messages_in: 1, answered_by_ai: 1, conversations_active: 1 } }), [], [], [], NOW);
+  // The SQL counted one message nobody has answered; the conversations read holds no thread for it, so there is nothing to split.
+  const thin = toTodayVM(metrics({ period: { messages_in: 1, conversations_active: 1 } }), [], [], [], NOW);
   const by = Object.fromEntries(thin.figures.map((f) => [f.id, f]));
   assert.equal(by.messages.meta, "none yet", "no last_inbound_at in this read");
   assert.equal(by.messages.receipt, null, "no thread to split by wire");
-  assert.equal(by.answered.meta, "none handed over", "it answered and never stopped");
-  assert.equal(by.answered.receipt, null, "no handover, nothing sent beyond the answer");
+  assert.equal(by.answered.meta, "none answered yet", "a message came in and nothing answered it yet");
+  assert.equal(by.answered.receipt, null, "no handover, nothing sent");
   assert.equal(by.calls.meta, "none yet");
   assert.equal(by.calls.receipt, null);
   assert.equal(by.new.meta, "nobody new yet");
@@ -210,7 +248,7 @@ test("a figure with nothing to add has no receipt; a day with nothing at all has
   assert.ok(!("greeting" in none.standing), "no greeting above the work");
 });
 
-test("who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, and the thread is not the queue's", () => {
+test("who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the thread, and it is not the queue's", () => {
   const vm = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW);
   assert.deepEqual(vm.noReply.map((r) => [r.who, r.conversationId, r.to]), [["Dulce Amaro", "cv-d", "inbox/th-cv-d"]], "Dulce wrote at 8am with nothing back; Ana wrote ten minutes ago and may still get her answer");
   assert.equal(vm.noReply[0].sinceMs, Date.parse("2026-08-27T12:00:00Z"));
@@ -218,6 +256,13 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
   assert.deepEqual(toTodayVM(busyDay(), busyThreads(), esc, busyCalls(), NOW).noReply, [], "a thread the queue holds is not said twice");
   const snoozed = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, state: "snoozed" } : c));
   assert.deepEqual(toTodayVM(busyDay(), snoozed, [], busyCalls(), NOW).noReply, [], "a snoozed thread waits on purpose");
+  // A teammate has it (standing.ts: a flagged thread with a claim is theirs), or a person paused the receptionist to reply themselves: not waiting on nobody.
+  const theirs = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, state: "needs_human", assignee_user_id: "u-teammate", assignee_is_me: false } : c));
+  assert.deepEqual(toTodayVM(busyDay(), theirs, [], busyCalls(), NOW).noReply, [], "REGRESSION: a thread a colleague is answering, listed as ignored");
+  const paused = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, paused_until: "2026-08-27T18:00:00Z" } : c));
+  assert.deepEqual(toTodayVM(busyDay(), paused, [], busyCalls(), NOW).noReply, [], "a person is on it");
+  const two = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, state: "open", messages: [at("2026-08-27T09:00:00Z"), at("2026-08-27T11:30:00Z")] } : c));
+  assert.deepEqual(toTodayVM(busyDay(), two, [], busyCalls(), NOW).noReply.map((r) => r.who), ["Ana Reyes", "Dulce Amaro"], "oldest wait first");
 });
 
 test("one reading of each escalation: Ask's row and the queue's row agree, and a call-back carries the to-do it left", () => {
@@ -369,11 +414,17 @@ const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) :
 /** A wire's word inside a sentence: "by WhatsApp", "by email", "by text". */
 const wireWord = (w: string): string => (w === "WhatsApp" ? w : w.toLowerCase());
 
-const tally = (xs: readonly string[]): Array<[string, number]> => {
-  const out = new Map<string, number>();
-  for (const x of xs) out.set(x, (out.get(x) ?? 0) + 1);
-  return [...out.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
-};
+/** Counts by key, most first, then by name; a count that is not a positive number is nothing. */
+const counted = (o: Record<string, unknown> | null | undefined): Array<[string, number]> =>
+  Object.entries(o ?? {})
+    .map(([k, v]): [string, number] => [k, Math.max(0, Math.round(Number(v) || 0))])
+    .filter(([, n]) => n > 0)
+    .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+const tally = (xs: readonly string[]): Array<[string, number]> => counted(xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {}));
+
+/** A caller the voice provider could not name is counted in the clause, never named in the receipt by these words. */
+const UNNAMED_CALLER = new Set(["Caller ID withheld", "Unknown caller", "Unknown"]);
 
 /** How long after the last message the last reply went out, when it did within the hour; null otherwise. */
 function replyGapSeconds(live: { last_inbound_at: string | null; last_outbound_at: string | null }): number | null {
@@ -399,100 +450,130 @@ const SENT = ["sent", "delivered", "read"];
 
 /**
  * The day's four figures, from the fields Today has fetched on every load and never read (period.new_contacts,
- * call_sentiments, calls_voicemail, escalation_reasons, messages_out_ai) and from the threads and calls the page
- * holds. Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
+ * call_sentiments, calls_voicemail, messages_out_ai) and from the threads, calls and escalations the page holds.
+ * Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
+ *
+ * A figure is the SQL's count over the whole day; the page holds the newest hundred threads and the open
+ * escalations. So a receipt makes an absolute claim ("All by WhatsApp.", "both on WhatsApp") only when what the page
+ * holds accounts for the figure's own total, and otherwise says what it is counting ("Of the 4 in the Inbox: ...").
  */
 function figuresOf(
-  p: MetricsSummaryDto["period"],
-  live: MetricsSummaryDto["now"],
+  m: MetricsSummaryDto,
   conversations: ConversationDto[],
   callsInWindow: CallDto[],
+  openEsc: ReadonlyArray<EscalationDto & { conversation_id: string }>,
   tz: string,
   now: Date,
-  sinceMs: number,
 ): TodayFigureVM[] | null {
+  const p = m.period;
+  const live = m.now;
   if (p.messages_in + p.calls + p.new_contacts === 0) return null;
-  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) => x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs;
+  const windowMs = new Date(m.window.since).getTime();
+  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) => x.meta?.backfill !== true && new Date(x.created_at).getTime() >= windowMs;
 
-  // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp,
-  // which is what every row was before the column said (viewmodels.ts writtenChannelOf); the receipt splits the
-  // messages the page holds, and says nothing when the read holds none.
+  // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp, which
+  // is what every row was before the column said (viewmodels.ts writtenChannelOf). The receipt says nothing when the
+  // read holds none of today's messages, and says what it counted when the read holds fewer than the figure.
   const gap = replyGapSeconds(live);
   const lastAt = tzClock(live.last_inbound_at, tz, now);
   const wires = tally(conversations.flatMap((c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))));
+  const held = wires.reduce((s, [, n]) => s + n, 0);
+  const split = andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`));
   const messages: TodayFigureVM = {
     id: "messages",
     label: "customer messages",
     value: p.messages_in,
     meta: lastAt ? `last at ${lastAt}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}` : "none yet",
     receipt: wires.length
-      ? { text: wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`))}.`, door: { label: "Open the Inbox", to: "inbox" } }
+      ? {
+          text: held !== p.messages_in
+            ? held === 1 ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.` : `Of the ${held} in the Inbox: ${split}.`
+            : wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${split}.`,
+          door: { label: "Open the Inbox", to: "inbox" },
+        }
       : null,
   };
 
-  // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as the why.
-  const reasons = tally(Object.entries(p.escalation_reasons ?? {}).flatMap(([r, n]) => Array.from({ length: Math.max(0, Number(n) || 0) }, () => r)));
+  // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as
+  // the why. The clause is the SQL's count of handovers opened today; the reasons are today's escalations as the page
+  // holds them (the open ones: the read is state=open), so a handover already resolved is counted, not named.
+  // period.escalation_reasons is every OPEN escalation whatever its age (00037_hygiene.sql), so it is not read here:
+  // a clause about today with a breakdown about all time contradicted itself on the first workspace that opened it.
+  const todays = openEsc.filter((e) => new Date(e.created_at).getTime() >= windowMs);
+  const reasons = tally(todays.map((e) => e.reason));
+  const resolved = Math.max(0, p.escalations_new - todays.length);
   const answeredMeta = [
     p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
     p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
-  ].filter(Boolean).join(", ") || "nothing to answer yet";
-  const sentNote = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : p.messages_out_ai ? "One reply each." : "";
+  ].filter(Boolean).join(", ") || (p.messages_in ? "none answered yet" : "nothing to answer yet");
   // One sentence, so only its first reason is capitalised: "Asked for a person: once; sent something the receptionist can't read: once."
   const whyStopped = reasons.length ? `${reasons.map(([r, n], i) => `${i === 0 ? capitalize(reasonShort(r) || r) : reasonShort(r) || r}: ${timesWord(n)}`).join("; ")}.` : "";
-  const answeredWhy = [whyStopped, sentNote].filter(Boolean);
+  const resolvedNote = resolved && p.escalations_new ? `${plural(resolved, "handover")} already resolved.` : "";
+  // answered_by_ai counts the asks it answered and messages_out_ai the messages it sent: equal is one reply each, more
+  // is more than one thing said; fewer means one reply answered several asks, which is not worth a sentence.
+  const sentNote = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : p.messages_out_ai && p.messages_out_ai === p.answered_by_ai ? "One reply each." : "";
+  const answeredWhy = [whyStopped, resolvedNote, sentNote].filter(Boolean);
   const answered: TodayFigureVM = {
     id: "answered",
     label: "answered by the receptionist",
     value: p.answered_by_ai,
     meta: answeredMeta,
     receipt: answeredWhy.length
-      ? { text: answeredWhy.join(" "), door: reasons.length || p.escalations_new ? { label: "See the handovers", to: "inbox" } : null }
+      ? { text: answeredWhy.join(" "), door: p.escalations_new ? { label: "See the handovers", to: "inbox" } : null }
       : null,
   };
 
-  // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why.
-  const moods = tally(Object.entries(p.call_sentiments ?? {}).flatMap(([m, n]) => Array.from({ length: Math.max(0, Number(n) || 0) }, () => m)));
-  const moodWords = moods.length
-    ? `The voice provider read ${andList(moods.map(([m, n]) => (n === p.calls ? `all of them as ${m.toLowerCase()}` : `${n} as ${m.toLowerCase()}`)))}.`
-    : "";
-  const voicemail = callsInWindow.filter((c) => c.in_voicemail).map((c) => toCallVM(c, tz, now).who);
-  const voicemailWords = voicemail.length ? `${andList(voicemail)} reached voicemail.` : "";
+  // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why. A caller is
+  // named once, by name or number; a withheld or unknown caller is in the clause's count and never in the sentence.
+  const moods = counted(p.call_sentiments);
+  const moodOf = ([mood, n]: [string, number]) => (n === p.calls ? (p.calls === 1 ? `it as ${mood.toLowerCase()}` : `all of them as ${mood.toLowerCase()}`) : `${n} as ${mood.toLowerCase()}`);
+  const moodWords = moods.length ? `The voice provider read ${andList(moods.map(moodOf))}.` : "";
+  const voicemail = [...new Map(callsInWindow.filter((c) => c.in_voicemail).map((c) => [c.contact_id ?? c.from_e164 ?? c.id, toCallVM(c, tz, now).who])).values()].filter((who) => !UNNAMED_CALLER.has(who));
+  const voicemailWords = voicemail.length ? `${andList(voicemail.length > 3 ? [...voicemail.slice(0, 3), `${voicemail.length - 3} more`] : voicemail)} reached voicemail.` : "";
+  const callsMeta = [
+    p.call_seconds > 0 ? (p.call_seconds < 60 ? "under a minute on the phone" : `${Math.round(p.call_seconds / 60)} min on the phone`) : "",
+    p.calls_voicemail ? `${p.calls_voicemail} to voicemail` : "",
+  ].filter(Boolean).join(", ") || (p.calls ? "none connected" : "none yet");
   const calls: TodayFigureVM = {
     id: "calls",
     label: "calls",
     value: p.calls,
-    meta: p.calls
-      ? `${p.call_seconds < 60 ? "under a minute on the phone" : `${Math.round(p.call_seconds / 60)} min on the phone`}${p.calls_voicemail ? `, ${p.calls_voicemail} to voicemail` : ""}`
-      : "none yet",
+    meta: callsMeta,
     receipt: moodWords || voicemailWords ? { text: [moodWords, voicemailWords].filter(Boolean).join(" "), door: { label: "Open the calls", to: "conversations/phone" } } : null,
   };
 
-  // New people: the threads whose first real message is the customer's and today.
+  // New people: the threads whose first real message is the customer's and today. The figure is the SQL's count of
+  // contacts created today; the threads the page holds may be fewer (a name is said only for a person the figure
+  // counts) or more (someone who existed before and wrote for the first time today is not new), so a wire or a name
+  // is said only when the two agree.
   const newThreads = conversations.filter((c) => {
     const first = [...c.messages].filter((x) => x.meta?.backfill !== true).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
     return !!first && first.sender === "customer" && fresh(first);
   });
+  const agree = p.new_contacts > 0 && newThreads.length === p.new_contacts;
   const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
-  const names = newThreads.map((c) => contactName(c));
-  const fresh3 = names.slice(0, 3);
+  const names = agree ? newThreads.map((c) => contactName(c)) : [];
+  const said = names.slice(0, 3);
   const newPeople: TodayFigureVM = {
     id: "new",
     label: "new people",
     value: p.new_contacts,
     meta: !p.new_contacts
       ? "nobody new yet"
-      : newWires.length === 1
-        ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${newWires[0][0]}`
-        : newWires.length ? `on ${andList(newWires.map(([w]) => wireWord(w)))}` : "first contact today",
-    receipt: names.length
-      ? { text: `${andList(fresh3)}${names.length > 3 ? ` and ${names.length - 3} more` : ""} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } }
+      : !agree
+        ? "first contact today"
+        : newWires.length === 1
+          ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
+          : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
+    receipt: said.length
+      ? { text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } }
       : null,
   };
   return [messages, answered, calls, newPeople];
 }
 ```
 
-  Then, at the top of the file, the import line `import { channelKindWords, CHANNEL_ANSWERED } from "./channels";` stays, and the `reasonShort` import stays; `capitalize`, `plural`, `timesWord`, `wireWord`, `tally` are the new module privates above.
+  Then, at the top of the file, the import line `import { channelKindWords, CHANNEL_ANSWERED } from "./channels";` stays, and the `reasonShort` import stays; `capitalize`, `plural`, `timesWord`, `wireWord`, `counted`, `tally` and `UNNAMED_CALLER` are the new module privates above; `standingOf` (already imported) now also decides who is waiting.
 
 - [ ] **Step 6: `today.ts`: `toTodayVM` reads the escalations once and returns the new fields.** Replace the whole function (from `export function toTodayVM(` to the `}` that closes it, just before `/* ------------------------------ the day ---------------------------------- */`) with:
 
@@ -673,24 +754,29 @@ export function toTodayVM(
       };
     });
 
-  // Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, the thread is
-  // not snoozed or archived, and no queue row is about it (an escalation's thread and a closing window's thread are
-  // the queue's; nothing on this page is said twice). The identity was in the conversations read all along and
-  // only the count survived into the view model.
+  // Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the
+  // thread (the one rule, standing.ts: a thread a person paused or claimed is not waiting on nobody), and no queue
+  // row is about it (an escalation's thread and a closing window's thread are the queue's; nothing on this page is
+  // said twice). The identity was in the conversations read all along and only the count survived into the view model.
   const closingSet = new Set(closingConvs.map((c) => c.id));
   const noReply: TodayNoReplyVM[] = conversations
     .flatMap((c) => {
-      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "snoozed" || c.state === "archived") return [];
+      if (escSet.has(c.id) || closingSet.has(c.id)) return [];
+      const { standing } = standingOf({
+        state: c.state, paused_until: c.paused_until, assignee_user_id: c.assignee_user_id,
+        assignee_is_me: c.assignee_is_me, open_escalation: false,
+      }, now.getTime());
+      if (standing !== "quiet" && standing !== "needs_you") return [];
       const last = c.messages[c.messages.length - 1];
       if (!last || last.sender !== "customer") return [];
-      const sinceMs = new Date(last.created_at).getTime();
-      if (now.getTime() - sinceMs < NO_REPLY_AFTER_MS) return [];
-      return [{ conversationId: c.id, who: contactName(c), sinceMs, to: `inbox/th-${c.id}` }];
+      const lastMs = new Date(last.created_at).getTime();
+      if (now.getTime() - lastMs < NO_REPLY_AFTER_MS) return [];
+      return [{ conversationId: c.id, who: contactName(c), sinceMs: lastMs, to: `inbox/th-${c.id}` }];
     })
     .sort((a, b) => a.sinceMs - b.sinceMs);
 
   const proof = todayProof(live, tz, now);
-  const figures = figuresOf(p, live, conversations, callsInWindow, tz, now, sinceMs);
+  const figures = figuresOf(m, conversations, callsInWindow, openEsc, tz, now);
 
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
@@ -2572,6 +2658,14 @@ test("a quiet day: the card says nothing came in, proves the lines are listening
   assert.match(textOf(proof), /· on/);
   press(buttons(tree, "earlier conversation")[0]);
   assert.equal(went.at(-1), "conversations");
+  // No traffic while a handoff waits: not a quiet day, and no figure to hang the proof on. The card still says it.
+  const waiting = toTodayVM(metrics({ period: { messages_in: 0, messages_out_ai: 0, conversations_active: 0, answered_by_ai: 0, unanswered_in_window: 0, median_reply_seconds_ai: null, send_failures: 0, escalations_new: 0, escalation_reasons: {}, calls: 0, call_seconds: 0, call_sentiments: {}, calls_voicemail: 0, new_contacts: 0 } }), threads().slice(3), escalations(), [], NOW);
+  assert.equal(waiting.quiet, null);
+  assert.equal(waiting.figures, null);
+  set({ TODAY_DATA: waiting });
+  const held = draw(W.TodayCard);
+  assert.equal(byTestId(held, "today-figures"), null);
+  assert.ok(textOf(byTestId(held, "today-quiet-line")).includes(waiting.proof), "REGRESSION: the proof vanished exactly when an owner needed it");
 });
 
 test("the calls read failed: the card says so under the figures, once", () => {
@@ -2898,9 +2992,10 @@ const TodayCard = () => {
     <section className="today-card" data-testid="today-card" aria-labelledby="today-card-title">
       <div className="tc-head">
         <h2 className="tc-title" id="today-card-title">{recap ? recap.label : "Today so far"}</h2>
-        {/* The quiet day's line: nothing came in, and the proof the lines are listening. On a day with traffic the
-            proof is the messages figure's clause. */}
-        {quiet && <span className="tc-line" data-testid="today-quiet-line">{quiet.headline} {vm.proof}</span>}
+        {/* No figures to hang the proof on (a quiet day, or no traffic while an escalation waits, which is the
+            reference workspace's own state): nothing came in, and the proof the lines are listening. On a day with
+            traffic the proof is the messages figure's clause. */}
+        {!figures && <span className="tc-line" data-testid="today-quiet-line">{quiet ? quiet.headline : recap ? recap.line : "Nothing has come in yet today."} {vm.proof}</span>}
       </div>
       {/* The row of figures owns the open receipt: leaving the row closes it (the receipt is inside the row, so moving
           onto it does not), and so does focus leaving the row. */}
