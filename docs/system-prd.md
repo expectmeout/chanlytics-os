@@ -640,7 +640,7 @@ Realtime goes through one wrapper, `packages/db/src/realtime.ts`, which pushes t
 
 - **Real**: today, inbox, conversations, clients (People — and its lists, which since #563 are a view of it rather than a page), calendar, live, reports, broadcasts, outbound (Playbooks), messages, and the Settings panes profile, setup, workspace (Business), team, autonomy, notifications, integrations (Connections), billing, memory, activity, and platform (the back office). `segments` stays classified real because the route is: `#/segments/<id>` lands on People with that list picked.
 - **Demo** — the honest Not-in-this-release pane outside a demo session: tasks, fleet, store, studio, content, shared.
-- **Retired**: leads and pipeline redirect to People, because the booked appointment is the conversion.
+- **Retired**: leads and pipeline redirect to People, because the booked appointment is the conversion. Ruben lifted that for leads on 18 September 2026 (S-11's opening note, and `docs/plans/2026-09-17-people-table-and-lead-finder.md`): Leads comes back as a scope of People, `clients/leads`, drawn on the table lifted out of `clients-a.jsx` into `pages/people-table.jsx`, and arrives with release B of the finder. Pipeline stays retired.
 
 ### 11.4 Chrome, and how the interface speaks
 

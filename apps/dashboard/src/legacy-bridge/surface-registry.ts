@@ -33,8 +33,8 @@ export const SURFACE_STATES: Record<string, SurfaceState> = {
 
   // Render entirely from seed data. Each becomes one edited line here the day
   // its slice ships.
-  // The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline
-  // and Leads; the shared report viewer) stay in the tree and stay hidden from
+  // The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
+  // the shared report viewer) stay in the tree and stay hidden from
   // every real workspace: no nav entry, no tab, the Not-in-this-release card for
   // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
   // revisited when the product is at 100%, and none of those features is built
