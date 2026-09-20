@@ -40218,6 +40218,14 @@ function sideOf(sizes) {
   for (let m = re.exec(sizes); m; m = re.exec(sizes)) best = Math.max(best, Math.min(Number(m[1]), Number(m[2])));
   return best;
 }
+var PLATFORM_DEFAULTS = /* @__PURE__ */ new Set([
+  "assets.squarespace.com/universal/default-favicon.ico",
+  "static.parastorage.com/client/pfavico.ico"
+]);
+function isPlatformDefault(url) {
+  const bare = url.slice(url.indexOf("//") + 2).split(/[?#]/)[0].toLowerCase();
+  return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
+}
 function absolute(href, origin) {
   const raw = href.trim();
   if (!raw || raw.length > HREF_MAX) return null;
@@ -40227,7 +40235,8 @@ function absolute(href, origin) {
   else if (raw.startsWith("/")) url = `${origin}${raw}`;
   else if (!/^https?:\/\//i.test(raw)) url = `${origin}/${raw.replace(/^\.\//, "")}`;
   if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
-  return url.replace(/^http:\/\//i, "https://");
+  const secure = url.replace(/^http:\/\//i, "https://");
+  return isPlatformDefault(secure) ? null : secure;
 }
 function scoreOf(rel, type, href, side) {
   const rels = rel.toLowerCase().split(/\s+/);

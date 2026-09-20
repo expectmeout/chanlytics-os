@@ -215,3 +215,42 @@ test("the mark a site declares: a said logo beats an icon, an icon beats a favic
   assert.equal(leadMarkFrom(`<html><link rel="icon" href="/i.png">`, O), `${O}/i.png`, "a page with no </head> is still read from the start");
   assert.equal(leadMarkFrom(head(`<link rel="icon" href="/${"x".repeat(600)}.png">`), O), null, "an address longer than the column holds is no address");
 });
+
+// A mark the WEBSITE BUILDER put there is not the company's mark. Found by running the reader against 315 real lead
+// sites: seven Squarespace shops all answered with Squarespace's own default favicon, and seven Wix shops with Wix's.
+// Storing that draws one stranger's logo on seven different leads, which is worse than the initials it replaced.
+test("the mark a site declares: a website builder's own default is the platform's mark, not the company's", () => {
+  const O = "https://zilkerstrength.example";
+  const head = (inner) => `<!doctype html><html><head>${inner}</head><body></body></html>`;
+  const SQUARESPACE = "https://assets.squarespace.com/universal/default-favicon.ico";
+  const WIX = "https://static.parastorage.com/client/pfavico.ico";
+  // On its own it is nothing: these two addresses are the same for every shop on the platform.
+  assert.equal(leadMarkFrom(head(`<link rel="shortcut icon" href="${SQUARESPACE}">`), O), null, "Squarespace's default belongs to Squarespace");
+  assert.equal(leadMarkFrom(head(`<link rel="shortcut icon" href="${WIX}">`), O), null, "Wix's default belongs to Wix");
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"logo":"${SQUARESPACE}"}</script>`), O), null, "even where the page calls it the logo");
+  // However the page wrote the address: over http, without the scheme, with a cache-buster on the end.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="http://assets.squarespace.com/universal/default-favicon.ico">`), O), null);
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="//static.parastorage.com/client/pfavico.ico?v=3">`), O), null);
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="https://cdn.other.example/default-favicon.ico">`), O), null, "a default is a default wherever it is served from");
+  // It is refused, not preferred: a real mark on the same page still wins, and the shop keeps it.
+  assert.equal(
+    leadMarkFrom(head(`<link rel="shortcut icon" href="${SQUARESPACE}"><link rel="apple-touch-icon" href="/mine.png">`), O),
+    `${O}/mine.png`,
+    "a shop that uploaded its own is not punished for its host's default",
+  );
+  assert.equal(
+    leadMarkFrom(head(`<script type="application/ld+json">{"logo":"${WIX}"}</script><link rel="icon" type="image/svg+xml" href="/mark.svg">`), O),
+    `${O}/mark.svg`,
+    "a said logo that is the platform's falls through to what the page else declares",
+  );
+  // A per-shop file on the same CDN is that shop's own: this refuses a fixed address, never a host.
+  assert.equal(
+    leadMarkFrom(head(`<link rel="icon" href="https://images.squarespace-cdn.com/content/v1/586c/1584-G0U/favicon.ico?format=100w">`), O),
+    "https://images.squarespace-cdn.com/content/v1/586c/1584-G0U/favicon.ico?format=100w",
+    "the builder's CDN still serves what the shop itself uploaded",
+  );
+  assert.equal(
+    leadMarkFrom(head(`<link rel="apple-touch-icon" href="https://static.parastorage.com/client/logo-49e4dc.png">`), O),
+    "https://static.parastorage.com/client/logo-49e4dc.png",
+  );
+});
