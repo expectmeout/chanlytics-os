@@ -121,6 +121,8 @@ export function leadNoteLeft(left: number, max: number): string {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 
+/** An unclaimed listing rarely watches its email; the peek says so, quietly (D2). */
+export const LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 /** The first day of Leads, before a workspace has kept one search (§8.9). */
 export const LEAD_FIRST_DAY_TITLE = "Your people gather here";
 export const LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
@@ -179,6 +181,9 @@ export const LEAD_WORDS = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
 } as const;
 
@@ -641,6 +646,13 @@ export interface LeadPeekVM {
   /** The first two words of the name, for "Back to Zilker Strength". */
   short: string;
   sub: string;
+  /** Who they are, from what the listing shows (D2): each null when the listing did not say. */
+  about: string | null;
+  where: { line: string; href: string | null } | null;
+  today: string | null;
+  image: string | null;
+  reviewsDist: [number, number, number, number, number] | null;
+  claimedNote: string | null;
   cls: LeadClass;
   stage: LeadStage;
   stages: { id: "ready" | "nurture" | "converted"; label: string; on: boolean }[];
@@ -651,8 +663,27 @@ export interface LeadPeekVM {
   groups: { how: "seen" | "read"; label: string; checks: { key: LeadCheckKey; label: string; answer: "yes" | "no" | "unknown"; source: string; reason: string | null }[] }[];
   others: { summary: string; picked: string | null; items: { email: string; why: string }[] } | null;
   found: { at: string; what: string }[];
-  links: { website: { label: string; href: string } | null; instagram: { label: string; href: string } | null };
+  links: {
+    website: { label: string; href: string } | null; instagram: { label: string; href: string } | null;
+    facebook: { label: string; href: string } | null; linkedin: { label: string; href: string } | null;
+    tiktok: { label: string; href: string } | null; maps: { label: string; href: string } | null;
+  };
   version: number;
+}
+
+/** "Open today · 9 AM to 6 PM", "Closed today", or null when the listing showed no hours. The day is the business's own (tz). */
+export function leadTodayLine(hours: { day: string; hours: string }[], tz: string, now: Date): string | null {
+  if (!hours.length) return null;
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
+  const h = hours.find((x) => x.day.toLowerCase() === day.toLowerCase());
+  if (!h) return null;
+  return /^closed/i.test(h.hours) ? "Closed today" : `Open today · ${h.hours}`;
+}
+/** "101 Biscayne Blvd, Miami, FL 33132", with the Maps page when the listing has one. */
+export function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">): { line: string; href: string | null } | null {
+  const town = [r.city, r.state].filter(Boolean).join(", ") + (r.postal_code ? ` ${r.postal_code}` : "");
+  const line = [r.street, town].filter(Boolean).join(", ");
+  return line ? { line, href: r.maps_url ?? null } : null;
 }
 
 /** The owner's own word for the criterion a place was left out by; the plan holds it. */
@@ -698,7 +729,7 @@ function clockIn(tz: string, iso: string | null, now: Date): string {
 export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
-  const sub = [r.category, area].filter(Boolean).join(" · ") + (r.places > 1 ? ` · ${r.places} locations` : "");
+  const sub = [r.category, r.price ?? null, area].filter(Boolean).join(" · ") + (r.places > 1 ? ` · ${r.places} locations` : "");
   const fitWord = m.class === "qualified"
     ? (m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look)
     // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
@@ -737,6 +768,12 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
     name: r.business_name,
+    about: r.about ?? null,
+    where: leadWhere(r),
+    today: leadTodayLine(r.hours ?? [], tz, now),
+    image: r.image_url ?? null,
+    reviewsDist: r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null,
+    claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
     cls: m.class,
@@ -771,13 +808,18 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     ].filter((g) => g.checks.length > 0) as LeadPeekVM["groups"],
     others,
     found: [
-      { at: clockIn(tz, r.found_at, now), what: term ? `On Google Maps, searching “${term}”` : "On a Google Maps listing" },
+      // The rank it was found at rides the first line when the listing gave one: "#3 for “wedding planner”".
+      { at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`) : "On a Google Maps listing" },
       { at: clockIn(tz, r.found_at, now), what: siteLine },
       { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox check: ${mailboxLabel}` },
     ],
     links: {
       website: host ? { label: host, href: `https://${host}` } : null,
       instagram: r.instagram ? { label: "Instagram", href: r.instagram } : null,
+      facebook: r.facebook_url ? { label: "Facebook", href: r.facebook_url } : null,
+      linkedin: r.linkedin_url ? { label: "LinkedIn", href: r.linkedin_url } : null,
+      tiktok: r.tiktok_url ? { label: "TikTok", href: r.tiktok_url } : null,
+      maps: r.maps_url ? { label: "Google Maps", href: r.maps_url } : null,
     },
     version: r.version,
   };
@@ -818,6 +860,10 @@ export interface LeadRowDto {
   phone: string | null; phone_agrees: boolean; phone_wrong: boolean;
   email: string | null; email_state: LeadEmailState; email_checked_at: string | null;
   website: string | null; instagram: string | null; rating: number | null; reviews: number | null;
+  /** What the listing shows about the business (D2, 00144). Optional: a fixture from before carries none, and the view models read them as absent. */
+  about?: string | null; hours?: { day: string; hours: string }[]; image_url?: string | null; price?: string | null;
+  reviews_dist?: { one: number; two: number; three: number; four: number; five: number } | null;
+  facebook_url?: string | null; linkedin_url?: string | null; tiktok_url?: string | null; claimed?: boolean | null; maps_url?: string | null; rank?: number | null;
   stage: LeadStage; closed_reason: string | null; contact_id: string | null;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null; last_note: string | null; contacted_at: string | null; converted_at: string | null;
@@ -872,7 +918,13 @@ export interface LeadRowVM {
   fitLabel: string; fitTitle: string;
   email: string | null; emailState: LeadEmailState; emailLabel: string; emailWord: string;
   phone: string | null; phoneAgrees: boolean; phoneWrong: boolean;
-  why: string; rating: string; stage: LeadStage; stageLabel: string;
+  /** The two contacts as one glance (D2's Reach column), and the listing's photo for the row's mark. */
+  reach: { email: { address: string; state: LeadEmailState; word: string } | null; phone: { number: string; agrees: boolean } | null };
+  image: string | null;
+  why: string; rating: string;
+  /** The spread of reviews, "5★ 30 · 4★ 8 · 3★ 2 · 2★ 0 · 1★ 1", for the Rating cell's title; blank when the listing did not say. */
+  reviewsTitle: string;
+  stage: LeadStage; stageLabel: string;
   foundLabel: string; foundAt: string; distance: string; source: string; host: string;
   excludedBy: string | null; version: number;
 }
@@ -930,8 +982,14 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
     phone: r.phone,
     phoneAgrees: r.phone_agrees,
     phoneWrong: r.phone_wrong,
+    reach: {
+      email: r.email ? { address: r.email, state: r.email_state, word: LEAD_EMAIL_WORDS[r.email_state] } : null,
+      phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null,
+    },
+    image: r.image_url ?? null,
     why: m.reason,
     rating,
+    reviewsTitle: r.reviews_dist ? `5★ ${r.reviews_dist.five} · 4★ ${r.reviews_dist.four} · 3★ ${r.reviews_dist.three} · 2★ ${r.reviews_dist.two} · 1★ ${r.reviews_dist.one}` : "",
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
     foundLabel: agoShort(foundMs, nowMs),

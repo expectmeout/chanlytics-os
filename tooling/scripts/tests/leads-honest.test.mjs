@@ -329,13 +329,15 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   fresh();
   const tree = draw();
   assert.deepEqual(names(tree), ["Zilker Strength Lab", "Barton Creek Coaching", "Lamar Strength Co.", "GigaFit Austin", "Pflugerville Training"], "the surface's order, strongest fit first; the page never re-sorts what it was given");
-  assert.deepEqual(headings(tree), ["Business", "Fit", "Email", "Phone", "Why it fits", "Rating", "Stage", "Found"], "PRD 6.2's Leads columns; Distance waits for a search with a center, and Source, Website and Search are off");
-  const email = (id) => byTestId(rowOf(tree, id), "lead-email");
-  assert.equal(email("l1").props.title, "Checked");
-  assert.equal(email("l2").props.title, "Unconfirmed", "a catch-all server accepts anything, so the check cannot tell (S12)");
-  assert.equal(email("l3").props.title, "Couldn't check");
+  assert.deepEqual(headings(tree), ["Business", "Fit", "Reach", "Why it fits", "Rating", "Stage", "Found"], "PRD 6.2's Leads columns with D2's one Reach column for both contacts; Distance waits for a search with a center, and Source, Website and Search are off");
+  // D2: both contacts in one Reach cell; the email's state is its word, the address rides the title.
+  const email = (id) => byTestId(rowOf(tree, id), "lead-reach-email");
+  assert.match(email("l1").props.title, / · Checked$/);
+  assert.match(email("l2").props.title, / · Unconfirmed$/, "a catch-all server accepts anything, so the check cannot tell (S12)");
+  assert.match(email("l3").props.title, / · Couldn't check$/);
   assert.ok(find(email("l2"), (n) => /\bld-shape\b/.test(String(n.props?.className || ""))), "the state is a shape as well as a word, never colour alone");
-  assert.match(textOf(email("l4")), /Not checked/, "a left-out place's email was never checked, and the row says so");
+  assert.match(textOf(byTestId(rowOf(tree, "l4"), "lead-reach")), /Not checked/, "a left-out place's contacts were never checked, and the row says so");
+  assert.ok(byTestId(rowOf(tree, "l1"), "lead-reach-phone"), "and the number stands beside the email in the same glance");
   assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-stage")).trim(), "", "an excluded place has no stage: the class is not a stage");
   assert.ok(find(rowOf(tree, "l1"), (n) => n.props?.className === "ld-tick2"), "Maps and their website agree on the number");
   assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")).startsWith("322 leads"), true, "the table calls its rows leads");

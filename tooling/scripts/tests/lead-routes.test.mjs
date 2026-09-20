@@ -385,7 +385,7 @@ test("the export is the owner's, on the ledger like contacts/export, and marks w
   assert.deepEqual(rpcCalls("lead_export_mark")[0], { p_tenant_id: A, p_ids: [LEAD] });
   assert.deepEqual(tables.decisions.map((d) => [d.verb, d.subject_type, d.payload.what, d.payload.rows]), [["export", "workspace", "leads", 1]]);
   const csv = await res.text();
-  assert.equal(csv.split("\r\n")[0].replace("﻿", ""), "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,Rating,Reviews,Stage,Why,Search,Found");
+  assert.equal(csv.split("\r\n")[0].replace("﻿", ""), "Business,What they do,Street,City,State,ZIP,Phone,Email,Mailbox,Website,About,Facebook,LinkedIn,Google Maps,Rating,Reviews,Stage,Why,Search,Found");
   assert.ok(csv.includes("Travis Heights Coaching Co."));
   assert.equal(/apify|compass|bounceverify|qualified/i.test(csv), false, "the file says what the owner would say, not what the database stores");
 });

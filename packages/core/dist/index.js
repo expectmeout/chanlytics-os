@@ -1904,6 +1904,7 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -1951,6 +1952,9 @@ var LEAD_WORDS = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
 var LeadsQuerySchema = z7.object({
@@ -4135,6 +4139,7 @@ var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a
 function leadNoteLeft2(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
@@ -4182,6 +4187,9 @@ var LEAD_WORDS2 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE2, sub: LEAD_FIRST_DAY_SUB2, foot: LEAD_FIRST_DAY_FOOT2 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE2,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2
 };
 var LeadsQuerySchema2 = z72.object({
@@ -5354,6 +5362,7 @@ var LEAD_TALKING_NOTE3 = "They join People when they write or call in, or when a
 function leadNoteLeft3(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_UNCLAIMED_NOTE3 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
@@ -5401,6 +5410,9 @@ var LEAD_WORDS3 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE3, sub: LEAD_FIRST_DAY_SUB3, foot: LEAD_FIRST_DAY_FOOT3 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE3,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE3
 };
 var LeadsQuerySchema3 = z73.object({
@@ -39770,7 +39782,23 @@ var MAPS_FIELDS = [
   "reviewsCount",
   "permanentlyClosed",
   "temporarilyClosed",
-  "location"
+  "location",
+  // What the listing shows about the business itself (D2): its own words, hours, a photo, the spread of its
+  // reviews, price, the socials beside Instagram, whether the owner claimed the listing, its rank for the term
+  // and its Maps page. All in the item the run already returns; nothing more is asked of the provider. None of
+  // it reaches the judge (JUDGE_FACT_KEYS is the judge's whole world); it is kept for the owner to read.
+  "description",
+  "ownerDescription",
+  "openingHours",
+  "imageUrl",
+  "reviewsDistribution",
+  "price",
+  "facebooks",
+  "linkedIns",
+  "tiktoks",
+  "claimThisBusiness",
+  "rank",
+  "url"
 ];
 var CHECKER_FIELDS = ["email", "status", "is_catch_all"];
 var MAPS_CAP_FLOOR_USD = 0.5;
@@ -39831,7 +39859,23 @@ var CARDS = {
         rating: num(o.totalScore),
         reviews: num(o.reviewsCount),
         closed: o.permanentlyClosed === true || o.temporarilyClosed === true,
-        location: lat !== null && lng !== null ? { lat, lng } : null
+        location: lat !== null && lng !== null ? { lat, lng } : null,
+        about: (str(o.description) ?? str(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
+        hours: (Array.isArray(o.openingHours) ? o.openingHours : []).map((h) => ({ day: str(obj(h)?.day) ?? "", hours: str(obj(h)?.hours) ?? "" })).filter((h) => h.day && h.hours).slice(0, 7),
+        imageUrl: str(o.imageUrl),
+        reviewsDist: (() => {
+          const d = obj(o.reviewsDistribution);
+          if (!d) return null;
+          const n = (k) => num(d[k]) ?? 0;
+          return { one: n("oneStar"), two: n("twoStar"), three: n("threeStar"), four: n("fourStar"), five: n("fiveStar") };
+        })(),
+        price: str(o.price)?.slice(0, 8) ?? null,
+        facebook: strs(o.facebooks)[0] ?? null,
+        linkedin: strs(o.linkedIns)[0] ?? null,
+        tiktok: strs(o.tiktoks)[0] ?? null,
+        claimed: o.claimThisBusiness === true ? false : o.claimThisBusiness === false ? true : null,
+        rank: num(o.rank),
+        mapsUrl: str(o.url)
       };
     },
     checker: {
@@ -40255,7 +40299,19 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       email_alternates: excluded ? [] : c.emails.filter((e) => e !== picked).slice(0, 4).map((e) => ({ email: e, why: c.host && e.endsWith(`@${c.host}`) ? "on their own domain" : "another domain" })),
       email_state: excluded ? "none" : emailState,
       rating: c.raw.rating,
-      reviews: c.raw.reviews
+      reviews: c.raw.reviews,
+      // What the listing shows about the business (D2): kept for a lead, never for a left-out place (§0.4).
+      about: excluded ? null : c.raw.about,
+      hours: excluded ? [] : c.raw.hours,
+      image_url: excluded ? null : c.raw.imageUrl,
+      price: excluded ? null : c.raw.price,
+      reviews_dist: excluded ? null : c.raw.reviewsDist,
+      facebook_url: excluded ? null : c.raw.facebook,
+      linkedin_url: excluded ? null : c.raw.linkedin,
+      tiktok_url: excluded ? null : c.raw.tiktok,
+      claimed: excluded ? null : c.raw.claimed,
+      maps_url: excluded ? null : c.raw.mapsUrl,
+      rank: excluded ? null : c.raw.rank
     },
     member: {
       judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },

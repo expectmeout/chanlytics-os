@@ -11154,6 +11154,7 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -11201,6 +11202,9 @@ var LEAD_WORDS = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
 var LEAD_SUGGEST_DAYS = 7;
@@ -11487,6 +11491,18 @@ function leadDraftFooter(business, address) {
 ${business} \xB7 ${address}
 Not interested? Reply "no thanks" and I won't write again.`;
 }
+function leadTodayLine(hours, tz, now) {
+  if (!hours.length) return null;
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now);
+  const h = hours.find((x) => x.day.toLowerCase() === day.toLowerCase());
+  if (!h) return null;
+  return /^closed/i.test(h.hours) ? "Closed today" : `Open today \xB7 ${h.hours}`;
+}
+function leadWhere(r) {
+  const town = [r.city, r.state].filter(Boolean).join(", ") + (r.postal_code ? ` ${r.postal_code}` : "");
+  const line = [r.street, town].filter(Boolean).join(", ");
+  return line ? { line, href: r.maps_url ?? null } : null;
+}
 var LEAD_UNDO_MS = 24 * 60 * 6e4;
 function leadUndoable(s, now) {
   const r = s?.round;
@@ -11514,7 +11530,7 @@ function clockIn(tz, iso, now) {
 function toLeadPeekVM(r, search, tz, now) {
   const m = r.member;
   const area = [r.city, r.state].filter(Boolean).join(", ");
-  const sub = [r.category, area].filter(Boolean).join(" \xB7 ") + (r.places > 1 ? ` \xB7 ${r.places} locations` : "");
+  const sub = [r.category, r.price ?? null, area].filter(Boolean).join(" \xB7 ") + (r.places > 1 ? ` \xB7 ${r.places} locations` : "");
   const fitWord = m.class === "qualified" ? m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look : m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} \u2014 ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? m.fit ?? "look" : m.class === "review" ? "review" : "out";
   const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
@@ -11539,6 +11555,12 @@ function toLeadPeekVM(r, search, tz, now) {
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
     name: r.business_name,
+    about: r.about ?? null,
+    where: leadWhere(r),
+    today: leadTodayLine(r.hours ?? [], tz, now),
+    image: r.image_url ?? null,
+    reviewsDist: r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null,
+    claimedNote: r.claimed === false ? LEAD_UNCLAIMED_NOTE : null,
     short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
     sub,
     cls: m.class,
@@ -11571,13 +11593,18 @@ function toLeadPeekVM(r, search, tz, now) {
     ].filter((g) => g.checks.length > 0),
     others,
     found: [
-      { at: clockIn(tz, r.found_at, now), what: term ? `On Google Maps, searching \u201C${term}\u201D` : "On a Google Maps listing" },
+      // The rank it was found at rides the first line when the listing gave one: "#3 for “wedding planner”".
+      { at: clockIn(tz, r.found_at, now), what: term ? r.rank ? `On Google Maps, #${r.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D` : "On a Google Maps listing" },
       { at: clockIn(tz, r.found_at, now), what: siteLine },
       { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox check: ${mailboxLabel}` }
     ],
     links: {
       website: host ? { label: host, href: `https://${host}` } : null,
-      instagram: r.instagram ? { label: "Instagram", href: r.instagram } : null
+      instagram: r.instagram ? { label: "Instagram", href: r.instagram } : null,
+      facebook: r.facebook_url ? { label: "Facebook", href: r.facebook_url } : null,
+      linkedin: r.linkedin_url ? { label: "LinkedIn", href: r.linkedin_url } : null,
+      tiktok: r.tiktok_url ? { label: "TikTok", href: r.tiktok_url } : null,
+      maps: r.maps_url ? { label: "Google Maps", href: r.maps_url } : null
     },
     version: r.version
   };
@@ -11633,8 +11660,14 @@ function toLeadRowVM(r, tz, now) {
     phone: r.phone,
     phoneAgrees: r.phone_agrees,
     phoneWrong: r.phone_wrong,
+    reach: {
+      email: r.email ? { address: r.email, state: r.email_state, word: LEAD_EMAIL_WORDS[r.email_state] } : null,
+      phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null
+    },
+    image: r.image_url ?? null,
     why: m.reason,
     rating,
+    reviewsTitle: r.reviews_dist ? `5\u2605 ${r.reviews_dist.five} \xB7 4\u2605 ${r.reviews_dist.four} \xB7 3\u2605 ${r.reviews_dist.three} \xB7 2\u2605 ${r.reviews_dist.two} \xB7 1\u2605 ${r.reviews_dist.one}` : "",
     stage: r.stage,
     stageLabel: stageLabelOf(r.stage, r.closed_reason),
     foundLabel: agoShort(foundMs, nowMs),
@@ -12150,6 +12183,7 @@ export {
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
   LEAD_TALKING_NOTE,
+  LEAD_UNCLAIMED_NOTE,
   LEAD_UNDO_MS,
   LEAD_UNREACHABLE_KEY,
   LEAD_UNREACHABLE_WORD,
@@ -12548,7 +12582,9 @@ export {
   leadReachLine,
   leadSearchWords,
   leadSuppressionHash,
+  leadTodayLine,
   leadUndoable,
+  leadWhere,
   leadsFirstDayWays,
   leadsRoute,
   leadsStanding,
