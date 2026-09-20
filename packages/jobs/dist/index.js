@@ -14135,6 +14135,8 @@ async function dispatchJob(ctx, job) {
 var LEASE_SECONDS = 90;
 var CLAIM_FOR_MS = 2e4;
 var YIELD_AT_MS = 45e3;
+var FUNCTION_CEILING_MS = 6e4;
+var LEAD_YIELD_AT_MS = FUNCTION_CEILING_MS - 8e3;
 var MAX_ATTEMPTS = 3;
 var MAX_RESUMES = 5;
 var SPEAKS_TO_A_PERSON = /* @__PURE__ */ new Set(["outbound_send", "broadcast_send"]);
@@ -14286,7 +14288,7 @@ function saySettled(results) {
 var errText = (e2) => e2 instanceof Error ? e2.message : String(e2);
 async function runTick(ports, opts) {
   const started = ports.now();
-  const deadline = started + opts.yieldAtMs;
+  const deadlineFor = (kind) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
   const c2 = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
   while (ports.now() - started < opts.claimForMs) {
     const job = await ports.claim(opts.leaseSeconds);
@@ -14306,7 +14308,7 @@ async function runTick(ports, opts) {
     }
     let outcome;
     try {
-      outcome = await ports.dispatch(job, deadline);
+      outcome = await ports.dispatch(job, deadlineFor(job.kind));
     } catch (e2) {
       const msg = errText(e2);
       const wait = retryWait(job);
@@ -14393,6 +14395,8 @@ ${wreckage}` : lead });
 }
 export {
   CLAIM_FOR_MS,
+  FUNCTION_CEILING_MS,
+  LEAD_YIELD_AT_MS,
   LEASE_SECONDS,
   MAX_ATTEMPTS,
   MAX_RESUMES,

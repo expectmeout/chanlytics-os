@@ -79,7 +79,6 @@ const NEARBY = { kind: "city", label: "Round Rock, TX", state: "TX", center: { l
 const FACTS = { dupes: 14, leadsLeft: 486, bound: null, prior: { places: 1_200, matched: 700, with_email: 406 }, priorOf: "trainers", cannotSee: null, renewsOn: "Oct 1", nearby: [NEARBY] };
 const CARD = { id: "p1", kind: "lead_search", needs: "owner", title: "Find 200 personal trainers", summary: planSentence(PLAN), payload: { plan: PLAN, view: { title: "Find 200 personal trainers" }, facts: FACTS }, undo: "Stop the search" };
 const SUGGESTIONS = {
-  forWho: "Chanlytics",
   items: [
     { words: "Personal trainers in Austin with a website, about 200", reach: "about 6 in 10 have an email" },
     { words: "Physical therapists within 5 miles", reach: "about 7 in 10 have an email" },
@@ -190,7 +189,8 @@ test("the composer offers three suggestions, each with how reachable that kind i
   const tree = drawFinder(st);
   const items = allTestId(tree, "finder-suggestion");
   assert.equal(items.length, 3, "three, whatever the server sent");
-  assert.equal(textOf(byTestId(tree, "finder-suggestions")).startsWith("Suggested for Chanlytics, from what your business does"), true, textOf(byTestId(tree, "finder-suggestions")));
+  // The fixture used to invent a `forWho` the DTO never carried, and the header read "Suggested for , from…" on the page.
+  assert.equal(textOf(byTestId(tree, "finder-suggestions")).startsWith("Suggested from what your business does"), true, textOf(byTestId(tree, "finder-suggestions")));
   assert.match(textOf(items[0]), /about 6 in 10 have an email/);
   click(items[1]);
   assert.equal(st.words, "Physical therapists within 5 miles");

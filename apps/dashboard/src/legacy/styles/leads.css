@@ -282,7 +282,7 @@
 /* .ld-shape's own colours are the peek's block above; these are the cells. */
 
 .ld-biz-cell .ld-mark { width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--bg-active); color: var(--ink-muted); display: inline-grid; place-items: center; font-family: var(--font-mono); font-size: var(--text-xs); }
-.ld-biz-cell .cl-row-meta { display: block; font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-biz-cell .cl-row-meta { display: inline-flex; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
 .ld-badge { margin-left: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-fit-cell.qualified { color: var(--ink); }

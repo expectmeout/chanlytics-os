@@ -47,6 +47,8 @@ export interface TickOptions {
   claimForMs: number;
   /** Handlers are handed `start + yieldAtMs` as their deadline. */
   yieldAtMs: number;
+  /** A kind's own yield, when it differs (a lead job's, ledger.ts LEAD_YIELD_AT_MS); `yieldAtMs` otherwise. */
+  yieldAtFor?: (kind: string) => number | undefined;
   leaseSeconds: number;
 }
 
@@ -63,7 +65,7 @@ const errText = (e: unknown): string => (e instanceof Error ? e.message : String
 
 export async function runTick(ports: TickPorts, opts: TickOptions): Promise<TickCounts> {
   const started = ports.now();
-  const deadline = started + opts.yieldAtMs;
+  const deadlineFor = (kind: string) => started + (opts.yieldAtFor?.(kind) ?? opts.yieldAtMs);
   const c: TickCounts = { claimed: 0, done: 0, failed: 0, gaveUp: 0, deferred: 0 };
 
   while (ports.now() - started < opts.claimForMs) {
@@ -86,7 +88,7 @@ export async function runTick(ports: TickPorts, opts: TickOptions): Promise<Tick
 
     let outcome: "done" | "unknown_kind";
     try {
-      outcome = await ports.dispatch(job, deadline);
+      outcome = await ports.dispatch(job, deadlineFor(job.kind));
     } catch (e) {
       const msg = errText(e);
       // A kind written to be run again is kept and tried again later, rather
