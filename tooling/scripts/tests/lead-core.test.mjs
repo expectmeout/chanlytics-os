@@ -197,6 +197,9 @@ test("the mark a site declares: a said logo beats an icon, an icon beats a favic
   assert.equal(leadMarkFrom(head(`<link rel="icon" href="/favicon.ico" sizes="any"><link rel="icon" href="/icon-64.png" sizes="64x64">`), O), `${O}/icon-64.png`);
   // However the page quoted it, and wherever it pointed.
   assert.equal(leadMarkFrom(head(`<link rel=icon href=//cdn.example/i.png>`), O), "https://cdn.example/i.png");
+  // A real bookstore declared its logo over plain http: on an https page the browser blocks it, so an address we
+  // could never show is no better than none. Ask for the one that can be seen.
+  assert.equal(leadMarkFrom(head(`<link rel="apple-touch-icon" href="http://greenbean.example/logo.png">`), O), "https://greenbean.example/logo.png");
   assert.equal(leadMarkFrom(head(`<link rel='apple-touch-icon' href='./img/mark.png'>`), O), `${O}/img/mark.png`);
   assert.equal(leadMarkFrom(head(`<link rel="ICON" HREF="https://other.example/m.png">`), O), "https://other.example/m.png");
   // What it will not answer.
