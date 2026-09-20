@@ -3952,6 +3952,10 @@ export type Database = {
         Args: { p_at?: string; p_tenant_id: string }
         Returns: string
       }
+      lead_month_used: {
+        Args: { p_period: string; p_tenant_id: string }
+        Returns: Json
+      }
       lead_niche_prior: { Args: { p_category_key: string }; Returns: Json }
       lead_plan_check: { Args: { p_plan: Json }; Returns: undefined }
       lead_release: {

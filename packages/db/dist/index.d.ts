@@ -4082,6 +4082,13 @@ type Database = {
                 };
                 Returns: string;
             };
+            lead_month_used: {
+                Args: {
+                    p_period: string;
+                    p_tenant_id: string;
+                };
+                Returns: Json;
+            };
             lead_niche_prior: {
                 Args: {
                     p_category_key: string;

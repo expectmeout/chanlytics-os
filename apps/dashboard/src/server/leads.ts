@@ -470,12 +470,25 @@ function renewsOnOf(tz: string, now: Date): string {
 }
 
 /** One counter's room, out of the month's whole. Never below zero: a reservation may sit above the cap for a moment. */
-async function counterLeft(ctx: Pick<RouteContext, "supabase">, tenantId: string, kind: "allowance" | "budget", period: string, whole: number): Promise<number> {
-  const { data, error } = await ctx.supabase.from("lead_counters").select("used, reserved").eq("tenant_id", tenantId).eq("kind", kind).eq("period", period).maybeSingle();
-  if (error) throw new Error(error.message);
-  const c = (data ?? null) as { used?: number | string; reserved?: number | string } | null;
-  const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) : 0);
-  return Math.max(0, whole - n(c?.used) - n(c?.reserved));
+/**
+ * What the month's two ceilings have already taken -- used and reserved
+ * together, leads for the one and US dollars for the other -- through the door
+ * 00143 opened. This is read as the MEMBER, and lead_counters is the engine's
+ * own table with no member policy and select revoked from authenticated
+ * (00140), so reading it directly raised for every owner and took the plan
+ * card down with it; 00143's header records what that cost.
+ *
+ * `numeric` arrives from PostgREST as a string, so the budget is coerced.
+ */
+async function monthUsed(ctx: Pick<RouteContext, "supabase">, tenantId: string, period: string): Promise<{ allowance: number; budget: number }> {
+  const { data, error } = await ctx.supabase.rpc("lead_month_used", { p_tenant_id: tenantId, p_period: period });
+  if (error) throw new Error(`lead_month_used: ${error.message}`);
+  const n = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" ? Number(v) || 0 : 0);
+  const taken = (kind: "allowance" | "budget") => {
+    const c = data && typeof data === "object" ? (data as Record<string, { used?: unknown; reserved?: unknown } | undefined>)[kind] : null;
+    return n(c?.used) + n(c?.reserved);
+  };
+  return { allowance: taken("allowance"), budget: taken("budget") };
 }
 
 /** The platform-wide prior for a kind of business, or null when nobody has searched for one. */
@@ -503,12 +516,15 @@ export async function planFacts(
   const now = opts.now ?? new Date();
   const { timezone } = await tenantFacts(ctx.supabase, tenantId);
   const month = leadMonth(timezone, now);
-  const [counts, leadsLeft, budgetLeftUsd, prior] = await Promise.all([
+  const [counts, used, prior] = await Promise.all([
     listCounts(ctx, tenantId),
-    counterLeft(ctx, tenantId, "allowance", month, LEAD_MONTHLY_ALLOWANCE),
-    counterLeft(ctx, tenantId, "budget", month, LEAD_MONTHLY_BUDGET_USD),
+    monthUsed(ctx, tenantId, month),
     opts.categoryKey ? nichePrior(ctx, opts.categoryKey) : Promise.resolve(null),
   ]);
+  // The whole of each ceiling is contracts', never the database's: one
+  // derivation per fact, so the number a person reads is spelled once.
+  const leadsLeft = Math.max(0, LEAD_MONTHLY_ALLOWANCE - used.allowance);
+  const budgetLeftUsd = Math.max(0, LEAD_MONTHLY_BUDGET_USD - used.budget);
   // Which of the month's two ceilings this workspace is nearer, as a share of
   // each month's whole: the card says "you have N leads left" for the one and
   // names the budget for the other. Neither touched binds nothing.
