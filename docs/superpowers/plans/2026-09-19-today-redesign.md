@@ -74,6 +74,7 @@ Names and wording here are final; a task that needs something else says so in it
 - Test ids kept verbatim: `today-standing`, `today-queue`, `queue-<kind>`, `queue-snooze`, `queue-resolve`, `brief-live-call`, `brief-run-row`, `brief-run-soon`, `brief-run-done`, `brief-setup`, `brief-review`, `brief-receipt`, `brief-quiet-proof`, `brief-calls-failed`, `today-recap` (the card's list of what is not a number, so `thread.spec.ts` keeps its `.brief-beat` + "failed to deliver" + "See the thread" reading), `today-day`, `today-day-frame`, `today-day-item`, `today-day-reminders`, `today-leaks`, `today-leak-<id>`, `today-away`, `today-away-row`, `today-away-empty`. New: `today-card` (a `section` labelled by its `h2#today-card-title`), `today-figures`, `today-figure-<id>`, `today-receipt-<id>`, `today-quiet-line`, `today-period`, `today-leaks-more`, `today-leak-ask-<id>`, `today-day-more`; and one FailedRead per borrowed read: `today-period-failed` (Reports, at the card's foot), `today-leaks-failed` (Reports or People, in Worth a look), `today-day-failed` (the calendar, where the day goes), `today-runs-failed` (the broadcasts, under the queue's rows), beside the existing `brief-calls-failed` (Today's own calls read).
 - Classes kept because `e2e/signals.ts` and `thread.spec.ts` read them: `.cl-attn-row/.cl-attn-who/.cl-attn-sentence/.cl-attn-status/.cl-attn-cta`, `.brief-beat`, `.tl-text`, `.tl-math`, `.tl-acts`, `.ta-title`, `.tq-count` and `.tq-foot` inside the away card, the `warn` tone class on `.ta-row`. Classes gone: `.tw-*`, `.tj-*`, `.today-recap-line`, `.today-recap-when`, `.rp2-tiles` on Today, the queue's `.tq-count`.
 - CSS strings pinned by suites outside Today that must stay byte-exact in `dashboard-a-v2.css`: `.brief-beat-text { flex: 1; min-width: 0; }` (polish); `.ask-card` must stay absent (ask). Strings pinned by Today's own suites change with the code (their tests are rewritten here).
+- **Borrowed surfaces are read through one accessor.** `dashboard-a-brief.jsx` defines and publishes `todaySurface(key)`: the bridge's global when it is set; in a demo session only (`window.__DEMO_MODE`), the mockup's sample under `window.__TODAY_SAMPLE[key]`; else undefined. The other Today files read through `window.todaySurface` and fall back to the global itself where that file is not loaded (a test). It covers `__CALENDAR`, `__PLAYBOOKS`, `__PEOPLE`, `__BROADCASTS`, `__REPORTS`, `__LIVE`, `__clock`, `__notifs`, `__broadcasts`, `__inboxVerb`, `__refreshPlaybooks`. `TODAY_DATA` and `__today` are read directly: only Today's files read them, so the sample may set them as globals. The sample (`today-sample.ts`) sets nothing else on `window`: the mockup's other pages switch to their real variants on the bridge's names and crash on a sample's partial shapes (measured on `#/broadcasts`, `#/clients`, `#/segments`, `#/outbound`).
 - The standing dot is `.today-standing-dot` (ok, static) and `.today-standing-dot.down` (danger with a danger ring, pulsing only when motion is allowed); `.live-dot` (accent) is no longer on this page.
 
 ## File map
@@ -1749,7 +1750,7 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 - Modify: `tooling/scripts/serve-legacy.mjs`, `apps/dashboard/src/legacy/Chanlytics.html`, `tooling/scripts/tests/legacy-harness.test.mjs:153-157`
 - Test: `tooling/scripts/tests/today-sample.test.mjs` (create; it calls neither `readCode(` nor `readRaw(`)
 
-The standalone mockup (`Chanlytics.html`, served by `serve-legacy.mjs`) has no bridge, so `window.TODAY_DATA` was never set there and Today drew its seeded hero. The sample is a small workspace's day passed through the same view models a real one goes through, published on `window` only where the app's globals are absent, so the mockup draws the one Today page there is. Its metrics are COUNTED from the threads and calls it holds, so the receipts under the figures add up whatever hour the mockup is opened.
+The standalone mockup (`Chanlytics.html`, served by `serve-legacy.mjs`) has no bridge, so `window.TODAY_DATA` was never set there and Today drew its seeded hero. The sample is a small workspace's day passed through the same view models a real one goes through, published for Today alone (its own view model and helpers as globals where the app's are absent, every borrowed surface under one namespaced global, `window.__TODAY_SAMPLE`), so the mockup draws the one Today page there is and its other pages keep their seeds. Its metrics are COUNTED from the threads and calls it holds, so the receipts under the figures add up whatever hour the mockup is opened.
 
 - [ ] **Step 1: Write the failing test** at `tooling/scripts/tests/today-sample.test.mjs`:
 
@@ -1801,7 +1802,7 @@ test("the queue holds one of each kind, and Worth a look names who is waiting", 
   assert.deepEqual(t.queue.rows.map((r) => r.kind), ["handoff", "callback", "window", "call"]);
   assert.deepEqual(t.noReply.map((r) => r.who), ["Dulce Amaro"], "Sofía's thread is the closing window's; Ana's is the handoff's; Dulce is the one nobody answered");
   const leaks = todayLeaks(s.__REPORTS, s.__PEOPLE, t.noReply);
-  assert.ok(leaks.rows.some((l) => l.id === "unreachable"), `seven said yes to messages and nobody to offers: ${leaks.rows.map((l) => l.id)}`);
+  assert.ok(leaks.rows.some((l) => l.id === "unreachable"), `everyone here said yes to messages and nobody to offers: ${leaks.rows.map((l) => l.id)}`);
   const away = todayAwayGrouped(s.bell, t.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })), 5);
   assert.equal(away.total, unreadCount(s.bell));
   assert.equal(away.queued, 3, "the handoff's row, the call-back's row and the missed call are the queue's");
@@ -1815,10 +1816,13 @@ test("it installs only where the app's globals are absent", () => {
   installTodaySample(win, NOW);
   assert.equal(win.TODAY_DATA, "the app's", "never over the bridge's own");
   assert.equal(typeof win.__today.periodLine, "function");
-  assert.equal(win.__notifs.feed().length, todaySample(NOW).bell.length);
-  win.__notifs.read(win.__notifs.feed()[0].id);
-  assert.equal(win.__notifs.unread(), todaySample(NOW).bell.length - 1, "a read mark holds in memory");
-  assert.equal(win.__clock.dayKey(NOW), "2026-09-18");
+  assert.equal(win.__TODAY_SAMPLE.__notifs.feed().length, todaySample(NOW).bell.length);
+  win.__TODAY_SAMPLE.__notifs.read(win.__TODAY_SAMPLE.__notifs.feed()[0].id);
+  assert.equal(win.__TODAY_SAMPLE.__notifs.unread(), todaySample(NOW).bell.length - 1, "a read mark holds in memory");
+  assert.equal(win.__TODAY_SAMPLE.__clock.dayKey(NOW), "2026-09-18");
+  for (const key of ["__CALENDAR", "__PLAYBOOKS", "__PEOPLE", "__BROADCASTS", "__REPORTS", "__LIVE", "__clock", "__notifs"]) {
+    assert.equal(win[key], undefined, "the mockup's other pages switch to their real variants on the bridge's names");
+  }
 });
 
 test("the mockup's bundle publishes the same sample and never bundles the bridge's api", async () => {
@@ -1829,7 +1833,49 @@ test("the mockup's bundle publishes the same sample and never bundles the bridge
   vm.runInNewContext(js, { window: win, console, Date, Intl });
   const plain = (x) => JSON.parse(JSON.stringify(x));
   assert.deepEqual(plain(win.__todaySample(NOW).TODAY_DATA), plain(todaySample(NOW).TODAY_DATA));
-  assert.ok(win.TODAY_DATA && win.__today && win.__notifs && win.__clock, "installed at load, for the page scripts that follow");
+  assert.ok(win.TODAY_DATA && win.__today && win.__TODAY_SAMPLE, "installed at load, for the page scripts that follow");
+  assert.equal(win.__BROADCASTS, undefined, "the mockup's other pages switch to their real variants on the bridge's names");
+});
+
+/** "A", "A and B", "A, B and C", "A, B, C and 2 more": the andList grammar, unpicked. */
+function splitAndList(text) {
+  const parts = text.split(", ");
+  const lastGroup = parts.pop().split(" and ");
+  return [...parts, ...lastGroup];
+}
+
+test("at any hour the figures agree with the rows under them", () => {
+  for (const iso of ["2026-09-18T04:13:00Z", "2026-09-18T10:00:00Z", "2026-09-18T20:00:00Z", "2026-09-19T02:00:00Z"]) {
+    const at = Date.parse(iso);
+    const s = todaySample(at);
+    const t = s.TODAY_DATA;
+    const since = Date.parse(s.metrics.window.since);
+    const inboundToday = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+    assert.equal(s.metrics.period.messages_in, inboundToday.length, `${iso}: messages_in is the inbound customer messages the read holds`);
+    const callsToday = s.calls.filter((c) => c.started_at && Date.parse(c.started_at) >= since);
+    assert.equal(s.metrics.period.calls, callsToday.length, `${iso}: calls is the calls started today`);
+
+    if (s.metrics.period.messages_in === 0 && s.metrics.period.calls === 0 && s.metrics.period.new_contacts === 0) {
+      assert.equal(t.figures, null, `${iso}: a day with nothing at all draws no row of zeros`);
+      assert.equal(t.proof.startsWith("The last message arrived "), true, `${iso}: ${t.proof}`);
+      continue;
+    }
+    const by = Object.fromEntries(t.figures.map((f) => [f.id, f]));
+    assert.equal(by.messages.value, s.metrics.period.messages_in, `${iso}: messages figure`);
+    assert.equal(by.answered.value, s.metrics.period.answered_by_ai, `${iso}: answered figure`);
+    assert.equal(by.calls.value, s.metrics.period.calls, `${iso}: calls figure`);
+    assert.equal(by.new.value, s.metrics.period.new_contacts, `${iso}: new figure`);
+    assert.notEqual(by.new.meta, "first contact today", `${iso}: the count and the threads agree by construction`);
+    if (s.metrics.period.new_contacts > 0) {
+      assert.ok(by.new.receipt, `${iso}: names who is new`);
+      const named = splitAndList(by.new.receipt.text.replace(/ wrote for the first time today\.$/, ""));
+      const expectedNamed = Math.min(s.metrics.period.new_contacts, 3);
+      const more = s.metrics.period.new_contacts > 3 ? named.pop() : null;
+      assert.equal(named.length, expectedNamed, `${iso}: ${by.new.receipt.text}`);
+      if (more !== null) assert.equal(more, `${s.metrics.period.new_contacts - 3} more`, `${iso}: ${by.new.receipt.text}`);
+    }
+    for (const f of t.figures) if (f.receipt) assert.doesNotMatch(f.receipt.text, new RegExp(`\\b${f.value}\\b`), `${iso}: ${f.id}: the receipt repeats the figure`);
+  }
 });
 ```
 
@@ -1850,6 +1896,9 @@ Expected: FAIL, "Cannot find module .../today-sample.ts".
  *
  * Every figure agrees with its parts: the metrics are COUNTED from the threads and calls below, so the receipts add
  * up whatever hour the mockup is opened. Every moment is said relative to `nowMs`, so the day is always today.
+ *
+ * Everything the sample publishes besides `TODAY_DATA` and `__today` lives under one namespaced `__TODAY_SAMPLE`,
+ * never under the bridge's own global names, so the mockup's other pages keep drawing their own seeds.
  *
  * It imports contracts, reports-sample and the bridge's today.ts, and nothing that imports ./api: this is a browser
  * bundle with no session behind it.
@@ -1975,8 +2024,8 @@ function build(nowMs: number): TodaySample {
     thread("cv-dulce", contact("k-dulce", "Dulce Amaro", "0103"), [msg("m-d0", "in", "Booking for the 12th please", at(9, 0, -9), "sms"), msg("m-d1", "ai", "Done: the 12th at 3:00 PM.", at(9, 1, -9), "sms"), msg("m-d2", "in", "Can I bring my sister too?", ago(150), "sms")]),
     thread("cv-ana", contact("k-ana", "Ana Reyes", "0104"), [msg("m-a0", "in", "Hi, can I book a color treatment?", at(10, 0, -8)), msg("m-a1", "ai", "Of course. Friday 10:30 AM is open.", at(10, 1, -8)), msg("m-a2", "in", "I'd rather talk to a person about a refund for last time.", ago(95))], { state: "needs_human", last_wa_inbound_at: ago(95) }),
     thread("cv-kenia", contact("k-kenia", "Kenia Duarte", "0105"), [], { state: "needs_human" }),
-    thread("cv-priya", contact("k-priya", "Priya Nair", "0106"), [msg("m-p0", "in", "Do you do color treatments?", at(10, 0, -12)), msg("m-p0r", "ai", "We do — I can check this week's times if you'd like.", at(10, 1, -12)), msg("m-p1", "in", "Do you do color treatments on Sundays?", ago(130)), msg("m-p2", "failed", "We're closed Sundays, but Saturday 1:00 PM is open if that works.", ago(129))], { last_wa_inbound_at: ago(130) }),
-    thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b0", "in", "Do you have anything this week for a gloss?", at(9, 0, -20)), msg("m-b0r", "ai", "Thursday 9:00 works — see you then.", at(9, 1, -20)), msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
+    thread("cv-priya", contact("k-priya", "Priya Nair", "0106"), [msg("m-p0", "in", "Do you do color treatments?", at(10, 0, -12)), msg("m-p0r", "ai", "We do. I can check this week's times if you'd like.", at(10, 1, -12)), msg("m-p1", "in", "Do you do color treatments on Sundays?", ago(130)), msg("m-p2", "failed", "We're closed Sundays, but Saturday 1:00 PM is open if that works.", ago(129))], { last_wa_inbound_at: ago(130) }),
+    thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b0", "in", "Do you have anything this week for a gloss?", at(9, 0, -20)), msg("m-b0r", "ai", "Thursday 9:00 works. See you then.", at(9, 1, -20)), msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
     thread("cv-sofia", contact("k-sofia", "Sofía Mendes", "0108"), [msg("m-s1", "in", "Can you hold the 3 PM for me? I'll confirm tonight.", ago(21 * 60))], { last_wa_inbound_at: ago(21 * 60) }),
   ];
   const escalations: Array<EscalationDto & { conversation_id: string }> = [
@@ -1996,14 +2045,54 @@ function build(nowMs: number): TodaySample {
     call("k-voicemail", 25, 30, { from_e164: "+13475550188", sentiment: null, in_voicemail: true, summary: null, wanted: null, outcome: "voicemail", disconnection_reason: "voicemail_reached" }),
   ];
 
-  // The metrics as metrics_summary would count them, from the same rows.
+  // The metrics as metrics_summary would count them, from the same rows, windowed to the business's day: every count
+  // below is derived, so the figures agree with their receipts whatever hour the mockup is opened, not only at 4 PM.
   const since = new Date(midnight).toISOString();
   const inbound = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "inbound" && Date.parse(m.created_at) >= midnight));
   const outAi = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "outbound" && Date.parse(m.created_at) >= midnight));
   const answered = conversations.filter((c) => c.messages.some((m) => m.direction === "inbound" && Date.parse(m.created_at) >= midnight) && c.messages.some((m) => m.direction === "outbound" && m.status === "delivered" && Date.parse(m.created_at) >= midnight)).length;
-  const lastIn = inbound.map((m) => m.created_at).sort().at(-1) ?? null;
-  const lastOut = outAi.filter((m) => m.status === "delivered").map((m) => m.created_at).sort().at(-1) ?? null;
   const tallyOf = (xs: readonly string[]) => xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {});
+
+  // Calls today: the same set figuresOf reads (m.window.since is this same midnight), so the calls figure, its
+  // voicemail name and its moods always agree with the count here.
+  const callsToday = calls.filter((c) => c.started_at && Date.parse(c.started_at) >= midnight);
+  // Escalations opened today; escalation_reasons stays the tally of every OPEN one (what the SQL returns) and is
+  // never read by the view model, so it is not windowed.
+  const escalationsToday = escalations.filter((e) => Date.parse(e.created_at) >= midnight);
+  // New today: exactly figuresOf's own rule (the first real message is the customer's and lands today), so the
+  // figure's count and its names can never disagree.
+  const firstMessageOf = (c: ConversationDto) => [...c.messages].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+  const newToday = conversations.filter((c) => {
+    const first = firstMessageOf(c);
+    return !!first && first.sender === "customer" && Date.parse(first.created_at) >= midnight;
+  });
+  // Waiting on nothing: an inbound message came in today, and the thread's last word is still the customer's.
+  const unansweredToday = conversations.filter((c) => {
+    const hasInboundToday = c.messages.some((m) => m.direction === "inbound" && Date.parse(m.created_at) >= midnight);
+    const last = c.messages.at(-1);
+    return hasInboundToday && !!last && last.direction === "inbound";
+  });
+  // The receptionist's reply gap for each of today's inbound messages, to the next delivered reply in its own
+  // thread; the median of those gaps, in whole seconds.
+  const replyGaps: number[] = [];
+  for (const c of conversations) {
+    for (let i = 0; i < c.messages.length; i++) {
+      const m = c.messages[i];
+      if (m.direction !== "inbound" || Date.parse(m.created_at) < midnight) continue;
+      const next = c.messages.slice(i + 1).find((x) => x.direction === "outbound" && x.status === "delivered");
+      if (next) replyGaps.push(Math.round((Date.parse(next.created_at) - Date.parse(m.created_at)) / 1000));
+    }
+  }
+  const medianReplySeconds = ((): number | null => {
+    if (!replyGaps.length) return null;
+    const sorted = [...replyGaps].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  })();
+  // The newest inbound and delivered reply over EVERY message, not only today's: a quiet early morning still proves
+  // the lines were listening yesterday.
+  const lastInboundAt = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "inbound").map((m) => m.created_at)).sort().at(-1) ?? null;
+  const lastOutboundAt = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "outbound" && m.status === "delivered").map((m) => m.created_at)).sort().at(-1) ?? null;
   const metrics: MetricsSummaryDto = {
     workspace: { name: "Melany's Studio", timezone: ZONE, status: "active" },
     channels: [
@@ -2013,16 +2102,16 @@ function build(nowMs: number): TodaySample {
     ],
     window: { days: 1, since, since_local: `${today}T00:00:00`, now_local: naiveLocal(nowMs, ZONE) },
     now: {
-      escalations_open: escalations.length, oldest_open_escalation_at: escalations[0].created_at, threads_needing_human: escalations.length, threads_snoozed: 0, threads_awaiting_reply: 1,
-      last_inbound_at: lastIn, last_outbound_at: lastOut,
+      escalations_open: escalations.length, oldest_open_escalation_at: escalations[0].created_at, threads_needing_human: escalations.length, threads_snoozed: 0, threads_awaiting_reply: unansweredToday.length,
+      last_inbound_at: lastInboundAt, last_outbound_at: lastOutboundAt,
     },
     period: {
       messages_in: inbound.length, messages_out_ai: outAi.length, messages_out_you: 0,
       conversations_active: conversations.filter((c) => c.messages.some((m) => Date.parse(m.created_at) >= midnight)).length,
-      answered_by_ai: answered, answered_by_you: 0, unanswered_in_window: 1, median_reply_seconds_ai: 34, send_failures: outAi.filter((m) => m.status === "failed").length,
-      escalations_new: escalations.length, escalation_reasons: tallyOf(escalations.map((e) => e.reason)),
-      calls: calls.length, call_seconds: calls.reduce((s, c) => s + (c.duration_ms ?? 0) / 1000, 0), call_sentiments: tallyOf(calls.map((c) => c.sentiment).filter((x): x is string => !!x)),
-      calls_voicemail: calls.filter((c) => c.in_voicemail).length, new_contacts: 2,
+      answered_by_ai: answered, answered_by_you: 0, unanswered_in_window: unansweredToday.length, median_reply_seconds_ai: medianReplySeconds, send_failures: outAi.filter((m) => m.status === "failed").length,
+      escalations_new: escalationsToday.length, escalation_reasons: tallyOf(escalations.map((e) => e.reason)),
+      calls: callsToday.length, call_seconds: Math.round(callsToday.reduce((s, c) => s + (c.duration_ms ?? 0) / 1000, 0)), call_sentiments: tallyOf(callsToday.map((c) => c.sentiment).filter((x): x is string => !!x)),
+      calls_voicemail: callsToday.filter((c) => c.in_voicemail).length, new_contacts: newToday.length,
     },
   };
 
@@ -2042,8 +2131,8 @@ function build(nowMs: number): TodaySample {
     ],
   };
 
-  // People: the eight above, and six who have gone quiet. Seven said yes to messages and nobody to offers, which is
-  // the Worth-a-look row the nightly pins on the salon's own workspace.
+  // People: the eight above, and six who have gone quiet. Everyone here said yes to messages and nobody to offers,
+  // which is the Worth-a-look row the nightly pins on the sample's own workspace.
   const row = (id: string, name: string, last4: string, over: Partial<PersonRowDto> = {}): PersonRowDto => ({
     id, display_name: name, wa_profile_name: null, phone_e164: phone(last4), email: null, consent: "opted_in", consent_source: "keyword", consent_updated_at: at(9, 0, -30), dnc: false,
     channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
@@ -2150,26 +2239,59 @@ function sampleBell(rows: BellRow[]) {
 }
 
 /**
+ * Every surface Today's page scripts read besides `TODAY_DATA` and `__today`, namespaced under one global so a
+ * demo session's other pages never see it.
+ */
+export interface TodaySampleSurfaces {
+  __CALENDAR: TodaySample["__CALENDAR"];
+  __PLAYBOOKS: TodaySample["__PLAYBOOKS"];
+  __PEOPLE: TodaySample["__PEOPLE"];
+  __BROADCASTS: TodaySample["__BROADCASTS"];
+  __REPORTS: TodaySample["__REPORTS"];
+  __LIVE: TodaySample["__LIVE"];
+  __clock: { dayKey: (ms: number) => string; time: (ms: number) => string };
+  __notifs: ReturnType<typeof sampleBell>;
+  __inboxVerb: () => Promise<{ ok: true; data: Record<string, never> }>;
+  __broadcasts: { approve: (id: string) => Promise<{ ok: true; data: { recipient_count: number } }>; cancel: () => Promise<{ ok: true; data: Record<string, never> }> };
+  __refreshPlaybooks: () => void;
+}
+
+/**
  * Publishes the sample where the app's globals are absent, and nothing where they stand: the app boots its own
  * surfaces from the bridge, and this file is never loaded there. The mockup loads it before its page scripts.
+ *
+ * `TODAY_DATA` and `__today` are the two globals Today's own files read, so they keep their usual names. Every
+ * other surface goes under one namespaced `__TODAY_SAMPLE`, never under the bridge's own names (`__CALENDAR`,
+ * `__PEOPLE`, `__BROADCASTS`, ...): those are what the mockup's OTHER pages (`#/calendar`, `#/clients`,
+ * `#/broadcasts`, `#/outbound`, ...) read to switch from their seeded variant to their "-real" one, and a real page
+ * fed this sample's day-shaped, partial rows hits its error boundary or draws near-empty rather than its seed. The
+ * sample is a day, not a workspace, so it must not look like one to a page that is not Today. PR B's Today page
+ * reads `__TODAY_SAMPLE` through one accessor, in a demo session only.
  */
 export function installTodaySample(win: Record<string, unknown>, nowMs: number = Date.now()): void {
   const s = todaySample(nowMs);
   const put = (key: string, value: unknown) => { if (win[key] === undefined) win[key] = value; };
-  for (const key of ["TODAY_DATA", "__CALENDAR", "__PLAYBOOKS", "__PEOPLE", "__BROADCASTS", "__REPORTS", "__LIVE"] as const) put(key, s[key]);
+  put("TODAY_DATA", s.TODAY_DATA);
   put("__today", TODAY_HELPERS);
-  put("__notifs", sampleBell(s.bell));
-  put("__clock", { dayKey: (ms: number) => zoneDayKey(ms, ZONE), time: (ms: number) => clockTime(ms, ZONE) });
-  // The verbs a row offers land nowhere in a mockup; they answer as the edge would after a success.
-  put("__inboxVerb", async () => ({ ok: true, data: {} }));
-  put("__broadcasts", { approve: async (id: string) => ({ ok: true, data: { recipient_count: s.__BROADCASTS.rows.find((r) => r.id === id)?.recipient_count ?? 0 } }), cancel: async () => ({ ok: true, data: {} }) });
-  put("__refreshSurface", () => {});
-  put("__refreshPlaybooks", () => {});
-  put("__surfaceFailed", () => false);
+  const surfaces: TodaySampleSurfaces = {
+    __CALENDAR: s.__CALENDAR,
+    __PLAYBOOKS: s.__PLAYBOOKS,
+    __PEOPLE: s.__PEOPLE,
+    __BROADCASTS: s.__BROADCASTS,
+    __REPORTS: s.__REPORTS,
+    __LIVE: s.__LIVE,
+    __clock: { dayKey: (ms: number) => zoneDayKey(ms, ZONE), time: (ms: number) => clockTime(ms, ZONE) },
+    __notifs: sampleBell(s.bell),
+    // The verbs a row offers land nowhere in a mockup; they answer as the edge would after a success.
+    __inboxVerb: async () => ({ ok: true, data: {} }),
+    __broadcasts: { approve: async (id: string) => ({ ok: true, data: { recipient_count: s.__BROADCASTS.rows.find((r) => r.id === id)?.recipient_count ?? 0 } }), cancel: async () => ({ ok: true, data: {} }) },
+    __refreshPlaybooks: () => {},
+  };
+  put("__TODAY_SAMPLE", surfaces);
 }
 ```
 
-(This block is the file as committed. Four things the real types and rules forced while it was first written: `BellRow` lives in the bridge's `notifications.ts`, which imports `./api`, so the sample declares its own identical interface; the email wire carries `number: null`; Bea's and Priya's threads hold an earlier exchange so only Renata and Marco are new today, as the figure says; and `trade-neutral.test.mjs` refuses a salon's words in bridge code, so the business is "Melany's Studio" and its copy says "color treatment".)
+(This block is the file as committed. What the real types, the rules and the review forced while it was written: `BellRow` lives in the bridge's `notifications.ts`, which imports `./api`, so the sample declares its own identical interface; the email wire carries `number: null`; Bea's and Priya's threads hold an earlier exchange so only Renata and Marco are new today; `trade-neutral.test.mjs` refuses a salon's words in bridge code, so the business is "Melany's Studio" and its copy says "color treatment"; the borrowed surfaces live under ONE namespaced global, `window.__TODAY_SAMPLE`, because the mockup's other pages switch to their real variants on the bridge's own names and crash on a sample's partial shapes, so only `TODAY_DATA` and `__today`, which Today alone reads, are set as globals, and PR B's page reads the rest through `todaySurface` in a demo session; and every metric is counted from the rows and windowed to the business's day, so the figures agree with their receipts at any hour, which the last test walks at 00:13, 06:00, 16:00 and 22:00.)
 
 - [ ] **Step 4: `serve-legacy.mjs` builds both samples.** Replace the block from `const SAMPLE = path.join(...)` through the end of `reportsSampleBundle` (the `return built.js; }`) with:
 
@@ -2396,7 +2518,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
 ```
   (The number of `readCode(`/`readRaw(` calls in the file is unchanged: 8.)
 
-  (e) Add to the page pins in the wiring test (same `page` read): `'data-testid="today-day-more"'`, `"d.moreLine"`.
+  (e) Add to the page pins in the wiring test (same `page` read): `'data-testid="today-day-more"'`, `"d.moreLine"`; and the pin `"window.__today.day(C.vm, P ? P.rows : null, window.__PEOPLE || null)"` becomes `"window.__today.day(C.vm, P ? P.rows : null, people || null)"` (Task B6 reads People through the accessor).
 
   (f) In the same wiring test's CSS assertion, the media pin `"@media (max-width: 900px) {\n  .dash-a-v2-core { grid-template-columns: 1fr; }"` becomes `"@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"` (spec 4.1: one column below 1180px; Task B8 writes exactly that block).
 
@@ -2607,7 +2729,7 @@ const calendar = (blocks) => ({ vm: { timezone: ZONE, from: "2026-09-18", to: "2
 const bellRow = (id, kind, title, tone = "", about = null, to = "reports") => ({ id, kind, icon: "bell", tone, unread: true, time: "1h", title, message: "", about, actions: [{ label: "Open", to, primary: true }] });
 
 const set = (globals) => { for (const [k, v] of Object.entries(globals)) { if (v === undefined) delete W[k]; else W[k] = v; } };
-const clear = () => { set({ TODAY_DATA: undefined, __REPORTS: undefined, __PEOPLE: undefined, __BROADCASTS: undefined, __CALENDAR: undefined, __PLAYBOOKS: undefined, __SETUP: undefined, __GOOGLE: undefined, __google: undefined, __notifs: undefined, __LIVE: undefined, __broadcasts: undefined, __inboxVerb: undefined }); failed.clear(); went.length = 0; asked.length = 0; flashes.length = 0; W.__DEMO_MODE = false; };
+const clear = () => { set({ TODAY_DATA: undefined, __TODAY_SAMPLE: undefined, __REPORTS: undefined, __PEOPLE: undefined, __BROADCASTS: undefined, __CALENDAR: undefined, __PLAYBOOKS: undefined, __SETUP: undefined, __GOOGLE: undefined, __google: undefined, __notifs: undefined, __LIVE: undefined, __broadcasts: undefined, __inboxVerb: undefined }); failed.clear(); went.length = 0; asked.length = 0; flashes.length = 0; W.__DEMO_MODE = false; };
 const draw = (Comp, props = {}) => { fresh(); return W.React.createElement(Comp, props); };
 const buttons = (tree, words) => all(tree, (n) => n.type === "button" && textOf(n).includes(words));
 const texts = (tree, cls) => all(tree, (n) => classes(n).includes(cls)).map(textOf);
@@ -2880,6 +3002,23 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
   W.__DEMO_MODE = false;
 });
 
+/* ------------------------------------ the mockup ------------------------------------ */
+
+test("the mockup: the borrowed surfaces come from the sample's one global in a demo session, never from the bridge's names", () => {
+  clear();
+  const bell = { feed: () => [bellRow("n:1", "review", "1 new rating on Google", "ok")], onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {}, unread: () => 1 };
+  set({ TODAY_DATA: busy(), __TODAY_SAMPLE: { __REPORTS: reports(), __PEOPLE: people(), __BROADCASTS: broadcasts(), __CALENDAR: calendar([block("b9", 9, "Gloss")]), __PLAYBOOKS: { rows: [] }, __clock: W.__clock, __notifs: bell } });
+  W.__DEMO_MODE = true;
+  const demo = draw(W.DashboardA);
+  for (const id of ["today-standing", "today-queue", "today-day", "today-card", "today-period", "brief-run-row", "brief-run-done", "today-leaks", "today-away", "today-away-row"]) assert.ok(byTestId(demo, id), `${id}: drawn from the sample`);
+  for (const name of ["__REPORTS", "__PEOPLE", "__BROADCASTS", "__CALENDAR", "__PLAYBOOKS", "__notifs"]) assert.equal(W[name], undefined, `${name}: the mockup's other pages switch to their real variants on the bridge's names`);
+  // A workspace never reads the sample: the same globals outside a demo session draw nothing borrowed.
+  W.__DEMO_MODE = false;
+  const real = draw(W.DashboardA);
+  for (const id of ["today-day", "today-period", "brief-run-row", "today-leaks", "today-away"]) assert.equal(byTestId(real, id), null, `${id}: never from the sample outside a demo`);
+  assert.ok(byTestId(real, "today-queue") && byTestId(real, "today-card"), "its own view model still draws");
+});
+
 /* ------------------------------------ the composition ------------------------------------ */
 
 test("the page is three bands and nothing seeded: the standing line, the queue with the day, the card, worth a look with away", () => {
@@ -2937,13 +3076,20 @@ const useTcTick = (key) => {
   }, [key]);
 };
 
+// A surface as the bridge published it; in the standalone mockup only, as the sample holds it (legacy-bridge/
+// today-sample.ts publishes window.__TODAY_SAMPLE, the way Reports reads window.__reportsSample). The sample never sets
+// the bridge's own names: the mockup's other pages switch to their real variants on those. Today's other files read
+// through this too (window.todaySurface), and fall back to the global itself where this file is not loaded (a test).
+const todaySurface = (key) => (window[key] !== undefined ? window[key] : window.__DEMO_MODE && window.__TODAY_SAMPLE ? window.__TODAY_SAMPLE[key] : undefined);
+
 // A playbook's run or a broadcast that went out today, with what it has earned so far. The runs that wait for a word,
 // and the ones under a Stop, are rows of the queue (dashboard-a-command.jsx). Today, and the time it went, are the
 // business's (window.__clock), not the browser's; the counts are contracts' words (todayRunWords).
 const RunsDone = ({ nav }) => {
   useTcTick("surface:broadcasts");
-  const all = (window.__BROADCASTS && window.__BROADCASTS.rows) || [];
-  const C = window.__clock;
+  const B = todaySurface("__BROADCASTS");
+  const all = (B && B.rows) || [];
+  const C = todaySurface("__clock");
   const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && C.dayKey(Date.parse(r.started_at)) === C.dayKey(Date.now())).slice(0, 2);
   const timeOf = (iso) => C.time(Date.parse(iso));
   return done.map((r) => {
@@ -3074,7 +3220,7 @@ const TodayCard = () => {
   if (!vm) return null;
   const { recap, quiet, figures } = vm;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
-  const R = window.__REPORTS;
+  const R = todaySurface("__REPORTS");
   const period = R && window.__today ? window.__today.periodLine(R) : null;
   // Not read yet is not failed: the foot is silent while Reports loads and says so when its read failed.
   const reportsFailed = !R && !!(window.__surfaceFailed && window.__surfaceFailed("reports"));
@@ -3149,7 +3295,7 @@ const TodayCard = () => {
   );
 };
 
-Object.assign(window, { HeroBrief, TodayCard });
+Object.assign(window, { HeroBrief, TodayCard, todaySurface });
 ```
 
   Pins this file keeps for suites outside Today: `<SetupLine nav={nav} />`, `data-testid="brief-setup"` (setup.test), `<ReviewLine nav={nav} />`, `data-testid="brief-review"` (google.test), `data-testid="brief-run-done"`, `{r.playbook_id ? "ran" : "went out"}` (playbooks.test), `standing.lines.text` (metrics-truth), `<RunsDone nav={nav} />` (today-queue), no `"Queue clear — nothing needs you"` (standing.test), no `dayLine` (today-day, B2).
@@ -3196,6 +3342,9 @@ const useSurfaceTick = (name) => {
   }, [name]);
 };
 
+// The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
+const tqSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
+
 const AgentCommand = () => {
   useSurfaceTick("surface:today");
   return window.TODAY_DATA ? <TodayQueue vm={window.TODAY_DATA} /> : null;
@@ -3206,7 +3355,7 @@ const tqClock = (s) => `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}
 const LiveRail = ({ nav }) => {
   useSurfaceTick("surface:live");
   const [nowMs, setNowMs] = React.useState(Date.now());
-  const L = window.__LIVE;
+  const L = tqSurface("__LIVE");
   // The heartbeat rule, re-applied between refreshes, the way the Live page does.
   const live = L ? L.now.filter((c) => nowMs - (c.heartbeatAtMs || c.startedAtMs || 0) < L.heartbeatMs) : [];
   const count = live.length;
@@ -3237,21 +3386,24 @@ const LiveRail = ({ nav }) => {
 // same grammar, with Approve or Stop where the button goes. What already went out is a line of the day's card. The
 // page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
 const runRows = (nav, flash, verbKind) => {
-  const all = (window.__BROADCASTS && window.__BROADCASTS.rows) || [];
+  const B = tqSurface("__BROADCASTS");
+  const all = (B && B.rows) || [];
+  const api = tqSurface("__broadcasts");
+  const refreshed = () => { const f = tqSurface("__refreshPlaybooks"); if (f) f(); };
   const waiting = all.filter((r) => r.state === "pending_approval");
   const soon = all.filter((r) => r.state === "scheduled" && r.playbook_id && Date.parse(r.scheduled_for) > Date.now());
   const words = (r) => window.__today.runs(r);
   const can = window.canDo && window.canDo("approve");
   const stop = async (r) => {
-    if (!can || !window.__broadcasts) return;
-    const res = await window.__broadcasts.cancel(r.id);
-    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
+    if (!can || !api) return;
+    const res = await api.cancel(r.id);
+    if (res.ok) refreshed();
     flash(res.ok ? { msg: <><b>{r.audience.label}</b> stopped: nothing sends</> } : window.refusalToast(res, "Not stopped"));
   };
   const approve = async (r) => {
-    if (!can || !window.__broadcasts) return;
-    const res = await window.__broadcasts.approve(r.id);
-    if (res.ok && window.__refreshPlaybooks) window.__refreshPlaybooks();
+    if (!can || !api) return;
+    const res = await api.approve(r.id);
+    if (res.ok) refreshed();
     const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
     // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
     const when = res.ok && window.bcWhenWords ? window.bcWhenWords(res.data) : "sending now";
@@ -3300,8 +3452,9 @@ const TodayQueue = ({ vm }) => {
   const [toastNode, ppFlash] = window.usePPToast();
   const nav = (to) => window.appNavigate && window.appNavigate(to);
   const verb = async (r, which) => {
-    if (!(window.canDo && window.canDo("approve"))) return;
-    const res = await window.__inboxVerb(
+    const inboxVerb = tqSurface("__inboxVerb");
+    if (!(window.canDo && window.canDo("approve")) || !inboxVerb) return;
+    const res = await inboxVerb(
       { conversationId: r.also.conversationId, escalationId: r.also.escalationId, who: r.who },
       which, {},
     );
@@ -3347,7 +3500,7 @@ const TodayQueue = ({ vm }) => {
         {drawn}
         {runs}
         {/* The broadcasts read failed: the rows above stand, and the runs that may be waiting are said to be unread. */}
-        {!window.__BROADCASTS && window.__surfaceFailed && window.__surfaceFailed("broadcasts") && (
+        {!tqSurface("__BROADCASTS") && window.__surfaceFailed && window.__surfaceFailed("broadcasts") && (
           <FailedRead kind="line" className="tq-failed" what="the playbook runs" body="The rows above are current." surface="broadcasts" testid="today-runs-failed" />
         )}
         {/* What an empty queue means is a sentence about the wires, so contracts says it: a dark line, no line, a line
@@ -3399,15 +3552,38 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 ### Task B6: The day (`dashboard-a-day.jsx`): the cap's tail and a failed read
 
 **Files:**
-- Modify: `apps/dashboard/src/legacy/pages/dashboard-a-day.jsx`
+- Rewrite: `apps/dashboard/src/legacy/pages/dashboard-a-day.jsx`
 
-- [ ] **Step 1: Three edits.**
-
-  (a) The first line becomes `/* global React, Icon, FailedRead */`, and the header comment gains, after "nothing is booked or changed from here.": ` Five rows at most, the rest a line to the Calendar (contracts TODAY_DAY_MAX); a calendar read that failed says so where the day would be.`
-
-  (b) Between `const P = window.__PLAYBOOKS;` and the guard `if (!C || !C.vm || C.vm.feed.state !== "ok" || !window.__today) return null;` insert (the guard's text stays byte for byte: calendar.test pins it):
+- [ ] **Step 1: Replace the whole file with** (the schedule is unchanged; what is new: the surfaces through the accessor, a failed calendar read saying so, and the cap's tail. The guard's text `C.vm.feed.state !== "ok" || !window.__today) return null;` stays byte for byte: calendar.test pins it.)
 
 ```jsx
+/* global React, Icon, FailedRead */
+// The day: today and tomorrow from the calendar the receptionist reads — who
+// is coming and when, what is open, what is closed — and the visit
+// playbooks' line. Reads the calendar and playbooks surfaces the page already
+// holds; the words are contracts/today.ts todayDay, published by the bridge
+// as window.__today. Silent without a feed: that is the Calendar page's card.
+// An appointment opens its person when the calendar names one, else the
+// Calendar; nothing is booked or changed from here. Five rows at most, the
+// rest a line to the Calendar (contracts TODAY_DAY_MAX); a calendar read that
+// failed says so where the day would be.
+const useTdTick = (key) => {
+  const [, bump] = React.useReducer((n) => n + 1, 0);
+  React.useEffect(() => {
+    const names = key.split(",");
+    names.forEach((n) => window.addEventListener(n, bump));
+    return () => names.forEach((n) => window.removeEventListener(n, bump));
+  }, [key]);
+};
+
+// The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
+const tdSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
+
+const TodayDay = () => {
+  useTdTick("surface:calendar,surface:playbooks");
+  const C = tdSurface("__CALENDAR");
+  const P = tdSurface("__PLAYBOOKS");
+  const people = tdSurface("__PEOPLE");
   // The read failed, and the module would otherwise be silent about it: FailedRead, with the one Retry, where the day goes.
   if (!C && window.__surfaceFailed && window.__surfaceFailed("calendar")) {
     return (
@@ -3416,17 +3592,84 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
       </section>
     );
   }
-```
-
-  (c) After the `{d.open.length > 0 && (...)}` block inside the frame, before the frame's closing `</div>`, insert:
-
-```jsx
+  if (!C || !C.vm || C.vm.feed.state !== "ok" || !window.__today) return null;
+  const vm = window.__today.day(C.vm, P ? P.rows : null, people || null);
+  if (!vm.frames.length) return null;
+  const nav = (to) => window.appNavigate && window.appNavigate(to);
+  const open = (b) => nav(b.person ? `clients/${b.person.id}` : "calendar");
+  // The channel a known person uses, as People knows it: a chat, or calls only.
+  const peopleRows = people ? people.rows : [];
+  const glyphFor = (b) => {
+    if (!b.person) return null;
+    const r = peopleRows.find((x) => x.id === b.person.id);
+    return !r ? null : r.hasChat ? "chat" : r.calls > 0 ? "phone" : null;
+  };
+  return (
+    <section className="td-day" data-testid="today-day">
+      <div className="td-day-head">
+        <span className="td-day-title">The day</span>
+        <span className="td-day-sub">{vm.nextOpening ? `next open time ${vm.nextOpening}` : ""}</span>
+        <button className="btn btn-ghost btn-sm" onClick={() => nav("calendar")}>Open Calendar <Icon name="arrow-right" size={11} /></button>
+      </div>
+      {vm.frames.map((d) => (
+        <div key={d.key} className={`td-frame ${d.today ? "today" : ""}`} data-testid="today-day-frame">
+          <div className="td-frame-head">
+            <span className="td-frame-label">{d.label}</span>
+            {d.closed.yes
+              ? <span className="td-frame-note">Closed{d.closed.note ? ` · ${d.closed.note}` : ""}</span>
+              : d.summary && <span className="td-frame-note tabular">{d.summary.booked}{d.summary.flagged && <> · <b className="warn">{d.summary.flagged}</b></>}</span>}
+          </div>
+          {/* The schedule as the mockup drew it, with only what the calendar and
+              People hold: the start in a column, a rail with the now marker,
+              the name first (the title when nobody is named), the service and
+              its length under it, a red line when that person's thread needs
+              someone. Long words wrap in their own column; nothing is squeezed. */}
+          {d.items.length > 0 ? (
+            <div className="td-items">
+              {d.items.map((b) => {
+                const glyph = glyphFor(b);
+                return (
+                  <button key={b.id} className={`td-item ${b.phase}${b.flag ? " flagged" : ""}`} onClick={() => open(b)} title={`${b.time}${b.person ? ` · open ${b.person.name}` : " · open the Calendar"}`} data-testid="today-day-item" data-phase={b.phase}>
+                    <span className="td-item-time">{b.start}</span>
+                    <span className="td-item-rail" aria-hidden="true" />
+                    <span className="td-item-body">
+                      <span className="td-item-title">{b.person ? b.person.name : b.title}</span>
+                      {(b.person || b.dur) && <span className="td-item-sub">{b.person ? `${b.title}${b.dur ? ` · ${b.dur}` : ""}` : b.dur}</span>}
+                      {b.flag && <span className="td-item-flag">{b.flag}</span>}
+                    </span>
+                    {glyph && <span className="td-item-glyph"><Icon name={glyph} size={11} /></span>}
+                  </button>
+                );
+              })}
+            </div>
+          ) : (!d.closed.yes && <div className="td-empty">Nothing on the calendar.</div>)}
+          {/* The cap's tail: contracts says how many the five rows left out. */}
           {d.more > 0 && (
             <button className="td-day-more" onClick={() => nav("calendar")} data-testid="today-day-more">
               <span>{d.moreLine}</span>
               <Icon name="arrow-right" size={10} />
             </button>
           )}
+          {d.open.length > 0 && (
+            <div className="td-open">
+              <span className="td-open-label">Open</span>
+              {d.open.map((w) => <span key={w} className="td-window">{w}</span>)}
+            </div>
+          )}
+        </div>
+      ))}
+      {vm.reminders && (
+        <button className="td-day-foot" onClick={() => nav(vm.reminders.to)} data-testid="today-day-reminders">
+          <Icon name="bolt" size={11} />
+          <span>{vm.reminders.text}</span>
+          <Icon name="arrow-right" size={10} />
+        </button>
+      )}
+    </section>
+  );
+};
+
+window.TodayDay = TodayDay;
 ```
 
 - [ ] **Step 2: Run**
@@ -3470,6 +3713,8 @@ const useTwTick = (key) => {
 
 const twNav = (to) => window.appNavigate && window.appNavigate(to);
 const twFailed = (key) => !!(window.__surfaceFailed && window.__surfaceFailed(key));
+// The bridge's surface, or the mockup's sample of it (dashboard-a-brief.jsx todaySurface); the global itself where that file is not loaded.
+const twSurface = (key) => (window.todaySurface ? window.todaySurface(key) : window[key]);
 
 // Worth a look: two pages read together.
 //
@@ -3481,8 +3726,8 @@ const twFailed = (key) => !!(window.__surfaceFailed && window.__surfaceFailed(ke
 // workspace with nothing wrong: there is no congratulation state. A third problem is a line, never silence.
 const TodayLeaks = () => {
   useTwTick("surface:reports,surface:clients,surface:today");
-  const R = window.__REPORTS;
-  const P = window.__PEOPLE;
+  const R = twSurface("__REPORTS");
+  const P = twSurface("__PEOPLE");
   const T = window.TODAY_DATA;
   if (!window.__today) return null;
   const broke = (!R && twFailed("reports")) ? ["Reports", "reports"] : (!P && twFailed("people")) ? ["People", "people"] : null;
@@ -3545,7 +3790,7 @@ const TodayLeaks = () => {
 // every unread row that is not drawn, including the ones the queue above already holds. Both sentences come from
 // contracts; this file draws them. It draws wherever a bell is published: the mockup's sample publishes one too.
 const TodayAway = () => {
-  const api = window.__notifs || null;
+  const api = twSurface("__notifs") || null;
   const [rows, setRows] = React.useState(() => (api ? api.feed() : []));
   React.useEffect(() => {
     if (!api) return undefined;
