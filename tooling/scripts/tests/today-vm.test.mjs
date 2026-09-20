@@ -387,16 +387,21 @@ const busyThreads = () => [
   thread("cv-a", "Ana Reyes", [at("2026-08-20T09:00:00Z"), at("2026-08-27T14:50:00Z")], { state: "needs_human" }),
 ];
 const busyCalls = () => [callRow("k1", { sentiment: "Positive" }), callRow("k2", { sentiment: "Neutral", started_at: "2026-08-27T12:00:00Z" }), callRow("k3", { in_voicemail: true, sentiment: null, summary: null, contact: { display_name: "Kenia Duarte", wa_profile_name: null, phone_e164: "+13475550199" }, started_at: "2026-08-27T13:50:00Z" })];
+/** The two handovers the metrics count, as the escalations read holds them: both opened today, both still open. */
+const busyEsc = () => [
+  { id: "e-a", conversation_id: "cv-a", reason: "human_token", details: null, state: "open", created_at: "2026-08-27T14:51:00Z" },
+  { id: "e-d", conversation_id: "cv-d", reason: "non_text", details: null, state: "open", created_at: "2026-08-27T12:05:00Z" },
+];
 
 test("the day's four figures, each with the clause under it and the why behind it", () => {
-  const vm = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW);
+  const vm = toTodayVM(busyDay(), busyThreads(), busyEsc(), busyCalls(), NOW);
   assert.deepEqual(vm.figures.map((f) => [f.id, f.label, f.value]), [["messages", "customer messages", 9], ["answered", "answered by the receptionist", 7], ["calls", "calls", 3], ["new", "new people", 2]]);
   const by = Object.fromEntries(vm.figures.map((f) => [f.id, f]));
   assert.equal(by.messages.meta, "last at 10:38 AM, answered in 41s", "the proof rides the messages figure");
-  // The threads the page holds carry four of today's nine: the receipt splits what the read holds, by wire, most first.
-  assert.deepEqual(by.messages.receipt, { text: "2 by WhatsApp, 1 by email and 1 by text.", door: { label: "Open the Inbox", to: "inbox" } }, "the day's inbound messages by wire, from the threads the page holds");
+  // The threads the page holds carry four of today's nine: the receipt says what it counted, by wire, most first.
+  assert.deepEqual(by.messages.receipt, { text: "Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text.", door: { label: "Open the Inbox", to: "inbox" } }, "never an absolute claim from a partial read");
   assert.equal(by.answered.meta, "typically in 34s, 2 handed over");
-  assert.deepEqual(by.answered.receipt, { text: "Asked for a person: once; sent something the receptionist can't read: once. It sent 11 messages in all.", door: { label: "See the handovers", to: "inbox" } });
+  assert.deepEqual(by.answered.receipt, { text: "Asked for a person: once; sent something the receptionist can't read: once. It sent 11 messages in all.", door: { label: "See the handovers", to: "inbox" } }, "the reasons are today's escalations as the page holds them, never period.escalation_reasons, which counts every open one whatever its age");
   assert.equal(by.calls.meta, "7 min on the phone, 1 to voicemail");
   assert.deepEqual(by.calls.receipt, { text: "The voice provider read 2 as positive and 1 as neutral. Kenia Duarte reached voicemail.", door: { label: "Open the calls", to: "conversations/phone" } });
   assert.equal(by.new.meta, "on email and WhatsApp", "the wires the new people wrote on: most first, then by name, the one rule every split here follows");
@@ -406,7 +411,7 @@ test("the day's four figures, each with the clause under it and the why behind i
 
 test("a receipt adds to its figure: it never says the figure's own number again", () => {
   const fixtures = [
-    toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW),
+    toTodayVM(busyDay(), busyThreads(), busyEsc(), busyCalls(), NOW),
     toTodayVM(metrics({ now: { last_inbound_at: "2026-08-27T14:38:00Z", last_outbound_at: "2026-08-27T14:38:41Z" }, period: { messages_in: 4, messages_out_ai: 4, answered_by_ai: 4, median_reply_seconds_ai: 20, calls: 2, call_seconds: 120, call_sentiments: { Positive: 2 }, new_contacts: 1 } }), busyThreads().slice(0, 1), [], [callRow("k1"), callRow("k2")], NOW),
   ];
   for (const vm of fixtures) {
@@ -418,19 +423,52 @@ test("a receipt adds to its figure: it never says the figure's own number again"
   const same = fixtures[1].figures.find((f) => f.id === "answered");
   assert.equal(same.receipt.text, "One reply each.", "four answered with four sent: the count is not said twice");
   const one = fixtures[1].figures.find((f) => f.id === "messages");
-  assert.equal(one.receipt.text, "All by WhatsApp.", "one wire: no count beside the figure");
+  assert.equal(one.receipt.text, "The one the Inbox holds came by WhatsApp.", "one of four held: what it counted, not 'All by WhatsApp'");
   const all = fixtures[1].figures.find((f) => f.id === "calls");
   assert.equal(all.receipt.text, "The voice provider read all of them as positive.", "two of two: not '2 as positive' beside the figure 2");
+  const held = toTodayVM(metrics({ period: { messages_in: 1, messages_out_ai: 1, answered_by_ai: 1, conversations_active: 1, new_contacts: 1 } }), busyThreads().slice(0, 1), [], [], NOW);
+  assert.equal(held.figures.find((f) => f.id === "messages").receipt.text, "All by WhatsApp.", "one held of one: the whole day, so the absolute is true");
+  assert.equal(held.figures.find((f) => f.id === "new").meta, "on WhatsApp");
+});
+
+test("the sentences stay true where the SQL's counts and the page's rows disagree", () => {
+  // Two handovers opened today, both resolved since: the read (state=open) holds neither, and the receipt counts them rather than naming a reason it cannot see.
+  const resolved = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).figures.find((f) => f.id === "answered");
+  assert.equal(resolved.meta, "typically in 34s, 2 handed over");
+  assert.equal(resolved.receipt.text, "2 handovers already resolved. It sent 11 messages in all.");
+  // One reply answered three asks: nothing to say about it.
+  const grouped = toTodayVM(metrics({ period: { messages_in: 3, messages_out_ai: 1, answered_by_ai: 3, conversations_active: 1 } }), [], [], [], NOW).figures.find((f) => f.id === "answered");
+  assert.equal(grouped.meta, "none handed over");
+  assert.equal(grouped.receipt, null, "REGRESSION: 'One reply each.' over one reply to three messages");
+  // One call: "it", not "all of them".
+  const single = toTodayVM(metrics({ period: { calls: 1, call_seconds: 90, call_sentiments: { Positive: 1 } } }), [], [], [callRow("k1")], NOW).figures.find((f) => f.id === "calls");
+  assert.equal(single.receipt.text, "The voice provider read it as positive.");
+  // Every call to voicemail, nobody on the phone; the same number twice is one caller; a withheld caller is counted, never named.
+  const vmail = [callRow("v1", { in_voicemail: true, sentiment: null, duration_ms: 0 }), callRow("v2", { in_voicemail: true, sentiment: null, duration_ms: 0 }), callRow("v3", { in_voicemail: true, sentiment: null, duration_ms: 0, from_e164: null, contact: null })];
+  const voicemail = toTodayVM(metrics({ period: { calls: 3, call_seconds: 0, call_sentiments: {}, calls_voicemail: 3 } }), [], [], vmail, NOW).figures.find((f) => f.id === "calls");
+  assert.equal(voicemail.meta, "3 to voicemail", "REGRESSION: 'under a minute on the phone' with nobody on the phone");
+  assert.equal(voicemail.receipt.text, "+1 (347) 555-0188 reached voicemail.", "one caller, once; the withheld one is in the clause's count");
+  // A person who existed before and wrote for the first time today is not new: no name beside "nobody new yet".
+  const notNew = toTodayVM(metrics({ period: { messages_in: 1, messages_out_ai: 1, answered_by_ai: 1, conversations_active: 1, new_contacts: 0 } }), busyThreads().slice(0, 1), [], [], NOW).figures.find((f) => f.id === "new");
+  assert.deepEqual([notNew.meta, notNew.receipt], ["nobody new yet", null], "REGRESSION: 'nobody new yet' beside a named person");
+  // Two new people counted, one thread held: no wire claimed for two from one, no name for the one the page cannot see.
+  const partial = toTodayVM(metrics({ period: { messages_in: 2, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 2, new_contacts: 2 } }), busyThreads().slice(0, 1), [], [], NOW).figures.find((f) => f.id === "new");
+  assert.deepEqual([partial.meta, partial.receipt], ["first contact today", null]);
+  // Four new people, all held: three named, the fourth counted.
+  const four = busyThreads().slice(0, 2).concat([thread("cv-n3", "Noor Haddad", [at("2026-08-27T10:00:00Z")]), thread("cv-n4", "Iris Kowalski", [at("2026-08-27T10:30:00Z")])]);
+  const many = toTodayVM(metrics({ period: { messages_in: 4, conversations_active: 4, new_contacts: 4 } }), four, [], [], NOW).figures.find((f) => f.id === "new");
+  assert.equal(many.receipt.text, "Renata Solís, Marco Ibáñez, Noor Haddad and 1 more wrote for the first time today.", "one 'and', as andList says it");
+  assert.equal(many.meta, "on WhatsApp and email", "three on WhatsApp, one by email: most first");
 });
 
 test("a figure with nothing to add has no receipt; a day with nothing at all has no figures, and the proof is still said", () => {
-  // The SQL counted one message; the conversations read holds no thread for it, so there is nothing to split.
-  const thin = toTodayVM(metrics({ period: { messages_in: 1, answered_by_ai: 1, conversations_active: 1 } }), [], [], [], NOW);
+  // The SQL counted one message nobody has answered; the conversations read holds no thread for it, so there is nothing to split.
+  const thin = toTodayVM(metrics({ period: { messages_in: 1, conversations_active: 1 } }), [], [], [], NOW);
   const by = Object.fromEntries(thin.figures.map((f) => [f.id, f]));
   assert.equal(by.messages.meta, "none yet", "no last_inbound_at in this read");
   assert.equal(by.messages.receipt, null, "no thread to split by wire");
-  assert.equal(by.answered.meta, "none handed over", "it answered and never stopped");
-  assert.equal(by.answered.receipt, null, "no handover, nothing sent beyond the answer");
+  assert.equal(by.answered.meta, "none answered yet", "a message came in and nothing answered it yet");
+  assert.equal(by.answered.receipt, null, "no handover, nothing sent");
   assert.equal(by.calls.meta, "none yet");
   assert.equal(by.calls.receipt, null);
   assert.equal(by.new.meta, "nobody new yet");
@@ -446,7 +484,7 @@ test("a figure with nothing to add has no receipt; a day with nothing at all has
   assert.ok(!("greeting" in none.standing), "no greeting above the work");
 });
 
-test("who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, and the thread is not the queue's", () => {
+test("who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, nobody holds the thread, and it is not the queue's", () => {
   const vm = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW);
   assert.deepEqual(vm.noReply.map((r) => [r.who, r.conversationId, r.to]), [["Dulce Amaro", "cv-d", "inbox/th-cv-d"]], "Dulce wrote at 8am with nothing back; Ana wrote ten minutes ago and may still get her answer");
   assert.equal(vm.noReply[0].sinceMs, Date.parse("2026-08-27T12:00:00Z"));
@@ -454,6 +492,13 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
   assert.deepEqual(toTodayVM(busyDay(), busyThreads(), esc, busyCalls(), NOW).noReply, [], "a thread the queue holds is not said twice");
   const snoozed = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, state: "snoozed" } : c));
   assert.deepEqual(toTodayVM(busyDay(), snoozed, [], busyCalls(), NOW).noReply, [], "a snoozed thread waits on purpose");
+  // A teammate has it (standing.ts: a flagged thread with a claim is theirs), or a person paused the receptionist to reply themselves: not waiting on nobody.
+  const theirs = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, state: "needs_human", assignee_user_id: "u-teammate", assignee_is_me: false } : c));
+  assert.deepEqual(toTodayVM(busyDay(), theirs, [], busyCalls(), NOW).noReply, [], "REGRESSION: a thread a colleague is answering, listed as ignored");
+  const paused = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, paused_until: "2026-08-27T18:00:00Z" } : c));
+  assert.deepEqual(toTodayVM(busyDay(), paused, [], busyCalls(), NOW).noReply, [], "a person is on it");
+  const two = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, state: "open", messages: [at("2026-08-27T09:00:00Z"), at("2026-08-27T11:30:00Z")] } : c));
+  assert.deepEqual(toTodayVM(busyDay(), two, [], busyCalls(), NOW).noReply.map((r) => r.who), ["Ana Reyes", "Dulce Amaro"], "oldest wait first");
 });
 
 test("one reading of each escalation: Ask's row and the queue's row agree, and a call-back carries the to-do it left", () => {
