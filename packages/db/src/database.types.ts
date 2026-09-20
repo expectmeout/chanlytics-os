@@ -2175,6 +2175,7 @@ export type Database = {
           judge_model: string | null
           judge_tokens: number
           month: string
+          nearby: Json
           plan: Json
           plan_version: number
           platform_day: string
@@ -2203,6 +2204,7 @@ export type Database = {
           judge_model?: string | null
           judge_tokens?: number
           month: string
+          nearby?: Json
           plan: Json
           plan_version: number
           platform_day?: string
@@ -2231,6 +2233,7 @@ export type Database = {
           judge_model?: string | null
           judge_tokens?: number
           month?: string
+          nearby?: Json
           plan?: Json
           plan_version?: number
           platform_day?: string
@@ -3699,6 +3702,7 @@ export type Database = {
           id: string | null
           judge_tokens: number | null
           name: string | null
+          nearby: Json | null
           plan: Json | null
           plan_version: number | null
           purpose: string | null

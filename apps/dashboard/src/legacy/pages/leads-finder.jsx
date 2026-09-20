@@ -501,6 +501,8 @@ const ldLeftOut = (plan, key) => {
 };
 
 // What leadEndingLine needs, read off the search's latest round and its plan.
+/** A step that points somewhere else: the plan opens on the nearest area the round wrote (00145). */
+const ldLookStep = (id) => id === "nearby" || id === "look_further";
 const ldEndingFacts = (C, s, nearby) => {
   const r = s.round;
   const only = s.plan.exclusions.length === 1 ? ldLowerFirst(s.plan.exclusions[0].text) : null;
@@ -514,7 +516,8 @@ const ldEndingFacts = (C, s, nearby) => {
     excluded: r.excluded,
     checking: r.state === "checking",
     foundBefore: r.counted,
-    nearby,
+    // Where to look next: what the caller knows, else what the round itself wrote when it ran dry (00145).
+    nearby: nearby.length ? nearby : (r.nearby || []).map((a) => a.label),
     // What the source returned at all: every place this round judged, however it was classed.
     seen: r.qualified + r.review + r.excluded,
     leftOutBy: only,
@@ -577,7 +580,7 @@ const ldStripOf = (s, now, nearby) => {
   if (!C.leadEndingLine) return null;
   const line = C.leadEndingLine(r.ending || "paused", ldEndingFacts(C, s, nearby));
   const step = line.step
-    ? [{ id: line.step.id, label: line.step.label, primary: line.step.id !== "excluded" && line.step.id !== "sort_fit", arg: line.step.id === "excluded" ? "excluded" : plan }]
+    ? [{ id: line.step.id, label: line.step.label, primary: line.step.id !== "excluded" && line.step.id !== "sort_fit", arg: line.step.id === "excluded" ? "excluded" : ldLookStep(line.step.id) && r.nearby && r.nearby.length ? { ...plan, area: r.nearby[0] } : plan }]
     : [];
   const sorts = counted > 0 && (r.ending === "target_reached" || r.ending === "searched_everything") && (!line.step || line.step.id !== "sort_fit")
     ? [{ id: "sort_fit", label: "Sort by fit" }]

@@ -39765,6 +39765,11 @@ function inArea(center, radiusM, point) {
   if (!center || !point) return false;
   return haversineM(center, point) <= radiusM;
 }
+function nearestAreas(center, o) {
+  const max = o.maxM ?? RADIUS_MAX_M;
+  const state = (o.state ?? "").trim().toUpperCase();
+  return TABLE.map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) })).filter((x) => x.d >= o.excludeWithinM && x.d <= max).sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1)).slice(0, Math.max(0, o.take)).map((x) => ({ kind: "zip", label: `near ${x.zip}`, state, center: { lat: x.lat, lng: x.lng }, radius_m: 8e3, zip: x.zip, query: state ? `${x.zip}, ${state}, USA` : `${x.zip}, USA` }));
+}
 
 // src/leads/cards.ts
 var MAPS_FIELDS = [
@@ -40266,6 +40271,11 @@ function centerOf(plan, members) {
   const center = medianCenter(points);
   return { center, radiusM: center ? radiusFromSpread(center, points) : plan.area.radius_m };
 }
+function nearbyFor(plan, members) {
+  const geo = centerOf(plan, members);
+  if (!geo.center) return [];
+  return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15e3), take: 3, state: plan.area.state });
+}
 function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf) {
   const loc = c.raw.location;
   const distance = geo.center && loc ? haversineM(geo.center, loc) : null;
@@ -40523,8 +40533,9 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
     asked.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
   }
   const ending = discoveryEnding(round, runs, { counted, target: targetOf(round), termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null), stopped: false });
+  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
   return {
-    round: { state: "checking", question: null, ending: null, ending_pending: ending },
+    round: { state: "checking", question: null, ending: null, ending_pending: ending, ...nearby.length ? { nearby } : {} },
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
   };
@@ -40748,6 +40759,8 @@ export {
   mainAsk,
   medianCenter,
   memberOf,
+  nearbyFor,
+  nearestAreas,
   opIdFor,
   probeAsk,
   probeYield,

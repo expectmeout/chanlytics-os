@@ -22,12 +22,12 @@
  * (ports.webhookToken), so a job tried again can rebuild the URL its earlier
  * try sent without the row's stored hash ever being rewritten (E1).
  */
-import { LEAD_CARDS, LEAD_ESTIMATE_MARGIN, LEAD_JUDGE_BATCH, classify, type JudgePlaceAnswer, type LeadEmailState, type LeadRoundState, type LeadRunState, type LeadSearchPlan } from "@chanlytics/contracts";
+import { type LeadArea, LEAD_CARDS, LEAD_ESTIMATE_MARGIN, LEAD_JUDGE_BATCH, classify, type JudgePlaceAnswer, type LeadEmailState, type LeadRoundState, type LeadRunState, type LeadSearchPlan } from "@chanlytics/contracts";
 import { APIFY_RUN_END_EVENTS } from "@chanlytics/channels";
 import { CARDS, CHECKER_RUN_TIMEOUT_SECS, MAPS_RUN_TIMEOUT_SECS, areaCenter, type LeadCardRunner } from "./cards";
 import { cleanPlace, type CleanPlace } from "./clean";
 import { discoveryEnding, FINAL_RUN_STATES, runStateOf, termsShortOf } from "./endings";
-import { inArea, haversineM, medianCenter, radiusFromSpread, type LatLng } from "./geo";
+import { inArea, haversineM, medianCenter, nearestAreas, radiusFromSpread, type LatLng } from "./geo";
 import { runIdFor, sha256Hex } from "./ids";
 import { foldDuplicates, identityOf, shareKeysOf, sharesWithin } from "./identity";
 import { JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, factsOf, judgeBatch, opIdFor, type JudgedBatch } from "./judge";
@@ -248,6 +248,16 @@ export function centerOf(plan: LeadSearchPlan, members: LeadMemberRow[]): { cent
   const points = members.filter((m): m is LeadMemberRow & { lat: number; lng: number } => m.lat !== null && m.lng !== null).map((m) => ({ lat: m.lat, lng: m.lng }));
   const center = medianCenter(points);
   return { center, radiusM: center ? radiusFromSpread(center, points) : plan.area.radius_m };
+}
+
+/**
+ * Where to look next when a round ran dry (D3): the nearest ZIP centres past the area it measured from, three of them.
+ * Nothing when the round has no centre yet (a city ask whose probe placed nothing).
+ */
+export function nearbyFor(plan: LeadSearchPlan, members: LeadMemberRow[]): LeadArea[] {
+  const geo = centerOf(plan, members);
+  if (!geo.center) return [];
+  return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15_000), take: 3, state: plan.area.state });
 }
 
 /** One place as the commit takes it: the lead's columns, the member's class decided by code (§0.1), its shares. */
@@ -519,8 +529,10 @@ async function roundDecision(p: LeadPorts, round: LeadRoundRow, run: LeadRunRow,
     asked.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
   }
   const ending = discoveryEnding(round, runs, { counted, target: targetOf(round), termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null), stopped: false });
+  // A round that ran dry says where to look next (D3): written with its ending, before the round is final.
+  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
   return {
-    round: { state: "checking", question: null, ending: null, ending_pending: ending },
+    round: { state: "checking", question: null, ending: null, ending_pending: ending, ...(nearby.length ? { nearby } : {}) },
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0),
   };

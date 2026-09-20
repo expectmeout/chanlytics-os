@@ -18,6 +18,18 @@
 -- Keep and Exclude over a selection (lead_bulk, 00142, re-declared with one
 -- more argument): the owner's, through the member's own door once per lead, so
 -- each counts or is refused exactly as the row's own act would be.
+--
+-- And a search that ran dry says where to look next: lead_rounds.nearby, the
+-- nearest ZIP centres past its area, written by lead_collect_commit with the
+-- ending and carried by lead_searches_view (00142, re-declared in place with
+-- the one column appended).
+
+-- Where to look next when a round ran dry (D3): the nearest ZCTA centres past the area it searched, as
+-- LeadArea rows, nearest first, written by lead_collect_commit with the ending they belong to. [] when the
+-- round found what it asked for, and for every round from before this migration.
+alter table public.lead_rounds add column if not exists nearby jsonb not null default '[]'::jsonb;
+comment on column public.lead_rounds.nearby is
+  'Where to look next when the round ran dry (00145): the nearest ZIP centres past its area, as the plan''s area rows, nearest first; [] when it found what it asked for.';
 
 /* ------------------------------------------ lead_collect_commit, from 00144 -- */
 
@@ -230,6 +242,11 @@ begin
   end if;
   if v_r->>'ending_pending' is not null then
     update public.lead_rounds set ending_pending = v_r->>'ending_pending' where id = v_round.id;
+  end if;
+  -- Where to look next, when the area ran dry (D3, 00145): written with the ending it belongs to, before the
+  -- round is final.
+  if v_r->'nearby' is not null and jsonb_typeof(v_r->'nearby') = 'array' then
+    update public.lead_rounds set nearby = v_r->'nearby' where id = v_round.id;
   end if;
   if v_r->'question' is not null and jsonb_typeof(v_r->'question') = 'object' then
     update public.lead_rounds set question = v_r->'question', waiting_since = now() where id = v_round.id;
@@ -552,3 +569,38 @@ comment on function public.lead_check_again(uuid, uuid[]) is
   'Owner (permission find). Asks the mailbox check again for the named leads whose last check did not answer (email_state unknown), once their search has finished: each goes to checking and one lead_check job per round is written with {round_id, batch 0, again <nonce>, lead_ids}, so the engine runs it under the round with a run id of its own and commits through lead_check_commit. {error: paused} while searching is off. Returns {scheduled, skipped}.';
 revoke execute on function public.lead_check_again(uuid, uuid[]) from public, anon;
 grant  execute on function public.lead_check_again(uuid, uuid[]) to authenticated;
+
+/* ------------------------------------------- lead_searches_view, from 00142 -- */
+
+create or replace view public.lead_searches_view with (security_invoker = true) as
+select s.id, s.tenant_id, s.created_by, s.via, s.card, s.name, s.asked, s.plan, s.removed_at, s.created_at,
+       r.id as round_id, r.seq, r.purpose, r.state, r.ending, r.ending_pending, r.question, r.answered, r.target,
+       r.plan_version, r.judge_tokens, r.cost_usd, r.waiting_since, r.ended_at,
+       coalesce(c.qualified, 0) as qualified, coalesce(c.review, 0) as review, coalesce(c.excluded, 0) as excluded,
+       coalesce(c.counted, 0) as counted, coalesce(c.emails_checked, 0) as emails_checked, coalesce(c.with_phone, 0) as with_phone,
+       u.id as undo_op_id, u.version as undo_version,
+       coalesce(r.nearby, '[]'::jsonb) as nearby
+  from public.lead_searches s
+  left join lateral (
+    select r.id, r.seq, r.purpose, r.state, r.ending, r.ending_pending, r.question, r.answered, r.target,
+           r.plan_version, r.judge_tokens, r.cost_usd, r.waiting_since, r.ended_at, r.nearby
+      from public.lead_rounds r where r.search_id = s.id order by r.seq desc limit 1
+  ) r on true
+  left join lateral (
+    select count(*) filter (where m.class = 'qualified' and m.blanked_at is null) as qualified,
+           count(*) filter (where m.class = 'review' and m.blanked_at is null)    as review,
+           count(*) filter (where m.class = 'excluded')                           as excluded,
+           count(*) filter (where m.counted)                                      as counted,
+           count(*) filter (where m.class = 'qualified' and m.blanked_at is null and l.email_state = 'ok')  as emails_checked,
+           count(*) filter (where m.class = 'qualified' and m.blanked_at is null and l.phone_e164 is not null and not l.phone_wrong) as with_phone
+      from public.lead_search_members m join public.leads l on l.id = m.lead_id where m.search_id = s.id
+  ) c on true
+  left join lateral (
+    select o.id, o.version from public.lead_operations o
+     where o.search_id = s.id and o.kind = 'undo_search' and o.undone_at is null and o.at > now() - interval '24 hours'
+     order by o.at desc limit 1
+  ) u on true;
+comment on view public.lead_searches_view is
+  'Every column of lead_searches with its latest round (round_id, seq, purpose, state, ending, ending_pending, question, answered, target, plan_version, judge_tokens, cost_usd -- what that round has spent, so cost per Qualified lead is read from here -- waiting_since and ended_at) and its counts over the members: qualified, review, excluded, counted, emails_checked (a qualified lead whose address was checked and answered) and with_phone (a qualified lead with a number nobody has marked wrong). Excluded members stay counted after their details are blanked, so "40 left out" stays 40. undo_op_id and undo_version name the operation this search''s Undo takes while its twenty-four hours run, and are null once it is undone or the day is out. nearby (00145): where to look next when the round ran dry, the nearest ZIP centres past its area, nearest first; [] otherwise.';
+revoke all on public.lead_searches_view from public, anon;
+grant select on public.lead_searches_view to authenticated, service_role;

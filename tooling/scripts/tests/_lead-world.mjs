@@ -71,7 +71,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const used = T.lead_search_members.filter((m) => m.tenant_id === p_tenant_id && m.counted).length + T.lead_rounds.filter((r) => r.tenant_id === p_tenant_id && r.state !== "ended").reduce((a, r) => a + r.allowance_reserved - r.allowance_used, 0);
       if (used + p_plan.count > 500) return { error: "month_leads_used", left: Math.max(0, 500 - used), sentence: `This month covers ${Math.max(0, 500 - used)} more leads.` };
       const search = { id: uuid(), tenant_id: p_tenant_id, created_by: OWNER_USER, via: p_via, card: p_plan.card, name: p_plan.name, asked: p_plan.asked, plan: p_plan, removed_at: null, created_at: nowIso() };
-      const round = { id: uuid(), tenant_id: p_tenant_id, search_id: search.id, seq: 1, purpose: "probe", plan: p_plan, plan_version: p_plan.version, target: Math.min(25, p_plan.count), state: "queued", ending: null, ending_pending: null, question: null, answered: null, waiting_since: null, allowance_reserved: p_plan.count, allowance_used: 0, cost_reserved_usd: p_estimate_usd, cost_usd: 0, judge_tokens: 0, judge_model: null, month, day: "2026-09-19", platform_day: "2026-09-19", started_at: null, ended_at: null, created_at: nowIso() };
+      const round = { id: uuid(), tenant_id: p_tenant_id, search_id: search.id, seq: 1, purpose: "probe", plan: p_plan, plan_version: p_plan.version, target: Math.min(25, p_plan.count), state: "queued", ending: null, ending_pending: null, question: null, answered: null, waiting_since: null, allowance_reserved: p_plan.count, allowance_used: 0, cost_reserved_usd: p_estimate_usd, cost_usd: 0, judge_tokens: 0, judge_model: null, month, day: "2026-09-19", platform_day: "2026-09-19", started_at: null, ended_at: null, created_at: nowIso(), nearby: [] };
       T.lead_searches.push(search);
       T.lead_rounds.push(round);
       w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id });
@@ -206,6 +206,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const r = page.round ?? {};
       if (r.target != null) round.target = Math.max(round.target, r.target);
       if (r.ending_pending != null) round.ending_pending = r.ending_pending;
+      if (Array.isArray(r.nearby)) round.nearby = r.nearby;
       if (r.question && typeof r.question === "object") { round.question = r.question; round.waiting_since = nowIso(); }
       if (r.ending != null) end(round, r.ending);
       else if (r.state != null && r.state !== round.state) { round.state = r.state; round.started_at = round.started_at ?? nowIso(); }

@@ -1056,3 +1056,19 @@ test("after a round ended, a check run still commits its page and usage, and a m
   const disc = await runOf(round, "florist", "w-d3");
   assert.deepEqual(ok(await commit(disc.id, "w-d3", disc.gen, 0, 1, { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: null })), { ok: false, why: "ended" }, "a discover run's page is still refused after the round ended");
 });
+
+// D3 (00145): a round that ran dry writes where to look next with its ending, and the view carries it to the page.
+test("a round's nearby areas ride the commit with the ending and come back from lead_searches_view", { skip }, async () => {
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "florists", asked: "florists in Austin", plan: plan(5) }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({ tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: plan(5), plan_version: 1, target: 5, state: "queued", month: leadMonth(TZ, new Date()), day: "2026-09-20", platform_day: "2026-09-20" }).select("id").single()).id;
+  const run = await runOf(round, "florist", "w-n1");
+  const far = [{ kind: "zip", label: "near 78660", state: "TX", center: { lat: 30.44, lng: -97.62 }, radius_m: 8000, zip: "78660", query: "78660, TX, USA" }];
+  assert.deepEqual(ok(await db.from("lead_searches_view").select("nearby").eq("id", search).single()), { nearby: [] }, "nothing before the round wrote it");
+  // A round starts queued and the first page moves it to probing; the ending and its nearby ride a later page, as the runner writes them.
+  let r = ok(await commit(run.id, "w-n1", run.gen, 0, 1, { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: { state: "probing", question: null, ending: null } }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  r = ok(await commit(run.id, "w-n1", run.gen, 1, 2, { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: { state: null, question: null, ending: null, ending_pending: "searched_everything", nearby: far } }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  assert.deepEqual(ok(await db.from("lead_rounds").select("nearby, ending_pending").eq("id", round).single()), { nearby: far, ending_pending: "searched_everything" });
+  assert.deepEqual(ok(await db.from("lead_searches_view").select("nearby").eq("id", search).single()), { nearby: far }, "the view carries it to the page");
+});

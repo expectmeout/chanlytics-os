@@ -959,6 +959,8 @@ export interface LeadSearchRoundDto {
   ending_pending: boolean;
   waiting_since: string | null; cost_usd: number; ended_at: string | null;
   undo_op_id: string | null; undo_version: number | null;
+  /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
+  nearby: LeadArea[];
 }
 export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }

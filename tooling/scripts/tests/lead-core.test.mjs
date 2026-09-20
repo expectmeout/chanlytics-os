@@ -9,7 +9,7 @@ import assert from "node:assert/strict";
 import { CARDS, areaCenter } from "../../../packages/core/src/leads/cards.ts";
 import { cleanPlace } from "../../../packages/core/src/leads/clean.ts";
 import { foldDuplicates, identityOf, isFreeMail, shareKeysOf } from "../../../packages/core/src/leads/identity.ts";
-import { haversineM, zctaCenter, medianCenter, radiusFromSpread, inArea } from "../../../packages/core/src/leads/geo.ts";
+import { haversineM, zctaCenter, medianCenter, radiusFromSpread, inArea, nearestAreas } from "../../../packages/core/src/leads/geo.ts";
 import { judgeBatch, factsOf, fact, JUDGE_REFUSED_REASON } from "../../../packages/core/src/leads/judge.ts";
 import { probeAsk, mainAsk, runCaps, yieldOf } from "../../../packages/core/src/leads/sizing.ts";
 import { afterProbe } from "../../../packages/core/src/leads/question.ts";
@@ -161,4 +161,21 @@ test("a run row's id is derived from the round, the phase and the term, so two s
   assert.match(a, /^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
   assert.notEqual(a, await runIdFor("11111111-1111-4111-8111-111111111111", "main", "personal trainer"));
   assert.equal(await sha256Hex("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+});
+
+// D3: where to look when an area ran dry -- the nearest ZIP centres past a ring, as areas the plan can take.
+test("nearestAreas: the nearest ZIP centres past the ring, nearest first, each an area the plan can take", () => {
+  const austin = { lat: 30.2672, lng: -97.7431 };
+  const near = nearestAreas(austin, { excludeWithinM: 15_000, take: 3, state: "tx" });
+  assert.equal(near.length, 3);
+  const ds = near.map((a) => haversineM(austin, a.center));
+  assert.ok(ds.every((d) => d >= 15_000 && d <= 60_000), `between the ring and the ceiling: ${ds.join(", ")}`);
+  assert.deepEqual(ds, [...ds].sort((a, b) => a - b), "nearest first");
+  for (const a of near) {
+    assert.match(a.zip, /^\d{5}$/);
+    assert.deepEqual([a.kind, a.label, a.state, a.radius_m, a.query], ["zip", `near ${a.zip}`, "TX", 8_000, `${a.zip}, TX, USA`]);
+    assert.deepEqual(a.center, zctaCenter(a.zip), "the area's centre is the ZIP's own");
+  }
+  assert.deepEqual(nearestAreas(austin, { excludeWithinM: 15_000, take: 3, maxM: 10_000 }), [], "nothing between a ring wider than the ceiling");
+  assert.equal(nearestAreas(austin, { excludeWithinM: 0, take: 1 })[0].query.endsWith(", USA"), true, "no state: the query still names the country");
 });

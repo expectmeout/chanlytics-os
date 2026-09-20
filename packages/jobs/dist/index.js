@@ -1195,9 +1195,11 @@ var LeadStageInputSchema = z7.discriminatedUnion("kind", [
   z7.object({ kind: z7.literal("emailed") })
 ]);
 var LeadsBulkSchema = z7.discriminatedUnion("by", [
-  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z7.array(z7.string().uuid()).min(1).max(500), search_id: z7.string().uuid().optional() }),
   z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
+var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema = z7.object({
   tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
@@ -7309,9 +7311,11 @@ var LeadStageInputSchema2 = z72.discriminatedUnion("kind", [
   z72.object({ kind: z72.literal("emailed") })
 ]);
 var LeadsBulkSchema2 = z72.discriminatedUnion("by", [
-  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit"]), ids: z72.array(z72.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z72.array(z72.string().uuid()).min(1).max(500), search_id: z72.string().uuid().optional() }),
   z72.object({ by: z72.literal("view"), action: z72.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
 ]);
+var LeadsCheckAgainSchema2 = z72.object({ ids: z72.array(z72.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema2 = z72.object({
   tone: z72.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z72.object({ subject: z72.string().max(200), body: z72.string().max(4e3) }).optional()
@@ -9511,9 +9515,11 @@ var LeadStageInputSchema3 = z73.discriminatedUnion("kind", [
   z73.object({ kind: z73.literal("emailed") })
 ]);
 var LeadsBulkSchema3 = z73.discriminatedUnion("by", [
-  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit"]), ids: z73.array(z73.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z73.array(z73.string().uuid()).min(1).max(500), search_id: z73.string().uuid().optional() }),
   z73.object({ by: z73.literal("view"), action: z73.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
 ]);
+var LeadsCheckAgainSchema3 = z73.object({ ids: z73.array(z73.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema3 = z73.object({
   tone: z73.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z73.object({ subject: z73.string().max(200), body: z73.string().max(4e3) }).optional()
@@ -10803,9 +10809,11 @@ var LeadStageInputSchema22 = z722.discriminatedUnion("kind", [
   z722.object({ kind: z722.literal("emailed") })
 ]);
 var LeadsBulkSchema22 = z722.discriminatedUnion("by", [
-  z722.object({ by: z722.literal("ids"), action: z722.enum(["contacted", "not_a_fit"]), ids: z722.array(z722.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z722.object({ by: z722.literal("ids"), action: z722.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z722.array(z722.string().uuid()).min(1).max(500), search_id: z722.string().uuid().optional() }),
   z722.object({ by: z722.literal("view"), action: z722.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema22 })
 ]);
+var LeadsCheckAgainSchema22 = z722.object({ ids: z722.array(z722.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema22 = z722.object({
   tone: z722.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z722.object({ subject: z722.string().max(200), body: z722.string().max(4e3) }).optional()
@@ -11966,9 +11974,11 @@ var LeadStageInputSchema32 = z732.discriminatedUnion("kind", [
   z732.object({ kind: z732.literal("emailed") })
 ]);
 var LeadsBulkSchema32 = z732.discriminatedUnion("by", [
-  z732.object({ by: z732.literal("ids"), action: z732.enum(["contacted", "not_a_fit"]), ids: z732.array(z732.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z732.object({ by: z732.literal("ids"), action: z732.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z732.array(z732.string().uuid()).min(1).max(500), search_id: z732.string().uuid().optional() }),
   z732.object({ by: z732.literal("view"), action: z732.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema32 })
 ]);
+var LeadsCheckAgainSchema32 = z732.object({ ids: z732.array(z732.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema32 = z732.object({
   tone: z732.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z732.object({ subject: z732.string().max(200), body: z732.string().max(4e3) }).optional()
@@ -13617,9 +13627,11 @@ var LeadStageInputSchema4 = z74.discriminatedUnion("kind", [
   z74.object({ kind: z74.literal("emailed") })
 ]);
 var LeadsBulkSchema4 = z74.discriminatedUnion("by", [
-  z74.object({ by: z74.literal("ids"), action: z74.enum(["contacted", "not_a_fit"]), ids: z74.array(z74.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z74.object({ by: z74.literal("ids"), action: z74.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z74.array(z74.string().uuid()).min(1).max(500), search_id: z74.string().uuid().optional() }),
   z74.object({ by: z74.literal("view"), action: z74.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema4 })
 ]);
+var LeadsCheckAgainSchema4 = z74.object({ ids: z74.array(z74.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema4 = z74.object({
   tone: z74.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z74.object({ subject: z74.string().max(200), body: z74.string().max(4e3) }).optional()

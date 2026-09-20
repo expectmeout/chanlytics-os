@@ -193,6 +193,19 @@ export interface SearchViewRow {
   /** The undo_search operation a finished round's Undo names, while its twenty-four hours run. */
   undo_op_id: string | null;
   undo_version: number | null;
+  /** 00145: where to look next when the round ran dry, as LeadArea rows; [] otherwise. */
+  nearby: unknown;
+}
+
+/** The round's nearby areas as the view returns them: only rows shaped as an area are handed on. */
+function nearbyOf(v: unknown): LeadArea[] {
+  if (!Array.isArray(v)) return [];
+  return v.filter((a): a is LeadArea => {
+    const x = a as Partial<LeadArea> | null;
+    return !!x && typeof x === "object" && typeof x.label === "string" && typeof x.radius_m === "number" && typeof x.query === "string"
+      && (x.kind === "zip" || x.kind === "city" || x.kind === "radius") && typeof x.state === "string"
+      && (x.center === null || (!!x.center && typeof x.center.lat === "number" && typeof x.center.lng === "number"));
+  });
 }
 
 /** One search with its latest round, or a 404 in the product's words. */
@@ -302,6 +315,7 @@ function toSearchDto(r: SearchViewRow): LeadSearchDto {
       ended_at: r.ended_at,
       undo_op_id: r.undo_op_id,
       undo_version: r.undo_version,
+      nearby: nearbyOf(r.nearby),
     },
   };
 }

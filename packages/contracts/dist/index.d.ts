@@ -10944,6 +10944,8 @@ interface LeadSearchRoundDto {
     ended_at: string | null;
     undo_op_id: string | null;
     undo_version: number | null;
+    /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
+    nearby: LeadArea[];
 }
 interface LeadSearchDto {
     id: string;
