@@ -16,7 +16,9 @@ import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadRowVM, leadRail, leadsStanding,
+  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
 } from "../../../packages/contracts/src/leads.ts";
+import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------ the fixtures */
 
@@ -147,4 +149,81 @@ test("the rail and the standing line count what the lists hold, and say who need
   assert.deepEqual(leadRail({ ...COUNTS, said_no: 0 }, []).lists.map((l) => l.label), ["All leads", "Ready", "Contacted", "Talking", "Not a fit"], "Said no only when there are any");
   assert.deepEqual(leadsStanding(COUNTS, [SEARCH_DONE]), { total: "322 leads", parts: ["272 ready", "1 search"], needsYou: null }, "one search is a search");
   assert.deepEqual(leadRail(COUNTS, [searchWith({ id: SEARCH_B }, { state: "running", ending: null, ended_at: null })]).searches.map((s) => s.mark), ["live"]);
+});
+
+/* ------------------------------ the nine endings, said once (Task 19 §19.2) */
+
+/** What the source is bought through, and what checks the mailboxes: never on a screen, never in a word we export. */
+const VENDOR = /apify|compass|bounce ?verify|crawler|scraper|google places|serpapi/i;
+const MONEY = /\$\s?\d/;
+
+const ENDING_FACTS = {
+  name: "personal trainers", area: "Austin", counted: 61, target: 200, emails: 88, phones: 72, excluded: 40,
+  checking: false, foundBefore: 12, nearby: ["Round Rock", "Pflugerville"], seen: 86, leftOutBy: "part of chains",
+};
+
+test("every ending is one line: what happened, what was kept, what was counted, and at most one next step", () => {
+  assert.equal(LEAD_ROUND_ENDINGS.length, 9);
+  for (const ending of LEAD_ROUND_ENDINGS) {
+    const line = leadEndingLine(ending, ENDING_FACTS);
+    assert.equal(line.mark, LEAD_ENDING_WORDS[ending], `${ending}: the ending's own word is the strip's name`);
+    assert.ok(line.title.length > 0, `${ending}: a title`);
+    const said = [line.title, ...line.parts, line.step ? line.step.label : ""].join(" ");
+    assert.ok(!MONEY.test(said), `${ending} says a dollar amount: ${said}`);
+    assert.ok(!VENDOR.test(said), `${ending} names the vendor: ${said}`);
+    assert.ok(/\d/.test(said) || ending === "paused", `${ending}: a number the owner can check`);
+  }
+});
+
+test("the endings read as the States artboard wrote them", () => {
+  const line = (ending, over = {}) => leadEndingLine(ending, { ...ENDING_FACTS, ...over });
+  const said = (l) => [l.title, ...l.parts].join(" · ");
+  assert.equal(said(line("target_reached", { counted: 200 })), "Found 200 personal trainers · 88 you can email · 72 by phone · 40 left out");
+  assert.deepEqual(line("target_reached", { counted: 200 }).step, { id: "excluded", label: "40 left out" });
+  assert.equal(said(line("searched_everything", { counted: 160 })), "Found 160 personal trainers · everything these searches returned in Austin");
+  assert.deepEqual(line("searched_everything", { counted: 160 }).step, { id: "nearby", label: "Find 40 more nearby" });
+  assert.equal(
+    said(line("searched_everything", { counted: 0, seen: 3, area: "Marfa, TX", leftOutBy: "part of chains", nearby: ["Alpine", "Fort Davis"] })),
+    "There are 3 personal trainers in Marfa, TX, and all of them are part of chains, which you asked me to leave out. · Nothing was counted.",
+  );
+  assert.equal(said(line("month_leads_used", { counted: 464 })), "Stopped at 464 · this month's leads are used · the 464 found are yours");
+  assert.equal(said(line("budget_used")), "Stopped at 61 · this month's searching is used up · the 61 found are yours");
+  assert.equal(said(line("few_new_matches", { name: "chiropractors", seen: 64 })), "All 64 chiropractors in Austin are already yours. · Look further out, in Round Rock and Pflugerville?");
+  assert.equal(said(line("stopped", { checking: true })), "Stopping · checking the emails of the 61 found · nothing else was counted");
+  assert.equal(said(line("stopped")), "Stopped at 61 · the 61 found are yours · nothing else was counted");
+  assert.equal(said(line("source_failed")), "Stopped at 86: the source stopped answering · the 61 found are yours · nothing more was counted");
+  assert.equal(said(line("question_unanswered")), "Stopped after a day without your answer · the 12 found before it asked are yours");
+  assert.equal(said(line("paused")), "Lead searches are paused for now · your leads are all here · nothing is being counted");
+  assert.equal(line("paused").step, null, "nothing to press: it is not this workspace's to turn on");
+  assert.equal(LEAD_PAUSED_TITLE, "Lead searches are paused for now");
+  assert.equal(leadAnd(["Alpine", "Fort Davis"]), "Alpine and Fort Davis");
+  assert.equal(leadAnd(["Round Rock", "Pflugerville", "Kyle"]), "Round Rock, Pflugerville and Kyle");
+});
+
+test("the month's allowance and the searching budget are one unit on every screen: leads, never dollars", () => {
+  assert.equal(leadAllowanceFact(486), "486 left this month");
+  const budget = leadEndingLine("budget_used", ENDING_FACTS);
+  assert.ok(budget.parts.includes("this month's searching is used up"));
+  assert.ok(!/\$|usd|dollar|budget of/i.test([budget.title, ...budget.parts].join(" ")));
+  assert.ok(leadEndingLine("month_leads_used", ENDING_FACTS).parts.includes("this month's leads are used"));
+});
+
+/* ------------------------------------------------- a search, kept (§8.10) */
+// Its own import, at the foot with its tests, so the block above stays whoever's it was.
+import { leadSearchWords, LEAD_REMOVE_KEEPS } from "../../../packages/contracts/src/leads.ts";
+
+test("a kept search says what was asked, in the owner's words and the date they asked", () => {
+  const s = {
+    id: "5e000000-0000-4000-8000-000000000001",
+    name: "Personal trainers · Austin",
+    asked: "personal trainers in Austin with a website, about 200",
+    asked_on: "2026-09-18T20:00:00.000Z",
+    plan: { criteria: [{ key: "website", text: "has a website", standard: "seen", required: true }], exclusions: [{ key: "chain", text: "chain gyms", origin: "claude" }, { key: "pt", text: "physical therapists and chiropractors", origin: "claude" }] },
+  };
+  assert.deepEqual(leadSearchWords(s, "America/Chicago"), {
+    askedLine: "You asked on Sep 18: “personal trainers in Austin with a website, about 200”. Leaving out chain gyms and physical therapists and chiropractors.",
+    keepsLine: "Keeps the ones you contacted or are talking to.",
+  });
+  assert.deepEqual(leadSearchWords({ ...s, plan: { criteria: [], exclusions: [] } }, "America/Chicago").askedLine, "You asked on Sep 18: “personal trainers in Austin with a website, about 200”.", "nothing left out, nothing said about it");
+  assert.deepEqual(leadSearchWords(null, "America/Chicago"), { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS }, "a search the page does not hold says nothing about what was asked");
 });

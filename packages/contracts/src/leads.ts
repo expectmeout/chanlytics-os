@@ -14,7 +14,7 @@
  */
 import { z } from "zod";
 import {
-  LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
+  LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
   LeadSearchPlanSchema, siteHost, stateCode,
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
@@ -60,6 +60,32 @@ export const LEAD_NO_ADDRESS = "Add your business address in Settings first. US 
 /** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
 export const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
 
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
+export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
+export const LEAD_SUGGEST_DAYS = 7;
+
+/** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
+export interface LeadNichePrior { places: number; matched: number; with_email: number }
+/** Under this many judged matches the share is noise, and the line says so instead. */
+export const LEAD_PRIOR_MIN = 25;
+
+/**
+ * How reachable a kind of business is, in tenths, from what past searches
+ * measured (`lead_niche_priors`, A1's calibration). Never a percentage and
+ * never a promise: a kind nobody has searched says so, and the plan card says
+ * the same thing ("checked after the first 25").
+ */
+export function leadReachLine(prior: LeadNichePrior | null | undefined): string {
+  if (!prior || prior.matched < LEAD_PRIOR_MIN) return "New kind of search · checked after 25";
+  const tenths = Math.round((prior.with_email / prior.matched) * 10);
+  if (tenths <= 1) return "Most list a phone · few have an email";
+  if (tenths >= 9) return "Nearly all have an email";
+  if (tenths === 5) return "About half have an email";
+  if (tenths === 7) return "About 2 in 3 have an email";
+  return `About ${tenths} in 10 have an email`;
+}
+
 /* ------------------------------------------------- the planner's refusals */
 
 /**
@@ -77,6 +103,116 @@ export function leadNotBusinessesLine(want: string | null): string {
 /** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */
 export function leadNoCardLine(what: string | null): string {
   return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
+}
+
+/* ------------------------------------------ the nine endings, said once -- */
+
+/** The platform's switch, in the owner's words: nothing about a vendor, nothing about money. */
+export const LEAD_PAUSED_TITLE = "Lead searches are paused for now";
+
+export interface LeadEndingFacts {
+  /** The plan's subject in the owner's words: "personal trainers". */
+  name: string;
+  /** Where it looked, in the owner's words: "Austin". */
+  area: string;
+  counted: number;
+  target: number;
+  emails: number;
+  phones: number;
+  excluded: number;
+  /** A stopped round whose emails are still being checked (S12). */
+  checking: boolean;
+  /** question_unanswered: how many were counted before it asked. */
+  foundBefore: number;
+  /** few_new_matches / searched_everything: where to look next, in the owner's words. */
+  nearby: string[];
+  /** How many places the source returned at all, and what left them all out. */
+  seen: number;
+  leftOutBy: string | null;
+}
+
+export interface LeadEndingLine {
+  /** A's word for the ending; the strip's accessible name, never its sentence. */
+  mark: string;
+  title: string;
+  parts: string[];
+  step: { id: string; label: string } | null;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
+/** "Alpine and Fort Davis"; "Round Rock, Pflugerville and Kyle". */
+export function leadAnd(items: readonly string[]): string {
+  if (items.length === 0) return "";
+  if (items.length === 1) return items[0];
+  return `${items.slice(0, -1).join(", ")} and ${items[items.length - 1]}`;
+}
+
+/**
+ * Every ending, said once (§8.8, the States artboard): what happened, what was
+ * kept, what was counted, and one next step. Two shapes only -- "Found N ..."
+ * when the round delivered what it was for, "Stopped ..." when it did not --
+ * because an owner reads the first word and must know which of the two this is.
+ * LEAD_ENDING_WORDS stays A's short name for the ending and rides along as
+ * `mark`, for the strip's accessible name and the kept-search menu.
+ *
+ * No dollar amount: the month's allowance and the searching budget are both
+ * spoken as leads (§0.2), and no line here names what any of it is bought from.
+ */
+export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): LeadEndingLine {
+  const mark = LEAD_ENDING_WORDS[ending];
+  const yours = `the ${f.counted} found are yours`;
+  const one = f.name.replace(/s$/, "");
+  switch (ending) {
+    case "target_reached":
+      return {
+        mark,
+        title: `Found ${f.counted} ${f.name}`,
+        parts: [`${f.emails} you can email`, `${f.phones} by phone`, `${f.excluded} left out`],
+        step: f.excluded > 0 ? { id: "excluded", label: `${f.excluded} left out` } : { id: "sort_fit", label: "Sort by fit" },
+      };
+    case "searched_everything":
+      if (f.counted === 0) {
+        return {
+          mark,
+          title: `There are ${plural(f.seen, one, f.name)} in ${f.area}, and ${f.seen === 1 ? "it is" : "all of them are"} ${f.leftOutBy ?? "outside what you asked for"}, which you asked me to leave out.`,
+          parts: ["Nothing was counted."],
+          step: f.nearby.length ? { id: "nearby", label: `Look in ${leadAnd(f.nearby)}` } : null,
+        };
+      }
+      return {
+        mark,
+        title: `Found ${f.counted} ${f.name}`,
+        parts: [`everything these searches returned in ${f.area}`],
+        step: { id: "nearby", label: `Find ${Math.max(0, f.target - f.counted)} more nearby` },
+      };
+    case "month_leads_used":
+      return { mark, title: `Stopped at ${f.counted}`, parts: ["this month's leads are used", yours], step: null };
+    case "budget_used":
+      return { mark, title: `Stopped at ${f.counted}`, parts: ["this month's searching is used up", yours], step: null };
+    case "few_new_matches":
+      return {
+        mark,
+        title: `All ${plural(f.seen, one, f.name)} in ${f.area} are already yours.`,
+        parts: f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : [],
+        step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null,
+      };
+    case "stopped":
+      return f.checking
+        ? { mark, title: "Stopping", parts: [`checking the emails of the ${f.counted} found`, "nothing else was counted"], step: null }
+        : { mark, title: `Stopped at ${f.counted}`, parts: [yours, "nothing else was counted"], step: { id: "carry_on", label: "Carry on" } };
+    case "source_failed":
+      return { mark, title: `Stopped at ${f.seen}: the source stopped answering`, parts: [yours, "nothing more was counted"], step: { id: "try_again", label: "Try again" } };
+    case "question_unanswered":
+      return { mark, title: "Stopped after a day without your answer", parts: [`the ${f.foundBefore} found before it asked are yours`], step: { id: "answer_now", label: "Answer now" } };
+    case "paused":
+      return { mark, title: LEAD_PAUSED_TITLE, parts: ["your leads are all here", "nothing is being counted"], step: null };
+  }
+}
+
+/** The plan card's and the strip's one unit: leads, never dollars (§0.2). */
+export function leadAllowanceFact(left: number): string {
+  return `${left} left this month`;
 }
 
 /** What a call outcome does to the stage (§9.4). Only Interested converts; Wrong number keeps the stage. */
