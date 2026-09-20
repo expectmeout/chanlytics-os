@@ -268,7 +268,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadExclude: async (s, id) => { calls.push(["exclude", { search_id: s, id }]); return refuse || ok({ op_id: "op-e", version: 5 }); },
     __leadPutBack: async (s, id) => { calls.push(["putBack", { search_id: s, id }]); return refuse || ok({ op_id: "op-p", version: 6 }); },
     __leadUndo: async (op, version) => { calls.push(["undo", { op, version }]); return ok({}); },
-    __leadsBulk: async (body) => { calls.push(["bulk", body]); return ok({ done: 2, op_id: "op-b", version: 7 }); },
+    __leadsBulk: async (body) => { calls.push(["bulk", body]); return ok({ done: 2, op_id: "op-b", version: 7, toast: "Done." }); },
     __leadSearchRename: async (id, name) => { calls.push(["rename", { id, name }]); return refuse || ok({ name }); },
     __leadSearchRemove: async (id) => { calls.push(["remove", { id }]); return refuse || ok({ archived: 143, kept: 18 }); },
     __leadSearchMore: async (id, purpose, plan) => { calls.push(["more_round", { id, purpose, plan }]); return ok({ round_id: "r9" }); },
@@ -406,14 +406,18 @@ test("Needs review is a queue: a chip per resolver selects its leads, and the ba
   assert.equal(byTestId(bar, "leads-bulk-find-email"), null);
   byTestId(bar, "leads-bulk-keep").props.onClick();
   await settle();
-  assert.deepEqual(calls.at(-1), ["keep", { search_id: SEARCH_A, id: "l3" }], "Keep in bulk goes through the row's own door, once per lead");
-  assert.match(textOf(flashes.at(-1).msg), /^Kept 1./);
+  assert.deepEqual(calls.at(-1), ["bulk", { by: "ids", action: "keep", ids: ["l3"], search_id: SEARCH_A }], "Keep in bulk goes through the bulk door, naming the search the pile is read in");
+  assert.equal(flashes.at(-1).msg, "Done.", "the door's own sentence is the flash");
 
-  globalThis.window.__leadCheckAgain = async (ids) => { calls.push(["check_again", ids]); return ok({ scheduled: ids.length, skipped: 0 }); };
+  globalThis.window.__leadCheckAgain = async (ids) => { calls.push(["check_again", ids]); return ok({ scheduled: ids.length, skipped: 0, toast: "Checking 1 again." }); };
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
   all(byTestId(tree, "lead-review-groups"), (n) => n.type === "button")[0].props.onClick();
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-review` });
   assert.match(textOf(byTestId(tree, "leads-bulk-check-again")), /Check 1 again · about 1¢/, "with its courier, the act draws with its count and its cost");
+  byTestId(tree, "leads-bulk-check-again").props.onClick();
+  await settle();
+  assert.deepEqual(calls.at(-1), ["check_again", ["l3"]]);
+  assert.equal(flashes.at(-1).msg, "Checking 1 again.");
   delete globalThis.window.__leadCheckAgain;
 
   fresh({ leads: surface({ rows: [] }) }); // the server answered the review view with nothing

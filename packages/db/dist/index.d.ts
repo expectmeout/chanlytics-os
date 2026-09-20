@@ -3997,8 +3997,16 @@ type Database = {
                 Args: {
                     p_action: string;
                     p_ids?: string[];
+                    p_search_id?: string;
                     p_tenant_id: string;
                     p_view?: Json;
+                };
+                Returns: Json;
+            };
+            lead_check_again: {
+                Args: {
+                    p_lead_ids: string[];
+                    p_tenant_id: string;
                 };
                 Returns: Json;
             };

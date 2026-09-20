@@ -288,13 +288,15 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
   const rv = (id, reasons) => ({ id, cls: "review", reasons });
   const rows = [
     rv("a", ["email:checking"]), rv("b", ["email:unknown"]), rv("c", ["email:none"]), rv("d", ["email:catch_all"]),
-    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]),
+    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]), rv("i", ["email:invalid"]), rv("j", ["email:ok"]),
     { id: "q", cls: "qualified", reasons: [] },
   ];
   const groups = leadReviewGroups(rows, SEARCH_DONE);
   assert.deepEqual(groups.map((g) => [g.id, g.label, g.ids, g.acts]), [
     ["mailbox_waiting", "Waiting on the mailbox check", ["a"], []],
+    ["checks_out", "Their email checks out", ["j"], ["keep", "exclude"]],
     ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
+    ["bad_email", "Their email bounces", ["i"], ["find_email", "keep", "exclude"]],
     ["no_email", "No email on their site", ["c"], ["find_email", "keep", "exclude"]],
     ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
     ["unsure", "Couldn't tell if — with a website", ["e"], ["keep", "exclude"]],

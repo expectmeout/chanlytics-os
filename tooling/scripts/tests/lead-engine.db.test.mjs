@@ -1014,3 +1014,45 @@ test("the lead carries what the listing shows: written by the commit, read by th
   const blanked = ok(await db.from("leads").select("about, hours, image_url, reviews_dist, facebook_url, linkedin_url, claimed, maps_url, rank, email").eq("id", lead.id).single());
   assert.deepEqual(blanked, { about: null, hours: [], image_url: null, reviews_dist: null, facebook_url: null, linkedin_url: null, claimed: null, maps_url: null, rank: null, email: null });
 });
+
+// D3 (00145): the two commits after a round ended. A check run started by Check again commits its page on the
+// ended round (it decides nothing, and nothing of the round is outstanding), and a mailbox that now answers makes
+// the member Qualified and counted through the month's allowance the way Keep is, not through the reservation the
+// round already gave back. A discover run's page is refused as before.
+test("after a round ended, a check run still commits its page and usage, and a member whose address now checks out counts through the month, not the round", { skip }, async () => {
+  const month = leadMonth(TZ, new Date());
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "florists", asked: "florists in Austin", plan: plan(5) }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({
+    tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: plan(5), plan_version: 1, target: 5, state: "queued",
+    allowance_reserved: 5, allowance_used: 2, cost_reserved_usd: 1, cost_usd: 0.4, month, day: "2026-09-20", platform_day: "2026-09-20",
+  }).select("id").single()).id;
+  // A round starts queued (a trigger refuses an ended insert) and ends through its door, giving its unused reservation back.
+  assert.equal(ok(await db.rpc("lead_round_end", { p_round_id: round, p_ending: "target_reached" })), true);
+  const lead = ok(await db.from("leads").insert({ tenant_id: A, place_id: "ChIJfixtureD3E1", business_name: "Again 1", category: "Florist", city: "Austin", region: "TX", website_host: "againe1.example", email: "hello@againe1.example", email_state: "checking" }).select("id").single()).id;
+  ok(await db.from("lead_search_members").insert({ search_id: search, lead_id: lead, round_id: round, tenant_id: A, judgment: { reasons: ["email:checking"], shares: [] }, class: "review", fit: "look", reason: "A fixture.", counted: false }));
+  const read = async (kind) => { const r = await db.from("lead_counters").select("used, reserved").eq("tenant_id", A).eq("kind", kind).eq("period", month).maybeSingle(); return { used: Number(r.data?.used ?? 0), reserved: Number(r.data?.reserved ?? 0) }; };
+  const budget0 = await read("budget");
+  const allowance0 = await read("allowance");
+  // A check run under the ended round, claimed, started and leased as the runner does it.
+  const run = ok(await db.from("lead_runs").insert({ tenant_id: A, round_id: round, purpose: "check", term: "again:n1:0", actor: "bounceverify/bounceverify-email-verifier", build: "1", webhook_token_hash: `hash-again-${Date.now()}` }).select("id").single());
+  assert.equal(ok(await db.rpc("lead_run_claim", { p_run_id: run.id, p_owner: "again-1" })), true);
+  assert.equal(ok(await db.rpc("lead_run_record_start", { p_run_id: run.id, p_owner: "again-1", p_apify_run_id: `apr-${run.id}`, p_dataset_id: `ds-${run.id}`, p_cap_usd: 0.5 })), true);
+  const gen = ok(await db.rpc("lead_run_lease", { p_run_id: run.id, p_owner: "again-1", p_seconds: 60 }));
+  const page = ok(await commit(run.id, "again-1", gen, 0, 1, { judgment: null, places: [], usage_usd: 0.01, items_seen: 1, run_state: "succeeded", next: null, round: null }));
+  assert.equal(page.ok, true, `a check run's page commits after the round ended: ${JSON.stringify(page)}`);
+  const runRow = ok(await db.from("lead_runs").select("state, usage_usd").eq("id", run.id).single());
+  assert.deepEqual([runRow.state, Number(runRow.usage_usd)], ["succeeded", 0.01]);
+  const budget1 = await read("budget");
+  assert.deepEqual([Math.round((budget1.used - budget0.used) * 10_000) / 10_000, budget1.reserved], [0.01, budget0.reserved], "the usage settles against nothing outstanding: reserved does not move");
+  const a = ok(await db.rpc("lead_check_commit", { p_round_id: round, p_run_id: run.id, p_results: [{ lead_id: lead, email_state: "ok", checked_at: new Date().toISOString() }], p_usage_usd: 0.01, p_last: false }));
+  assert.deepEqual([a.ok, a.qualified, a.counted, a.ended], [true, 1, 1, false]);
+  const m = ok(await db.from("lead_search_members").select("class, counted, counted_month, judgment").eq("search_id", search).eq("lead_id", lead).single());
+  assert.deepEqual([m.class, m.counted, m.counted_month, m.judgment.reasons], ["qualified", true, month, []]);
+  const r = ok(await db.from("lead_rounds").select("state, allowance_used, cost_usd").eq("id", round).single());
+  assert.deepEqual([r.state, r.allowance_used, Number(r.cost_usd)], ["ended", 2, 0.4], "the round is final: neither reopened, nor charged a lead it did not reserve, nor the cents the month's counter carries");
+  const allowance1 = await read("allowance");
+  assert.deepEqual([allowance1.used - allowance0.used, allowance1.reserved], [1, allowance0.reserved], "counted through the month, as Keep is");
+  assert.equal(ok(await db.from("leads").select("email_state").eq("id", lead).single()).email_state, "ok");
+  const disc = await runOf(round, "florist", "w-d3");
+  assert.deepEqual(ok(await commit(disc.id, "w-d3", disc.gen, 0, 1, { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: null })), { ok: false, why: "ended" }, "a discover run's page is still refused after the round ended");
+});

@@ -1945,17 +1945,17 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // Keep counts the place as Qualified the month it is kept; Exclude is free; Put back is the owner's override
   // of an exclusion, through the door that counts (PRD 8.7). Each names the search whose class it is in, which
   // is what release A's routes take ({ search_id }); the door answers the operation, and the toast offers it.
-  // The same door, once per lead, one flash for the lot: what a selection's Keep or Exclude does until 00145's
-  // bulk door takes the ids in one call (D3 Task 3). A refusal stops the run and says which lead refused.
-  const leadActEach = async (ids, act, msg) => {
+  // A selection's act (D3): the door's own sentence is the flash -- it says how many, and what stopped or skipped
+  // part of it -- and the selection is spent.
+  const leadSaid = async (fn) => {
     if (leadBusy) return;
     setLeadBusy(true);
-    let refused = null;
-    for (const id of ids) { const r = await act(id); if (!r || !r.ok) { refused = r; break; } }
+    const r = await fn();
     setLeadBusy(false);
-    if (refused) { plFlash(window.refusalToast(refused, "Not all of them")); return; }
+    if (!r.ok) { plFlash(window.refusalToast(r, "That did not go through")); return; }
     setSel(new Set());
-    plFlash({ msg });
+    setAllMatching(false);
+    plFlash({ msg: r.data.toast, ...leadUndo(r) });
   };
   const keepLead = (id) => leadAct(() => window.__leadKeep(searchOf(leadById(id)), id), <>Kept. It counts as a lead this month.</>);
   const excludeLead = (id) => leadAct(() => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded. Nothing counted.</>);
@@ -2209,9 +2209,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onToggleAll={toggleAll}
         onClearSel={() => { setSel(new Set()); setAllMatching(false); }}
         onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
-        // Needs review's resolvers (D3). Keep and Exclude go through the same doors a row's own Keep and Exclude use,
-        // one lead at a time until 00145's bulk door lands; Check again and Find an email draw only once their
-        // couriers exist, so the bar never offers what the door cannot do.
+        // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
+        // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
+        // the bar never offers what no door can do.
         review={{
           actsFor: (ids) => {
             const V = window.__LEAD_VM || {};
@@ -2220,10 +2220,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
           },
           canCheckAgain: typeof window.__leadCheckAgain === "function",
           canFindEmail: typeof window.__leadFindEmail === "function",
-          onCheckAgain: (ids) => window.__leadCheckAgain && leadAct(() => window.__leadCheckAgain(ids), <>Checking {ids.length} again.</>),
+          onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
           onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
-          onKeep: (ids) => leadActEach(ids, (id) => window.__leadKeep(searchOf(leadById(id)), id), <>Kept {ids.length}. They count as leads this month.</>),
-          onExclude: (ids) => leadActEach(ids, (id) => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded {ids.length}. Nothing counted.</>),
+          onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+          onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
         }}
         allMatching={allMatching}
         onSelectAllMatching={() => setAllMatching(true)}

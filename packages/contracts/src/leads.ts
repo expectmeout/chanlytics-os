@@ -451,10 +451,14 @@ export function stageArgs(i: LeadStageInput): { p_stage: string | null; p_reason
   }
 }
 export const LeadsBulkSchema = z.discriminatedUnion("by", [
-  z.object({ by: z.literal("ids"), action: z.enum(["contacted", "not_a_fit"]), ids: z.array(z.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z.object({ by: z.literal("ids"), action: z.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z.array(z.string().uuid()).min(1).max(500), search_id: z.string().uuid().optional() }),
   z.object({ by: z.literal("view"), action: z.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema }),
 ]);
 export type LeadsBulkInput = z.infer<typeof LeadsBulkSchema>;
+/** Check again (D3): the leads whose mailbox check did not answer, asked once more. */
+export const LeadsCheckAgainSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) });
+export type LeadsCheckAgainInput = z.infer<typeof LeadsCheckAgainSchema>;
 export const LeadDraftInputSchema = z.object({
   tone: z.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z.object({ subject: z.string().max(200), body: z.string().max(4000) }).optional(),
@@ -882,7 +886,9 @@ export const leadLowerFirst = (s: string): string => (s && s[1] && s[1] === s[1]
 
 export const LEAD_REVIEW_GROUP_WORDS = {
   mailbox_waiting: "Waiting on the mailbox check",
+  checks_out: "Their email checks out",
   mailbox_silent: "Their mail server wouldn't answer",
+  bad_email: "Their email bounces",
   no_email: "No email on their site",
   catch_all: "Unconfirmed — the mailbox accepts any address",
   unsure: "Couldn't tell if",
@@ -892,10 +898,12 @@ export const LEAD_REVIEW_GROUP_WORDS = {
 export type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
 export type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
 /** The order an owner would work the pile: what resolves itself first, then what one press resolves, then what needs a look. */
-const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "mailbox_silent", "no_email", "catch_all", "unsure", "read_only", "out_of_area"];
+const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "checks_out", "mailbox_silent", "bad_email", "no_email", "catch_all", "unsure", "read_only", "out_of_area"];
 const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
   mailbox_waiting: [],
+  checks_out: ["keep", "exclude"],
   mailbox_silent: ["check_again", "keep", "exclude"],
+  bad_email: ["find_email", "keep", "exclude"],
   no_email: ["find_email", "keep", "exclude"],
   catch_all: ["keep", "exclude"],
   unsure: ["keep", "exclude"],
@@ -904,7 +912,11 @@ const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
 };
 function reviewGroupOf(reason: string): LeadReviewGroupId | null {
   if (reason === "email:checking") return "mailbox_waiting";
+  // The email token says the address's state now (the page reads it off the lead, not off the judgment's snapshot):
+  // ok with the member still in review is a mailbox that checks out after the month was full, for Keep to count.
+  if (reason === "email:ok") return "checks_out";
   if (reason === "email:unknown") return "mailbox_silent";
+  if (reason === "email:invalid") return "bad_email";
   if (reason === "email:none") return "no_email";
   if (reason === "email:catch_all") return "catch_all";
   if (reason.startsWith("unknown:")) return "unsure";

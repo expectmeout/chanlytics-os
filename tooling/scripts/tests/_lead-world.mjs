@@ -147,7 +147,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       if (run.lease_owner !== p_owner || run.lease_gen !== p_gen) return { ok: false, why: "lease" };
       if (run.read_offset !== p_from_offset) return { ok: false, why: "offset" };
       const round = roundOf(run.round_id);
-      if (round.state === "ended") return { ok: false, why: "ended" };
+      if (round.state === "ended" && run.purpose !== "check") return { ok: false, why: "ended" }; // a check run may commit after the round ended (00145)
       const search = T.lead_searches.find((s) => s.id === round.search_id);
       const page = p_page;
       let room = Math.max(0, round.allowance_reserved - round.allowance_used);
@@ -190,7 +190,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       round.allowance_used += counted;
       const usage = Number(page.usage_usd);
       if (Number.isFinite(usage) && usage > run.usage_usd) {
-        round.cost_usd = Math.round((round.cost_usd + usage - run.usage_usd) * 10_000) / 10_000;
+        if (round.state !== "ended") round.cost_usd = Math.round((round.cost_usd + usage - run.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
         run.usage_usd = usage;
       }
       run.read_offset = p_to_offset;
@@ -214,8 +214,9 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
     lead_check_commit: ({ p_round_id, p_run_id, p_results, p_usage_usd, p_last }) => {
       const round = roundOf(p_round_id);
       if (!round) return { ok: false, why: "round" };
-      let room = Math.max(0, round.allowance_reserved - round.allowance_used);
+      let room = round.state === "ended" ? 0 : Math.max(0, round.allowance_reserved - round.allowance_used);
       let newly = 0;
+      let later = 0;
       let counted = 0;
       for (const r of p_results ?? []) {
         const lead = T.leads.find((l) => l.id === r.lead_id && l.tenant_id === round.tenant_id);
@@ -226,8 +227,10 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
         const reasons = Array.isArray(m.judgment?.reasons) ? m.judgment.reasons : null;
         if (m.class !== "review" || m.blanked_at || lead?.email_state !== "ok" || !reasons || !reasons.length || reasons.some((x) => !String(x).startsWith("email:"))) continue;
         // Past the room the member is Qualified and uncounted, and no counter moves.
-        const counts = room > 0;
-        if (counts) { room -= 1; counted += 1; }
+        // After the round ended (Check again, 00145) the member counts through the month, as Keep does; here the month is derived from counted members.
+        const counts = round.state === "ended" || room > 0;
+        if (counts && round.state === "ended") later += 1;
+        else if (counts) { room -= 1; counted += 1; }
         Object.assign(m, { class: "qualified", counted: counts, counted_month: counts ? month : m.counted_month, version: m.version + 1, judgment: { ...m.judgment, reasons: [] } });
         newly += 1;
       }
@@ -236,12 +239,12 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const checkRun = p_run_id ? runOf(p_run_id) : null;
       const total = Number(p_usage_usd ?? 0);
       if (checkRun && checkRun.round_id === p_round_id && total > checkRun.usage_usd) {
-        round.cost_usd = Math.round((round.cost_usd + total - checkRun.usage_usd) * 10_000) / 10_000;
+        if (round.state !== "ended") round.cost_usd = Math.round((round.cost_usd + total - checkRun.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
         checkRun.usage_usd = total;
       }
       let ended = false;
       if (p_last) ended = end(round, round.ending_pending ?? (round.allowance_used >= targetOf(round) ? "target_reached" : "searched_everything"));
-      return { ok: true, qualified: newly, counted, ended };
+      return { ok: true, qualified: newly, counted: counted + later, ended };
     },
     lead_round_end: ({ p_round_id, p_ending }) => {
       const round = roundOf(p_round_id);

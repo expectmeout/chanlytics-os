@@ -367,3 +367,71 @@ test("ACCEPTANCE: both consent doors refuse a converted lead's borrowed yes, acc
   assert.equal(ok(await db.rpc("set_marketing_consent", { p_tenant_id: A, p_contact_id: ids.person2, p_consent: "opted_in", p_source: "customer_message", p_evidence: { words: "YES OFFERS" } })).marketing_consent, "opted_in",
     "the edge holds the service key and no session: what they texted is still recorded");
 });
+
+// D3 (00145): Needs review has a next step. Check again schedules one lead_check job per round for the addresses
+// whose last check did not answer, and bulk Keep and Exclude go through the member's own door once per lead. Its
+// own search, round and leads, so nothing it counts moves a number another test pins.
+const D3_STRANGER = "00000000-0000-4000-8000-0000000000d3";
+test("Check again: an address that did not answer is asked again under its own round once its search has finished; one that answered, one with no address and another workspace's are left as they are", { skip }, async () => {
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "florists", asked: "florists in Austin", plan: { version: 1 } }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({
+    tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: { version: 1 }, plan_version: 1, target: 5,
+    state: "queued", month: "2026-09", day: "2026-09-20", platform_day: "2026-09-20",
+  }).select("id").single()).id;
+  // A round starts queued (a trigger refuses an ended insert) and ends through its door, as a real one does.
+  assert.equal(ok(await db.rpc("lead_round_end", { p_round_id: round, p_ending: "target_reached" })), true);
+  const mk = async (n, over) => {
+    const lead = ok(await db.from("leads").insert({
+      tenant_id: A, place_id: `ChIJfixtureD3${n}`, business_name: `Again ${n}`, category: "Florist", city: "Austin", region: "TX",
+      website_host: `again${n}.example`, email: `hello@again${n}.example`, email_state: "unknown", found_at: `2026-09-20T10:0${n}:00Z`, ...over,
+    }).select("id").single()).id;
+    ok(await db.from("lead_search_members").insert({ search_id: search, lead_id: lead, round_id: round, tenant_id: A, judgment: { reasons: ["email:checking"], shares: [] }, class: "review", fit: "look", reason: "A fixture.", counted: false }));
+    return lead;
+  };
+  const silent1 = await mk(1, {});
+  const silent2 = await mk(2, {});
+  const answered = await mk(3, { email_state: "catch_all" });
+  const noEmail = await mk(4, { email: null, email_state: "none" });
+  const other = ok(await db.from("tenants").insert({ slug: `leads-b-other-${Date.now()}`, name: "Other" }).select("id").single()).id;
+  const strangers = ok(await db.from("leads").insert({ tenant_id: other, place_id: "ChIJfixtureD3x", business_name: "Elsewhere", email: "hi@elsewhere.example", email_state: "unknown" }).select("id").single()).id;
+  // The switch stays off on this stack; this workspace is listed for the test, as the engine suite lists its own.
+  const platform = ok(await db.from("lead_platform").select("tenants_on").eq("id", true).single());
+  assert.deepEqual(ok(await owner.client.rpc("lead_check_again", { p_tenant_id: A, p_lead_ids: [silent1] })), { error: "paused" }, "with searching off, nothing is scheduled");
+  ok(await db.from("lead_platform").update({ tenants_on: [...(platform.tenants_on ?? []), A] }).eq("id", true));
+  try {
+    assert.equal(await said(operator.client.rpc("lead_check_again", { p_tenant_id: A, p_lead_ids: [silent1] })), "Only an owner can check a lead again.");
+    const a = ok(await owner.client.rpc("lead_check_again", { p_tenant_id: A, p_lead_ids: [silent1, silent2, answered, noEmail, strangers, D3_STRANGER] }));
+    assert.deepEqual(a, { scheduled: 2, skipped: 4 });
+    const states = ok(await db.from("leads").select("id, email_state").in("id", [silent1, silent2, answered, noEmail, strangers]));
+    assert.deepEqual(Object.fromEntries(states.map((l) => [l.id, l.email_state])), { [silent1]: "checking", [silent2]: "checking", [answered]: "catch_all", [noEmail]: "none", [strangers]: "unknown" });
+    const jobs = ok(await db.from("jobs").select("payload, state").eq("tenant_id", A).eq("kind", "lead_check"));
+    assert.equal(jobs.length, 1, "one job for the one round");
+    assert.deepEqual([jobs[0].state, jobs[0].payload.round_id, jobs[0].payload.batch, typeof jobs[0].payload.again, [...jobs[0].payload.lead_ids].sort()], ["scheduled", round, 0, "string", [silent1, silent2].sort()]);
+    assert.deepEqual(ok(await owner.client.rpc("lead_check_again", { p_tenant_id: A, p_lead_ids: [silent1] })), { scheduled: 0, skipped: 1 }, "an address already being checked is not asked twice");
+  } finally {
+    await db.from("lead_platform").update({ tenants_on: platform.tenants_on ?? [] }).eq("id", true);
+    await db.from("tenants").delete().eq("id", other);
+  }
+  ids.d3 = { search, answered, noEmail, silent1 };
+});
+
+test("bulk Keep and Exclude over Needs review: the owner's, through the member's own door once per lead, each kept one counted through the month; an operator is refused; a lead not in Needs review is skipped", { skip }, async () => {
+  const { search, answered, noEmail, silent1 } = ids.d3;
+  const month = ok(await db.rpc("lead_month", { p_tenant_id: A }));
+  const allowance = async () => Number((await db.from("lead_counters").select("used").eq("tenant_id", A).eq("kind", "allowance").eq("period", month).maybeSingle()).data?.used ?? 0);
+  const before = await allowance();
+  assert.equal(await said(operator.client.rpc("lead_bulk", { p_tenant_id: A, p_action: "keep", p_ids: [answered] })), "Only an owner can keep or exclude a lead.");
+  const kept = ok(await owner.client.rpc("lead_bulk", { p_tenant_id: A, p_action: "keep", p_ids: [answered, noEmail, D3_STRANGER], p_search_id: search }));
+  assert.deepEqual([kept.done, kept.skipped, kept.op_id], [2, 1, null], "two kept; a lead that is not in Needs review is skipped");
+  const members = ok(await db.from("lead_search_members").select("lead_id, class, counted, counted_month, kept_by").eq("search_id", search).in("lead_id", [answered, noEmail]));
+  assert.deepEqual(members.map((m) => [m.class, m.counted, m.counted_month, m.kept_by]), [["qualified", true, month, owner.userId], ["qualified", true, month, owner.userId]]);
+  assert.equal(await allowance(), before + 2, "each kept one counts through the month");
+  const ops = ok(await db.from("lead_operations").select("kind, lead_ids").eq("search_id", search).eq("kind", "keep"));
+  assert.equal(ops.length, 2, "one operation per member, as the row's own Keep writes");
+  const excluded = ok(await owner.client.rpc("lead_bulk", { p_tenant_id: A, p_action: "exclude", p_ids: [silent1] }));
+  assert.deepEqual([excluded.done, excluded.skipped], [1, 0]);
+  const m = ok(await db.from("lead_search_members").select("class, excluded_by").eq("search_id", search).eq("lead_id", silent1).single());
+  assert.deepEqual(m, { class: "excluded", excluded_by: "owner" });
+  assert.deepEqual(ok(await owner.client.rpc("lead_bulk", { p_tenant_id: A, p_action: "keep", p_ids: [silent1] })), { done: 0, skipped: 1, op_id: null, version: 1 }, "an excluded member is not Needs review any more");
+  await said(owner.client.rpc("lead_bulk", { p_tenant_id: A, p_action: "keep", p_ids: null, p_view: { list: "all", class: "review" } }));
+});

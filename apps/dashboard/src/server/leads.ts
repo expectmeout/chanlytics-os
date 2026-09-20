@@ -12,7 +12,7 @@ import {
   clockDate, estimateRoundUsd, leadDraftFooter, leadMonth, leadReachLine, parseTenantConfig, placesToAsk, siteHost, stageArgs, wallClockAt,
   type LeadArea, type LeadCheck, type LeadCheckKey, type LeadClass, type LeadCounts, type LeadEmailState, type LeadNichePrior, type LeadPlanFacts,
   type LeadRoundEnding, type LeadRoundPurpose, type LeadRowDto, type LeadSearchDto, type LeadSearchPlan, type LeadStage, type LeadStageInput,
-  type LeadSuggestionsDto, type LeadsBulkInput, type LeadsQuery,
+  type LeadSuggestionsDto, type LeadsBulkInput, type LeadsCheckAgainInput, type LeadsQuery,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
@@ -34,6 +34,10 @@ export interface DoorAnswer {
   converted?: boolean;
   /** lead_bulk: how many leads the act reached. lead_search_remove: how many memberships it blanked. */
   done?: number;
+  /** lead_bulk keep/exclude: how many of the named leads were not in Needs review. lead_check_again: how many were not asked. */
+  skipped?: number;
+  /** lead_check_again: how many addresses are being checked again. */
+  scheduled?: number;
   blanked?: number;
   /** lead_search_undo: how many left the search, and how many went back to a month. */
   removed?: number;
@@ -325,10 +329,16 @@ interface LeadPageRow {
 }
 
 /** What the judge answered for each criterion of this place, by the plan's own key. */
-/** The reason tokens contracts' classify wrote on the membership; [] when the judgment carries none. */
-function reasonsOf(judgment: unknown): string[] {
+/**
+ * The reason tokens contracts' classify wrote on the membership; [] when the judgment carries none. The email token
+ * was written while the address was still to be checked (email:checking); the lead's own email_state is what is true
+ * of it now, so the token says that -- unknown for a mail server that did not answer, ok for one that did after the
+ * member stayed in review, none for a lead with no address.
+ */
+function reasonsOf(judgment: unknown, emailState: string): string[] {
   const j = judgment && typeof judgment === "object" ? (judgment as { reasons?: unknown }) : null;
-  return Array.isArray(j?.reasons) ? j.reasons.filter((x): x is string => typeof x === "string") : [];
+  const raw = Array.isArray(j?.reasons) ? j.reasons.filter((x): x is string => typeof x === "string") : [];
+  return raw.map((x) => (x.startsWith("email:") ? `email:${emailState}` : x));
 }
 function judgedBy(judgment: unknown): Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }> {
   const out = new Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }>();
@@ -429,7 +439,7 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
       checks: checksOf(r),
       // The class rule's own reason tokens (email:unknown, unknown:<key>, inferred:<key>, out_of_area ...): what the
       // Needs review queue groups by (D3, contracts leadReviewGroups). Never words; the page spells them.
-      reasons: reasonsOf(r.judgment),
+      reasons: reasonsOf(r.judgment, r.email_state),
       other_emails: others.filter((e) => typeof e.email === "string").map((e) => ({ email: String(e.email), why: typeof e.why === "string" ? e.why : "another address" })),
     },
   };
@@ -696,13 +706,49 @@ export async function bulkStage(
   const { data, error } = await ctx.supabase.rpc("lead_bulk", {
     p_tenant_id: tenantId,
     p_action: input.action,
-    ...(input.by === "ids" ? { p_ids: input.ids } : { p_ids: null, p_view: input.view as unknown as Json }),
+    ...(input.by === "ids" ? { p_ids: input.ids, ...(input.search_id ? { p_search_id: input.search_id } : {}) } : { p_ids: null, p_view: input.view as unknown as Json }),
   } as DoorArgs<"lead_bulk">);
   if (error) throw new Error(`lead_bulk: ${error.message}`);
   const a = answerOf(data);
+  // Keep over a selection stops when the month's leads run out: what was kept before that stays kept, and the
+  // sentence rides the toast instead of refusing an act that half happened. With nothing done it is a refusal.
+  const ranOut = a.error === "month_leads_used" && (a.done ?? 0) > 0 ? a.sentence ?? null : null;
+  const refused = ranOut ? null : refusalOf(a);
+  if (refused) throw refused;
+  return { done: a.done ?? 0, op_id: a.op_id ?? null, version: a.version ?? 1, toast: bulkToast(input.action, a.done ?? 0, a.skipped ?? 0, ranOut) };
+}
+
+/** What a bulk act says when it is done: the count for the acts that take one, and what stopped or skipped part of it. */
+function bulkToast(action: LeadsBulkInput["action"], done: number, skipped: number, ranOut: string | null): string {
+  const tail = ranOut ? ` ${ranOut}` : skipped > 0 ? ` ${skipped} ${skipped === 1 ? "was" : "were"} not in Needs review.` : "";
+  switch (action) {
+    case "contacted": return "Marked contacted.";
+    case "not_a_fit": return "Not a fit.";
+    case "keep": return `Kept ${done}. ${done === 1 ? "It counts as a lead" : "They count as leads"} this month.${tail}`;
+    case "exclude": return `Excluded ${done}. Nothing counted.${tail}`;
+  }
+}
+
+/**
+ * Check again (D3, 00145): the owner asks the mailbox check once more for addresses whose last check did not answer.
+ * The door schedules the engine's own check job under each lead's round and says how many it took; none taken is a
+ * refusal that says what the act is for, not a success that did nothing.
+ */
+export async function checkAgain(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  input: LeadsCheckAgainInput,
+): Promise<{ scheduled: number; skipped: number; toast: string }> {
+  const { data, error } = await ctx.supabase.rpc("lead_check_again", { p_tenant_id: tenantId, p_lead_ids: input.ids } as DoorArgs<"lead_check_again">);
+  if (error) throw new Error(`lead_check_again: ${error.message}`);
+  const a = answerOf(data);
   const refused = refusalOf(a);
   if (refused) throw refused;
-  return { done: a.done ?? 0, op_id: a.op_id ?? null, version: a.version ?? 1, toast: input.action === "contacted" ? "Marked contacted." : "Not a fit." };
+  const scheduled = a.scheduled ?? 0;
+  const skipped = a.skipped ?? 0;
+  if (scheduled === 0) throw new AppError("conflict", "None of these can be checked again. An address is asked again only after its last check did not answer, once its search has finished.", 409);
+  const tail = skipped > 0 ? ` ${skipped} ${skipped === 1 ? "was" : "were"} left as ${skipped === 1 ? "it is" : "they are"}: an address is asked again only after its last check did not answer.` : "";
+  return { scheduled, skipped, toast: `Checking ${scheduled} again. ${scheduled === 1 ? "Its" : "Their"} answer lands here in a few minutes.${tail}` };
 }
 
 /** Erase one lead, for good (§0.4): the door writes the tombstones and blanks it; the ledger row survives what it destroyed. */
