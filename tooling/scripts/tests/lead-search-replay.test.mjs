@@ -46,8 +46,10 @@ test("ACCEPTANCE: a search runs end to end: create, probe, the question, Keep go
   const labelled = w.members().map((m) => LABELS.get(w.T.leads.find((l) => l.id === m.lead_id).business_name));
   const qualified = w.members().filter((m) => m.class === "qualified");
   assert.ok(qualified.every((m) => LABELS.get(w.T.leads.find((l) => l.id === m.lead_id).business_name) === "fit"), "nothing but a fit qualifies");
-  // A1's review: an exclusion is named before a criterion, so a chain gym is left out "by" the chains chip, not by the independent criterion it also fails.
-  assert.equal(labelled.filter((k) => k === "chain").length, w.members().filter((m) => m.excluded_by === "chains").length);
+  // A1's review: an exclusion is named before a criterion, so a chain gym is left out "by" the chains chip, not by the independent criterion it also fails - checked member by member, so a chain excluded "by" something else and a non-chain excluded "by" chains cannot cancel out in a count.
+  w.members().forEach((m, i) => {
+    assert.equal(m.excluded_by === "chains", labelled[i] === "chain", `member ${i} (${labelled[i] ?? "unlabelled"}): excluded_by ${m.excluded_by}`);
+  });
   assert.ok(w.T.leads.filter((l) => l.email).every((l) => l.email_state === "ok"), "every found address was checked");
   assert.equal(qualified.length, 31, "every fit place whose mailbox answered ok: 12 of the probe's, 19 of the main phase's (the twentieth is outside the area)");
   // 00140's lead_check_commit counts a member the email standard alone held back only through the ROUND'S reservation (the plan's count, reserved at create): past the room it is Qualified and uncounted, and no counter moves.
@@ -84,8 +86,6 @@ test("a killed collect is resumed by the sweep: with its next job lost, the run'
   start.state = "done";
   for (const j of w.jobsOf("lead_collect")) j.state = "canceled";
   w.finishRuns();
-  // A run row's created_at is the column's default in 00140, which the adapter never writes and the world in memory has no default for; the sweep reads it to tell a fresh run from one past 45 minutes, so the replay stamps it the way the database would.
-  for (const r of w.runs()) r.created_at ??= new Date().toISOString();
   setPg(w.db);
   const [status, body] = await answer(await knock(sweep.POST, "leads"));
   assert.equal(status, 200);

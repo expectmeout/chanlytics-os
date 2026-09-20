@@ -20,9 +20,20 @@
  * The labelled set (docs/plans/lead-labels.example.json): each place id the
  * search may find, with its kind of business and whether a person says it
  * qualifies under the plan's contract (a likely buyer is not a confirmed
- * stockist). Scored: precision of Qualified by kind of business with the 95%
- * Wilson interval, yield, the share sent to Needs review, and the cost per
- * Qualified lead (decision 29).
+ * stockist). What the printed score's fields mean, since two of them are
+ * easy to misread: `labelled` and `qualified` count the LABELLED subset
+ * only, a sample of what the search found, and drive `precision` (Qualified
+ * by kind of business, with the 95% Wilson interval `passes` reads against
+ * decision 29's bar) and `labelled_qualified_share` (that subset's own
+ * qualified share - not the engine's yield, which is the probe's share that
+ * clears exclusion and holds what the contact standard needs; see
+ * packages/core/src/leads/sizing.ts#yieldOf. lead_searches_view exposes no
+ * per-member contact-standard tally, so the engine's yield cannot be shown
+ * beside it here). `review_share` is the labelled subset sent to Needs
+ * review. `cost_per_qualified_usd` divides the round's whole cost by the
+ * SEARCH's own qualified count (`row.qualified`, lead_searches_view) - not
+ * the labelled subset, which is usually far smaller than what the search
+ * actually found.
  */
 import fs from "node:fs";
 import { createChunks } from "@supabase/ssr/dist/main/utils/chunker.js";
@@ -47,8 +58,15 @@ export function wilson(k, n, z = 1.96) {
   return { p, lo: (c - e) / d, hi: (c + e) / d };
 }
 
-/** G2's numbers from the members the route answered and the labels a person wrote. */
-export function score(members, labels, costUsd) {
+/**
+ * G2's numbers from the members the route answered and the labels a person
+ * wrote. `qualified` and `labelled_qualified_share` count the LABELLED
+ * subset only (for precision); `cost_per_qualified_usd` divides by
+ * `roundQualified`, the search's own tally (lead_searches_view's
+ * `qualified`, passed by the caller as `row.qualified`), which is what the
+ * cost was actually spread over.
+ */
+export function score(members, labels, costUsd, roundQualified) {
   const byKind = new Map();
   let seen = 0;
   let qualified = 0;
@@ -72,9 +90,11 @@ export function score(members, labels, costUsd) {
     labelled: seen,
     qualified,
     precision: { all: { n: all.n, ...wilson(all.right, all.n) }, ...precision },
-    yield: seen ? qualified / seen : null,
+    // The labelled subset's own qualified share - NOT the engine's yield
+    // (renamed so the two can't be confused; see the file's own docstring).
+    labelled_qualified_share: seen ? qualified / seen : null,
     review_share: seen ? review / seen : null,
-    cost_per_qualified_usd: qualified && typeof costUsd === "number" ? Math.round((costUsd / qualified) * 10_000) / 10_000 : null,
+    cost_per_qualified_usd: typeof costUsd === "number" && roundQualified ? Math.round((costUsd / roundQualified) * 10_000) / 10_000 : null,
     passes: all.n > 0 && all.right / all.n >= 0.95 && wilson(all.right, all.n).lo >= 0.9,
   };
 }
@@ -99,7 +119,11 @@ function api(cookie) {
     const url = `${BASE}/api/v1/${path}${path.includes("?") ? "&" : "?"}workspace=${encodeURIComponent(WORKSPACE)}`;
     const res = await fetch(url, { method, headers: { cookie, origin: new URL(BASE).origin, "content-type": "application/json" }, ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
     const json = await res.json().catch(() => ({}));
-    if (!res.ok || json.ok === false) throw new Error(`${method} ${path}: ${res.status} ${json.error?.code ?? ""} ${json.error?.message ?? ""}`);
+    if (!res.ok || json.ok === false) {
+      const err = new Error(`${method} ${path}: ${res.status} ${json.error?.code ?? ""} ${json.error?.message ?? ""}`);
+      err.status = res.status;
+      throw err;
+    }
     return json.data;
   };
 }
@@ -142,8 +166,18 @@ async function main() {
     while (row.state !== "ended" && Date.now() < until) {
       console.log(line(row));
       if (row.state === "waiting_on_owner") {
-        await call("POST", `lead-searches/${searchId}/answer`, { answer: "keep" });
-        console.log("answered: keep going");
+        try {
+          await call("POST", `lead-searches/${searchId}/answer`, { answer: "keep" });
+          console.log("answered: keep going");
+        } catch (e) {
+          // lead_round_answer's only refusal is {error:"state"}, said back as a 409
+          // conflict, when the round already left waiting_on_owner between our read
+          // above and this call (someone else answered it, or it ended on its own).
+          // That race is not a run failure: re-read below, on the same poll, and
+          // carry on instead of aborting a 45-minute wait over it.
+          if (e?.status !== 409) throw e;
+          console.log(`answer raced the round's own state, re-reading: ${e.message}`);
+        }
       }
       await new Promise((r) => setTimeout(r, POLL_MS));
       row = (await call("GET", `lead-searches/${searchId}`)).search;
@@ -153,7 +187,7 @@ async function main() {
   if (args.label) {
     const labels = JSON.parse(fs.readFileSync(String(args.label), "utf8"));
     const members = await allMembers(call, searchId);
-    console.log(JSON.stringify(score(members, labels, row.cost_usd), null, 2));
+    console.log(JSON.stringify(score(members, labels, row.cost_usd, row.qualified), null, 2));
   }
 }
 
