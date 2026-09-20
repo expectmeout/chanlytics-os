@@ -385,9 +385,18 @@ max_frequency = "5s"
 # values below and enabled = true; it ships off so `supabase start` needs no
 # Google credentials in CI.
 [auth.external.google]
-enabled = false
-client_id = ""
+# ON in the hosted project -- its own /auth/v1/settings answers
+# "external": { "google": true }, and the sign-in page only draws the button
+# when it does -- and OFF here. That made `supabase config push` a switch
+# that turns Sign in with Google off in production as a side effect of
+# pushing something else entirely. Both halves of the credential come from
+# the environment, so neither is in git.
+enabled = true
+client_id = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_CLIENT_ID)"
 secret = "env(SUPABASE_AUTH_EXTERNAL_GOOGLE_SECRET)"
+# Empty on purpose: Google returns the browser to Supabase's own
+# /auth/v1/callback, and where Supabase may send it afterwards is
+# additional_redirect_urls at the top of this file.
 redirect_uri = ""
 url = ""
 skip_nonce_check = false
