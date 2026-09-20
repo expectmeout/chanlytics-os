@@ -254,3 +254,24 @@ test("the mark a site declares: a website builder's own default is the platform'
     "https://static.parastorage.com/client/logo-49e4dc.png",
   );
 });
+
+// An href is HTML before it is an address: a browser decodes its entities before it fetches, and so must we. A real
+// falconry school wrote its mark as "...jpeg?w=180&#038;h=180", which stored raw asks a server for a parameter
+// literally named "#038;h". Found the same way as the rest of this file's late cases: against live sites.
+test("the mark a site declares: an href is decoded as HTML before it is read as an address", () => {
+  const O = "https://zilkerstrength.example";
+  const head = (inner) => `<!doctype html><html><head>${inner}</head><body></body></html>`;
+  assert.equal(leadMarkFrom(head(`<link rel="apple-touch-icon" href="/m.jpeg?w=180&#038;h=180">`), O), `${O}/m.jpeg?w=180&h=180`);
+  assert.equal(leadMarkFrom(head(`<link rel="apple-touch-icon" href="/m.png?a=1&amp;b=2">`), O), `${O}/m.png?a=1&b=2`);
+  assert.equal(leadMarkFrom(head(`<link rel="apple-touch-icon" href="/m.png?a=1&#x26;b=2">`), O), `${O}/m.png?a=1&b=2`);
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="https://cdn.example/m.png?v=1&AMP;w=2">`), O), "https://cdn.example/m.png?v=1&w=2", "however the page cased it");
+  // An address with no entity in it is untouched, including one that merely mentions an ampersand.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/black&white.png">`), O), `${O}/black&white.png`);
+  // Decoding happens BEFORE the refusals, so nothing sneaks a scheme past them by spelling it in entities.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="&#100;ata:image/png;base64,AAAA">`), O), null, "an encoded data: URI is still bytes");
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="&#106;avascript:alert(1)">`), O), null);
+  // The column feeds an <img src>: an address holding what could close an attribute is no address.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/m.png&quot;onerror=x">`), O), null, "a quote can close the attribute it would sit in");
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/a&lt;b.png">`), O), null);
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/two words.png">`), O), null, "a space is not in an address a server would answer");
+});

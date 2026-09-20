@@ -74,9 +74,30 @@ function isPlatformDefault(url: string): boolean {
   return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
 }
 
+/** No real address holds these, and each is a character that could close the HTML attribute or SQL literal it sits in. */
+const UNSAFE_IN_AN_ADDRESS = /[\s"'<>\`{}|^]/;
+
+/**
+ * An href is HTML before it is an address: a browser decodes its entities before it fetches, and so must we. A real
+ * falconry school wrote its mark as `...jpeg?w=180&#038;h=180`, which stored raw asks a server for a parameter
+ * literally named `#038;h`. Decoding happens before every refusal below, so nothing spells a scheme past them.
+ */
+function decodeEntities(s: string): string {
+  if (!s.includes("&")) return s;
+  const chr = (n: number, had: string) => (n > 0 && n < 0x110000 ? String.fromCodePoint(n) : had);
+  return s
+    .replace(/&#x([0-9a-f]+);/gi, (had, h) => chr(parseInt(h, 16), had))
+    .replace(/&#(\d+);/g, (had, d) => chr(Number(d), had))
+    .replace(/&amp;/gi, "&")
+    .replace(/&quot;/gi, '"')
+    .replace(/&apos;/gi, "'")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">");
+}
+
 /** An address as the browser would read it from this page: absolute, http(s), and short enough to keep. */
 function absolute(href: string, origin: string): string | null {
-  const raw = href.trim();
+  const raw = decodeEntities(href.trim());
   if (!raw || raw.length > HREF_MAX) return null;
   if (/^data:|^javascript:/i.test(raw)) return null;
   let url = raw;
@@ -89,6 +110,7 @@ function absolute(href: string, origin: string): string | null {
   // one that can be seen, and the photo takes over if it turns out it cannot.
   const secure = url.replace(/^http:\/\//i, "https://");
   // A builder's own default is refused here, so BOTH readings below fall through to whatever else the page declares.
+  if (UNSAFE_IN_AN_ADDRESS.test(secure)) return null;
   return isPlatformDefault(secure) ? null : secure;
 }
 
