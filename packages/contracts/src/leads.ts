@@ -118,6 +118,14 @@ export function leadNoteLeft(left: number, max: number): string {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
 
+/** The first day of Leads, before a workspace has kept one search (§8.9). */
+export const LEAD_FIRST_DAY_TITLE = "Your people gather here";
+export const LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
+/** What the finder does not do, said where it is offered. */
+export const LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
+export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+
 /**
  * Every word the Leads scope's own markup says, spelled once here and seeded onto the window as `window.__LEAD_WORDS`
  * by `seed-globals.ts`, because the legacy pages import nothing. A words record is a global seeded once at boot, like
@@ -167,11 +175,11 @@ export const LEAD_WORDS = {
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
 } as const;
 
 
-/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
-export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 /** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
 export const LEAD_SUGGEST_DAYS = 7;
 
@@ -194,6 +202,63 @@ export function leadReachLine(prior: LeadNichePrior | null | undefined): string 
   if (tenths === 5) return "About half have an email";
   if (tenths === 7) return "About 2 in 3 have an email";
   return `About ${tenths} in 10 have an email`;
+}
+
+export interface LeadWayFacts {
+  /** The workspace's own line, when this tab has read the setup surface; null when it has not. */
+  voice: { active: boolean; number: string | null } | null;
+  whatsapp: { present: boolean; active: boolean } | null;
+  calendar: "ok" | "unavailable" | "none";
+  people: number;
+}
+export interface LeadWay {
+  id: "reach" | "calendar" | "yours";
+  title: string;
+  line: string;
+  /** Only ever what this tab has read: null claims nothing. */
+  status: string | null;
+  doors: { id: string; label: string; to: string }[];
+}
+
+/**
+ * The three ways people arrive (§8.9), each claiming only what this tab has
+ * read. The People surface carries the calendar and the count; the line is the
+ * setup surface's, which this route does not load on a cold open -- so with no
+ * facts the way says what it is and points at Setup, and never says a number is
+ * live that nobody looked at. "Import a list" is Phase 2 and is not offered
+ * until it exists.
+ */
+export function leadsFirstDayWays(f: LeadWayFacts): LeadWay[] {
+  const live = !!(f.voice && f.voice.active && f.voice.number);
+  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "admin/setup" }];
+  if (!f.whatsapp || !f.whatsapp.active) reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
+  return [
+    {
+      id: "reach",
+      title: "They reach you",
+      line: live
+        ? `Calls and texts to ${f.voice!.number} are answered, and each person lands here.`
+        : "Calls and texts to your number are answered, and each person lands here.",
+      status: live ? "Your number is live" : null,
+      doors: reachDoors,
+    },
+    {
+      id: "calendar",
+      title: "Your calendar",
+      line: "Anyone with an appointment is added, with their visits, so regulars aren't strangers.",
+      status: f.calendar === "ok" ? "Your calendar is connected" : null,
+      doors: f.calendar === "ok"
+        ? [{ id: "calendar", label: "Open the calendar", to: "calendar" }]
+        : [{ id: "calendar", label: "Connect your calendar", to: "admin/integrations" }],
+    },
+    {
+      id: "yours",
+      title: "Clients you already have",
+      line: "Add them one at a time, and they gather here with everyone else.",
+      status: f.people > 0 ? `${f.people} ${f.people === 1 ? "person" : "people"} here already` : null,
+      doors: [{ id: "add", label: "Add someone", to: "clients" }],
+    },
+  ];
 }
 
 /* ------------------------------------------------- the planner's refusals */

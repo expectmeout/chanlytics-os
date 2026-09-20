@@ -360,7 +360,7 @@ const LeadsScope = (p) => {
           {/* The finder folds out above the table on a desktop and comes up as a sheet from the bottom of a
               phone. `phone` changes two things inside the finder itself and nothing else (Task 8): hold-to-talk
               is the sheet's first control, and the input is full width under it. */}
-          {p.finderOpen && (() => {
+          {!p.firstDay && p.finderOpen && (() => {
             const finder = (
               <LeadFinder
                 open
@@ -394,6 +394,48 @@ const LeadsScope = (p) => {
 
           {L.readFailed
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
+            : p.firstDay
+            ? (
+              <LeadsFirstDay
+                ways={p.ways}
+                suggestions={L.suggestions}
+                canFind={p.canFind}
+                lineOpen={p.lineOpen}
+                lineDraft={p.lineDraft}
+                lineError={p.lineError}
+                lineBusy={p.lineBusy}
+                onPick={(words) => { p.onFinderWords(words); p.onFind(); }}
+                onGo={p.onGo}
+                onOpenLine={p.onOpenLine}
+                onLineDraft={p.onLineDraft}
+                onSaveLine={p.onSaveLine}
+                onCancelLine={p.onCancelLine}
+                composer={
+                  <LeadFinder
+                    open
+                    inline
+                    phone={phone}
+                    stage={p.finderStage}
+                    words={p.finderWords}
+                    proposal={p.finderProposal}
+                    plan={p.finderPlan}
+                    trace={p.finderTrace}
+                    pick={p.finderPick}
+                    refusal={p.finderRefusal}
+                    busy={p.finderBusy}
+                    suggestions={L.suggestions}
+                    talk={p.talk}
+                    onWords={p.onFinderWords}
+                    onPlan={p.onFinderPlan}
+                    onChangePlan={p.onFinderChangePlan}
+                    onPick={p.onFinderPick}
+                    onApprove={p.onFinderApprove}
+                    onBack={p.onFinderBack}
+                    onClose={p.onCloseFinder}
+                  />
+                }
+              />
+            )
             : (
               <PeopleTable
                 noun="lead"
@@ -473,7 +515,6 @@ const LeadsScope = (p) => {
           // is exactly what C over the rows does (clients-a.jsx's callLead), so both end in the same place.
           return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} {...acts} />;
         })()}
-        {p.firstDay && <LeadsFirstDay suggestions={L.suggestions} onPick={p.onFinderWords} onFind={p.onFind} onBusinessLine={p.onBusinessLine} />}
         {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same
             searches and the same New search. People's own sheet (clients-a.jsx), which owns its Esc, so the
             page's one listener holds still while it is open (keys.sheetOpen). Last in the tree, after
