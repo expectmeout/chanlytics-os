@@ -800,6 +800,20 @@ const NO_EDGE = "missing cron_sweep_key or edge_base_url in Vault";
  * because the predicate is the whole database's: other database suites run
  * beside this one and their open rounds are lead work too.
  */
+/**
+ * The same turn, judged against the counts the predicate itself reads. This suite shares its database with every
+ * other, and the counts are read before the clock asks, so work that arrives in between makes one turn disagree
+ * with itself. A turn that disagrees is taken again: three in a row is the predicate, not the traffic.
+ */
+async function turnAgrees(why) {
+  let turn = null;
+  for (let i = 0; i < 3; i += 1) {
+    turn = await turnTheClock(why);
+    if (turn.asked === (turn.open > 0 || turn.live > 0)) return turn;
+  }
+  return assert.fail(`${why}: the clock and the database disagreed three turns running: ${JSON.stringify(turn)}`);
+}
+
 async function turnTheClock(why) {
   const was = ok(await db.from("sweep_status").select("note, requested_at").eq("sweep", "leads").single());
   const mark = `lead-engine ${Math.random().toString(36).slice(2)}`;
@@ -829,8 +843,7 @@ test("the clock asks the edge exactly when the database holds lead work, and rec
     ok(await db.from("lead_rounds").delete().eq("tenant_id", id));
   }
   assert.deepEqual(ok(await db.from("lead_rounds").select("id").eq("tenant_id", A)), [], "none of this suite's rounds is left");
-  let turn = await turnTheClock("nothing of this suite's left");
-  assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `with none of this suite's work left, the clock answered the database: ${JSON.stringify(turn)}`);
+  let turn = await turnAgrees("nothing of this suite's left");
 
   // A round queued with no run at all: its start job died before it wrote
   // one, and nothing but the sweep can end it and give its reservation back.
@@ -840,9 +853,8 @@ test("the clock asks the edge exactly when the database holds lead work, and rec
   assert.ok(made.round_id, JSON.stringify(made));
   assert.equal(ok(await db.from("lead_rounds").select("state").eq("id", made.round_id).single()).state, "queued");
   assert.deepEqual(ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id)), [], "and nothing has run for it");
-  turn = await turnTheClock("a round of this suite's own, queued, with no run");
+  turn = await turnAgrees("a round of this suite's own, queued, with no run");
   assert.ok(turn.open >= 1, "this suite's own round is open");
-  assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `the clock answered the database: ${JSON.stringify(turn)}`);
   assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
 });
 
