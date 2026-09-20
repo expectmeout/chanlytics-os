@@ -2967,7 +2967,7 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   press(waiting[0]);
   assert.equal(went.at(-1), "inbox/th-cv-d");
   assert.equal(textOf(byTestId(band, "today-leaks-more")).trim(), moreLine);
-  assert.equal(moreLine, "and 1 more", "the reach row qualified too; the cap is two");
+  assert.equal(moreLine, "and 2 more", "the reach row and the quiet row qualified too; the cap is two");
   set({ __REPORTS: { ...reports(), vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } }, booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 } }, __PEOPLE: { ...people(), lists: [list("quiet", "Quiet 30+ days", 1, null)] } });
   assert.equal(draw(W.TodayLeaks).rendered, null, "a workspace with nothing wrong gets no band at all");
   set({ __REPORTS: undefined, __PEOPLE: people() });
