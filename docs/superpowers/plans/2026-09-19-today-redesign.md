@@ -2513,7 +2513,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
   and
 ```js
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(!brief.includes("dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
+  assert.ok(!brief.includes("__today.dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
 ```
   (The number of `readCode(`/`readRaw(` calls in the file is unchanged: 8.)
@@ -2710,7 +2710,7 @@ const quietDay = () => toTodayVM(metrics({ now: { escalations_open: 0, oldest_op
 
 const tile = (id, value, compare = null) => ({ id, label: id, value, meta: "", delta: null, spark: [], compare });
 const reports = () => ({
-  vm: { days: 7, rangeLabel: "7 days", since: "Sep 12", until: "Sep 18", empty: false, tiles: [tile("messages", "24", "up from 19"), tile("calls", "4")], answered: { totals: { in: 24, ai: 21, you: 1, none: 2 } }, replyTime: { count: 21, medianLabel: "34s" }, reasons: [] },
+  vm: { days: 7, rangeLabel: "7 days", since: "Sep 12", until: "Sep 18", empty: false, tiles: [tile("messages", "24", "up from 19"), tile("calls", "4")], answered: { totals: { in: 24, ai: 21, you: 1, none: 2 }, share: 0.875 }, replyTime: { count: 21, medianLabel: "34s" }, calls: { total: 4 }, reasons: [] },
   campaigns: null,
   booking: { present: true, headline: "2 of 18 booked", sub: "", pct: 11, asked: 18, booked: 2 },
 });
@@ -2914,7 +2914,8 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   failed.add("broadcasts");
   const broke = draw(W.AgentCommand);
   assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the playbook runs/);
-  assert.equal(all(broke, (n) => classes(n).includes("cl-attn-row")).length, rows.length, "the rows themselves stand");
+  // `rows` above counted the two run rows too (they are AttnRows as well); the runs are a FailedRead now, so what must stand is the queue's own.
+  assert.equal(all(broke, (n) => classes(n).includes("cl-attn-row")).length, busy().queue.rows.length, "the rows themselves stand");
 });
 
 /* ------------------------------------ the day ------------------------------------ */
@@ -2966,7 +2967,7 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   press(waiting[0]);
   assert.equal(went.at(-1), "inbox/th-cv-d");
   assert.equal(textOf(byTestId(band, "today-leaks-more")).trim(), moreLine);
-  assert.equal(moreLine, "and 1 more", "the reach row qualified too; the cap is two");
+  assert.equal(moreLine, "and 2 more", "the reach row and the quiet row qualified too; the cap is two");
   set({ __REPORTS: { ...reports(), vm: { ...reports().vm, answered: { totals: { in: 23, ai: 23, you: 0, none: 0 } } }, booking: { present: true, headline: "17 of 18 booked", sub: "", pct: 94, asked: 18, booked: 17 } }, __PEOPLE: { ...people(), lists: [list("quiet", "Quiet 30+ days", 1, null)] } });
   assert.equal(draw(W.TodayLeaks).rendered, null, "a workspace with nothing wrong gets no band at all");
   set({ __REPORTS: undefined, __PEOPLE: people() });
@@ -4219,7 +4220,7 @@ Every file below either holds no `readCode(`/`readRaw(` call or keeps its count;
 const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
 globalThis.window.__today = TODAY_HELPERS;
 ```
-  (The queue's run rows read `window.__today.runs`; these five drew them before contracts owned the words.) In `refusals-on-the-page.test.mjs` also give the harness a `refusalToast` if it has none: check with `grep -n "refusalToast" tooling/scripts/tests/refusals-on-the-page.test.mjs`; it loads data-bits, which publishes one, so nothing to add.
+  (The queue's run rows read `window.__today.runs`; these five drew them before contracts owned the words.) In `gate-reason.test.mjs` and `refusals-on-the-page.test.mjs` the `__BROADCASTS` row also gains `when` and `counts: { sent, replied }`: `todayRunWords` reads `counts.sent`, and a fixture written when the page owned the words carries neither, so the row throws before the gate is ever reached. In `refusals-on-the-page.test.mjs` also give the harness a `refusalToast` if it has none: check with `grep -n "refusalToast" tooling/scripts/tests/refusals-on-the-page.test.mjs`; it loads data-bits, which publishes one, so nothing to add.
 
 - [ ] **Step 2: `today-doors.test.mjs`.**
   - `const mountRecap = ...` becomes `const mountCard = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.TodayCard(); };` and every `mountRecap(` becomes `mountCard(`; the comment above it: `// The day's lines (its receipts, the proof, a reply that failed) sit in the day's card under the work (TodayCard).`

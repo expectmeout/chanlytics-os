@@ -1191,6 +1191,9 @@ export interface TodayDayFrameVM {
   summary: { booked: string; flagged: string | null } | null;
   /** The windows the receptionist would offer, as labels; none on a closed or past day. */
   open: string[];
+  /** How many of the day's entries the cap left out, and the line that says so ("2 more on the Calendar"). */
+  more: number;
+  moreLine: string | null;
 }
 
 /** "45m" · "1h" · "1h 30m" */
@@ -1211,6 +1214,21 @@ export interface TodayDayVM {
   reminders: { text: string; to: string } | null;
 }
 
+/** Rows on Today's day card; the Calendar has the rest. */
+export const TODAY_DAY_MAX = 5;
+
+/**
+ * The `max` entries worth the card: everything still to come first, then what is over, most recent first, back in the
+ * day's order. At ten with seven appointments the eight o'clock goes before anything ahead does.
+ */
+function capDay(items: TodayDayItemVM[], max: number): TodayDayItemVM[] {
+  if (items.length <= max) return items;
+  const keep = new Set<string>();
+  for (const i of items) if (i.phase !== "past" && keep.size < max) keep.add(i.id);
+  for (const i of [...items].reverse()) if (i.phase === "past" && keep.size < max) keep.add(i.id);
+  return items.filter((i) => keep.has(i.id));
+}
+
 /**
  * Today and tomorrow, as the calendar reads them: who is coming and when,
  * what is open, what is closed — and the visit playbooks' line. Nothing here
@@ -1222,6 +1240,7 @@ export function todayDay(
   playbooks: PlaybookCardLike[] | null,
   /** People's rows, for the red line: a person on the day whose thread needs someone. */
   people: { rows: Array<{ id: string; state: string }> } | null = null,
+  max = TODAY_DAY_MAX,
 ): TodayDayVM {
   if (!cal) return { feed: "none", frames: [], nextOpening: null, reminders: null };
   const feed = cal.feed.state;
@@ -1256,13 +1275,17 @@ export function todayDay(
     });
     const items = [...d.allDay.map((b) => item(b, true, "later")), ...timed];
     const flagged = items.filter((i) => i.flag).length;
+    const shown = capDay(items, max);
+    const more = items.length - shown.length;
     return {
       key: d.key,
       label: `${d.today ? "Today" : "Tomorrow"} · ${d.long}`,
       today: d.today,
       past: d.past,
       closed: d.closed,
-      items,
+      items: shown,
+      more,
+      moreLine: more ? `${more} more on the Calendar` : null,
       summary: items.length ? { booked: `${items.length} booked`, flagged: flagged ? `${flagged} need${flagged === 1 ? "s" : ""} you` : null } : null,
       open: d.closed.yes || d.past ? [] : d.windows.map((w) => w.label),
     };
@@ -1277,36 +1300,7 @@ export function todayDay(
   return { feed, frames, nextOpening: feed === "ok" && cal.stats.next !== "—" ? cal.stats.next : null, reminders };
 }
 
-/** Two facts beside the recap's, only with a calendar: appointments today, and what is booked ahead. */
-export function todayDayFacts(cal: CalendarLike | null, agg: { booked: number; reachedWeek: number } | null): TodayFactVM[] {
-  if (!cal || cal.feed.state !== "ok") return [];
-  const out: TodayFactVM[] = [];
-  const today = cal.days.find((d) => d.today);
-  if (today) {
-    const n = today.blocks.length + today.allDay.length;
-    const hint = today.closed.yes
-      ? `closed today${today.closed.note ? ` · ${today.closed.note}` : ""}`
-      : cal.stats.next !== "—" ? `next open time ${cal.stats.next}` : undefined;
-    out.push(hint ? { label: "Appointments today", value: String(n), hint } : { label: "Appointments today", value: String(n) });
-  }
-  if (agg) out.push({ label: "Booked ahead", value: String(agg.booked), hint: `${agg.reachedWeek} reached this week` });
-  return out;
-}
-
-/** The day's own numbers as one sentence, beside the recap's: they were stat cards in the hero, over the work. */
-export function todayDayLine(cal: CalendarLike | null, agg: { booked: number; reachedWeek: number } | null): string | null {
-  const facts = todayDayFacts(cal, agg);
-  if (!facts.length) return null;
-  const said = facts.map((f) => {
-    const what = f.label === "Appointments today"
-      ? `${f.value} appointment${f.value === "1" ? "" : "s"} today`
-      : `${f.value} booked ahead`;
-    return f.hint ? `${what}, ${f.hint}` : what;
-  });
-  return `${said.join(". ")}.`;
-}
-
-/* ------------------------- the period, the journey, away ------------------ */
+/* -------------------------------- the period ------------------------------ */
 
 /** A Reports tile as Reports builds it; the page draws it with Reports' own component. */
 export interface WeekTileLike {
@@ -1342,119 +1336,6 @@ export interface ReportsLike {
   /** Null: the offers' read failed on its own and the receptionist's own numbers still stand (the bridge's D9 catch). */
   campaigns: { tiles: WeekTileLike[]; empty: boolean } | null;
   booking: { present: boolean; headline: string; sub: string; pct: number | null; asked?: number; booked?: number };
-}
-
-/** One of the three ways to read the period, behind the card's own control. */
-export interface TodayWeekViewVM {
-  id: "conversations" | "campaigns" | "booking";
-  /** The control's word. */
-  label: string;
-  tiles: WeekTileLike[];
-  /** Under the tiles: what drove the headline number, in the period's own counts. */
-  chips: Array<{ label: string; value: string }>;
-  /** Said when there is nothing to draw, or what the numbers mean when there is. */
-  note: string | null;
-  /** False when the read behind this view failed: its numbers are missing, not zero, and the page says so with the one FailedRead. */
-  numbersRead: boolean;
-  /** Where the full version of this view lives. */
-  to: string;
-}
-
-export interface TodayWeekVM {
-  /** "Last 7 days" — the range the owner chose on Reports. */
-  label: string;
-  /** "Aug 31 – Sep 6" — the range itself; the comparison it is drawn against lives on Reports, with the charts. */
-  sub: string;
-  views: TodayWeekViewVM[];
-  /** The view to open on: the first one with something in it. */
-  initial: TodayWeekViewVM["id"];
-}
-
-/**
- * The period as Reports counts it, in three reads behind one control:
- * the conversations (its own six tiles, and what made the receptionist stop),
- * the campaigns (what went out and what came back), and the booking (who
- * wrote or called, and who ended up on the calendar).
- *
- * It was six tiles and two grey lines underneath, and the two lines carried
- * the numbers that matter most to a business: what the offers earned, and how
- * many of the people who asked ever booked. "Asked -> booked: 0 of 18 · 0%"
- * is not a footnote. Each read is now a first-class view with its own tiles;
- * none of them is a second count — every number is the one Reports prints.
- */
-export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
-  if (!r) return null;
-  // The offers are their own read and can fail on their own (surface-data's D9
-  // catch publishes `campaigns: null`). Reading through it threw here, and the
-  // shell's boundary replaced the WHOLE page -- queue, day and report all read
-  // and on screen -- and the failed snapshot is cached, so a reload landed on
-  // the same error pane.
-  const cm = r.campaigns;
-  const find = (id: string) => (cm ? cm.tiles.find((t) => t.id === id) : undefined);
-  const sent = find("sent");
-  const noCampaign = !cm || cm.empty || !sent || sent.value === "0";
-
-  // Why the receptionist stopped: the period's escalation reasons, as Reports
-  // counts them. The chips say what the "Needed you" tile above them is made of.
-  const reasons = (r.vm.reasons ?? []).filter((x) => x.value > 0).slice(0, 5);
-  const conversations: TodayWeekViewVM = {
-    id: "conversations",
-    label: "Conversations",
-    tiles: r.vm.tiles,
-    chips: reasons.map((x) => ({ label: x.label, value: String(x.value) })),
-    // No "N never got an answer" line here: the Receptionist answered tile
-    // already carries "4 unanswered" in its own meta, and todayLeaks says it in
-    // words above. A third printing on one page is what this pass is removing.
-    // `r.vm` cannot be missing: when the main report read fails the surface is
-    // unavailable and this function is never reached, so the field is total
-    // without a second rule on the page.
-    numbersRead: true,
-    note: r.vm.empty ? "Nobody wrote or called in this period." : null,
-    to: "reports",
-  };
-
-  const campaigns: TodayWeekViewVM = {
-    id: "campaigns",
-    label: "Campaigns",
-    tiles: cm && !noCampaign ? cm.tiles : [],
-    chips: [],
-    numbersRead: !!cm,
-    // A read that failed is NOT "nothing went out": that sentence is a fact
-    // about the business, and nothing in this path knows whether it is true.
-    // The page says the one "couldn't read" instead -- and the note stays null
-    // on purpose, so a browser still holding the old page (no `numbersRead`
-    // branch) degrades to silence rather than to the false sentence.
-    note: cm ? (noCampaign ? "No campaign message went out in this period." : null) : null,
-    to: "broadcasts",
-  };
-
-  const b = r.booking;
-  const bookingTiles: WeekTileLike[] = !b.present || b.pct === null
-    ? []
-    : [
-        { id: "asked", label: "Wrote or called", value: String(b.asked ?? 0), meta: `in the last ${r.vm.rangeLabel}`, delta: null, spark: [] },
-        { id: "booked", label: "On the calendar", value: String(b.booked ?? 0), meta: "have an appointment ahead", delta: null, spark: [] },
-        { id: "rate", label: "Asked → booked", value: `${b.pct}%`, meta: b.headline, delta: null, spark: [] },
-      ];
-  const booking: TodayWeekViewVM = {
-    id: "booking",
-    label: "Booking",
-    tiles: bookingTiles,
-    chips: [],
-    numbersRead: true,
-    note: bookingTiles.length ? null : b.present ? "Nobody wrote or called, so there was nothing to book." : b.sub,
-    to: b.present ? "reports" : "calendar",
-  };
-
-  const views = [conversations, campaigns, booking];
-  // A view whose read failed has no tiles, so the card never opens on one.
-  const full = views.find((v) => v.tiles.length > 0);
-  return {
-    label: `Last ${r.vm.rangeLabel}`,
-    sub: `${r.vm.since} – ${r.vm.until}`,
-    views,
-    initial: full ? full.id : "conversations",
-  };
 }
 
 /**
@@ -1542,38 +1423,6 @@ export interface JourneyListLike {
   count: number;
   action: { text: string; cta: string; to: string; enabled: boolean } | null;
 }
-export interface TodayJourneyRowVM {
-  id: string;
-  label: string;
-  count: number;
-  to: string;
-  act: { label: string; to: string } | null;
-}
-
-export interface TodayJourneyVM {
-  /** On the way to a booking. */
-  rows: TodayJourneyRowVM[];
-  /** Who can still be reached, and how -- the same lists People groups under Reach. */
-  reach: TodayJourneyRowVM[];
-  /** Said once when the calendar is not connected: which lists are missing and why. */
-  note: string | null;
-}
-
-/** Where people are on the way to a booking: People's journey lists, their counts, and the step each has when it has one. */
-export function todayJourney(people: { lists: JourneyListLike[]; calendar: { state: string } } | null): TodayJourneyVM | null {
-  if (!people) return null;
-  const group = (name: string): TodayJourneyRowVM[] => people.lists
-    .filter((l) => l.group === name)
-    .map((l) => ({ id: l.id, label: l.label, count: l.count, to: `clients/seg:${l.id}`, act: l.count > 0 && l.action && l.action.enabled ? { label: l.action.cta, to: l.action.to } : null }));
-  return { rows: group("journey"), reach: group("reach"), note: people.calendar.state === "ok" ? null : "Booked, asked-never-booked and lapsed appear once the calendar is connected." };
-}
-
-/** While you were away: the bell's unread rows in the bell's order, capped, the rest counted. */
-export function todayAway<T extends { unread: boolean }>(rows: T[], max = 5): { rows: T[]; more: number } {
-  const fresh = rows.filter((r) => r.unread);
-  return { rows: fresh.slice(0, max), more: Math.max(0, fresh.length - max) };
-}
-
 /* ------------------------------ worth a look ----------------------------- */
 
 /**

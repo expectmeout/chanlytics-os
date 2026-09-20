@@ -162,6 +162,8 @@ await import("../../../apps/dashboard/src/legacy/pages/templates-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
+globalThis.window.__today = TODAY_HELPERS;
 await import("../../../apps/dashboard/src/legacy/pages/broadcasts-real.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/outbound-real.jsx");
 
@@ -342,8 +344,8 @@ test("REGRESSION (A21): Today's run rows open the run -- a run waiting for you o
     next.props.onClick();
     assert.deepEqual(went, ["broadcasts/run:b-wait", "broadcasts/run:b-wait", "broadcasts/run:b-soon", "broadcasts/run:b-soon"], "REGRESSION: Playbooks, and the page of every broadcast");
     fresh();
-    // What ran today is a line of the day so far, under the work (TodayRecapBody); it was a beat of the hero above it.
-    const recap = globalThis.window.TodayRecapBody();
+    // What ran today is a line of the day's card, under the work (TodayCard); it was a beat of the hero above it.
+    const recap = globalThis.window.TodayCard();
     press(buttonsSaying(byTestId(recap, "brief-run-done"), "Open")[0]);
     assert.deepEqual(went, ["broadcasts/run:b-done"]);
   } finally {

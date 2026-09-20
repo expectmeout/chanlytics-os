@@ -1,72 +1,75 @@
 /* global React, Icon, FailedRead */
-// Hero brief — sits at the top of Dashboard A.
-// Replaces the flat greeting+sub with a structured editorial block:
-//   eyebrow timestamp · big sentence · three anchor stats (revenue/appts/response) · forecast line
-// The progress arc visualizes pace toward EOD revenue target.
-
-// Slice 4: when the seam has written window.TODAY_DATA (the real morning
-// brief), the SAME hero renders real numbers; otherwise the seeded mockup
-// stands, exactly like every other unflipped surface. Design is shared —
-// only the data source branches.
-// A playbook's run that waited for a person: the sweep found people and the
-// class is set to ask. Read from the Broadcasts surface, which boots with the
-// rest, so Today needs no fetch of its own. Approve here, or open Playbooks.
-const RunsDone = ({ nav }) => {
+// Today's first band and its third: the standing line above the work, and the day's own card under it.
+//
+// The standing line says the day and the time the business keeps, and whether its lines are up: one line, where a
+// hero with a greeting, a headline the queue says again, four sentences, a chip repeating the queue's count, an arc
+// and six stat cards used to stand (on a phone the first thing that needed a person started 679px down).
+//
+// The card is about the day: four figures from the view model, each with the clause under it and the why behind it
+// on hover, focus or a tap, with one door; then the lines that are not numbers (a reply that never reached anyone,
+// what Setup still wants, a review that landed, what ran, the receipts); then the last seven days in one line with the
+// one door to Reports on the page. Every sentence with a number is contracts' (toTodayVM, todayPeriodLine,
+// todayRunWords); this file draws them. A borrowed read that failed says so where its line would be (FailedRead).
+const useTcTick = (key) => {
   const [, bump] = React.useReducer((n) => n + 1, 0);
   React.useEffect(() => {
-    window.addEventListener("surface:broadcasts", bump);
-    return () => window.removeEventListener("surface:broadcasts", bump);
-  }, []);
-  const all = (window.__BROADCASTS && window.__BROADCASTS.rows) || [];
-  // What went out today — a playbook's run or a broadcast — with what it has
-  // earned so far. The runs that wait for a word, and the ones under a Stop,
-  // are rows of the queue (dashboard-a-command.jsx).
-  // Today, and the time it went, are the business's (window.__clock), not the browser's.
-  const C = window.__clock;
-  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && C.dayKey(Date.parse(r.started_at)) === C.dayKey(Date.now())).slice(0, 2);
-  const timeOf = (iso) => C.time(Date.parse(iso));
-  return done.map((r) => (
-    <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
-      <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
-      <span className="brief-beat-text">
-        <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"} at {timeOf(r.started_at)} — {r.counts.sent} sent{r.counts.replied ? `, ${r.counts.replied} replied` : ""}{r.state === "sending" ? " · still sending" : ""}
-      </span>
-      <button className="brief-chip" onClick={() => nav(`broadcasts/run:${r.id}`)}>Open <Icon name="arrow-right" size={10} /></button>
-    </div>
-  ));
+    const names = key.split(",");
+    names.forEach((n) => window.addEventListener(n, bump));
+    return () => names.forEach((n) => window.removeEventListener(n, bump));
+  }, [key]);
 };
 
+// A surface as the bridge published it; in the standalone mockup only, as the sample holds it (legacy-bridge/
+// today-sample.ts publishes window.__TODAY_SAMPLE, the way Reports reads window.__reportsSample). The sample never sets
+// the bridge's own names: the mockup's other pages switch to their real variants on those. Today's other files read
+// through this too (window.todaySurface), and fall back to the global itself where this file is not loaded (a test).
+const todaySurface = (key) => (window[key] !== undefined ? window[key] : window.__DEMO_MODE && window.__TODAY_SAMPLE ? window.__TODAY_SAMPLE[key] : undefined);
 
-// Setup's one line while something on the Setup page is open — the count and
-// the next verb, from the Setup surface (contracts/setup.ts). Rows the owner
-// put off for later are not counted. Gone the moment everything is ready.
+// A playbook's run or a broadcast that went out today, with what it has earned so far. The runs that wait for a word,
+// and the ones under a Stop, are rows of the queue (dashboard-a-command.jsx). Today, and the time it went, are the
+// business's (window.__clock), not the browser's; the counts are contracts' words (todayRunWords).
+const RunsDone = ({ nav }) => {
+  useTcTick("surface:broadcasts");
+  const B = todaySurface("__BROADCASTS");
+  const all = (B && B.rows) || [];
+  const C = todaySurface("__clock");
+  const done = all.filter((r) => (r.state === "sent" || r.state === "sending") && r.started_at && C.dayKey(Date.parse(r.started_at)) === C.dayKey(Date.now())).slice(0, 2);
+  const timeOf = (iso) => C.time(Date.parse(iso));
+  return done.map((r) => {
+    const w = window.__today.runs(r).done;
+    return (
+      <div key={`run-${r.id}`} className="brief-beat" data-testid="brief-run-done">
+        <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
+        <span className="brief-beat-text">
+          <b>{r.playbook_id ? r.audience.label : r.name}</b> {r.playbook_id ? "ran" : "went out"} at {timeOf(r.started_at)}: {w.counts}{w.still ? " · still sending" : ""}
+        </span>
+        <button className="brief-chip" onClick={() => nav(`broadcasts/run:${r.id}`)}>Open <Icon name="arrow-right" size={10} /></button>
+      </div>
+    );
+  });
+};
+
+// Setup's one line while something on the Setup page is open: the count and the next verb, from the Setup surface
+// (contracts/setup.ts). Rows the owner put off for later are not counted. Gone the moment everything is ready.
 const SetupLine = ({ nav }) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("surface:setup", bump);
-    return () => window.removeEventListener("surface:setup", bump);
-  }, []);
+  useTcTick("surface:setup");
   const S = window.__SETUP;
   if (!S || !S.vm.line) return null;
   return (
     <div className="brief-beat" data-testid="brief-setup">
-      <span className="brief-beat-dot" style={S.vm.readiness.answering ? undefined : { background: "var(--accent)" }} />
+      {/* Not answering yet is a warning, not live state: never the coral accent. */}
+      <span className="brief-beat-dot" style={S.vm.readiness.answering ? undefined : { background: "var(--warn)" }} />
       <span className="brief-beat-text">{S.vm.line}</span>
       <button className="brief-chip" onClick={() => nav("admin/setup")}>Open Setup <Icon name="arrow-right" size={10} /></button>
     </div>
   );
 };
 
-// A review on Google, the morning it lands: first seen in the last day and
-// a half, written recently, not part of the first read (contracts/google.ts
-// reviewIsNew). From the Google surface, which boots with the rest. Gone
-// once it is old news.
+// A review on Google, the morning it lands: first seen in the last day and a half, written recently, not part of the
+// first read (contracts/google.ts reviewIsNew). From the Google surface, which boots with the rest. Gone once it is
+// old news.
 const ReviewLine = ({ nav }) => {
-  const [, bump] = React.useReducer((n) => n + 1, 0);
-  React.useEffect(() => {
-    window.addEventListener("surface:google", bump);
-    return () => window.removeEventListener("surface:google", bump);
-  }, []);
+  useTcTick("surface:google");
   const G = window.__GOOGLE;
   if (!G || !G.dto.listing || !window.__google) return null;
   const line = window.__google.vm(G.dto, 30).todayLine;
@@ -80,62 +83,126 @@ const ReviewLine = ({ nav }) => {
   );
 };
 
-const HeroBrief = () => {
-  const [, force] = React.useState(0);
-  React.useEffect(() => {
-    const bump = () => force((n) => n + 1);
-    window.addEventListener("surface:today", bump);
-    return () => window.removeEventListener("surface:today", bump);
-  }, []);
-  return window.TODAY_DATA ? <TodayStanding vm={window.TODAY_DATA} /> : <HeroBriefSeed />;
+// The standing line: the day and the time the business keeps, and whether its lines are up. One line, above the work.
+const TodayStanding = ({ vm }) => {
+  const { standing } = vm;
+  return (
+    <header className="today-standing" data-testid="today-standing">
+      <span>{standing.eyebrow}</span>
+      {/* Counted in contracts: this page counted its own chips, and the chips are the routing rows, so an email line
+          was never in the total. The dot is this line's own: quiet when every line is up, red with a ring when one is
+          down; the coral live-dot is the agent's live state, never a status light. */}
+      <span className="today-standing-lines">
+        <span className={`today-standing-dot${standing.lines.down ? " down" : ""}`} aria-hidden="true" />
+        {standing.lines.text}
+      </span>
+      {/* A line that is down is the one thing here that cannot wait for the card under the work. */}
+      {standing.alert && <span className="today-standing-alert">{standing.alert}</span>}
+    </header>
+  );
 };
 
-// The day so far — under the work it explains, and INSIDE the card that
-// carries the period. Its numbers in one sentence, then the lines that are
-// not numbers: what Setup still wants, a review that landed, a reply that
-// never reached anyone, what ran, what you sent.
-//
-// It was a card of its own, with its own header and its own "Open Reports"
-// button, sitting directly above a second card with the same button — to say
-// "Nothing has come in yet today." One header now, and the label rides the
-// sentence so nobody reads the day's numbers as the period's.
-const TodayRecapBody = () => {
+const HeroBrief = () => {
+  useTcTick("surface:today");
+  return window.TODAY_DATA ? <TodayStanding vm={window.TODAY_DATA} /> : null;
+};
+
+// One figure: the number, its word and the clause under it. With a receipt it is a button: hover opens the receipt,
+// Enter or Space and a tap toggle it, Escape closes it. The receipt itself is drawn by the card as the last child of
+// the row of figures (TodayReceipt), so a desktop anchors it under this figure by index and a phone lays it under the
+// row. A figure with nothing to add is not a button.
+const TodayFigure = ({ f, i, open, setOpen }) => {
+  const has = !!f.receipt;
+  const on = has && open === f.id;
+  const body = (
+    <>
+      <span className="tc-fig-n tabular">{f.value}</span>
+      <span className="tc-fig-w">{f.label}</span>
+      <span className="tc-fig-m">{f.meta}</span>
+    </>
+  );
+  return (
+    <div className={`tc-fig${on ? " open" : ""}`} onMouseEnter={has ? () => setOpen(f.id) : undefined} data-testid={`today-figure-${f.id}`} data-i={i}>
+      {has ? (
+        <button
+          type="button"
+          className="tc-fig-btn"
+          aria-expanded={on}
+          aria-controls={on ? `today-receipt-${f.id}` : undefined}
+          onClick={() => setOpen(on ? null : f.id)}
+          onFocus={() => setOpen(f.id)}
+          onKeyDown={(e) => { if (e.key === "Escape") setOpen(null); }}
+        >
+          {body}
+        </button>
+      ) : (
+        <div className="tc-fig-btn">{body}</div>
+      )}
+    </div>
+  );
+};
+
+// The open figure's receipt: its why and one door. Under its figure on a desktop (`--i` places it), under the row on
+// a phone (dashboard-a-v2.css .tc-receipt). It adds to the figure and never repeats its number: contracts proves that,
+// so nothing an owner needs lives only behind a hover.
+const TodayReceipt = ({ f, i, last, nav }) => (
+  <div className="tc-receipt" role="dialog" id={`today-receipt-${f.id}`} aria-label={`Why ${f.value} ${f.label}`} style={{ "--i": i }} data-last={last ? "true" : undefined} data-testid={`today-receipt-${f.id}`}>
+    <p className="tc-receipt-t">{f.receipt.text}</p>
+    {f.receipt.door && (
+      <button type="button" className="tc-receipt-door" onClick={() => nav(f.receipt.door.to)}>
+        {f.receipt.door.label} <Icon name="arrow-right" size={10} />
+      </button>
+    )}
+  </div>
+);
+
+const TodayCard = () => {
+  useTcTick("surface:today,surface:reports");
+  const [open, setOpen] = React.useState(null);
   const vm = window.TODAY_DATA;
   if (!vm) return null;
-  const { recap, quiet } = vm;
+  const { recap, quiet, figures } = vm;
   const nav = (to) => window.appNavigate && window.appNavigate(to);
-  const C = window.__CALENDAR;
-  const P = window.__PEOPLE;
-  // The day's own numbers (appointments, booked ahead) join the traffic's, in the same sentence.
-  const dayLine = window.__today && window.__today.dayLine ? window.__today.dayLine(C ? C.vm : null, P ? P.aggregates : null) : null;
-  const said = [recap ? recap.line : "", dayLine].filter(Boolean).join(" ");
+  const R = todaySurface("__REPORTS");
+  const period = R && window.__today ? window.__today.periodLine(R) : null;
+  // Not read yet is not failed: the foot is silent while Reports loads and says so when its read failed.
+  const reportsFailed = !R && !!(window.__surfaceFailed && window.__surfaceFailed("reports"));
   return (
-    <div className="today-recap" data-testid="today-recap">
-      {said && (
-        <p className="today-recap-line" data-testid="today-recap-line">
-          <b className="today-recap-when">{recap ? recap.label : "Today so far"}</b> {said}
-        </p>
+    <section className="today-card" data-testid="today-card" aria-labelledby="today-card-title">
+      <div className="tc-head">
+        <h2 className="tc-title" id="today-card-title">{recap ? recap.label : "Today so far"}</h2>
+        {/* No figures to hang the proof on (a quiet day, or no traffic while an escalation waits, which is the
+            reference workspace's own state): nothing came in, and the proof the lines are listening. On a day with
+            traffic the proof is the messages figure's clause. */}
+        {!figures && <span className="tc-line" data-testid="today-quiet-line">{quiet ? quiet.headline : recap ? recap.line : "Nothing has come in yet today."} {vm.proof}</span>}
+      </div>
+      {/* The row of figures owns the open receipt: leaving the row closes it (the receipt is inside the row, so moving
+          onto it does not), and so does focus leaving the row. */}
+      {figures && (
+        <div
+          className="tc-figs"
+          data-testid="today-figures"
+          onMouseLeave={() => setOpen(null)}
+          onBlur={(e) => { if (e.relatedTarget && e.currentTarget && !e.currentTarget.contains(e.relatedTarget)) setOpen(null); }}
+        >
+          {figures.map((f, i) => <TodayFigure key={f.id} f={f} i={i} open={open} setOpen={setOpen} />)}
+          {figures.map((f, i) => (open === f.id && f.receipt ? <TodayReceipt key={`r-${f.id}`} f={f} i={i} last={i === figures.length - 1} nav={nav} /> : null))}
+        </div>
       )}
-      <div className="brief-beats today-recap-beats">
-        {quiet && (
-          <div className="brief-beat">
-            <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
-            <span className="brief-beat-text">{quiet.sub}</span>
-            {quiet.launchpad && <button className="brief-chip" onClick={() => nav(quiet.launchpad.to)}>{quiet.launchpad.label}</button>}
-          </div>
-        )}
-        {/* The quiet day's proof: which lines are on, from the read. */}
-        {quiet && vm.standing.chips.length > 0 && (
+      {/* The lines that are not numbers. thread.spec reads a failed reply here by this testid and .brief-beat. */}
+      <div className="brief-beats tc-beats" data-testid="today-recap">
+        {quiet && (vm.standing.chips.length > 0 || quiet.launchpad) && (
           <div className="brief-beat" data-testid="brief-quiet-proof">
             <span className="brief-beat-dot" />
             <span className="brief-beat-text">
               {quiet.proof.filter((pr) => pr.label !== "Checked").map((pr) => `${pr.label}: ${pr.value}`).join(" · ")}
             </span>
+            {quiet.launchpad && <button className="brief-chip" onClick={() => nav(quiet.launchpad.to)}>{quiet.launchpad.label}</button>}
           </div>
         )}
         <SetupLine nav={nav} />
         <ReviewLine nav={nav} />
-        {/* Everything the sentence above does not carry -- crucially a reply that failed to deliver. */}
+        {/* Everything the figures do not carry, crucially a reply that failed to deliver: the one line that must never be quiet. */}
         {(recap ? recap.sentences : []).filter((sn) => !sn.traffic).map((sn, i) => (
           <div key={`sn-${i}`} className="brief-beat">
             <span className="brief-beat-dot" style={sn.warn ? { background: "var(--danger)" } : undefined} />
@@ -150,192 +217,25 @@ const TodayRecapBody = () => {
         {(recap ? recap.receipts : []).map((r, i) => (
           <div key={i} className="brief-beat" data-testid="brief-receipt">
             <span className="brief-beat-dot" style={{ background: "var(--ok)" }} />
-            <span className="brief-beat-text">{r.at} — {r.text}</span>
+            <span className="brief-beat-text">{r.at}: {r.text}</span>
             <button className="brief-chip" onClick={() => nav(r.to)}>Open <Icon name="arrow-right" size={10} /></button>
           </div>
         ))}
       </div>
-    </div>
-  );
-};
-
-// The standing line: the day and the time the business keeps, and whether its lines are up. One line, above the work.
-// It was a hero -- a greeting, a headline the queue below says again, four sentences, a chip repeating the queue's
-// count, an arc and six stat cards -- and on a phone the first thing that needed a person started 679px down.
-const TodayStanding = ({ vm }) => {
-  const { standing } = vm;
-  return (
-    <header className="today-standing" data-testid="today-standing">
-      <span>{standing.eyebrow}</span>
-      {/* Counted in contracts: this page counted its own chips, and the chips
-          are the routing rows, so an email line was never in the total. */}
-      <span className="today-standing-lines">
-        <span className="live-dot" style={standing.lines.down ? { background: "var(--danger)" } : undefined} />
-        {standing.lines.text}
-      </span>
-      {/* A line that is down is the one thing here that cannot wait for the recap under the work. */}
-      {standing.alert && <span className="today-standing-alert">{standing.alert}</span>}
-    </header>
-  );
-};
-
-const HeroBriefSeed = () => {
-  const { MORNING_BRIEF, TODAY_KPIS, AGENT_FLEET } = window.CHANLY_DATA;
-  const { headline, body, forecast, pulse } = MORNING_BRIEF;
-  const pct = Math.min(100, Math.round((pulse.revenue / pulse.target) * 100));
-  const [, setTick] = React.useState(0);
-
-  // Live: decisions shrink "waiting on you"; fleet pauses shrink the live count
-  React.useEffect(() => {
-    const bump = () => setTick(n => n + 1);
-    window.addEventListener("inbox:decisions", bump);
-    window.addEventListener("fleet:status", bump);
-    return () => { window.removeEventListener("inbox:decisions", bump); window.removeEventListener("fleet:status", bump); };
-  }, []);
-
-  const statusOf = (a) => (window.FL_STORE && window.FL_STORE.statuses[window.CHANLY.agentIdFor(a.name)]) || a.status;
-  const liveAgents = AGENT_FLEET.filter(a => statusOf(a) === "active").length;
-  const totalAgents = AGENT_FLEET.length;
-  // Same source + math as the sidebar badge (IX_STORE._broadcast): needs THREADS minus decisions.
-  const waiting = (window.THREADS || []).filter((t) =>
-    t.state === "needs" && !(window.IX_STORE && window.IX_STORE.get(t.id))
-  ).length;
-
-  // Greeting follows the seed clock — IX_NOW is 12:04, past noon
-  const seedHour = parseInt(String(window.CHANLY.IX_NOW).split(":")[0], 10);
-  const greeting = seedHour < 12 ? "Good morning" : seedHour < 17 ? "Good afternoon" : "Good evening";
-
-  // Pick the three most important KPIs for the anchor row (drop conversion to keep rhythm clean)
-  const anchors = [TODAY_KPIS[0], TODAY_KPIS[1], TODAY_KPIS[3]];
-
-  return (
-    <header className="brief">
-      <div className="brief-meta">
-        <span className="brief-eyebrow">{window.CHANLY.SEED_TODAY.toLocaleDateString("en-US", { weekday: "long" })} · {window.CHANLY.SEED_TODAY.toLocaleDateString("en-US", { month: "long", day: "numeric" })} · {window.CHANLY.IX_NOW}</span>
-        <span className="brief-eyebrow-sep">·</span>
-        <span className="brief-eyebrow">
-          <span className="live-dot" /> {liveAgents} of {totalAgents} agents live
-        </span>
-        <div className="brief-meta-spacer" />
-      </div>
-
-      <div className="brief-body">
-        <div className="brief-narrative">
-          <h1 className="brief-headline">
-            <span className="brief-greeting">{greeting}, Sarah.</span>{" "}
-            <span className="brief-sub">{body.split(". ")[0]}.</span>
-          </h1>
-          <BriefBeats forecast={forecast} waiting={waiting} />
+      {(period || reportsFailed) && (
+        <div className="tc-foot">
+          {period ? (
+            <>
+              <span className="tc-foot-text" data-testid="today-period">{period.text}</span>
+              <button className="btn btn-ghost btn-sm" onClick={() => nav(period.to)}>Open Reports <Icon name="arrow-right" size={11} /></button>
+            </>
+          ) : (
+            <FailedRead kind="line" what="Reports" body="The day's own numbers above are current." surface="reports" testid="today-period-failed" />
+          )}
         </div>
-
-        <div className="brief-pulse">
-          <PulseArc pct={pct} value={`$${pulse.revenue.toLocaleString()}`} target={`$${pulse.target.toLocaleString()}`} />
-        </div>
-      </div>
-
-      <StatStrip>
-        {anchors.map((k, i) => (
-          <StatCell
-            key={i}
-            label={k.label}
-            value={k.value}
-            valueSize={22}
-            meta={`${k.delta >= 0 ? "↑" : "↓"} ${Math.abs(k.delta)}% · ${k.unit}`}
-            metaTone={k.delta >= 0 ? "pos" : "neg"}
-            spark={k.spark}
-          />
-        ))}
-      </StatStrip>
-    </header>
+      )}
+    </section>
   );
 };
 
-// Half-arc gauge. Seeded: pace toward the revenue target. Real: the share of
-// today's messages the receptionist answered on its own.
-const PulseArc = ({ pct, value, target, suffix = "pace" }) => {
-  const r = 64, c = 2 * Math.PI * r;
-  const dash = (pct / 100) * (c * 0.5); // half-circle
-  // Dot rides the arc itself (polar coords around center 80,80)
-  const theta = Math.PI * (1 - pct / 100);
-  const dotX = 80 + r * Math.cos(theta);
-  const dotY = 80 - r * Math.sin(theta);
-  return (
-    <div className="pulse-arc">
-      <svg width="160" height="92" viewBox="0 0 160 92">
-        <path d={`M 16 80 A ${r} ${r} 0 0 1 144 80`} stroke="var(--line)" strokeWidth="6" fill="none" strokeLinecap="round" />
-        <path
-          d={`M 16 80 A ${r} ${r} 0 0 1 144 80`}
-          stroke="var(--accent)" strokeWidth="6" fill="none" strokeLinecap="round"
-          strokeDasharray={`${dash} ${c}`}
-        />
-        <circle cx={dotX} cy={dotY} r="3" fill="var(--accent)" />
-      </svg>
-      <div className="pulse-arc-readout">
-        <div className="pulse-arc-value tabular">{value}</div>
-        <div className="pulse-arc-of">of {target} {suffix}</div>
-      </div>
-    </div>
-  );
-};
-
-// The brief speaks in sentences with inline decisions — not stat cells (#14)
-const BriefBeats = ({ forecast, waiting }) => {
-  const [, setBb] = React.useState(0);
-  React.useEffect(() => {
-    const bump = () => setBb(n => n + 1);
-    window.addEventListener("inbox:decisions", bump);
-    return () => window.removeEventListener("inbox:decisions", bump);
-  }, []);
-  const dec = (id) => window.IX_STORE && window.IX_STORE.get(id);
-  const decide = (threadId, action) => {
-    if (!(window.canDo && window.canDo("approve"))) return;
-    window.IX_STORE.set(threadId, { action, at: window.CHANLY.IX_NOW, kind: "decided" });
-  };
-  const beats = [
-    {
-      id: "th-aisha-refund",
-      text: <>Aisha wants her $120 fee refunded — refunds are yours, so the plan books her with you at <b>4:30</b>.</>,
-      chip: "Approve the plan", action: "Resolution call — today 4:30",
-      doneText: "Booked — she talks to you at 4:30",
-    },
-    {
-      id: "th-jordan-discount",
-      text: <>Jordan (Maya's referral) asked for her 20% rate — the intro-call offer is drafted with <b>two slots</b>.</>,
-      chip: "Send the offer", action: "Offer the slots",
-      doneText: "Sent — Phone Rep offers the slots",
-    },
-    { id: null, text: <>{forecast}</>, chip: "What's driving it", to: "reports" },
-  ];
-  return (
-    <div className="brief-beats">
-      {beats.map((b, i) => {
-        const d = b.id ? dec(b.id) : null;
-        return (
-          <div key={i} className="brief-beat">
-            <span className="brief-beat-dot" />
-            <span className="brief-beat-text">{b.text}</span>
-            {b.to && (
-              <button className="brief-chip" onClick={() => window.CHANLY.nav(b.to)}>{b.chip} <Icon name="arrow-right" size={10} /></button>
-            )}
-            {b.id && !d && (
-              <span className="brief-beat-acts">
-                <button className="brief-chip primary" onClick={() => decide(b.id, b.action)} {...window.gate("approve")}>{b.chip}</button>
-                <button className="brief-chip" onClick={() => window.CHANLY.nav("inbox/" + b.id)}>Review</button>
-              </span>
-            )}
-            {b.id && d && d.kind === "decided" && (
-              <span className="brief-beat-done"><Icon name="check" size={10} /> {b.doneText}</span>
-            )}
-          </div>
-        );
-      })}
-      <button className="brief-forecast brief-inbox-link" onClick={() => window.CHANLY.nav("inbox")}>
-        <Icon name="inbox" size={13} style={{ color: waiting > 0 ? "var(--accent)" : "var(--ok)" }} />
-        <span>{waiting > 0 ? `${waiting} waiting on you` : "Queue clear — all decided"}</span>
-        <Icon name="arrow-right" size={11} style={{ color: "var(--ink-faint)" }} />
-      </button>
-    </div>
-  );
-};
-
-Object.assign(window, { HeroBrief, TodayRecapBody });
+Object.assign(window, { HeroBrief, TodayCard, todaySurface });

@@ -194,6 +194,8 @@ test("problems found before saving: nothing is sent, each box says what it needs
 /* ------------------------- Today: a refusal wears its tone ------------------------- */
 
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
+globalThis.window.__today = TODAY_HELPERS;
 
 const NOW = new Date("2026-09-06T14:00:00Z");
 const metrics = (oldest) => ({
@@ -216,7 +218,7 @@ test("REGRESSION (A13): a refused snooze or approve on Today toasts in the dange
     usePPToast: () => [null, (p) => flashes.push(p)],
     AttnRow: (p) => { rows.push(p); return null; },
     __inboxVerb: async () => refused("Too many conversation changes in a short time — try again in 20 seconds.", "rate_limited", 429, { retry_after_s: 20 }),
-    __BROADCASTS: { rows: [{ id: "b1", state: "pending_approval", recipient_count: 3, audience: { label: "Win-back" }, playbook_id: "p1", scheduled_for: null }] },
+    __BROADCASTS: { rows: [{ id: "b1", state: "pending_approval", recipient_count: 3, audience: { label: "Win-back" }, playbook_id: "p1", scheduled_for: null, when: "today 6:00 PM", counts: { sent: 0, replied: 0 } }] },
     __broadcasts: { approve: async () => refused("That run was already approved."), cancel: async () => refused("That run has already sent.") },
   });
   globalThis.window.TODAY_DATA = toTodayVM(metrics("2026-09-06T12:00:00Z"), [conversation("cv1", "Zoe Martin")], [{ id: "e1", reason: "human_token", details: null, state: "open", created_at: "2026-09-06T12:00:00Z", conversation_id: "cv1" }], [], NOW);

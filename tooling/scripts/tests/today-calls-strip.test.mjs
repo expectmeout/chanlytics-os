@@ -27,7 +27,7 @@ test("Today draws the call in progress first, then the people who need you, the 
   // The queue (dashboard-a-command.jsx) owns the order now; the hero keeps the narrative.
   const queue = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   const rail = queue.indexOf("<LiveRail nav={nav} />");
-  const rows = queue.indexOf("{rows.map((r) => (");
+  const rows = queue.indexOf("{drawn}");
   assert.ok(rail > 0 && rail < rows, "REGRESSION: a customer on the line was invisible on Today");
   assert.ok(queue.includes('data-testid="brief-live-call"') && queue.includes("nav(`live/${c.callId}`)"), "the call's own door, not Live's list");
   const vm = readRaw("packages/contracts/src/today.ts");

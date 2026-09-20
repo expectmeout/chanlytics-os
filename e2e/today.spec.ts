@@ -1,47 +1,88 @@
 import { test, expect } from "@playwright/test";
 import { signIn, HAVE_SESSION, WHY_SKIPPED } from "./session";
 import { apiGet } from "./workspace";
-import { expectAwayAddsUp, expectNoQueueRepeat, expectWarningsFirst } from "./signals";
+import { expectAwayAddsUp, expectLeaksWellFormed, expectNoQueueRepeat, expectWarningsFirst } from "./signals";
 
 /**
- * Today on a real workspace: the hero says what is happening, and everything
- * that asks for a person is one queue in the strip's row grammar — a
- * sentence, a state line and one verb per row — never the same rows twice.
+ * Today on a real workspace: the work first, then the day's own card (four figures, each with its receipt), then
+ * what is left over. Everything that asks for a person is one queue in the strip's row grammar; every number is one
+ * the page it links to prints; nothing is said twice.
  */
 test.describe("Today on a real workspace", () => {
   test.skip(!HAVE_SESSION, WHY_SKIPPED);
   test.beforeEach(async ({ page }) => {
     await signIn(page);
-  });
-
-  test("one queue: every row has a sentence, a state line and one verb; the hero keeps the narrative", async ({ page }) => {
     await page.goto("/#/today");
     await page.waitForLoadState("networkidle");
+  });
+
+  test("the standing line, then one queue: every row a sentence, a state line and a verb; one primary verb; no seed", async ({ page }) => {
     await expect(page.getByTestId("today-standing")).toBeVisible();
+    await expect(page.getByTestId("today-standing")).toContainText(/lines? connected|could not be counted|no lines connected yet/);
     const queue = page.getByTestId("today-queue");
     await expect(queue).toBeVisible();
-    const rows = queue.locator(".cl-attn-row");
+    const rows = queue.locator(".tq-list .cl-attn-row");
     const n = await rows.count();
     for (const row of await rows.all()) {
       expect((await row.locator(".cl-attn-sentence").innerText()).trim().length).toBeGreaterThan(0);
       expect((await row.locator(".cl-attn-status").innerText()).trim().length).toBeGreaterThan(0);
-      await expect(row.locator(".cl-attn-cta.primary")).toHaveCount(1);
+      await expect(row.locator(".cl-attn-cta")).toHaveCount(await row.locator(".cl-attn-cta").count() > 1 ? 2 : 1);
     }
-    if (n === 0) await expect(queue.getByText("All caught up")).toBeVisible();
-    // The rows live in the queue alone: neither the standing line above it nor the recap under it repeats them.
-    await expect(page.getByTestId("today-standing").getByText("Open and reply")).toHaveCount(0);
-    await expect(page.getByTestId("today-recap").getByText("Open and reply")).toHaveCount(0);
+    await expect(queue.locator(".tq-list .cl-attn-cta.primary")).toHaveCount(Math.min(1, n));
+    await expect(queue.locator(".tq-head .tq-count")).toHaveCount(0);
+    if (n === 0) await expect(queue.locator('[data-testid^="today-queue-empty-"]')).toBeVisible();
     await expect(page.getByText("Agent Command")).toHaveCount(0);
-    // Nothing invented: no dollar amounts in any fact or tile on a page with no
-    // revenue column. A customer's own words may name a price; the numbers may not.
-    for (const cell of await page.locator(".today-standing, .today-recap-line, .rp2-tile").allInnerTexts()) expect(cell).not.toMatch(/\$\d/);
+    await expect(page.getByText(/Good (morning|afternoon|evening)/)).toHaveCount(0);
+    // Nothing invented: no dollar amounts anywhere on a page with no revenue column.
+    for (const cell of await page.locator(".today-standing, .today-card, .tsec").allInnerTexts()) expect(cell).not.toMatch(/\$\d/);
   });
 
-  test("the day beside the queue: today and tomorrow from the calendar when there is one, nothing when there is not", async ({ page }) => {
-    await page.goto("/#/today");
+  test("the day's card: four figures with their clauses, or the quiet line with its proof; a receipt on hover adds to its figure", async ({ page }) => {
+    const card = page.getByTestId("today-card");
+    await expect(card).toBeVisible();
+    const figures = card.locator('[data-testid^="today-figure-"]');
+    const n = await figures.count();
+    if (n === 0) {
+      await expect(card.getByTestId("today-quiet-line")).toContainText(/^Nothing has come in yet today\. (The last message arrived .+|No messages have arrived yet\.)/);
+      return;
+    }
+    expect(n).toBe(4);
+    for (const id of ["messages", "answered", "calls", "new"]) {
+      const fig = card.getByTestId(`today-figure-${id}`);
+      await expect(fig.locator(".tc-fig-n")).toHaveText(/^\d+$/);
+      expect((await fig.locator(".tc-fig-m").innerText()).trim().length).toBeGreaterThan(0);
+      await expect(card.getByTestId(`today-receipt-${id}`)).toHaveCount(0);
+      if ((await fig.locator("button.tc-fig-btn").count()) === 0) continue;
+      await fig.hover();
+      const receipt = card.getByTestId(`today-receipt-${id}`);
+      await expect(receipt).toBeVisible();
+      await expect(receipt).toHaveAttribute("role", "dialog");
+      const value = (await fig.locator(".tc-fig-n").innerText()).trim();
+      expect((await receipt.locator(".tc-receipt-t").innerText()).trim()).not.toMatch(new RegExp(`\\b${value}\\b`));
+      await expect(receipt.locator("button")).toHaveCount(await receipt.locator("button").count() ? 1 : 0);
+      await page.mouse.move(0, 0);
+      await expect(receipt).toHaveCount(0);
+    }
+  });
+
+  test("the period line is Reports' own number, said once, with the page's one door to Reports", async ({ page }) => {
+    const line = page.getByTestId("today-period");
+    const failed = page.getByTestId("today-period-failed");
+    await expect(line.or(failed)).toBeVisible({ timeout: 15_000 });
+    if ((await line.count()) === 0) return;
+    const said = (await line.innerText()).trim();
+    const m = /^Last (7|30|90) days: (\d+) customer messages?/.exec(said);
+    expect(m, said).not.toBeNull();
+    const door = page.getByTestId("today-card").getByRole("button", { name: /Open Reports/ });
+    await expect(door).toHaveCount(1);
+    await door.click();
+    await expect(page).toHaveURL(/#\/reports/);
     await page.waitForLoadState("networkidle");
-    // The page decides: with a readable feed the module is there; without one
-    // it is absent, and the calendar route says why.
+    // Reports' messages tile, over the same range, prints the same count.
+    await expect(page.getByTestId("rp-tile-messages").locator(".rp-tile-value").or(page.locator('[data-testid="rp-tile-messages"]'))).toContainText(m![2]);
+  });
+
+  test("the day beside the queue: at most five rows and a line to the Calendar; nothing without a feed", async ({ page }) => {
     const day = page.getByTestId("today-day");
     await day.waitFor({ state: "attached", timeout: 15_000 }).catch(() => {});
     if ((await day.count()) === 0) {
@@ -54,74 +95,64 @@ test.describe("Today on a real workspace", () => {
     const frames = day.getByTestId("today-day-frame");
     await expect(frames).toHaveCount(2);
     await expect(frames.first()).toContainText(/^Today · /);
-    await expect(frames.nth(1)).toContainText(/^Tomorrow · /);
-    // Every item is a time, a title, and a person when the calendar names one.
-    for (const item of await day.getByTestId("today-day-item").all()) {
-      expect((await item.locator(".td-item-title").innerText()).trim().length).toBeGreaterThan(0);
+    for (const frame of await frames.all()) {
+      const items = await frame.getByTestId("today-day-item").count();
+      expect(items).toBeLessThanOrEqual(5);
+      const more = frame.getByTestId("today-day-more");
+      if ((await more.count()) > 0) {
+        await expect(more).toHaveText(/^\d+ more on the Calendar$/);
+        expect(items).toBe(5);
+      }
     }
     await expect(day.getByRole("button", { name: /Open Calendar/ })).toBeVisible();
-    await expect(day.getByTestId("today-day-reminders")).toBeVisible();
-    // The day's own numbers join the recap's sentence under the work; the strip of cards they sat in is gone (#556).
-    await expect(page.getByTestId("today-recap-line")).toContainText(/\d+ appointments? today/);
   });
 
-  test("below the core: the period as Reports counts it, where people are, and what happened while away", async ({ page }) => {
-    await page.goto("/#/today");
-    await page.waitForLoadState("networkidle");
-    // The period: Reports' six tiles, real values, the two lines, Open Reports.
-    const week = page.getByTestId("today-week");
-    await expect(week).toBeVisible();
-    await expect(week.locator(".rp2-tile")).toHaveCount(6);
-    for (const v of await week.locator(".rp2-tile-value").allInnerTexts()) expect(v.trim()).toMatch(/^(\d+|\d+%|—|\d+s|\d+m( \d{2}s)?|\d+h \d{2}m)$/);
-    await expect(week.locator(".tsec-head .tsec-sub")).toContainText(/^Last (7|30|90) days · /);
-    for (const id of ["conversations", "campaigns", "booking"]) await expect(week.getByTestId(`today-week-view-${id}`)).toBeVisible();
-    await expect(week.getByRole("button", { name: /Open Reports/ })).toBeVisible();
-    // The journey: People's lists with counts; a row opens its list.
-    const journey = page.getByTestId("today-journey");
-    await expect(journey).toBeVisible();
-    const rows = journey.getByTestId("today-journey-row");
-    expect(await rows.count()).toBeGreaterThan(0);
-    for (const c of await rows.locator(".tj-count").allInnerTexts()) expect(c.trim()).toMatch(/^\d+$/);
-    await rows.first().locator(".tj-open").click();
-    await expect.poll(() => new URL(page.url()).hash).toMatch(/^#\/clients\/seg:[a-z_]+$/);
-    await page.goto("/#/today");
-    await page.waitForLoadState("networkidle");
-    // While away: the bell's unread rows, or the plain word that there are none.
-    const away = page.getByTestId("today-away");
-    await expect(away).toBeVisible();
-    const n = await away.getByTestId("today-away-row").count();
-    if (n === 0) await expect(away.getByTestId("today-away-empty")).toBeVisible();
-    else await expect(away.getByRole("button", { name: "Mark all read" })).toBeVisible();
-  });
-
-  test("how it's going: the day and the period in one card, one door to Reports, and three reads that each show their own numbers", async ({ page }) => {
-    await page.goto("/#/today");
-    await page.waitForLoadState("networkidle");
-    const week = page.getByTestId("today-week");
-    await expect(week).toBeVisible();
-    // It was two cards with the same button twice: the day so far lives inside
-    // the period's card now, and there is one way to Reports.
-    await expect(week.getByTestId("today-recap")).toHaveCount(1);
-    await expect(page.getByTestId("today-recap")).toHaveCount(1);
-    await expect(week.getByRole("button", { name: /Open Reports/ })).toHaveCount(1);
-    // Three reads behind one control. A filter, not a tab set: aria-pressed,
-    // exactly one at a time, and each read shows its tiles or says why it has none.
-    for (const id of ["conversations", "campaigns", "booking"]) {
-      const control = week.getByTestId(`today-week-view-${id}`);
-      await control.click();
-      await expect(control).toHaveAttribute("aria-pressed", "true");
-      await expect(week.locator('.tw-seg [aria-pressed="true"]')).toHaveCount(1);
-      // Its tiles, why it has none, or that it could not be read: the third is the one that matters the day it happens.
-      await expect(week.getByTestId(`today-week-tiles-${id}`).or(week.getByTestId("today-week-note")).or(week.getByTestId("today-week-failed"))).toBeVisible();
+  test("worth a look: every row a claim with its arithmetic, a word for its tone, an Ask door that asks the row's own sentence", async ({ page }) => {
+    const rows = await expectLeaksWellFormed(page);
+    if (rows.length === 0) return;
+    for (const r of rows) {
+      const row = page.getByTestId(`today-leak-${r.id}`);
+      await expect(row.locator(".tl-tag")).toHaveText(/^(Booking gap|No reply|Reach|Gone quiet)$/);
+      expect(r.doors).toContain("Ask why");
     }
+    await page.getByTestId(`today-leak-ask-${rows[0].id}`).click();
+    // The shell's Ask palette (ask-real.jsx, testid ask-real as ask.spec and phone.spec read it) opens on the row's own question.
+    const ask = page.getByTestId("ask-real");
+    await expect(ask).toBeVisible();
+    await expect(ask).toContainText(rows[0].text.slice(0, 40), { timeout: 15_000 });
   });
 
-  test("while you were away: nothing waiting in the queue is said twice, the count adds up, and a warning is never below good news", async ({ page }) => {
-    await page.goto("/#/today");
-    await page.waitForLoadState("networkidle");
+  test("while you were away: nothing in the queue is said twice, the count adds up, and a warning is never below good news", async ({ page }) => {
     await expect(page.getByTestId("today-queue")).toBeVisible();
     await expectNoQueueRepeat(page);
     await expectAwayAddsUp(page);
     await expectWarningsFirst(page);
+  });
+});
+
+test.describe("Today on a phone", () => {
+  test.skip(!HAVE_SESSION, WHY_SKIPPED);
+  test.use({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true });
+
+  test("the work first: the queue starts on the first screen; a receipt is a panel in the flow, not a popover", async ({ page }) => {
+    await signIn(page);
+    await page.goto("/#/today");
+    await page.waitForLoadState("networkidle");
+    const queue = page.getByTestId("today-queue");
+    await expect(queue).toBeVisible();
+    const box = await queue.boundingBox();
+    expect(box!.y, "the queue's head is on the first screen").toBeLessThan(844 - 120);
+    // The line an owner decides from wraps; nothing is cut from its right.
+    for (const status of await queue.locator(".tq-list .cl-attn-status").all()) {
+      expect(await status.evaluate((el) => el.scrollWidth <= el.clientWidth + 1), await status.innerText()).toBe(true);
+    }
+    const fig = page.getByTestId("today-card").locator("button.tc-fig-btn").first();
+    if ((await fig.count()) === 0) return;
+    await fig.scrollIntoViewIfNeeded();
+    await fig.tap();
+    const receipt = page.getByTestId("today-card").locator('[data-testid^="today-receipt-"]');
+    await expect(receipt).toBeVisible();
+    const position = await receipt.evaluate((el) => getComputedStyle(el).position);
+    expect(position).toBe("static");
   });
 });

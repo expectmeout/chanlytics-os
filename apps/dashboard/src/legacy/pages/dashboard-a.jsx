@@ -1,48 +1,27 @@
-/* global React, HeroBrief, AgentCommand, TodayDay, TodayLeaks, TodayPulse, TodayAway, TodayJourney, NowPlayingRail, AgentFleet, AmbientDock, SegmentPulse, TrustReview */
-// Dashboard — Operator's brief.
-// Composition: HeroBrief → (AgentCommand + TodayDay) → TodayLeaks → TodayPulse → (TodayAway + TodayJourney);
-// the seeded panels below stay demo-only.
-// The Ask overlay and ⌘K are owned by the app shell; the dock's "Listen in" opens it via onAsk.
+/* global React, HeroBrief, AgentCommand, TodayDay, TodayCard, TodayLeaks, TodayAway */
+// Today. Three bands, in this order, and the order is the argument: the work first (a phone puts nothing above it),
+// then the day's own card, then what is left over. Analysis never outranks a person who has been waiting eleven days.
 //
-// The order is the argument: the work first (a phone puts nothing above it),
-// then the one band that says what the work does not, then how the day and
-// the period are going, then the two lists. Analysis never outranks a person
-// who has been waiting eleven days.
-
-const DashboardA = ({ onAsk = () => {} }) => (
+//   the standing line
+//   the queue (8 of 12)          | the day (4 of 12)
+//   the day's card (12)
+//   worth a look (7)             | while you were away (5)
+//
+// The seeded panels that stood here (a fake live call, invented appointments, an 8-agent fleet, a pinned dock, a
+// trust review, a segment pulse) are gone from this page. The mockup draws the same page from its sample
+// (legacy-bridge/today-sample.ts); the seed files stay loaded for the surfaces that still use them.
+const DashboardA = () => (
   <div className="dash-a-v2">
     <HeroBrief />
-
     <div className="dash-a-v2-core">
       <AgentCommand />
       <TodayDay />
-      {/* Everything below is 100% seeded: a fake live call, invented
-          appointments, an 8-agent fleet, a pinned dock. Sitting inches under a
-          hero that truthfully says "0 messages today", it read as real. Demo
-          only until each engine's slice lands. */}
-      {window.__DEMO_MODE && <NowPlayingRail />}
     </div>
-
-    {/* Two pages read together: the only place on Today that puts two numbers beside each other. */}
-    <TodayLeaks />
-
-    {/* The day so far and the period, in one card with one header — they were two, with the same button twice. */}
-    <TodayPulse />
-
-    {!window.__DEMO_MODE && (
-      <div className="dash-a-v2-core">
-        <TodayAway />
-        <TodayJourney />
-      </div>
-    )}
-
-    {window.__DEMO_MODE && <TrustReview />}
-
-    {window.__DEMO_MODE && <SegmentPulse />}
-
-    {window.__DEMO_MODE && <AgentFleet />}
-
-    {window.__DEMO_MODE && <AmbientDock onAsk={onAsk} />}
+    <TodayCard />
+    <div className="dash-a-v2-foot">
+      <TodayLeaks />
+      <TodayAway />
+    </div>
   </div>
 );
 
