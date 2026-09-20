@@ -210,21 +210,44 @@ const LeadExcludedChips = ({ chips, active, onPick }) => (
   )
 );
 
+// The Needs review view's head (D3): one chip per thing that would resolve the leads in it, most first, each
+// selecting its leads so the bulk bar can resolve them at once. The groups are contracts' (leadReviewGroups, off
+// the rows' own reason tokens), so the chip, the bar and the door agree on what a group is.
+const LeadReviewGroups = ({ groups, onPick }) => (
+  groups.length === 0 ? null : (
+    <div className="ld-chips" data-testid="lead-review-groups">
+      {groups.map((g) => (
+        <button key={g.key} type="button" className="ld-chip" onClick={() => onPick(g.ids)} data-testid={`review-group-${g.key}`}>
+          {g.label} <span className="count">{g.ids.length}</span>
+        </button>
+      ))}
+    </div>
+  )
+);
+
 /* --------------------------------------------------------------- the bulk bar */
 
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
 // a file. Each acts on the rows shown AND selected; the header box's "Select all N that match" hands the view's
 // filters to the server instead of a list of ids, so a view of 1,240 does not become 1,240 ids in a request.
-const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref }) => {
+const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref, review = null }) => {
   const picked = rows.filter((l) => sel.has(l.id));
   const ids = picked.map((l) => l.id);
   const count = allMatching ? total : ids.length;
+  // A selection that is all Needs review offers what resolves it (D3): the union of its groups' acts. Check again
+  // and Find an email draw only where their couriers exist, so nothing here is ever a dead control.
+  const acts = review && !allMatching && picked.length > 0 && picked.every((l) => l.cls === "review") ? review.actsFor(ids) : [];
+  const gate = canFind ? {} : window.gate("find", "work these leads");
   return (
     <div className="cl-bulk ld-bulk" role="toolbar" aria-label="Selected leads" data-testid="leads-bulk-bar">
       <span className="cl-bulk-count"><b>{count}</b> selected</span>
       {!allMatching && total > rows.length && (
         <button type="button" className="cl-bucket-link" onClick={onSelectAllMatching} data-testid="leads-select-matching">Select all {total.toLocaleString()} that match</button>
       )}
+      {acts.includes("check_again") && review.canCheckAgain ? <button type="button" className="btn btn-sm btn-primary" disabled={busy} onClick={() => review.onCheckAgain(ids)} data-testid="leads-bulk-check-again" {...gate}><Icon name="refresh" size={12} /> Check {ids.length} again <span className="dim">· about {Math.max(1, Math.round(ids.length * 0.089))}¢</span></button> : null}
+      {acts.includes("find_email") && review.canFindEmail ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onFindEmail(ids)} data-testid="leads-bulk-find-email" {...gate}><Icon name="search" size={12} /> Find {ids.length === 1 ? "an email" : `${ids.length} emails`}</button> : null}
+      {acts.includes("keep") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onKeep(ids)} data-testid="leads-bulk-keep" {...gate}>Keep {ids.length}</button> : null}
+      {acts.includes("exclude") ? <button type="button" className="btn btn-sm" disabled={busy} onClick={() => review.onExclude(ids)} data-testid="leads-bulk-exclude" {...gate}>Exclude {ids.length}</button> : null}
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onCopyEmails(picked)} data-testid="leads-bulk-copy"><Icon name="copy" size={12} /> Copy emails</button>
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onContacted(allMatching ? { by: "view", action: "contacted", view } : { by: "ids", action: "contacted", ids })} data-testid="leads-bulk-contacted" {...(canFind ? {} : window.gate("find", "mark these leads contacted"))}><Icon name="check" size={12} /> Mark contacted</button>
       {/* The same five whys the peek asks, asked once for the whole selection: LeadNotFitWhy is leads-peek.jsx's
@@ -410,6 +433,7 @@ const LeadsScope = (p) => {
 
           {search && <LeadClassTabs counts={{ qualified: search.round.qualified, review: search.round.review, excluded: search.round.excluded }} cls={p.view.cls} onPick={p.onPickClass} />}
           {p.view.cls === "excluded" && <LeadExcludedChips chips={chips} active={p.chip} onPick={p.onPickChip} />}
+          {p.view.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups && <LeadReviewGroups groups={window.__LEAD_VM.leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />}
 
           {L.readFailed
             ? <FailedRead kind="block" what="your leads" surface="leads" testid="leads-failed" />
@@ -498,6 +522,7 @@ const LeadsScope = (p) => {
             whyNot={p.canFind ? null : "Only an owner can change leads."}
             allMatching={p.allMatching}
             onSelectAllMatching={p.onSelectAllMatching}
+            review={p.review}
             onClear={p.onClearSel}
             onCopyEmails={p.onCopyEmails}
             onContacted={p.onBulk}

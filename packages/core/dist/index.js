@@ -1977,9 +1977,11 @@ var LeadStageInputSchema = z7.discriminatedUnion("kind", [
   z7.object({ kind: z7.literal("emailed") })
 ]);
 var LeadsBulkSchema = z7.discriminatedUnion("by", [
-  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z7.array(z7.string().uuid()).min(1).max(500), search_id: z7.string().uuid().optional() }),
   z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
+var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema = z7.object({
   tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
@@ -4212,9 +4214,11 @@ var LeadStageInputSchema2 = z72.discriminatedUnion("kind", [
   z72.object({ kind: z72.literal("emailed") })
 ]);
 var LeadsBulkSchema2 = z72.discriminatedUnion("by", [
-  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit"]), ids: z72.array(z72.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z72.array(z72.string().uuid()).min(1).max(500), search_id: z72.string().uuid().optional() }),
   z72.object({ by: z72.literal("view"), action: z72.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
 ]);
+var LeadsCheckAgainSchema2 = z72.object({ ids: z72.array(z72.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema2 = z72.object({
   tone: z72.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z72.object({ subject: z72.string().max(200), body: z72.string().max(4e3) }).optional()
@@ -5435,9 +5439,11 @@ var LeadStageInputSchema3 = z73.discriminatedUnion("kind", [
   z73.object({ kind: z73.literal("emailed") })
 ]);
 var LeadsBulkSchema3 = z73.discriminatedUnion("by", [
-  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit"]), ids: z73.array(z73.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z73.array(z73.string().uuid()).min(1).max(500), search_id: z73.string().uuid().optional() }),
   z73.object({ by: z73.literal("view"), action: z73.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
 ]);
+var LeadsCheckAgainSchema3 = z73.object({ ids: z73.array(z73.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema3 = z73.object({
   tone: z73.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z73.object({ subject: z73.string().max(200), body: z73.string().max(4e3) }).optional()
@@ -39759,6 +39765,11 @@ function inArea(center, radiusM, point) {
   if (!center || !point) return false;
   return haversineM(center, point) <= radiusM;
 }
+function nearestAreas(center, o) {
+  const max = o.maxM ?? RADIUS_MAX_M;
+  const state = (o.state ?? "").trim().toUpperCase();
+  return TABLE.map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) })).filter((x) => x.d >= o.excludeWithinM && x.d <= max).sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1)).slice(0, Math.max(0, o.take)).map((x) => ({ kind: "zip", label: `near ${x.zip}`, state, center: { lat: x.lat, lng: x.lng }, radius_m: 8e3, zip: x.zip, query: state ? `${x.zip}, ${state}, USA` : `${x.zip}, USA` }));
+}
 
 // src/leads/cards.ts
 var MAPS_FIELDS = [
@@ -40260,6 +40271,11 @@ function centerOf(plan, members) {
   const center = medianCenter(points);
   return { center, radiusM: center ? radiusFromSpread(center, points) : plan.area.radius_m };
 }
+function nearbyFor(plan, members) {
+  const geo = centerOf(plan, members);
+  if (!geo.center) return [];
+  return nearestAreas(geo.center, { excludeWithinM: Math.max(geo.radiusM, 15e3), take: 3, state: plan.area.state });
+}
 function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf) {
   const loc = c.raw.location;
   const distance = geo.center && loc ? haversineM(geo.center, loc) : null;
@@ -40517,8 +40533,9 @@ async function roundDecision(p, round, run, phase, runState, members, itemsSeenN
     asked.set(r.id, typeof input?.maxCrawledPlacesPerSearch === "number" ? input.maxCrawledPlacesPerSearch : null);
   }
   const ending = discoveryEnding(round, runs, { counted, target: targetOf(round), termsShort: termsShortOf(inPhase, (r) => asked.get(r.id) ?? null), stopped: false });
+  const nearby = ending === "searched_everything" || ending === "few_new_matches" ? nearbyFor(round.plan, members) : [];
   return {
-    round: { state: "checking", question: null, ending: null, ending_pending: ending },
+    round: { state: "checking", question: null, ending: null, ending_pending: ending, ...nearby.length ? { nearby } : {} },
     next: null,
     after: () => p.schedule("lead_check", { round_id: round.id, batch: 0 }, 0)
   };
@@ -40548,25 +40565,27 @@ async function stopRun(p, round, run, owner) {
     await p.db.runRelease(run.id, owner, gen);
   }
 }
+var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
 function checkable(members) {
   return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
 }
-async function check(p, roundId, batch, owner) {
+async function check(p, roundId, batch, owner, again = null) {
   const round = await p.db.round(roundId);
-  if (!round || round.state === "ended") return { kind: "not_open" };
+  if (!round || round.state === "ended" && !again) return { kind: "not_open" };
   const card = CARDS[round.plan.card];
-  const all = checkable(await p.db.membersOfRound(round.id));
+  const named = again ? new Set(again.leadIds) : null;
+  const all = checkable(await p.db.membersOfRound(round.id)).filter((m) => !named || named.has(m.lead_id));
   const slice = all.slice(batch * CHECK_BATCH, (batch + 1) * CHECK_BATCH);
   if (!await p.db.leadSearchesOn(round.tenant_id)) {
     if (slice.length) await p.db.checkCommit(round.id, null, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })), 0, false);
-    await p.db.roundEnd(round.id, "paused");
+    if (!again) await p.db.roundEnd(round.id, "paused");
     return { kind: "paused" };
   }
   if (!slice.length) {
-    if (batch === 0 && round.state === "checking") await p.db.checkCommit(round.id, null, [], 0, true);
+    if (batch === 0 && round.state === "checking" && !again) await p.db.checkCommit(round.id, null, [], 0, true);
     return { kind: "nothing_to_check" };
   }
-  const term = `batch:${batch}`;
+  const term = again ? `again:${again.nonce}:${batch}` : `batch:${batch}`;
   const id = await runIdFor(round.id, "check", term);
   const token = await p.webhookToken(id);
   const emails = [...new Set(slice.map((m) => m.email))];
@@ -40588,18 +40607,19 @@ async function check(p, roundId, batch, owner) {
     await p.db.runRecordStart(row.id, owner, started.id, started.datasetId, capUsd);
     await p.schedule("lead_collect", { run_id: row.id, seq: "p0" }, FIRST_COLLECT_SECONDS);
     const more = all.length > (batch + 1) * CHECK_BATCH;
-    if (more) await p.schedule("lead_check", { round_id: round.id, batch: batch + 1 }, 0);
+    if (more) await p.schedule("lead_check", { round_id: round.id, batch: batch + 1, ...again ? { again: again.nonce, lead_ids: again.leadIds } : {} }, 0);
     return { kind: "started", emails: emails.length, more };
   } catch (e) {
     const kind = await startFailed(p, row, owner, e);
     if (kind === "refused") {
-      await p.db.checkCommit(round.id, row.id, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })), 0, all.length <= (batch + 1) * CHECK_BATCH);
+      await p.db.checkCommit(round.id, row.id, slice.map((m) => ({ lead_id: m.lead_id, email_state: "unknown", checked_at: iso(p.now()) })), 0, !again && all.length <= (batch + 1) * CHECK_BATCH);
     }
     return { kind };
   }
 }
 async function collectCheck(p, round, run, owner) {
-  if (round.state === "ended") return { kind: "round_ended" };
+  const again = isAgainRun(run);
+  if (round.state === "ended" && !again) return { kind: "round_ended" };
   if (!run.apify_run_id && !FINAL_RUN_STATES.has(run.state)) return { kind: "not_started" };
   const gen = await p.db.runLease(run.id, owner, LEASE_SECONDS);
   if (gen === null) {
@@ -40638,7 +40658,7 @@ async function collectCheck(p, round, run, owner) {
     const results = waiting.filter((m) => state !== "succeeded" || byEmail.has(m.email)).map((m) => ({ lead_id: m.lead_id, email_state: byEmail.get(m.email) ?? "unknown", checked_at: iso(p.now()) }));
     const others = (await p.db.runsOfRound(round.id)).filter((r) => r.purpose === "check" && r.id !== run.id);
     const answered = new Set(results.map((r) => r.lead_id));
-    const last = others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
+    const last = !again && others.every((r) => FINAL_RUN_STATES.has(r.state)) && waiting.every((m) => answered.has(m.lead_id));
     const commit = await p.db.collectCommit(run.id, owner, gen, run.read_offset, run.read_offset + items.length, { judgment: null, places: [], usage_usd: usage, items_seen: items.length, run_state: FINAL_RUN_STATES.has(run.state) ? null : state, next: null, round: null });
     if (!commit.ok) return { kind: "lost", why: commit.why };
     await p.db.checkCommit(round.id, run.id, results, usage, last);
@@ -40733,11 +40753,14 @@ export {
   identityOf,
   inArea,
   ingestEmail,
+  isAgainRun,
   isFreeMail,
   judgeBatch,
   mainAsk,
   medianCenter,
   memberOf,
+  nearbyFor,
+  nearestAreas,
   opIdFor,
   probeAsk,
   probeYield,

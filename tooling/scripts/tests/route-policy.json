@@ -632,6 +632,13 @@
       "rate": "lead_bulk",
       "spend": false
     },
+    "POST leads/check-again": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_bulk",
+      "spend": true
+    },
     "GET leads/export": {
       "kind": "read",
       "scope": "workspace",

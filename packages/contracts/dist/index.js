@@ -11365,9 +11365,11 @@ function stageArgs(i) {
   }
 }
 var LeadsBulkSchema = z7.discriminatedUnion("by", [
-  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z7.array(z7.string().uuid()).min(1).max(500), search_id: z7.string().uuid().optional() }),
   z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
 ]);
+var LeadsCheckAgainSchema = z7.object({ ids: z7.array(z7.string().uuid()).min(1).max(500) });
 var LeadDraftInputSchema = z7.object({
   tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
@@ -11621,6 +11623,59 @@ function leadSearchWords(s, tz) {
   return { askedLine: `You asked on ${day}: \u201C${s.asked}\u201D.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
 }
 var LEAD_CHECK_KEYS = ["on_maps", "in_area", "phone_two_sources", "mailbox", "independent", "right_kind", "own_address"];
+var leadLowerFirst = (s) => s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var LEAD_REVIEW_GROUP_WORDS = {
+  mailbox_waiting: "Waiting on the mailbox check",
+  checks_out: "Their email checks out",
+  mailbox_silent: "Their mail server wouldn't answer",
+  bad_email: "Their email bounces",
+  no_email: "No email on their site",
+  catch_all: "Unconfirmed \u2014 the mailbox accepts any address",
+  unsure: "Couldn't tell if",
+  read_only: "Only the listing says so",
+  out_of_area: "Just outside the area you asked for"
+};
+var REVIEW_GROUP_ORDER = ["mailbox_waiting", "checks_out", "mailbox_silent", "bad_email", "no_email", "catch_all", "unsure", "read_only", "out_of_area"];
+var REVIEW_GROUP_ACTS = {
+  mailbox_waiting: [],
+  checks_out: ["keep", "exclude"],
+  mailbox_silent: ["check_again", "keep", "exclude"],
+  bad_email: ["find_email", "keep", "exclude"],
+  no_email: ["find_email", "keep", "exclude"],
+  catch_all: ["keep", "exclude"],
+  unsure: ["keep", "exclude"],
+  read_only: ["keep", "exclude"],
+  out_of_area: ["keep", "exclude"]
+};
+function reviewGroupOf(reason) {
+  if (reason === "email:checking") return "mailbox_waiting";
+  if (reason === "email:ok") return "checks_out";
+  if (reason === "email:unknown") return "mailbox_silent";
+  if (reason === "email:invalid") return "bad_email";
+  if (reason === "email:none") return "no_email";
+  if (reason === "email:catch_all") return "catch_all";
+  if (reason.startsWith("unknown:")) return "unsure";
+  if (reason.startsWith("inferred:")) return "read_only";
+  if (reason === "out_of_area") return "out_of_area";
+  return null;
+}
+function leadReviewGroups(rows, search) {
+  const by = /* @__PURE__ */ new Map();
+  for (const r of rows) {
+    if (r.cls !== "review") continue;
+    const reasons = r.reasons ?? [];
+    const picked = REVIEW_GROUP_ORDER.find((g2) => reasons.some((x) => reviewGroupOf(x) === g2));
+    if (!picked) continue;
+    const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
+    const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
+    const key = crit ? `${picked}:${crit}` : picked;
+    const label = crit ? `${LEAD_REVIEW_GROUP_WORDS[picked]} \u2014 ${leadLowerFirst(leadExclusionWord(search, crit))}` : LEAD_REVIEW_GROUP_WORDS[picked];
+    const g = by.get(key) ?? { id: picked, key, label, ids: [], acts: REVIEW_GROUP_ACTS[picked] };
+    g.ids.push(r.id);
+    by.set(key, g);
+  }
+  return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
+}
 var METRES_PER_MILE = 1609.344;
 var keyInWords = (key) => {
   const words2 = key.replace(/_/g, " ").trim();
@@ -11668,6 +11723,7 @@ function toLeadRowVM(r, tz, now) {
       phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null
     },
     image: r.image_url ?? null,
+    reasons: m.reasons ?? [],
     why: m.reason,
     rating,
     reviewsTitle: r.reviews_dist ? `5\u2605 ${r.reviews_dist.five} \xB7 4\u2605 ${r.reviews_dist.four} \xB7 3\u2605 ${r.reviews_dist.three} \xB7 2\u2605 ${r.reviews_dist.two} \xB7 1\u2605 ${r.reviews_dist.one}` : "",
@@ -12165,6 +12221,7 @@ export {
   LEAD_QUESTION_WAIT_MS,
   LEAD_REASON_MAX_WORDS,
   LEAD_REMOVE_KEEPS,
+  LEAD_REVIEW_GROUP_WORDS,
   LEAD_REVIEW_WORD,
   LEAD_ROLE_LOCALS,
   LEAD_ROUND_ANSWERS,
@@ -12203,6 +12260,7 @@ export {
   LeadStageInputSchema,
   LeadSuggestAnswerSchema,
   LeadsBulkSchema,
+  LeadsCheckAgainSchema,
   LeadsQuerySchema,
   LeadsViewSchema,
   MAILBOX_FROM_NAME_MAX,
@@ -12574,6 +12632,7 @@ export {
   leadEndingLine,
   leadExclusionWord,
   leadKindWord,
+  leadLowerFirst,
   leadMonth,
   leadNoCardLine,
   leadNotBusinessesLine,
@@ -12583,6 +12642,7 @@ export {
   leadPlanLikely,
   leadRail,
   leadReachLine,
+  leadReviewGroups,
   leadSearchWords,
   leadSuppressionHash,
   leadTodayLine,

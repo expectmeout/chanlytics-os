@@ -7,7 +7,7 @@
  * here runs over fakes in a test: no network, no database.
  */
 import type { ApifyClient, LeadJudge } from "@chanlytics/channels";
-import type { JudgePlaceAnswer, LeadEmailState, LeadFit, LeadMemberClass, LeadRoundEnding, LeadRoundPurpose, LeadRoundState, LeadRunState, LeadSearchPlan } from "@chanlytics/contracts";
+import type { JudgePlaceAnswer, LeadArea, LeadEmailState, LeadFit, LeadMemberClass, LeadRoundEnding, LeadRoundPurpose, LeadRoundState, LeadRunState, LeadSearchPlan } from "@chanlytics/contracts";
 
 /** The question after the probe, as lead_rounds.question keeps it (PRD §7.2, P4): contracts' LeadQuestion with when it was asked. */
 export interface RoundQuestion {
@@ -175,7 +175,8 @@ export interface CollectPage {
   items_seen: number;
   run_state: LeadRunState | null;
   next: { kind: "lead_collect"; seq: string; run_after_seconds: number } | null;
-  round: { state: LeadRoundState | null; question: RoundQuestion | null; ending: LeadRoundEnding | null; ending_pending?: LeadRoundEnding; target?: number } | null;
+  /** `nearby` (D3): where to look next when the round ran dry, written with the ending it belongs to. */
+  round: { state: LeadRoundState | null; question: RoundQuestion | null; ending: LeadRoundEnding | null; ending_pending?: LeadRoundEnding; target?: number; nearby?: LeadArea[] } | null;
 }
 
 export type CollectCommitResult =

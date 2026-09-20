@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
-  toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding,
+  toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
   leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
@@ -132,7 +132,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     email: "hello@zilkerstrength.example", emailState: "ok", emailLabel: "hello@zilkerstrength.example", emailWord: "Checked",
     phone: "+15125550101", phoneAgrees: true, phoneWrong: false,
     reach: { email: { address: "hello@zilkerstrength.example", state: "ok", word: "Checked" }, phone: { number: "+15125550101", agrees: true } },
-    image: null,
+    image: null, reasons: [],
     why: "Independent studio, one location, coaching only", rating: "5.0 · 16", reviewsTitle: "",
     stage: "ready", stageLabel: "Ready", foundLabel: "6m", foundAt: "Sep 18, 2026 · 2:14 PM",
     distance: "1.2 mi", source: "Google Maps listing", host: "zilkerstrength.example",
@@ -282,6 +282,30 @@ test("when a limit binds, the count is clamped to what is left, the button says 
   assert.deepEqual(month, { count: 36, label: "Find 36 leads", covers: "You have 36 leads left this month. Your leads renew on Oct 1." });
   assert.equal(/\$/.test(`${budget.covers} ${month.covers}`), false, "no dollar meter, ever");
   assert.equal(leadPlanAsk(CARD_PLAN, { ...PLAN_FACTS, leadsLeft: 600, bound: "allowance" }).covers, null, "a limit above the ask does not bind");
+});
+
+test("Needs review is grouped by what resolves it, in the order an owner would work it", () => {
+  const rv = (id, reasons) => ({ id, cls: "review", reasons });
+  const rows = [
+    rv("a", ["email:checking"]), rv("b", ["email:unknown"]), rv("c", ["email:none"]), rv("d", ["email:catch_all"]),
+    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]), rv("i", ["email:invalid"]), rv("j", ["email:ok"]),
+    { id: "q", cls: "qualified", reasons: [] },
+  ];
+  const groups = leadReviewGroups(rows, SEARCH_DONE);
+  assert.deepEqual(groups.map((g) => [g.id, g.label, g.ids, g.acts]), [
+    ["mailbox_waiting", "Waiting on the mailbox check", ["a"], []],
+    ["checks_out", "Their email checks out", ["j"], ["keep", "exclude"]],
+    ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
+    ["bad_email", "Their email bounces", ["i"], ["find_email", "keep", "exclude"]],
+    ["no_email", "No email on their site", ["c"], ["find_email", "keep", "exclude"]],
+    ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
+    ["unsure", "Couldn't tell if — with a website", ["e"], ["keep", "exclude"]],
+    ["read_only", "Only the listing says so — with a website", ["f"], ["keep", "exclude"]],
+    ["out_of_area", "Just outside the area you asked for", ["g"], ["keep", "exclude"]],
+  ], "one group per resolver, a lead in the first group that fits it, the criterion named in the owner's words, a qualified row in none");
+  assert.deepEqual(leadReviewGroups([], SEARCH_DONE), []);
+  assert.deepEqual(leadReviewGroups([{ id: "old", cls: "review", reasons: [] }], SEARCH_DONE), [], "a row from before D3 carries no reasons and lands in no group");
+  assert.deepEqual(toLeadRowVM(row({ member: { ...row().member, class: "review", reasons: ["email:none"] } }), TZ, NOW).reasons, ["email:none"], "the row VM carries them, so the page can group without the DTO");
 });
 
 // D2: who they are, from what the listing shows. NOW is a Friday in America/Chicago.

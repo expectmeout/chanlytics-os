@@ -305,6 +305,36 @@ test("Stop: the run is aborted at the provider and the round goes to its checks 
   assert.ok(w.T.leads.filter((l) => l.email).every((l) => l.email_state === "ok"));
 });
 
+test("Check again: after the round ended, a re-check runs under it with a run id of its own and commits; a mailbox that now answers makes the member Qualified and counted; the round's own check stays closed", async () => {
+  const { w, p } = await probed({ plan: { ...PLAN, contact: "email" } });
+  const [r1, r2] = w.runs();
+  await collect(p("c1"), r1.id, "p0", "c1");
+  w.rpcs.lead_round_stop({ p_search_id: w.search().id });
+  await collect(p("s1"), r2.id, "stop", "s1");
+  await check(p("k1"), w.round().id, 0, "k1");
+  w.finishRuns();
+  const first = w.runs().find((r) => r.purpose === "check");
+  await collect(p("c3"), first.id, "final", "c3");
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"]);
+  // One mailbox did not answer. The door (00145) leaves the lead checking, with the email reason still on its member.
+  const lead = w.T.leads.find((l) => l.email);
+  const m = w.members().find((x) => x.lead_id === lead.id);
+  Object.assign(lead, { email_state: "checking" });
+  Object.assign(m, { class: "review", counted: false, counted_month: null, judgment: { ...m.judgment, reasons: ["email:checking"] } });
+  assert.deepEqual(await check(p("k2"), w.round().id, 0, "k2"), { kind: "not_open" }, "the round's own check is closed");
+  const c = await check(p("k3"), w.round().id, 0, "k3", { nonce: "n1", leadIds: [lead.id] });
+  assert.deepEqual([c.kind, c.emails, c.more], ["started", 1, false]);
+  const run = w.runs().find((r) => r.purpose === "check" && r.id !== first.id);
+  assert.equal(run.term, "again:n1:0");
+  assert.equal(run.id, await runIdFor(w.round().id, "check", "again:n1:0"), "an id of its own, from the nonce");
+  w.finishRuns();
+  const done = await collect(p("c4"), run.id, "final", "c4");
+  assert.deepEqual([done.kind, done.results, done.last], ["checked", 1, false]);
+  assert.equal(lead.email_state, "ok");
+  assert.deepEqual([m.class, m.counted, m.judgment.reasons], ["qualified", true, []], "Qualified, and counted through the month");
+  assert.deepEqual([w.round().state, w.round().ending], ["ended", "stopped"], "neither ended twice nor reopened");
+});
+
 test("the switch, read before the checker too: with searches off nothing is started, the addresses still waiting say they could not be checked, and the round ends paused", async () => {
   const { w, p } = await probed({ plan: { ...PLAN, contact: "email" } });
   const [r1, r2] = w.runs();

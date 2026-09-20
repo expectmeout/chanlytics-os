@@ -230,6 +230,8 @@ export async function draftForLead(id: string, input: { tone: "first" | "shorter
 export async function eraseLead(id: string) { return call<{ erased: true }>("DELETE leads/[id]", { params: { id } }); }
 /** The selected ids, or the view for "Select all N that match" (S13). */
 export async function bulkLeads(body: LeadsBulkInput) { return call<{ done: number; op_id: string; version: number; toast: string }>("POST leads/bulk", { body }); }
+/** Check again (D3): the mailbox check once more for the addresses whose last check did not answer. */
+export async function checkLeadsAgain(ids: string[]) { return call<{ scheduled: number; skipped: number; toast: string }>("POST leads/check-again", { body: { ids } }); }
 /** Include amends the plan, so it carries the version the owner approved; Keep and Stop carry none (§7.2). */
 export async function answerSearch(id: string, answer: "keep" | "include" | "stop", plan?: LeadSearchPlan) { return api()("POST lead-searches/[id]/answer", { params: { id }, body: { answer, ...(plan ? { plan } : {}) } }); }
 export async function moreForSearch(id: string, purpose: "topup" | "renew", plan: LeadSearchPlan) { return api()("POST lead-searches/[id]/more", { params: { id }, body: { purpose, plan } }); }
@@ -271,6 +273,7 @@ export function installLeadsCourier(): void {
   window.__leadDraft = draftForLead;
   window.__leadErase = eraseLead;
   window.__leadsBulk = bulkLeads;
+  window.__leadCheckAgain = checkLeadsAgain;
   window.__leadSearchAnswer = answerSearch;
   window.__leadSearchMore = moreForSearch;
   window.__leadSearchStop = stopSearch;
@@ -304,6 +307,7 @@ declare global {
     __leadDraft?: typeof draftForLead;
     __leadErase?: typeof eraseLead;
     __leadsBulk?: typeof bulkLeads;
+    __leadCheckAgain?: typeof checkLeadsAgain;
     __leadSearchAnswer?: typeof answerSearch;
     __leadSearchMore?: typeof moreForSearch;
     __leadSearchStop?: typeof stopSearch;

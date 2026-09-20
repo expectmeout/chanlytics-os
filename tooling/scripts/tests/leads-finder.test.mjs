@@ -443,6 +443,15 @@ test("each ending says contracts' own sentence, with this round's numbers in it,
   assert.equal(nearby.title, "There are 3 personal trainers in Austin, TX, and all of them are chain gyms, which you asked me to leave out.");
   assert.deepEqual([nearby.parts, ids(nearby)], [["Nothing was counted."], ["nearby", "excluded"]], "nothing was counted, so nothing is worth re-sorting; the 3 left out are a link");
   assert.deepEqual(ids(leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW)), ["excluded"], "with nowhere else to look there is no next step to offer");
+  // The round's own nearby areas (00145): the step names them and opens the plan on the nearest.
+  const far = [
+    { kind: "zip", label: "near 78660", state: "TX", center: { lat: 30.44, lng: -97.62 }, radius_m: 8000, zip: "78660", query: "78660, TX, USA" },
+    { kind: "zip", label: "near 78664", state: "TX", center: { lat: 30.51, lng: -97.66 }, radius_m: 8000, zip: "78664", query: "78664, TX, USA" },
+  ];
+  const dry = ended("searched_everything", { counted: 0, excluded: 3, nearby: far });
+  const step = leadStrip(dry, NOW).actions[0];
+  assert.deepEqual([step.id, step.label, step.primary, step.arg.area], ["nearby", "Look in near 78660 and near 78664", true, far[0]], "the round wrote where to look; the plan opens there");
+  assert.equal(leadStrip(dry, NOW, { nearby: ["Round Rock"] }).actions[0].label, "Look in Round Rock", "what the caller knows comes first");
   // Removing the untouched leads is the search menu's now, named for what it does (contracts leadUndoable); an
   // "Undo" on the strip beside "the 61 found are yours" read as deleting what was just paid for.
   for (const e of LEAD_ROUND_ENDINGS) assert.equal(ids(leadStrip(ended(e), NOW)).includes("undo"), false, `${e}: the strip never offers Undo`);

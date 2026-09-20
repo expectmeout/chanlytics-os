@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
 import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember } from '@chanlytics/contracts';
+import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadArea, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember } from '@chanlytics/contracts';
 import { Json, Database } from '@chanlytics/db';
 
 /**
@@ -1358,12 +1358,14 @@ interface CollectPage {
         seq: string;
         run_after_seconds: number;
     } | null;
+    /** `nearby` (D3): where to look next when the round ran dry, written with the ending it belongs to. */
     round: {
         state: LeadRoundState | null;
         question: RoundQuestion | null;
         ending: LeadRoundEnding | null;
         ending_pending?: LeadRoundEnding;
         target?: number;
+        nearby?: LeadArea[];
     } | null;
 }
 type CollectCommitResult = {
@@ -1593,6 +1595,17 @@ declare function identityOf(p: CleanPlace, held: Map<string, string>, suppressed
     share: LeadShare;
 }[]): Identity;
 
+/**
+ * Geography (PRD E7, decision 31): a ZIP ask takes its center from the bundled
+ * ZCTA table; a city ask is geocoded by the card's own location query and its
+ * center is the median of the probe's coordinates, with a radius from their
+ * spread. Distance is haversine, in metres, deterministic. No other gazetteer
+ * is bundled.
+ *
+ * zcta-centroids.json is written by tooling/scripts/gen-zcta-centroids.mjs
+ * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
+ */
+
 interface LatLng {
     lat: number;
     lng: number;
@@ -1608,6 +1621,17 @@ declare const RADIUS_MAX_M = 60000;
 declare function radiusFromSpread(center: LatLng, points: LatLng[]): number;
 /** Inside the circle; a place with no location is never inside (PRD §0.1: Needs review). */
 declare function inArea(center: LatLng | null, radiusM: number, point: LatLng | null): boolean;
+/**
+ * Where to look when an area ran dry (D3): the nearest ZCTA centres past a ring around the centre, nearest first,
+ * each as an area the plan can take -- a ZIP with its own centre and a radius that reads as "near 78660". The ring
+ * keeps them out of the area just searched; the ceiling keeps them a drive away, not a flight.
+ */
+declare function nearestAreas(center: LatLng, o: {
+    excludeWithinM: number;
+    take: number;
+    maxM?: number;
+    state?: string;
+}): LeadArea[];
 
 /**
  * The identities the runner makes for itself, over Web Crypto so this package
@@ -1877,6 +1901,11 @@ declare function centerOf(plan: LeadSearchPlan, members: LeadMemberRow[]): {
     center: LatLng | null;
     radiusM: number;
 };
+/**
+ * Where to look next when a round ran dry (D3): the nearest ZIP centres past the area it measured from, three of them.
+ * Nothing when the round has no centre yet (a city ask whose probe placed nothing).
+ */
+declare function nearbyFor(plan: LeadSearchPlan, members: LeadMemberRow[]): LeadArea[];
 /** One place as the commit takes it: the lead's columns, the member's class decided by code (§0.1), its shares. */
 declare function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: JudgePlaceAnswer | null, opId: string | null, model: string | null, rule: Prepared["rule"], geo: {
     center: LatLng | null;
@@ -1905,9 +1934,16 @@ type CheckOutcome = {
 } | {
     kind: "refused";
 };
+/** Check again (D3, 00145): the nonce that gives the run an id of its own, and the leads the owner named. */
+type CheckAgain = {
+    nonce: string;
+    leadIds: string[];
+};
+/** A run started by Check again: the door's nonce is in its term, so the round may have ended by the time it commits. */
+declare const isAgainRun: (run: Pick<LeadRunRow, "purpose" | "term">) => boolean;
 /** The members whose picked address still waits for its check, in one fixed order. */
 declare function checkable(members: LeadMemberRow[]): LeadMemberRow[];
-declare function check(p: LeadPorts, roundId: string, batch: number, owner: string): Promise<CheckOutcome>;
+declare function check(p: LeadPorts, roundId: string, batch: number, owner: string, again?: CheckAgain | null): Promise<CheckOutcome>;
 type ReconcileOutcome = {
     runId: string;
     kind: "reconciled" | "failed" | "waiting";
@@ -1915,4 +1951,4 @@ type ReconcileOutcome = {
 /** An unknown start is reconciled against the provider's own list; ours carry the run row id in their input (PRD §0.5, E1). */
 declare function reconcileUnknownRuns(p: LeadPorts, unknownRuns: LeadRunRow[]): Promise<ReconcileOutcome[]>;
 
-export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckOutcome, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type IncomingEmail, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, UNKNOWN_START_GRACE_MS, type WakePorts, type Wire, type WirePayload, afterProbe, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, emailSender, eraseBlobThread, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, identityOf, inArea, ingestEmail, isFreeMail, judgeBatch, mainAsk, medianCenter, memberOf, opIdFor, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyToConversation, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, wake, whatsappSender, yieldOf, zctaCenter };
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckAgain, type CheckOutcome, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type IncomingEmail, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PAGE_READ_ALLOWANCE_MS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, UNKNOWN_START_GRACE_MS, type WakePorts, type Wire, type WirePayload, afterProbe, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, emailSender, eraseBlobThread, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, identityOf, inArea, ingestEmail, isAgainRun, isFreeMail, judgeBatch, mainAsk, medianCenter, memberOf, nearbyFor, nearestAreas, opIdFor, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyToConversation, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, wake, whatsappSender, yieldOf, zctaCenter };

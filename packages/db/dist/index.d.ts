@@ -2173,6 +2173,7 @@ type Database = {
                     judge_model: string | null;
                     judge_tokens: number;
                     month: string;
+                    nearby: Json;
                     plan: Json;
                     plan_version: number;
                     platform_day: string;
@@ -2201,6 +2202,7 @@ type Database = {
                     judge_model?: string | null;
                     judge_tokens?: number;
                     month: string;
+                    nearby?: Json;
                     plan: Json;
                     plan_version: number;
                     platform_day?: string;
@@ -2229,6 +2231,7 @@ type Database = {
                     judge_model?: string | null;
                     judge_tokens?: number;
                     month?: string;
+                    nearby?: Json;
                     plan?: Json;
                     plan_version?: number;
                     platform_day?: string;
@@ -3697,6 +3700,7 @@ type Database = {
                     id: string | null;
                     judge_tokens: number | null;
                     name: string | null;
+                    nearby: Json | null;
                     plan: Json | null;
                     plan_version: number | null;
                     purpose: string | null;
@@ -3997,8 +4001,16 @@ type Database = {
                 Args: {
                     p_action: string;
                     p_ids?: string[];
+                    p_search_id?: string;
                     p_tenant_id: string;
                     p_view?: Json;
+                };
+                Returns: Json;
+            };
+            lead_check_again: {
+                Args: {
+                    p_lead_ids: string[];
+                    p_tenant_id: string;
                 };
                 Returns: Json;
             };

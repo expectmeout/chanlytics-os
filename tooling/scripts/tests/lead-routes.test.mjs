@@ -35,6 +35,7 @@ const stage = await import(at("apps/dashboard/app/api/v1/leads/[id]/stage/route.
 const draft = await import(at("apps/dashboard/app/api/v1/leads/[id]/draft/route.ts"));
 const erase = await import(at("apps/dashboard/app/api/v1/leads/[id]/route.ts"));
 const bulk = await import(at("apps/dashboard/app/api/v1/leads/bulk/route.ts"));
+const checkAgain = await import(at("apps/dashboard/app/api/v1/leads/check-again/route.ts"));
 const exportRoute = await import(at("apps/dashboard/app/api/v1/leads/export/route.ts"));
 const suggestions = await import(at("apps/dashboard/app/api/v1/lead-suggestions/route.ts"));
 const { setModelStream } = await import(at("apps/dashboard/src/server/model-json.ts"));
@@ -238,6 +239,7 @@ function doors(over = {}) {
       version: 4,
     }))),
     lead_bulk: seen("lead_bulk", over.lead_bulk ?? (() => ({ done: 2, op_id: OP, version: 1 }))),
+    lead_check_again: seen("lead_check_again", over.lead_check_again ?? (() => ({ scheduled: 2, skipped: 1 }))),
     lead_erase: seen("lead_erase", over.lead_erase ?? (() => ({ erased: true, already: false }))),
     lead_export_mark: seen("lead_export_mark", over.lead_export_mark ?? (() => 1)),
     leads_page: seen("leads_page", over.leads_page ?? (() => [pageRow()])),
@@ -281,11 +283,12 @@ test("release B's ten declare their policy: working a lead is the operator's, er
   assert.deepEqual(draft.POST.policy, { kind: "write", scope: "row", role: "operator", rate: "lead_draft", spend: false });
   assert.deepEqual(erase.DELETE.policy, { kind: "write", scope: "row", role: "owner", rate: "erase", spend: false });
   assert.deepEqual(bulk.POST.policy, { kind: "write", scope: "workspace", role: "operator", rate: "lead_bulk", spend: false });
+  assert.deepEqual(checkAgain.POST.policy, { kind: "write", scope: "workspace", role: "owner", rate: "lead_bulk", spend: true });
   assert.deepEqual(exportRoute.GET.policy, { kind: "read", scope: "workspace", role: "owner", rate: "export", spend: false });
   assert.deepEqual(suggestions.GET.policy, { kind: "read", scope: "workspace", role: null, rate: "lead_suggest", spend: false });
   assert.deepEqual(suggestions.PUT.policy, { kind: "write", scope: "workspace", role: "owner", rate: "lead_suggest", spend: false });
-  // The money is release A's, and it is the only place `spend` is true.
-  assert.deepEqual([searches.POST.policy.spend, more.POST.policy.spend], [true, true]);
+  // The money: a search, more of one, and a mailbox check asked again (D3) are the only places `spend` is true.
+  assert.deepEqual([searches.POST.policy.spend, more.POST.policy.spend, checkAgain.POST.policy.spend], [true, true, true]);
 });
 
 test("a refusal to spend on a search says what the money was for, and the lines door keeps saying its own", () => {
@@ -339,6 +342,7 @@ test("a viewer is refused every write; an operator may work leads but not erase,
     [searchUndo, "POST", undefined, { id: SEARCH }, "operator"],
     [suggestions, "PUT", { business_line: "a personal training studio" }, {}, "operator"],
     [bulk, "POST", { by: "ids", action: "contacted", ids: [LEAD] }, {}, "viewer"],
+    [checkAgain, "POST", { ids: [LEAD] }, {}, "operator"],
   ]) await refused(route[method].run(req(method, body), ctxOf(world({ role }), params, rpcs)), "forbidden", 403);
   assert.deepEqual(calls, [], "not one door was reached");
 });
@@ -376,6 +380,19 @@ test("bulk acts on the ids, or on the view for Select all that match; the door g
   await refused(bulk.POST.run(req("POST", { by: "view", action: "erase", view: { list: "ready" } }), ctxOf(world({ role: "operator" }), {}, rpcs)), "validation", 400);
 });
 
+test("Check again goes through its door with the ids and says how many it took; bulk Keep names the search the pile is read in, and says what stopped it", async () => {
+  const rpcs = doors({ lead_bulk: (a) => (a.p_action === "keep" ? { done: 1, skipped: 0, op_id: null, version: 1, error: "month_leads_used", left: 0, sentence: "You have found this month's 500 leads." } : { done: 2, op_id: OP, version: 1 }) });
+  const out = await checkAgain.POST.run(req("POST", { ids: [LEAD] }), ctxOf(world({ role: "owner" }), {}, rpcs));
+  assert.deepEqual(rpcCalls("lead_check_again").map((a) => a.p_lead_ids), [[LEAD]]);
+  assert.deepEqual([out.scheduled, out.skipped], [2, 1]);
+  assert.match(out.toast, /^Checking 2 again\. Their answer lands here in a few minutes\. 1 was left as it is/);
+  const kept = await bulk.POST.run(req("POST", { by: "ids", action: "keep", ids: [LEAD], search_id: SEARCH }), ctxOf(world({ role: "owner" }), {}, rpcs));
+  assert.deepEqual(rpcCalls("lead_bulk").map((a) => [a.p_action, a.p_ids, a.p_search_id]), [["keep", [LEAD], SEARCH]]);
+  assert.deepEqual([kept.done, kept.op_id, kept.toast], [1, null, "Kept 1. It counts as a lead this month. You have found this month's 500 leads."], "what was kept stays kept, and the month's sentence rides the toast");
+  await refused(checkAgain.POST.run(req("POST", { ids: [LEAD] }), ctxOf(world({ role: "owner" }), {}, doors({ lead_check_again: () => ({ scheduled: 0, skipped: 1 }) }))), "conflict", 409);
+  await refused(bulk.POST.run(req("POST", { by: "view", action: "keep", view: { list: "ready" } }), ctxOf(world({ role: "owner" }), {}, rpcs)), "validation", 400);
+});
+
 test("the export is the owner's, on the ledger like contacts/export, and marks what it took", async () => {
   const tables = world({ role: "owner" });
   const rpcs = doors();
@@ -411,6 +428,7 @@ test("a row says what was seen and what Claude read, and wears the name of the s
     [LEAD, "Trainers", "78704", true, "travisheightscoaching.example", "qualified", "strong"],
   );
   assert.deepEqual(r.member.other_emails, [{ email: "careers@travisheightscoaching.example", why: "for job seekers" }]);
+  assert.deepEqual(r.member.reasons, ["fit"], "the class rule's own reason tokens ride the row, for the Needs review queue (D3)");
   const checks = Object.fromEntries(r.member.checks.map((c) => [c.key, [c.how, c.answer]]));
   assert.deepEqual(checks.on_maps, ["seen", "yes"]);
   assert.deepEqual(checks.mailbox, ["seen", "yes"]);

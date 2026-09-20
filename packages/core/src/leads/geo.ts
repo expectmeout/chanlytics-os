@@ -8,6 +8,7 @@
  * zcta-centroids.json is written by tooling/scripts/gen-zcta-centroids.mjs
  * from the Census 2020 gazetteer: [zip, lat, lng] triples sorted by zip.
  */
+import type { LeadArea } from "@chanlytics/contracts";
 import ZCTA from "./zcta-centroids.json" with { type: "json" };
 
 export interface LatLng {
@@ -68,4 +69,19 @@ export function radiusFromSpread(center: LatLng, points: LatLng[]): number {
 export function inArea(center: LatLng | null, radiusM: number, point: LatLng | null): boolean {
   if (!center || !point) return false;
   return haversineM(center, point) <= radiusM;
+}
+
+/**
+ * Where to look when an area ran dry (D3): the nearest ZCTA centres past a ring around the centre, nearest first,
+ * each as an area the plan can take -- a ZIP with its own centre and a radius that reads as "near 78660". The ring
+ * keeps them out of the area just searched; the ceiling keeps them a drive away, not a flight.
+ */
+export function nearestAreas(center: LatLng, o: { excludeWithinM: number; take: number; maxM?: number; state?: string }): LeadArea[] {
+  const max = o.maxM ?? RADIUS_MAX_M;
+  const state = (o.state ?? "").trim().toUpperCase();
+  return TABLE.map(([zip, lat, lng]) => ({ zip, lat, lng, d: haversineM(center, { lat, lng }) }))
+    .filter((x) => x.d >= o.excludeWithinM && x.d <= max)
+    .sort((a, b) => a.d - b.d || (a.zip < b.zip ? -1 : 1))
+    .slice(0, Math.max(0, o.take))
+    .map((x) => ({ kind: "zip" as const, label: `near ${x.zip}`, state, center: { lat: x.lat, lng: x.lng }, radius_m: 8_000, zip: x.zip, query: state ? `${x.zip}, ${state}, USA` : `${x.zip}, USA` }));
 }

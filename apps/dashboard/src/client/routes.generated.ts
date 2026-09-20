@@ -106,6 +106,7 @@ export const ROUTES = {
   "POST leads/[id]/put-back": { method: "POST", path: "/api/v1/leads/[id]/put-back" },
   "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
   "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
+  "POST leads/check-again": { method: "POST", path: "/api/v1/leads/check-again" },
   "POST lines/buy": { method: "POST", path: "/api/v1/lines/buy" },
   "POST lines/forwarding": { method: "POST", path: "/api/v1/lines/forwarding" },
   "POST lines/forwarding/test": { method: "POST", path: "/api/v1/lines/forwarding/test" },
@@ -257,6 +258,7 @@ export type Routes = {
   "POST leads/[id]/put-back": typeof import("../../app/api/v1/leads/[id]/put-back/route").POST;
   "POST leads/[id]/stage": typeof import("../../app/api/v1/leads/[id]/stage/route").POST;
   "POST leads/bulk": typeof import("../../app/api/v1/leads/bulk/route").POST;
+  "POST leads/check-again": typeof import("../../app/api/v1/leads/check-again/route").POST;
   "POST lines/buy": typeof import("../../app/api/v1/lines/buy/route").POST;
   "POST lines/forwarding": typeof import("../../app/api/v1/lines/forwarding/route").POST;
   "POST lines/forwarding/test": typeof import("../../app/api/v1/lines/forwarding/test/route").POST;

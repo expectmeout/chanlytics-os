@@ -1945,6 +1945,18 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // Keep counts the place as Qualified the month it is kept; Exclude is free; Put back is the owner's override
   // of an exclusion, through the door that counts (PRD 8.7). Each names the search whose class it is in, which
   // is what release A's routes take ({ search_id }); the door answers the operation, and the toast offers it.
+  // A selection's act (D3): the door's own sentence is the flash -- it says how many, and what stopped or skipped
+  // part of it -- and the selection is spent.
+  const leadSaid = async (fn) => {
+    if (leadBusy) return;
+    setLeadBusy(true);
+    const r = await fn();
+    setLeadBusy(false);
+    if (!r.ok) { plFlash(window.refusalToast(r, "That did not go through")); return; }
+    setSel(new Set());
+    setAllMatching(false);
+    plFlash({ msg: r.data.toast, ...leadUndo(r) });
+  };
   const keepLead = (id) => leadAct(() => window.__leadKeep(searchOf(leadById(id)), id), <>Kept. It counts as a lead this month.</>);
   const excludeLead = (id) => leadAct(() => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded. Nothing counted.</>);
   const putBackLead = (id) => leadAct(() => window.__leadPutBack(searchOf(leadById(id)), id), <>Put back. It counts as a lead now.</>);
@@ -2189,11 +2201,30 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onScrolled={setScrolledX}
         filtered={filtered}
         onClearFilters={() => { setQ(""); setChip(null); goto({ list: "all", cls: null }); }}
-        empty={{ title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
+        empty={leadView.cls === "review"
+          ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
+          : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
         sel={sel}
         onToggle={toggleSel}
         onToggleAll={toggleAll}
         onClearSel={() => { setSel(new Set()); setAllMatching(false); }}
+        onSelectIds={(ids) => { setSel(new Set(ids)); setAllMatching(false); }}
+        // Needs review's resolvers (D3). Keep and Exclude go through the bulk door (00145), which takes the member's
+        // own door once per lead; Check again through its own. Find an email draws only once its courier exists, so
+        // the bar never offers what no door can do.
+        review={{
+          actsFor: (ids) => {
+            const V = window.__LEAD_VM || {};
+            const groups = V.leadReviewGroups ? V.leadReviewGroups(leads.rows.filter((l) => ids.indexOf(l.id) >= 0), openSearch) : [];
+            return [...new Set(groups.flatMap((g) => g.acts))];
+          },
+          canCheckAgain: typeof window.__leadCheckAgain === "function",
+          canFindEmail: typeof window.__leadFindEmail === "function",
+          onCheckAgain: (ids) => window.__leadCheckAgain && leadSaid(() => window.__leadCheckAgain(ids)),
+          onFindEmail: (ids) => window.__leadFindEmail && leadAct(() => window.__leadFindEmail(ids), <>Looking for {ids.length === 1 ? "an email" : `${ids.length} emails`}.</>),
+          onKeep: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "keep", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+          onExclude: (ids) => leadSaid(() => window.__leadsBulk({ by: "ids", action: "exclude", ids, ...(leadView.searchId ? { search_id: leadView.searchId } : {}) })),
+        }}
         allMatching={allMatching}
         onSelectAllMatching={() => setAllMatching(true)}
         bulkView={{ list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }}

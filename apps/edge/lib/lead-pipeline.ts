@@ -66,8 +66,15 @@ export function leadPipelineOver(wires: LeadWires): Pipeline {
     async check(ctx, job) {
       const roundId = field(job, "round_id", (v) => typeof v === "string" && UUID.test(v));
       const batch = Number(field(job, "batch", (v) => typeof v === "number" && Number.isInteger(v) && v >= 0 && v <= 100));
-      const outcome = await check(portsFor(wires, ctx, job), roundId, batch, job.id);
-      console.log(JSON.stringify({ level: "info", event: "lead_check", tenant: job.tenant_id, job: job.id, batch, ...outcome }));
+      // Check again (00145): the door's nonce and the leads ride the job; without them this is the round's own check.
+      const nonce = job.payload.again;
+      const leadIds = job.payload.lead_ids;
+      const again = typeof nonce === "string" && nonce.length > 0 && Array.isArray(leadIds) && leadIds.length > 0 && leadIds.every((x) => typeof x === "string" && UUID.test(x))
+        ? { nonce, leadIds: leadIds as string[] }
+        : null;
+      if ((nonce !== undefined || leadIds !== undefined) && !again) throw new Error(`lead_check: payload.again and payload.lead_ids are not what the door writes (${JSON.stringify({ nonce, leadIds })})`);
+      const outcome = await check(portsFor(wires, ctx, job), roundId, batch, job.id, again);
+      console.log(JSON.stringify({ level: "info", event: "lead_check", tenant: job.tenant_id, job: job.id, batch, again: again !== null, ...outcome }));
     },
   };
 }

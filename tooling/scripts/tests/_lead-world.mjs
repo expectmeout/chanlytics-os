@@ -71,7 +71,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const used = T.lead_search_members.filter((m) => m.tenant_id === p_tenant_id && m.counted).length + T.lead_rounds.filter((r) => r.tenant_id === p_tenant_id && r.state !== "ended").reduce((a, r) => a + r.allowance_reserved - r.allowance_used, 0);
       if (used + p_plan.count > 500) return { error: "month_leads_used", left: Math.max(0, 500 - used), sentence: `This month covers ${Math.max(0, 500 - used)} more leads.` };
       const search = { id: uuid(), tenant_id: p_tenant_id, created_by: OWNER_USER, via: p_via, card: p_plan.card, name: p_plan.name, asked: p_plan.asked, plan: p_plan, removed_at: null, created_at: nowIso() };
-      const round = { id: uuid(), tenant_id: p_tenant_id, search_id: search.id, seq: 1, purpose: "probe", plan: p_plan, plan_version: p_plan.version, target: Math.min(25, p_plan.count), state: "queued", ending: null, ending_pending: null, question: null, answered: null, waiting_since: null, allowance_reserved: p_plan.count, allowance_used: 0, cost_reserved_usd: p_estimate_usd, cost_usd: 0, judge_tokens: 0, judge_model: null, month, day: "2026-09-19", platform_day: "2026-09-19", started_at: null, ended_at: null, created_at: nowIso() };
+      const round = { id: uuid(), tenant_id: p_tenant_id, search_id: search.id, seq: 1, purpose: "probe", plan: p_plan, plan_version: p_plan.version, target: Math.min(25, p_plan.count), state: "queued", ending: null, ending_pending: null, question: null, answered: null, waiting_since: null, allowance_reserved: p_plan.count, allowance_used: 0, cost_reserved_usd: p_estimate_usd, cost_usd: 0, judge_tokens: 0, judge_model: null, month, day: "2026-09-19", platform_day: "2026-09-19", started_at: null, ended_at: null, created_at: nowIso(), nearby: [] };
       T.lead_searches.push(search);
       T.lead_rounds.push(round);
       w.scheduleOnce("lead_round_start", clock.ms, { round_id: round.id });
@@ -147,7 +147,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       if (run.lease_owner !== p_owner || run.lease_gen !== p_gen) return { ok: false, why: "lease" };
       if (run.read_offset !== p_from_offset) return { ok: false, why: "offset" };
       const round = roundOf(run.round_id);
-      if (round.state === "ended") return { ok: false, why: "ended" };
+      if (round.state === "ended" && run.purpose !== "check") return { ok: false, why: "ended" }; // a check run may commit after the round ended (00145)
       const search = T.lead_searches.find((s) => s.id === round.search_id);
       const page = p_page;
       let room = Math.max(0, round.allowance_reserved - round.allowance_used);
@@ -190,7 +190,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       round.allowance_used += counted;
       const usage = Number(page.usage_usd);
       if (Number.isFinite(usage) && usage > run.usage_usd) {
-        round.cost_usd = Math.round((round.cost_usd + usage - run.usage_usd) * 10_000) / 10_000;
+        if (round.state !== "ended") round.cost_usd = Math.round((round.cost_usd + usage - run.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
         run.usage_usd = usage;
       }
       run.read_offset = p_to_offset;
@@ -206,6 +206,7 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const r = page.round ?? {};
       if (r.target != null) round.target = Math.max(round.target, r.target);
       if (r.ending_pending != null) round.ending_pending = r.ending_pending;
+      if (Array.isArray(r.nearby)) round.nearby = r.nearby;
       if (r.question && typeof r.question === "object") { round.question = r.question; round.waiting_since = nowIso(); }
       if (r.ending != null) end(round, r.ending);
       else if (r.state != null && r.state !== round.state) { round.state = r.state; round.started_at = round.started_at ?? nowIso(); }
@@ -214,8 +215,9 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
     lead_check_commit: ({ p_round_id, p_run_id, p_results, p_usage_usd, p_last }) => {
       const round = roundOf(p_round_id);
       if (!round) return { ok: false, why: "round" };
-      let room = Math.max(0, round.allowance_reserved - round.allowance_used);
+      let room = round.state === "ended" ? 0 : Math.max(0, round.allowance_reserved - round.allowance_used);
       let newly = 0;
+      let later = 0;
       let counted = 0;
       for (const r of p_results ?? []) {
         const lead = T.leads.find((l) => l.id === r.lead_id && l.tenant_id === round.tenant_id);
@@ -226,8 +228,10 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
         const reasons = Array.isArray(m.judgment?.reasons) ? m.judgment.reasons : null;
         if (m.class !== "review" || m.blanked_at || lead?.email_state !== "ok" || !reasons || !reasons.length || reasons.some((x) => !String(x).startsWith("email:"))) continue;
         // Past the room the member is Qualified and uncounted, and no counter moves.
-        const counts = room > 0;
-        if (counts) { room -= 1; counted += 1; }
+        // After the round ended (Check again, 00145) the member counts through the month, as Keep does; here the month is derived from counted members.
+        const counts = round.state === "ended" || room > 0;
+        if (counts && round.state === "ended") later += 1;
+        else if (counts) { room -= 1; counted += 1; }
         Object.assign(m, { class: "qualified", counted: counts, counted_month: counts ? month : m.counted_month, version: m.version + 1, judgment: { ...m.judgment, reasons: [] } });
         newly += 1;
       }
@@ -236,12 +240,12 @@ export function leadWorld({ plan = PLAN, searchesOn = true, month = "2026-09", s
       const checkRun = p_run_id ? runOf(p_run_id) : null;
       const total = Number(p_usage_usd ?? 0);
       if (checkRun && checkRun.round_id === p_round_id && total > checkRun.usage_usd) {
-        round.cost_usd = Math.round((round.cost_usd + total - checkRun.usage_usd) * 10_000) / 10_000;
+        if (round.state !== "ended") round.cost_usd = Math.round((round.cost_usd + total - checkRun.usage_usd) * 10_000) / 10_000; // an ended round is final (00145)
         checkRun.usage_usd = total;
       }
       let ended = false;
       if (p_last) ended = end(round, round.ending_pending ?? (round.allowance_used >= targetOf(round) ? "target_reached" : "searched_everything"));
-      return { ok: true, qualified: newly, counted, ended };
+      return { ok: true, qualified: newly, counted: counted + later, ended };
     },
     lead_round_end: ({ p_round_id, p_ending }) => {
       const round = roundOf(p_round_id);

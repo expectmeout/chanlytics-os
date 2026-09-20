@@ -451,10 +451,14 @@ export function stageArgs(i: LeadStageInput): { p_stage: string | null; p_reason
   }
 }
 export const LeadsBulkSchema = z.discriminatedUnion("by", [
-  z.object({ by: z.literal("ids"), action: z.enum(["contacted", "not_a_fit"]), ids: z.array(z.string().uuid()).min(1).max(500) }),
+  // Keep and Exclude (D3) take ids only, and may name the search the Needs review pile is read in.
+  z.object({ by: z.literal("ids"), action: z.enum(["contacted", "not_a_fit", "keep", "exclude"]), ids: z.array(z.string().uuid()).min(1).max(500), search_id: z.string().uuid().optional() }),
   z.object({ by: z.literal("view"), action: z.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema }),
 ]);
 export type LeadsBulkInput = z.infer<typeof LeadsBulkSchema>;
+/** Check again (D3): the leads whose mailbox check did not answer, asked once more. */
+export const LeadsCheckAgainSchema = z.object({ ids: z.array(z.string().uuid()).min(1).max(500) });
+export type LeadsCheckAgainInput = z.infer<typeof LeadsCheckAgainSchema>;
 export const LeadDraftInputSchema = z.object({
   tone: z.enum(["first", "shorter", "warmer"]).default("first"),
   previous: z.object({ subject: z.string().max(200), body: z.string().max(4000) }).optional(),
@@ -868,7 +872,80 @@ export interface LeadRowDto {
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null; last_note: string | null; contacted_at: string | null; converted_at: string | null;
   places: number; found_at: string; exported_at: string | null; version: number;
-  member: { class: LeadClass; fit: "strong" | "look" | "long" | null; reason: string; excluded_by: string | null; distance_m: number | null; counted: boolean; checks: LeadCheck[]; other_emails: { email: string; why: string }[] };
+  member: {
+    class: LeadClass; fit: "strong" | "look" | "long" | null; reason: string; excluded_by: string | null; distance_m: number | null; counted: boolean; checks: LeadCheck[]; other_emails: { email: string; why: string }[];
+    /** The class rule's reason tokens (D3): what Needs review is grouped by. Optional: a fixture from before carries none. */
+    reasons?: string[];
+  };
+}
+
+/* ------------------------------------------- Needs review, as a queue (D3) */
+
+/** "Independent" -> "independent" for the middle of a sentence; a name that is capitals stays as it is. */
+export const leadLowerFirst = (s: string): string => (s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
+export const LEAD_REVIEW_GROUP_WORDS = {
+  mailbox_waiting: "Waiting on the mailbox check",
+  checks_out: "Their email checks out",
+  mailbox_silent: "Their mail server wouldn't answer",
+  bad_email: "Their email bounces",
+  no_email: "No email on their site",
+  catch_all: "Unconfirmed — the mailbox accepts any address",
+  unsure: "Couldn't tell if",
+  read_only: "Only the listing says so",
+  out_of_area: "Just outside the area you asked for",
+} as const;
+export type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
+export type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
+/** The order an owner would work the pile: what resolves itself first, then what one press resolves, then what needs a look. */
+const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "checks_out", "mailbox_silent", "bad_email", "no_email", "catch_all", "unsure", "read_only", "out_of_area"];
+const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
+  mailbox_waiting: [],
+  checks_out: ["keep", "exclude"],
+  mailbox_silent: ["check_again", "keep", "exclude"],
+  bad_email: ["find_email", "keep", "exclude"],
+  no_email: ["find_email", "keep", "exclude"],
+  catch_all: ["keep", "exclude"],
+  unsure: ["keep", "exclude"],
+  read_only: ["keep", "exclude"],
+  out_of_area: ["keep", "exclude"],
+};
+function reviewGroupOf(reason: string): LeadReviewGroupId | null {
+  if (reason === "email:checking") return "mailbox_waiting";
+  // The email token says the address's state now (the page reads it off the lead, not off the judgment's snapshot):
+  // ok with the member still in review is a mailbox that checks out after the month was full, for Keep to count.
+  if (reason === "email:ok") return "checks_out";
+  if (reason === "email:unknown") return "mailbox_silent";
+  if (reason === "email:invalid") return "bad_email";
+  if (reason === "email:none") return "no_email";
+  if (reason === "email:catch_all") return "catch_all";
+  if (reason.startsWith("unknown:")) return "unsure";
+  if (reason.startsWith("inferred:")) return "read_only";
+  if (reason === "out_of_area") return "out_of_area";
+  return null;
+}
+export interface LeadReviewGroup { id: LeadReviewGroupId; key: string; label: string; ids: string[]; acts: LeadReviewAct[] }
+/**
+ * Needs review as a queue: one group per thing that would resolve it, each with the leads in it and the acts that
+ * resolve it. A lead with two reasons sits in the first group that fits it, in the order above; a group about one
+ * criterion names it in the owner's own words from the plan, and two criteria make two groups.
+ */
+export function leadReviewGroups(rows: { id: string; cls: LeadClass; reasons: string[] }[], search: LeadSearchDto | null): LeadReviewGroup[] {
+  const by = new Map<string, LeadReviewGroup>();
+  for (const r of rows) {
+    if (r.cls !== "review") continue;
+    const reasons = r.reasons ?? [];
+    const picked = REVIEW_GROUP_ORDER.find((g) => reasons.some((x) => reviewGroupOf(x) === g));
+    if (!picked) continue;
+    const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
+    const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
+    const key = crit ? `${picked}:${crit}` : picked;
+    const label = crit ? `${LEAD_REVIEW_GROUP_WORDS[picked]} — ${leadLowerFirst(leadExclusionWord(search, crit))}` : LEAD_REVIEW_GROUP_WORDS[picked];
+    const g = by.get(key) ?? { id: picked, key, label, ids: [], acts: REVIEW_GROUP_ACTS[picked] };
+    g.ids.push(r.id);
+    by.set(key, g);
+  }
+  return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
 export interface LeadSearchRoundDto {
   id: string; seq: number; purpose: string; state: string; ending: LeadRoundEnding | null;
@@ -882,6 +959,8 @@ export interface LeadSearchRoundDto {
   ending_pending: boolean;
   waiting_since: string | null; cost_usd: number; ended_at: string | null;
   undo_op_id: string | null; undo_version: number | null;
+  /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
+  nearby: LeadArea[];
 }
 export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
@@ -921,6 +1000,8 @@ export interface LeadRowVM {
   /** The two contacts as one glance (D2's Reach column), and the listing's photo for the row's mark. */
   reach: { email: { address: string; state: LeadEmailState; word: string } | null; phone: { number: string; agrees: boolean } | null };
   image: string | null;
+  /** The class rule's reason tokens, for the Needs review queue (D3); [] on a row from before. */
+  reasons: string[];
   why: string; rating: string;
   /** The spread of reviews, "5★ 30 · 4★ 8 · 3★ 2 · 2★ 0 · 1★ 1", for the Rating cell's title; blank when the listing did not say. */
   reviewsTitle: string;
@@ -987,6 +1068,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
       phone: r.phone ? { number: r.phone, agrees: r.phone_agrees } : null,
     },
     image: r.image_url ?? null,
+    reasons: m.reasons ?? [],
     why: m.reason,
     rating,
     reviewsTitle: r.reviews_dist ? `5★ ${r.reviews_dist.five} · 4★ ${r.reviews_dist.four} · 3★ ${r.reviews_dist.three} · 2★ ${r.reviews_dist.two} · 1★ ${r.reviews_dist.one}` : "",
