@@ -2,7 +2,7 @@
  * Today's queue: everything that asks for a person, in one row grammar —
  * WhatsApp handoffs, callers who need a call back, reply windows closing,
  * calls worth an ear — the longest wait first, capped, each with its one verb
- * and, where the state asks it, a second. The hero keeps the narrative; the
+ * and, where the state asks it, a second. The standing line stays above; the
  * rows live in the queue, drawn by the same component as People's strip.
  */
 import { test } from "node:test";
@@ -98,11 +98,12 @@ test("the wiring: one row component for People and Today, the queue in the comma
   assert.ok(!people.includes("<window.AttnRow") && !people.includes('className="cl-attn-status"'), "People says it on the row, once");
   const queue = readCode("apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
   for (const s of ['data-testid="today-queue"', "<TodayQueue vm={window.TODAY_DATA} />", "vm.queue.rows", 'testid="brief-run-row"', 'testid="brief-run-soon"', 'data-testid="brief-live-call"', "surface:live", "surface:broadcasts", 'verb(r, r.also.verb)']) assert.ok(queue.includes(s), s);
-  const real = queue.slice(queue.indexOf("const LiveRail"), queue.indexOf("const AgentCommandSeed"));
-  assert.ok(real.includes("Your queue") && !real.includes("Agent Command"), "the real section is the queue, not a command bar; the seed keeps its title for the demo");
+  const real = queue.slice(queue.indexOf("const LiveRail"));
+  assert.ok(real.includes("Your queue") && !real.includes("Agent Command"), "the queue, not a command bar; the seed is gone");
+  assert.ok(!real.includes("tq-count"), "no count over rows that say it");
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
   for (const gone of ["needsYou.rows.slice(0, 2)", "earCalls.map", "liveCalls.map", "windowClosing.rows", "<RunsWaiting"]) assert.ok(!brief.includes(gone), `${gone} left the hero`);
-  assert.ok(brief.includes("<RunsDone nav={nav} />") && brief.includes('data-testid="brief-run-done"'), "what went out today stays a receipt in the hero");
+  assert.ok(brief.includes("<RunsDone nav={nav} />") && brief.includes('data-testid="brief-run-done"'), "what went out today is a line of the day's card");
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
   assert.ok(css.includes(".tq-live {") && css.includes(".tq-list .cl-attn-row:first-child { border-top: none; }"));
   const attn = readRaw("apps/dashboard/src/legacy/styles/clients.css");

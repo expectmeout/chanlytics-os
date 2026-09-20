@@ -4220,7 +4220,7 @@ Every file below either holds no `readCode(`/`readRaw(` call or keeps its count;
 const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
 globalThis.window.__today = TODAY_HELPERS;
 ```
-  (The queue's run rows read `window.__today.runs`; these five drew them before contracts owned the words.) In `refusals-on-the-page.test.mjs` also give the harness a `refusalToast` if it has none: check with `grep -n "refusalToast" tooling/scripts/tests/refusals-on-the-page.test.mjs`; it loads data-bits, which publishes one, so nothing to add.
+  (The queue's run rows read `window.__today.runs`; these five drew them before contracts owned the words.) In `gate-reason.test.mjs` and `refusals-on-the-page.test.mjs` the `__BROADCASTS` row also gains `when` and `counts: { sent, replied }`: `todayRunWords` reads `counts.sent`, and a fixture written when the page owned the words carries neither, so the row throws before the gate is ever reached. In `refusals-on-the-page.test.mjs` also give the harness a `refusalToast` if it has none: check with `grep -n "refusalToast" tooling/scripts/tests/refusals-on-the-page.test.mjs`; it loads data-bits, which publishes one, so nothing to add.
 
 - [ ] **Step 2: `today-doors.test.mjs`.**
   - `const mountRecap = ...` becomes `const mountCard = (vm) => { globalThis.window.TODAY_DATA = vm; cells = []; seq = 0; return globalThis.window.TodayCard(); };` and every `mountRecap(` becomes `mountCard(`; the comment above it: `// The day's lines (its receipts, the proof, a reply that failed) sit in the day's card under the work (TodayCard).`

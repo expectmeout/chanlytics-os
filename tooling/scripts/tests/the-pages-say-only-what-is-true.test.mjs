@@ -175,6 +175,8 @@ Object.assign(globalThis.window, { canDo: () => true, appNavigate() {}, setInter
 await import("../../../apps/dashboard/src/legacy/pages/attention-bits.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
+globalThis.window.__today = TODAY_HELPERS;
 
 const todayWith = (channels) => toTodayVM({
   ...metrics(null),
@@ -186,8 +188,8 @@ const mountToday = (vm) => {
   cells = []; seq = 0;
   const hero = textOf(globalThis.window.HeroBrief());
   cells = []; seq = 0;
-  // The day's own lines sit under the work now, in the recap; the hero is the standing line above it.
-  const recap = textOf(globalThis.window.TodayRecapBody());
+  // The day's card sits under the work; the hero is the standing line above it.
+  const recap = textOf(globalThis.window.TodayCard());
   cells = []; seq = 0;
   const queue = textOf(globalThis.window.AgentCommand());
   return { hero, recap, queue };
@@ -436,9 +438,9 @@ test("REGRESSION (D5): Today's 'went out' line is the business's today, at the b
     cells = []; seq = 0;
     // The line is drawn by a component that returns a list, which the walk does not enter: read it off its own node.
     let lines = null;
-    walk(globalThis.window.TodayRecapBody(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
+    walk(globalThis.window.TodayCard(), (n) => { if (lines === null && typeof n.type === "function" && n.type.name === "RunsDone") lines = n.rendered; });
     const said = (lines || []).map(textOf).join(" | ");
-    assert.ok(said.includes("went out at 1:30 AM — 8 sent, 1 replied") && said.includes("Spring offer"), `REGRESSION: yesterday in New York, so not said at all: ${said}`);
+    assert.ok(said.includes("went out at 1:30 AM: 8 sent, 1 replied") && said.includes("Spring offer"), `REGRESSION: yesterday in New York, so not said at all: ${said}`);
   });
 });
 
