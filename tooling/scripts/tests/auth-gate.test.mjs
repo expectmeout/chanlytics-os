@@ -133,7 +133,7 @@ test("two public PREFIXES, and only a workspace's own two pages live under them"
   assert.deepEqual(fs.readdirSync(path.join(ROOT, "apps/dashboard/app/b/[slug]/terms")), ["page.tsx"], "the terms are a page, not a route that takes input");
 });
 
-test("only these eleven paths are reachable without a session", () => {
+test("only these twelve paths are reachable without a session", () => {
   const block = /PUBLIC_PATHS\s*=\s*new Set\(\[([^\]]*)\]/.exec(middleware);
   assert.ok(block, "PUBLIC_PATHS must be a literal Set so this test can read it");
   const paths = [...block[1].matchAll(/["']([^"']+)["']/g)].map((m) => m[1]).sort();
@@ -154,7 +154,11 @@ test("only these eleven paths are reachable without a session", () => {
   // code, which is what creates the session the new password is written on —
   // so it is also deliberately absent from the signed-in redirect below, where
   // bouncing a signed-in person would break the page's own second step.
-  assert.deepEqual(paths, ["/api/v1/signup", "/api/version", "/auth/callback", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/reset-password", "/signup", "/terms"]);
+  // The filler calendar joined with the filler: a workspace that carries the
+  // filler's people points its calendar address at this feed, and the calendar
+  // reader fetches it from the server with no session, the way it fetches any
+  // feed. It is generated from the clock, names nobody real, and reads nothing.
+  assert.deepEqual(paths, ["/api/v1/calendar/filler.ics", "/api/v1/signup", "/api/version", "/auth/callback", "/auth/signout", "/data-deletion", "/login", "/manifest.webmanifest", "/privacy", "/reset-password", "/signup", "/terms"]);
   assert.match(middleware, /path === "\/login" \|\| path === "\/signup"/, "and the two doors a signed-in person is sent away from stay those two");
 });
 
