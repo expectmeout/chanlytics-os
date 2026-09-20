@@ -325,6 +325,11 @@ interface LeadPageRow {
 }
 
 /** What the judge answered for each criterion of this place, by the plan's own key. */
+/** The reason tokens contracts' classify wrote on the membership; [] when the judgment carries none. */
+function reasonsOf(judgment: unknown): string[] {
+  const j = judgment && typeof judgment === "object" ? (judgment as { reasons?: unknown }) : null;
+  return Array.isArray(j?.reasons) ? j.reasons.filter((x): x is string => typeof x === "string") : [];
+}
 function judgedBy(judgment: unknown): Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }> {
   const out = new Map<string, { answer: "yes" | "no" | "unknown"; reason: string | null }>();
   const j = judgment && typeof judgment === "object" ? (judgment as { answer?: { criteria?: unknown; reason?: unknown } | null }) : null;
@@ -422,6 +427,9 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
       distance_m: r.distance_m,
       counted: r.counted,
       checks: checksOf(r),
+      // The class rule's own reason tokens (email:unknown, unknown:<key>, inferred:<key>, out_of_area ...): what the
+      // Needs review queue groups by (D3, contracts leadReviewGroups). Never words; the page spells them.
+      reasons: reasonsOf(r.judgment),
       other_emails: others.filter((e) => typeof e.email === "string").map((e) => ({ email: String(e.email), why: typeof e.why === "string" ? e.why : "another address" })),
     },
   };

@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
-  toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding,
+  toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
   leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
@@ -282,6 +282,27 @@ test("when a limit binds, the count is clamped to what is left, the button says 
   assert.deepEqual(month, { count: 36, label: "Find 36 leads", covers: "You have 36 leads left this month. Your leads renew on Oct 1." });
   assert.equal(/\$/.test(`${budget.covers} ${month.covers}`), false, "no dollar meter, ever");
   assert.equal(leadPlanAsk(CARD_PLAN, { ...PLAN_FACTS, leadsLeft: 600, bound: "allowance" }).covers, null, "a limit above the ask does not bind");
+});
+
+test("Needs review is grouped by what resolves it, in the order an owner would work it", () => {
+  const rv = (id, reasons) => row({ id, member: { ...row().member, class: "review", fit: "look", reasons } });
+  const rows = [
+    rv("a", ["email:checking"]), rv("b", ["email:unknown"]), rv("c", ["email:none"]), rv("d", ["email:catch_all"]),
+    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]),
+    row({ id: "q" }),
+  ];
+  const groups = leadReviewGroups(rows, SEARCH_DONE);
+  assert.deepEqual(groups.map((g) => [g.id, g.label, g.ids, g.acts]), [
+    ["mailbox_waiting", "Waiting on the mailbox check", ["a"], []],
+    ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
+    ["no_email", "No email on their site", ["c"], ["find_email", "keep", "exclude"]],
+    ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
+    ["unsure", "Couldn't tell if — with a website", ["e"], ["keep", "exclude"]],
+    ["read_only", "Only the listing says so — with a website", ["f"], ["keep", "exclude"]],
+    ["out_of_area", "Just outside the area you asked for", ["g"], ["keep", "exclude"]],
+  ], "one group per resolver, a lead in the first group that fits it, the criterion named in the owner's words, a qualified row in none");
+  assert.deepEqual(leadReviewGroups([], SEARCH_DONE), []);
+  assert.deepEqual(leadReviewGroups([row({ id: "old", member: { ...row().member, class: "review" } })], SEARCH_DONE), [], "a row from before D3 carries no reasons and lands in no group");
 });
 
 // D2: who they are, from what the listing shows. NOW is a Friday in America/Chicago.

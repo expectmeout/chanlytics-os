@@ -868,7 +868,72 @@ export interface LeadRowDto {
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null; last_note: string | null; contacted_at: string | null; converted_at: string | null;
   places: number; found_at: string; exported_at: string | null; version: number;
-  member: { class: LeadClass; fit: "strong" | "look" | "long" | null; reason: string; excluded_by: string | null; distance_m: number | null; counted: boolean; checks: LeadCheck[]; other_emails: { email: string; why: string }[] };
+  member: {
+    class: LeadClass; fit: "strong" | "look" | "long" | null; reason: string; excluded_by: string | null; distance_m: number | null; counted: boolean; checks: LeadCheck[]; other_emails: { email: string; why: string }[];
+    /** The class rule's reason tokens (D3): what Needs review is grouped by. Optional: a fixture from before carries none. */
+    reasons?: string[];
+  };
+}
+
+/* ------------------------------------------- Needs review, as a queue (D3) */
+
+/** "Independent" -> "independent" for the middle of a sentence; a name that is capitals stays as it is. */
+export const leadLowerFirst = (s: string): string => (s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
+export const LEAD_REVIEW_GROUP_WORDS = {
+  mailbox_waiting: "Waiting on the mailbox check",
+  mailbox_silent: "Their mail server wouldn't answer",
+  no_email: "No email on their site",
+  catch_all: "Unconfirmed — the mailbox accepts any address",
+  unsure: "Couldn't tell if",
+  read_only: "Only the listing says so",
+  out_of_area: "Just outside the area you asked for",
+} as const;
+export type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
+export type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
+/** The order an owner would work the pile: what resolves itself first, then what one press resolves, then what needs a look. */
+const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "mailbox_silent", "no_email", "catch_all", "unsure", "read_only", "out_of_area"];
+const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
+  mailbox_waiting: [],
+  mailbox_silent: ["check_again", "keep", "exclude"],
+  no_email: ["find_email", "keep", "exclude"],
+  catch_all: ["keep", "exclude"],
+  unsure: ["keep", "exclude"],
+  read_only: ["keep", "exclude"],
+  out_of_area: ["keep", "exclude"],
+};
+function reviewGroupOf(reason: string): LeadReviewGroupId | null {
+  if (reason === "email:checking") return "mailbox_waiting";
+  if (reason === "email:unknown") return "mailbox_silent";
+  if (reason === "email:none") return "no_email";
+  if (reason === "email:catch_all") return "catch_all";
+  if (reason.startsWith("unknown:")) return "unsure";
+  if (reason.startsWith("inferred:")) return "read_only";
+  if (reason === "out_of_area") return "out_of_area";
+  return null;
+}
+export interface LeadReviewGroup { id: LeadReviewGroupId; key: string; label: string; ids: string[]; acts: LeadReviewAct[] }
+/**
+ * Needs review as a queue: one group per thing that would resolve it, each with the leads in it and the acts that
+ * resolve it. A lead with two reasons sits in the first group that fits it, in the order above; a group about one
+ * criterion names it in the owner's own words from the plan, and two criteria make two groups.
+ */
+export function leadReviewGroups(rows: LeadRowDto[], search: LeadSearchDto | null): LeadReviewGroup[] {
+  const by = new Map<string, LeadReviewGroup>();
+  for (const r of rows) {
+    if (r.member.class !== "review") continue;
+    const reasons = r.member.reasons ?? [];
+    const picked = REVIEW_GROUP_ORDER.find((g) => reasons.some((x) => reviewGroupOf(x) === g));
+    if (!picked) continue;
+    const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
+    const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
+    const key = crit ? `${picked}:${crit}` : picked;
+    const label = crit ? `${LEAD_REVIEW_GROUP_WORDS[picked]} — ${leadLowerFirst(leadExclusionWord(search, crit))}` : LEAD_REVIEW_GROUP_WORDS[picked];
+    const g = by.get(key) ?? { id: picked, key, label, ids: [], acts: REVIEW_GROUP_ACTS[picked] };
+    g.ids.push(r.id);
+    by.set(key, g);
+  }
+  return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
 export interface LeadSearchRoundDto {
   id: string; seq: number; purpose: string; state: string; ending: LeadRoundEnding | null;
