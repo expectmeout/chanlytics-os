@@ -11664,7 +11664,8 @@ function leadReviewGroups(rows, search) {
   for (const r of rows) {
     if (r.cls !== "review") continue;
     const reasons = r.reasons ?? [];
-    const picked = REVIEW_GROUP_ORDER.find((g2) => reasons.some((x) => reviewGroupOf(x) === g2));
+    const held = reasons.map(reviewGroupOf).filter((g2) => g2 !== null && g2 !== "checks_out");
+    const picked = held.length ? REVIEW_GROUP_ORDER.find((g2) => held.includes(g2)) : reasons.some((x) => reviewGroupOf(x) === "checks_out") ? "checks_out" : void 0;
     if (!picked) continue;
     const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
     const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;

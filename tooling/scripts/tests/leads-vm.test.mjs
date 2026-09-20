@@ -288,7 +288,7 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
   const rv = (id, reasons) => ({ id, cls: "review", reasons });
   const rows = [
     rv("a", ["email:checking"]), rv("b", ["email:unknown"]), rv("c", ["email:none"]), rv("d", ["email:catch_all"]),
-    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]), rv("i", ["email:invalid"]), rv("j", ["email:ok"]),
+    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]), rv("i", ["email:invalid"]), rv("j", ["email:ok"]), rv("k", ["email:ok", "unknown:website"]),
     { id: "q", cls: "qualified", reasons: [] },
   ];
   const groups = leadReviewGroups(rows, SEARCH_DONE);
@@ -299,10 +299,10 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
     ["bad_email", "Their email bounces", ["i"], ["find_email", "keep", "exclude"]],
     ["no_email", "No email on their site", ["c"], ["find_email", "keep", "exclude"]],
     ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
-    ["unsure", "Couldn't tell if — with a website", ["e"], ["keep", "exclude"]],
+    ["unsure", "Couldn't tell if — with a website", ["e", "k"], ["keep", "exclude"]],
     ["read_only", "Only the listing says so — with a website", ["f"], ["keep", "exclude"]],
     ["out_of_area", "Just outside the area you asked for", ["g"], ["keep", "exclude"]],
-  ], "one group per resolver, a lead in the first group that fits it, the criterion named in the owner's words, a qualified row in none");
+  ], "one group per resolver, a lead in the first group that fits it, the criterion named in the owner's words, a qualified row in none, and an address that checks out groups a lead only when nothing else holds it back");
   assert.deepEqual(leadReviewGroups([], SEARCH_DONE), []);
   assert.deepEqual(leadReviewGroups([{ id: "old", cls: "review", reasons: [] }], SEARCH_DONE), [], "a row from before D3 carries no reasons and lands in no group");
   assert.deepEqual(toLeadRowVM(row({ member: { ...row().member, class: "review", reasons: ["email:none"] } }), TZ, NOW).reasons, ["email:none"], "the row VM carries them, so the page can group without the DTO");

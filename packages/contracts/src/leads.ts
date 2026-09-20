@@ -935,7 +935,10 @@ export function leadReviewGroups(rows: { id: string; cls: LeadClass; reasons: st
   for (const r of rows) {
     if (r.cls !== "review") continue;
     const reasons = r.reasons ?? [];
-    const picked = REVIEW_GROUP_ORDER.find((g) => reasons.some((x) => reviewGroupOf(x) === g));
+    // An address that checks out is not a problem: it groups a lead only when nothing else holds the lead back
+    // (the month was full when its check answered), for Keep to count it. Anything else the lead waits on comes first.
+    const held = reasons.map(reviewGroupOf).filter((g): g is LeadReviewGroupId => g !== null && g !== "checks_out");
+    const picked = held.length ? REVIEW_GROUP_ORDER.find((g) => held.includes(g)) : reasons.some((x) => reviewGroupOf(x) === "checks_out") ? "checks_out" : undefined;
     if (!picked) continue;
     const reason = reasons.find((x) => reviewGroupOf(x) === picked) ?? "";
     const crit = (picked === "unsure" || picked === "read_only") && reason.includes(":") ? reason.slice(reason.indexOf(":") + 1) : null;
