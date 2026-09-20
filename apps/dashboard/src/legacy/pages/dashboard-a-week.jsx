@@ -30,7 +30,7 @@ const TodayLeaks = () => {
   const R = window.__REPORTS;
   const P = window.__PEOPLE;
   if (!window.__today || !R || !P) return null;
-  const rows = window.__today.leaks(R, P);
+  const { rows } = window.__today.leaks(R, P);
   if (!rows.length) return null;
   return (
     <section className="tsec tl" data-testid="today-leaks">

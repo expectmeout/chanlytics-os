@@ -1329,11 +1329,15 @@ export interface ReportsLike {
     empty: boolean;
     tiles: WeekTileLike[];
     /** Who answered the period's customer messages: `none` is the number nobody ever answered. */
-    answered?: { totals: { in: number; ai: number; you: number; none: number } };
+    answered?: { totals: { in: number; ai: number; you: number; none: number }; share?: number | null };
     /** Why the receptionist stopped, most common first — the period's "driven by". */
     reasons?: Array<{ id: string; label: string; value: number }>;
     /** The reply time as Reports computes it; the period line says the median once. */
     replyTime?: { count: number; medianLabel: string };
+    /** Reports' own words for the period ("Last 7 days"), so the foot line never spells them a second time. */
+    period?: { now: string };
+    /** Reports' own count of the period's calls: a number, never a tile's formatted value. */
+    calls?: { total: number };
   };
   /** Null: the offers' read failed on its own and the receptionist's own numbers still stand (the bridge's D9 catch). */
   campaigns: { tiles: WeekTileLike[]; empty: boolean } | null;
@@ -1455,44 +1459,33 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
 
 /**
  * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
- * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, said in
- * Reports' own words: the messages tile's comparison in counts, the share of the answered, the median reply.
- * It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it took the
- * whole page down.
+ * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
+ * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
+ * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `replyTime.medianLabel`, its
+ * `calls.total`. It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it
+ * took the whole page down.
  */
 export function todayPeriodLine(r: ReportsLike | null): { text: string; to: "reports" } | null {
   if (!r || !r.vm) return null;
   const v = r.vm;
-  const range = v.rangeLabel;
-  if (v.empty) return { text: `Last ${range}: nobody wrote or called.`, to: "reports" };
-  const tile = (id: string) => v.tiles.find((t) => t.id === id);
-  const messages = tile("messages");
-  const a = v.answered?.totals;
-  const parts: string[] = [];
-  const inCount = a ? a.in : Number(messages?.value ?? 0);
-  parts.push(`${inCount} customer message${inCount === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`);
-  if (a) {
-    const answeredTotal = a.ai + a.you + a.none;
-    if (answeredTotal) parts.push(`${Math.round((a.ai / answeredTotal) * 100)}% answered by the receptionist`);
-  }
+  const lead = v.period?.now ?? `Last ${v.rangeLabel}`;
+  if (v.empty) return { text: `${lead}: nobody wrote or called.`, to: "reports" };
+  const a = v.answered;
+  if (!a) return null;
+  const messages = v.tiles.find((t) => t.id === "messages");
+  const parts = [`${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`];
+  if (a.share !== undefined && a.share !== null) parts.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
   if (v.replyTime && v.replyTime.count > 0) parts.push(`median reply ${v.replyTime.medianLabel}`);
-  const calls = tile("calls");
-  const callCount = Number(calls?.value ?? 0);
+  const callCount = v.calls ? v.calls.total : 0;
   if (callCount) parts.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
-  return { text: `Last ${range}: ${parts.join(", ")}.`, to: "reports" };
+  return { text: `${lead}: ${parts.join(", ")}.`, to: "reports" };
 }
 
 /* ------------------------------ the runs' words ------------------------------ */
 
-/** A broadcast or a playbook's run as the broadcasts surface publishes it, as far as Today reads it. */
+/** A broadcast or a playbook's run as the broadcasts surface publishes it (toBroadcastVM), as far as the words read it. */
 export interface RunLike {
-  id: string;
   state: string;
-  playbook_id: string | null;
-  scheduled_for: string;
-  started_at: string | null;
-  name: string;
-  audience: { label: string };
   recipient_count: number;
   /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
   when: string;
@@ -1514,7 +1507,8 @@ export interface TodayRunWordsVM {
  * Every sentence with a number the queue and the day's card say about a playbook's run. The page kept seven of
  * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
  * stated in this file's own header and enforced next door on Reports. The page keeps deciding WHICH rows wait, are
- * scheduled or went out today; it composes none of their words.
+ * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
+ * sends until you say so."), where the page had a middle dot and no capital.
  */
 export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const people = `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
@@ -1532,9 +1526,12 @@ export function todayRunsSub(n: number): string | null {
   return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
 }
 
-/** The toast when a waiting run is approved: who it reaches and when it really goes (bcWhenWords). */
-export function todayRunApproved(label: string, n: number, when: string): string {
-  return `${label} approved: ${n} ${n === 1 ? "person" : "people"}, ${when}`;
+/**
+ * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
+ * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.
+ */
+export function todayRunApproved(label: string, n: number, when: string): { lead: string; rest: string } {
+  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 
 /** A People list as the People surface publishes it. */
@@ -1602,9 +1599,13 @@ export interface TodayLeakVM {
   text: string;
   /** The arithmetic behind the sentence, so nobody has to take it on faith. */
   math: string;
-  /** Who is waiting, up to two, on the unanswered row: the threads Today holds with nothing back. */
+  /**
+   * Who is waiting NOW with nothing back, up to two, on the unanswered row: the threads Today holds. They are not the
+   * count's own subjects (the count is Reports' over its period), so the page draws them under "Waiting now" and
+   * never as the people the sentence counts.
+   */
   people: Array<{ id: string; name: string; to: string }>;
-  /** What "Ask why" asks: the row's own sentence. Ask grounds every citation in what it read. */
+  /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
   ask: string;
   /** The door. */
   cta: { label: string; to: string };
@@ -1637,7 +1638,7 @@ export const TODAY_LEAK_MAX = 2;
  */
 const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "unreachable", "quiet"];
 
-const askWhy = (text: string): string => `${text} Why is that?`;
+const askWhy = (text: string, math: string): string => `${text} ${math}. Why is that?`;
 
 export function todayLeaks(
   reports: ReportsLike | null,
@@ -1662,15 +1663,16 @@ export function todayLeaks(
     const text = booked === 0
       ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
       : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+    const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
     found.set("never-booked", {
       id: "never-booked",
       tone: "danger",
       tag: "Booking gap",
       icon: "calendar",
       text,
-      math: never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline,
+      math,
       people: [],
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
       also: step("asked_never_booked"),
     });
@@ -1683,15 +1685,16 @@ export function todayLeaks(
   // over its period; the names are the threads waiting right now.
   if (reports && a && a.none >= 2) {
     const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
+    const math = `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
     found.set("unanswered", {
       id: "unanswered",
       tone: "danger",
       tag: "No reply",
       icon: "alert",
       text,
-      math: `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`,
+      math,
       people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
       also: null,
     });
@@ -1704,15 +1707,16 @@ export function todayLeaks(
   // Three, for the same reason: one person who said yes is not yet a list.
   if (yes && offers && yes.count >= 3 && offers.count === 0) {
     const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`;
+    const math = "a broadcast reaches only the second yes · 0 can receive one";
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",
       tag: "Reach",
       icon: "users",
       text,
-      math: "a broadcast reaches only the second yes · 0 can receive one",
+      math,
       people: [],
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
       also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
     });
@@ -1721,15 +1725,16 @@ export function todayLeaks(
   const quiet = list("quiet");
   if (quiet && quiet.count >= 5) {
     const text = `${quiet.count} people have not heard from you in 30 days.`;
+    const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
     found.set("quiet", {
       id: "quiet",
       tone: "info",
       tag: "Gone quiet",
       icon: "clock",
       text,
-      math: people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list",
+      math,
       people: [],
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
       also: step("quiet"),
     });
@@ -1853,7 +1858,7 @@ export interface TodayAwayVM<T extends AwayRowLike> {
   total: number;
   /** Of `total`, how many are not on screen: under the cap, or in the queue above. */
   more: number;
-  /** Of `more`, the ones dropped because their conversation is in the queue above. */
+  /** Of `more`, the ones dropped because the queue above already holds what they are about: their thread or their call. */
   queued: number;
   /** The foot, when a row is drawn and something unread is not on screen. */
   foot: string | null;
@@ -1865,8 +1870,8 @@ export interface TodayAwayVM<T extends AwayRowLike> {
  * What happened while the owner was away, as Today reads it rather than as
  * the bell lists it.
  *
- * Three rules, and each one was a real page: a conversation already sitting
- * in the queue at the top of this page is NOT repeated here; twelve calls
+ * Three rules, and each one was a real page: a row about anything already sitting
+ * in the queue at the top of this page (its thread or its call) is NOT repeated here; twelve calls
  * from the same line become one row that says twelve, because five identical
  * "No conversation happened" cards pushed a WhatsApp quality downgrade and
  * three failed jobs off the bottom; and a warning sorts above good news, so
@@ -1877,7 +1882,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   inQueue: readonly AwayQueueRef[] = [],
   max = 5,
 ): TodayAwayVM<T> {
-  const convs = new Set(inQueue.map((q) => (typeof q === "string" ? q : q.conversationId ?? null)).filter((id): id is string => !!id));
+  const convs = new Set(inQueue.flatMap((q) => { const id = typeof q === "string" ? q : q.conversationId; return id ? [id] : []; }));
   const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
   const idOf = (r: T) => r.id ?? r.key ?? "";
   // A row about a conversation says so in three different ways, and only one of
