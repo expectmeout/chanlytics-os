@@ -37,6 +37,8 @@ Names and wording here are final; a task that needs something else says so in it
 - Spec 4.5 lists the fourth figure as "anyone new"; under a number the word is `new people` ("2 new people").
 - Spec 5's two sentences that said WhatsApp over a count spanning every wire were fixed in #686 (`ask/tools.ts` names every wire; the "WhatsApp" strings left in `today.ts` are the window row's, whose window is WhatsApp's). Nothing to do here.
 - Spec 4.5's phone receipt is "a panel that opens under the row of figures": the receipt is drawn as the last child of the row of figures (not inside its figure), so a phone lays it under the row (`grid-column: 1 / -1`) and a desktop anchors it under its figure by index (`--i`).
+- Spec 4.6 says the unanswered row "names who was ignored" from the query's own identities; the count is Reports' over its period and the names are the threads Today holds with nothing back right now, two different populations. The page therefore draws the names under a "Waiting now" lead (`TodayLeakVM.people`'s doc makes that binding) and never as the count's subjects.
+- Spec 5 frames the run sentences as relocations; they are also a wording change ("3 people · nothing sends until you say so" → "3 people. Nothing sends until you say so."), to sentence case and the queue's own grammar. Nothing pinned the old strings.
 - Spec 3 says "Coral marks live state only": the day module's "Needs you" flag and flagged count, Setup's not-answering dot and the beats' default dot were accent and are not live; they move to `--danger`/`--warn`/`--ink-faint` in Task B8. The now marker on the schedule's rail and the call in progress stay accent: they are live.
 
 ### Contracts (`packages/contracts/src/today.ts`), after PR A
@@ -59,10 +61,10 @@ Names and wording here are final; a task that needs something else says so in it
 - **One derivation of the escalations:** `escRecords` is read once per open escalation (who, waited, warn, the customer's words, the call-back's call, the closing time); `needsYou.rows` (Ask's) and the queue's handoff and call-back rows are both drawn from it. Where they disagreed on a call-back, Ask's row now carries the to-do the phone receptionist left as its `quote` when the thread has no customer words, and `meta: "Phone"` for a call-back with no thread.
 - `todayProof(live: { last_inbound_at; last_outbound_at }, tz, now): string` (exported; also `quiet.sub`'s second sentence, so the two cannot drift).
 - `todayPeriodLine(r: ReportsLike | null): { text: string; to: "reports" } | null`: `Last {range}: {in} customer messages ({compare}), {pct}% answered by the receptionist, median reply {medianLabel}, {calls} calls.`; each part only where it is true (`compare` from the messages tile when Reports gives one, the share when anything was answered, the median when there were replies, the calls when there were any); `Last {range}: nobody wrote or called.` on an empty period; null without Reports. Never touches `r.campaigns`.
-- `todayRunWords(r: RunLike): TodayRunWordsVM` for the queue's run rows and the card's "what ran": `{ people: "3 people", waiting: { sentence: "3 people. Nothing sends until you say so.", status: ["Waiting for your approval"] }, soon: { meta: "Playbook · sends today 9:00 AM", sentence: "3 people. Stop it if you'd rather not.", status: ["Scheduled", "sends today 9:00 AM"] }, done: { counts: "6 sent, 1 replied", still: boolean } }`; `todayRunsSub(n): string | null` (`"2 runs waiting"`, null at 0); `todayRunApproved(label, n, when): string` (`"Win-back approved: 3 people, sending now"`). The page keeps its filters (which rows wait, which are scheduled, which went out today); it composes no sentence with a number.
-- `todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX): { rows: TodayLeakVM[]; more: number; moreLine: string | null }` (`moreLine` is `"and 2 more"`, null at 0). `TodayLeakVM` gains `tag` (never-booked `Booking gap`, unanswered `No reply`, unreachable `Reach`, quiet `Gone quiet`), `icon` (`calendar`, `alert`, `users`, `clock`), `people` (the unanswered row only: up to two of `noReply` as `{ id: conversationId, name: who, to }`), and `ask: "{text} Why is that?"`. Texts, maths, doors and floors unchanged (owner-signals pins the unreachable sentence and its two doors).
+- `todayRunWords(r: RunLike): TodayRunWordsVM` for the queue's run rows and the card's "what ran": `{ people: "3 people", waiting: { sentence: "3 people. Nothing sends until you say so.", status: ["Waiting for your approval"] }, soon: { meta: "Playbook · sends today 9:00 AM", sentence: "3 people. Stop it if you'd rather not.", status: ["Scheduled", "sends today 9:00 AM"] }, done: { counts: "6 sent, 1 replied", still: boolean } }`; `todayRunsSub(n): string | null` (`"2 runs waiting"`, null at 0); `todayRunApproved(label, n, when): { lead, rest }` (`{ lead: "Win-back", rest: "approved: 3 people, sending now" }`: the page sets the lead in bold). `RunLike` is only what the words read: `state`, `recipient_count`, `when`, `counts`. The page keeps its filters (which rows wait, which are scheduled, which went out today); it composes no sentence with a number.
+- `todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX): { rows: TodayLeakVM[]; more: number; moreLine: string | null }` (`moreLine` is `"and 2 more"`, null at 0). `TodayLeakVM` gains `tag` (never-booked `Booking gap`, unanswered `No reply`, unreachable `Reach`, quiet `Gone quiet`), `icon` (`calendar`, `alert`, `users`, `clock`), `people` (the unanswered row only: up to two of `noReply` as `{ id: conversationId, name: who, to }`), and `ask: "{text} {math}. Why is that?"` (the sentence and its arithmetic, for Ask). Texts, maths, doors and floors unchanged (owner-signals pins the unreachable sentence and its two doors).
 - `todayAwayGrouped(rows, inQueue: readonly (string | { conversationId?: string | null; callId?: string | null })[] = [], max = 5)`: a bell row is dropped when it is about a queued thread (kept `about.type === "conversation"`, a derived `needs:th-<cv>` key, or a door `inbox/th-<cv>`: a held draft is keyed by its message) or a queued call (kept `about.type === "call"`, a derived `call:<id>` key, `callOfKey` in `notifications.ts` beside `conversationOfNeedsKey`). Strings still work as conversation ids.
-- `ReportsLike.vm` gains optional `replyTime?: { count: number; medianLabel: string }`; `WeekTileLike` gains optional `compare?: string | null`.
+- `ReportsLike.vm` gains optional `replyTime?: { count: number; medianLabel: string }`, `period?: { now: string }`, `calls?: { total: number }` and `answered.share?: number | null`; `WeekTileLike` gains optional `compare?: string | null`. The period line reads each of them from the view model Reports draws and derives nothing a second time (no percentage of its own, no parsing of a tile's value).
 - Kept until PR B removes them with the page: `todayWeek`, `todayJourney`, `todayDayFacts`, `todayDayLine`, `todayAway` and their types. Kept for Ask: `standing.headline/detail/tone/chips`, `needsYou`, `windowClosing`, `recap` (`line`, `sentences`, `facts`, `receipts`), `calls`, `quiet` (its `launchpad` is the quiet card's one door and stays).
 - `legacy-bridge/today.ts` publishes `window.__today = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway }` after PR A, and `{ day, periodLine, runs, runsSub, runApproved, leaks, awayGrouped }` after PR B.
 
@@ -1208,7 +1210,9 @@ Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
 
   (a) The import line becomes:
 ```js
-import { todayLeaks as todayLeaksV2, todayAwayGrouped, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
+import { todayLeaks as todayLeaksV2, todayAwayGrouped, todayPeriodLine, todayRunWords, todayRunsSub, todayRunApproved, toBroadcastVM, unreadCount, TODAY_LEAK_MAX, SERVER_NOTIFICATION_KINDS, serverNotificationRows } from "@chanlytics/contracts";
+// The mockup's sample is a real ReportsSurface (reportDto through toReportVM): the round trip the period line is tested on.
+import { reportsSample } from "../../../apps/dashboard/src/legacy-bridge/reports-sample.ts";
 
 // v2 returns { rows, more } and takes who is waiting before the cap; the rules pinned below are about the rows, so
 // they read them through this and stay as written.
@@ -1221,10 +1225,11 @@ const todayLeaks = (r, p, max) => todayLeaksV2(r, p, [], max).rows;
 ```js
 /* ------------------------------ worth a look, v2 ------------------------------ */
 
-test("each row wears a word and an icon for its tone, and offers Ask its own facts", () => {
+test("each row wears a word and an icon for its tone, and offers Ask its own facts with their arithmetic", () => {
   const { rows } = todayLeaksV2(reports(), people());
   assert.deepEqual(rows.map((l) => [l.id, l.tag, l.icon]), [["never-booked", "Booking gap", "calendar"], ["unanswered", "No reply", "alert"]]);
-  assert.equal(rows[0].ask, "18 people wrote or called in the last 30 days. Not one of them is on the calendar. Why is that?");
+  assert.equal(rows[0].ask, "18 people wrote or called in the last 30 days. Not one of them is on the calendar. 0 of 18 booked · 17 on Asked, never booked. Why is that?", "the sentence and the arithmetic under it, so Ask grounds the answer in the same numbers");
+  assert.equal(rows[1].ask, "4 customer messages never got an answer at all. of 21 in the last 30 days · the receptionist answered 16, you answered 1. Why is that?");
   const { rows: reach } = todayLeaksV2(reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } }), people());
   assert.deepEqual(reach.map((l) => [l.id, l.tag, l.icon]), [["unreachable", "Reach", "users"], ["quiet", "Gone quiet", "clock"]]);
   assert.equal(reach[0].text, "7 people have said yes to messages, but nobody has said yes to offers.", "the sentence the nightly pins stays");
@@ -1239,11 +1244,12 @@ test("a third problem is counted, not dropped in silence", () => {
   assert.equal(two.rows.length, TODAY_LEAK_MAX);
   assert.equal(two.more, 2, "the two it did not draw");
   assert.equal(two.moreLine, "and 2 more", "said by contracts, drawn by the page");
+  assert.equal(todayLeaksV2(reports(), people(), [], 3).moreLine, "and 1 more");
   assert.equal(all.moreLine, null);
   assert.deepEqual(todayLeaksV2(null, null), { rows: [], more: 0, moreLine: null });
 });
 
-test("the unanswered row names who is waiting, up to two, from the threads Today holds", () => {
+test("the unanswered row names who is waiting NOW, up to two, from the threads Today holds: not the count's own subjects", () => {
   const waiting = [
     { conversationId: "cv-d", who: "Dulce Amaro", sinceMs: 1, to: "inbox/th-cv-d" },
     { conversationId: "cv-r", who: "Renata Solís", sinceMs: 2, to: "inbox/th-cv-r" },
@@ -1251,7 +1257,7 @@ test("the unanswered row names who is waiting, up to two, from the threads Today
   ];
   const row = todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "unanswered");
   assert.deepEqual(row.people, [{ id: "cv-d", name: "Dulce Amaro", to: "inbox/th-cv-d" }, { id: "cv-r", name: "Renata Solís", to: "inbox/th-cv-r" }]);
-  assert.equal(row.text, "4 customer messages never got an answer at all.", "the count stays Reports'; the names are the threads waiting now");
+  assert.equal(row.text, "4 customer messages never got an answer at all.", "the count stays Reports' over its period; the names are the threads waiting right now, and the page says so");
   assert.deepEqual(todayLeaksV2(reports(), people()).rows.find((l) => l.id === "unanswered").people, []);
   assert.deepEqual(todayLeaksV2(reports(), people(), waiting).rows.find((l) => l.id === "never-booked").people, [], "only the unanswered row names people");
 });
@@ -1265,33 +1271,50 @@ test("the dedupe covers all four queue kinds: a closing window's thread, a call 
     { ...bell("call:k-3", "missed_call", "Missed call · Kenia", "warn"), actions: [{ label: "See the call", to: "conversations/cv-k-3", primary: true }] },
     bell("n:7", "call", "+1 (929) 370-9606 phoned", "", { type: "call", id: "k-9" }),
     bell("n:8", "review", "1 new rating on Google", "ok"),
+    // A row as serverNotificationRows shapes it: its door on `to`, nothing on `about`.
+    { ...bell("n:9", "handoff", "Priya Nair needs you", "warn"), to: "inbox/th-cv-p" },
   ];
   const queue = [
     { conversationId: "cv-1", callId: null },                 // a handoff
     { conversationId: "cv-w", callId: null },                 // a reply window closing
     { conversationId: null, callId: "k-3" },                  // a call worth a listen
     { conversationId: "cv-k", callId: "k-9" },                // a call-back and its call
+    { conversationId: "cv-p", callId: null },                 // a handoff whose bell row names its thread only by its door
   ];
   const out = todayAwayGrouped(rows, queue, 5);
   assert.deepEqual(out.groups.map((g) => g.row.id), ["n:8"], "every row about something the queue above holds is dropped");
-  assert.equal(out.total, 5, "and still counted on the head, because it is still in the bell");
-  assert.equal(out.queued, 4);
-  assert.equal(out.foot, "4 more in the bell, already in the queue above");
+  assert.equal(out.total, 6, "and still counted on the head, because it is still in the bell");
+  assert.equal(out.queued, 5);
+  assert.equal(out.foot, "5 more in the bell, already in the queue above");
   const strings = todayAwayGrouped(rows, ["cv-1"], 5);
-  assert.deepEqual(strings.groups.map((g) => g.row.id), ["call:k-3", "draft:m-9", "n:7", "n:8"], "a bare string is still a conversation id; the warning sorts first, as ever");
+  assert.deepEqual(strings.groups.map((g) => g.row.id), ["call:k-3", "n:9", "draft:m-9", "n:7", "n:8"], "a bare string is still a conversation id; the warnings sort first, as ever");
 });
 
 /* ------------------------------ the period, in one line ------------------------------ */
 
-test("the last seven days in one sentence, in Reports' own numbers and words", () => {
-  const r = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "23", meta: "", delta: null, spark: [], compare: "up from 19" }, { id: "calls", label: "Calls", value: "4", meta: "", delta: null, spark: [], compare: null }], answered: { totals: { in: 23, ai: 21, you: 1, none: 1 } }, replyTime: { count: 21, medianLabel: "34s" }, rangeLabel: "7 days" } });
+test("the last seven days in one sentence, in Reports' own numbers and words, each read from the view model Reports draws", () => {
+  const r = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "23", meta: "", delta: null, spark: [], compare: "up from 19" }, { id: "calls", label: "Calls", value: "4", meta: "", delta: null, spark: [], compare: null }], answered: { totals: { in: 23, ai: 21, you: 1, none: 1 }, share: 21 / 23 }, replyTime: { count: 21, medianLabel: "34s" }, calls: { total: 4 }, period: { now: "Last 7 days" }, rangeLabel: "7 days" } });
   assert.deepEqual(todayPeriodLine(r), { text: "Last 7 days: 23 customer messages (up from 19), 91% answered by the receptionist, median reply 34s, 4 calls.", to: "reports" });
-  const quiet = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "0", meta: "", delta: null, spark: [] }], answered: { totals: { in: 0, ai: 0, you: 0, none: 0 } }, empty: true, rangeLabel: "30 days" } });
+  const quiet = reports({ vm: { tiles: [], answered: { totals: { in: 0, ai: 0, you: 0, none: 0 }, share: null }, empty: true, period: { now: "Last 30 days" }, rangeLabel: "30 days" } });
   assert.equal(todayPeriodLine(quiet).text, "Last 30 days: nobody wrote or called.");
-  const noReplies = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "2", meta: "", delta: null, spark: [] }], answered: { totals: { in: 2, ai: 0, you: 2, none: 0 } }, replyTime: { count: 0, medianLabel: "—" }, rangeLabel: "7 days" } });
-  assert.equal(todayPeriodLine(noReplies).text, "Last 7 days: 2 customer messages, 0% answered by the receptionist.", "no median without a reply; no calls without one; no comparison without one");
+  const noReplies = reports({ vm: { tiles: [{ id: "messages", label: "Customer messages", value: "1", meta: "", delta: null, spark: [] }], answered: { totals: { in: 1, ai: 0, you: 1, none: 0 }, share: 0 }, replyTime: { count: 0, medianLabel: "—" }, calls: { total: 1 }, rangeLabel: "7 days" } });
+  assert.equal(todayPeriodLine(noReplies).text, "Last 7 days: 1 customer message, 0% answered by the receptionist, 1 call.", "no median without a reply; no comparison without one; the singulars; the lead from the range when Reports gives no period words");
   assert.equal(todayPeriodLine(null), null);
+  assert.equal(todayPeriodLine(reports({ vm: { answered: undefined } })), null, "nothing to count from: no line rather than a zero");
   assert.equal(todayPeriodLine(reports({ campaigns: null })).to, "reports", "the offers' read failing touches nothing here (#686's first defect)");
+});
+
+test("the period line reads the view model Reports itself draws: a round trip through toReportVM", () => {
+  // The mockup's sample is a real ReportsSurface: reportDto → toReportVM, nothing typed by hand.
+  const surface = reportsSample(7, "2026-09-18");
+  const { vm } = surface;
+  const line = todayPeriodLine(surface);
+  assert.equal(line.to, "reports");
+  assert.ok(line.text.startsWith(`${vm.period.now}: ${vm.answered.totals.in} customer messages`), line.text);
+  assert.ok(line.text.includes(`% answered by the receptionist`) && line.text.includes(`${Math.round(vm.answered.share * 100)}%`), "Reports' own share, rounded as its tile is");
+  assert.ok(line.text.includes(`median reply ${vm.replyTime.medianLabel}`), line.text);
+  assert.ok(line.text.endsWith(`${vm.calls.total} call${vm.calls.total === 1 ? "" : "s"}.`), line.text);
+  assert.ok(!line.text.includes("—"), "no em dash in a new sentence");
 });
 
 /* ------------------------------ the runs' words ------------------------------ */
@@ -1302,13 +1325,24 @@ test("the sentences the queue and the card say about a playbook's run come from 
   assert.equal(w.people, "3 people");
   assert.deepEqual(w.waiting, { sentence: "3 people. Nothing sends until you say so.", status: ["Waiting for your approval"] });
   assert.deepEqual(w.soon, { meta: "Playbook · sends today 9:00 AM", sentence: "3 people. Stop it if you'd rather not.", status: ["Scheduled", "sends today 9:00 AM"] });
+  for (const s of [w.waiting.sentence, w.soon.sentence, w.soon.meta, ...w.waiting.status, ...w.soon.status]) assert.ok(!s.includes("—"), `an em dash in a new sentence: ${s}`);
   assert.deepEqual(todayRunWords({ ...run, state: "sent", counts: { sent: 6, replied: 1 } }).done, { counts: "6 sent, 1 replied", still: false });
   assert.deepEqual(todayRunWords({ ...run, state: "sending", recipient_count: 1, counts: { sent: 1, replied: 0 } }).done, { counts: "1 sent", still: true });
   assert.equal(todayRunWords({ ...run, recipient_count: 1 }).people, "1 person");
   assert.equal(todayRunsSub(2), "2 runs waiting");
   assert.equal(todayRunsSub(1), "1 run waiting");
   assert.equal(todayRunsSub(0), null);
-  assert.equal(todayRunApproved("Win-back", 3, "sending now"), "Win-back approved: 3 people, sending now");
+  assert.deepEqual(todayRunApproved("Win-back", 3, "sending now"), { lead: "Win-back", rest: "approved: 3 people, sending now" }, "the name apart, for the page to set in bold");
+});
+
+test("the runs' words read a real broadcast view model: a round trip through toBroadcastVM", () => {
+  const dto = { id: "b1", name: "Win-back · 2026-09-18", template_id: "t-1", template_name: "quick_note", template_language: "en", params: [], audience: { kind: "playbook", id: "pb-1", label: "Win-back" }, state: "scheduled", scheduled_for: "2026-09-18T17:00:00Z", started_at: null, finished_at: null, recipient_count: 3, failure: null, created_at: "2026-09-18T15:00:00Z", playbook_id: "pb-1", run_for: "2026-09-18", counts: { queued: 3, sent: 0, skipped: 0, failed: 0, delivered: 0, read: 0, replied: 0 } };
+  const vm = toBroadcastVM(dto, "America/New_York", new Date("2026-09-18T15:30:00Z"));
+  assert.match(vm.when, /^today .*1:00 PM$/, "the business's clock, as toBroadcastVM says it");
+  const w = todayRunWords(vm);
+  assert.equal(w.soon.meta, `Playbook · sends ${vm.when}`);
+  assert.deepEqual(w.soon.status, ["Scheduled", `sends ${vm.when}`]);
+  assert.equal(w.people, "3 people");
 });
 ```
 
@@ -1320,11 +1354,21 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/today-l
 ```
 Expected: FAIL (`todayPeriodLine` not exported; `.rows` of an array is undefined).
 
-- [ ] **Step 3: `today.ts`: `ReportsLike` and the period line.** In `ReportsLike`, inside `vm`, after the `reasons?:` field add:
+- [ ] **Step 3: `today.ts`: `ReportsLike` and the period line.** In `ReportsLike`, inside `vm`, the `answered?:` line becomes
+
+```ts
+    answered?: { totals: { in: number; ai: number; you: number; none: number }; share?: number | null };
+```
+
+  and after the `reasons?:` field add:
 
 ```ts
     /** The reply time as Reports computes it; the period line says the median once. */
     replyTime?: { count: number; medianLabel: string };
+    /** Reports' own words for the period ("Last 7 days"), so the foot line never spells them a second time. */
+    period?: { now: string };
+    /** Reports' own count of the period's calls: a number, never a tile's formatted value. */
+    calls?: { total: number };
 ```
 
   In `WeekTileLike`, after `spark: number[];` add:
@@ -1339,44 +1383,33 @@ Expected: FAIL (`todayPeriodLine` not exported; `.rows` of an array is undefined
 ```ts
 /**
  * The last seven (or thirty, or ninety) days in one sentence at the foot of the day's card, with a door to Reports,
- * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, said in
- * Reports' own words: the messages tile's comparison in counts, the share of the answered, the median reply.
- * It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it took the
- * whole page down.
+ * which was rebuilt on 19 September to carry exactly this material. Every number is one Reports prints, read from the
+ * view model Reports itself draws and never derived a second time here: its period words (`period.now`), the messages
+ * tile's comparison in counts, its `answered.share` rounded as its tile rounds it, its `replyTime.medianLabel`, its
+ * `calls.total`. It never reads `campaigns`: that read fails on its own (#686), and a period line that dereferenced it
+ * took the whole page down.
  */
 export function todayPeriodLine(r: ReportsLike | null): { text: string; to: "reports" } | null {
   if (!r || !r.vm) return null;
   const v = r.vm;
-  const range = v.rangeLabel;
-  if (v.empty) return { text: `Last ${range}: nobody wrote or called.`, to: "reports" };
-  const tile = (id: string) => v.tiles.find((t) => t.id === id);
-  const messages = tile("messages");
-  const a = v.answered?.totals;
-  const parts: string[] = [];
-  const inCount = a ? a.in : Number(messages?.value ?? 0);
-  parts.push(`${inCount} customer message${inCount === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`);
-  if (a) {
-    const answeredTotal = a.ai + a.you + a.none;
-    if (answeredTotal) parts.push(`${Math.round((a.ai / answeredTotal) * 100)}% answered by the receptionist`);
-  }
+  const lead = v.period?.now ?? `Last ${v.rangeLabel}`;
+  if (v.empty) return { text: `${lead}: nobody wrote or called.`, to: "reports" };
+  const a = v.answered;
+  if (!a) return null;
+  const messages = v.tiles.find((t) => t.id === "messages");
+  const parts = [`${a.totals.in} customer message${a.totals.in === 1 ? "" : "s"}${messages?.compare ? ` (${messages.compare})` : ""}`];
+  if (a.share !== undefined && a.share !== null) parts.push(`${Math.round(a.share * 100)}% answered by the receptionist`);
   if (v.replyTime && v.replyTime.count > 0) parts.push(`median reply ${v.replyTime.medianLabel}`);
-  const calls = tile("calls");
-  const callCount = Number(calls?.value ?? 0);
+  const callCount = v.calls ? v.calls.total : 0;
   if (callCount) parts.push(`${callCount} call${callCount === 1 ? "" : "s"}`);
-  return { text: `Last ${range}: ${parts.join(", ")}.`, to: "reports" };
+  return { text: `${lead}: ${parts.join(", ")}.`, to: "reports" };
 }
 
 /* ------------------------------ the runs' words ------------------------------ */
 
-/** A broadcast or a playbook's run as the broadcasts surface publishes it, as far as Today reads it. */
+/** A broadcast or a playbook's run as the broadcasts surface publishes it (toBroadcastVM), as far as the words read it. */
 export interface RunLike {
-  id: string;
   state: string;
-  playbook_id: string | null;
-  scheduled_for: string;
-  started_at: string | null;
-  name: string;
-  audience: { label: string };
   recipient_count: number;
   /** "today 9:00 AM" / "Sep 12 · 10:00 AM", by the business's clock (toBroadcastVM). */
   when: string;
@@ -1398,7 +1431,8 @@ export interface TodayRunWordsVM {
  * Every sentence with a number the queue and the day's card say about a playbook's run. The page kept seven of
  * them (dashboard-a-command.jsx, dashboard-a-brief.jsx); the rule that a number's sentence lives in contracts was
  * stated in this file's own header and enforced next door on Reports. The page keeps deciding WHICH rows wait, are
- * scheduled or went out today; it composes none of their words.
+ * scheduled or went out today; it composes none of their words. The words are sentences now ("3 people. Nothing
+ * sends until you say so."), where the page had a middle dot and no capital.
  */
 export function todayRunWords(r: RunLike): TodayRunWordsVM {
   const people = `${r.recipient_count} ${r.recipient_count === 1 ? "person" : "people"}`;
@@ -1416,9 +1450,12 @@ export function todayRunsSub(n: number): string | null {
   return n ? `${n} run${n === 1 ? "" : "s"} waiting` : null;
 }
 
-/** The toast when a waiting run is approved: who it reaches and when it really goes (bcWhenWords). */
-export function todayRunApproved(label: string, n: number, when: string): string {
-  return `${label} approved: ${n} ${n === 1 ? "person" : "people"}, ${when}`;
+/**
+ * The toast when a waiting run is approved: the audience's name, which the page sets in bold, then who it reaches
+ * and when it really goes (bcWhenWords). Two parts, so the page keeps its typography without composing the number.
+ */
+export function todayRunApproved(label: string, n: number, when: string): { lead: string; rest: string } {
+  return { lead: label, rest: `approved: ${n} ${n === 1 ? "person" : "people"}, ${when}` };
 }
 ```
 
@@ -1436,9 +1473,13 @@ export interface TodayLeakVM {
   text: string;
   /** The arithmetic behind the sentence, so nobody has to take it on faith. */
   math: string;
-  /** Who is waiting, up to two, on the unanswered row: the threads Today holds with nothing back. */
+  /**
+   * Who is waiting NOW with nothing back, up to two, on the unanswered row: the threads Today holds. They are not the
+   * count's own subjects (the count is Reports' over its period), so the page draws them under "Waiting now" and
+   * never as the people the sentence counts.
+   */
   people: Array<{ id: string; name: string; to: string }>;
-  /** What "Ask why" asks: the row's own sentence. Ask grounds every citation in what it read. */
+  /** What "Ask why" asks: the row's own sentence and its arithmetic. Ask grounds every citation in what it read. */
   ask: string;
   /** The door. */
   cta: { label: string; to: string };
@@ -1466,7 +1507,7 @@ export interface TodayLeaksVM {
  */
 const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "unreachable", "quiet"];
 
-const askWhy = (text: string): string => `${text} Why is that?`;
+const askWhy = (text: string, math: string): string => `${text} ${math}. Why is that?`;
 
 export function todayLeaks(
   reports: ReportsLike | null,
@@ -1491,15 +1532,16 @@ export function todayLeaks(
     const text = booked === 0
       ? `${asked} people wrote or called in the last ${reports.vm.rangeLabel}. Not one of them is on the calendar.`
       : `Only ${booked} of the ${asked} people who wrote or called in the last ${reports.vm.rangeLabel} got onto the calendar.`;
+    const math = never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline;
     found.set("never-booked", {
       id: "never-booked",
       tone: "danger",
       tag: "Booking gap",
       icon: "calendar",
       text,
-      math: never ? `${b.headline} · ${never.count} on Asked, never booked` : b.headline,
+      math,
       people: [],
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "See who", to: never ? `clients/seg:${never.id}` : "clients" },
       also: step("asked_never_booked"),
     });
@@ -1512,15 +1554,16 @@ export function todayLeaks(
   // over its period; the names are the threads waiting right now.
   if (reports && a && a.none >= 2) {
     const text = `${a.none} customer message${a.none === 1 ? "" : "s"} never got an answer at all.`;
+    const math = `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`;
     found.set("unanswered", {
       id: "unanswered",
       tone: "danger",
       tag: "No reply",
       icon: "alert",
       text,
-      math: `of ${a.in} in the last ${reports.vm.rangeLabel} · the receptionist answered ${a.ai}, you answered ${a.you}`,
+      math,
       people: noReply.slice(0, 2).map((r) => ({ id: r.conversationId, name: r.who, to: r.to })),
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "Open Reports", to: "reports" },
       also: null,
     });
@@ -1533,15 +1576,16 @@ export function todayLeaks(
   // Three, for the same reason: one person who said yes is not yet a list.
   if (yes && offers && yes.count >= 3 && offers.count === 0) {
     const text = `${yes.count} ${yes.count === 1 ? "person has" : "people have"} said yes to messages, but nobody has said yes to offers.`;
+    const math = "a broadcast reaches only the second yes · 0 can receive one";
     found.set("unreachable", {
       id: "unreachable",
       tone: "warn",
       tag: "Reach",
       icon: "users",
       text,
-      math: "a broadcast reaches only the second yes · 0 can receive one",
+      math,
       people: [],
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "Open People", to: `clients/seg:${yes.id}` },
       also: yes.action && yes.action.enabled ? { label: yes.action.cta, to: yes.action.to } : null,
     });
@@ -1550,15 +1594,16 @@ export function todayLeaks(
   const quiet = list("quiet");
   if (quiet && quiet.count >= 5) {
     const text = `${quiet.count} people have not heard from you in 30 days.`;
+    const math = people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list";
     found.set("quiet", {
       id: "quiet",
       tone: "info",
       tag: "Gone quiet",
       icon: "clock",
       text,
-      math: people && people.aggregates ? `of ${people.aggregates.total} in People` : "on the Quiet 30+ days list",
+      math,
       people: [],
-      ask: askWhy(text),
+      ask: askWhy(text, math),
       cta: { label: "See who", to: `clients/seg:${quiet.id}` },
       also: step("quiet"),
     });
@@ -1586,6 +1631,8 @@ export function todayLeaks(
 export type AwayQueueRef = string | { conversationId?: string | null; callId?: string | null };
 ```
 
+  Two doc comments outside the head say the old one-kind rule; they change too. In `TodayAwayVM`, `/** Of \`more\`, the ones dropped because their conversation is in the queue above. */` becomes `/** Of \`more\`, the ones dropped because the queue above already holds what they are about: their thread or their call. */`. In the function's doc comment above `export function todayAwayGrouped`, the sentence `a conversation already sitting\n * in the queue at the top of this page is NOT repeated here;` becomes `a row about anything already sitting\n * in the queue at the top of this page (its thread or its call) is NOT repeated here;`.
+
   Replace the head of `todayAwayGrouped` (from `export function todayAwayGrouped<T extends AwayRowLike>(` through the line `const fresh = rows.filter((r) => r.unread && !aboutQueued(r));`) with:
 
 ```ts
@@ -1594,7 +1641,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   inQueue: readonly AwayQueueRef[] = [],
   max = 5,
 ): TodayAwayVM<T> {
-  const convs = new Set(inQueue.map((q) => (typeof q === "string" ? q : q.conversationId ?? null)).filter((id): id is string => !!id));
+  const convs = new Set(inQueue.flatMap((q) => { const id = typeof q === "string" ? q : q.conversationId; return id ? [id] : []; }));
   const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
   const idOf = (r: T) => r.id ?? r.key ?? "";
   // A row about a conversation says so in three different ways, and only one of
@@ -1628,11 +1675,13 @@ node --conditions=react-server --import tsx --test tooling/scripts/tests/today-l
 ```
 Expected: PASS. (`today-away-page` and `today-week` still call the old shapes: `todayAwayGrouped(rows, ["cv-1"])` with strings works; `todayLeaks` is not drawn by those two files' pages.) `dashboard-a-week.jsx` still reads `window.__today.leaks(R, P)` as an array: it renders nothing wrong until PR B because `rows.length` is undefined on the object, so `TodayLeaks` returns null. That is PR A's known, temporary state on the live page: Worth a look is blank between PR A and PR B. **Decision:** ship PR A and PR B the same day (Task B10 merges within hours); if PR B slips a day, add `if (!rows.length) return null;` → `const { rows } = window.__today.leaks(R, P); if (!rows.length) return null;` to `dashboard-a-week.jsx` in PR A (a one-line change with its `?v=` bump).
 
+- [ ] **Step 6b: The page reads the rows, so Worth a look never blanks between the PRs.** In `apps/dashboard/src/legacy/pages/dashboard-a-week.jsx` line 33, `const rows = window.__today.leaks(R, P);` becomes `const { rows } = window.__today.leaks(R, P);` (the pin `"window.__today.leaks(R, P)"` in `today-week.test.mjs` still matches). In `apps/dashboard/src/legacy/Chanlytics.html`, `pages/dashboard-a-week.jsx?v=4` becomes `?v=5`. This is not optional: `e2e/owner-signals.spec.ts` expects the unreachable row on the nightly's workspace, and the nightly runs on its own clock between the two merges. Run `node --conditions=react-server --import tsx --test tooling/scripts/tests/today-week.test.mjs tooling/scripts/tests/today-away-page.test.mjs tooling/scripts/tests/legacy-harness.test.mjs` → PASS.
+
 - [ ] **Step 7: Typecheck and commit**
 
 ```bash
 corepack pnpm -r typecheck
-git add packages/contracts/src/today.ts tooling/scripts/tests/today-leaks.test.mjs
+git add packages/contracts/src/today.ts tooling/scripts/tests/today-leaks.test.mjs apps/dashboard/src/legacy/pages/dashboard-a-week.jsx apps/dashboard/src/legacy/Chanlytics.html
 git commit -m "Today: the period in one line, the runs' words, Worth a look with a word for its tone, who is waiting and an Ask door, the away card deduped over all four queue kinds
 
 Co-Authored-By: Claude Fable 5.1 <noreply@anthropic.com>"
@@ -2712,7 +2761,8 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   const soon = byTestId(queue, "brief-run-soon");
   assert.ok(textOf(soon).includes(todayRunWords(broadcasts().rows[1]).soon.meta));
   await press(buttons(waiting, "Approve")[0]);
-  assert.equal(textOf(flashes.at(-1).msg), todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM"));
+  const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
+  assert.equal(textOf(flashes.at(-1).msg), `${t.lead} ${t.rest}`);
   assert.ok(!textOf(flashes.at(-1).msg).includes("sending now"));
   delete W.bcWhenWords;
   // The broadcasts read failed: the queue's rows are current, and it says the runs could not be read.
@@ -2768,6 +2818,7 @@ test("worth a look: a word and an icon for the tone, who is waiting, Ask why wit
   assert.equal(rows[1].id, "unanswered");
   const waiting = all(byTestId(band, "today-leak-unanswered"), (n) => classes(n).includes("tl-person"));
   assert.deepEqual(waiting.map(textOf), ["Dulce Amaro"], "who is waiting with nothing back, from the threads the page holds");
+  assert.equal(textOf(find(byTestId(band, "today-leak-unanswered"), (n) => classes(n).includes("tl-people-lead"))), "Waiting now", "named as waiting now, never as the count's own subjects: the count is Reports' over its period");
   press(waiting[0]);
   assert.equal(went.at(-1), "inbox/th-cv-d");
   assert.equal(textOf(byTestId(band, "today-leaks-more")).trim(), moreLine);
@@ -3182,7 +3233,8 @@ const runRows = (nav, flash, verbKind) => {
     const n = res.ok ? (res.data.recipient_count || r.recipient_count) : 0;
     // When it really goes (broadcasts-real.jsx bcWhenWords): the server moves a send outside 9:00-20:59 to nine.
     const when = res.ok && window.bcWhenWords ? window.bcWhenWords(res.data) : "sending now";
-    flash(res.ok ? { msg: window.__today.runApproved(r.audience.label, n, when) } : window.refusalToast(res, "Not approved"));
+    const t = window.__today.runApproved(r.audience.label, n, when);
+    flash(res.ok ? { msg: <><b>{t.lead}</b> {t.rest}</> } : window.refusalToast(res, "Not approved"));
   };
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
   return [
@@ -3437,8 +3489,11 @@ const TodayLeaks = () => {
               <span className="tl-tag">{l.tag}</span>
               <span className="tl-text">{l.text}</span>
               <span className="tl-math tabular">{l.math}</span>
+              {/* Who is waiting right now, from the threads Today holds: not the count's own subjects (the count is Reports' over
+                  its period), so the lead says so and the names are never drawn as the people the sentence counts. */}
               {l.people.length > 0 && (
                 <span className="tl-people">
+                  <span className="tl-people-lead">Waiting now</span>
                   {l.people.map((p) => <button key={p.id} type="button" className="tl-person" onClick={() => twNav(p.to)} title={`Open ${p.name}'s thread`}>{p.name}</button>)}
                 </span>
               )}
@@ -3790,7 +3845,8 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .tl-row.tl-warn .tl-tag { color: var(--warn-ink); }
 .tl-text { font-size: 13.5px; line-height: 1.45; color: var(--ink); font-weight: 500; max-width: 78ch; }
 .tl-math { font-size: 11.5px; line-height: 1.4; color: var(--ink-dim); }
-.tl-people { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 3px; }
+.tl-people { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 3px; }
+.tl-people-lead { font-size: 11px; color: var(--ink-dim); }
 .tl-person { font: inherit; font-size: 11.5px; color: var(--ink-muted); background: var(--bg-sunken); border: 1px solid var(--line); border-radius: 999px; padding: 1px 9px; cursor: pointer; }
 .tl-person:hover { color: var(--ink); border-color: var(--line-strong); }
 .tl-acts { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex: none; flex-wrap: wrap; }
@@ -3865,7 +3921,7 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 ```
   (`.brief-body`, `.brief-pulse`, `.ac-rail`, `.ac-buckets` and `.dec-outcomes` styled the seed; `.rail` and `.fleet-grid` are the mockup's other surfaces and stay.)
 
-- [ ] **Step 7: `Chanlytics.html` cache keys.** `styles/dashboard-a-v2.css?v=23` → `24`; `styles/mobile.css?v=12` → `13`; `pages/dashboard-a-brief.jsx?v=15` → `16`; `pages/dashboard-a-command.jsx?v=26` → `27`; `pages/dashboard-a-day.jsx?v=1` → `2`; `pages/dashboard-a-week.jsx?v=4` → `5`; `pages/dashboard-a.jsx?v=9` → `10`. The two lists stay identical: no file was added or removed.
+- [ ] **Step 7: `Chanlytics.html` cache keys.** `styles/dashboard-a-v2.css?v=23` → `24`; `styles/mobile.css?v=12` → `13`; `pages/dashboard-a-brief.jsx?v=15` → `16`; `pages/dashboard-a-command.jsx?v=26` → `27`; `pages/dashboard-a-day.jsx?v=1` → `2`; `pages/dashboard-a-week.jsx?v=5` → `6` (PR A moved it to 5); `pages/dashboard-a.jsx?v=9` → `10`. The two lists stay identical: no file was added or removed.
 
 - [ ] **Step 8: Run**
 
