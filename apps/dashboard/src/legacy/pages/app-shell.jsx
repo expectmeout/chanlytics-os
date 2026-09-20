@@ -398,6 +398,19 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         onOpenClient={(clientId) => navigate(clientId ? `clients/${clientId}` : "clients")}
       />
     );
+  } else if (page === "clients" && param && /^leads(:|$)/.test(param)) {
+    // People › Leads: the same page, its other scope. The address carries the view (clients/leads:s-<search>:l-<list>:c-<class>),
+    // and `key` remounts the page when the scope changes, so its state starts from the view it is showing rather
+    // than the other one's sort and columns.
+    const search = window.__LEADS && window.__leadsRouteParse
+      ? (window.__LEADS.searches || []).find((s) => s.id === (window.__leadsRouteParse(param) || {}).searchId)
+      : null;
+    activeNav = "clients";
+    crumbs = search
+      ? [{ label: "People", to: "clients" }, { label: "Leads", to: "clients/leads" }, search.name]
+      : [{ label: "People", to: "clients" }, "Leads"];
+    pane = true;
+    content = <ClientsA key="leads" scope="leads" leadsRoute={param} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param && /^(seg|list|state):/.test(param)) {
     // One view of People, linkable: a smart list (seg:), a list kept by hand
     // (list:) or a state (state:) — what the assistant and Today point at.
@@ -412,7 +425,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
     activeNav = "clients";
     crumbs = [{ label: "People", to: "clients" }, surfaceList ? surfaceList.label : segMeta ? segMeta.label : savedMeta ? savedMeta.name : stateId ? stateId.replace(/_/g, " ") : window.__PEOPLE ? "List" : "Segment"];
     pane = true;
-    content = <ClientsA initialSegment={segId} initialSaved={savedId} initialState={stateId} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+    content = <ClientsA key="people" scope="people" initialSegment={segId} initialSaved={savedId} initialState={stateId} onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "clients" && param) {
     // A real workspace resolves the person from the People surface; the
     // profile fetches in full and says so itself when the id is not here.
@@ -435,7 +448,7 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
         <Icon name="plus" size={12} /> Add client
       </button>
     ) : null;
-    content = <ClientsA onOpenProfile={(id) => navigate(`clients/${id}`)} />;
+    content = <ClientsA key="people" scope="people" onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "leads") {
     const srcParam = param && param.startsWith("src:") ? param.slice(4) : null;
     const srcMeta = srcParam && (window.LEAD_SOURCES || []).find(s => s.id === srcParam);

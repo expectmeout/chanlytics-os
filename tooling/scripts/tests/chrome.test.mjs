@@ -63,7 +63,7 @@ test("the shortcuts sheet lists what the app answers to, grouped in order, and n
   assert.deepEqual([where("/"), where("J")], [["People"], ["People", "Inbox"]], "REGRESSION (N17): the sheet offered / and J/K on every list; / searches People, and J/K walk People's rows and the Inbox's");
   assert.deepEqual(
     groups.find((g) => g.group === "People").items.map((s) => [s.keys.join(" "), s.does]),
-    [["/", "Search People"], ["J K ↓ ↑", "Next and previous person"], ["X Space", "Select the person"], ["↵", "Open their profile"], ["Esc", "Clear the selection"]],
+    [["/", "Search People"], ["J K ↓ ↑", "Next and previous person"], ["X Space", "Select the person"], ["↵", "Open their profile"], ["Esc", "Clear the selection"], ["F", "Find leads (on Leads)"], ["C", "Call the lead under the cursor (on Leads)"]],
     "People's keys, the ones its table's foot names: the sheet listed only /",
   );
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");

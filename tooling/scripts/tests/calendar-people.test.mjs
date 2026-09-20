@@ -611,7 +611,7 @@ test("the list page: the rail is grouped, a state is a chip, a list has its step
   assert.ok(PEOPLE_PAGE.includes('data-testid="state-filter"') && !PEOPLE_PAGE.includes('{["all", ...PL_TABS].map((t) => ('), "one state switcher: the strip, echoed as a chip");
   assert.ok(PEOPLE_PAGE.includes('data-testid="list-action"') && PEOPLE_PAGE.includes("window.CHANLY.nav(listStep.to)"));
   assert.ok(PEOPLE_PAGE.includes('window.history.replaceState(null, "", next)') && PEOPLE_PAGE.includes("`seg:${listId}` : savedId ? `list:${savedId}` : tab !== \"all\" ? `state:${tab}`"), "linkable");
-  assert.ok(PEOPLE_PAGE.includes('const PL_VIEW_KEY = "chanlytics-people-view";') && PEOPLE_PAGE.includes("plSaveView(view);") && PEOPLE_PAGE.includes('window.__saveView("people", view)'), "remembered: on this device, and on the member's row in the workspace");
+  assert.ok(PEOPLE_PAGE.includes('const PL_VIEW_KEYS = { people: "chanlytics-people-view", leads: "chanlytics-leads-view" };') && PEOPLE_PAGE.includes("plSaveView(scope, view);") && PEOPLE_PAGE.includes("window.__saveView(page, view)"), "remembered: on this device, and on the member's row in the workspace, per scope");
   const shell = readCode("apps/dashboard/src/legacy/pages/app-shell.jsx");
   assert.ok(shell.includes('/^(seg|list|state):/.test(param)') && shell.includes("initialSaved={savedId} initialState={stateId}"));
   const sd = readCode("apps/dashboard/src/legacy-bridge/surface-data.ts");
@@ -657,7 +657,7 @@ test("bulk actions: a selection becomes people on a list, a yes on record (one r
   assert.ok(PEOPLE_PAGE.includes('{ header: "Yes to messages about their visit\u2026" }') && PEOPLE_PAGE.includes('{ header: "Yes to offers and news\u2026" }'), "both asks are offered, and named");
   assert.ok(PEOPLE_PAGE.includes('{ consent: "opted_in", source: source.id },'), "a yes says how it was given");
   assert.ok(PEOPLE_PAGE.includes('.filter((s) => s.id !== "customer_message")'), "their own message is not something a desk records for them");
-  assert.ok(PEOPLE_PAGE.includes("React.useEffect(() => { setSel(new Set()); }, [tab, listId, savedId, q]);"), "a selection never outlives its view");
+  assert.ok(PEOPLE_PAGE.includes("React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, leadsRoute, chip]);"), "a selection never outlives its view");
   assert.ok(PEOPLE_PAGE.includes('const head = ["Name", "Phone", "Email", "State", "Last contact", "Consent", "Offers", "Next visit", "First contact"];'), "the file holds the columns the page shows, nothing invented");
   assert.ok(PEOPLE_PAGE.includes("selectable={canEditLists || canExport}"));
 });

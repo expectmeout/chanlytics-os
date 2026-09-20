@@ -62,6 +62,7 @@ import "@/legacy/pages/clients-bits.jsx";
 import "@/legacy/pages/people-table.jsx";
 import "@/legacy/pages/clients-a.jsx";
 import "@/legacy/pages/client-profile.jsx";
+import "@/legacy/pages/leads-scope.jsx";
 // leads, agent-store, agent-fleet, agent-studio, content-cal, pipeline and tasks
 // are the mockup's surfaces: kept, hidden from every real workspace (the
 // registry marks them demo), revisited when the product is at 100% — Ruben,

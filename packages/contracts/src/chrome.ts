@@ -157,6 +157,8 @@ export const SHORTCUTS: readonly Shortcut[] = [
   { group: "People", keys: ["X", "Space"], does: "Select the person" },
   { group: "People", keys: ["↵"], does: "Open their profile" },
   { group: "People", keys: ["Esc"], does: "Clear the selection" },
+  { group: "People", keys: ["F"], does: "Find leads (on Leads)" },
+  { group: "People", keys: ["C"], does: "Call the lead under the cursor (on Leads)" },
   { group: "Inbox", keys: ["J", "K"], does: "Next and previous conversation" },
   { group: "Inbox", keys: ["A"], does: "Approve the draft" },
   { group: "Inbox", keys: ["D"], does: "Decline it" },
