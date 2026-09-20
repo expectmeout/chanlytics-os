@@ -33,7 +33,7 @@
  * what, so it must load in a test without the build tool's aliases.
  */
 import type { ZodType } from "zod";
-import { AppError } from "@chanlytics/contracts";
+import { AppError, type SpendWords } from "@chanlytics/contracts";
 import { memberContext, requireRole, requireSpend, withRoute, type MemberContext, type RouteContext } from "./with-route";
 import { takeRate, type RateBucket } from "./rate-limit";
 import { backOffice, type BackOffice } from "./platform";
@@ -116,6 +116,8 @@ export interface WriteSpec<S extends Scope, I, O> {
   /** A bucket, or null said out loud. Never omitted: the policy file shows every null for review. */
   rate: RateBucket | null;
   spend?: boolean;
+  /** What a refusal to spend says the money was for; the default names a number. */
+  spendWords?: SpendWords;
   input?: ZodType<I>;
   handle: (call: Call<S, I>) => Promise<O>;
 }
@@ -183,6 +185,7 @@ interface Spec<S extends Scope, I, O> {
   role?: Role | null;
   rate?: RateBucket | null;
   spend?: boolean;
+  spendWords?: SpendWords;
   input?: ZodType<I>;
   query?: ZodType<I>;
   handle: (call: Call<S, I>) => Promise<O>;
@@ -207,7 +210,7 @@ function build<S extends Scope, I, O>(kind: Policy["kind"], spec: Spec<S, I, O>)
     // request that cannot proceed: a 402 must not turn into a 429 on retry.
     if (spec.spend) {
       if (!member) throw new Error(`a ${spec.scope.kind}-scoped route cannot spend a workspace's money`);
-      await requireSpend(ctx, member);
+      await requireSpend(ctx, member, spec.spendWords);
     }
     // A route that spends takes its count strictly: the shared count, or a
     // refusal -- never a per-instance count a burst across instances walks past.

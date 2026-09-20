@@ -70,20 +70,25 @@ export const AFTER: Partial<Record<RouteKey, () => SurfaceOverride[]>> = {
   "DELETE segments/[id]": people,
   // Leads. Every one of these PATCHES: the surface re-reads the view and keeps
   // the pages, the selection and the cursor the owner already has (leads.ts).
-  // Release B's own routes -- stage, bulk, erase, the two on a kept search, the
-  // Done strip's undo, the business line -- join this list in Task 4.4, with
-  // the route files that give them a key: every key here must be a route
-  // (typed-client.test.mjs), and until then the courier re-reads the same
-  // surfaces itself. `POST leads/[id]/stage` names People too: an Interested
-  // call makes a person.
+  // `POST leads/[id]/stage` names People too: an Interested call makes a
+  // person, and People would otherwise not know until it was read again.
+  // A draft is not here on purpose -- it changes no row a surface shows; the
+  // lead moves when the owner answers "Did you send it?", which is a stage.
   "POST lead-searches": leads,
   "POST lead-searches/[id]/answer": leads,
   "POST lead-searches/[id]/more": leads,
   "POST lead-searches/[id]/stop": leads,
+  "POST lead-searches/[id]/undo": leads,
+  "PATCH lead-searches/[id]": leads,
+  "DELETE lead-searches/[id]": leads,
   "POST leads/[id]/keep": leads,
   "POST leads/[id]/exclude": leads,
   "POST leads/[id]/put-back": leads,
   "POST lead-operations/[id]/undo": leads,
+  "POST leads/bulk": leads,
+  "DELETE leads/[id]": leads,
+  "PUT lead-suggestions": leads,
+  "POST leads/[id]/stage": () => [leadsOverride, peopleOverride],
   // Outbound.
   "POST broadcasts": () => [broadcastsOverride],
   "POST broadcasts/[id]/approve": runs,

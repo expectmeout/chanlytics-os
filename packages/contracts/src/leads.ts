@@ -86,6 +86,32 @@ export function leadReachLine(prior: LeadNichePrior | null | undefined): string 
   return `About ${tenths} in 10 have an email`;
 }
 
+/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
+export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
+/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
+export const LEAD_SUGGEST_DAYS = 7;
+
+/** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
+export interface LeadNichePrior { places: number; matched: number; with_email: number }
+/** Under this many judged matches the share is noise, and the line says so instead. */
+export const LEAD_PRIOR_MIN = 25;
+
+/**
+ * How reachable a kind of business is, in tenths, from what past searches
+ * measured (`lead_niche_priors`, A1's calibration). Never a percentage and
+ * never a promise: a kind nobody has searched says so, and the plan card says
+ * the same thing ("checked after the first 25").
+ */
+export function leadReachLine(prior: LeadNichePrior | null | undefined): string {
+  if (!prior || prior.matched < LEAD_PRIOR_MIN) return "New kind of search · checked after 25";
+  const tenths = Math.round((prior.with_email / prior.matched) * 10);
+  if (tenths <= 1) return "Most list a phone · few have an email";
+  if (tenths >= 9) return "Nearly all have an email";
+  if (tenths === 5) return "About half have an email";
+  if (tenths === 7) return "About 2 in 3 have an email";
+  return `About ${tenths} in 10 have an email`;
+}
+
 /* ------------------------------------------------- the planner's refusals */
 
 /**

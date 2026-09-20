@@ -43,6 +43,7 @@ import {
 } from "@chanlytics/contracts";
 import { listPolicies } from "@chanlytics/db";
 import type { ToolContext, ToolDef } from "./tools";
+import { planFacts } from "../leads";
 import { listPeople } from "../people";
 import { checkPlaybookInput } from "../playbooks";
 import { replyChannelOf } from "../verbs";
@@ -567,18 +568,16 @@ async function proposeLeadSearch(t: ToolContext, input: Record<string, unknown>)
   // for the model to say, never a card with a problem in it.
   if (!r.ok) return refuse(r.refusal.text);
   // The facts under the sentence -- the month's leads left, the duplicates
-  // already theirs, what past searches for this kind found -- are one read,
-  // `planFacts` in server/leads.ts, which is release B's and not on the branch
-  // when this was written. A proposal may not call a door itself (this module
-  // reads and never writes, and a test holds it to that), so the card carries
-  // none until that read exists: `facts: await planFacts(t.ctx, t.tenantId)`
-  // is the whole of the change, and the plan card already draws without them.
+  // already theirs, what past searches for this kind of business found -- are
+  // one read, `planFacts` in server/leads.ts. It lives there and not here
+  // because this module reads and never writes a door of its own (a test holds
+  // it to that), and the plan card is drawn from exactly what it answers.
   return propose({
     kind: "lead_search",
     needs: "owner",
     title: r.view.title,
     summary: planSentence(r.plan),
-    payload: { plan: r.plan, view: r.view, facts: null },
+    payload: { plan: r.plan, view: r.view, facts: await planFacts(t.ctx, t.tenantId, { categoryKey: shaped.data.category_key, now: t.now }) },
     undo: "Stop the search",
   });
 }

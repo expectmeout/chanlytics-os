@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { AppError, err, ok, whyCannotSpend, type BillingMode, type BillingStatus } from "@chanlytics/contracts";
+import { AppError, SPEND_NUMBER, err, ok, whyCannotSpend, type BillingMode, type BillingStatus, type SpendWords } from "@chanlytics/contracts";
 // Relative, not "@/": the alias is a build-tool convenience, and depending on
 // one here made this module — which decides who may do what — unimportable by
 // anything that is not Next. It is the only such import in src/server, and
@@ -239,7 +239,7 @@ export function refusalHeaders(e: AppError): Record<string, string> {
  * fix, because a refusal at the moment somebody is trying to give you money has
  * to say what to do about it.
  */
-export async function requireSpend(ctx: RouteContext, member: MemberContext): Promise<void> {
+export async function requireSpend(ctx: RouteContext, member: MemberContext, doing: SpendWords = SPEND_NUMBER): Promise<void> {
   const { data, error } = await ctx.supabase
     .from("billing_accounts")
     .select("mode, status")
@@ -250,6 +250,6 @@ export async function requireSpend(ctx: RouteContext, member: MemberContext): Pr
   // workspace, not that it may spend freely.
   if (error) throw new AppError("internal", "Billing could not be read just now. Try again in a moment.", 503);
   if (!data) throw new AppError("payment_required", "This workspace has no billing record. Open Billing to set one up.", 402);
-  const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus);
+  const why = whyCannotSpend(data.mode as BillingMode, data.status as BillingStatus, doing);
   if (why) throw new AppError("payment_required", why, 402);
 }

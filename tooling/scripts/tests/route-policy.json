@@ -527,11 +527,32 @@
       "rate": null,
       "spend": false
     },
+    "PATCH lead-searches/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "DELETE lead-searches/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "lead_member",
+      "spend": false
+    },
     "POST lead-searches/[id]/stop": {
       "kind": "write",
       "scope": "workspace",
       "role": "operator",
       "rate": "lead_answer",
+      "spend": false
+    },
+    "POST lead-searches/[id]/undo": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "lead_member",
       "spend": false
     },
     "GET lead-searches": {
@@ -547,6 +568,27 @@
       "role": "owner",
       "rate": "lead_search",
       "spend": true
+    },
+    "GET lead-suggestions": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": null,
+      "rate": "lead_suggest",
+      "spend": false
+    },
+    "PUT lead-suggestions": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "lead_suggest",
+      "spend": false
+    },
+    "POST leads/[id]/draft": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_draft",
+      "spend": false
     },
     "POST leads/[id]/exclude": {
       "kind": "write",
@@ -567,6 +609,34 @@
       "scope": "workspace",
       "role": "owner",
       "rate": "lead_member",
+      "spend": false
+    },
+    "DELETE leads/[id]": {
+      "kind": "write",
+      "scope": "row",
+      "role": "owner",
+      "rate": "erase",
+      "spend": false
+    },
+    "POST leads/[id]/stage": {
+      "kind": "write",
+      "scope": "row",
+      "role": "operator",
+      "rate": "lead_member",
+      "spend": false
+    },
+    "POST leads/bulk": {
+      "kind": "write",
+      "scope": "workspace",
+      "role": "operator",
+      "rate": "lead_bulk",
+      "spend": false
+    },
+    "GET leads/export": {
+      "kind": "read",
+      "scope": "workspace",
+      "role": "owner",
+      "rate": "export",
       "spend": false
     },
     "GET leads": {

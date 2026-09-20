@@ -139,20 +139,35 @@ export function maySpend(mode: BillingMode, status: BillingStatus): boolean {
 }
 
 /**
+ * What a refusal to spend says the money was FOR.
+ *
+ * Until the lead finder there was one spending route family and the sentences
+ * named it outright — "Add a card before buying a number". An owner refused on
+ * the Leads page then read about phone numbers, which is a refusal about
+ * something they were not doing. Two forms, because the sentences need both:
+ * `before` follows "before", `can` follows "can".
+ */
+export interface SpendWords { before: string; can: string }
+/** The default, and what every lines route keeps saying. */
+export const SPEND_NUMBER: SpendWords = { before: "buying a number", can: "buy a number" };
+/** The lead finder: a search spends on someone else's account, not on a number. */
+export const SPEND_LEADS: SpendWords = { before: "finding leads", can: "find leads" };
+
+/**
  * Why a workspace may not spend, in the owner's words, or null when it may.
  *
  * A refusal at the moment somebody is trying to give you money has to say what
  * to do about it, so this is a sentence and a destination rather than a code.
  */
-export function whyCannotSpend(mode: BillingMode, status: BillingStatus): string | null {
+export function whyCannotSpend(mode: BillingMode, status: BillingStatus, doing: SpendWords = SPEND_NUMBER): string | null {
   if (maySpend(mode, status)) return null;
-  if (status === "none") return "Add a card before buying a number — nothing is charged until your trial ends.";
+  if (status === "none") return `Add a card before ${doing.before} — nothing is charged until your trial ends.`;
   if (status === "incomplete") return "Your card is not confirmed yet. Finish checkout in Billing, then try again.";
   if (status === "past_due") return "Your last payment did not go through. Update the card in Billing, then try again.";
   if (status === "paused" || status === "canceled" || status === "incomplete_expired") {
-    return "This workspace is not subscribed. Start it again from Billing before buying a number.";
+    return `This workspace is not subscribed. Start it again from Billing before ${doing.before}.`;
   }
-  return "Billing needs attention before this workspace can buy a number. Open Billing to sort it out.";
+  return `Billing needs attention before this workspace can ${doing.can}. Open Billing to sort it out.`;
 }
 
 /** The switch the runtime reads, for a stripe-mode workspace. A direct one is never touched. */

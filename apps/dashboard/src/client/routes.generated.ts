@@ -7,6 +7,8 @@ export const ROUTES = {
   "DELETE contacts/[id]": { method: "DELETE", path: "/api/v1/contacts/[id]" },
   "DELETE google/connection": { method: "DELETE", path: "/api/v1/google/connection" },
   "DELETE google/link": { method: "DELETE", path: "/api/v1/google/link" },
+  "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
+  "DELETE leads/[id]": { method: "DELETE", path: "/api/v1/leads/[id]" },
   "DELETE playbooks/[id]": { method: "DELETE", path: "/api/v1/playbooks/[id]" },
   "DELETE segments/[id]": { method: "DELETE", path: "/api/v1/segments/[id]" },
   "DELETE team/[id]": { method: "DELETE", path: "/api/v1/team/[id]" },
@@ -41,7 +43,9 @@ export const ROUTES = {
   "GET google/locations": { method: "GET", path: "/api/v1/google/locations" },
   "GET lead-searches": { method: "GET", path: "/api/v1/lead-searches" },
   "GET lead-searches/[id]": { method: "GET", path: "/api/v1/lead-searches/[id]" },
+  "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
   "GET leads": { method: "GET", path: "/api/v1/leads" },
+  "GET leads/export": { method: "GET", path: "/api/v1/leads/export" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
@@ -58,6 +62,7 @@ export const ROUTES = {
   "GET templates": { method: "GET", path: "/api/v1/templates" },
   "GET views": { method: "GET", path: "/api/v1/views" },
   "GET workspaces": { method: "GET", path: "/api/v1/workspaces" },
+  "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
   "PATCH team/[id]": { method: "PATCH", path: "/api/v1/team/[id]" },
   "PATCH workspaces": { method: "PATCH", path: "/api/v1/workspaces" },
   "POST ask": { method: "POST", path: "/api/v1/ask" },
@@ -94,9 +99,13 @@ export const ROUTES = {
   "POST lead-searches/[id]/answer": { method: "POST", path: "/api/v1/lead-searches/[id]/answer" },
   "POST lead-searches/[id]/more": { method: "POST", path: "/api/v1/lead-searches/[id]/more" },
   "POST lead-searches/[id]/stop": { method: "POST", path: "/api/v1/lead-searches/[id]/stop" },
+  "POST lead-searches/[id]/undo": { method: "POST", path: "/api/v1/lead-searches/[id]/undo" },
+  "POST leads/[id]/draft": { method: "POST", path: "/api/v1/leads/[id]/draft" },
   "POST leads/[id]/exclude": { method: "POST", path: "/api/v1/leads/[id]/exclude" },
   "POST leads/[id]/keep": { method: "POST", path: "/api/v1/leads/[id]/keep" },
   "POST leads/[id]/put-back": { method: "POST", path: "/api/v1/leads/[id]/put-back" },
+  "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
+  "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
   "POST lines/buy": { method: "POST", path: "/api/v1/lines/buy" },
   "POST lines/forwarding": { method: "POST", path: "/api/v1/lines/forwarding" },
   "POST lines/forwarding/test": { method: "POST", path: "/api/v1/lines/forwarding/test" },
@@ -130,6 +139,7 @@ export const ROUTES = {
   "PUT contacts/marketing-consent": { method: "PUT", path: "/api/v1/contacts/marketing-consent" },
   "PUT contacts/notes": { method: "PUT", path: "/api/v1/contacts/notes" },
   "PUT contacts/receptionist": { method: "PUT", path: "/api/v1/contacts/receptionist" },
+  "PUT lead-suggestions": { method: "PUT", path: "/api/v1/lead-suggestions" },
   "PUT mailboxes/[id]": { method: "PUT", path: "/api/v1/mailboxes/[id]" },
   "PUT me": { method: "PUT", path: "/api/v1/me" },
   "PUT notifications": { method: "PUT", path: "/api/v1/notifications" },
@@ -148,6 +158,8 @@ export type Routes = {
   "DELETE contacts/[id]": typeof import("../../app/api/v1/contacts/[id]/route").DELETE;
   "DELETE google/connection": typeof import("../../app/api/v1/google/connection/route").DELETE;
   "DELETE google/link": typeof import("../../app/api/v1/google/link/route").DELETE;
+  "DELETE lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").DELETE;
+  "DELETE leads/[id]": typeof import("../../app/api/v1/leads/[id]/route").DELETE;
   "DELETE playbooks/[id]": typeof import("../../app/api/v1/playbooks/[id]/route").DELETE;
   "DELETE segments/[id]": typeof import("../../app/api/v1/segments/[id]/route").DELETE;
   "DELETE team/[id]": typeof import("../../app/api/v1/team/[id]/route").DELETE;
@@ -182,7 +194,9 @@ export type Routes = {
   "GET google/locations": typeof import("../../app/api/v1/google/locations/route").GET;
   "GET lead-searches": typeof import("../../app/api/v1/lead-searches/route").GET;
   "GET lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").GET;
+  "GET lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").GET;
   "GET leads": typeof import("../../app/api/v1/leads/route").GET;
+  "GET leads/export": typeof import("../../app/api/v1/leads/export/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
@@ -199,6 +213,7 @@ export type Routes = {
   "GET templates": typeof import("../../app/api/v1/templates/route").GET;
   "GET views": typeof import("../../app/api/v1/views/route").GET;
   "GET workspaces": typeof import("../../app/api/v1/workspaces/route").GET;
+  "PATCH lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").PATCH;
   "PATCH team/[id]": typeof import("../../app/api/v1/team/[id]/route").PATCH;
   "PATCH workspaces": typeof import("../../app/api/v1/workspaces/route").PATCH;
   "POST ask": typeof import("../../app/api/v1/ask/route").POST;
@@ -235,9 +250,13 @@ export type Routes = {
   "POST lead-searches/[id]/answer": typeof import("../../app/api/v1/lead-searches/[id]/answer/route").POST;
   "POST lead-searches/[id]/more": typeof import("../../app/api/v1/lead-searches/[id]/more/route").POST;
   "POST lead-searches/[id]/stop": typeof import("../../app/api/v1/lead-searches/[id]/stop/route").POST;
+  "POST lead-searches/[id]/undo": typeof import("../../app/api/v1/lead-searches/[id]/undo/route").POST;
+  "POST leads/[id]/draft": typeof import("../../app/api/v1/leads/[id]/draft/route").POST;
   "POST leads/[id]/exclude": typeof import("../../app/api/v1/leads/[id]/exclude/route").POST;
   "POST leads/[id]/keep": typeof import("../../app/api/v1/leads/[id]/keep/route").POST;
   "POST leads/[id]/put-back": typeof import("../../app/api/v1/leads/[id]/put-back/route").POST;
+  "POST leads/[id]/stage": typeof import("../../app/api/v1/leads/[id]/stage/route").POST;
+  "POST leads/bulk": typeof import("../../app/api/v1/leads/bulk/route").POST;
   "POST lines/buy": typeof import("../../app/api/v1/lines/buy/route").POST;
   "POST lines/forwarding": typeof import("../../app/api/v1/lines/forwarding/route").POST;
   "POST lines/forwarding/test": typeof import("../../app/api/v1/lines/forwarding/test/route").POST;
@@ -271,6 +290,7 @@ export type Routes = {
   "PUT contacts/marketing-consent": typeof import("../../app/api/v1/contacts/marketing-consent/route").PUT;
   "PUT contacts/notes": typeof import("../../app/api/v1/contacts/notes/route").PUT;
   "PUT contacts/receptionist": typeof import("../../app/api/v1/contacts/receptionist/route").PUT;
+  "PUT lead-suggestions": typeof import("../../app/api/v1/lead-suggestions/route").PUT;
   "PUT mailboxes/[id]": typeof import("../../app/api/v1/mailboxes/[id]/route").PUT;
   "PUT me": typeof import("../../app/api/v1/me/route").PUT;
   "PUT notifications": typeof import("../../app/api/v1/notifications/route").PUT;

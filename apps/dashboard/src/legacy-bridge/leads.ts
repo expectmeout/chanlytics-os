@@ -13,15 +13,13 @@
  * found, where they append after what is already read.
  */
 import {
-  leadRail, leadsRoute, leadsStanding, parseLeadsRoute, refusalOf, toLeadRowVM,
+  leadRail, leadsRoute, leadsStanding, parseLeadsRoute, toLeadRowVM,
   type LeadChips, type LeadClass, type LeadCounts, type LeadList, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { workspaceZone } from "./zone";
 import { getActiveWorkspace } from "./workspace";
-import { refreshSurfaces } from "./surface-runner";
-import { peopleOverride, type SurfaceOverride } from "./surface-data";
-import { ROUTES } from "../client/routes.generated";
+import { type SurfaceOverride } from "./surface-data";
 import { unwrap, type ApiResult, type RouteKey } from "../client/api";
 
 export interface LeadsView { searchId: string | null; list: LeadList; cls: LeadClass | null; chips: Partial<LeadChips>; sort: LeadSort; dir: "asc" | "desc" }
@@ -51,88 +49,25 @@ const PAGE = 500;
 
 /* ------------------------------------------------------ how a call is sent */
 
-/**
- * Release B's own routes are Task 4.4's files, and this surface is written
- * before them. `gen-route-types.mjs` has not given them a key yet, and the one
- * client reads a route's method and path FROM that generated registry, so it
- * cannot be handed one of these. Their method and path -- the two strings
- * 4.4's files declare -- are named here, and `call` below hands the client the
- * pair either way. Scaffolding, written 20 September 2026: the moment 4.4 has
- * regenerated the registry every key below is found there instead, `call`
- * takes the first branch, and this table and `named` are dead code to delete.
- *
- * What the scaffolded branch does NOT do, for the one wave it lives: sign the
- * tab out on a 401 (it answers the unauthorized refusal, and the next read
- * through the client signs out), and consult `refresh-map.ts`, whose keys must
- * every one be a route (typed-client.test.mjs) and so cannot name these yet --
- * it re-reads the surfaces the map will name instead.
- */
-const B_ROUTES: Record<string, { method: string; path: string }> = {
-  "PATCH lead-searches/[id]": { method: "PATCH", path: "/api/v1/lead-searches/[id]" },
-  "DELETE lead-searches/[id]": { method: "DELETE", path: "/api/v1/lead-searches/[id]" },
-  "POST lead-searches/[id]/undo": { method: "POST", path: "/api/v1/lead-searches/[id]/undo" },
-  "POST leads/[id]/stage": { method: "POST", path: "/api/v1/leads/[id]/stage" },
-  "POST leads/[id]/draft": { method: "POST", path: "/api/v1/leads/[id]/draft" },
-  "DELETE leads/[id]": { method: "DELETE", path: "/api/v1/leads/[id]" },
-  "POST leads/bulk": { method: "POST", path: "/api/v1/leads/bulk" },
-  "GET lead-suggestions": { method: "GET", path: "/api/v1/lead-suggestions" },
-  "PUT lead-suggestions": { method: "PUT", path: "/api/v1/lead-suggestions" },
-};
-
-const GENERATED = ROUTES as unknown as Record<string, { method: string; path: string } | undefined>;
-
 interface LeadCallOptions {
   params?: Record<string, string>;
   query?: Record<string, string>;
   body?: unknown;
   /** false: nothing is re-read after it (a draft changes nothing anyone is looking at). */
   refresh?: false;
-  /** What this write leaves stale, for a route the registry does not carry yet; the refresh map says the same for the ones it does. */
-  stale?: SurfaceOverride[];
 }
 
-/** The same URL the client would build: the route's path with its parameters, and the workspace this page is about. */
-function urlFor(path: string, opts: LeadCallOptions): string {
-  const params = opts.params ?? {};
-  const url = path.replace(/\[(\w+)\]/g, (_m, name: string) => encodeURIComponent(params[name] ?? ""));
-  const qs = new URLSearchParams();
-  for (const [k, v] of Object.entries(opts.query ?? {})) if (v !== undefined && v !== null) qs.set(k, String(v));
-  const ws = getActiveWorkspace();
-  if (ws && !qs.has("workspace")) qs.set("workspace", ws);
-  const q = qs.toString();
-  return q ? `${url}?${q}` : url;
-}
-
-/** A route the generated registry does not carry yet: the same request, read back through the same envelope. */
-async function named<O>(key: string, opts: LeadCallOptions): Promise<ApiResult<O>> {
-  const route = B_ROUTES[key];
-  if (!route) throw new Error(`no such lead route: ${key}`);
-  const write = route.method !== "GET";
-  const res = await window.fetch(urlFor(route.path, opts), {
-    method: route.method,
-    headers: opts.body !== undefined ? { "content-type": "application/json" } : {},
-    ...(opts.body !== undefined ? { body: JSON.stringify(opts.body) } : {}),
-  });
-  const j = (await res.json().catch(() => null)) as { ok: true; data: unknown } | { ok: false; error?: { code?: string; message?: string; details?: unknown } } | null;
-  if (!j || !j.ok) {
-    const e = j && !j.ok ? j.error : undefined;
-    return { ok: false, ...refusalOf({ code: e?.code, status: res.status, message: e?.message, details: e?.details, retryAfter: res.headers.get("retry-after"), write }) };
-  }
-  if (write) {
-    // Something changed: a read already in flight describes the world before it.
-    api().forget();
-    if (opts.refresh !== false) await refreshSurfaces(opts.stale ?? [leadsOverride]);
-  }
-  return { ok: true, data: j.data as O };
-}
-
-/** One lead call, by the key the generated registry uses, answered by the DTO 4.6 spells. */
+/**
+ * One lead call, by the key the generated registry uses, answered by the DTO
+ * 4.6 spells.
+ *
+ * Every one of release B's routes has a key now (Task 4.4 regenerated the
+ * registry), so this is the one client and nothing else: it signs the tab out
+ * on a 401, forgets the reads a write invalidated, and takes what a write
+ * leaves stale from `refresh-map.ts` rather than from the caller.
+ */
 function call<O>(key: string, opts: LeadCallOptions = {}): Promise<ApiResult<O>> {
-  if (GENERATED[key]) {
-    const { stale: _stale, ...rest } = opts; // the refresh map names them once the route has a key
-    return api()(key as RouteKey, rest as never) as unknown as Promise<ApiResult<O>>;
-  }
-  return named<O>(key, opts);
+  return api()(key as RouteKey, opts as never) as unknown as Promise<ApiResult<O>>;
 }
 
 /** A read the runner treats as the surface's own: a refusal throws, the way `api.ts`'s `read` does. */
@@ -280,8 +215,9 @@ export async function leadsTakeOffered(): Promise<void> {
 // Named functions, one per door, in people-detail.ts's style: the page calls window.__leadX, the tests call these.
 
 export async function setLeadStage(id: string, input: LeadStageInput) {
-  // An Interested call makes a person, so People is stale too (the refresh map says the same once 4.4's route exists).
-  return call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input, stale: [leadsOverride, peopleOverride] });
+  // An Interested call makes a person, so People is stale too: `refresh-map.ts`
+  // names both surfaces for this one route.
+  return call<{ stage: string; contact_id: string | null; op_id: string; version: number; toast: string }>("POST leads/[id]/stage", { params: { id }, body: input });
 }
 export async function keepLead(searchId: string, id: string) { return api()("POST leads/[id]/keep", { params: { id }, body: { search_id: searchId } }); }
 export async function excludeLead(searchId: string, id: string) { return api()("POST leads/[id]/exclude", { params: { id }, body: { search_id: searchId } }); }

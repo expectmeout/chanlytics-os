@@ -93,15 +93,30 @@ const viewRow = (over = {}) => ({
   ...over,
 });
 
-/** The workspace as the tools read it: two searches, one ended and one still running. */
+/**
+ * The workspace as the tools read it: two searches, one ended and one still
+ * running, and the month's two counters the plan card's facts are read from
+ * (`planFacts`, server/leads.ts).
+ */
 const world = () => ({
   lead_searches_view: [
     viewRow(),
     viewRow({ id: SEARCH2, name: "Independent pharmacies near 78704", created_at: "2026-09-19T09:00:00Z", state: "running", ending: null, counted: 12, qualified: 12, review: 3 }),
   ],
+  tenants: [{ id: A, name: "Zilker Strength", timezone: "America/Chicago", slug: "harbor" }],
+  lead_counters: [
+    { tenant_id: A, kind: "allowance", period: "2026-09", used: 172, reserved: 0 },
+    { tenant_id: A, kind: "budget", period: "2026-09", used: 4, reserved: 0 },
+  ],
 });
 
-const toolContext = ({ role = "owner", tables = world(), rpcs = {} } = {}) =>
+/** The rail's counts and the platform's prior: the two doors `planFacts` asks. */
+const DOORS = {
+  lead_list_counts: () => ({ all: 172, ready: 140, nurture: 20, converted: 8, said_no: 3, not_a_fit: 1 }),
+  lead_niche_prior: () => ({ places: 1200, matched: 700, with_email: 406 }),
+};
+
+const toolContext = ({ role = "owner", tables = world(), rpcs = DOORS } = {}) =>
   newToolContext({ supabase: fakeDb(tables, {}, rpcs), userId: "u1", email: "ada@example.com", params: {} }, A, role, "America/Chicago", NOW);
 
 const envelope = (data) => new Response(JSON.stringify({ ok: true, data }), { status: 200, headers: { "content-type": "application/json" } });
@@ -138,6 +153,31 @@ test("propose_lead_search makes a plan card for an owner; the model's plan is co
   assert.equal(out.proposal.summary, planSentence(out.proposal.payload.plan));
   assert.equal(out.proposal.payload.plan.card, "local_businesses");
   assert.equal(out.proposal.undo, "Stop the search");
+});
+
+test("the card carries the facts under the sentence: what a search would skip, what is left this month, and what past searches for this kind measured", async () => {
+  const t = toolContext({ role: "owner", tables: world() });
+  const out = await buildProposal(t, "propose_lead_search", MODEL_INPUT);
+  assert.deepEqual(out.proposal.payload.facts, {
+    dupes: 172,
+    leadsLeft: 328,
+    bound: "month",
+    prior: { places: 1200, matched: 700, with_email: 406 },
+    priorOf: "personal_trainer",
+    cannotSee: [],
+    renewsOn: "Oct 1",
+    nearby: [],
+  });
+  // The turn's own moment, never the server's: the month and the day it renews
+  // are the business's (lead_month).
+  const nextYear = newToolContext({ supabase: fakeDb(world(), {}, DOORS), userId: "u1", email: "ada@example.com", params: {} }, A, "owner", "America/Chicago", new Date("2026-12-20T15:00:00Z"));
+  const december = await buildProposal(nextYear, "propose_lead_search", MODEL_INPUT);
+  assert.equal(december.proposal.payload.facts.renewsOn, "Jan 1, 2027");
+  assert.equal(december.proposal.payload.facts.leadsLeft, 500, "a month with no counter of its own has the whole allowance");
+  // A kind nobody has searched carries no prior, and the card says so itself.
+  const fresh = newToolContext({ supabase: fakeDb(world(), {}, { ...DOORS, lead_niche_prior: () => null }), userId: "u1", email: "ada@example.com", params: {} }, A, "owner", "America/Chicago", NOW);
+  const unknown = await buildProposal(fresh, "propose_lead_search", MODEL_INPUT);
+  assert.deepEqual([unknown.proposal.payload.facts.prior, unknown.proposal.payload.facts.priorOf], [null, null]);
 });
 
 test("the planner's refusals are words for the model to say, and no card", async () => {
