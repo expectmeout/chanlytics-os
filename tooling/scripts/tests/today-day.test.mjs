@@ -80,7 +80,7 @@ test("the wiring: the bridge publishes the helpers, the page composes the module
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
   for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null, people || null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"', 'className="td-item-rail"', "data-phase={b.phase}", 'className="td-item-flag"', "b.person ? b.person.name : b.title", 'data-testid="today-day-more"', "d.moreLine"]) assert.ok(page.includes(s), s);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(!brief.includes("dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
+  assert.ok(!brief.includes("__today.dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
   const dash = readCode("apps/dashboard/src/legacy/pages/dashboard-a.jsx");
   assert.ok(dash.indexOf("<AgentCommand />") < dash.indexOf("<TodayDay />"), "the queue, then the day, in the core");

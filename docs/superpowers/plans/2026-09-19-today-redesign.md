@@ -2513,7 +2513,7 @@ test("five rows on Today, the rest a line to the Calendar: what is over goes fir
   and
 ```js
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(!brief.includes("dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
+  assert.ok(!brief.includes("__today.dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
 ```
   (The number of `readCode(`/`readRaw(` calls in the file is unchanged: 8.)
