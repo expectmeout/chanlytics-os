@@ -4134,6 +4134,11 @@ interface BookingReportVM {
     pct: number | null;
     asked: number;
     booked: number;
+    /** Of the ones who asked, how many still have nothing on the calendar. */
+    unbooked: number;
+    /** The share's other side, as a sentence of its own: "10 of the 26 who asked have nothing on the calendar yet",
+     *  or the good news when everybody booked. Empty when there is nothing to count. */
+    rest: string;
 }
 /**
  * Whether someone who reached out has an appointment that answers it: one

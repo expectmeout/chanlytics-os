@@ -133,8 +133,10 @@ const RptTiles = ({ vm, booking }) => {
 };
 
 // Asked, then booked: the share as a meter, beside the booking view model's own words for what it is of (the count
-// is the tile's). No calendar: its sentence and the door to Settings. A calendar that could not be read is a failed
-// read, not a missing calendar. Nobody asked: its words.
+// is the tile's), and under a hairline the same share's other side -- who asked and still has no time on the
+// calendar, which is the half an owner can act on. Both sentences are the view model's (`words`, `rest`). No
+// calendar: its sentence and the door to Settings. A calendar that could not be read is a failed read, not a missing
+// calendar. Nobody asked: its words.
 const RptBooked = ({ bk, phone }) => {
   if (!bk || bk.calendar === "none") {
     return <EmptyState kind="line" title={bk ? bk.sub : "Connect your calendar under Settings › Business to see who booked."} action={{ label: "Open Settings", to: "admin/workspace" }} />;
@@ -143,10 +145,23 @@ const RptBooked = ({ bk, phone }) => {
   if (bk.pct == null) return <EmptyState kind="line" title={bk.headline} body={bk.sub} />;
   return (
     <div className="rpt-booked">
-      <RadialChart value={bk.pct / 100} size={phone ? 96 : 112} thickness={10} ariaLabel={`${bk.pct}% ${bk.words}`}>
-        <span className="rpt-booked-number">{bk.pct}%</span>
-      </RadialChart>
-      <p className="rpt-booked-copy">{bk.words}.</p>
+      <div className="rpt-booked-share">
+        <RadialChart value={bk.pct / 100} size={phone ? 96 : 112} thickness={10} ariaLabel={`${bk.pct}% ${bk.words}`}>
+          <span className="rpt-booked-number">{bk.pct}%</span>
+        </RadialChart>
+        <p className="rpt-booked-copy">{bk.words}.</p>
+      </div>
+      {bk.rest && (
+        <p className={`rpt-booked-rest${bk.unbooked ? "" : " is-done"}`} data-testid="booked-rest">
+          <Icon name={bk.unbooked ? "calendar" : "check"} size={13} />
+          <span>
+            {bk.rest}
+            {/* People already keeps them as a list of its own ("Asked, never booked"), so the door is the list, not
+                the page: __listRoute lands on it, or on People itself where the lists have not loaded. */}
+            {bk.unbooked > 0 && <button type="button" className="cl-bucket-link" onClick={() => rptNav(window.__listRoute ? window.__listRoute("asked_never_booked") : "clients")} data-testid="booked-rest-door">See them</button>}
+          </span>
+        </p>
+      )}
     </div>
   );
 };
@@ -273,8 +288,14 @@ const ReportsSections = ({ R, pick }) => {
               <ChartCard className="rpt-span-4" title="Where they reach you" testid="chart-channels" takeaway={vm.lines.channels} config={RPT_CHANNELS} legend={false}
                 table={channels.length ? { columns: ["Channel", vm.period.now, vm.period.before], rows: channels.map((c) => [c.label, c.value, c.prior]) } : null}>
                 {reached ? (
-                  <PieChart data={channels.map((c) => ({ key: c.key, value: c.value }))} config={RPT_CHANNELS} center={{ value: reached, label: "messages and calls" }}
-                    size={138} thickness={16} ariaLabel="Messages and calls by channel. The arrow keys read each channel." />
+                  <>
+                    <PieChart data={channels.map((c) => ({ key: c.key, value: c.value }))} config={RPT_CHANNELS} center={{ value: reached, label: "messages and calls" }}
+                      size={138} thickness={16} ariaLabel="Messages and calls by channel. The arrow keys read each channel." />
+                    {/* The same split the period before, in the same colours: the donut says where they reach you now,
+                        this says whether that is a change. Its own counts, which no tile and no legend above give. */}
+                    <SegmentBar title={vm.period.before} testid="channels-before" small
+                      rows={channels.map((c) => ({ key: c.key, value: c.prior }))} config={RPT_CHANNELS} />
+                  </>
                 ) : <EmptyState kind="line" title={vm.channels ? "Nothing to split by channel in this period." : "Not counted for this period yet."} />}
               </ChartCard>
               <ChartCard className="rpt-span-4" title="When they reach you" testid="chart-rhythm" takeaway={vm.lines.rhythm} config={rhythm}
@@ -296,7 +317,7 @@ const ReportsSections = ({ R, pick }) => {
               <ChartCard className="rpt-span-4" title="New people, adding up" testid="chart-people" config={people}
                 table={{ columns: ["Day", "New people"], rows: vm.people.points.map((p) => [p.label, p.newPeople]) }}>
                 {vm.people.total ? (
-                  <LineChart data={vm.people.cumulative.points} keys={[{ key: "total", fill: true }]} prior={peopleBefore} config={people} height={176} animKey={days}
+                  <LineChart data={vm.people.cumulative.points} keys={[{ key: "total", fill: true }]} prior={peopleBefore} config={people} height={250} animKey={days}
                     ariaLabel="New people added up over the period, beside the period before. The arrow keys read each day."
                     tip={(d, i, ctx) => ({ title: d.label, rows: [
                       { key: "total", label: "so far", value: d.total },

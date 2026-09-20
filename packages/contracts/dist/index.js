@@ -3647,11 +3647,12 @@ function bookedAfterAsk(visits, askedMs) {
   return !!visits.last && visits.last.start >= askedMs - 864e5;
 }
 function toBookingReportVM(dto) {
-  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", words: "", pct: null, asked: 0, booked: 0 };
-  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "\u2014", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0 };
-  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0 };
+  if (!dto || dto.calendar === "none") return { present: false, calendar: "none", headline: "\u2014", sub: "Connect your calendar under Settings \u203A Business to see who booked.", words: "", pct: null, asked: 0, booked: 0, unbooked: 0, rest: "" };
+  if (dto.calendar === "unavailable") return { present: false, calendar: "unavailable", headline: "\u2014", sub: "Your calendar could not be read.", words: "", pct: null, asked: dto.asked, booked: 0, unbooked: 0, rest: "" };
+  if (dto.asked === 0) return { present: true, calendar: "ok", headline: "Nobody asked", sub: `nobody wrote or called in the last ${dto.days} days`, words: "", pct: null, asked: 0, booked: 0, unbooked: 0, rest: "" };
   const pct2 = Math.round(dto.booked / dto.asked * 100);
   const words2 = `of the people who wrote or called in the last ${dto.days} days have an appointment on the calendar`;
+  const unbooked = dto.asked - dto.booked;
   return {
     present: true,
     calendar: "ok",
@@ -3660,7 +3661,11 @@ function toBookingReportVM(dto) {
     words: words2,
     pct: pct2,
     asked: dto.asked,
-    booked: dto.booked
+    booked: dto.booked,
+    unbooked,
+    // The other side of the same share, said once: who is still waiting to be
+    // given a time. It is the half an owner can do something about.
+    rest: unbooked === 0 ? `Everyone who asked in the last ${dto.days} days has an appointment.` : `${unbooked} of the ${dto.asked} who asked ${unbooked === 1 ? "has" : "have"} nothing on the calendar yet.`
   };
 }
 

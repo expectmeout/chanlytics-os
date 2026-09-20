@@ -254,6 +254,41 @@ test("asked, then booked: the share as a meter beside the view model's words, th
   assert.ok(textOf(card(page({ booking: { calendar: "ok", days: 7, asked: 0, booked: 0 } }), "chart-booking")).includes("Nobody asked"));
 });
 
+test("asked, then booked: the share's other side sits on the card's foot, with the door to the people it names", () => {
+  // 3 of 8 booked, so five are still waiting for a time: the half of the meter an owner can act on, and the only
+  // place on the page that says it. The sentence is the view model's; the page adds no number of its own.
+  const ok = card(page(), "chart-booking");
+  const rest = byTestId(ok, "booked-rest");
+  assert.ok(textOf(rest).includes("5 of the 8 who asked have nothing on the calendar yet."));
+  // People keeps them as a list already, so the door lands on that list and not on the page of everyone.
+  globalThis.__listRoute = (id) => `clients/seg:${id}`;
+  try {
+    press(byTestId(card(page(), "chart-booking"), "booked-rest-door"));
+    assert.deepEqual(went, ["clients/seg:asked_never_booked"]);
+  } finally {
+    delete globalThis.__listRoute;
+  }
+  press(byTestId(card(page(), "chart-booking"), "booked-rest-door"));
+  assert.deepEqual(went, ["clients"], "and on People itself before the lists are known");
+  // Everybody booked: the good news, and nothing to open.
+  const all8 = card(page({ booking: { calendar: "ok", days: 7, asked: 8, booked: 8 } }), "chart-booking");
+  assert.equal(textOf(byTestId(all8, "booked-rest")), "Everyone who asked in the last 7 days has an appointment.");
+  assert.equal(byTestId(all8, "booked-rest-door"), null);
+  // Nothing counted, nothing said: no calendar, one that could not be read, and nobody asking.
+  for (const booking of [{ calendar: "none", days: 7, asked: 0, booked: 0 }, { calendar: "unavailable", days: 7, asked: 4, booked: 0 }, { calendar: "ok", days: 7, asked: 0, booked: 0 }]) {
+    assert.equal(byTestId(card(page({ booking }), "chart-booking"), "booked-rest"), null, booking.calendar);
+  }
+});
+
+test("where they reach you: the same split the period before, under the donut, in its own counts", () => {
+  const tree = page();
+  const before = byTestId(card(tree, "chart-channels"), "channels-before");
+  assert.ok(before, "a part-bar of the period before");
+  assert.equal(textOf(find(before, (n) => classes(n).includes("ck-segbar-title"))), "The 7 days before");
+  // Seven on WhatsApp then, twelve now: the legend's counts are the prior ones, which no tile and no donut gives.
+  assert.ok(textOf(before).includes("WhatsApp") && textOf(before).includes("7"));
+});
+
 test("a v2 payload still draws: what it cannot know is said, never invented", () => {
   const v2 = reportDto();
   for (const k of ["replies", "channels", "hours"]) delete v2[k];
@@ -310,6 +345,9 @@ test("Google's reviews under the period: four tiles, the ratings gained day by d
     assert.equal(takeaway(tree, "chart-google-gained"), "", "the count gained is the tiles'");
     assert.equal(all(tree, (n) => n.props?.["data-testid"] === "google-review").length, 1);
     assert.ok(byTestId(card(tree, "chart-google-latest"), "google-reply"), "a review through the Business Profile can be answered");
+    // Neither card sets the other's height: a run of days and a list of reviews want different shapes, so they take
+    // the row one above the other. Side by side, the reviews stretched the days to a picture of nothing.
+    for (const id of ["chart-google-gained", "chart-google-latest"]) assert.ok(classes(card(tree, id)).includes("rpt-span-12"), id);
   } finally {
     delete globalThis.__GOOGLE;
     delete globalThis.__google;
