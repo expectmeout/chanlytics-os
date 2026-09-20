@@ -161,6 +161,7 @@ import { z as z4 } from "zod";
 import { z as z5 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
+import { z as z8 } from "zod";
 z.config({ jitless: true });
 var LABEL = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
@@ -977,6 +978,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
 var US_STATES = {
@@ -1089,6 +1091,45 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
+var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema = z7.object({
+  list: z7.enum(LEAD_LISTS).default("all"),
+  search: z7.string().uuid().optional(),
+  class: z7.enum(LEAD_CLASSES).optional(),
+  sort: z7.enum(LEAD_SORTS).default("fit"),
+  dir: z7.enum(["asc", "desc"]).default("asc"),
+  after_key: z7.string().max(80).optional(),
+  after_id: z7.string().uuid().optional(),
+  limit: z7.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z7.discriminatedUnion("kind", [
+  z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
+  z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z7.object({ kind: z7.literal("said_no") }),
+  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z7.object({ kind: z7.literal("emailed") })
+]);
+var LeadsBulkSchema = z7.discriminatedUnion("by", [
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadDraftInputSchema = z7.object({
+  tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
+var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema = z7.object({
+  line: z7.string().trim().min(3).max(160),
+  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -1123,12 +1164,12 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z7.object({
-  places: z7.array(z7.object({
-    ref: z7.number().int(),
-    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
-    email_index: z7.number().int().nullable(),
-    reason: z7.string()
+var AnswerSchema = z8.object({
+  places: z8.array(z8.object({
+    ref: z8.number().int(),
+    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
+    email_index: z8.number().int().nullable(),
+    reason: z8.string()
   }))
 });
 var K = new Uint32Array([
@@ -1199,13 +1240,14 @@ var K = new Uint32Array([
 ]);
 
 // ../channels/dist/index.js
-import { z as z8 } from "zod";
+import { z as z9 } from "zod";
 import { z as z22 } from "zod";
 import { z as z32 } from "zod";
 import { z as z42 } from "zod";
 import { z as z52 } from "zod";
 import { z as z62 } from "zod";
 import { z as z72 } from "zod";
+import { z as z82 } from "zod";
 
 // ../../node_modules/domelementtype/lib/esm/index.js
 var ElementType;
@@ -6146,7 +6188,7 @@ function handleDeprecatedOptions(options) {
 }
 
 // ../channels/dist/index.js
-z8.config({ jitless: true });
+z9.config({ jitless: true });
 var LABEL2 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL2 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE2 = new RegExp(`^(${LOCAL2})@(${LABEL2}(?:\\.${LABEL2})+)$`);
@@ -6951,6 +6993,7 @@ function isTimezone2(raw) {
 }
 var CONSENT_PHRASE2 = OFFERS_OPT_IN_PHRASES2.en;
 var CONSENT_PHRASE_ES2 = OFFERS_OPT_IN_PHRASES2.es;
+var LEAD_MEMBER_CLASSES2 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES2 = 1e3;
 var LEAD_QUESTION_WAIT_MS2 = 24 * 36e5;
 var US_STATES2 = {
@@ -7063,6 +7106,45 @@ var PASSWORD_WORDS2 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES2 = LEAD_MEMBER_CLASSES2;
+var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES2 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema2 = z72.object({
+  list: z72.enum(LEAD_LISTS2).default("all"),
+  search: z72.string().uuid().optional(),
+  class: z72.enum(LEAD_CLASSES2).optional(),
+  sort: z72.enum(LEAD_SORTS2).default("fit"),
+  dir: z72.enum(["asc", "desc"]).default("asc"),
+  after_key: z72.string().max(80).optional(),
+  after_id: z72.string().uuid().optional(),
+  limit: z72.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema2 = LeadsQuerySchema2.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema2 = z72.discriminatedUnion("kind", [
+  z72.object({ kind: z72.literal("stage"), stage: z72.enum(["ready", "nurture", "converted"]) }),
+  z72.object({ kind: z72.literal("not_a_fit"), why: z72.enum(LEAD_NOT_A_FIT_WHYS2) }),
+  z72.object({ kind: z72.literal("said_no") }),
+  z72.object({ kind: z72.literal("outcome"), outcome: z72.enum(LEAD_CALL_OUTCOMES2), note: z72.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z72.object({ kind: z72.literal("emailed") })
+]);
+var LeadsBulkSchema2 = z72.discriminatedUnion("by", [
+  z72.object({ by: z72.literal("ids"), action: z72.enum(["contacted", "not_a_fit"]), ids: z72.array(z72.string().uuid()).min(1).max(500) }),
+  z72.object({ by: z72.literal("view"), action: z72.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema2 })
+]);
+var LeadDraftInputSchema2 = z72.object({
+  tone: z72.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z72.object({ subject: z72.string().max(200), body: z72.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema2 = z72.object({ name: z72.string().trim().min(1).max(80) });
+var BusinessLineSchema2 = z72.object({ business_line: z72.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema2 = z72.object({ subject: z72.string().trim().min(3).max(120), body: z72.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema2 = z72.object({
+  line: z72.string().trim().min(3).max(160),
+  items: z72.array(z72.object({ words: z72.string().trim().min(3).max(80), who_for: z72.string().trim().min(3).max(120), category_key: z72.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA2 = {
   type: "object",
@@ -7097,12 +7179,12 @@ var JUDGE_OUTPUT_SCHEMA2 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema2 = z72.object({
-  places: z72.array(z72.object({
-    ref: z72.number().int(),
-    criteria: z72.array(z72.object({ key: z72.string(), answer: z72.enum(["pass", "fail", "unknown"]), facts: z72.array(z72.string()) })),
-    email_index: z72.number().int().nullable(),
-    reason: z72.string()
+var AnswerSchema2 = z82.object({
+  places: z82.array(z82.object({
+    ref: z82.number().int(),
+    criteria: z82.array(z82.object({ key: z82.string(), answer: z82.enum(["pass", "fail", "unknown"]), facts: z82.array(z82.string()) })),
+    email_index: z82.number().int().nullable(),
+    reason: z82.string()
   }))
 });
 var K2 = new Uint32Array([
@@ -7266,27 +7348,30 @@ var enc2 = new TextEncoder();
 var dec = new TextDecoder();
 
 // ../core/dist/index.js
-import { z as z9 } from "zod";
+import { z as z10 } from "zod";
 import { z as z23 } from "zod";
 import { z as z33 } from "zod";
 import { z as z43 } from "zod";
 import { z as z53 } from "zod";
 import { z as z63 } from "zod";
 import { z as z73 } from "zod";
-import { z as z82 } from "zod";
+import { z as z83 } from "zod";
+import { z as z92 } from "zod";
 import { z as z222 } from "zod";
 import { z as z322 } from "zod";
 import { z as z422 } from "zod";
 import { z as z522 } from "zod";
 import { z as z622 } from "zod";
 import { z as z722 } from "zod";
-import { z as z92 } from "zod";
+import { z as z822 } from "zod";
+import { z as z102 } from "zod";
 import { z as z232 } from "zod";
 import { z as z332 } from "zod";
 import { z as z432 } from "zod";
 import { z as z532 } from "zod";
 import { z as z632 } from "zod";
 import { z as z732 } from "zod";
+import { z as z832 } from "zod";
 var __create2 = Object.create;
 var __defProp2 = Object.defineProperty;
 var __getOwnPropDesc2 = Object.getOwnPropertyDescriptor;
@@ -8206,7 +8291,7 @@ var DEFAULT_OPTIONS2 = {
   whitespaceCharacters: " 	\r\n\f\u200B",
   wordwrap: 80
 };
-z9.config({ jitless: true });
+z10.config({ jitless: true });
 var LABEL3 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL3 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE3 = new RegExp(`^(${LOCAL3})@(${LABEL3}(?:\\.${LABEL3})+)$`);
@@ -9011,6 +9096,7 @@ function isTimezone3(raw) {
 }
 var CONSENT_PHRASE3 = OFFERS_OPT_IN_PHRASES3.en;
 var CONSENT_PHRASE_ES3 = OFFERS_OPT_IN_PHRASES3.es;
+var LEAD_MEMBER_CLASSES3 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES3 = 1e3;
 var LEAD_QUESTION_WAIT_MS3 = 24 * 36e5;
 var US_STATES3 = {
@@ -9123,6 +9209,45 @@ var PASSWORD_WORDS3 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES3 = LEAD_MEMBER_CLASSES3;
+var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES3 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS3 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema3 = z73.object({
+  list: z73.enum(LEAD_LISTS3).default("all"),
+  search: z73.string().uuid().optional(),
+  class: z73.enum(LEAD_CLASSES3).optional(),
+  sort: z73.enum(LEAD_SORTS3).default("fit"),
+  dir: z73.enum(["asc", "desc"]).default("asc"),
+  after_key: z73.string().max(80).optional(),
+  after_id: z73.string().uuid().optional(),
+  limit: z73.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema3 = LeadsQuerySchema3.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema3 = z73.discriminatedUnion("kind", [
+  z73.object({ kind: z73.literal("stage"), stage: z73.enum(["ready", "nurture", "converted"]) }),
+  z73.object({ kind: z73.literal("not_a_fit"), why: z73.enum(LEAD_NOT_A_FIT_WHYS3) }),
+  z73.object({ kind: z73.literal("said_no") }),
+  z73.object({ kind: z73.literal("outcome"), outcome: z73.enum(LEAD_CALL_OUTCOMES3), note: z73.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z73.object({ kind: z73.literal("emailed") })
+]);
+var LeadsBulkSchema3 = z73.discriminatedUnion("by", [
+  z73.object({ by: z73.literal("ids"), action: z73.enum(["contacted", "not_a_fit"]), ids: z73.array(z73.string().uuid()).min(1).max(500) }),
+  z73.object({ by: z73.literal("view"), action: z73.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema3 })
+]);
+var LeadDraftInputSchema3 = z73.object({
+  tone: z73.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z73.object({ subject: z73.string().max(200), body: z73.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema3 = z73.object({ name: z73.string().trim().min(1).max(80) });
+var BusinessLineSchema3 = z73.object({ business_line: z73.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema3 = z73.object({ subject: z73.string().trim().min(3).max(120), body: z73.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema3 = z73.object({
+  line: z73.string().trim().min(3).max(160),
+  items: z73.array(z73.object({ words: z73.string().trim().min(3).max(80), who_for: z73.string().trim().min(3).max(120), category_key: z73.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA3 = {
   type: "object",
@@ -9157,12 +9282,12 @@ var JUDGE_OUTPUT_SCHEMA3 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema3 = z73.object({
-  places: z73.array(z73.object({
-    ref: z73.number().int(),
-    criteria: z73.array(z73.object({ key: z73.string(), answer: z73.enum(["pass", "fail", "unknown"]), facts: z73.array(z73.string()) })),
-    email_index: z73.number().int().nullable(),
-    reason: z73.string()
+var AnswerSchema3 = z83.object({
+  places: z83.array(z83.object({
+    ref: z83.number().int(),
+    criteria: z83.array(z83.object({ key: z83.string(), answer: z83.enum(["pass", "fail", "unknown"]), facts: z83.array(z83.string()) })),
+    email_index: z83.number().int().nullable(),
+    reason: z83.string()
   }))
 });
 var K3 = new Uint32Array([
@@ -9287,7 +9412,7 @@ var FRESH_SLACK_MS2 = 2 * 864e5;
 var STATE_TTL_MS2 = 10 * 6e4;
 var enc22 = new TextEncoder();
 var dec2 = new TextDecoder();
-z82.config({ jitless: true });
+z92.config({ jitless: true });
 var MAX_ADDRESS = 254;
 var MAX_LOCAL = 64;
 var LABEL22 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
@@ -10164,6 +10289,7 @@ function isTimezone22(raw) {
 }
 var CONSENT_PHRASE22 = OFFERS_OPT_IN_PHRASES22.en;
 var CONSENT_PHRASE_ES22 = OFFERS_OPT_IN_PHRASES22.es;
+var LEAD_MEMBER_CLASSES22 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES22 = 1e3;
 var LEAD_QUESTION_WAIT_MS22 = 24 * 36e5;
 var US_STATES22 = {
@@ -10276,6 +10402,45 @@ var PASSWORD_WORDS22 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES22 = LEAD_MEMBER_CLASSES22;
+var LEAD_LISTS22 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS22 = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES22 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS22 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema22 = z722.object({
+  list: z722.enum(LEAD_LISTS22).default("all"),
+  search: z722.string().uuid().optional(),
+  class: z722.enum(LEAD_CLASSES22).optional(),
+  sort: z722.enum(LEAD_SORTS22).default("fit"),
+  dir: z722.enum(["asc", "desc"]).default("asc"),
+  after_key: z722.string().max(80).optional(),
+  after_id: z722.string().uuid().optional(),
+  limit: z722.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema22 = LeadsQuerySchema22.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema22 = z722.discriminatedUnion("kind", [
+  z722.object({ kind: z722.literal("stage"), stage: z722.enum(["ready", "nurture", "converted"]) }),
+  z722.object({ kind: z722.literal("not_a_fit"), why: z722.enum(LEAD_NOT_A_FIT_WHYS22) }),
+  z722.object({ kind: z722.literal("said_no") }),
+  z722.object({ kind: z722.literal("outcome"), outcome: z722.enum(LEAD_CALL_OUTCOMES22), note: z722.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z722.object({ kind: z722.literal("emailed") })
+]);
+var LeadsBulkSchema22 = z722.discriminatedUnion("by", [
+  z722.object({ by: z722.literal("ids"), action: z722.enum(["contacted", "not_a_fit"]), ids: z722.array(z722.string().uuid()).min(1).max(500) }),
+  z722.object({ by: z722.literal("view"), action: z722.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema22 })
+]);
+var LeadDraftInputSchema22 = z722.object({
+  tone: z722.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z722.object({ subject: z722.string().max(200), body: z722.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema22 = z722.object({ name: z722.string().trim().min(1).max(80) });
+var BusinessLineSchema22 = z722.object({ business_line: z722.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema22 = z722.object({ subject: z722.string().trim().min(3).max(120), body: z722.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema22 = z722.object({
+  line: z722.string().trim().min(3).max(160),
+  items: z722.array(z722.object({ words: z722.string().trim().min(3).max(80), who_for: z722.string().trim().min(3).max(120), category_key: z722.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS22 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA22 = {
   type: "object",
@@ -10310,12 +10475,12 @@ var JUDGE_OUTPUT_SCHEMA22 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema22 = z722.object({
-  places: z722.array(z722.object({
-    ref: z722.number().int(),
-    criteria: z722.array(z722.object({ key: z722.string(), answer: z722.enum(["pass", "fail", "unknown"]), facts: z722.array(z722.string()) })),
-    email_index: z722.number().int().nullable(),
-    reason: z722.string()
+var AnswerSchema22 = z822.object({
+  places: z822.array(z822.object({
+    ref: z822.number().int(),
+    criteria: z822.array(z822.object({ key: z822.string(), answer: z822.enum(["pass", "fail", "unknown"]), facts: z822.array(z822.string()) })),
+    email_index: z822.number().int().nullable(),
+    reason: z822.string()
   }))
 });
 var K22 = new Uint32Array([
@@ -10384,7 +10549,7 @@ var K22 = new Uint32Array([
   3204031479,
   3329325298
 ]);
-z92.config({ jitless: true });
+z102.config({ jitless: true });
 var LABEL32 = "[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?";
 var LOCAL32 = "[a-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\\.[a-z0-9!#$%&'*+/=?^_`{|}~-]+)*";
 var SHAPE32 = new RegExp(`^(${LOCAL32})@(${LABEL32}(?:\\.${LABEL32})+)$`);
@@ -11188,6 +11353,7 @@ function isTimezone32(raw) {
 }
 var CONSENT_PHRASE32 = OFFERS_OPT_IN_PHRASES32.en;
 var CONSENT_PHRASE_ES32 = OFFERS_OPT_IN_PHRASES32.es;
+var LEAD_MEMBER_CLASSES32 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES32 = 1e3;
 var LEAD_QUESTION_WAIT_MS32 = 24 * 36e5;
 var US_STATES32 = {
@@ -11300,6 +11466,45 @@ var PASSWORD_WORDS32 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES32 = LEAD_MEMBER_CLASSES32;
+var LEAD_LISTS32 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS32 = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES32 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS32 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema32 = z732.object({
+  list: z732.enum(LEAD_LISTS32).default("all"),
+  search: z732.string().uuid().optional(),
+  class: z732.enum(LEAD_CLASSES32).optional(),
+  sort: z732.enum(LEAD_SORTS32).default("fit"),
+  dir: z732.enum(["asc", "desc"]).default("asc"),
+  after_key: z732.string().max(80).optional(),
+  after_id: z732.string().uuid().optional(),
+  limit: z732.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema32 = LeadsQuerySchema32.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema32 = z732.discriminatedUnion("kind", [
+  z732.object({ kind: z732.literal("stage"), stage: z732.enum(["ready", "nurture", "converted"]) }),
+  z732.object({ kind: z732.literal("not_a_fit"), why: z732.enum(LEAD_NOT_A_FIT_WHYS32) }),
+  z732.object({ kind: z732.literal("said_no") }),
+  z732.object({ kind: z732.literal("outcome"), outcome: z732.enum(LEAD_CALL_OUTCOMES32), note: z732.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z732.object({ kind: z732.literal("emailed") })
+]);
+var LeadsBulkSchema32 = z732.discriminatedUnion("by", [
+  z732.object({ by: z732.literal("ids"), action: z732.enum(["contacted", "not_a_fit"]), ids: z732.array(z732.string().uuid()).min(1).max(500) }),
+  z732.object({ by: z732.literal("view"), action: z732.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema32 })
+]);
+var LeadDraftInputSchema32 = z732.object({
+  tone: z732.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z732.object({ subject: z732.string().max(200), body: z732.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema32 = z732.object({ name: z732.string().trim().min(1).max(80) });
+var BusinessLineSchema32 = z732.object({ business_line: z732.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema32 = z732.object({ subject: z732.string().trim().min(3).max(120), body: z732.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema32 = z732.object({
+  line: z732.string().trim().min(3).max(160),
+  items: z732.array(z732.object({ words: z732.string().trim().min(3).max(80), who_for: z732.string().trim().min(3).max(120), category_key: z732.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS32 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA32 = {
   type: "object",
@@ -11334,12 +11539,12 @@ var JUDGE_OUTPUT_SCHEMA32 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema32 = z732.object({
-  places: z732.array(z732.object({
-    ref: z732.number().int(),
-    criteria: z732.array(z732.object({ key: z732.string(), answer: z732.enum(["pass", "fail", "unknown"]), facts: z732.array(z732.string()) })),
-    email_index: z732.number().int().nullable(),
-    reason: z732.string()
+var AnswerSchema32 = z832.object({
+  places: z832.array(z832.object({
+    ref: z832.number().int(),
+    criteria: z832.array(z832.object({ key: z832.string(), answer: z832.enum(["pass", "fail", "unknown"]), facts: z832.array(z832.string()) })),
+    email_index: z832.number().int().nullable(),
+    reason: z832.string()
   }))
 });
 var K32 = new Uint32Array([
@@ -11880,14 +12085,15 @@ var enc32 = new TextEncoder();
 var UNKNOWN_START_GRACE_MS = 10 * 6e4;
 
 // ../db/dist/index.js
-import { z as z10 } from "zod";
+import { z as z11 } from "zod";
 import { z as z24 } from "zod";
 import { z as z34 } from "zod";
 import { z as z44 } from "zod";
 import { z as z54 } from "zod";
 import { z as z64 } from "zod";
 import { z as z74 } from "zod";
-z10.config({ jitless: true });
+import { z as z84 } from "zod";
+z11.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
   const digits2 = String(raw).replace(/[^\d]/g, "");
@@ -12699,6 +12905,7 @@ function isTimezone4(raw) {
 }
 var CONSENT_PHRASE4 = OFFERS_OPT_IN_PHRASES4.en;
 var CONSENT_PHRASE_ES4 = OFFERS_OPT_IN_PHRASES4.es;
+var LEAD_MEMBER_CLASSES4 = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES4 = 1e3;
 var LEAD_QUESTION_WAIT_MS4 = 24 * 36e5;
 var US_STATES4 = {
@@ -12811,6 +13018,45 @@ var PASSWORD_WORDS4 = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES4 = LEAD_MEMBER_CLASSES4;
+var LEAD_LISTS4 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS4 = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES4 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS4 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema4 = z74.object({
+  list: z74.enum(LEAD_LISTS4).default("all"),
+  search: z74.string().uuid().optional(),
+  class: z74.enum(LEAD_CLASSES4).optional(),
+  sort: z74.enum(LEAD_SORTS4).default("fit"),
+  dir: z74.enum(["asc", "desc"]).default("asc"),
+  after_key: z74.string().max(80).optional(),
+  after_id: z74.string().uuid().optional(),
+  limit: z74.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema4 = LeadsQuerySchema4.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema4 = z74.discriminatedUnion("kind", [
+  z74.object({ kind: z74.literal("stage"), stage: z74.enum(["ready", "nurture", "converted"]) }),
+  z74.object({ kind: z74.literal("not_a_fit"), why: z74.enum(LEAD_NOT_A_FIT_WHYS4) }),
+  z74.object({ kind: z74.literal("said_no") }),
+  z74.object({ kind: z74.literal("outcome"), outcome: z74.enum(LEAD_CALL_OUTCOMES4), note: z74.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z74.object({ kind: z74.literal("emailed") })
+]);
+var LeadsBulkSchema4 = z74.discriminatedUnion("by", [
+  z74.object({ by: z74.literal("ids"), action: z74.enum(["contacted", "not_a_fit"]), ids: z74.array(z74.string().uuid()).min(1).max(500) }),
+  z74.object({ by: z74.literal("view"), action: z74.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema4 })
+]);
+var LeadDraftInputSchema4 = z74.object({
+  tone: z74.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z74.object({ subject: z74.string().max(200), body: z74.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema4 = z74.object({ name: z74.string().trim().min(1).max(80) });
+var BusinessLineSchema4 = z74.object({ business_line: z74.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema4 = z74.object({ subject: z74.string().trim().min(3).max(120), body: z74.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema4 = z74.object({
+  line: z74.string().trim().min(3).max(160),
+  items: z74.array(z74.object({ words: z74.string().trim().min(3).max(80), who_for: z74.string().trim().min(3).max(120), category_key: z74.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS4 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA4 = {
   type: "object",
@@ -12845,12 +13091,12 @@ var JUDGE_OUTPUT_SCHEMA4 = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema4 = z74.object({
-  places: z74.array(z74.object({
-    ref: z74.number().int(),
-    criteria: z74.array(z74.object({ key: z74.string(), answer: z74.enum(["pass", "fail", "unknown"]), facts: z74.array(z74.string()) })),
-    email_index: z74.number().int().nullable(),
-    reason: z74.string()
+var AnswerSchema4 = z84.object({
+  places: z84.array(z84.object({
+    ref: z84.number().int(),
+    criteria: z84.array(z84.object({ key: z84.string(), answer: z84.enum(["pass", "fail", "unknown"]), facts: z84.array(z84.string()) })),
+    email_index: z84.number().int().nullable(),
+    reason: z84.string()
   }))
 });
 var K4 = new Uint32Array([

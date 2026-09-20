@@ -14,6 +14,7 @@ import { z as z4 } from "zod";
 import { z as z5 } from "zod";
 import { z as z6 } from "zod";
 import { z as z7 } from "zod";
+import { z as z8 } from "zod";
 z.config({ jitless: true });
 function normalizePhone(raw) {
   if (raw == null) return null;
@@ -826,6 +827,7 @@ function isTimezone(raw) {
 }
 var CONSENT_PHRASE = OFFERS_OPT_IN_PHRASES.en;
 var CONSENT_PHRASE_ES = OFFERS_OPT_IN_PHRASES.es;
+var LEAD_MEMBER_CLASSES = ["qualified", "review", "excluded"];
 var LEAD_MAX_PLACES = 1e3;
 var LEAD_QUESTION_WAIT_MS = 24 * 36e5;
 var US_STATES = {
@@ -938,6 +940,45 @@ var PASSWORD_WORDS = {
   resetBadCode: "That code didn't match or has expired \u2014 ask for a new one.",
   backToSignIn: "Back to sign-in"
 };
+var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
+var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LeadsQuerySchema = z7.object({
+  list: z7.enum(LEAD_LISTS).default("all"),
+  search: z7.string().uuid().optional(),
+  class: z7.enum(LEAD_CLASSES).optional(),
+  sort: z7.enum(LEAD_SORTS).default("fit"),
+  dir: z7.enum(["asc", "desc"]).default("asc"),
+  after_key: z7.string().max(80).optional(),
+  after_id: z7.string().uuid().optional(),
+  limit: z7.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z7.discriminatedUnion("kind", [
+  z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
+  z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z7.object({ kind: z7.literal("said_no") }),
+  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z7.object({ kind: z7.literal("emailed") })
+]);
+var LeadsBulkSchema = z7.discriminatedUnion("by", [
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadDraftInputSchema = z7.object({
+  tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
+});
+var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
+var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
+var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LeadSuggestAnswerSchema = z7.object({
+  line: z7.string().trim().min(3).max(160),
+  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -972,12 +1013,12 @@ var JUDGE_OUTPUT_SCHEMA = {
   required: ["places"],
   additionalProperties: false
 };
-var AnswerSchema = z7.object({
-  places: z7.array(z7.object({
-    ref: z7.number().int(),
-    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
-    email_index: z7.number().int().nullable(),
-    reason: z7.string()
+var AnswerSchema = z8.object({
+  places: z8.array(z8.object({
+    ref: z8.number().int(),
+    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
+    email_index: z8.number().int().nullable(),
+    reason: z8.string()
   }))
 });
 var K = new Uint32Array([

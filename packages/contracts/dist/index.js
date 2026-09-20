@@ -696,8 +696,8 @@ function toMs(value, params, fallbackTz) {
   }
   const m = /^(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})(\d{2})?(Z)?$/.exec(v);
   if (!m) return null;
-  const [, y, mo, d, hh, mm, ss, z8] = m;
-  if (z8) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
+  const [, y, mo, d, hh, mm, ss, z9] = m;
+  if (z9) return Date.UTC(Number(y), Number(mo) - 1, Number(d), Number(hh), Number(mm), Number(ss ?? 0));
   const tz = params.TZID ?? fallbackTz;
   try {
     return localToUtcMs(tz, Number(y), Number(mo), Number(d), Number(hh), Number(mm)) + Number(ss ?? 0) * 1e3;
@@ -10978,8 +10978,203 @@ function leadSuppressionHash(tenantId, value) {
   return keyedDigest(tenantId, value);
 }
 
-// src/lead-judge.ts
+// src/leads.ts
 import { z as z7 } from "zod";
+var LEAD_CLASSES = LEAD_MEMBER_CLASSES;
+var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"];
+var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
+var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
+var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_STAGE_WORDS = { ready: "Ready", nurture: "Contacted", converted: "Talking", archived: "Closed" };
+var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_FIT_WORDS = { strong: "Strong fit", look: "Worth a look", long: "Long shot" };
+var LEAD_EMAIL_WORDS = { none: "No email", checking: "Checking", ok: "Checked", catch_all: "Unconfirmed", unknown: "Couldn't check", invalid: "Bounces" };
+var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_LIST_WORDS = { all: "All leads", ready: "Ready", nurture: "Contacted", converted: "Talking", said_no: "Said no", not_a_fit: "Not a fit" };
+var LEAD_SOURCE_WORD = "Google Maps listing";
+var LEAD_LOCKED_LINE = "Wait for their yes. Once they write back, they're in People and your yes page works for them.";
+var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
+var LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+function outcomeMove(o) {
+  switch (o) {
+    case "interested":
+      return { stage: "converted", closedReason: null, converts: true };
+    case "not_interested":
+      return { stage: "archived", closedReason: "said_no", converts: false };
+    case "wrong_number":
+      return { stage: null, closedReason: null, converts: false };
+    default:
+      return { stage: "nurture", closedReason: null, converts: false };
+  }
+}
+var LeadsQuerySchema = z7.object({
+  list: z7.enum(LEAD_LISTS).default("all"),
+  search: z7.string().uuid().optional(),
+  class: z7.enum(LEAD_CLASSES).optional(),
+  sort: z7.enum(LEAD_SORTS).default("fit"),
+  dir: z7.enum(["asc", "desc"]).default("asc"),
+  after_key: z7.string().max(80).optional(),
+  after_id: z7.string().uuid().optional(),
+  limit: z7.coerce.number().int().min(1).max(500).default(500)
+});
+var LeadsViewSchema = LeadsQuerySchema.omit({ after_key: true, after_id: true, limit: true });
+var LeadStageInputSchema = z7.discriminatedUnion("kind", [
+  z7.object({ kind: z7.literal("stage"), stage: z7.enum(["ready", "nurture", "converted"]) }),
+  z7.object({ kind: z7.literal("not_a_fit"), why: z7.enum(LEAD_NOT_A_FIT_WHYS) }),
+  z7.object({ kind: z7.literal("said_no") }),
+  z7.object({ kind: z7.literal("outcome"), outcome: z7.enum(LEAD_CALL_OUTCOMES), note: z7.string().trim().max(280).optional() }),
+  /** "Did you send it?" Yes. */
+  z7.object({ kind: z7.literal("emailed") })
+]);
+function stageArgs(i) {
+  const none = { p_stage: null, p_reason: null, p_fit_reason: null, p_outcome: null, p_note: null };
+  switch (i.kind) {
+    case "stage":
+      return { ...none, p_stage: i.stage };
+    case "not_a_fit":
+      return { ...none, p_stage: "archived", p_reason: i.why === "customer" ? "customer" : "not_a_fit", p_fit_reason: i.why };
+    case "said_no":
+      return { ...none, p_stage: "archived", p_reason: "said_no" };
+    case "emailed":
+      return { ...none, p_stage: "nurture", p_outcome: "emailed" };
+    case "outcome": {
+      const m = outcomeMove(i.outcome);
+      return { ...none, p_stage: m.stage, p_reason: m.closedReason, p_outcome: i.outcome, p_note: i.note ?? null };
+    }
+  }
+}
+var LeadsBulkSchema = z7.discriminatedUnion("by", [
+  z7.object({ by: z7.literal("ids"), action: z7.enum(["contacted", "not_a_fit"]), ids: z7.array(z7.string().uuid()).min(1).max(500) }),
+  z7.object({ by: z7.literal("view"), action: z7.enum(["contacted", "not_a_fit"]), view: LeadsViewSchema })
+]);
+var LeadDraftInputSchema = z7.object({
+  tone: z7.enum(["first", "shorter", "warmer"]).default("first"),
+  previous: z7.object({ subject: z7.string().max(200), body: z7.string().max(4e3) }).optional()
+});
+var LeadExportQuerySchema = LeadsViewSchema;
+var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
+var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
+function leadsRoute(v) {
+  const parts2 = ["clients/leads"];
+  if (v.searchId) parts2.push(`s-${v.searchId}`);
+  if (v.list && v.list !== "all") parts2.push(`l-${v.list}`);
+  if (v.cls) parts2.push(`c-${v.cls}`);
+  return parts2.join(":");
+}
+function parseLeadsRoute(route) {
+  const [head, ...segs] = route.split(":");
+  if (head !== "clients/leads" && head !== "leads") return null;
+  const out = { searchId: null, list: "all", cls: null, chips: {} };
+  for (const s of segs) {
+    const dash = s.indexOf("-");
+    if (dash < 1) continue;
+    const [seg, val] = [s.slice(0, dash), s.slice(dash + 1)];
+    if (seg === "s" && /^[0-9a-f-]{36}$/.test(val)) out.searchId = val;
+    else if (seg === "l" && LEAD_LISTS.includes(val)) out.list = val;
+    else if (seg === "c" && LEAD_CLASSES.includes(val)) out.cls = val;
+  }
+  return out;
+}
+var LEAD_DRAFT_JSON_SCHEMA = { type: "object", additionalProperties: false, required: ["subject", "body"], properties: { subject: { type: "string" }, body: { type: "string" } } };
+var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
+var LEAD_SUGGEST_JSON_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  required: ["line", "items"],
+  properties: { line: { type: "string" }, items: { type: "array", items: { type: "object", additionalProperties: false, required: ["words", "who_for", "category_key"], properties: { words: { type: "string" }, who_for: { type: "string" }, category_key: { type: "string" } } } } }
+};
+var LeadSuggestAnswerSchema = z7.object({
+  line: z7.string().trim().min(3).max(160),
+  items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
+});
+function leadDraftFooter(business, address) {
+  return `
+
+\u2014
+${business} \xB7 ${address}
+Not interested? Reply "no thanks" and I won't write again.`;
+}
+var LEAD_CHECK_KEYS = ["on_maps", "in_area", "phone_two_sources", "mailbox", "independent", "right_kind", "own_address"];
+var METRES_PER_MILE = 1609.344;
+var keyInWords = (key) => {
+  const words2 = key.replace(/_/g, " ").trim();
+  return words2 ? words2.charAt(0).toUpperCase() + words2.slice(1) : "";
+};
+var milesLabel = (m) => {
+  if (m === null || m === void 0) return "";
+  const mi = m / METRES_PER_MILE;
+  return `${mi < 10 ? mi.toFixed(1) : String(Math.round(mi))} mi`;
+};
+var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
+var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
+function toLeadRowVM(r, tz, now) {
+  const nowMs = now.getTime();
+  const foundMs = Date.parse(r.found_at);
+  const m = r.member;
+  const excludedBy = m.excluded_by ? keyInWords(m.excluded_by) : null;
+  const rating = ratingLabel(r.rating, r.reviews);
+  const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
+  const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rating ? `${m.reason} \xB7 ${rating.replace(" \xB7 ", " from ")} reviews` : m.reason;
+  const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
+  return {
+    id: r.id,
+    searchId: r.search_id,
+    searchName: r.search_name ?? "",
+    mark: initialsOf(r.business_name),
+    name: r.business_name,
+    places: r.places,
+    category: r.category ?? "",
+    area,
+    cls: m.class,
+    fitLabel,
+    fitTitle,
+    email: r.email,
+    emailState: r.email_state,
+    // The cell draws the address itself; an address nobody has is blank, not "none".
+    emailLabel: r.email ?? "",
+    emailWord: LEAD_EMAIL_WORDS[r.email_state],
+    // E.164, because the row dials it (plDial's tel:); the double tick says Maps and their own site agree.
+    phone: r.phone,
+    phoneAgrees: r.phone_agrees,
+    phoneWrong: r.phone_wrong,
+    why: m.reason,
+    rating,
+    stage: r.stage,
+    stageLabel: stageLabelOf(r.stage, r.closed_reason),
+    foundLabel: agoShort(foundMs, nowMs),
+    foundAt: `${clockDateYear(foundMs, tz)} \xB7 ${clockTime(foundMs, tz)}`,
+    distance: milesLabel(m.distance_m),
+    source: LEAD_SOURCE_WORD,
+    host: siteHost(r.website) ?? "",
+    excludedBy,
+    version: r.version
+  };
+}
+var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
+function leadRail(counts, searches) {
+  const ids = ["all", "ready", "nurture", "converted", ...counts.said_no > 0 ? ["said_no"] : [], "not_a_fit"];
+  return {
+    lists: ids.map((id) => ({ id, label: LEAD_LIST_WORDS[id], count: counts[id === "all" ? "all" : id] })),
+    searches: searches.map((s) => ({
+      id: s.id,
+      name: s.name,
+      count: s.round?.counted ?? 0,
+      mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null
+    }))
+  };
+}
+function leadsStanding(counts, searches) {
+  const waiting = searches.filter((s) => s.round?.state === "waiting_on_owner");
+  return {
+    total: `${counts.all} leads`,
+    parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
+    needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0].id } : null
+  };
+}
+
+// src/lead-judge.ts
+import { z as z8 } from "zod";
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -11052,12 +11247,12 @@ function judgeUserContent(places) {
 ${JSON.stringify(quoted)}
 </places>`;
 }
-var AnswerSchema = z7.object({
-  places: z7.array(z7.object({
-    ref: z7.number().int(),
-    criteria: z7.array(z7.object({ key: z7.string(), answer: z7.enum(["pass", "fail", "unknown"]), facts: z7.array(z7.string()) })),
-    email_index: z7.number().int().nullable(),
-    reason: z7.string()
+var AnswerSchema = z8.object({
+  places: z8.array(z8.object({
+    ref: z8.number().int(),
+    criteria: z8.array(z8.object({ key: z8.string(), answer: z8.enum(["pass", "fail", "unknown"]), facts: z8.array(z8.string()) })),
+    email_index: z8.number().int().nullable(),
+    reason: z8.string()
   }))
 });
 function factKeysOf(p) {
@@ -11272,6 +11467,7 @@ export {
   BookingRulesSchema,
   BrainConfigSchema,
   BrainOutputSchema,
+  BusinessLineSchema,
   BusinessProfileSchema,
   CALENDAR_FEED_WORDS,
   CALL_HEARTBEAT_MS,
@@ -11341,23 +11537,38 @@ export {
   JUDGE_OUTPUT_SCHEMA,
   LEAD_ASK_MAX_FACTOR,
   LEAD_ASK_MIN_FACTOR,
+  LEAD_CALL_OUTCOMES,
+  LEAD_CALL_OUTCOME_WORDS,
   LEAD_CARDS,
+  LEAD_CHECK_KEYS,
+  LEAD_CLASSES,
   LEAD_CLOSED_REASONS,
+  LEAD_CLOSED_WORDS,
+  LEAD_CONSENT_REFUSAL,
   LEAD_COUNTER_KINDS,
   LEAD_DAY_CAP_USD,
+  LEAD_DRAFT_JSON_SCHEMA,
+  LEAD_DRAFT_NOTE,
   LEAD_EMAIL_REASON,
   LEAD_EMAIL_STATES,
+  LEAD_EMAIL_WORDS,
   LEAD_ENDING_WORDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_FACT_MAX,
   LEAD_FITS,
+  LEAD_FIT_WORDS,
   LEAD_FREE_MAIL,
   LEAD_JUDGE_BATCH,
   LEAD_JUNK_EMAIL_DOMAINS,
+  LEAD_LISTS,
+  LEAD_LIST_WORDS,
+  LEAD_LOCKED_LINE,
   LEAD_MAX_PLACES,
   LEAD_MEMBER_CLASSES,
   LEAD_MONTHLY_ALLOWANCE,
   LEAD_MONTHLY_BUDGET_USD,
+  LEAD_NOT_A_FIT_WHYS,
+  LEAD_NO_ADDRESS,
   LEAD_OPERATION_KINDS,
   LEAD_PLACEHOLDER_LOCALS,
   LEAD_PLATFORM_DAY_CAP_USD,
@@ -11376,7 +11587,11 @@ export {
   LEAD_RUN_PURPOSES,
   LEAD_RUN_STATES,
   LEAD_SEARCH_VIAS,
+  LEAD_SORTS,
+  LEAD_SOURCE_WORD,
   LEAD_STAGES,
+  LEAD_STAGE_WORDS,
+  LEAD_SUGGEST_JSON_SCHEMA,
   LEAD_SUPPRESSION_KINDS,
   LEAD_SUPPRESSION_WHATS,
   LIMIT_TIERS,
@@ -11384,7 +11599,15 @@ export {
   LINE_STEP_WORDS,
   LIVE_OVERLONG_MS,
   LIVE_STALE_MS,
+  LeadDraftAnswerSchema,
+  LeadDraftInputSchema,
+  LeadExportQuerySchema,
   LeadSearchPlanSchema,
+  LeadStageInputSchema,
+  LeadSuggestAnswerSchema,
+  LeadsBulkSchema,
+  LeadsQuerySchema,
+  LeadsViewSchema,
   MAILBOX_FROM_NAME_MAX,
   MAILBOX_LOCAL_PART_MAX,
   MAILBOX_RESERVED,
@@ -11489,6 +11712,7 @@ export {
   ROLES,
   ROLE_PERMS,
   ROLE_WORDS,
+  RenameLeadSearchSchema,
   SCHEMA_SETS,
   SENDING_HOURS_WORDS,
   SERVER_KEY_PREFIX,
@@ -11744,8 +11968,12 @@ export {
   languageLabels,
   languageWords,
   lastChangedWords,
+  leadDraftFooter,
   leadMonth,
+  leadRail,
   leadSuppressionHash,
+  leadsRoute,
+  leadsStanding,
   lineCredentialFailure,
   lineRetryRefusal,
   lineStuckProvisioning,
@@ -11791,6 +12019,7 @@ export {
   optInConfirmation,
   optInLink,
   optInPurposeOf,
+  outcomeMove,
   overLimitRefusal,
   ownAddressesOf,
   ownMessageRefusal,
@@ -11800,6 +12029,7 @@ export {
   parseBrainOutput,
   parseIcs,
   parseJudgeAnswer,
+  parseLeadsRoute,
   parseParamSpec,
   parseParamSpecs,
   parseTenantConfig,
@@ -11918,6 +12148,7 @@ export {
   spokenBreach,
   spokenBreachDetails,
   spokenDuration,
+  stageArgs,
   standingOf,
   starsOf,
   starterByKey,
@@ -11964,6 +12195,7 @@ export {
   toGoogleReviewVM,
   toGoogleVM,
   toInboxThreadVM,
+  toLeadRowVM,
   toLiveCallVM,
   toLiveVM,
   toPersonRowVM,
