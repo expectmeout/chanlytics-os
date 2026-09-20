@@ -6,6 +6,9 @@
  * Every figure agrees with its parts: the metrics are COUNTED from the threads and calls below, so the receipts add
  * up whatever hour the mockup is opened. Every moment is said relative to `nowMs`, so the day is always today.
  *
+ * Everything the sample publishes besides `TODAY_DATA` and `__today` lives under one namespaced `__TODAY_SAMPLE`,
+ * never under the bridge's own global names, so the mockup's other pages keep drawing their own seeds.
+ *
  * It imports contracts, reports-sample and the bridge's today.ts, and nothing that imports ./api: this is a browser
  * bundle with no session behind it.
  */
@@ -130,8 +133,8 @@ function build(nowMs: number): TodaySample {
     thread("cv-dulce", contact("k-dulce", "Dulce Amaro", "0103"), [msg("m-d0", "in", "Booking for the 12th please", at(9, 0, -9), "sms"), msg("m-d1", "ai", "Done: the 12th at 3:00 PM.", at(9, 1, -9), "sms"), msg("m-d2", "in", "Can I bring my sister too?", ago(150), "sms")]),
     thread("cv-ana", contact("k-ana", "Ana Reyes", "0104"), [msg("m-a0", "in", "Hi, can I book a color treatment?", at(10, 0, -8)), msg("m-a1", "ai", "Of course. Friday 10:30 AM is open.", at(10, 1, -8)), msg("m-a2", "in", "I'd rather talk to a person about a refund for last time.", ago(95))], { state: "needs_human", last_wa_inbound_at: ago(95) }),
     thread("cv-kenia", contact("k-kenia", "Kenia Duarte", "0105"), [], { state: "needs_human" }),
-    thread("cv-priya", contact("k-priya", "Priya Nair", "0106"), [msg("m-p0", "in", "Do you do color treatments?", at(10, 0, -12)), msg("m-p0r", "ai", "We do — I can check this week's times if you'd like.", at(10, 1, -12)), msg("m-p1", "in", "Do you do color treatments on Sundays?", ago(130)), msg("m-p2", "failed", "We're closed Sundays, but Saturday 1:00 PM is open if that works.", ago(129))], { last_wa_inbound_at: ago(130) }),
-    thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b0", "in", "Do you have anything this week for a gloss?", at(9, 0, -20)), msg("m-b0r", "ai", "Thursday 9:00 works — see you then.", at(9, 1, -20)), msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
+    thread("cv-priya", contact("k-priya", "Priya Nair", "0106"), [msg("m-p0", "in", "Do you do color treatments?", at(10, 0, -12)), msg("m-p0r", "ai", "We do. I can check this week's times if you'd like.", at(10, 1, -12)), msg("m-p1", "in", "Do you do color treatments on Sundays?", ago(130)), msg("m-p2", "failed", "We're closed Sundays, but Saturday 1:00 PM is open if that works.", ago(129))], { last_wa_inbound_at: ago(130) }),
+    thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b0", "in", "Do you have anything this week for a gloss?", at(9, 0, -20)), msg("m-b0r", "ai", "Thursday 9:00 works. See you then.", at(9, 1, -20)), msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
     thread("cv-sofia", contact("k-sofia", "Sofía Mendes", "0108"), [msg("m-s1", "in", "Can you hold the 3 PM for me? I'll confirm tonight.", ago(21 * 60))], { last_wa_inbound_at: ago(21 * 60) }),
   ];
   const escalations: Array<EscalationDto & { conversation_id: string }> = [
@@ -151,14 +154,54 @@ function build(nowMs: number): TodaySample {
     call("k-voicemail", 25, 30, { from_e164: "+13475550188", sentiment: null, in_voicemail: true, summary: null, wanted: null, outcome: "voicemail", disconnection_reason: "voicemail_reached" }),
   ];
 
-  // The metrics as metrics_summary would count them, from the same rows.
+  // The metrics as metrics_summary would count them, from the same rows, windowed to the business's day: every count
+  // below is derived, so the figures agree with their receipts whatever hour the mockup is opened, not only at 4 PM.
   const since = new Date(midnight).toISOString();
   const inbound = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "inbound" && Date.parse(m.created_at) >= midnight));
   const outAi = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "outbound" && Date.parse(m.created_at) >= midnight));
   const answered = conversations.filter((c) => c.messages.some((m) => m.direction === "inbound" && Date.parse(m.created_at) >= midnight) && c.messages.some((m) => m.direction === "outbound" && m.status === "delivered" && Date.parse(m.created_at) >= midnight)).length;
-  const lastIn = inbound.map((m) => m.created_at).sort().at(-1) ?? null;
-  const lastOut = outAi.filter((m) => m.status === "delivered").map((m) => m.created_at).sort().at(-1) ?? null;
   const tallyOf = (xs: readonly string[]) => xs.reduce<Record<string, number>>((o, x) => ({ ...o, [x]: (o[x] ?? 0) + 1 }), {});
+
+  // Calls today: the same set figuresOf reads (m.window.since is this same midnight), so the calls figure, its
+  // voicemail name and its moods always agree with the count here.
+  const callsToday = calls.filter((c) => c.started_at && Date.parse(c.started_at) >= midnight);
+  // Escalations opened today; escalation_reasons stays the tally of every OPEN one (what the SQL returns) and is
+  // never read by the view model, so it is not windowed.
+  const escalationsToday = escalations.filter((e) => Date.parse(e.created_at) >= midnight);
+  // New today: exactly figuresOf's own rule (the first real message is the customer's and lands today), so the
+  // figure's count and its names can never disagree.
+  const firstMessageOf = (c: ConversationDto) => [...c.messages].sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+  const newToday = conversations.filter((c) => {
+    const first = firstMessageOf(c);
+    return !!first && first.sender === "customer" && Date.parse(first.created_at) >= midnight;
+  });
+  // Waiting on nothing: an inbound message came in today, and the thread's last word is still the customer's.
+  const unansweredToday = conversations.filter((c) => {
+    const hasInboundToday = c.messages.some((m) => m.direction === "inbound" && Date.parse(m.created_at) >= midnight);
+    const last = c.messages.at(-1);
+    return hasInboundToday && !!last && last.direction === "inbound";
+  });
+  // The receptionist's reply gap for each of today's inbound messages, to the next delivered reply in its own
+  // thread; the median of those gaps, in whole seconds.
+  const replyGaps: number[] = [];
+  for (const c of conversations) {
+    for (let i = 0; i < c.messages.length; i++) {
+      const m = c.messages[i];
+      if (m.direction !== "inbound" || Date.parse(m.created_at) < midnight) continue;
+      const next = c.messages.slice(i + 1).find((x) => x.direction === "outbound" && x.status === "delivered");
+      if (next) replyGaps.push(Math.round((Date.parse(next.created_at) - Date.parse(m.created_at)) / 1000));
+    }
+  }
+  const medianReplySeconds = ((): number | null => {
+    if (!replyGaps.length) return null;
+    const sorted = [...replyGaps].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    return sorted.length % 2 ? sorted[mid] : Math.round((sorted[mid - 1] + sorted[mid]) / 2);
+  })();
+  // The newest inbound and delivered reply over EVERY message, not only today's: a quiet early morning still proves
+  // the lines were listening yesterday.
+  const lastInboundAt = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "inbound").map((m) => m.created_at)).sort().at(-1) ?? null;
+  const lastOutboundAt = conversations.flatMap((c) => c.messages.filter((m) => m.direction === "outbound" && m.status === "delivered").map((m) => m.created_at)).sort().at(-1) ?? null;
   const metrics: MetricsSummaryDto = {
     workspace: { name: "Melany's Studio", timezone: ZONE, status: "active" },
     channels: [
@@ -168,16 +211,16 @@ function build(nowMs: number): TodaySample {
     ],
     window: { days: 1, since, since_local: `${today}T00:00:00`, now_local: naiveLocal(nowMs, ZONE) },
     now: {
-      escalations_open: escalations.length, oldest_open_escalation_at: escalations[0].created_at, threads_needing_human: escalations.length, threads_snoozed: 0, threads_awaiting_reply: 1,
-      last_inbound_at: lastIn, last_outbound_at: lastOut,
+      escalations_open: escalations.length, oldest_open_escalation_at: escalations[0].created_at, threads_needing_human: escalations.length, threads_snoozed: 0, threads_awaiting_reply: unansweredToday.length,
+      last_inbound_at: lastInboundAt, last_outbound_at: lastOutboundAt,
     },
     period: {
       messages_in: inbound.length, messages_out_ai: outAi.length, messages_out_you: 0,
       conversations_active: conversations.filter((c) => c.messages.some((m) => Date.parse(m.created_at) >= midnight)).length,
-      answered_by_ai: answered, answered_by_you: 0, unanswered_in_window: 1, median_reply_seconds_ai: 34, send_failures: outAi.filter((m) => m.status === "failed").length,
-      escalations_new: escalations.length, escalation_reasons: tallyOf(escalations.map((e) => e.reason)),
-      calls: calls.length, call_seconds: calls.reduce((s, c) => s + (c.duration_ms ?? 0) / 1000, 0), call_sentiments: tallyOf(calls.map((c) => c.sentiment).filter((x): x is string => !!x)),
-      calls_voicemail: calls.filter((c) => c.in_voicemail).length, new_contacts: 2,
+      answered_by_ai: answered, answered_by_you: 0, unanswered_in_window: unansweredToday.length, median_reply_seconds_ai: medianReplySeconds, send_failures: outAi.filter((m) => m.status === "failed").length,
+      escalations_new: escalationsToday.length, escalation_reasons: tallyOf(escalations.map((e) => e.reason)),
+      calls: callsToday.length, call_seconds: Math.round(callsToday.reduce((s, c) => s + (c.duration_ms ?? 0) / 1000, 0)), call_sentiments: tallyOf(callsToday.map((c) => c.sentiment).filter((x): x is string => !!x)),
+      calls_voicemail: callsToday.filter((c) => c.in_voicemail).length, new_contacts: newToday.length,
     },
   };
 
@@ -197,8 +240,8 @@ function build(nowMs: number): TodaySample {
     ],
   };
 
-  // People: the eight above, and six who have gone quiet. Seven said yes to messages and nobody to offers, which is
-  // the Worth-a-look row the nightly pins on the salon's own workspace.
+  // People: the eight above, and six who have gone quiet. Everyone here said yes to messages and nobody to offers,
+  // which is the Worth-a-look row the nightly pins on the sample's own workspace.
   const row = (id: string, name: string, last4: string, over: Partial<PersonRowDto> = {}): PersonRowDto => ({
     id, display_name: name, wa_profile_name: null, phone_e164: phone(last4), email: null, consent: "opted_in", consent_source: "keyword", consent_updated_at: at(9, 0, -30), dnc: false,
     channels: ["whatsapp"], conversation_count: 1, escalation_count: 0, needs_human: false, open_escalation_reason: null, open_escalation_since: null,
@@ -305,20 +348,53 @@ function sampleBell(rows: BellRow[]) {
 }
 
 /**
+ * Every surface Today's page scripts read besides `TODAY_DATA` and `__today`, namespaced under one global so a
+ * demo session's other pages never see it.
+ */
+export interface TodaySampleSurfaces {
+  __CALENDAR: TodaySample["__CALENDAR"];
+  __PLAYBOOKS: TodaySample["__PLAYBOOKS"];
+  __PEOPLE: TodaySample["__PEOPLE"];
+  __BROADCASTS: TodaySample["__BROADCASTS"];
+  __REPORTS: TodaySample["__REPORTS"];
+  __LIVE: TodaySample["__LIVE"];
+  __clock: { dayKey: (ms: number) => string; time: (ms: number) => string };
+  __notifs: ReturnType<typeof sampleBell>;
+  __inboxVerb: () => Promise<{ ok: true; data: Record<string, never> }>;
+  __broadcasts: { approve: (id: string) => Promise<{ ok: true; data: { recipient_count: number } }>; cancel: () => Promise<{ ok: true; data: Record<string, never> }> };
+  __refreshPlaybooks: () => void;
+}
+
+/**
  * Publishes the sample where the app's globals are absent, and nothing where they stand: the app boots its own
  * surfaces from the bridge, and this file is never loaded there. The mockup loads it before its page scripts.
+ *
+ * `TODAY_DATA` and `__today` are the two globals Today's own files read, so they keep their usual names. Every
+ * other surface goes under one namespaced `__TODAY_SAMPLE`, never under the bridge's own names (`__CALENDAR`,
+ * `__PEOPLE`, `__BROADCASTS`, ...): those are what the mockup's OTHER pages (`#/calendar`, `#/clients`,
+ * `#/broadcasts`, `#/outbound`, ...) read to switch from their seeded variant to their "-real" one, and a real page
+ * fed this sample's day-shaped, partial rows hits its error boundary or draws near-empty rather than its seed. The
+ * sample is a day, not a workspace, so it must not look like one to a page that is not Today. PR B's Today page
+ * reads `__TODAY_SAMPLE` through one accessor, in a demo session only.
  */
 export function installTodaySample(win: Record<string, unknown>, nowMs: number = Date.now()): void {
   const s = todaySample(nowMs);
   const put = (key: string, value: unknown) => { if (win[key] === undefined) win[key] = value; };
-  for (const key of ["TODAY_DATA", "__CALENDAR", "__PLAYBOOKS", "__PEOPLE", "__BROADCASTS", "__REPORTS", "__LIVE"] as const) put(key, s[key]);
+  put("TODAY_DATA", s.TODAY_DATA);
   put("__today", TODAY_HELPERS);
-  put("__notifs", sampleBell(s.bell));
-  put("__clock", { dayKey: (ms: number) => zoneDayKey(ms, ZONE), time: (ms: number) => clockTime(ms, ZONE) });
-  // The verbs a row offers land nowhere in a mockup; they answer as the edge would after a success.
-  put("__inboxVerb", async () => ({ ok: true, data: {} }));
-  put("__broadcasts", { approve: async (id: string) => ({ ok: true, data: { recipient_count: s.__BROADCASTS.rows.find((r) => r.id === id)?.recipient_count ?? 0 } }), cancel: async () => ({ ok: true, data: {} }) });
-  put("__refreshSurface", () => {});
-  put("__refreshPlaybooks", () => {});
-  put("__surfaceFailed", () => false);
+  const surfaces: TodaySampleSurfaces = {
+    __CALENDAR: s.__CALENDAR,
+    __PLAYBOOKS: s.__PLAYBOOKS,
+    __PEOPLE: s.__PEOPLE,
+    __BROADCASTS: s.__BROADCASTS,
+    __REPORTS: s.__REPORTS,
+    __LIVE: s.__LIVE,
+    __clock: { dayKey: (ms: number) => zoneDayKey(ms, ZONE), time: (ms: number) => clockTime(ms, ZONE) },
+    __notifs: sampleBell(s.bell),
+    // The verbs a row offers land nowhere in a mockup; they answer as the edge would after a success.
+    __inboxVerb: async () => ({ ok: true, data: {} }),
+    __broadcasts: { approve: async (id: string) => ({ ok: true, data: { recipient_count: s.__BROADCASTS.rows.find((r) => r.id === id)?.recipient_count ?? 0 } }), cancel: async () => ({ ok: true, data: {} }) },
+    __refreshPlaybooks: () => {},
+  };
+  put("__TODAY_SAMPLE", surfaces);
 }
