@@ -980,6 +980,7 @@ export const LEAD_REVIEW_GROUP_WORDS = {
   mailbox_silent: "Their mail server wouldn't answer",
   bad_email: "Their email bounces",
   no_email: "No email on their site",
+  no_phone: "No phone on their listing",
   catch_all: "Unconfirmed — the mailbox accepts any address",
   unsure: "Couldn't tell if",
   read_only: "Only the listing says so",
@@ -988,13 +989,14 @@ export const LEAD_REVIEW_GROUP_WORDS = {
 export type LeadReviewGroupId = keyof typeof LEAD_REVIEW_GROUP_WORDS;
 export type LeadReviewAct = "check_again" | "find_email" | "keep" | "exclude";
 /** The order an owner would work the pile: what resolves itself first, then what one press resolves, then what needs a look. */
-const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "checks_out", "mailbox_silent", "bad_email", "no_email", "catch_all", "unsure", "read_only", "out_of_area"];
+const REVIEW_GROUP_ORDER: LeadReviewGroupId[] = ["mailbox_waiting", "checks_out", "mailbox_silent", "bad_email", "no_email", "no_phone", "catch_all", "unsure", "read_only", "out_of_area"];
 const REVIEW_GROUP_ACTS: Record<LeadReviewGroupId, LeadReviewAct[]> = {
   mailbox_waiting: [],
   checks_out: ["keep", "exclude"],
   mailbox_silent: ["check_again", "keep", "exclude"],
   bad_email: ["find_email", "keep", "exclude"],
   no_email: ["find_email", "keep", "exclude"],
+  no_phone: ["keep", "exclude"],
   catch_all: ["keep", "exclude"],
   unsure: ["keep", "exclude"],
   read_only: ["keep", "exclude"],
@@ -1008,6 +1010,9 @@ function reviewGroupOf(reason: string): LeadReviewGroupId | null {
   if (reason === "email:unknown") return "mailbox_silent";
   if (reason === "email:invalid") return "bad_email";
   if (reason === "email:none") return "no_email";
+  // A search that counts a phone as enough holds back a place whose number nothing could match (classify's
+  // "phone:none"). It is a pile like any other: without it, those leads sat in the queue under no heading at all.
+  if (reason === "phone:none") return "no_phone";
   if (reason === "email:catch_all") return "catch_all";
   if (reason.startsWith("unknown:")) return "unsure";
   if (reason.startsWith("inferred:")) return "read_only";
@@ -1022,6 +1027,7 @@ export const LEAD_REVIEW_GROUP_WHY: Record<LeadReviewGroupId, string> = {
   mailbox_silent: "Their mail server did not answer the check. Asking again settles most of them.",
   bad_email: "The address on their site does not exist, so an email would bounce. Their number may still be good.",
   no_email: "Their home, contact and about pages were read, and no address was on any of them.",
+  no_phone: "This search counts a phone as enough, and no number on the listing could be matched against their site. An email may still reach them.",
   catch_all: "Their server accepts every address, so the check cannot tell whether this one is real.",
   unsure: "Claude could not tell from the listing or from their site.",
   read_only: "Only the listing says so, and this search asked to see it for itself.",

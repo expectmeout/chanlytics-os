@@ -299,7 +299,7 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
   const rv = (id, reasons) => ({ id, cls: "review", reasons });
   const rows = [
     rv("a", ["email:checking"]), rv("b", ["email:unknown"]), rv("c", ["email:none"]), rv("d", ["email:catch_all"]),
-    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]), rv("i", ["email:invalid"]), rv("j", ["email:ok"]), rv("k", ["email:ok", "unknown:website"]),
+    rv("e", ["unknown:website"]), rv("f", ["inferred:website"]), rv("g", ["out_of_area"]), rv("h", ["email:unknown", "unknown:website"]), rv("i", ["email:invalid"]), rv("j", ["email:ok"]), rv("k", ["email:ok", "unknown:website"]), rv("p", ["phone:none"]),
     { id: "q", cls: "qualified", reasons: [] },
   ];
   const groups = leadReviewGroups(rows, SEARCH_DONE);
@@ -309,6 +309,7 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
     ["mailbox_silent", "Their mail server wouldn't answer", ["b", "h"], ["check_again", "keep", "exclude"]],
     ["bad_email", "Their email bounces", ["i"], ["find_email", "keep", "exclude"]],
     ["no_email", "No email on their site", ["c"], ["find_email", "keep", "exclude"]],
+    ["no_phone", "No phone on their listing", ["p"], ["keep", "exclude"]],
     ["catch_all", "Unconfirmed — the mailbox accepts any address", ["d"], ["keep", "exclude"]],
     ["unsure", "Couldn't tell if — with a website", ["e", "k"], ["keep", "exclude"]],
     ["read_only", "Only the listing says so — with a website", ["f"], ["keep", "exclude"]],
