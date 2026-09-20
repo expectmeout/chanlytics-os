@@ -1838,7 +1838,7 @@ button.brief-inbox-link:hover { border-color: oklch(from var(--accent) l c h / 0
 .tbn-time { transition: opacity 120ms var(--ease-out); }
 
 /* Non-interactive info elements with tips read as "explainable", not clickable */
-.ld-fit, .ld-sla, .ld-stale, .ld-dupe-flag, .cl-temp-pill, .fcard-trust-line, .st-cap, .lm-callid { cursor: help; }
+.cl-temp-pill, .fcard-trust-line, .st-cap, .lm-callid { cursor: help; }
 
 /* Parent nav row hints at the active child route */
 .nav-item.parent-active > span:first-of-type,

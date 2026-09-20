@@ -60,7 +60,7 @@ const DealCard = ({ d }) => {
       <div className="pp-card-foot">
         <span>{d.source}</span>
         {d.leadId && (
-          <button className="pp-card-lead seg-chip seg-chip--warn" data-tip="Also in Leads — one person, tracked in both places · click to open the lead" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`leads/${d.leadId}`); }}>
+          <button className="pp-card-lead seg-chip seg-chip--warn" data-tip="Also in Leads — one person, tracked in both places · click to open the lead" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.lead(d.leadId)); }}>
             <Icon name="bolt" size={9} /> in Leads
           </button>
         )}
@@ -129,7 +129,7 @@ const PipelineList = ({ stages, deals, query, onClear }) => {
                 <span style={{ display: "inline-flex", alignItems: "center", gap: 7 }}>
                   {d.label}
                   {d.leadId && (
-                    <button className="seg-chip seg-chip--warn" data-tip="Also in Leads — one person, tracked in both places · click to open the lead" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(`leads/${d.leadId}`); }}>
+                    <button className="seg-chip seg-chip--warn" data-tip="Also in Leads — one person, tracked in both places · click to open the lead" onClick={(e) => { e.stopPropagation(); window.CHANLY.nav(window.CHANLY.R.lead(d.leadId)); }}>
                       <Icon name="bolt" size={9} /> in Leads
                     </button>
                   )}

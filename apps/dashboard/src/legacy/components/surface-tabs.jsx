@@ -9,12 +9,9 @@ const ST_GROUPS = {
     match: ["clients", "leads", "pipeline", "segments"],
     tabs: [
       { id: "clients", label: "People", to: "clients" },
-      // badge is demo-only: LEADS is seed data, and this number rendered inside
-      // otherwise-real chrome — a fabricated "4" one tab away from real threads.
-      // Leads, the deal board and saved lists are Tier 2: seed data with no
-      // table behind it. A real workspace sees Clients alone, so the strip
-      // hides itself rather than offering three Coming Soon panes.
-      { id: "leads", label: "Leads", to: "leads", demoOnly: true, badge: () => (window.__DEMO_MODE ? ((window.LEADS || []).filter(l => l.stage === "ready").length) || null : null), tip: "Leads scored ready — your call to make" },
+      // No Leads tab: Leads is a SCOPE of People (clients/leads), and its switch is the rail's own
+      // People | Leads (PRD §6.1). A tab here would point at the retired `leads` route and bounce
+      // through the redirect to reach the scope the page is already showing.
       { id: "pipeline", label: "Deal board", to: "pipeline", demoOnly: true, tip: "Deals are leads with money attached — same people, board view" },
       // No Lists tab: on a real workspace the lists are the People rail (and a sheet on a phone), and `segments/<id>`
       // lands on People with that list picked. A real workspace has one People tab, so the bar draws nothing there;

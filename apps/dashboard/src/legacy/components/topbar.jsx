@@ -215,7 +215,7 @@ const Topbar = ({
         id: "n-lead-" + d.leadId, icon: "deal", tone: "ok", unread: true, time: "now",
         title: `Lead converted — ${d.name}`,
         message: "Client record created · entered New this month.",
-        actions: [{ label: "Open client", to: d.clientId ? "clients/" + d.clientId : "clients", primary: true }, { label: "Leads", to: "leads" }],
+        actions: [{ label: "Open client", to: d.clientId ? "clients/" + d.clientId : "clients", primary: true }, { label: "Leads", to: "clients/leads" }],
       }, ...list]);
     };
     const onBcSent = (e) => {
@@ -243,7 +243,7 @@ const Topbar = ({
           id: "n-lead-arr", icon: "phone", tone: "accent", unread: true, time: "now",
           title: "New lead — Riley Nguyen",
           message: "Missed call → texted back. SMS Agent answered in 9s; Qualifier is scoring intent.",
-          actions: [{ label: "Open lead", to: "leads/ld-riley", primary: true }, { label: "All leads", to: "leads" }],
+          actions: [{ label: "All leads", to: "clients/leads", primary: true }],
         }, ...list]);
       } else if (d.phase === "scored") {
         setNotifs(list => list.map(n => n.id === "n-lead-arr" ? {

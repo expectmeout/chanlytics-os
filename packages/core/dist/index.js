@@ -1044,7 +1044,13 @@ var EVENT_KINDS = [
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card"
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit"
 ];
 var OFFERS_OPT_IN_PHRASES = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS = [
@@ -1907,6 +1913,25 @@ var LeadDraftInputSchema = z7.object({
 });
 var RenameLeadSearchSchema = z7.object({ name: z7.string().trim().min(1).max(80) });
 var BusinessLineSchema = z7.object({ business_line: z7.string().trim().min(3).max(160) });
+var planChip = (max) => z7.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema = z7.object({
+  looking_for: z7.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z7.string().trim().min(2).max(40),
+  count: z7.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z7.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z7.array(planChip(60)).min(1).max(5),
+  city: z7.string().trim().max(60).nullable().default(null),
+  region: z7.string().trim().min(2).max(40),
+  zip: z7.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z7.enum(["phone", "email"]),
+  criteria: z7.array(z7.object({ text: planChip(120), standard: z7.enum(["likely", "seen"]), required: z7.boolean() })).max(6).default([]),
+  leave_out: z7.array(z7.object({ words: planChip(40) })).max(6).default([]),
+  asked: z7.string().trim().min(1).max(400)
+});
 var LeadDraftAnswerSchema = z7.object({ subject: z7.string().trim().min(3).max(120), body: z7.string().trim().min(20).max(2e3) });
 var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
@@ -2299,7 +2324,13 @@ var EVENT_KINDS2 = [
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card"
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit"
 ];
 var OFFERS_OPT_IN_PHRASES2 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS2 = [
@@ -4037,6 +4068,25 @@ var LeadDraftInputSchema2 = z72.object({
 });
 var RenameLeadSearchSchema2 = z72.object({ name: z72.string().trim().min(1).max(80) });
 var BusinessLineSchema2 = z72.object({ business_line: z72.string().trim().min(3).max(160) });
+var planChip2 = (max) => z72.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema2 = z72.object({
+  looking_for: z72.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z72.string().trim().min(2).max(40),
+  count: z72.number().int().min(1).max(LEAD_MAX_PLACES2),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip2(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip2(60),
+  category_key: z72.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z72.array(planChip2(60)).min(1).max(5),
+  city: z72.string().trim().max(60).nullable().default(null),
+  region: z72.string().trim().min(2).max(40),
+  zip: z72.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z72.enum(["phone", "email"]),
+  criteria: z72.array(z72.object({ text: planChip2(120), standard: z72.enum(["likely", "seen"]), required: z72.boolean() })).max(6).default([]),
+  leave_out: z72.array(z72.object({ words: planChip2(40) })).max(6).default([]),
+  asked: z72.string().trim().min(1).max(400)
+});
 var LeadDraftAnswerSchema2 = z72.object({ subject: z72.string().trim().min(3).max(120), body: z72.string().trim().min(20).max(2e3) });
 var LeadSuggestAnswerSchema2 = z72.object({
   line: z72.string().trim().min(3).max(160),
@@ -4299,7 +4349,13 @@ var EVENT_KINDS3 = [
   /** A lead search's round started, waited, or ended with one of the nine endings (00140). */
   "lead.round",
   /** An ask no source card fits, logged as demand (§0.3): the words asked, never a place. */
-  "lead.no_card"
+  "lead.no_card",
+  /** A lead worked: its stage moved, the owner said they sent the email, a call happened, it became a person, or it was not a fit (release B). */
+  "lead.stage",
+  "lead.emailed",
+  "lead.call",
+  "lead.converted",
+  "lead.not_a_fit"
 ];
 var OFFERS_OPT_IN_PHRASES3 = { en: "YES OFFERS", es: "SI OFERTAS" };
 var DECISION_VERBS3 = [
@@ -5161,6 +5217,25 @@ var LeadDraftInputSchema3 = z73.object({
 });
 var RenameLeadSearchSchema3 = z73.object({ name: z73.string().trim().min(1).max(80) });
 var BusinessLineSchema3 = z73.object({ business_line: z73.string().trim().min(3).max(160) });
+var planChip3 = (max) => z73.string().trim().min(2).max(max);
+var ProposeLeadSearchSchema3 = z73.object({
+  looking_for: z73.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z73.string().trim().min(2).max(40),
+  count: z73.number().int().min(1).max(LEAD_MAX_PLACES3),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip3(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip3(60),
+  category_key: z73.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z73.array(planChip3(60)).min(1).max(5),
+  city: z73.string().trim().max(60).nullable().default(null),
+  region: z73.string().trim().min(2).max(40),
+  zip: z73.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z73.enum(["phone", "email"]),
+  criteria: z73.array(z73.object({ text: planChip3(120), standard: z73.enum(["likely", "seen"]), required: z73.boolean() })).max(6).default([]),
+  leave_out: z73.array(z73.object({ words: planChip3(40) })).max(6).default([]),
+  asked: z73.string().trim().min(1).max(400)
+});
 var LeadDraftAnswerSchema3 = z73.object({ subject: z73.string().trim().min(3).max(120), body: z73.string().trim().min(20).max(2e3) });
 var LeadSuggestAnswerSchema3 = z73.object({
   line: z73.string().trim().min(3).max(160),

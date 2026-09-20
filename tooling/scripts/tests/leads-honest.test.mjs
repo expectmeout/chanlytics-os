@@ -589,3 +589,119 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
   assert.deepEqual(names(tree), ["GigaFit Austin"]);
   assert.deepEqual(all(byTestId(tree, "lead-classes"), (n) => n.props?.role === "tab").map((n) => [textOf(n).trim(), n.props["aria-selected"]]), [["Qualified 2", false], ["Needs review 1", false], ["Excluded 1", true]], "the three classes, each a view of the search");
 });
+
+/* --------------------------------- a search, kept --------------------------------- */
+
+const menuOf = (name) => menus.find((m) => m.title === `What ${name} asked for`);
+
+test("a kept search's menu says what was asked and when, and offers Rename, Find new ones, Search again, Export and Remove", async () => {
+  fresh();
+  draw();
+  const m = menuOf("Personal trainers · Austin");
+  assert.ok(m, "every search on the rail has its menu");
+  assert.deepEqual(m.items.map((i) => i.header || i.label || "—"), [
+    "You asked on Sep 18: “personal trainers in Austin with a website, about 200”.",
+    "Rename",
+    "Find new ones",
+    "Search again, changed",
+    "Export these 161",
+    "—",
+    "Remove this search",
+  ]);
+  assert.equal(m.items.find((i) => i.label === "Find new ones").meta, "Only places not already in your leads count");
+  assert.equal(m.items.find((i) => i.label === "Remove this search").meta, "Keeps the ones you contacted or are talking to.");
+  m.items.find((i) => i.label === "Find new ones").onClick();
+  await settle();
+  assert.deepEqual(calls.at(-1), ["more_round", { id: SEARCH_A, purpose: "renew", plan: search().plan }], "the same plan, a new round");
+  assert.match(textOf(flashes.at(-1).msg), /Only places not already in your leads count/);
+});
+
+test("Search again, changed opens the plan with what was asked; Rename renames through its route; Remove is asked first, keeps the worked leads, and says so", async () => {
+  fresh();
+  draw();
+  menuOf("Personal trainers · Austin").items.find((i) => i.label === "Search again, changed").onClick();
+  draw();
+  assert.deepEqual([finders.at(-1).stage, finders.at(-1).words, finders.at(-1).proposal.purpose], ["plan", "personal trainers in Austin with a website, about 200", "renew"]);
+  // Rename happens where the search is: the rail's row becomes the box.
+  fresh();
+  draw();
+  menuOf("Personal trainers · Austin").items.find((i) => i.label === "Rename").onClick();
+  let tree = draw();
+  byTestId(tree, "leads-rename-name").props.onKeyDown({ key: "Enter", target: { value: "Trainers, Austin" } });
+  await settle();
+  assert.deepEqual(calls.at(-1), ["rename", { id: SEARCH_A, name: "Trainers, Austin" }]);
+  assert.equal(textOf(flashes.at(-1).msg), "Renamed to Trainers, Austin");
+  // Remove asks once, where the search is.
+  fresh();
+  draw();
+  menuOf("Personal trainers · Austin").items.find((i) => i.label === "Remove this search").onClick();
+  draw();
+  const asked = confirms.at(-1);
+  assert.equal(asked.question, "Remove “Personal trainers · Austin”?");
+  assert.equal(asked.detail, "Keeps the ones you contacted or are talking to.");
+  await asked.onYes();
+  assert.deepEqual(calls.at(-1), ["remove", { id: SEARCH_A }]);
+  assert.equal(textOf(flashes.at(-1).msg), "Removed. The 18 you contacted or are talking to are kept.");
+  assert.deepEqual(went.at(-1), "clients/leads", "the rail lost that row, so the view is every lead again");
+});
+
+test("Export these N is a link to the search's own view of the export route", () => {
+  fresh();
+  const m = menuOf("Personal trainers · Austin") || (draw(), menuOf("Personal trainers · Austin"));
+  const href = globalThis.window.__href("GET leads/export", undefined, { search: SEARCH_A, list: "all", sort: "fit", dir: "asc" });
+  assert.equal(href, `/api/v1/leads/export?search=${SEARCH_A}&list=all&sort=fit&dir=asc`);
+  assert.ok(m.items.some((i) => i.label === "Export these 161"));
+});
+
+/* ------------------------------------- the phone ------------------------------------- */
+
+const bar = (over = {}) => {
+  cells = []; seq = 0;
+  return globalThis.window.LeadsPhoneBar({
+    scope: "leads", onScope() {}, listLabel: "All leads · 322", onLists() {}, listsOpen: false,
+    q: "", onQ() {}, searchRef: { current: null }, onFind() {}, canFind: true, ...over,
+  });
+};
+
+test("on a phone the switch, search and Find are one bar, and the switch is a tablist with Leads chosen", () => {
+  fresh();
+  const t = bar();
+  const tabs = all(t, (n) => n.props?.role === "tab");
+  assert.deepEqual(tabs.map((n) => [textOf(n), n.props["aria-selected"]]), [["People", false], ["Leads", true]]);
+  assert.equal(byTestId(t, "leads-phone-search").props["aria-label"], "Search leads");
+  assert.equal(byTestId(t, "leads-phone-find").props["aria-label"], "Find leads");
+  assert.equal(textOf(byTestId(t, "leads-phone-lists")), "All leads · 322");
+  assert.equal(all(t, (n) => n.props?.["data-testid"] === "leads-phone-bar").length, 1, "one bar, not a row of controls");
+});
+
+test("Find on a phone is the gate's for anyone who may not find", () => {
+  fresh({ role: "operator" });
+  const t = bar({ canFind: false });
+  assert.equal(byTestId(t, "leads-phone-find").props["aria-disabled"], true);
+  assert.equal(byTestId(t, "leads-phone-find").props["aria-description"], "Only an owner can find businesses for you.");
+});
+
+test("the finder's sheet is the page's own dialog and registers no listener of its own", () => {
+  fresh();
+  cells = []; seq = 0;
+  const before = seq;
+  const t = globalThis.window.LeadFinderSheet({ onClose() {}, children: React.createElement("div", { "data-testid": "hold-to-talk" }, "Hold to talk, or type") });
+  assert.equal(seq, before, "hookless: the page's listener owns Esc, and a second one would take the key twice");
+  const sheet = byTestId(t, "leads-finder-sheet");
+  assert.equal(sheet.props.role, "dialog");
+  assert.ok(sheet.props.className.includes("pl-finder"), "PL_OVERLAY names .pl-finder as the page's own");
+  assert.ok(byTestId(t, "hold-to-talk"), "the first control in the sheet is the one the page put first");
+});
+
+test("at a phone's width the page draws the bar instead of the rail and the controls, and nothing else above the rows", () => {
+  fresh();
+  globalThis.__phone = true;
+  const t = draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.ok(byTestId(t, "leads-phone-bar"), "one bar");
+  assert.equal(all(t, (n) => n.props?.className === "cl-controls").length, 0, "no controls row above the rows");
+  assert.equal(all(t, (n) => n.props?.className === "cl-rail").length, 0, "no rail");
+  assert.equal(all(t, (n) => n.props?.["data-testid"] === "leads-standing").length, 0, "and no standing line: a phone shows the work first");
+  const above = all(t, (n) => n.props?.["data-testid"] === "leads-phone-bar" || n.type === globalThis.LeadStrip || /\bpl-table-wrap\b/.test(String(n.props?.className || "")));
+  assert.deepEqual(above.map((n) => n.props["data-testid"] || (n.type === globalThis.LeadStrip ? "lead-strip" : "table")), ["leads-phone-bar", "lead-strip", "table"], "the bar, the strip, the work");
+  globalThis.__phone = false;
+});

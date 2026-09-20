@@ -356,8 +356,8 @@ const Sidebar = ({
   // Computed badges — seed-honest counts; caller-supplied badges win
   const computedBadges = {
     inbox: needs > 0 ? String(needs) : null,
-    // LEADS is mockup seed data — a real workspace has no leads engine yet, so
-    // a "4" here is an invented number sitting in the real chrome.
+    // The seeded LEADS are the mockup's, so the count is demo-only; a real
+    // workspace's leads are the scope of People at clients/leads.
     people: window.__DEMO_MODE ? (String(((window.LEADS || []).filter(l => l.stage === "ready").length) || "") || null) : null,
     ...badges,
   };

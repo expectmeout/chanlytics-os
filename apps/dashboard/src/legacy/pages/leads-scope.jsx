@@ -18,7 +18,7 @@
 // in the tab order, saying why when pressed (window.gate, data-bits.jsx), never disabled and never silent.
 const LeadRowActions = ({ l, onCall, onCopy, onKeep, onExclude, onPutBack, canFind }) => (
   <span className="cl-row-actions ld-row-actions">
-    {l.phone && !l.phoneWrong && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onCall(l.id); }} title="Call from your phone" aria-label={`Call ${l.name}`} data-testid="lead-call"><Icon name="phone" size={11} /></button>}
+    {l.phone && !l.phoneWrong && <button type="button" className="btn btn-ghost btn-xs ld-call" onClick={(e) => { e.stopPropagation(); onCall(l.id); }} title="Call from your phone" aria-label={`Call ${l.name}`} data-testid="lead-call"><Icon name="phone" size={11} /></button>}
     {l.email && l.emailState !== "invalid" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onCopy(l.id); }} title="Copy the email" aria-label={`Copy ${l.name}'s email`} data-testid="lead-copy"><Icon name="copy" size={11} /></button>}
     {l.cls === "review" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onKeep(l.id); }} data-testid="lead-keep" {...(canFind ? {} : window.gate("find", "keep this lead"))}>Keep</button>}
     {l.cls === "review" && <button type="button" className="btn btn-ghost btn-xs" onClick={(e) => { e.stopPropagation(); onExclude(l.id); }} data-testid="lead-exclude" {...(canFind ? {} : window.gate("find", "exclude this lead"))}>Exclude</button>}
@@ -89,9 +89,29 @@ const LEAD_SORT_KEYS = plSortKeys(LEAD_COLUMNS);
 
 /* ------------------------------------------------------- the rail's searches */
 
+// A kept search says what was asked (§8.10). The menu closes after each item (MoreMenu), and every item is a
+// route: nothing here renames or removes on the spot.
+const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove, exportHref }) => (
+  <MoreMenu
+    align="left"
+    title={`What ${s.name} asked for`}
+    btnClass="btn btn-ghost btn-icon btn-xs ld-search-more"
+    items={[
+      { header: words.askedLine },
+      { label: "Rename", icon: "pencil", onClick: () => onRename(s), gate: canFind ? undefined : window.gate("find", "rename this search") },
+      { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick: () => onMore(s), gate: canFind ? undefined : window.gate("find", "search again") },
+      { label: "Search again, changed", icon: "sparkle", meta: "Opens the plan with what you asked", onClick: () => onAgain(s), gate: canFind ? undefined : window.gate("find", "search again") },
+      { label: `Export these ${s.count}`, icon: "external", onClick: () => { if (exportHref) window.open(exportHref, "_self"); }, gate: canFind ? undefined : window.gate("find", "export these leads") },
+      { divider: true },
+      { label: "Remove this search", icon: "x", danger: true, meta: words.keepsLine, onClick: () => onRemove(s), gate: canFind ? undefined : window.gate("find", "remove this search") },
+    ]}
+  />
+);
+
 // The rail under Leads: the lists, then the searches, each with its count, a live dot while it runs and a "?" in
-// the accent while it waits on the owner. The search's own menu is Task 16's.
-const LeadsRailRows = ({ rail, list, searchId, canFind, onPickList, onPickSearch, onNew }) => (
+// the accent while it waits on the owner. Renaming and removing are asked where the search is, so the rail never
+// loses the row that is being named.
+const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, hrefFor, onNew }) => (
   <>
     <div className="cl-rail-section" data-testid="leads-lists">
       <div className="cl-rail-group-label">Leads</div>
@@ -106,12 +126,25 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, onPickList, onPickSearch
       <div className="cl-rail-group-label">Searches</div>
       {rail.searches.map((s) => (
         <div key={s.id} className={`cl-rail-row ld-search-row ${searchId === s.id ? "active" : ""}`}>
-          <button type="button" className="ld-search-pick" onClick={() => onPickSearch(s.id)} data-testid={`leads-search-${s.id}`}>
-            {s.mark === "live" && <span className="live-dot" aria-hidden="true" />}
-            {s.mark === "question" && <span className="rail-q" title="This search needs you">?</span>}
-            <span className="label">{s.name}</span>
-            <span className="count">{s.count}</span>
-          </button>
+          {renaming && renaming.id === s.id ? (
+            <span className="cl-bulk-naming ld-search-renaming">
+              <input autoFocus defaultValue={s.name} maxLength={80} aria-label="The search's name" data-testid="leads-rename-name" onKeyDown={(e) => { if (e.key === "Enter") onRenameSave(s, e.target.value); if (e.key === "Escape") onRenameCancel(); }} />
+              <button type="button" className="btn btn-sm btn-primary" onClick={(e) => onRenameSave(s, e.currentTarget.parentNode.querySelector("input").value)} data-testid="leads-rename-save">Save</button>
+            </span>
+          ) : (
+            <>
+              <button type="button" className="ld-search-pick" onClick={() => onPickSearch(s.id)} data-testid={`leads-search-${s.id}`}>
+                {s.mark === "live" && <span className="live-dot" aria-hidden="true" />}
+                {s.mark === "question" && <span className="rail-q" title="This search needs you">?</span>}
+                <span className="label">{s.name}</span>
+                <span className="count">{s.count}</span>
+              </button>
+              <LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} exportHref={hrefFor(s)} />
+            </>
+          )}
+          {removing && removing.id === s.id && (
+            <Confirm question={`Remove “${s.name}”?`} detail={wordsFor(s.id).keepsLine} yes="Yes, remove" danger busy={removeBusy} error={removeError} onYes={() => onRemoveYes(s)} onNo={onRemoveNo} testid="leads-remove" />
+          )}
         </div>
       ))}
       {rail.searches.length === 0 && <div className="cl-rail-hint">No searches yet. Describe the businesses you want and Claude finds them.</div>}
@@ -186,6 +219,57 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
   );
 };
 
+/* ---------------------------------------------------------------- the phone */
+
+// The phone's one bar (<=900px, the band People's own cards begin at): the People | Leads switch, the list it is
+// showing, search and Find. Nothing else sits above the rows -- no title, no sub-headline, no stat cards and no
+// second control row (legacy/CLAUDE.md, the phone shows the work first).
+const LeadsPhoneBar = ({ scope, onScope, listLabel, onLists, listsOpen, q, onQ, searchRef, onFind, canFind }) => (
+  <div className="ld-bar" data-testid="leads-phone-bar">
+    <div className="pt-scope" role="tablist" aria-label="Which people">
+      <button type="button" role="tab" aria-selected={scope === "people"} className={scope === "people" ? "on" : ""} onClick={() => onScope("people")}>People</button>
+      <button type="button" role="tab" aria-selected={scope === "leads"} className={scope === "leads" ? "on" : ""} onClick={() => onScope("leads")}>Leads</button>
+    </div>
+    <button type="button" className="ld-bar-lists" onClick={onLists} aria-expanded={!!listsOpen} data-testid="leads-phone-lists">
+      {listLabel}
+      <Icon name="chevron-down" size={11} />
+    </button>
+    <input
+      ref={searchRef}
+      className="ld-bar-search"
+      type="search"
+      value={q}
+      placeholder="Search leads"
+      aria-label="Search leads"
+      data-testid="leads-phone-search"
+      onChange={(e) => onQ(e.target.value)}
+    />
+    <button
+      type="button"
+      className="ld-bar-find"
+      aria-label="Find leads"
+      data-testid="leads-phone-find"
+      onClick={onFind}
+      {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+    >
+      <Icon name="sparkle" size={20} />
+    </button>
+  </div>
+);
+
+// The finder, as a sheet from the bottom of a phone. No listener of its own: the page's one keydown listener
+// closes the finder on Esc before anything else and holds every other key while it is open (Task 2), so a second
+// listener here would take the key twice and close the finder and then the selection on one press.
+const LeadFinderSheet = ({ onClose, children }) => (
+  <>
+    <div className="sb-sheet-backdrop" onClick={onClose} />
+    <div className="sb-sheet pl-finder" role="dialog" aria-label="Find leads" data-testid="leads-finder-sheet">
+      <div className="ld-sheet-handle" />
+      {children}
+    </div>
+  </>
+);
+
 /* ------------------------------------------------------------ the scope itself */
 
 const LeadsScope = (p) => {
@@ -194,58 +278,104 @@ const LeadsScope = (p) => {
   const standing = p.standing;
   const chips = ldExcludedChips(L.rows);
   const search = p.search;
-  return (
-    <div className="clients leads-scope">
-      <PeopleRail scope="leads" onScope={p.onScope}>
-        <LeadsRailRows
+  // The same band People's cards use (clients.css) and the same one the page's listener judges the Columns menu
+  // by. Read on every draw, not stored: a window resized past it must draw the other shape on the next state
+  // change, and nothing here is a hook.
+  const phone = !!(window.matchMedia && window.matchMedia("(max-width: 900px)").matches);
+  const railRows = (
+    <LeadsRailRows
           rail={rail}
           list={p.view.list}
           searchId={p.view.searchId}
           canFind={p.canFind}
+          wordsFor={p.searchWordsFor}
           onPickList={p.onPickList}
           onPickSearch={p.onPickSearch}
-          onNew={p.onFind}
-        />
-      </PeopleRail>
+          renaming={p.renaming}
+          onRename={p.onRename}
+          onRenameSave={p.onRenameSave}
+          onRenameCancel={p.onRenameCancel}
+          removing={p.removing}
+          onRemoveAsk={p.onRemoveAsk}
+          onRemoveYes={p.onRemoveYes}
+          onRemoveNo={p.onRemoveNo}
+          removeBusy={p.removeBusy}
+          removeError={p.removeError}
+          onMore={p.onFindNewOnes}
+          onAgain={p.onSearchAgain}
+      hrefFor={p.exportHrefFor}
+      onNew={p.onFind}
+    />
+  );
+  const ListsSheet = window.PeopleListsSheet;
+  return (
+    <div className="clients leads-scope">
+      {/* At a phone's width the rail is the bar's list button instead (the stylesheet hides .cl-rail at 900px
+          anyway, and the switch the rail heads is the bar's own). */}
+      {!phone && <PeopleRail scope="leads" onScope={p.onScope}>{railRows}</PeopleRail>}
 
       <div className="cl-main">
         <div className="cl-main-scroll pl-main" ref={p.scrollRef}>
-          <PeopleStanding scope="leads" leads={standing} onNeeds={p.onNeedsYou} onScope={p.onScope} />
-
-          <div className="cl-controls">
-            <div className="cl-search-wrap">
-              <Icon name="search" size={13} />
-              <input ref={p.searchRef} placeholder="Search leads" aria-label="Search leads" value={p.q} onChange={(e) => p.onQ(e.target.value)} />
-              <span className="kbd">/</span>
-            </div>
-            <div className="cl-controls-right">
-              <PeopleColumnsMenu open={p.colsOpen} onOpenChange={p.onColsOpen} options={p.colOptions} onPick={p.onPickColumn} buttonRef={p.colsButton} />
-              {p.canExport
-                ? <a className="btn btn-ghost btn-sm" href={p.exportHref} download title="Download these leads as a CSV file" data-testid="leads-export"><Icon name="external" size={12} /> Export</a>
-                : <button type="button" className="btn btn-ghost btn-sm" {...window.gate("export", "export these leads")} data-testid="leads-export"><Icon name="external" size={12} /> Export</button>}
-              <button type="button" className="btn btn-primary btn-sm" onClick={p.onFind} data-testid="leads-find" {...(p.canFind ? {} : window.gate("find", "find leads"))}>
-                <Icon name="sparkle" size={12} /> Find leads <span className="kbd">F</span>
-              </button>
-            </div>
-          </div>
-
-          {p.finderOpen && (
-            <LeadFinder
-              open
-              stage={p.finderStage}
-              words={p.finderWords}
-              proposal={p.finderProposal}
-              refusal={p.finderRefusal}
-              busy={p.finderBusy}
-              suggestions={L.suggestions}
-              talk={p.talk}
-              onWords={p.onFinderWords}
-              onPlan={p.onFinderPlan}
-              onApprove={p.onFinderApprove}
-              onBack={p.onFinderBack}
-              onClose={p.onCloseFinder}
+          {phone ? (
+            <LeadsPhoneBar
+              scope="leads"
+              onScope={p.onScope}
+              listLabel={p.railLabel}
+              onLists={p.onLists}
+              listsOpen={p.listsOpen}
+              q={p.q}
+              onQ={p.onQ}
+              searchRef={p.searchRef}
+              onFind={p.onFind}
+              canFind={p.canFind}
             />
+          ) : (
+            <>
+              <PeopleStanding scope="leads" leads={standing} onNeeds={p.onNeedsYou} onScope={p.onScope} />
+
+              <div className="cl-controls">
+                <div className="cl-search-wrap">
+                  <Icon name="search" size={13} />
+                  <input ref={p.searchRef} placeholder="Search leads" aria-label="Search leads" value={p.q} onChange={(e) => p.onQ(e.target.value)} />
+                  <span className="kbd">/</span>
+                </div>
+                <div className="cl-controls-right">
+                  <PeopleColumnsMenu open={p.colsOpen} onOpenChange={p.onColsOpen} options={p.colOptions} onPick={p.onPickColumn} buttonRef={p.colsButton} />
+                  {p.canExport
+                    ? <a className="btn btn-ghost btn-sm" href={p.exportHref} download title="Download these leads as a CSV file" data-testid="leads-export"><Icon name="external" size={12} /> Export</a>
+                    : <button type="button" className="btn btn-ghost btn-sm" {...window.gate("export", "export these leads")} data-testid="leads-export"><Icon name="external" size={12} /> Export</button>}
+                  <button type="button" className="btn btn-primary btn-sm" onClick={p.onFind} data-testid="leads-find" {...(p.canFind ? {} : window.gate("find", "find leads"))}>
+                    <Icon name="sparkle" size={12} /> Find leads <span className="kbd">F</span>
+                  </button>
+                </div>
+              </div>
+            </>
           )}
+
+          {/* The finder folds out above the table on a desktop and comes up as a sheet from the bottom of a
+              phone. `phone` changes two things inside the finder itself and nothing else (Task 8): hold-to-talk
+              is the sheet's first control, and the input is full width under it. */}
+          {p.finderOpen && (() => {
+            const finder = (
+              <LeadFinder
+                open
+                phone={phone}
+                stage={p.finderStage}
+                words={p.finderWords}
+                proposal={p.finderProposal}
+                refusal={p.finderRefusal}
+                busy={p.finderBusy}
+                suggestions={L.suggestions}
+                talk={p.talk}
+                onWords={p.onFinderWords}
+                onPlan={p.onFinderPlan}
+                onApprove={p.onFinderApprove}
+                onBack={p.onFinderBack}
+                onClose={p.onCloseFinder}
+              />
+            );
+            return phone ? <LeadFinderSheet onClose={p.onCloseFinder}>{finder}</LeadFinderSheet> : finder;
+          })()}
 
           {search && <LeadStrip vm={p.strip} onAction={p.onStripAction} />}
 
@@ -308,10 +438,15 @@ const LeadsScope = (p) => {
             from them on every draw and nothing in leads-peek.jsx keeps state of its own. */}
         {p.peek && <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} flash={p.flash} onClose={p.onClosePeek} onMode={p.onPeekMode} onArmed={p.onArmed} onDraftState={p.onDraftState} onPeekId={p.onPeekId} onOpenPerson={p.onOpenPerson} onCall={p.onCall} onKeep={p.onKeep} onExclude={p.onExclude} onPutBack={p.onPutBack} onCopy={p.onCopy} />}
         {p.firstDay && <LeadsFirstDay suggestions={L.suggestions} onPick={p.onFinderWords} onFind={p.onFind} onBusinessLine={p.onBusinessLine} />}
+        {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same
+            searches and the same New search. People's own sheet (clients-a.jsx), which owns its Esc, so the
+            page's one listener holds still while it is open (keys.sheetOpen). Last in the tree, after
+            everything whose state a stub React keys by order. */}
+        {phone && p.listsOpen && ListsSheet && <ListsSheet onClose={p.onCloseLists}>{railRows}</ListsSheet>}
         {p.toastNode}
       </div>
     </div>
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadsRailRows, LeadClassTabs, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadClassTabs, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });

@@ -216,7 +216,7 @@ export function emptyReadSet(): AskReadSet {
 
 /** The pages a citation or a navigate target may point at without a read. */
 export const ASK_PAGE_ROUTES = [
-  "today", "inbox", "clients", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports",
+  "today", "inbox", "clients", "clients/leads", "segments", "conversations", "live", "calendar", "outbound", "broadcasts", "messages", "reports",
   "admin/setup", "admin/workspace", "admin/team", "admin/autonomy", "admin/notifications", "admin/integrations", "admin/billing", "admin/activity", "admin/profile",
 ] as const;
 
@@ -528,6 +528,9 @@ export const ASK_PAGES: JumpEntry[] = [
   { label: "Today", to: "today", kind: "page" },
   { label: "Inbox", to: "inbox", kind: "page" },
   { label: "People", to: "clients", kind: "page" },
+  // Leads is the other scope of People, and it is its own place to an owner: the businesses
+  // a search found, worked. `leads` was the mockup's page and is not offered.
+  { label: "Leads", to: "clients/leads", kind: "page", sub: "businesses Claude found for you" },
   // The lists are a view of People (its rail); `segments/<id>` still names one and lands there.
   { label: "Lists", to: "clients", kind: "page", sub: "the people you keep together, on People", also: ["segments"] },
   { label: "Conversations", to: "conversations", kind: "page" },

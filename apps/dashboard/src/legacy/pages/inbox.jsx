@@ -321,7 +321,7 @@ const Inbox = ({ density = "medium", showAgentRail = true, onOpenClient = () => 
     if (opt.verb === "client") window.dispatchEvent(new CustomEvent("leads:converted", { detail: { leadId: t.verdict.leadId, name: t.who, clientId: null } }));
     ppFlash({
       msg: <><b>{opt.label}</b> — {t.who}</>,
-      links: [{ label: opt.verb === "deal" ? "Pipeline" : opt.verb === "client" ? "Clients" : "Leads", to: opt.verb === "deal" ? "pipeline" : opt.verb === "client" ? "clients" : "leads" }],
+      links: [{ label: opt.verb === "deal" ? "Pipeline" : opt.verb === "client" ? "Clients" : "Leads", to: opt.verb === "deal" ? "pipeline" : opt.verb === "client" ? "clients" : "clients/leads" }],
       undo: () => {
         if (window.IX_STORE) window.IX_STORE.clear(id);
         if (lead) lead.stage = prevStage;

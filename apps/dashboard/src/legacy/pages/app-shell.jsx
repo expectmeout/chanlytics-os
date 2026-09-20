@@ -82,8 +82,8 @@ const NAV_ROUTE = {
 };
 
 // ---- The mockup's landings ---------------------------------------------
-// The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline
-// and Leads; the shared report viewer) stay in the tree and stay hidden from
+// The mockup surfaces (Agents: fleet, store, studio, tasks; Content; Pipeline;
+// the shared report viewer) stay in the tree and stay hidden from
 // every real workspace: no nav entry, no tab, the Not-in-this-release card for
 // a hand-typed address. Ruben's decision, 11 September 2026: most of it is
 // revisited when the product is at 100%, and none of those features is built
@@ -103,7 +103,6 @@ const SOON_META = {
   reports:    { icon: "trending-up", title: "Reports",    blurb: "Revenue, conversion, and agent performance over time." },
   admin:      { icon: "settings",    title: "Settings",   blurb: "Team, billing, integrations, AI memory, and autonomy defaults." },
   clients:    { icon: "users",       title: "People",    blurb: "Every customer's history, spend, and preferences in one profile." },
-  leads:      { icon: "bolt",        title: "Leads",      blurb: "New prospects captured, scored, and queued for your call." },
   segments:   { icon: "filter",      title: "Lists",      blurb: "Smart lists that keep themselves current — lapsed, VIP, new." },
   tasks:      { icon: "check",       title: "Tasks",      blurb: "The work ledger — a receipt for everything your agents did." },
   live:       { icon: "phone",       title: "Live",       blurb: "Calls on your line, as they happen." },
@@ -449,22 +448,6 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
       </button>
     ) : null;
     content = <ClientsA key="people" scope="people" onNavigate={navigate} onOpenProfile={(id) => navigate(`clients/${id}`)} />;
-  } else if (page === "leads") {
-    const srcParam = param && param.startsWith("src:") ? param.slice(4) : null;
-    const srcMeta = srcParam && (window.LEAD_SOURCES || []).find(s => s.id === srcParam);
-    const leadParam = param && param.startsWith("ld-") && (window.LEADS || []).some(l => l.id === param) ? param : null;
-    const leadWho = leadParam && ((window.LEADS || []).find(l => l.id === leadParam) || {}).name;
-    activeNav = "leads";
-    crumbs = leadWho ? ["People", { label: "Leads", to: "leads" }, leadWho]
-      : srcMeta ? ["People", { label: "Leads", to: "leads" }, srcMeta.label]
-      : ["People", "Leads"];
-    pane = true;
-    primaryAction = (
-      <button className="btn btn-sm" onClick={openAsk}>
-        <Icon name="plus" size={12} /> Add lead
-      </button>
-    );
-    content = <LeadsPage initialSrc={srcMeta ? srcParam : null} initialLead={leadParam} onOpenClient={(id) => navigate(`clients/${id}`)} />;
   } else if (page === "segments" && (window.__PEOPLE || realWorkspace())) {
     // Lists is a view of People on a real workspace: the list's own route lands on People with that list picked
     // (the People page's rule, window.__listRoute), so Playbooks' list, an answer's jump and a kept address still

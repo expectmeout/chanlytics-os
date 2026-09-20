@@ -117,7 +117,8 @@ test("the jump: two words reach a page, a person, a thread or a call; a question
   assert.deepEqual(askJump("what needs me?", index), [], "a question mark is a question");
   assert.deepEqual(askJump("tell rosa we are late today", index), [], "four words are a sentence");
   assert.deepEqual(askJump("set", index).map((j) => j.label), ["Settings", "Setup"]);
-  assert.ok(ASK_PAGES.every((p) => !/lead|fleet|store|studio|pipeline|content|tasks\b/.test(p.to)), "only real pages");
+  assert.deepEqual(askJump("lea", index).map((j) => j.to), ["clients/leads"], "Leads is a real page now: the scope of People");
+  assert.ok(ASK_PAGES.every((p) => !/fleet|store|studio|pipeline|content|tasks\b/.test(p.to)), "only real pages");
 });
 
 test("suggestions come from the data, in the person's language, and never offer what the workspace cannot answer", () => {

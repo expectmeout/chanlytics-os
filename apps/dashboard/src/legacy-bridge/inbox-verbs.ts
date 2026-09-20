@@ -16,7 +16,7 @@ import {
 } from "./surface-data";
 import { refreshSurfaces } from "./surface-runner";
 import { api } from "./api";
-import type { ApiResult, Params, RouteKey } from "../client/api";
+import type { ApiOptions, ApiResult, Params, RouteKey } from "../client/api";
 import { FALLBACK_DEFAULTS, INSTRUCTIONS_MAX, MAX_CLOSURES, MAX_INTERVALS_PER_DAY, fallbackMessages, hoursLines, inboxTemplates, instructionsDraft, inviteState, lastChangedWords, newReceptionistDefaults, refusalOf, tomorrowAtIn, unknownDetails } from "@chanlytics/contracts";
 import { workspaceZone } from "./zone";
 import type { Api } from "../client/api";
@@ -434,8 +434,11 @@ export async function setReportRange(days: number): Promise<boolean> {
   return true;
 }
 
-/** A link the browser follows rather than a request it makes: a download, a photo. */
-const href = <K extends RouteKey>(key: K, params?: Params<K>) => api().url(key, { params });
+/**
+ * A link the browser follows rather than a request it makes: a download, a photo. A download of ONE view names
+ * it in the query (Leads' export of a search), which is typed as that route's own input.
+ */
+const href = <K extends RouteKey>(key: K, params?: Params<K>, query?: ApiOptions<K>["query"]) => api().url(key, { params, query });
 
 export function installInboxVerbs(): void {
   window.__inboxVerb = inboxVerb;

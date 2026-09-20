@@ -276,9 +276,9 @@ test("every act goes through its route with the id and the version it saw, never
 test("the courier installs exactly the names the page and the screens call, and no words of its own", () => {
   const installed = Object.keys(globalThis.window).filter((k) => k.startsWith("__lead")).sort();
   assert.deepEqual(installed, [
-    "__leadBusinessLine", "__leadDraft", "__leadErase", "__leadExclude", "__leadKeep", "__leadPutBack",
+    "__leadBusinessLine", "__leadDraft", "__leadErase", "__leadExclude", "__leadKeep", "__leadPeekVM", "__leadPutBack",
     "__leadRail", "__leadSearchAnswer", "__leadSearchMore", "__leadSearchRemove", "__leadSearchRename",
-    "__leadSearchStop", "__leadSearchUndo", "__leadStage", "__leadUndo",
+    "__leadSearchStop", "__leadSearchUndo", "__leadSearchWords", "__leadStage", "__leadUndo",
     "__leadsBulk", "__leadsMore", "__leadsRouteOf", "__leadsRouteParse", "__leadsStanding", "__leadsTakeOffered", "__leadsView",
   ]);
   assert.equal(globalThis.window.__leadsRouteOf({ searchId: SEARCH_ID, list: "ready", cls: null }), `clients/leads:s-${SEARCH_ID}:l-ready`);

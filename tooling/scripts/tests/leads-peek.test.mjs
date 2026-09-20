@@ -356,3 +356,95 @@ test("a refused act is the route's sentence, and nothing on the page pretends it
   assert.equal(flashes[0].tone, "danger");
   assert.equal(textOf(flashes[0].msg).includes("This lead is gone."), true);
 });
+
+/* ================================================= Task 13: the draft ==== */
+
+test("Draft asks the route once, shows what it wrote with the foot the law asks for, and never a field the page would have to encode", async () => {
+  reset();
+  const courier = courierOf();
+  const P = page({ courier });
+  await press(byTestId(P.draw().tree, "peek-draft"));
+  await settle();
+  const { tree } = P.draw();
+  assert.deepEqual(courier.seen, [["draft", LEAD, { tone: "first" }]]);
+  assert.equal(textOf(byTestId(tree, "peek-draft-to")), "hello@travisheightscoaching.example");
+  assert.equal(textOf(byTestId(tree, "peek-draft-subject")), "Missed calls at Travis Heights");
+  assert.equal(textOf(byTestId(tree, "peek-draft-body")).endsWith('Not interested? Reply "no thanks" and I won\'t write again.'), true);
+  assert.equal(textOf(byTestId(tree, "peek-draft-note")), LEAD_DRAFT_NOTE);
+  assert.equal(all(tree, (n) => n.type === "input" || n.type === "textarea").length, 0, "the mailto: is the route's; an edited body here would need encoding the page must not do");
+  assert.equal(byTestId(tree, "peek-open-mail").props.href, "mailto:hello%40travisheightscoaching.example?subject=Missed%20calls");
+  assert.equal(textOf(find(tree, (n) => n.props?.className === "pk-foot" && /Sent from your own inbox/.test(textOf(n)))).includes("Sent from your own inbox"), true);
+});
+
+test("Shorter and Warmer send what is on screen back with the tone, and the answer replaces it", async () => {
+  reset();
+  const courier = courierOf({ draft: (input) => ({ ok: true, data: { to: "hello@travisheightscoaching.example", subject: input.tone === "shorter" ? "Quick one" : "Missed calls at Travis Heights", body: input.tone === "shorter" ? "Two lines only." : "Long.", mailto: "mailto:x" } }) });
+  const P = page({ courier });
+  await press(byTestId(P.draw().tree, "peek-draft"));
+  await settle();
+  await press(byTestId(P.draw().tree, "peek-tone-shorter"));
+  await settle();
+  assert.deepEqual(courier.seen[1], ["draft", LEAD, { tone: "shorter", previous: { subject: "Missed calls at Travis Heights", body: "Long." } }]);
+  assert.equal(textOf(byTestId(P.draw().tree, "peek-draft-subject")), "Quick one");
+});
+
+test("with no business address the draft asks for it in the route's words, and there is nothing to open", async () => {
+  reset();
+  const courier = courierOf({ draft: () => ({ ok: false, message: LEAD_NO_ADDRESS }) });
+  const P = page({ courier });
+  await press(byTestId(P.draw().tree, "peek-draft"));
+  await settle();
+  const { tree } = P.draw();
+  assert.equal(textOf(byTestId(tree, "peek-draft-error")), LEAD_NO_ADDRESS);
+  assert.equal(byTestId(tree, "peek-draft-error").props.role, "alert");
+  assert.equal(byTestId(tree, "peek-open-mail").props["aria-disabled"], true);
+});
+
+test("a lead whose email bounces is offered Call instead: no Copy, no Draft, and the note says so", () => {
+  reset();
+  const { tree } = page({ vm: vmOf({ email_state: "invalid" }) }).draw();
+  assert.equal(textOf(byTestId(tree, "peek-email-word")), "Bounces");
+  assert.equal(textOf(byTestId(tree, "peek-email-note")), "That mailbox doesn't exist. Call instead.");
+  assert.equal(byTestId(tree, "peek-draft"), null);
+  assert.equal(byTestId(tree, "peek-copy"), null);
+  assert.ok(byTestId(tree, "peek-call"), "the phone is what is left");
+});
+
+test("Did you send it? is asked when the tab comes back, not when the draft opened; Yes marks them contacted with Undo", async () => {
+  reset();
+  const courier = courierOf({ stage: () => ({ ok: true, data: { stage: "nurture", closed_reason: null, contact_id: null, existed: false, converted: false, op_id: "op-3", version: 6, toast: "Marked contacted.", undo: { op_id: "op-3", version: 6 } } }) });
+  const P = page({ courier });
+  await press(byTestId(P.draw().tree, "peek-draft"));
+  await settle();
+  assert.equal(P.st.armed, null, "Draft alone arms nothing");
+  await press(byTestId(P.draw().tree, "peek-open-mail"));
+  assert.deepEqual([P.st.armed.kind, P.st.armed.asked], ["sent", false]);
+  P.draw();
+  assert.equal(byTestId(P.draw().tree, "peek-sent-ask"), null, "nothing is asked while they are away");
+
+  const stop = globalThis.leadArmOnReturn(P.st.armed, P.p.setArmed);
+  for (const fn of listeners.focus || []) fn();
+  assert.equal(P.st.armed.asked, true);
+  stop();
+  P.st.mode = "info";
+  const { tree } = P.draw();
+  assert.equal(textOf(find(byTestId(tree, "peek-sent-ask"), (n) => n.props?.className === "t")), "Did you send it?");
+  await press(byTestId(tree, "peek-sent-yes"));
+  await settle();
+  assert.deepEqual(courier.seen.at(-1), ["stage", LEAD, { kind: "emailed" }]);
+  assert.equal(flashes.at(-1).msg, "Marked contacted.");
+  assert.equal(typeof flashes.at(-1).undo, "function");
+  assert.equal(P.st.armed, null);
+});
+
+test("Copy copies the subject and the body and arms the same question", async () => {
+  reset();
+  const P = page();
+  await press(byTestId(P.draw().tree, "peek-draft"));
+  await settle();
+  await press(byTestId(P.draw().tree, "peek-copy-draft"));
+  await settle();
+  assert.equal(copied[0].startsWith("Missed calls at Travis Heights\n\nHi,"), true);
+  assert.equal(P.st.armed.kind, "sent");
+  assert.equal(flashes.at(-1).msg, "Copied the email.");
+});
