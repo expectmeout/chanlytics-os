@@ -11,7 +11,7 @@ import assert from "node:assert/strict";
 import { roleGate } from "../../../packages/contracts/src/refusal.ts";
 import {
   LEAD_WORDS, LEAD_EMAIL_WORDS, LEAD_LOCKED_LINE, LEAD_DRAFT_NOTE, LEAD_NO_ADDRESS,
-  LEAD_CHECK_GROUP_WORDS, LEAD_CHECK_UNSURE, LEAD_NOT_A_FIT_WORDS, LEAD_CONTACT_STANDARD_WORDS,
+  LEAD_CHECK_GROUP_WORDS, LEAD_NOT_A_FIT_WORDS, LEAD_CONTACT_STANDARD_WORDS,
   outcomeMove, leadDraftFooter, toLeadPeekVM,
 } from "../../../packages/contracts/src/leads.ts";
 
