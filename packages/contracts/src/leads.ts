@@ -185,6 +185,16 @@ export const LEAD_WORDS = {
   reachHeading: "Reach",
   unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE,
+  // D5: the peek re-cut, and the photo expanded.
+  expand: "Expand",
+  photos: "Photos",
+  noPhoto: "No photo on the listing",
+  whereSits: "Where it sits",
+  openHours: "Open hours",
+  fromListing: "From the listing",
+  openMaps: "Open in Maps",
+  ratedHeading: "What people say",
+  closePhotos: "Close",
 } as const;
 
 
@@ -657,6 +667,21 @@ export interface LeadPeekVM {
   image: string | null;
   reviewsDist: [number, number, number, number, number] | null;
   claimedNote: string | null;
+  /* ---- D5: the peek re-cut ---- */
+  /** The tile behind the photo band: initials on the kind's tint, drawn when there is no photo or it fails to load. */
+  tile: { initials: string; tint: number };
+  /** "4.7" and "1,284", apart; null where the source does not rate. */
+  rated: { score: string; count: string } | null;
+  /** The two reach slots, as the row wears them. */
+  slots: { phone: LeadSlot; mailbox: LeadSlot };
+  /** The week's hours as bars, in the listing's own order, today marked; [] when the listing showed no hours. */
+  week: LeadWeekRow[];
+  /** "From the listing": the facts about the place the expanded photo lists beside it. */
+  facts: { k: string; v: string }[];
+  /** "5 checks passed · 2 couldn't tell": the head the checks fold under. */
+  checksSummary: string;
+  /** "1.2 mi", from the search's centre; "" when the search has none. */
+  distance: string;
   cls: LeadClass;
   stage: LeadStage;
   stages: { id: "ready" | "nurture" | "converted"; label: string; on: boolean }[];
@@ -683,6 +708,34 @@ export function leadTodayLine(hours: { day: string; hours: string }[], tz: strin
   if (!h) return null;
   return /^closed/i.test(h.hours) ? "Closed today" : `Open today · ${h.hours}`;
 }
+/** One day of the week's hours as a bar across the day (D5): x and w in percent of 24 hours; null for a day the parser cannot draw. */
+export interface LeadWeekRow { day: string; hours: string; bar: { x: number; w: number } | null; today: boolean }
+const CLOCK = /^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)\s*(?:to|–|-|—)\s*(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i;
+const hourOf = (h: string, m: string | undefined, ap: string): number => ((Number(h) % 12) + (ap.toUpperCase() === "PM" ? 12 : 0)) + (m ? Number(m) / 60 : 0);
+/**
+ * The week's hours as bars (D5): "9 AM to 6 PM" is a bar from 37.5% to 75% of the day, "Open 24 hours" the whole
+ * day, "Closed" no bar, and a line the parser cannot read keeps its words and draws nothing. Overnight hours run to
+ * the end of the day. The listing's own order is kept; today is the business's own day (tz).
+ */
+export function leadWeekBars(hours: { day: string; hours: string }[], tz: string, now: Date): LeadWeekRow[] {
+  const today = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "long" }).format(now).toLowerCase();
+  return hours.map((h) => {
+    const text = h.hours.trim();
+    let bar: LeadWeekRow["bar"] = null;
+    if (/^open 24 hours$/i.test(text)) bar = { x: 0, w: 100 };
+    else if (!/^closed/i.test(text)) {
+      const m = text.match(CLOCK);
+      if (m) {
+        const a = hourOf(m[1], m[2], m[3]);
+        let b = hourOf(m[4], m[5], m[6]);
+        if (b <= a) b = 24;
+        bar = { x: Math.round((a / 24) * 1000) / 10, w: Math.round(((b - a) / 24) * 1000) / 10 };
+      }
+    }
+    return { day: h.day, hours: text, bar, today: h.day.toLowerCase() === today };
+  });
+}
+
 /** "101 Biscayne Blvd, Miami, FL 33132", with the Maps page when the listing has one. */
 export function leadWhere(r: Pick<LeadRowDto, "street" | "city" | "state" | "postal_code" | "maps_url">): { line: string; href: string | null } | null {
   const town = [r.city, r.state].filter(Boolean).join(", ") + (r.postal_code ? ` ${r.postal_code}` : "");
@@ -767,10 +820,35 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
       : `Their website, ${host}: an email on the contact page`
     : "No website to check";
   const term = search?.plan.terms[0] ?? null;
+  // D5: the peek re-cut -- the tile, the rating apart, the checks' head, the week, and the listing's facts.
+  const passed = m.checks.filter((c) => c.answer === "yes").length;
+  const unsure = m.checks.filter((c) => c.answer === "unknown").length;
+  const failed = m.checks.filter((c) => c.answer === "no").length;
+  const checksSummary = m.checks.length === 0 ? "" : [
+    `${passed} check${passed === 1 ? "" : "s"} passed`,
+    ...(unsure ? [`${unsure} couldn't tell`] : []),
+    ...(failed ? [`${failed} failed`] : []),
+  ].join(" · ");
+  const rated = r.rating === null || r.rating === undefined ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const facts: LeadPeekVM["facts"] = [
+    ...(r.category ? [{ k: "Kind", v: r.category }] : []),
+    ...(r.price ? [{ k: "Price", v: r.price }] : []),
+    ...(rated ? [{ k: "Rated", v: `${rated.score} from ${rated.count} review${r.reviews === 1 ? "" : "s"}` }] : []),
+    ...(r.claimed === true ? [{ k: "Listing", v: "Claimed by the owner" }] : r.claimed === false ? [{ k: "Listing", v: "Not claimed by the owner" }] : []),
+    ...(term && r.rank ? [{ k: "Found at", v: `#${r.rank} for “${term}”` }] : []),
+    ...(r.places > 1 ? [{ k: "Other listings", v: `${r.places} listings for this business` }] : []),
+  ];
   return {
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category) },
+    rated,
+    slots: leadSlots(r),
+    week: leadWeekBars(r.hours ?? [], tz, now),
+    facts,
+    checksSummary,
+    distance: milesLabel(m.distance_m),
     name: r.business_name,
     about: r.about ?? null,
     where: leadWhere(r),
@@ -868,6 +946,8 @@ export interface LeadRowDto {
   about?: string | null; hours?: { day: string; hours: string }[]; image_url?: string | null; price?: string | null;
   reviews_dist?: { one: number; two: number; three: number; four: number; five: number } | null;
   facebook_url?: string | null; linkedin_url?: string | null; tiktok_url?: string | null; claimed?: boolean | null; maps_url?: string | null; rank?: number | null;
+  /** D5 (00146): the neighbourhood the listing names, and the coordinates leads_page returns, for the row's line about where and the map. */
+  neighborhood?: string | null; lat?: number | null; lng?: number | null;
   stage: LeadStage; closed_reason: string | null; contact_id: string | null;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null; last_note: string | null; contacted_at: string | null; converted_at: string | null;
@@ -964,6 +1044,8 @@ export interface LeadSearchRoundDto {
   undo_op_id: string | null; undo_version: number | null;
   /** Where to look next when the round ran dry (D3, 00145): the nearest ZIP centres past its area, nearest first; [] otherwise. */
   nearby: LeadArea[];
+  /** The qualified members by fit band (D5, 00146), for the band bar. Optional: a fixture from before carries none. */
+  fits?: { strong: number; look: number; long: number };
 }
 export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
@@ -994,9 +1076,78 @@ export interface LeadPlanFacts {
  * One row as the table draws it (§6.2). Every field is a word or a shape, and not one of them is a stored value:
  * `stage` rides along only so the row's dot has a class. Task 2's `LEAD_COLUMNS` reads exactly these and nothing else.
  */
+/* ------------------------------------------------ the row, as the redesign reads it (D5) */
+
+export type LeadSlotState = "ok" | "part" | "none" | "bad" | "checking";
+/** One reach slot: the shape carries the meaning (state), the word repeats it, the tip gives the value back. */
+export interface LeadSlot { state: LeadSlotState; value: string | null; word: string; tip: string; copy: boolean }
+export const LEAD_SLOT_WORDS: Record<LeadSlotState, string> = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
+/** The name card's facts (D5): the same derivations the peek draws from, so a hover decides without opening it. */
+export interface LeadRowCard {
+  about: string | null;
+  today: string | null;
+  where: { line: string; href: string | null } | null;
+  site: { label: string; href: string } | null;
+  maps: { label: string; href: string } | null;
+  found: { at: string; what: string }[];
+}
+/** The band over the table (D5): the search's whole shape in one line, which is also the class tabs, and the qualified split by fit. */
+export interface LeadBand {
+  classes: { id: LeadClass; label: string; count: number }[];
+  fits: { id: "strong" | "look" | "long"; label: string; count: number }[];
+  /** Worth drawing the split only when the fits differ: a search whose every row is strong says nothing by it. */
+  mixed: boolean;
+}
+
+/**
+ * The two reach slots, phone then mailbox (D5): five states a shape can carry, so the column survives greyscale.
+ * A mail server that would not answer wears Unconfirmed's shape with its own sentence; a number the owner marked
+ * wrong is Bad; a source that gave nothing is Nothing found, never a failure.
+ */
+export function leadSlots(r: Pick<LeadRowDto, "phone" | "phone_agrees" | "phone_wrong" | "email" | "email_state">): { phone: LeadSlot; mailbox: LeadSlot } {
+  const phone: LeadSlot = !r.phone
+    ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false }
+    : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} — you marked this number wrong`, copy: false }
+    : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} — the same number on Google Maps and on their website`, copy: true }
+    : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} — one source, their Google Maps listing`, copy: true };
+  const s = r.email_state;
+  const mailbox: LeadSlot = !r.email || s === "none"
+    ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: `${LEAD_MAILBOX_WORDS.none} — home, contact and about pages checked`, copy: false }
+    : s === "ok" ? { state: "ok", value: r.email, word: LEAD_SLOT_WORDS.ok, tip: `${r.email} — ${LEAD_MAILBOX_WORDS.ok}`, copy: true }
+    : s === "invalid" ? { state: "bad", value: r.email, word: LEAD_SLOT_WORDS.bad, tip: `${r.email} — ${LEAD_MAILBOX_WORDS.invalid}`, copy: false }
+    : s === "checking" ? { state: "checking", value: r.email, word: LEAD_SLOT_WORDS.checking, tip: `${r.email} — ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`, copy: true }
+    : { state: "part", value: r.email, word: LEAD_SLOT_WORDS.part, tip: `${r.email} — ${LEAD_MAILBOX_WORDS[s]}`, copy: true };
+  return { phone, mailbox };
+}
+
+/** The tile's tint, one of six, from the kind of business: the same kind wears the same tint on every row and in the peek. */
+export function leadTintOf(kind: string | null | undefined): number {
+  let h = 7;
+  for (const ch of kind ?? "") h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return (h % 6) + 1;
+}
+
+export function leadBand(search: LeadSearchDto | null): LeadBand | null {
+  const r = search?.round;
+  if (!r) return null;
+  const f = r.fits ?? { strong: 0, look: 0, long: 0 };
+  const fits = (["strong", "look", "long"] as const).map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
+  return {
+    classes: [
+      { id: "qualified", label: `${r.qualified} qualified`, count: r.qualified },
+      { id: "review", label: `${r.review} need${r.review === 1 ? "s" : ""} a look`, count: r.review },
+      { id: "excluded", label: `${r.excluded} left out`, count: r.excluded },
+    ],
+    fits,
+    mixed: fits.filter((x) => x.count > 0).length > 1,
+  };
+}
+
 export interface LeadRowVM {
   id: string; searchId: string; searchName: string; mark: string; name: string; places: number;
   category: string; area: string; cls: LeadClass;
+  /** The fit band itself (D5), for the band bar's filter; null for a row that is not qualified. */
+  fit: "strong" | "look" | "long" | null;
   fitLabel: string; fitTitle: string;
   email: string | null; emailState: LeadEmailState; emailLabel: string; emailWord: string;
   phone: string | null; phoneAgrees: boolean; phoneWrong: boolean;
@@ -1011,6 +1162,26 @@ export interface LeadRowVM {
   stage: LeadStage; stageLabel: string;
   foundLabel: string; foundAt: string; distance: string; source: string; host: string;
   excludedBy: string | null; version: number;
+  /* ---- D5: the row as the redesign reads it ---- */
+  /** "Book store · Hawthorne · 97214 · 1.2 mi": whatever the source gave, in that order; "" when it gave none. */
+  sub: string;
+  /** The two reach slots, phone then mailbox. */
+  slots: { phone: LeadSlot; mailbox: LeadSlot };
+  /** "4.7" and "1,284", apart, or null where the source does not rate. */
+  rated: { score: string; count: string } | null;
+  /** The spread of reviews, one to five stars, or null when the listing did not say. */
+  spread: [number, number, number, number, number] | null;
+  /** The tile: the listing's photo, else initials on a tint the kind decides. */
+  tile: { initials: string; tint: number; image: string | null };
+  /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
+  waitsOn: string | null;
+  /** The row's state mark: Ready is silent; the rest wear an edge and a tag. */
+  state: "ready" | "contacted" | "talking" | "review" | "out";
+  stateTag: string | null;
+  /** The name card's facts. */
+  card: LeadRowCard;
+  /** Where it sits, when the door gave coordinates. */
+  point: { lat: number; lng: number } | null;
 }
 
 const METRES_PER_MILE = 1609.344;
@@ -1031,8 +1202,11 @@ const ratingLabel = (rating: number | null, reviews: number | null): string => (
 const stageLabelOf = (stage: LeadStage, closedReason: string | null): string =>
   (stage === "archived" ? LEAD_CLOSED_WORDS[closedReason as (typeof LEAD_CLOSED_REASONS)[number]] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage]);
 
-/** One row's words and shapes (§6.2). Nothing here is a stored value. */
-export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
+/**
+ * One row's words and shapes (§6.2). Nothing here is a stored value. The search is the row's own (D5): a review
+ * row names what it waits on in the queue's words, and the name card names the term it was found for.
+ */
+export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSearchDto | null = null): LeadRowVM {
   const nowMs = now.getTime();
   const foundMs = Date.parse(r.found_at);
   const m = r.member;
@@ -1045,6 +1219,26 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
     ? `Left out: ${excludedBy ?? m.reason}`
     : m.class === "qualified" && rating ? `${m.reason} · ${rating.replace(" · ", " from ")} reviews` : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+  // D5: the row as the redesign reads it -- one line about where, two reach slots, the tile, its state, the card.
+  const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null].filter((x): x is string => !!x).join(" · ");
+  const rated = r.rating === null || r.rating === undefined ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const spread: LeadRowVM["spread"] = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
+  const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
+  const state: LeadRowVM["state"] = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
+  const stateTag = state === "contacted"
+    ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` · ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}`
+    : state === "talking" ? LEAD_STAGE_WORDS.converted
+    : state === "out" ? (m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason))
+    : null;
+  const term = search?.plan.terms[0] ?? null;
+  const card: LeadRowCard = {
+    about: r.about ?? null,
+    today: leadTodayLine(r.hours ?? [], tz, now),
+    where: leadWhere(r),
+    site: r.website ? { label: siteHost(r.website) ?? r.website, href: `https://${r.website}` } : null,
+    maps: r.maps_url ? { label: "Google Maps", href: r.maps_url } : null,
+    found: [{ at: clockIn(tz, r.found_at, now), what: term ? (r.rank ? `On Google Maps, #${r.rank} for “${term}”` : `On Google Maps, searching “${term}”`) : "On a Google Maps listing" }],
+  };
   return {
     id: r.id,
     searchId: r.search_id,
@@ -1055,6 +1249,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
     category: r.category ?? "",
     area,
     cls: m.class,
+    fit: m.class === "qualified" ? m.fit : null,
     fitLabel,
     fitTitle,
     email: r.email,
@@ -1084,6 +1279,16 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
     host: siteHost(r.website) ?? "",
     excludedBy,
     version: r.version,
+    sub,
+    slots: leadSlots(r),
+    rated,
+    spread,
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null },
+    waitsOn,
+    state,
+    stateTag,
+    card,
+    point: typeof r.lat === "number" && typeof r.lng === "number" ? { lat: r.lat, lng: r.lng } : null,
   };
 }
 

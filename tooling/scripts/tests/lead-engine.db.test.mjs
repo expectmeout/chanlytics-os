@@ -1072,3 +1072,31 @@ test("a round's nearby areas ride the commit with the ending and come back from 
   assert.deepEqual(ok(await db.from("lead_rounds").select("nearby, ending_pending").eq("id", round).single()), { nearby: far, ending_pending: "searched_everything" });
   assert.deepEqual(ok(await db.from("lead_searches_view").select("nearby").eq("id", search).single()), { nearby: far }, "the view carries it to the page");
 });
+
+// D5 (00146): the neighbourhood rides the same commit as the listing's other facts, comes back from leads_page beside
+// the coordinates it already returned, fills a known place only where it was empty, and goes with the rest when the
+// lead is blanked; and lead_searches_view splits a search's qualified members by fit band for the band bar.
+test("the row reads the neighbourhood and the band reads the fit split: written by the commit, returned by the page and the view, filled where empty, blanked with the rest", { skip }, async () => {
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "bookstores", asked: "bookstores in Austin", plan: plan(5) }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({ tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: plan(5), plan_version: 1, target: 5, state: "queued", allowance_reserved: 5, cost_reserved_usd: 1, month: leadMonth(TZ, new Date()), day: "2026-09-20", platform_day: "2026-09-20" }).select("id").single()).id;
+  const run = await runOf(round, "bookstore", "w-n5");
+  const withFit = (n, cls, fit, neighborhood) => { const p = place(n, cls); p.member.fit = fit; p.place = { ...p.place, neighborhood }; return p; };
+  const places = [withFit(921, "qualified", "strong", "Hawthorne"), withFit(922, "qualified", "strong", null), withFit(923, "qualified", "look", "Buckman"), withFit(924, "qualified", "long", null), withFit(925, "review", "look", "Sellwood")];
+  let r = ok(await commit(run.id, "w-n5", run.gen, 0, 1, { judgment: null, places, usage_usd: 0, items_seen: 5, run_state: null, next: null, round: { state: "probing", question: null, ending: null } }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const rows = ok(await owner.client.rpc("leads_page", { p_tenant_id: A, p_search_id: search, p_class: "qualified", p_sort: "found", p_after_key: null, p_limit: 50 }));
+  const row = rows.find((x) => x.place_id === "ChIJfixture0921");
+  assert.deepEqual([row.neighborhood, typeof row.lat, typeof row.lng], ["Hawthorne", "number", "number"], "the page returns the neighbourhood beside the coordinates");
+  assert.equal(rows.find((x) => x.place_id === "ChIJfixture0922").neighborhood, null, "null when the source did not say");
+  const band = ok(await db.from("lead_searches_view").select("strong, look, long, qualified, review").eq("id", search).single());
+  assert.deepEqual(band, { strong: 2, look: 1, long: 1, qualified: 4, review: 1 }, "the qualified members by fit band; a review member counts in none");
+  // The same place found again: what it already says stays; what was empty is filled.
+  const again = [withFit(921, "qualified", "strong", "Elsewhere"), withFit(922, "qualified", "strong", "Irvington")];
+  r = ok(await commit(run.id, "w-n5", run.gen, 1, 2, { judgment: null, places: again, usage_usd: 0, items_seen: 2, run_state: null, next: null, round: null }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const lead1 = await leadByPlace("ChIJfixture0921");
+  const lead2 = await leadByPlace("ChIJfixture0922");
+  assert.deepEqual([lead1.neighborhood, lead2.neighborhood], ["Hawthorne", "Irvington"], "kept where it was said, filled where it was empty");
+  ok(await db.rpc("lead_blank", { p_lead_id: lead1.id }));
+  assert.equal(ok(await db.from("leads").select("neighborhood").eq("id", lead1.id).single()).neighborhood, null, "blanked with the rest");
+});

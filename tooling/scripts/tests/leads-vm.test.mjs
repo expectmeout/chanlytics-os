@@ -16,7 +16,7 @@ import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
   toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding, leadReviewGroups,
-  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
+  leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE, leadBand, leadTintOf, leadWeekBars,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
 import { LEAD_ROUND_ENDINGS, LEAD_ENDING_WORDS, LeadSearchPlanSchema } from "../../../packages/contracts/src/lead-search.ts";
@@ -128,7 +128,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
   assert.deepEqual(vm, {
     id: LEAD_A, searchId: SEARCH_A, searchName: "Personal trainers · Austin",
     mark: "ZS", name: "Zilker Strength Lab", places: 1, category: "Personal trainer", area: "78704 · Austin, TX",
-    cls: "qualified", fitLabel: "Strong fit", fitTitle: "Independent studio, one location, coaching only · 5.0 from 16 reviews",
+    cls: "qualified", fit: "strong", fitLabel: "Strong fit", fitTitle: "Independent studio, one location, coaching only · 5.0 from 16 reviews",
     email: "hello@zilkerstrength.example", emailState: "ok", emailLabel: "hello@zilkerstrength.example", emailWord: "Checked",
     phone: "+15125550101", phoneAgrees: true, phoneWrong: false,
     reach: { email: { address: "hello@zilkerstrength.example", state: "ok", word: "Checked" }, phone: { number: "+15125550101", agrees: true } },
@@ -137,6 +137,17 @@ test("one row is words and shapes, never a stored value: the fit band, the email
     stage: "ready", stageLabel: "Ready", foundLabel: "6m", foundAt: "Sep 18, 2026 · 2:14 PM",
     distance: "1.2 mi", source: "Google Maps listing", host: "zilkerstrength.example",
     excludedBy: null, version: 1,
+    // D5: the row as the redesign reads it.
+    sub: "Personal trainer · 78704 · 1.2 mi",
+    slots: {
+      phone: { state: "ok", value: "+15125550101", word: "Checked", tip: "+15125550101 — the same number on Google Maps and on their website", copy: true },
+      mailbox: { state: "ok", value: "hello@zilkerstrength.example", word: "Checked", tip: "hello@zilkerstrength.example — Mailbox exists", copy: true },
+    },
+    rated: { score: "5.0", count: "16" }, spread: null,
+    tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null },
+    waitsOn: null, state: "ready", stateTag: null,
+    card: { about: null, today: null, where: { line: "1200 Barton Springs Rd, Austin, TX 78704", href: null }, site: { label: "zilkerstrength.example", href: "https://zilkerstrength.example" }, maps: null, found: [{ at: "2:14 PM", what: "On a Google Maps listing" }] },
+    point: null,
   });
   const review = toLeadRowVM(row({ email: null, email_state: "unknown", member: { ...row().member, class: "review", fit: "look", reason: "Couldn't check the email" } }), TZ, NOW);
   assert.deepEqual([review.fitLabel, review.emailWord, review.emailLabel], ["Couldn't check the email", "Couldn't check", ""], "Needs review says why, and an address nobody could check is not claimed");
@@ -306,6 +317,77 @@ test("Needs review is grouped by what resolves it, in the order an owner would w
   assert.deepEqual(leadReviewGroups([], SEARCH_DONE), []);
   assert.deepEqual(leadReviewGroups([{ id: "old", cls: "review", reasons: [] }], SEARCH_DONE), [], "a row from before D3 carries no reasons and lands in no group");
   assert.deepEqual(toLeadRowVM(row({ member: { ...row().member, class: "review", reasons: ["email:none"] } }), TZ, NOW).reasons, ["email:none"], "the row VM carries them, so the page can group without the DTO");
+});
+
+// D5: the row as the redesign reads it. NOW is a Friday in America/Chicago.
+test("D5: the row reads a sub-line, two reach slots, the tile, what it waits on, its state, and the name card's facts", () => {
+  const vm = toLeadRowVM(row({ neighborhood: "Bouldin", about: "Coaching only.", hours: [{ day: "Friday", hours: "6 AM to 8 PM" }], maps_url: "https://maps.example/?cid=1", rank: 3, reviews_dist: { one: 0, two: 1, three: 1, four: 4, five: 10 }, lat: 30.25, lng: -97.75 }), TZ, NOW, SEARCH_DONE);
+  assert.equal(vm.sub, "Personal trainer · Bouldin · 78704 · 1.2 mi", "whatever the source gave, in that order");
+  assert.deepEqual([vm.slots.phone.state, vm.slots.phone.word, vm.slots.mailbox.state, vm.slots.mailbox.copy], ["ok", "Checked", "ok", true]);
+  assert.match(vm.slots.mailbox.tip, /^hello@zilkerstrength\.example — Mailbox exists$/, "the tip gives the value back, with the sentence behind the shape");
+  assert.deepEqual(vm.rated, { score: "5.0", count: "16" });
+  assert.deepEqual(vm.spread, [0, 1, 1, 4, 10]);
+  assert.deepEqual([vm.tile.initials, vm.tile.image], [vm.mark, null]);
+  assert.ok(vm.tile.tint >= 1 && vm.tile.tint <= 6);
+  assert.equal(vm.tile.tint, leadTintOf("Personal trainer"), "the same kind, the same tint");
+  assert.notEqual(leadTintOf("Personal trainer"), leadTintOf("Book store"), "two kinds, two tints (these two)");
+  assert.deepEqual([vm.waitsOn, vm.state, vm.stateTag], [null, "ready", null], "Ready is silent");
+  assert.equal(vm.card.today, "Open today · 6 AM to 8 PM");
+  assert.equal(vm.card.about, "Coaching only.");
+  assert.deepEqual(vm.card.where, { line: "1200 Barton Springs Rd, Austin, TX 78704", href: "https://maps.example/?cid=1" });
+  assert.deepEqual([vm.card.site, vm.card.maps], [{ label: "zilkerstrength.example", href: "https://zilkerstrength.example" }, { label: "Google Maps", href: "https://maps.example/?cid=1" }]);
+  assert.equal(vm.card.found[0].what, "On Google Maps, #3 for “personal trainer”");
+  assert.deepEqual(vm.point, { lat: 30.25, lng: -97.75 });
+  // The five states a slot can wear.
+  const slot = (over) => toLeadRowVM(row(over), TZ, NOW).slots;
+  assert.deepEqual([slot({ phone_agrees: false }).phone.state, slot({ phone_wrong: true }).phone.state, slot({ phone: null }).phone.state], ["part", "bad", "none"]);
+  assert.deepEqual(
+    [slot({ email_state: "catch_all" }).mailbox.state, slot({ email_state: "unknown" }).mailbox.state, slot({ email_state: "invalid" }).mailbox.state, slot({ email_state: "checking" }).mailbox.state, slot({ email: null, email_state: "none" }).mailbox.state],
+    ["part", "part", "bad", "checking", "none"],
+  );
+  assert.match(slot({ email_state: "unknown" }).mailbox.tip, /mail server wouldn't answer/, "the same shape as a catch-all, its own sentence");
+  assert.equal(slot({ email: null, email_state: "none" }).mailbox.tip, "No email found on their site — home, contact and about pages checked", "says what was looked at, never just the word none");
+  // A lead from a source that rates nothing, shows no photo and names no ZIP still reads cleanly.
+  const bare = toLeadRowVM(row({ category: "Software company", postal_code: null, rating: null, reviews: null, member: { ...row().member, distance_m: null } }), TZ, NOW);
+  assert.deepEqual([bare.sub, bare.rated, bare.spread, bare.tile.image, bare.point], ["Software company", null, null, null, null]);
+  assert.equal(toLeadRowVM(row({ category: null, postal_code: null, member: { ...row().member, distance_m: null } }), TZ, NOW).sub, "");
+  // The states a row wears.
+  const st = (over) => { const v = toLeadRowVM(row(over), TZ, NOW, SEARCH_DONE); return [v.state, v.stateTag, v.waitsOn]; };
+  assert.deepEqual(st({ stage: "nurture", contacted_at: "2026-09-15T19:20:00.000Z" }), ["contacted", "Contacted · 3d", null]);
+  assert.deepEqual(st({ stage: "converted" }), ["talking", "Talking", null]);
+  assert.deepEqual(st({ stage: "archived", closed_reason: "not_a_fit" }), ["out", "Not a fit", null]);
+  assert.deepEqual(st({ member: { ...row().member, class: "review", fit: "look", reasons: ["email:unknown"] } }), ["review", null, "Their mail server wouldn't answer"], "a waiting row names the thing that resolves it");
+  assert.deepEqual(st({ member: { ...row().member, class: "excluded", fit: null, excluded_by: "chain" } }), ["out", "Left out", null]);
+});
+
+test("D5: the week's hours as bars, and the peek's own additions -- the tile, the rating apart, the checks' head, the facts", () => {
+  const bars = leadWeekBars([{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Tuesday", hours: "Closed" }, { day: "Wednesday", hours: "Open 24 hours" }, { day: "Thursday", hours: "10:30 AM to 1 AM" }, { day: "Friday", hours: "by appointment" }], TZ, NOW);
+  assert.deepEqual(bars.map((b) => [b.day, b.bar, b.today]), [
+    ["Monday", { x: 37.5, w: 37.5 }, false], ["Tuesday", null, false], ["Wednesday", { x: 0, w: 100 }, false],
+    ["Thursday", { x: 43.8, w: 56.3 }, false], ["Friday", null, true],
+  ], "a bar across the day; closed and unreadable lines draw nothing and keep their words; overnight runs to the end of the day");
+  assert.equal(bars[4].hours, "by appointment");
+  const vm = toLeadPeekVM(row({ hours: [{ day: "Friday", hours: "6 AM to 8 PM" }], claimed: false, price: "$$", rank: 3, places: 2, member: { ...row().member, checks: [
+    { key: "on_maps", how: "seen", answer: "yes", source: "Google Maps", reason: null },
+    { key: "mailbox", how: "seen", answer: "unknown", source: "Mailbox check", reason: null },
+    { key: "independent", how: "read", answer: "no", source: "Claude", reason: "a franchise" },
+  ] } }), SEARCH_DONE, TZ, NOW);
+  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer") }, { score: "5.0", count: "16" }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
+  assert.deepEqual(vm.week.map((d) => [d.day, d.today, d.bar]), [["Friday", true, { x: 25, w: 58.3 }]]);
+  assert.deepEqual(vm.facts, [{ k: "Kind", v: "Personal trainer" }, { k: "Price", v: "$$" }, { k: "Rated", v: "5.0 from 16 reviews" }, { k: "Listing", v: "Not claimed by the owner" }, { k: "Found at", v: "#3 for “personal trainer”" }, { k: "Other listings", v: "2 listings for this business" }]);
+  assert.deepEqual([vm.slots.phone.state, vm.slots.mailbox.state], ["ok", "ok"]);
+  assert.equal(toLeadPeekVM(row({ member: { ...row().member, checks: [] } }), SEARCH_DONE, TZ, NOW).checksSummary, "", "no checks, no head");
+});
+
+test("D5: the band is the search's whole shape, and the fit split is worth drawing only when the fits differ", () => {
+  const band = leadBand(searchWith({}, { qualified: 19, review: 2, excluded: 7, fits: { strong: 11, look: 6, long: 2 } }));
+  assert.deepEqual(band.classes, [{ id: "qualified", label: "19 qualified", count: 19 }, { id: "review", label: "2 need a look", count: 2 }, { id: "excluded", label: "7 left out", count: 7 }]);
+  assert.deepEqual(band.fits.map((f) => [f.id, f.label, f.count]), [["strong", "Strong fit", 11], ["look", "Worth a look", 6], ["long", "Long shot", 2]]);
+  assert.equal(band.mixed, true);
+  assert.equal(leadBand(searchWith({}, { fits: { strong: 19, look: 0, long: 0 } })).mixed, false, "every row strong: the split says nothing");
+  assert.equal(leadBand(searchWith({}, { review: 1 })).classes[1].label, "1 needs a look");
+  assert.deepEqual(leadBand(searchWith({}, { review: 1 })).fits.map((f) => f.count), [0, 0, 0], "a round from before carries no split");
+  assert.equal(leadBand(null), null);
 });
 
 // D2: who they are, from what the listing shows. NOW is a Friday in America/Chicago.

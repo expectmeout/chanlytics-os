@@ -1612,6 +1612,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // { kind: "sent" | "call", leadId, asked, outcome, note }. `asked` turns true only once the tab is theirs
   // again (leadArmOnReturn, Task 13), so nothing is asked while they are away.
   const [armed, setArmed] = useState(null);
+  // D5: the row's Values ⁄ Signals choice (kept per viewer, read in a try: a private window may refuse), the photo
+  // expanded, and the band's fit filter.
+  const [values, setValues] = useState(ldValuesPref());
+  const [lightboxId, setLightboxId] = useState(null);
+  const [fitChip, setFitChip] = useState(null);
+
   // One criterion of the Excluded view, from the chips at its head.
   const [chip, setChip] = useState(null);
   // "Select all 1,240 that match": the bulk bar hands the view's filters to the server instead of a list of ids.
@@ -1705,6 +1711,16 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   };
   const searchRef = React.useRef(null);
   const scrollRef = React.useRef(null);
+  // D5: a list that is moving shows no hover: the scroller carries data-scrolling while it scrolls, and the tips and
+  // cards hide under it (leads.css). One listener for the page's life, taken down with it.
+  React.useEffect(() => {
+    const el = scrollRef.current;
+    if (!el || !el.addEventListener) return undefined;
+    let t = null;
+    const on = () => { el.setAttribute("data-scrolling", "1"); if (t) clearTimeout(t); t = setTimeout(() => el.removeAttribute("data-scrolling"), 160); };
+    el.addEventListener("scroll", on, { passive: true });
+    return () => { el.removeEventListener("scroll", on); if (t) clearTimeout(t); };
+  }, [onLeads]);
 
   const onSort = (key) => {
     if (sortBy === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
@@ -1824,12 +1840,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     const needle = q.trim().toLowerCase();
     let list = leads.rows;
     if (chip) list = list.filter((l) => l.excludedBy === chip);
+    if (fitChip) list = list.filter((l) => l.fit === fitChip);
     if (!needle) return list;
     return list.filter((l) => l.name.toLowerCase().includes(needle) || (l.category || "").toLowerCase().includes(needle) || (l.area || "").toLowerCase().includes(needle));
-  }, [leads.rows, q, chip]);
+  }, [leads.rows, q, chip, fitChip]);
   // What this scope shows, for the table, the keyboard's cursor and the bulk bar: one list, whichever scope.
   const rowsShown = onLeads ? leadShown : shown;
-  const filtered = onLeads ? !!q.trim() || !!chip || !!leadView.cls || leadView.list !== "all" : tab !== "all" || !!listId || !!savedId || !!q.trim();
+  const filtered = onLeads ? !!q.trim() || !!chip || !!fitChip || !!leadView.cls || leadView.list !== "all" : tab !== "all" || !!listId || !!savedId || !!q.trim();
   React.useEffect(() => { setSel(new Set()); setAllMatching(false); }, [tab, listId, savedId, q, leadsRoute, chip]);
   const shownIds = rowsShown.map((r) => r.id);
   // A keyboard walks the rows the way the Inbox walks threads: J/K or ↓/↑ move the cursor, x or Space selects the row
@@ -2107,11 +2124,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     sheetOpen: listsOpen,
     menuOpen: colsOpen,
     closeMenu: () => { setColsOpen(false); if (colsButton.current) colsButton.current.focus(); },
-    peekOpen: onLeads && !!peekId,
+    peekOpen: onLeads && (!!peekId || !!lightboxId),
     // One press backs out one step: the question the peek asked, then the pane it opened, then the peek itself
     // (leadPeekEscape, leads-peek.jsx, Task 12). The order OUT here is the page's: the peek, the finder, the
     // Columns menu, the selection.
-    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId }),
+    closePeek: () => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId }),
     finderOpen: onLeads && finderOpen,
     closeFinder: () => setFinderOpen(false),
     canFind,
@@ -2119,14 +2136,22 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     call: onLeads ? callLead : null,
   };
 
-  // The Leads scope, drawn after every hook this component owns, so the two scopes declare one hook order.
+  /** The viewer's Values ⁄ Signals choice, read in a try: a private window or blocked storage answers Signals. */
+function ldValuesPref() { try { return !!window.localStorage && window.localStorage.getItem("leads.values") === "1"; } catch (e) { return false; } }
+
+// The Leads scope, drawn after every hook this component owns, so the two scopes declare one hook order.
   // Everything it needs is a prop: leads-scope.jsx is hookless from its rail to its bulk bar.
   if (onLeads) {
     const rail = window.__leadRail ? window.__leadRail(leads.counts, leads.searches) : { lists: [], searches: [] };
     const standing = window.__leadsStanding ? window.__leadsStanding(leads.counts, leads.searches) : { total: "", parts: [], needsYou: null };
     const openSearch = searchById(leadView.searchId);
+    // The band (D5): the search's whole shape, and whether its fits differ (which is when a row wears its fit).
+    const band = window.__LEAD_VM && window.__LEAD_VM.leadBand ? window.__LEAD_VM.leadBand(openSearch) : null;
     const cellCtxLeads = {
       onOpen: setPeekId,
+      onExpand: setLightboxId,
+      values,
+      mixedFits: !!(band && band.mixed),
       onCall: callLead,
       onCopy: copyLead,
       onKeep: keepLead,
@@ -2200,7 +2225,12 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         scrolled={scrolledX}
         onScrolled={setScrolledX}
         filtered={filtered}
-        onClearFilters={() => { setQ(""); setChip(null); goto({ list: "all", cls: null }); }}
+        onClearFilters={() => { setQ(""); setChip(null); setFitChip(null); goto({ list: "all", cls: null }); }}
+        band={band}
+        fit={fitChip}
+        onPickFit={setFitChip}
+        values={values}
+        onValues={(v) => { setValues(v); try { if (window.localStorage) window.localStorage.setItem("leads.values", v ? "1" : "0"); } catch (e) { /* a private window: the choice lives for the page */ } }}
         empty={leadView.cls === "review"
           ? { title: "Nothing needs a look.", body: "Every lead here has been checked or decided.", action: null }
           : { title: "No leads in this view yet.", body: "Describe the businesses you want and Claude finds them.", action: canFind ? { label: "Find leads", onClick: () => { setFinderStage("compose"); setFinderOpen(true); } } : null }}
@@ -2290,7 +2320,10 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onPeekId={setPeekId}
         onOpenPerson={onOpenProfile}
         flash={plFlash}
-        onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId })}
+        onClosePeek={() => leadPeekEscape({ mode: peekMode, armed, setMode: setPeekMode, setArmed, setPeekId, lightbox: lightboxId, setLightbox: setLightboxId })}
+        onExpandPhoto={setLightboxId}
+        lightbox={lightboxId && window.__leadPeekVM ? window.__leadPeekVM(lightboxId) : null}
+        onCloseLightbox={() => setLightboxId(null)}
         onCall={callLead}
         onKeep={keepLead}
         onExclude={excludeLead}

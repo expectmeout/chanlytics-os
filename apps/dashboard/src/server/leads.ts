@@ -195,6 +195,8 @@ export interface SearchViewRow {
   undo_version: number | null;
   /** 00145: where to look next when the round ran dry, as LeadArea rows; [] otherwise. */
   nearby: unknown;
+  /** 00146: the qualified members by fit band, for the band bar. */
+  strong: number | null; look: number | null; long: number | null;
 }
 
 /** The round's nearby areas as the view returns them: only rows shaped as an area are handed on. */
@@ -316,6 +318,7 @@ function toSearchDto(r: SearchViewRow): LeadSearchDto {
       undo_op_id: r.undo_op_id,
       undo_version: r.undo_version,
       nearby: nearbyOf(r.nearby),
+      fits: { strong: r.strong ?? 0, look: r.look ?? 0, long: r.long ?? 0 },
     },
   };
 }
@@ -333,6 +336,8 @@ interface LeadPageRow {
   member_id: string; lead_id: string; place_id: string; search_id: string; class: string; excluded_by: string | null;
   fit: string | null; reason: string | null; distance_m: number | null; counted: boolean; judgment: unknown;
   business_name: string; category: string | null; street: string | null; city: string | null; region: string | null; postal_code: string | null;
+  /** D5 (00146): the neighbourhood the listing names, and the coordinates the door has always returned. */
+  neighborhood: string | null; lat: number | null; lng: number | null;
   website_host: string | null; instagram_url: string | null; phone_e164: string | null; phone_sources: number | null; phone_wrong: boolean;
   email: string | null; email_alternates: unknown; email_state: string; email_checked_at: string | null;
   rating: number | null; reviews: number | null; stage: string; closed_reason: string | null; last_outcome: string | null; last_note: string | null;
@@ -408,6 +413,9 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     state: r.region,
     street: r.street,
     postal_code: r.postal_code,
+    neighborhood: r.neighborhood ?? null,
+    lat: r.lat ?? null,
+    lng: r.lng ?? null,
     search_name: searchNames.get(r.search_id) ?? null,
     phone: r.phone_e164,
     // Two sources agreed on the number: the listing and the business's own site.
