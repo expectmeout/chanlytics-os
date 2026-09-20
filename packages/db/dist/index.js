@@ -971,6 +971,7 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -1018,6 +1019,9 @@ var LEAD_WORDS = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
 var LeadsQuerySchema = z7.object({

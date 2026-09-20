@@ -1267,6 +1267,27 @@ interface LeadColumns {
     lng: number | null;
     website_host: string | null;
     instagram_url: string | null;
+    /** What the listing shows about the business (D2, 00144): written for a lead, null or empty for a left-out place. */
+    about: string | null;
+    hours: {
+        day: string;
+        hours: string;
+    }[];
+    image_url: string | null;
+    price: string | null;
+    reviews_dist: {
+        one: number;
+        two: number;
+        three: number;
+        four: number;
+        five: number;
+    } | null;
+    facebook_url: string | null;
+    linkedin_url: string | null;
+    tiktok_url: string | null;
+    claimed: boolean | null;
+    maps_url: string | null;
+    rank: number | null;
     phone_e164: string | null;
     phone_sources: number;
     email: string | null;
@@ -1443,7 +1464,7 @@ type Owner = string;
  */
 
 /** The Maps item fields a lead is built from. Nothing else is asked for. */
-declare const MAPS_FIELDS: readonly ["title", "categoryName", "neighborhood", "street", "city", "state", "postalCode", "countryCode", "phoneUnformatted", "phone", "phones", "website", "domain", "emails", "instagrams", "placeId", "totalScore", "reviewsCount", "permanentlyClosed", "temporarilyClosed", "location"];
+declare const MAPS_FIELDS: readonly ["title", "categoryName", "neighborhood", "street", "city", "state", "postalCode", "countryCode", "phoneUnformatted", "phone", "phones", "website", "domain", "emails", "instagrams", "placeId", "totalScore", "reviewsCount", "permanentlyClosed", "temporarilyClosed", "location", "description", "ownerDescription", "openingHours", "imageUrl", "reviewsDistribution", "price", "facebooks", "linkedIns", "tiktoks", "claimThisBusiness", "rank", "url"];
 declare const CHECKER_FIELDS: readonly ["email", "status", "is_catch_all"];
 /** This actor refuses a cap under $0.50 (PRD §10.1). */
 declare const MAPS_CAP_FLOOR_USD = 0.5;
@@ -1472,6 +1493,28 @@ interface MapsPlace {
         lat: number;
         lng: number;
     } | null;
+    /** The listing's own line about the business: Google's, else the owner's; capped like every fact. For the owner, never the judge. */
+    about: string | null;
+    hours: {
+        day: string;
+        hours: string;
+    }[];
+    imageUrl: string | null;
+    reviewsDist: {
+        one: number;
+        two: number;
+        three: number;
+        four: number;
+        five: number;
+    } | null;
+    price: string | null;
+    facebook: string | null;
+    linkedin: string | null;
+    tiktok: string | null;
+    /** true: the owner claimed the listing; false: "claim this business" is showing; null: the item did not say. */
+    claimed: boolean | null;
+    rank: number | null;
+    mapsUrl: string | null;
 }
 interface LeadCardRunner {
     actor: string;

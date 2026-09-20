@@ -64,7 +64,19 @@ export function mapsItem(n, over = {}) {
     permanentlyClosed: false,
     temporarilyClosed: false,
     location: { lat: AUSTIN.lat + (n % 7) * 0.01, lng: AUSTIN.lng - (n % 5) * 0.01 },
-    description: "a page's own words: never read",
+    description: "Independent strength studio in South Austin.",
+    // What the listing shows about the business (D2): kept for the owner's peek, never handed to the judge.
+    ownerDescription: "Family-run since 2009.",
+    openingHours: [{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Sunday", hours: "Closed" }],
+    imageUrl: `https://lh3.example/place${four(n)}.jpg`,
+    reviewsDistribution: { oneStar: 1, twoStar: 1, threeStar: 3, fourStar: 10, fiveStar: 25 },
+    price: "$$",
+    facebooks: [`https://www.facebook.example/place${four(n)}`],
+    linkedIns: [],
+    tiktoks: [],
+    claimThisBusiness: false,
+    rank: (n % 20) + 1,
+    url: `https://maps.example/?cid=${n}`,
     ...over,
   };
 }

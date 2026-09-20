@@ -161,7 +161,12 @@ test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the mos
   assert.ok(withEmail.every((l) => l.email_state === "checking"), "a found email is checked whatever the standard asked for");
   assert.equal(members.find((m) => m.excluded_by === "closed").reason, CLOSED_REASON);
   const closed = members.find((m) => m.excluded_by === "closed");
-  assert.equal(w.T.leads.find((l) => l.id === closed.lead_id).email, null, "a left-out place never stores its candidate email");
+  const closedLead = w.T.leads.find((l) => l.id === closed.lead_id);
+  assert.equal(closedLead.email, null, "a left-out place never stores its candidate email");
+  // D2: what the listing shows rides the commit for a lead, and a left-out place carries none of it (§0.4).
+  const kept = w.T.leads.find((l) => l.id === members.find((m) => m.class === "qualified").lead_id);
+  assert.deepEqual([kept.about, kept.claimed, kept.rank !== null, kept.hours.length, !!kept.image_url], ["Independent strength studio in South Austin.", true, true, 2, true], "what the listing shows rides the commit");
+  assert.deepEqual([closedLead.about, closedLead.image_url, closedLead.hours, closedLead.claimed], [null, null, [], null], "a left-out place carries none of it");
   const chain = members.find((m) => m.excluded_by === "chains");
   assert.equal(w.T.leads.find((l) => l.id === chain.lead_id).email, null);
   assert.equal(members.filter((m) => m.counted).length, 11, "eleven qualified count, under the phone standard");

@@ -318,6 +318,8 @@ interface LeadPageRow {
   website_host: string | null; instagram_url: string | null; phone_e164: string | null; phone_sources: number | null; phone_wrong: boolean;
   email: string | null; email_alternates: unknown; email_state: string; email_checked_at: string | null;
   rating: number | null; reviews: number | null; stage: string; closed_reason: string | null; last_outcome: string | null; last_note: string | null;
+  about: string | null; hours: unknown; image_url: string | null; price: string | null; reviews_dist: unknown;
+  facebook_url: string | null; linkedin_url: string | null; tiktok_url: string | null; claimed: boolean | null; maps_url: string | null; rank: number | null;
   contact_id: string | null; contacted_at: string | null; converted_at: string | null; exported_at: string | null; found_at: string;
   places: number; version: number; page_key: string;
 }
@@ -389,6 +391,18 @@ function toLeadRowDto(r: LeadPageRow, searchNames: Map<string, string>): LeadRow
     instagram: r.instagram_url,
     rating: r.rating,
     reviews: r.reviews,
+    // What the listing shows about the business (D2), as leads_page returns it; jsonb arrives as it was stored.
+    about: r.about ?? null,
+    hours: Array.isArray(r.hours) ? (r.hours as { day: string; hours: string }[]) : [],
+    image_url: r.image_url ?? null,
+    price: r.price ?? null,
+    reviews_dist: r.reviews_dist && typeof r.reviews_dist === "object" ? (r.reviews_dist as LeadRowDto["reviews_dist"]) : null,
+    facebook_url: r.facebook_url ?? null,
+    linkedin_url: r.linkedin_url ?? null,
+    tiktok_url: r.tiktok_url ?? null,
+    claimed: r.claimed ?? null,
+    maps_url: r.maps_url ?? null,
+    rank: r.rank ?? null,
     stage: r.stage as LeadStage,
     closed_reason: r.closed_reason,
     contact_id: r.contact_id,
@@ -904,6 +918,10 @@ const LEAD_CSV_COLUMNS: ReadonlyArray<readonly [string, (r: LeadRowDto) => strin
   ["Email", (r) => r.email],
   ["Mailbox", (r) => LEAD_EMAIL_WORDS[r.email_state]],
   ["Website", (r) => r.website],
+  ["About", (r) => r.about ?? null],
+  ["Facebook", (r) => r.facebook_url ?? null],
+  ["LinkedIn", (r) => r.linkedin_url ?? null],
+  ["Google Maps", (r) => r.maps_url ?? null],
   ["Rating", (r) => r.rating],
   ["Reviews", (r) => r.reviews],
   ["Stage", (r) => LEAD_STAGE_WORDS[r.stage]],

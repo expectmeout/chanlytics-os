@@ -1122,6 +1122,7 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_UNCLAIMED_NOTE = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE = "Your people gather here";
 var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
@@ -1169,6 +1170,9 @@ var LEAD_WORDS = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
 var LeadsQuerySchema = z7.object({
@@ -7232,6 +7236,7 @@ var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a
 function leadNoteLeft2(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_UNCLAIMED_NOTE2 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
@@ -7279,6 +7284,9 @@ var LEAD_WORDS2 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE2, sub: LEAD_FIRST_DAY_SUB2, foot: LEAD_FIRST_DAY_FOOT2 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE2,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2
 };
 var LeadsQuerySchema2 = z72.object({
@@ -9430,6 +9438,7 @@ var LEAD_TALKING_NOTE3 = "They join People when they write or call in, or when a
 function leadNoteLeft3(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_UNCLAIMED_NOTE3 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
@@ -9477,6 +9486,9 @@ var LEAD_WORDS3 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE3, sub: LEAD_FIRST_DAY_SUB3, foot: LEAD_FIRST_DAY_FOOT3 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE3,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE3
 };
 var LeadsQuerySchema3 = z73.object({
@@ -10718,6 +10730,7 @@ var LEAD_TALKING_NOTE22 = "They join People when they write or call in, or when 
 function leadNoteLeft22(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_UNCLAIMED_NOTE22 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE22 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB22 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT22 = "Claude finds businesses, not people at home.";
@@ -10765,6 +10778,9 @@ var LEAD_WORDS22 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE22, sub: LEAD_FIRST_DAY_SUB22, foot: LEAD_FIRST_DAY_FOOT22 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE22,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE22
 };
 var LeadsQuerySchema22 = z722.object({
@@ -11877,6 +11893,7 @@ var LEAD_TALKING_NOTE32 = "They join People when they write or call in, or when 
 function leadNoteLeft32(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_UNCLAIMED_NOTE32 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE32 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB32 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT32 = "Claude finds businesses, not people at home.";
@@ -11924,6 +11941,9 @@ var LEAD_WORDS32 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE32, sub: LEAD_FIRST_DAY_SUB32, foot: LEAD_FIRST_DAY_FOOT32 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE32,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE32
 };
 var LeadsQuerySchema32 = z732.object({
@@ -13524,6 +13544,7 @@ var LEAD_TALKING_NOTE4 = "They join People when they write or call in, or when a
 function leadNoteLeft4(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_UNCLAIMED_NOTE4 = "Listing not claimed by the owner";
 var LEAD_FIRST_DAY_TITLE4 = "Your people gather here";
 var LEAD_FIRST_DAY_SUB4 = "Or have Claude find businesses worth reaching";
 var LEAD_FIRST_DAY_FOOT4 = "Claude finds businesses, not people at home.";
@@ -13571,6 +13592,9 @@ var LEAD_WORDS4 = {
   draftFrom: "Sent from your own inbox",
   copiedDraft: "Copied the email.",
   firstDay: { title: LEAD_FIRST_DAY_TITLE4, sub: LEAD_FIRST_DAY_SUB4, foot: LEAD_FIRST_DAY_FOOT4 },
+  about: "About",
+  reachHeading: "Reach",
+  unclaimed: LEAD_UNCLAIMED_NOTE4,
   suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE4
 };
 var LeadsQuerySchema4 = z74.object({

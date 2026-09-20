@@ -15,7 +15,7 @@ import assert from "node:assert/strict";
 import {
   leadsRoute, parseLeadsRoute, stageArgs, LeadStageInputSchema, leadDraftFooter,
   LEAD_DRAFT_JSON_SCHEMA, LEAD_SUGGEST_JSON_SCHEMA, LEAD_EMAIL_WORDS, outcomeMove,
-  toLeadRowVM, leadRail, leadUndoable, leadsStanding,
+  toLeadPeekVM, toLeadRowVM, leadRail, leadUndoable, leadsStanding,
   leadEndingLine, leadAllowanceFact, leadAnd, LEAD_PAUSED_TITLE,
   leadPlanAsk, leadPlanFacts, leadPlanLikely,
 } from "../../../packages/contracts/src/leads.ts";
@@ -120,13 +120,20 @@ test("the answer schemas are the structured-output shape: every property require
 
 test("one row is words and shapes, never a stored value: the fit band, the email word, the phone's agreement, found as 6m", () => {
   const vm = toLeadRowVM(row(), TZ, NOW);
+  // D2: the two contacts as one glance for the Reach column, and the listing's photo for the row's mark.
+  assert.deepEqual(vm.reach, { email: { address: row().email, state: row().email_state, word: LEAD_EMAIL_WORDS[row().email_state] }, phone: { number: row().phone, agrees: row().phone_agrees } });
+  assert.equal(vm.image, null, "a row from before D2 has no photo, and says so with nothing");
+  assert.equal(toLeadRowVM(row({ image_url: "https://lh3.example/p.jpg" }), TZ, NOW).image, "https://lh3.example/p.jpg");
+  assert.deepEqual(toLeadRowVM(row({ email: null, email_state: "none", phone: null }), TZ, NOW).reach, { email: null, phone: null });
   assert.deepEqual(vm, {
     id: LEAD_A, searchId: SEARCH_A, searchName: "Personal trainers · Austin",
     mark: "ZS", name: "Zilker Strength Lab", places: 1, category: "Personal trainer", area: "78704 · Austin, TX",
     cls: "qualified", fitLabel: "Strong fit", fitTitle: "Independent studio, one location, coaching only · 5.0 from 16 reviews",
     email: "hello@zilkerstrength.example", emailState: "ok", emailLabel: "hello@zilkerstrength.example", emailWord: "Checked",
     phone: "+15125550101", phoneAgrees: true, phoneWrong: false,
-    why: "Independent studio, one location, coaching only", rating: "5.0 · 16",
+    reach: { email: { address: "hello@zilkerstrength.example", state: "ok", word: "Checked" }, phone: { number: "+15125550101", agrees: true } },
+    image: null,
+    why: "Independent studio, one location, coaching only", rating: "5.0 · 16", reviewsTitle: "",
     stage: "ready", stageLabel: "Ready", foundLabel: "6m", foundAt: "Sep 18, 2026 · 2:14 PM",
     distance: "1.2 mi", source: "Google Maps listing", host: "zilkerstrength.example",
     excludedBy: null, version: 1,
@@ -275,4 +282,31 @@ test("when a limit binds, the count is clamped to what is left, the button says 
   assert.deepEqual(month, { count: 36, label: "Find 36 leads", covers: "You have 36 leads left this month. Your leads renew on Oct 1." });
   assert.equal(/\$/.test(`${budget.covers} ${month.covers}`), false, "no dollar meter, ever");
   assert.equal(leadPlanAsk(CARD_PLAN, { ...PLAN_FACTS, leadsLeft: 600, bound: "allowance" }).covers, null, "a limit above the ask does not bind");
+});
+
+// D2: who they are, from what the listing shows. NOW is a Friday in America/Chicago.
+test("the peek knows who they are: their own words, where, whether they are open today, what they look like, the spread of reviews, the socials, whether the listing is claimed, the rank it was found at", () => {
+  const shown = {
+    about: "Waterfront venue for weddings.", street: "101 Biscayne Blvd", city: "Miami", state: "FL", postal_code: "33132", price: "$$",
+    hours: [{ day: "Friday", hours: "9 AM to 6 PM" }, { day: "Saturday", hours: "Closed" }], image_url: "https://lh3.example/p.jpg",
+    reviews_dist: { one: 1, two: 0, three: 2, four: 8, five: 30 }, facebook_url: "https://www.facebook.example/x", linkedin_url: null, tiktok_url: "https://www.tiktok.example/@x",
+    claimed: false, maps_url: "https://maps.example/?cid=1", rank: 3,
+  };
+  const v = toLeadPeekVM(row(shown), SEARCH_DONE, TZ, NOW);
+  assert.equal(v.about, "Waterfront venue for weddings.");
+  assert.deepEqual(v.where, { line: "101 Biscayne Blvd, Miami, FL 33132", href: "https://maps.example/?cid=1" });
+  assert.equal(v.today, "Open today · 9 AM to 6 PM");
+  assert.equal(toLeadPeekVM(row(shown), SEARCH_DONE, TZ, new Date(NOW.getTime() + 86_400_000)).today, "Closed today", "Saturday");
+  assert.equal(toLeadPeekVM(row({ ...shown, hours: [] }), SEARCH_DONE, TZ, NOW).today, null, "no hours, no line");
+  assert.equal(v.image, "https://lh3.example/p.jpg");
+  assert.equal(v.sub, "Personal trainer · $$ · Miami, FL", "the price rides the sub-line between the kind and the place");
+  assert.deepEqual(v.reviewsDist, [1, 0, 2, 8, 30]);
+  assert.deepEqual([v.links.facebook?.label, v.links.linkedin, v.links.tiktok?.label, v.links.maps?.label], ["Facebook", null, "TikTok", "Google Maps"], "each social the listing gave, and the Maps page");
+  assert.equal(v.claimedNote, "Listing not claimed by the owner", "an unclaimed listing rarely watches its email");
+  assert.equal(toLeadPeekVM(row({ ...shown, claimed: true }), SEARCH_DONE, TZ, NOW).claimedNote, null);
+  assert.equal(toLeadPeekVM(row({ ...shown, claimed: null }), SEARCH_DONE, TZ, NOW).claimedNote, null, "a listing that did not say is not called unclaimed");
+  assert.match(v.found[0].what, /^On Google Maps, #3 for “/, "the rank rides the first line of Found");
+  const before = toLeadPeekVM(row(), SEARCH_DONE, TZ, NOW);
+  assert.deepEqual([before.about, before.today, before.image, before.reviewsDist, before.claimedNote, before.links.facebook, before.links.maps], [null, null, null, null, null, null, null], "a lead from before D2 claims none of it");
+  assert.match(before.found[0].what, /^On Google Maps, searching “/, "and is found the way it was");
 });

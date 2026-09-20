@@ -20,6 +20,12 @@ export const MAPS_FIELDS = [
   "title", "categoryName", "neighborhood", "street", "city", "state", "postalCode", "countryCode",
   "phoneUnformatted", "phone", "phones", "website", "domain", "emails", "instagrams", "placeId",
   "totalScore", "reviewsCount", "permanentlyClosed", "temporarilyClosed", "location",
+  // What the listing shows about the business itself (D2): its own words, hours, a photo, the spread of its
+  // reviews, price, the socials beside Instagram, whether the owner claimed the listing, its rank for the term
+  // and its Maps page. All in the item the run already returns; nothing more is asked of the provider. None of
+  // it reaches the judge (JUDGE_FACT_KEYS is the judge's whole world); it is kept for the owner to read.
+  "description", "ownerDescription", "openingHours", "imageUrl", "reviewsDistribution", "price",
+  "facebooks", "linkedIns", "tiktoks", "claimThisBusiness", "rank", "url",
 ] as const;
 export const CHECKER_FIELDS = ["email", "status", "is_catch_all"] as const;
 /** This actor refuses a cap under $0.50 (PRD §10.1). */
@@ -47,6 +53,19 @@ export interface MapsPlace {
   reviews: number | null;
   closed: boolean;
   location: { lat: number; lng: number } | null;
+  /** The listing's own line about the business: Google's, else the owner's; capped like every fact. For the owner, never the judge. */
+  about: string | null;
+  hours: { day: string; hours: string }[];
+  imageUrl: string | null;
+  reviewsDist: { one: number; two: number; three: number; four: number; five: number } | null;
+  price: string | null;
+  facebook: string | null;
+  linkedin: string | null;
+  tiktok: string | null;
+  /** true: the owner claimed the listing; false: "claim this business" is showing; null: the item did not say. */
+  claimed: boolean | null;
+  rank: number | null;
+  mapsUrl: string | null;
 }
 
 export interface LeadCardRunner {
@@ -126,6 +145,25 @@ export const CARDS: Record<"local_businesses", LeadCardRunner> = {
         reviews: num(o.reviewsCount),
         closed: o.permanentlyClosed === true || o.temporarilyClosed === true,
         location: lat !== null && lng !== null ? { lat, lng } : null,
+        about: (str(o.description) ?? str(o.ownerDescription))?.replace(/[\p{Cc}\p{Cf}]/gu, "").slice(0, 600) ?? null,
+        hours: (Array.isArray(o.openingHours) ? o.openingHours : [])
+          .map((h) => ({ day: str(obj(h)?.day) ?? "", hours: str(obj(h)?.hours) ?? "" }))
+          .filter((h) => h.day && h.hours)
+          .slice(0, 7),
+        imageUrl: str(o.imageUrl),
+        reviewsDist: (() => {
+          const d = obj(o.reviewsDistribution);
+          if (!d) return null;
+          const n = (k: string) => num(d[k]) ?? 0;
+          return { one: n("oneStar"), two: n("twoStar"), three: n("threeStar"), four: n("fourStar"), five: n("fiveStar") };
+        })(),
+        price: str(o.price)?.slice(0, 8) ?? null,
+        facebook: strs(o.facebooks)[0] ?? null,
+        linkedin: strs(o.linkedIns)[0] ?? null,
+        tiktok: strs(o.tiktoks)[0] ?? null,
+        claimed: o.claimThisBusiness === true ? false : o.claimThisBusiness === false ? true : null,
+        rank: num(o.rank),
+        mapsUrl: str(o.url),
       };
     },
     checker: {

@@ -102,6 +102,18 @@ export interface LeadColumns {
   lng: number | null;
   website_host: string | null;
   instagram_url: string | null;
+  /** What the listing shows about the business (D2, 00144): written for a lead, null or empty for a left-out place. */
+  about: string | null;
+  hours: { day: string; hours: string }[];
+  image_url: string | null;
+  price: string | null;
+  reviews_dist: { one: number; two: number; three: number; four: number; five: number } | null;
+  facebook_url: string | null;
+  linkedin_url: string | null;
+  tiktok_url: string | null;
+  claimed: boolean | null;
+  maps_url: string | null;
+  rank: number | null;
   phone_e164: string | null;
   phone_sources: number;
   email: string | null;

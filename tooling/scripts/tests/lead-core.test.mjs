@@ -37,6 +37,26 @@ test("cleaning by rule: E.164 with placeholders dropped, the site's number count
   assert.deepEqual([q.phone, q.phoneSources], [null, 0]);
 });
 
+test("the card keeps what the listing shows about the business, for the owner and never the judge: its own words, hours, a photo, the spread of reviews, price, the socials, whether it is claimed, its rank, its Maps page", () => {
+  const p = card.mapItem(mapsItem(4, {
+    description: "Waterfront venue for weddings and private events.", ownerDescription: "Family-run since 2009.",
+    openingHours: [{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Tuesday", hours: "Closed" }, { day: "", hours: "x" }],
+    imageUrl: "https://lh3.example/photo.jpg", reviewsDistribution: { oneStar: 1, twoStar: 0, threeStar: 2, fourStar: 8, fiveStar: 30 },
+    price: "$$", facebooks: ["https://facebook.com/breeza"], linkedIns: [], tiktoks: ["https://tiktok.com/@breeza"],
+    claimThisBusiness: false, rank: 3, url: "https://maps.google.com/?cid=1",
+  }));
+  assert.equal(p.about, "Waterfront venue for weddings and private events.", "Google's own line first; the owner's only when there is none");
+  assert.deepEqual(p.hours, [{ day: "Monday", hours: "9 AM to 6 PM" }, { day: "Tuesday", hours: "Closed" }], "a day with no words is not an hour");
+  assert.deepEqual([p.imageUrl, p.price, p.facebook, p.linkedin, p.tiktok, p.claimed, p.rank, p.mapsUrl],
+    ["https://lh3.example/photo.jpg", "$$", "https://facebook.com/breeza", null, "https://tiktok.com/@breeza", true, 3, "https://maps.google.com/?cid=1"]);
+  assert.deepEqual(p.reviewsDist, { one: 1, two: 0, three: 2, four: 8, five: 30 });
+  const unclaimed = card.mapItem(mapsItem(5, { claimThisBusiness: true, description: null, ownerDescription: "Family-run since 2009." }));
+  assert.deepEqual([unclaimed.claimed, unclaimed.about], [false, "Family-run since 2009."], "claimThisBusiness true is an unclaimed listing; a control character never reaches the page");
+  const bare = card.mapItem({ title: "X", placeId: "ChIJfixture9" });
+  assert.deepEqual([bare.about, bare.hours, bare.imageUrl, bare.reviewsDist, bare.price, bare.claimed, bare.rank, bare.mapsUrl], [null, [], null, null, null, null, null, null]);
+  assert.equal(card.mapItem(mapsItem(6, { description: "y".repeat(700) })).about.length, 600, "capped like every fact");
+});
+
 test("a lead is a place: the same name, street and phone fold; a shared phone marks and never merges; a free-mail address is never a key; already yours is the place id alone", () => {
   const a = cleanPlace(card.mapItem(mapsItem(4)));
   const twin = cleanPlace(card.mapItem(mapsItem(4, { placeId: "ChIJfixture9004" })));

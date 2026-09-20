@@ -577,3 +577,24 @@ test("no word the peek says names the vendor, or a dollar", () => {
     }
   }
 });
+
+// D2: who they are, from what the listing shows. Every line only when the listing said; a lead from before says nothing.
+test("the peek shows who they are: the photo as the mark, their own words, where, open today, the unclaimed note, the socials and the Maps page", async () => {
+  reset();
+  const days = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"].map((day) => ({ day, hours: "9 AM to 6 PM" }));
+  const shown = page({ vm: vmOf({ about: "Waterfront venue for weddings.", street: "101 Biscayne Blvd", city: "Miami", state: "FL", postal_code: "33132", hours: days,
+    image_url: "https://lh3.example/p.jpg", claimed: false, facebook_url: "https://www.facebook.example/x", tiktok_url: "https://www.tiktok.example/@x", maps_url: "https://maps.example/?cid=1" }) });
+  let tree = shown.draw().tree;
+  assert.equal(byTestId(tree, "peek-photo").props.src, "https://lh3.example/p.jpg");
+  assert.equal(byTestId(tree, "peek-photo").props.alt, "", "a photo says nothing a screen reader must repeat");
+  assert.equal(textOf(byTestId(tree, "peek-about")), "Waterfront venue for weddings.");
+  assert.equal(byTestId(tree, "peek-where").props.href, "https://maps.example/?cid=1", "the address opens the Maps page");
+  assert.equal(textOf(byTestId(tree, "peek-where")), "101 Biscayne Blvd, Miami, FL 33132");
+  assert.equal(textOf(byTestId(tree, "peek-today")), "Open today · 9 AM to 6 PM");
+  assert.equal(textOf(byTestId(tree, "peek-claimed")), "Listing not claimed by the owner");
+  assert.deepEqual(["peek-facebook", "peek-linkedin", "peek-tiktok", "peek-maps"].map((id) => byTestId(tree, id)?.props.href ?? null), ["https://www.facebook.example/x", null, "https://www.tiktok.example/@x", "https://maps.example/?cid=1"]);
+
+  reset();
+  tree = page({ vm: vmOf({}) }).draw().tree;
+  for (const id of ["peek-photo", "peek-about", "peek-today", "peek-claimed", "peek-facebook", "peek-maps"]) assert.equal(byTestId(tree, id), null, `${id}: a lead from before D2 claims none of it`);
+});

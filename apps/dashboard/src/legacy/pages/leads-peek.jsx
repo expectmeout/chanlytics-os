@@ -53,7 +53,7 @@ const LeadPeekHead = ({ vm, onClose }) => {
   const W = window.__LEAD_WORDS;
   return (
     <div className="pk-head">
-      <span className="pk-mark" aria-hidden="true">{vm.mark}</span>
+      <span className="pk-mark" aria-hidden="true">{vm.image ? <img src={vm.image} alt="" loading="lazy" data-testid="peek-photo" /> : vm.mark}</span>
       <div className="pk-titles">
         <h2 className="pk-name" data-testid="peek-name">{vm.name}</h2>
         <div className="pk-sub" data-testid="peek-sub">{vm.sub}</div>
@@ -197,6 +197,18 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
         {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         {armed && armed.asked && armed.kind === "call" ? <LeadCallAsk armed={armed} busy={busy} on={on} /> : null}
         <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
+        {/* Who they are, from what the listing shows (D2): their own words, where, whether they are open today, and
+            whether anyone is watching the listing. Each line only when the listing said; a lead from before says nothing. */}
+        {vm.about ? <p className="pk-about" data-testid="peek-about">{vm.about}</p> : null}
+        {vm.where || vm.today || vm.claimedNote ? (
+          <div className="pk-where" data-testid="peek-where-block">
+            {vm.where ? (vm.where.href
+              ? <a href={vm.where.href} target="_blank" rel="noopener noreferrer" data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</a>
+              : <span data-testid="peek-where"><Icon name="pin" size={12} />{vm.where.line}</span>) : null}
+            {vm.today ? <span data-testid="peek-today"><Icon name="clock" size={12} />{vm.today}</span> : null}
+            {vm.claimedNote ? <span className="pk-quiet" data-testid="peek-claimed"><Icon name="info" size={12} />{vm.claimedNote}</span> : null}
+          </div>
+        ) : null}
         {vm.cls === "review" ? (
           <div className="pk-decide" data-testid="peek-decide">
             <button type="button" className="btn btn-sm" data-testid="peek-keep" onClick={() => on.onKeep(vm.id)} {...window.gate("find", "keep this lead")}>{W.keep}</button>
@@ -283,6 +295,9 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
         {vm.links.instagram
           ? <a className="btn btn-ghost btn-sm" href={vm.links.instagram.href} target="_blank" rel="noopener noreferrer" data-testid="peek-instagram"><Icon name="instagram" size={12} />{W.instagram}</a>
           : null}
+        {[["facebook", "globe"], ["linkedin", "globe"], ["tiktok", "globe"], ["maps", "pin"]].map(([k, icon]) => (vm.links[k]
+          ? <a key={k} className="btn btn-ghost btn-sm" href={vm.links[k].href} target="_blank" rel="noopener noreferrer" data-testid={`peek-${k}`}><Icon name={icon} size={12} />{vm.links[k].label}</a>
+          : null))}
       </div>
     </>
   );

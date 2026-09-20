@@ -54,7 +54,7 @@ const LeadShape = ({ state, word, size = 13 }) => {
 const ldBusinessCell = (l, x) => (
   <td key="business" className="cl-name-cell pl-pin ld-biz-cell">
     <div className="cl-row-name">
-      <span className="ld-mark" aria-hidden="true">{l.mark}</span>
+      <span className="ld-mark" aria-hidden="true">{l.image ? <img src={l.image} alt="" loading="lazy" /> : l.mark}</span>
       <div className="cl-row-name-block">
         <div className="cl-row-fullname">
           <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} data-testid="lead-name">{l.name}</button>
@@ -72,10 +72,25 @@ const ldBusinessCell = (l, x) => (
 const LEAD_COLUMNS = [
   { key: "business", label: "Business", sortable: true, pinned: true, cell: ldBusinessCell },
   { key: "fit", label: "Fit", sortable: true, cell: (l) => <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">{l.fitLabel}</td> },
-  { key: "email", label: "Email", sortable: false, cell: (l) => <td key="email" className="shrink ld-email-cell" title={l.emailWord} data-testid="lead-email">{l.cls === "excluded" ? <span className="dim">Not checked</span> : <><LeadShape state={l.emailState} word={l.emailWord} />{l.emailLabel}</>}</td> },
-  { key: "phone", label: "Phone", sortable: false, cell: (l) => <td key="phone" className={`shrink ld-phone-cell ${l.phoneWrong ? "wrong" : ""}`} data-testid="lead-phone">{l.phone}{l.phoneAgrees && <span className="ld-tick2" title="Maps and their website agree">✓✓</span>}</td> },
+  // Both contacts in one glance (D2): the email's state as its shape and word, the number with its double tick, so
+  // "has both" is scannable down fifty rows. Hover for the address; click copies it. A left-out place shows neither.
+  { key: "reach", label: "Reach", sortable: false, cell: (l, x) => (
+    <td key="reach" className="shrink ld-reach-cell" data-testid="lead-reach">
+      {l.cls === "excluded" ? <span className="dim">Not checked</span> : (
+        <>
+          {l.reach.email
+            ? <button type="button" className="ld-reach-email" title={`${l.reach.email.address} · ${l.reach.email.word}`} onClick={(e) => { e.stopPropagation(); x.onCopy(l.id); }} data-testid="lead-reach-email"><LeadShape state={l.reach.email.state} word={l.reach.email.word} />{l.reach.email.word}</button>
+            : <span className="dim" data-testid="lead-reach-email">No email</span>}
+          <span className="dot" />
+          {l.reach.phone
+            ? <span className={`ld-reach-phone ${l.phoneWrong ? "wrong" : ""}`} data-testid="lead-reach-phone">{l.reach.phone.number}{l.reach.phone.agrees && <span className="ld-tick2" title="Maps and their website agree">✓✓</span>}</span>
+            : <span className="dim" data-testid="lead-reach-phone">No phone</span>}
+        </>
+      )}
+    </td>
+  ) },
   { key: "why", label: "Why it fits", sortable: false, cell: (l) => <td key="why" className="dim ld-why-cell" title={l.why}>{l.why}</td> },
-  { key: "rating", label: "Rating", sortable: true, cell: (l) => <td key="rating" className="shrink ld-rating-cell">{l.rating}</td> },
+  { key: "rating", label: "Rating", sortable: true, cell: (l) => <td key="rating" className="shrink ld-rating-cell" title={l.reviewsTitle || undefined}>{l.rating}</td> },
   { key: "stage", label: "Stage", sortable: true, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <><span className={`ld-dot ${l.stage}`} aria-hidden="true" />{l.stageLabel}</>}</td> },
   { key: "found", label: "Found", sortable: true, cell: (l) => <td key="found" className="shrink dim ld-found-cell" title={l.foundAt}>{l.foundLabel}</td> },
   { key: "distance", label: "Distance", sortable: true, needs: (x) => x.hasCenter, on: (x) => x.hasCenter, cell: (l) => <td key="distance" className="shrink dim ld-distance-cell">{l.distance}</td> },

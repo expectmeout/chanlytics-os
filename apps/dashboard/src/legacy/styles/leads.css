@@ -160,6 +160,13 @@
 .pk-titles { flex: 1; min-width: 0; }
 .pk-name { font-size: 16px; font-weight: 600; letter-spacing: -0.015em; line-height: 1.3; margin: 0; }
 .pk-sub { font-size: 12px; color: var(--ink-dim); margin-top: 2px; }
+/* Who they are (D2): the listing's photo as the mark, its own words, where and when. */
+.pk-mark img { width: 40px; height: 40px; border-radius: 10px; object-fit: cover; display: block; }
+.pk-about { font-size: 13px; line-height: 1.5; color: var(--ink-muted); margin: 0; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.pk-where { display: flex; flex-direction: column; gap: 6px; font-size: 12px; color: var(--ink-dim); }
+.pk-where a, .pk-where span { display: inline-flex; align-items: center; gap: 6px; color: inherit; text-decoration: none; }
+.pk-where a:hover { color: var(--ink); }
+.pk-where .pk-quiet { color: var(--ink-faint); }
 .pk-x { width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; color: var(--ink-dim); display: grid; place-items: center; cursor: pointer; flex: none; }
 .pk-x:hover { background: var(--bg-hover); color: var(--ink); }
 
@@ -283,6 +290,13 @@
 
 .ld-biz-cell .ld-mark { width: 26px; height: 26px; border-radius: var(--radius-sm); background: var(--bg-active); color: var(--ink-muted); display: inline-grid; place-items: center; font-family: var(--font-mono); font-size: var(--text-xs); }
 .ld-biz-cell .cl-row-meta { display: inline-flex; font-size: var(--text-xs); color: var(--ink-dim); }
+.ld-mark img { width: 28px; height: 28px; border-radius: 8px; object-fit: cover; display: block; }
+/* Reach (D2): both contacts in one glance. */
+.ld-reach-cell { white-space: nowrap; }
+.ld-reach-cell .dot { display: inline-block; width: 2px; height: 2px; margin: 0 8px; vertical-align: middle; background: var(--ink-faint); border-radius: 50%; }
+.ld-reach-email { display: inline-flex; align-items: center; gap: 5px; padding: 0; border: 0; background: none; font: inherit; color: var(--ink); cursor: pointer; }
+.ld-reach-email:hover { text-decoration: underline; }
+.ld-reach-phone.wrong { text-decoration: line-through; color: var(--ink-faint); }
 .ld-biz-name { border: 0; background: none; padding: 0; font: inherit; font-weight: var(--weight-medium); color: var(--ink); text-align: left; cursor: pointer; }
 .ld-badge { margin-left: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .ld-fit-cell.qualified { color: var(--ink); }
