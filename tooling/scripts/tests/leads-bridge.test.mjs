@@ -131,6 +131,8 @@ function wire(opts = {}) {
     /** Page two, when the view has one. */
     next: opts.next ?? null,
     suggestions: opts.suggestions ?? null,
+    /** The month's standing, which the first page carries (D5). */
+    month: opts.month ?? null,
     fail: opts.fail ?? null,
   };
   const reads = [];
@@ -155,7 +157,7 @@ function wire(opts = {}) {
       if (query.after_key) return json(200, { ok: true, data: { rows: state.next ?? [], next: null, counts: state.counts } });
       const rows = rowsOf(query);
       const more = state.next && state.next.length ? { key: "k-page-one", id: rows.length ? rows[rows.length - 1].id : "" } : null;
-      return json(200, { ok: true, data: { rows, next: more, counts: state.counts } });
+      return json(200, { ok: true, data: { rows, next: more, counts: state.counts, ...(state.month ? { month: state.month } : {}) } });
     }
     if (method !== "GET") return json(200, { ok: true, data: { done: true } });
     return json(404, { ok: false, error: { code: "not_found", message: "no" } });
@@ -295,4 +297,17 @@ test("the surface declares the globals it owns, the tables a run writes, and its
     [leadsOverride.key, leadsOverride.globals, leadsOverride.events, leadsOverride.refreshOnTables, leadsOverride.debounceMs],
     ["leads", ["__LEADS"], ["surface:leads"], ["leads", "lead_searches", "lead_rounds", "lead_search_members"], 800],
   );
+});
+
+test("the month's standing rides the surface, from the first page's own answer", async () => {
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 262, left: 238, renewsOn: "Oct 1" } });
+  await leadsOverride.apply();
+  assert.deepEqual(L().month, { used: 262, left: 238, renewsOn: "Oct 1" }, "what a press costs is read from the surface, never from a page's own arithmetic");
+  // A Keep just spent one, so a refresh moves it; a refresh whose page carried none keeps what was last known.
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS, month: { used: 263, left: 237, renewsOn: "Oct 1" } });
+  await leadsOverride.apply();
+  assert.deepEqual(L().month, { used: 263, left: 237, renewsOn: "Oct 1" });
+  wire({ searches: [SEARCH_DONE], rows: ROWS, counts: COUNTS });
+  await leadsOverride.apply();
+  assert.deepEqual(L().month, { used: 263, left: 237, renewsOn: "Oct 1" }, "what was last known, never a number the page made up");
 });

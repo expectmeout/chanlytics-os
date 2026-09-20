@@ -12,7 +12,7 @@ import {
   clockDate, estimateRoundUsd, leadDraftFooter, leadMonth, leadReachLine, parseTenantConfig, placesToAsk, siteHost, stageArgs, wallClockAt,
   type LeadArea, type LeadCheck, type LeadCheckKey, type LeadClass, type LeadCounts, type LeadEmailState, type LeadNichePrior, type LeadPlanFacts,
   type LeadRoundEnding, type LeadRoundPurpose, type LeadRowDto, type LeadSearchDto, type LeadSearchPlan, type LeadStage, type LeadStageInput,
-  type LeadSuggestionsDto, type LeadsBulkInput, type LeadsCheckAgainInput, type LeadsQuery,
+  type LeadMonthDto, type LeadSuggestionsDto, type LeadsBulkInput, type LeadsCheckAgainInput, type LeadsQuery,
 } from "@chanlytics/contracts";
 import type { Database, Json } from "@chanlytics/db";
 import type { RouteContext } from "./with-route";
@@ -479,6 +479,24 @@ export interface LeadsPageAnswer {
   /** The last row's place in the order, for the next page; null when this was the end. */
   next: { key: string; id: string } | null;
   counts?: LeadCounts;
+  /** The month's standing (D5), with the first page only: what a Keep on the workbench costs is read from here. */
+  month?: LeadMonthDto;
+}
+
+/**
+ * The month as a surface says it (D5): what its leads ceiling has taken, what is left, and the day it renews. The
+ * month and the day it renews are the BUSINESS's (lead_month), and the whole is contracts'; planFacts reads the same
+ * two numbers for the plan card, which is why both go through monthUsed rather than the counters themselves.
+ */
+export async function monthStanding(
+  ctx: Pick<RouteContext, "supabase">,
+  tenantId: string,
+  now: Date = new Date(),
+): Promise<LeadMonthDto> {
+  const { timezone } = await tenantFacts(ctx.supabase, tenantId);
+  const used = await monthUsed(ctx, tenantId, leadMonth(timezone, now));
+  const left = Math.max(0, LEAD_MONTHLY_ALLOWANCE - used.allowance);
+  return { used: LEAD_MONTHLY_ALLOWANCE - left, left, renewsOn: renewsOnOf(timezone, now) };
 }
 
 /**
@@ -488,7 +506,7 @@ export interface LeadsPageAnswer {
  */
 export async function leadsPage(ctx: Pick<RouteContext, "supabase">, tenantId: string, q: LeadsQuery): Promise<LeadsPageAnswer> {
   const first = !q.after_key && !q.after_id;
-  const [answer, names, counts] = await Promise.all([
+  const [answer, names, counts, month] = await Promise.all([
     ctx.supabase.rpc("leads_page", {
       p_tenant_id: tenantId,
       p_search_id: q.search ?? null,
@@ -502,6 +520,9 @@ export async function leadsPage(ctx: Pick<RouteContext, "supabase">, tenantId: s
     } as DoorArgs<"leads_page">),
     searchNamesOf(ctx, tenantId),
     first ? listCounts(ctx, tenantId) : Promise.resolve(null),
+    // The month rides the first page, as the counts do: the workbench says what a press costs without a read of
+    // its own, and paging through five hundred rows never asks for it again.
+    first ? monthStanding(ctx, tenantId) : Promise.resolve(null),
   ]);
   if (answer.error) throw new Error(`leads_page: ${answer.error.message}`);
   const raw = (Array.isArray(answer.data) ? answer.data : []) as unknown as LeadPageRow[];
@@ -510,6 +531,7 @@ export async function leadsPage(ctx: Pick<RouteContext, "supabase">, tenantId: s
     rows: raw.map((r) => toLeadRowDto(r, names)),
     next: last && raw.length >= q.limit ? { key: last.page_key, id: last.member_id } : null,
     ...(counts ? { counts } : {}),
+    ...(month ? { month } : {}),
   };
 }
 

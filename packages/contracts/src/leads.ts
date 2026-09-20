@@ -1049,6 +1049,12 @@ export interface LeadSearchRoundDto {
 }
 export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
+/**
+ * The month, as a surface says it (D5): how many of its leads are spoken for, how many are left, and the day it
+ * renews. The workbench reads it to say what a press costs -- "5 of your 238 left" -- so a Keep is never a number
+ * nobody can see. The whole is contracts' LEAD_MONTHLY_ALLOWANCE, never a number a page invents.
+ */
+export interface LeadMonthDto { used: number; left: number; renewsOn: string }
 export interface LeadSuggestionsDto { business_line: string; by_owner: boolean; made_at: string; items: { words: string; who_for: string; category_key: string; reach: string | null }[]; note?: string }
 /** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
 export interface LeadPlanFacts {

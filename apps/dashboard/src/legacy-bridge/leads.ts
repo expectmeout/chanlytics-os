@@ -14,7 +14,7 @@
  */
 import {
   leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, toLeadPeekVM, toLeadRowVM,
-  type LeadChips, type LeadClass, type LeadCounts, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
+  type LeadChips, type LeadClass, type LeadCounts, type LeadMonthDto, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { workspaceZone } from "./zone";
@@ -34,6 +34,8 @@ export interface LeadsSurface {
   /** The view as a route, for the address and for Ask's citations: clients/leads:s-<search>:l-<list>. */
   route: string;
   suggestions: LeadSuggestionsDto | null;
+  /** The month's standing (D5): what the workbench says a press costs. Null until a first page has answered. */
+  month: LeadMonthDto | null;
   tz: string;
   readFailed: boolean;
   fetchedAt: number;
@@ -41,7 +43,7 @@ export interface LeadsSurface {
 
 /** What `GET lead-searches` and `GET leads` answer (4.6's DTOs); the counts ride with whichever read made them. */
 interface LeadSearchesAnswer { searches: LeadSearchDto[]; counts?: LeadCounts }
-interface LeadsPageAnswer { rows: LeadRowDto[]; next: { key: string; id: string } | null; counts?: LeadCounts }
+interface LeadsPageAnswer { rows: LeadRowDto[]; next: { key: string; id: string } | null; counts?: LeadCounts; month?: LeadMonthDto }
 
 const NO_COUNTS: LeadCounts = { all: 0, ready: 0, nurture: 0, converted: 0, said_no: 0, not_a_fit: 0 };
 const DEFAULT_VIEW: LeadsView = { searchId: null, list: "all", cls: null, chips: {}, sort: "fit", dir: "asc" };
@@ -82,6 +84,8 @@ let leadsLoaded: {
   tz: string;
   view: LeadsView;
   key: string;
+  /** The month's standing (D5), from whichever first page last answered one. */
+  month: LeadMonthDto | null;
   searches: LeadSearchDto[];
   counts: LeadCounts;
   rows: LeadRowDto[];
@@ -120,6 +124,7 @@ function publishLeads(failed = false): void {
     view,
     route: leadsRoute(view),
     suggestions: L?.suggestions ?? null,
+    month: L?.month ?? null,
     tz: L?.tz ?? "UTC",
     readFailed: failed,
     fetchedAt: now.getTime(),
@@ -139,7 +144,7 @@ async function readView(v: LeadsView): Promise<void> {
   // The first day's suggestions, and only then: a workspace with a search has work to read instead.
   const suggestions = searches.searches.length === 0 ? await leadRead<LeadSuggestionsDto>("GET lead-suggestions").catch(() => null) : leadsLoaded?.suggestions ?? null;
   if (mine !== reads) return;
-  leadsLoaded = { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, rows: page.rows, next: page.next, offered: [], suggestions };
+  leadsLoaded = { tz, view: v, key, searches: searches.searches, counts: page.counts ?? searches.counts ?? NO_COUNTS, month: page.month ?? null, rows: page.rows, next: page.next, offered: [], suggestions };
   publishLeads();
 }
 
@@ -161,6 +166,8 @@ async function refreshView(): Promise<void> {
   else L.offered.push(...arrived);                                // any other order: offered, never sorted in
   L.searches = searches.searches;
   L.counts = page.counts ?? searches.counts ?? L.counts;
+  // The month moves with a refresh (D5): a Keep just spent one, so the workbench's "5 of your 238 left" follows.
+  L.month = page.month ?? L.month;
   L.rows = rows;
   publishLeads();
 }
