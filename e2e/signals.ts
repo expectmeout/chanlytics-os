@@ -128,3 +128,54 @@ export async function expectWarningsFirst(page: Page): Promise<void> {
   if (firstOther === -1) return;
   expect(tones.slice(firstOther), `a warning sits below good news: ${tones.join(",")}`).not.toContain("warn");
 }
+
+/* ------------------------------------------------------- Leads (release B) */
+
+/**
+ * The Leads scope, as an owner sees it: the People | Leads switch with Leads
+ * chosen, the one standing line, and the strongest fit at the top of the table.
+ * "Reached" means in the viewport here too -- a standing line below the fold
+ * says nothing about whether the owner can see what the search found.
+ */
+export async function expectLeadsScope(page: Page, want: { standing: string; first: string }): Promise<void> {
+  const tabs = page.getByRole("tablist", { name: "Which people" });
+  await expect(tabs).toBeVisible();
+  await expect(tabs.getByRole("tab", { name: "Leads" })).toHaveAttribute("aria-selected", "true");
+  const standing = page.getByTestId("leads-standing");
+  await expect(standing).toBeInViewport({ ratio: 1 });
+  // "3 leads · 2 ready · 1 search" is three adjacent spans (PeopleStanding), so the
+  // line's own text has no space around the dots: each part is read on its own.
+  for (const part of want.standing.split("·")) await expect(standing).toContainText(part.trim());
+  await expect(page.locator(".cl-table tbody tr").first()).toContainText(want.first);
+}
+
+/** The strip says how the round ended, in words, where the owner can read them. */
+export async function expectStripEnding(page: Page, words: string): Promise<void> {
+  const strip = page.getByTestId("lead-strip");
+  await expect(strip).toBeInViewport({ ratio: 1 });
+  await expect(strip).toContainText(words);
+  expect(await strip.innerText(), "a strip never says a dollar amount").not.toMatch(/\$\d/);
+}
+
+/**
+ * The peek's two groups, and the rule that makes them worth having: nothing
+ * Claude READ wears the same mark as something the product SAW. The defect this
+ * guards is a page that ticks "independent" as confidently as "open on Maps".
+ */
+export async function expectPeekSeenVersusRead(page: Page): Promise<void> {
+  const peek = page.getByTestId("lead-peek");
+  await expect(peek).toBeVisible();
+  await expect(peek.getByTestId("peek-checks-seen")).toContainText("Seen");
+  await expect(peek.getByTestId("peek-checks-read")).toContainText("Claude's read");
+  expect(
+    await peek.getByTestId("peek-checks-read").locator(".pk-ck-check").count(),
+    "a check Claude read wears the mark of one the product saw",
+  ).toBe(0);
+}
+
+/** A row put back by Undo is the row that was there, word for word. */
+export async function expectRowUnchangedAfterUndo(page: Page, name: string, before: string): Promise<void> {
+  const row = page.locator(".cl-table tbody tr", { hasText: name });
+  await expect(row).toHaveCount(1);
+  await expect.poll(async () => (await row.innerText()).trim(), { message: `${name} came back changed` }).toBe(before.trim());
+}

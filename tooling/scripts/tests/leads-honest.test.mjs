@@ -111,6 +111,7 @@ globalThis.document = {
   createElement: () => ({ setAttribute() {}, style: {}, classList: { add() {}, remove() {} } }),
 };
 globalThis.window = {
+  document: globalThis.document,
   location: { pathname: "/w/salon", hash: "#/clients/leads", origin: "https://app.chanlytics.com", href: "" },
   history: { replaceState: (_s, _t, hash) => { globalThis.window.location.hash = hash; } },
   localStorage: globalThis.localStorage,
@@ -176,15 +177,14 @@ globalThis.LeadFinder = (p) => { finders.push(p); return null; };
 globalThis.LeadStrip = (p) => { strips.push(p); return null; };
 globalThis.LeadPeek = (p) => { peeks.push(p); return null; };
 globalThis.LeadsFirstDay = () => null;
-// The peek's two seams the page reads (Task 12's leads-peek.jsx): Esc backs out one step, and the peek follows
-// the row cursor only while it is just showing the lead.
-globalThis.leadPeekEscape = ({ mode, armed, setMode, setArmed, setPeekId }) => {
-  if (armed && armed.asked) { setArmed(null); return "armed"; }
-  if (mode && mode !== "info") { setMode("info"); return "mode"; }
-  setPeekId(null);
-  return "peek";
-};
-globalThis.leadPeekFollows = (mode, armed) => (!mode || mode === "info") && !armed;
+// The peek's own file (Task 12's leads-peek.jsx), for real: its acts (LeadPeekActions) are what the page must
+// build and hand over, and its four seams are what the page reads -- Esc backing out one step, the peek following
+// the row cursor, the focus rule, and the watcher that asks once the owner is back at the tab. Only the DRAWING is
+// a recorder (globalThis.LeadPeek, above); a hand-written stub of the acts would pin the page against a shape of
+// this file's own making, which is how every control in the peek came to be undefined on the page with 18 green
+// unit tests behind it.
+await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
+for (const k of ["LeadPeekActions", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
 for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_SORT_KEYS", "LeadShape"]) globalThis[k] = globalThis.window[k];
 
@@ -479,8 +479,13 @@ test("the peek is the page's own overlay: J and K keep walking the rows behind i
   assert.equal(cursorRow(draw()), "lead-l2");
   draw();
   assert.equal(peeks.at(-1).vm.id, "l2", "and the peek follows the cursor while it is just showing the lead");
-  // A question or a draft holds it on its own lead (leadPeekFollows, Task 12).
-  peeks.at(-1).onArmed({ kind: "call", leadId: "l2", asked: true });
+  // A question or a draft holds it on its own lead (leadPeekFollows, Task 12). The question is armed the way the
+  // owner arms it -- C dials the lead under the cursor from their own phone -- and asked when the tab is theirs
+  // again (leadArmOnReturn, Task 13), never while they are away.
+  press("c");
+  draw();
+  assert.equal(globalThis.window.location.href, "tel:+15125550102", "C dialled the lead the peek is showing");
+  globalThis.window.dispatchEvent({ type: "focus" });
   draw();
   press("j");
   draw();
@@ -490,6 +495,34 @@ test("the peek is the page's own overlay: J and K keep walking the rows behind i
   assert.equal(peeks.at(-1).armed, null, "and Esc backs out the question first, not the peek");
   overlayOpen = { role: "menu" };
   assert.equal(press("j"), false, "anything else open over the page has the keys");
+});
+
+test("the peek is handed acts, not setters: every control it draws has a function behind it, and each one moves the page's own state", () => {
+  fresh();
+  draw();
+  press("j");
+  draw();
+  press("Enter", { tagName: "TR", isContentEditable: false, closest: () => null });
+  draw();
+  const peek = peeks.at(-1);
+  assert.equal(peek.vm.id, "l1", "the peek is open on the lead under the cursor");
+  // What leads-peek.jsx reads off its props as `on.<name>`: the stage, Not a fit, Draft and its tones, Open in
+  // your email, Copy, the two answers to "Did you send it?", the way back and the way out. Handed the page's raw
+  // setters instead, every one of them is undefined -- a pane of dead controls that the peek's own unit tests
+  // never see, because those build the acts themselves and this page did not.
+  const dead = ["onStage", "onNotAFit", "onDraft", "onTone", "onOpenMail", "onCopyDraft", "onSaidSent", "onNotYet", "onBack", "onClose", "onKeep", "onExclude", "onPutBack", "onCopy", "onCall"]
+    .filter((k) => typeof peek[k] !== "function");
+  assert.deepEqual(dead, [], "every act the peek draws a control for");
+  // And they are built from the page's own state, not from any function that would do: Not a fit turns the
+  // peek's pane, and the way back brings it home.
+  peek.onNotAFit();
+  draw();
+  assert.equal(peeks.at(-1).mode, "why", "an act writes the page's own peekMode");
+  peeks.at(-1).onBack();
+  draw();
+  assert.equal(peeks.at(-1).mode, "info");
+  // The setters are what the acts were built from; the peek is not handed them.
+  assert.deepEqual(["onMode", "onArmed", "onDraftState", "onPeekId"].filter((k) => peek[k] !== undefined), [], "the acts, not the setters");
 });
 
 /* ------------------------------------ the bulk bar ------------------------------------ */

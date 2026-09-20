@@ -172,6 +172,24 @@
 .pk-foot { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-top: 1px solid var(--line); }
 .pk-foot .sp { flex: 1; }
 
+/* --------------------------------------------------------------- the draft */
+/* To, Subject and the body are read, not typed: the mailto: is the route's
+   (leads-peek.jsx), so there is no field here to style. */
+.pk-draft { display: flex; flex-direction: column; gap: 10px; }
+.pk-field { display: grid; grid-template-columns: 56px minmax(0, 1fr); gap: 8px; align-items: center; font-size: 12.5px; }
+.pk-field .l { color: var(--ink-dim); }
+.pk-text { width: 100%; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); padding: 10px 12px; font-family: inherit; font-size: 13px; line-height: 1.55; color: var(--ink); white-space: pre-wrap; overflow: auto; max-height: 340px; }
+.pk-tone { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+.pk-tone .pk-label { margin: 0; align-self: center; }
+.pk-foot-note { font-size: 11.5px; color: var(--ink-dim); display: flex; gap: 6px; align-items: flex-start; line-height: 1.45; }
+.pk-foot-note > .icon { margin-top: 2px; flex: none; }
+.pk-draft .field-error { margin: 0; }
+
+/* -------------------------------------------- the two questions, and a why */
+.pk-ask { padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 10px; background: var(--bg-sunken); display: flex; flex-direction: column; gap: 10px; }
+.pk-ask .t { font-size: 13px; font-weight: 500; }
+.pk-ask .row { display: flex; gap: 6px; flex-wrap: wrap; }
+
 /* The shape an email state wears beside its word (PRD 10.4). */
 .ld-shape { display: inline-grid; place-items: center; flex: none; }
 .ld-shape-ok { color: var(--ok-ink); }

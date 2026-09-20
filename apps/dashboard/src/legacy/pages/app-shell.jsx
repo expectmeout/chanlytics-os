@@ -678,8 +678,16 @@ const ChanlyticsApp = ({ theme, themePref = theme, onTheme, sidebar = "open", on
   }
 
   // Retired surfaces: People took over Leads and the Deal board. A real
-  // workspace lands on People; the standalone mockup keeps its pages.
-  const retiredTo = !window.__DEMO_MODE && window.__surfaceRetired ? window.__surfaceRetired(page) : null;
+  // workspace lands on People; the mockup keeps a retired page only while it
+  // still HAS one to keep. The Deal board's is in the tree, so a demo session
+  // stays on it. The seeded Leads page was deleted when Leads became a scope of
+  // People, so `#/leads` is an address that moved for everyone: this route has
+  // no branch of its own any more, and without this the demo would fall through
+  // to Not found for a page that is only somewhere else.
+  const seededPageGone = page === "leads";
+  const retiredTo = window.__surfaceRetired && (!window.__DEMO_MODE || seededPageGone)
+    ? window.__surfaceRetired(page)
+    : null;
   useShellEffect(() => {
     if (retiredTo) window.location.hash = "/" + retiredTo;
   }, [retiredTo]);

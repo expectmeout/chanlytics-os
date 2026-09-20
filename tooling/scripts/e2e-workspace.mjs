@@ -50,7 +50,7 @@
  * Usage: node tooling/scripts/e2e-workspace.mjs [--apply]
  */
 import { createClient } from "@supabase/supabase-js";
-import { TenantConfigWriteSchema, newReceptionistDefaults } from "@chanlytics/contracts";
+import { TenantConfigWriteSchema, leadMonth, newReceptionistDefaults } from "@chanlytics/contracts";
 import { mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -68,6 +68,38 @@ export const PEOPLE = [
   { phone: "+12125550144", name: "Casey Example", waProfile: null, identity: { channel: "voice", external_id: "+12125550144" } },
   { phone: "+12125550145", name: "Sam Example", waProfile: null, identity: { channel: "voice", external_id: "+12125550145" } },
 ];
+
+/**
+ * One finished search and six leads, in every class and stage e2e/leads.spec.ts
+ * reads. Nothing here is a real business: `.example` hosts, 555-01xx numbers,
+ * ChIJfixture place ids. The search's phones sit in a different exchange from
+ * the people above, so 00140's contacts_link_lead trigger never links one to a
+ * seeded person.
+ */
+export const LEAD_SEARCH = { name: "Personal trainers · Austin", asked: "personal trainers in Austin with a website, then find their email", via: "people", card: "local_businesses" };
+export const LEAD_PLAN = {
+  version: 1, card: "local_businesses", name: "personal trainers", asked: LEAD_SEARCH.asked, terms: ["personal trainer"],
+  area: { kind: "city", label: "Austin, TX", state: "TX", center: { lat: 30.2672, lng: -97.7431 }, radius_m: 15000, query: "Austin, TX" },
+  count: 6, contact: "email",
+  criteria: [
+    { key: "independent", text: "independent, not a chain", standard: "likely", required: true },
+    { key: "website", text: "has a website", standard: "seen", required: true },
+    { key: "right_kind", text: "a personal trainer, not a big-box gym", standard: "likely", required: true },
+  ],
+  exclusions: [{ key: "chain", text: "chain gyms", origin: "claude" }],
+};
+/** The round the specs read: one probe that reached what it was asked for. */
+export const LEAD_ROUND = { seq: 1, purpose: "probe", ending: "target_reached", target: 6, plan_version: 1, cost_usd: "0.1800", judge_tokens: 2400 };
+export const LEADS = [
+  { place_id: "ChIJfixture0001", business_name: "Zilker Strength Lab", category: "Personal trainer", city: "Austin", region: "TX", street: "1200 Barton Springs Rd", phone_e164: "+15125550101", email: "hello@zilkerstrength.example", email_state: "ok", website_host: "zilkerstrength.example", rating: "5.0", reviews: 16, stage: "ready", member: { class: "qualified", fit: "strong", reason: "Independent coaching, 5.0 from 16 reviews", counted: true, judged: { independent: "pass", website: "pass", right_kind: "pass", chain: "pass" } } },
+  { place_id: "ChIJfixture0002", business_name: "Travis Heights Coaching Co.", category: "Personal trainer", city: "Austin", region: "TX", street: "1500 S Congress Ave", phone_e164: "+15125550102", email: "hello@travisheightscoaching.example", email_state: "ok", website_host: "travisheightscoaching.example", rating: "4.9", reviews: 88, stage: "ready", member: { class: "qualified", fit: "strong", reason: "Independent, one location, 88 reviews", counted: true, judged: { independent: "pass", website: "pass", right_kind: "pass", chain: "pass" } } },
+  { place_id: "ChIJfixture0003", business_name: "Mueller Movement Studio", category: "Personal trainer", city: "Austin", region: "TX", street: "1900 Aldrich St", phone_e164: "+15125550103", email: "info@muellermovement.example", email_state: "catch_all", website_host: "muellermovement.example", rating: "4.7", reviews: 40, stage: "ready", member: { class: "review", fit: null, reason: "Couldn't confirm the email", counted: false, judged: { independent: "pass", website: "pass", right_kind: "pass", chain: "pass" } } },
+  { place_id: "ChIJfixture0004", business_name: "East Side Kettlebell", category: "Personal trainer", city: "Austin", region: "TX", street: "2200 E 7th St", phone_e164: "+15125550104", email: null, email_state: "none", website_host: null, rating: "4.8", reviews: 22, stage: "ready", member: { class: "review", fit: null, reason: "No email to check; a phone only", counted: false, judged: { independent: "pass", website: "fail", right_kind: "pass", chain: "pass" } } },
+  { place_id: "ChIJfixture0005", business_name: "FitCorp Austin Central", category: "Gym", city: "Austin", region: "TX", street: "500 W 6th St", phone_e164: "+15125550105", email: null, email_state: "none", website_host: "fitcorp.example", rating: "4.1", reviews: 900, stage: "ready", member: { class: "excluded", excluded_by: "chain", fit: null, reason: "A chain gym", counted: false, judged: { independent: "fail", website: "pass", right_kind: "fail", chain: "fail" } } },
+  { place_id: "ChIJfixture0006", business_name: "Hyde Park Personal Training", category: "Personal trainer", city: "Austin", region: "TX", street: "4300 Speedway", phone_e164: "+15125550106", email: "hi@hydeparkpt.example", email_state: "ok", website_host: "hydeparkpt.example", rating: "4.9", reviews: 31, stage: "nurture", member: { class: "qualified", fit: "look", reason: "Independent; one review mentions a waitlist", counted: true, judged: { independent: "pass", website: "pass", right_kind: "pass", chain: "pass" } } },
+];
+/** What the three counted leads used of the month's allowance. */
+export const LEAD_COUNTED = LEADS.filter((l) => l.member.counted).length;
 
 /**
  * Every person's two answers, in force after each run: a yes to messages, taken
@@ -148,7 +180,8 @@ export async function snapshot(db, tenantId, userIds) {
   if (tenantId) {
     keep("tenants", must("backing up tenants", await db.from("tenants").select("*").eq("id", tenantId)));
     for (const table of ["billing_accounts", "tenant_config", "policies", "memberships", "tenant_channels", "contacts", "contact_identities",
-      "conversations", "messages", "calls", "escalations", "jobs", "broadcasts", "segments", "ask_threads", "invitations"]) {
+      "conversations", "messages", "calls", "escalations", "jobs", "broadcasts", "segments", "ask_threads", "invitations",
+      "lead_searches", "lead_rounds", "leads", "lead_search_members", "lead_counters", "lead_operations"]) {
       keep(table, must(`backing up ${table}`, await db.from(table).select("*").eq("tenant_id", tenantId)));
     }
   }
@@ -343,10 +376,91 @@ export async function converge(db, { ownerEmail, memberEmail, apply = false, now
     ],
   }, { onConflict: "tenant_id,retell_call_id" }));
 
+  await convergeLeads(db, T, ownerId, now);
+
   const problems = await verify(db, T, ownerId);
   if (problems.length) throw new Error(`the workspace is not in its known state: ${problems.join("; ")}`);
   did.push(`${SLUG} is in its known state`);
   return { apply, did, tenantId: T };
+}
+
+/**
+ * The lead finder's seed: one finished search, six leads, their memberships and
+ * the month's counters, deleted and written again every run so the specs read
+ * one state. The workspace is listed in `lead_platform.tenants_on` (decision
+ * 30) so a paid run may start a real search here while the switch stays off for
+ * everyone else -- the list is added to, never replaced, and `searches_on` is
+ * never touched.
+ *
+ * A round may not be inserted ended (00140's lead_rounds_guard: a round starts
+ * queued), so it is written queued and then ended in one update, which is the
+ * transition the guard allows.
+ */
+async function convergeLeads(db, T, ownerId, now) {
+  const stamp = new Date(now).toISOString();
+  const month = leadMonth(TIMEZONE, new Date(now));
+  const day = new Date(now).toLocaleDateString("en-CA", { timeZone: TIMEZONE });
+
+  const platform = must("reading the platform switch", await db.from("lead_platform").select("searches_on, tenants_on").eq("id", true).maybeSingle());
+  if (!platform) throw new Error("lead_platform has no row: release A's migration is not on this database");
+  if (!(platform.tenants_on ?? []).includes(T)) {
+    must("listing the workspace as one that may search", await db.from("lead_platform").update({ tenants_on: [...(platform.tenants_on ?? []), T] }).eq("id", true));
+  }
+
+  const old = must("reading the searches", await db.from("lead_searches").select("id").eq("tenant_id", T));
+  await deleteWhere(db, "lead_searches", "id", old.map((s) => s.id), "clearing searches");
+  must("clearing lead operations", await db.from("lead_operations").delete().eq("tenant_id", T));
+  must("clearing leads", await db.from("leads").delete().eq("tenant_id", T));
+  must("clearing the lead counters", await db.from("lead_counters").delete().eq("tenant_id", T));
+
+  const search = must("the search", await db.from("lead_searches").insert({
+    tenant_id: T, created_by: ownerId, via: LEAD_SEARCH.via, card: LEAD_SEARCH.card,
+    name: LEAD_SEARCH.name, asked: LEAD_SEARCH.asked, plan: LEAD_PLAN, created_at: stamp,
+  }).select("id").single());
+
+  const round = must("the round", await db.from("lead_rounds").insert({
+    tenant_id: T, search_id: search.id, seq: LEAD_ROUND.seq, purpose: LEAD_ROUND.purpose, plan: LEAD_PLAN,
+    plan_version: LEAD_ROUND.plan_version, target: LEAD_ROUND.target, state: "queued",
+    allowance_reserved: 0, allowance_used: LEAD_COUNTED, cost_reserved_usd: 0, cost_usd: LEAD_ROUND.cost_usd,
+    judge_tokens: LEAD_ROUND.judge_tokens, judge_model: "seed", month, day, platform_day: new Date(now).toISOString().slice(0, 10),
+    started_at: stamp, created_at: stamp,
+  }).select("id").single());
+  must("ending the round", await db.from("lead_rounds").update({ state: "ended", ending: LEAD_ROUND.ending, ended_at: stamp }).eq("id", round.id));
+
+  // A minute apart, oldest last: `leads_page`'s fit sort packs the band with
+  // (9999999999 - found_at), so six leads found in the same second tie and fall
+  // back to a random member id. The specs read "strongest fit first" off this.
+  for (const [i, lead] of LEADS.entries()) {
+    const foundAt = new Date(now - i * 60_000).toISOString();
+    const row = must("a lead", await db.from("leads").insert({
+      tenant_id: T, place_id: lead.place_id, business_name: lead.business_name, category: lead.category,
+      street: lead.street, city: lead.city, region: lead.region, country: "US",
+      website_host: lead.website_host, phone_e164: lead.phone_e164, phone_sources: lead.website_host ? 2 : 1,
+      email: lead.email, email_state: lead.email_state, email_checked_at: lead.email_state === "none" ? null : foundAt,
+      rating: lead.rating, reviews: lead.reviews, stage: lead.stage, found_at: foundAt,
+    }).select("id").single());
+    must("a membership", await db.from("lead_search_members").insert({
+      search_id: search.id, lead_id: row.id, round_id: round.id, tenant_id: T,
+      judgment: {
+        answer: {
+          ref: lead.place_id,
+          criteria: Object.entries(lead.member.judged).map(([key, answer]) => ({ key, answer, facts: ["name", "category"] })),
+          email_index: lead.email ? 0 : null,
+          reason: lead.member.reason,
+        },
+        reasons: [],
+        shares: [],
+      },
+      class: lead.member.class, excluded_by: lead.member.excluded_by ?? null,
+      fit: lead.member.fit, reason: lead.member.reason, counted: lead.member.counted,
+      counted_month: lead.member.counted ? month : null, created_at: stamp,
+    }));
+  }
+
+  must("the month's counters", await db.from("lead_counters").insert([
+    { tenant_id: T, kind: "allowance", period: month, used: LEAD_COUNTED, reserved: 0 },
+    { tenant_id: T, kind: "budget", period: month, used: LEAD_ROUND.cost_usd, reserved: 0 },
+  ]));
 }
 
 /** Reads the workspace back and names anything that is not as it should be. */
@@ -377,6 +491,22 @@ export async function verify(db, T, ownerId) {
   const people = (await read("the people", db.from("contacts").select("consent, marketing_consent, erased_at").eq("tenant_id", T))).filter((p) => !p.erased_at);
   if (people.some((p) => p.marketing_consent === "opted_in")) problems.push("someone in the workspace has said yes to offers");
   if (people.filter((p) => p.consent === SAID_YES_TO_MESSAGES).length < 3) problems.push("fewer than three people have said yes to messages");
+  // The state e2e/leads.spec.ts reads. Not a stage or a class: the specs change
+  // those and undo them, and a spec that failed halfway leaves one moved. What
+  // must hold is that this workspace's leads ARE the six fixtures, that none of
+  // them is a real business, and that the workspace may search.
+  const leads = await read("the leads", db.from("leads").select("place_id, business_name, email, phone_e164, website_host").eq("tenant_id", T));
+  const wanted = LEADS.map((l) => l.place_id).sort();
+  if (JSON.stringify(leads.map((l) => l.place_id).sort()) !== JSON.stringify(wanted)) problems.push(`the workspace's leads are not the ${LEADS.length} fixtures`);
+  for (const l of leads) {
+    if (l.email && !/@[\w.-]+\.example$/.test(l.email)) problems.push(`a lead's address is not fictional: ${l.email}`);
+    if (l.website_host && !/\.example$/.test(l.website_host)) problems.push(`a lead's site is not fictional: ${l.website_host}`);
+    if (l.phone_e164 && !/^\+1\d{3}55501\d{2}$/.test(l.phone_e164)) problems.push(`a lead's number is outside the fiction range: ${l.phone_e164}`);
+  }
+  const searches = await read("the searches", db.from("lead_searches").select("id, name, removed_at").eq("tenant_id", T));
+  if (searches.length !== 1 || searches[0].name !== LEAD_SEARCH.name || searches[0].removed_at) problems.push("the workspace should hold exactly one kept search, the seeded one");
+  const platform = await read("the platform switch", db.from("lead_platform").select("tenants_on").eq("id", true).maybeSingle());
+  if (!(platform?.tenants_on ?? []).includes(T)) problems.push("the workspace is not listed in lead_platform.tenants_on, so a paid lead run could not start");
   const alerts = cfg?.config?.notifications;
   if (!alerts || Object.keys(alerts).length !== 1 || alerts.escalation_emails?.length !== 1 || alerts.escalation_emails[0] !== ALERT_INBOX) {
     problems.push(`the config's alerts go somewhere other than the test inbox, ${ALERT_INBOX}`);

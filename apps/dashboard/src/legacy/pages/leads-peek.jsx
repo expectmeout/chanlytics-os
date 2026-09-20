@@ -63,6 +63,58 @@ const LeadPeekHead = ({ vm, onClose }) => {
   );
 };
 
+/** "Did you send it?" -- asked when the owner comes back to the tab, never before (PRD 9.3). */
+const LeadSentAsk = ({ busy, on }) => {
+  const W = window.__LEAD_WORDS;
+  return (
+    <div className="pk-ask" role="group" aria-label={W.sentQuestion} data-testid="peek-sent-ask">
+      <div className="t">{W.sentQuestion}</div>
+      <div className="row">
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy} data-testid="peek-sent-yes" onClick={on.onSaidSent}>{W.sentYes}</button>
+        <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-sent-no" onClick={on.onNotYet}>{W.sentNo}</button>
+      </div>
+    </div>
+  );
+};
+
+/**
+ * The draft (PRD 9.3). To, Subject and the body are shown as written, never as fields: the mailto: the route built is
+ * the one the mail app opens, and a body edited here would need encoding the page must not do. Shorter and Warmer ask
+ * the route again with what is on screen; the owner does their own editing where they will send it.
+ */
+const LeadDraftPane = ({ vm, draft, busy, on }) => {
+  const W = window.__LEAD_WORDS;
+  const d = draft || {};
+  return (
+    <>
+      <div className="pk-top">
+        <button type="button" className="btn btn-ghost btn-sm" data-testid="peek-draft-back" onClick={on.onBack}>{`${W.backTo} ${vm.short}`}</button>
+      </div>
+      <div className="pk-body">
+        <div className="pk-draft">
+          {d.refusal ? <div className="field-error" role="alert" data-testid="peek-draft-error">{d.refusal}</div> : null}
+          <div className="pk-field"><span className="l">{W.to}</span><span className="pk-rv" data-testid="peek-draft-to">{d.to || vm.reach.email.address}</span></div>
+          <div className="pk-field"><span className="l">{W.subject}</span><span className="pk-rv" data-testid="peek-draft-subject">{d.subject || ""}</span></div>
+          <div className="pk-text" data-testid="peek-draft-body">{d.busy ? W.draftWriting : (d.body || "")}</div>
+          <div className="pk-tone">
+            <span className="pk-label">{W.draftRewrite}</span>
+            {W.tones.map((t) => (
+              <button key={t.id} type="button" className={`ask-follow-chip${d.tone === t.id ? " on" : ""}`} disabled={busy || d.busy || !d.body} data-testid={`peek-tone-${t.id}`} onClick={() => on.onTone(t.id)}>{t.label}</button>
+            ))}
+          </div>
+          <div className="pk-foot-note"><Icon name="shield" size={12} /><span data-testid="peek-draft-note">{W.draftNote}</span></div>
+        </div>
+      </div>
+      <div className="pk-foot">
+        <a className="btn btn-primary btn-sm" href={d.mailto || "#"} data-testid="peek-open-mail" aria-disabled={!d.mailto} onClick={on.onOpenMail}><Icon name="mail" size={12} />{W.draftOpen}</a>
+        <button type="button" className="btn btn-sm" disabled={!d.body} data-testid="peek-copy-draft" onClick={on.onCopyDraft}>{W.copy}</button>
+        <span className="sp" />
+        <span className="pk-rn">{W.draftFrom}</span>
+      </div>
+    </>
+  );
+};
+
 const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
   const W = window.__LEAD_WORDS;
   return (
@@ -87,6 +139,7 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on }) => {
         )}
       </div>
       <div className="pk-body">
+        {armed && armed.asked && armed.kind === "sent" ? <LeadSentAsk busy={busy} on={on} /> : null}
         <p className="pk-fit" data-testid="peek-fit"><b className={vm.fit.cls}>{`${vm.fit.word}.`}</b>{` ${vm.fit.sentence}`}</p>
         {vm.cls === "review" ? (
           <div className="pk-decide" data-testid="peek-decide">
@@ -188,7 +241,9 @@ const LeadPeek = ({ vm, mode = "info", armed = null, draft = null, busy = false,
   return (
     <aside className="pk pl-peek" role="dialog" aria-label={vm.name} data-testid="lead-peek">
       <LeadPeekHead vm={vm} onClose={on.onClose} />
-      <LeadPeekInfo vm={vm} mode={mode} armed={armed} busy={busy} on={on} />
+      {mode === "draft"
+        ? <LeadDraftPane vm={vm} draft={draft} busy={busy} on={on} />
+        : <LeadPeekInfo vm={vm} mode={mode} armed={armed} busy={busy} on={on} />}
     </aside>
   );
 };
@@ -218,18 +273,61 @@ const LeadPeekActions = (p) => {
     said(r.data);
     return r.data;
   };
+  const armFor = (kind) => p.setArmed({ kind, leadId: vm.id, asked: false, outcome: null, note: "" });
   // The owner's own phone and their own mail app: an href this page hands to the browser, never a call we place.
   const dial = p.dial || ((href) => { if (href && window.location && window.location.assign) window.location.assign(href); });
   return {
     onClose: () => { p.setArmed(null); p.setMode("info"); p.setDraft(null); p.setPeekId(null); },
     onStage: (stage) => post({ kind: "stage", stage }, "Not changed"),
+    onBack: () => p.setMode("info"),
     onNotAFit: () => p.setMode("why"),
     onKeep: p.keep,
     onExclude: p.exclude,
     onPutBack: p.putBack,
     onCopy: p.copyEmail,
     onCall: () => dial(vm.reach.phone ? vm.reach.phone.tel : null),
+    // The draft: the route writes it and builds the mailto:, so the page encodes nothing.
+    onDraft: async () => {
+      p.setMode("draft");
+      p.setDraft({ busy: true, tone: "first", to: vm.reach.email.address, subject: "", body: "", mailto: null, refusal: null });
+      const r = await api.__leadDraft(vm.id, { tone: "first" });
+      if (!r.ok) { p.setDraft({ busy: false, tone: "first", to: vm.reach.email.address, subject: "", body: "", mailto: null, refusal: r.message }); return; }
+      p.setDraft({ busy: false, tone: "first", to: r.data.to, subject: r.data.subject, body: r.data.body, mailto: r.data.mailto, refusal: null });
+    },
+    onTone: async (tone) => {
+      const d = p.draft || {};
+      p.setDraft({ ...d, busy: true, tone, refusal: null });
+      const r = await api.__leadDraft(vm.id, { tone, previous: { subject: d.subject, body: d.body } });
+      if (!r.ok) { p.setDraft({ ...d, busy: false, tone, refusal: r.message }); return; }
+      p.setDraft({ busy: false, tone, to: r.data.to, subject: r.data.subject, body: r.data.body, mailto: r.data.mailto, refusal: null });
+    },
+    // Opening the mail app or copying the words is the moment they might send it; Draft alone is not.
+    onOpenMail: () => { if (p.draft && p.draft.mailto) armFor("sent"); },
+    onCopyDraft: async () => {
+      const d = p.draft || {};
+      if (!d.body) return;
+      if (window.navigator && window.navigator.clipboard) await window.navigator.clipboard.writeText(`${d.subject}\n\n${d.body}`);
+      armFor("sent");
+      p.flash({ msg: window.__LEAD_WORDS.copiedDraft });
+    },
+    onSaidSent: async () => { p.setArmed(null); await post({ kind: "emailed" }, "Not marked"); },
+    onNotYet: () => p.setArmed(null),
   };
 };
 
-Object.assign(window, { LeadPeek, LeadPeekActions, leadPeekEscape, leadPeekFollows, leadPeekFocus });
+/**
+ * The tab comes back, so the peek may ask. Armed when the owner left for their phone or their mail app; asked only
+ * once they are here to answer. One listener pair, taken down with the arming.
+ */
+const leadArmOnReturn = (armed, setArmed) => {
+  if (!armed || armed.asked) return undefined;
+  const wake = () => { if (!window.document || !window.document.hidden) setArmed((a) => (a && !a.asked ? { ...a, asked: true } : a)); };
+  window.addEventListener("focus", wake);
+  window.document.addEventListener("visibilitychange", wake);
+  return () => {
+    window.removeEventListener("focus", wake);
+    window.document.removeEventListener("visibilitychange", wake);
+  };
+};
+
+Object.assign(window, { LeadPeek, LeadPeekActions, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn });

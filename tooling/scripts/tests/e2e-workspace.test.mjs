@@ -15,7 +15,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { fakeDb } from "./_fake-db.mjs";
 import { TenantConfigWriteSchema } from "@chanlytics/contracts";
-import { converge, verify, SLUG, CALL_ID, PEOPLE, ALERT_INBOX, channelExternalId, SAID_YES_TO_MESSAGES, SAID_YES_TO_OFFERS } from "../e2e-workspace.mjs";
+import { converge, verify, SLUG, CALL_ID, PEOPLE, ALERT_INBOX, channelExternalId, SAID_YES_TO_MESSAGES, SAID_YES_TO_OFFERS, LEADS, LEAD_SEARCH, LEAD_COUNTED } from "../e2e-workspace.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const { chooseAddressing, reachesTenant } = await import(
@@ -29,7 +29,9 @@ const MODES = { faq: "auto", booking: "auto", reply: "auto", reengage: "ask", ca
 
 /** A database in memory, an auth admin, and provision_tenant as the migrations write it. */
 function world(tables = {}) {
-  const t = { tenants: [], memberships: [], ...tables };
+  // The platform's one row exists on every database release A touched; the seed
+  // adds this workspace to tenants_on and must never flip searches_on.
+  const t = { tenants: [], memberships: [], lead_platform: [{ id: true, searches_on: false, tenants_on: [] }], ...tables };
   const users = [];
   const db = fakeDb(t, {}, {
     provision_tenant: ({ p_tenant_id }) => {
@@ -255,4 +257,46 @@ test("a run backs the workspace up before it writes", async () => {
   assert.ok(backedUp.some((r) => r.table === "messages") && backedUp.some((r) => r.table === "tenants"));
   assert.ok(snapshotAtBackup[0].includes("e2e-seed-a-in"), "taken while the old rows were still there");
   assert.ok(backedUp.some((r) => r.table === "tenant_config"), "the config, alert address and all, is in the backup");
+});
+
+test("the lead seed is six fictional places in one finished search, and the workspace may search while the switch is off", async () => {
+  const w = world();
+  await run(w);
+  const T = w.t.tenants[0].id;
+  assert.deepEqual(w.t.leads.map((l) => l.business_name).sort(), LEADS.map((l) => l.business_name).sort());
+  for (const l of w.t.leads) {
+    assert.match(l.phone_e164, /^\+1\d{3}55501\d{2}$/, `${l.business_name}: the fiction range`);
+    if (l.email) assert.match(l.email, /\.example$/, `${l.business_name}: a fictional address`);
+    assert.match(l.place_id, /^ChIJfixture\d{4}$/);
+  }
+  assert.equal(w.t.lead_searches.length, 1);
+  assert.equal(w.t.lead_searches[0].name, LEAD_SEARCH.name);
+  const [round] = w.t.lead_rounds;
+  assert.deepEqual([round.state, round.ending, round.seq], ["ended", "target_reached", 1], "written queued, then ended: lead_rounds_guard refuses an ended insert");
+  assert.deepEqual(
+    w.t.lead_search_members.map((m) => [m.class, m.counted]).sort(),
+    [["excluded", false], ["qualified", true], ["qualified", true], ["qualified", true], ["review", false], ["review", false]].sort(),
+  );
+  assert.equal(w.t.lead_counters.find((c) => c.kind === "allowance").used, LEAD_COUNTED);
+  const platform = w.t.lead_platform[0];
+  assert.deepEqual(platform.tenants_on, [T], "listed, so a paid run may start one here");
+  assert.equal(platform.searches_on, false, "and the switch every other workspace reads is untouched");
+  await converge(w.db, { ownerEmail: OWNER, memberEmail: MATE, apply: true, now: NOW });
+  assert.equal(w.t.lead_searches.length, 1);
+  assert.equal(w.t.leads.length, LEADS.length);
+  assert.deepEqual(w.t.lead_platform[0].tenants_on, [T]);
+});
+
+test("verify() names a drifted lead seed before any spec reads it", async () => {
+  const w = world();
+  await run(w);
+  const T = w.t.tenants[0].id;
+  const ownerId = w.t.memberships.find((m) => m.role === "owner").user_id;
+  assert.deepEqual(await verify(w.db, T, ownerId), []);
+  w.t.leads[0].business_name = "A Real Gym On A Real Street";
+  w.t.leads[0].email = "hello@arealgym.com";
+  w.t.leads[0].place_id = "ChIJreal0001";
+  const problems = await verify(w.db, T, ownerId);
+  assert.ok(problems.some((p) => p.includes("not the 6 fixtures")), problems.join("; "));
+  assert.ok(problems.some((p) => p.includes("not fictional")), problems.join("; "));
 });

@@ -340,12 +340,18 @@ test("the tab bar offers what the registry says is real, and only that", () => {
       assert.ok(t.demoOnly, `${t.id} → ${t.to} is a demo surface but the tab is offered in production`);
     } else {
       assert.ok(!t.demoOnly, `${t.id} → ${t.to} is real but the tab is hidden outside a demo`);
+      // And a real surface reached by another address is not a tab either:
+      // leads is the Leads SCOPE of People at clients/leads, and its switch is
+      // the rail's own People | Leads. A tab pointing at the retired route
+      // would bounce through the redirect to reach a scope the page already
+      // draws. Asked of the tabs production offers, which is where that costs
+      // something: the Deal board is demo-only AND retired, and the redirect is
+      // off in a demo, so that tab still reaches the seeded page it names. A
+      // real surface that moved has no page left at the old address at all --
+      // and a demo-only tab pointing at one is caught a line above, because a
+      // real surface may not be hidden outside a demo.
+      assert.ok(!registry.SURFACE_RETIRED[t.to], `${t.id} → ${t.to} is retired; the bar offers where it went, not where it was`);
     }
-    // And a real surface reached by another address is not a tab either: leads
-    // is the Leads SCOPE of People at clients/leads, and its switch is the
-    // rail's own People | Leads. A tab pointing at the retired route would
-    // bounce through the redirect to reach a scope the page already draws.
-    assert.ok(!registry.SURFACE_RETIRED[t.to], `${t.id} → ${t.to} is retired; the bar offers where it went, not where it was`);
   }
 
   // And the bar's own floor: a group whose real tabs number fewer than two

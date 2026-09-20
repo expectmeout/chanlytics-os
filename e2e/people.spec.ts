@@ -149,10 +149,11 @@ test.describe("People on a real workspace", () => {
     }
     // Leads came back on 18 Sep 2026 as a scope of People, so its old address
     // lands on that scope; the Deal board still lands on the list of clients.
-    for (const [gone, lands] of [["leads", "#/clients/leads"], ["pipeline", "#/clients"]]) {
+    for (const [gone, lands, standing] of [["leads", "#/clients/leads", "leads-standing"], ["pipeline", "#/clients", "people-standing"]]) {
       await page.goto(`/#/${gone}`);
       await expect.poll(() => new URL(page.url()).hash, { message: `${gone} retires into People` }).toBe(lands);
-      await expect(page.getByTestId("people-standing")).toBeVisible();
+      // The Leads scope draws its own standing line, not People's: the old address lands on the scope, not beside it.
+      await expect(page.getByTestId(standing)).toBeVisible();
     }
   });
 

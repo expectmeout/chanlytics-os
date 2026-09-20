@@ -1,6 +1,6 @@
 /* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, PeopleStanding, PeopleTable,
    PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadFinder, LeadStrip, LeadPeek,
-   LeadsFirstDay */
+   LeadPeekActions, LeadsFirstDay */
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
 // table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
 //
@@ -435,8 +435,31 @@ const LeadsScope = (p) => {
           />
         )}
         {/* The peek (Task 12): the page's state and its setters, so its own acts (LeadPeekActions) are built
-            from them on every draw and nothing in leads-peek.jsx keeps state of its own. */}
-        {p.peek && <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} flash={p.flash} onClose={p.onClosePeek} onMode={p.onPeekMode} onArmed={p.onArmed} onDraftState={p.onDraftState} onPeekId={p.onPeekId} onOpenPerson={p.onOpenPerson} onCall={p.onCall} onKeep={p.onKeep} onExclude={p.onExclude} onPutBack={p.onPutBack} onCopy={p.onCopy} />}
+            from them on every draw and nothing in leads-peek.jsx keeps state of its own. The acts are what the
+            peek takes -- the stage, Draft and its tones, Open in your email, Copy and the two answers to "Did
+            you send it?" are all `on.<name>` inside it -- so the setters go INTO LeadPeekActions and the acts
+            it returns go to the peek. Handed the setters themselves it would draw a pane of dead controls. */}
+        {p.peek && (() => {
+          const acts = LeadPeekActions({
+            vm: p.peek,
+            flash: p.flash,
+            onOpenPerson: p.onOpenPerson,
+            // Keep, Exclude, Put back and Copy are the scope's own (Task 11); the acts hand them on, so the
+            // peek has one shape of props.
+            keep: p.onKeep,
+            exclude: p.onExclude,
+            putBack: p.onPutBack,
+            copyEmail: p.onCopy,
+            draft: p.draft,
+            setMode: p.onPeekMode,
+            setArmed: p.onArmed,
+            setDraft: p.onDraftState,
+            setPeekId: p.onPeekId,
+          });
+          // Call stays the page's (clients-a.jsx): it arms "How did the call go?" before it hands the tel: to
+          // the browser, which is what C over the rows does and what the peek's own onCall does not do yet.
+          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} {...acts} onCall={p.onCall} />;
+        })()}
         {p.firstDay && <LeadsFirstDay suggestions={L.suggestions} onPick={p.onFinderWords} onFind={p.onFind} onBusinessLine={p.onBusinessLine} />}
         {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same
             searches and the same New search. People's own sheet (clients-a.jsx), which owns its Esc, so the

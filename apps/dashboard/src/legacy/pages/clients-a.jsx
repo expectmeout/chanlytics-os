@@ -1,7 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
    ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
    PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
-   PL_NO_SEL, LEAD_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows */
+   PL_NO_SEL, LEAD_COLUMNS, LeadsScope, leadPeekEscape, leadPeekFollows, leadPeekFocus, leadArmOnReturn */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -1822,6 +1822,13 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     if (!onLeads || !peekId || !cursor || cursor === peekId || !leadPeekFollows(peekMode, armed)) return;
     setPeekId(cursor);
   }, [cursor]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The owner left for their own mail app or their own phone; the peek asks how it went only once they are back
+  // (leadArmOnReturn, leads-peek.jsx). Nothing is asked while the tab is hidden, and the listeners go with the
+  // arming. Under People `armed` is null, so this is a no-op there.
+  React.useEffect(() => leadArmOnReturn(armed, setArmed), [armed && armed.kind, armed && armed.leadId, armed && armed.asked]);
+  // The dialog's focus rule (leadPeekFocus): focus moves into the peek when it opens and back to the row when it
+  // closes, and the row is the cursor, so Tab carries on from where the owner was.
+  React.useEffect(() => { leadPeekFocus(peekId, cursor); }, [peekId]); // eslint-disable-line react-hooks/exhaustive-deps
   // One listener for the page's life, reading what the latest render left in `keys`: the Calendar's pattern. It was
   // taken down and added again on every render, and / had a second listener of its own.
   const keys = React.useRef(null);
