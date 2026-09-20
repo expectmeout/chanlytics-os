@@ -14,9 +14,9 @@
  */
 import { z } from "zod";
 import {
-  LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
-  siteHost,
-  type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
+  LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
+  LeadSearchPlanSchema, siteHost, stateCode,
+  type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
 import { agoShort } from "./time";
@@ -59,6 +59,25 @@ export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are ad
 export const LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
 /** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
 export const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+
+/* ------------------------------------------------- the planner's refusals */
+
+/**
+ * The three things the planner says instead of a plan (§8.8). They are words for
+ * whoever asked -- the composer prints them under the input, Ask's tool hands
+ * them to the model to say -- and never a card with a problem in it.
+ */
+export const LEAD_NO_CARD_LINE = "I can find local businesses for now.";
+export const LEAD_OUTSIDE_US_LINE =
+  "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
+/** The second: what the workspace sells, in the owner's own words, or "what you do". */
+export function leadNotBusinessesLine(want: string | null): string {
+  return `I find businesses, not people at home. People who want ${want && want.trim() ? want.trim() : "what you do"} find you, and your receptionist answers them. Businesses whose clients need you next are a good start:`;
+}
+/** The third: what was asked for, named, and what the one card can do. The ask is logged as demand (§0.3). */
+export function leadNoCardLine(what: string | null): string {
+  return what && what.trim() ? `I can't search ${what.trim()} yet. ${LEAD_NO_CARD_LINE}` : LEAD_NO_CARD_LINE;
+}
 
 /** What a call outcome does to the stage (§9.4). Only Interested converts; Wrong number keeps the stage. */
 export function outcomeMove(o: (typeof LEAD_CALL_OUTCOMES)[number]): { stage: LeadStage | null; closedReason: string | null; converts: boolean } {
@@ -123,6 +142,103 @@ export const LeadDraftInputSchema = z.object({
 export const LeadExportQuerySchema = LeadsViewSchema;
 export const RenameLeadSearchSchema = z.object({ name: z.string().trim().min(1).max(80) });
 export const BusinessLineSchema = z.object({ business_line: z.string().trim().min(3).max(160) });
+
+/* --------------------------------------------------------- the planner */
+
+/**
+ * What Ask's `propose_lead_search` hands the planner: the ask in fields, not a
+ * plan. The model never writes a `LeadSearchPlan` -- it says who, how many,
+ * where, the standard and what to leave out, and `planLeadSearch` builds the
+ * plan, keys every criterion and exclusion, and checks the result against
+ * release A's own schema. A model that gets a field wrong gets a refusal in
+ * words, never a plan the door would have had to catch.
+ */
+const planChip = (max: number) => z.string().trim().min(2).max(max);
+export const ProposeLeadSearchSchema = z.object({
+  looking_for: z.enum(["local_businesses", "people", "online_sellers", "other"]),
+  country: z.string().trim().min(2).max(40),
+  count: z.number().int().min(1).max(LEAD_MAX_PLACES),
+  /** Plural, as the sentence says it: "personal trainers". */
+  who: planChip(60),
+  /** One of them, for the question and the judge's rubric: "personal trainer". */
+  who_one: planChip(60),
+  category_key: z.string().regex(/^[a-z][a-z0-9_]{0,39}$/),
+  terms: z.array(planChip(60)).min(1).max(5),
+  city: z.string().trim().max(60).nullable().default(null),
+  region: z.string().trim().min(2).max(40),
+  zip: z.string().regex(/^\d{5}$/).nullable().default(null),
+  contact: z.enum(["phone", "email"]),
+  criteria: z.array(z.object({ text: planChip(120), standard: z.enum(["likely", "seen"]), required: z.boolean() })).max(6).default([]),
+  leave_out: z.array(z.object({ words: planChip(40) })).max(6).default([]),
+  asked: z.string().trim().min(1).max(400),
+});
+export type ProposeLeadSearch = z.infer<typeof ProposeLeadSearchSchema>;
+
+/** The card's head. The rest of what the card draws is the plan itself and the workspace's facts. */
+export interface LeadPlanView { title: string }
+export type LeadPlanRefusalKind = "outside_us" | "not_businesses" | "no_card" | "not_a_plan";
+export type LeadPlanned =
+  | { ok: true; plan: LeadSearchPlan; view: LeadPlanView }
+  | { ok: false; refusal: { kind: LeadPlanRefusalKind; text: string; what: string | null } };
+
+const US_NAMES = new Set(["us", "usa", "u.s.", "u.s.a.", "united states", "united states of america"]);
+/** A criterion's or an exclusion's own key, from its words, so the judge's rubric and the chips name the same thing. */
+function planKey(text: string, fallback: string, taken: Set<string>): string {
+  const base = text.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40).replace(/_+$/, "");
+  let key = /^[a-z]/.test(base) ? base : fallback;
+  let n = 2;
+  while (taken.has(key)) key = `${fallback}_${n++}`;
+  taken.add(key);
+  return key;
+}
+/** Title Case for a state written out ("new mexico" -> "New Mexico"); a two-letter code keeps its own case. */
+const titleWords = (s: string) => s.replace(/\S+/g, (w) => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase());
+
+/** Where to look, as the plan spells it: a ZIP, a city and its state, or the state on its own. */
+function planArea(input: ProposeLeadSearch): LeadArea | null {
+  const state = stateCode(input.region);
+  if (!state) return null;
+  if (input.zip) return { kind: "zip", label: `near ${input.zip}`, state, center: null, radius_m: 8_000, zip: input.zip, query: `${input.zip}, ${state}, USA` };
+  const city = (input.city ?? "").trim();
+  if (city) return { kind: "city", label: `${city}, ${state}`, state, center: null, radius_m: 25_000, query: `${city}, ${state}, USA` };
+  const label = /^[A-Za-z]{2}$/.test(input.region) ? state : titleWords(input.region);
+  return { kind: "city", label, state, center: null, radius_m: 200_000, query: `${label}, USA` };
+}
+
+/**
+ * The ask as a plan, or one of the three refusals in words (§8.8): outside the
+ * US, people rather than businesses, and an ask no source card fits, which is
+ * logged as demand. Nothing here reads anything: the same function answers the
+ * composer and Ask's tool, so a plan made by typing and a plan made by asking
+ * are the same plan.
+ */
+export function planLeadSearch(input: ProposeLeadSearch): LeadPlanned {
+  if (!US_NAMES.has(input.country.trim().toLowerCase())) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.country.trim() } };
+  if (input.looking_for === "people") return { ok: false, refusal: { kind: "not_businesses", text: leadNotBusinessesLine(null), what: input.who } };
+  if (input.looking_for !== "local_businesses") return { ok: false, refusal: { kind: "no_card", text: leadNoCardLine(input.who), what: input.who } };
+  const area = planArea(input);
+  if (!area) return { ok: false, refusal: { kind: "outside_us", text: LEAD_OUTSIDE_US_LINE, what: input.region } };
+  const taken = new Set<string>();
+  const plan: LeadSearchPlan = {
+    version: 1,
+    card: "local_businesses",
+    name: input.who,
+    asked: input.asked,
+    // Widest first, and at most the three the tool asks the model for.
+    terms: [...new Set(input.terms.map((t) => t.trim()).filter(Boolean))].slice(0, 3),
+    area,
+    count: input.count,
+    contact: input.contact,
+    criteria: input.criteria.map((c, i) => ({ key: planKey(c.text, `c${i + 1}`, taken), text: c.text, standard: c.standard, required: c.required })),
+    exclusions: input.leave_out.map((l, i) => ({ key: planKey(l.words, `x${i + 1}`, taken), text: l.words, origin: "claude" as const })),
+  };
+  const checked = LeadSearchPlanSchema.safeParse(plan);
+  if (!checked.success) {
+    const issue = checked.error.issues[0];
+    return { ok: false, refusal: { kind: "not_a_plan", text: `the plan is not complete: ${issue?.path.join(".")} ${issue?.message}`, what: null } };
+  }
+  return { ok: true, plan: checked.data, view: { title: `Find ${checked.data.count} ${checked.data.name}` } };
+}
 
 /* ------------------------------------------- a view of the scope, as a route */
 

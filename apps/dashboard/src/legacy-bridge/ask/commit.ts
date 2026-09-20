@@ -148,6 +148,12 @@ export async function commitProposal(win: Window, p: AskProposal, client: Api = 
       if (!r.ok) return r;
       return { ok: true, receipt: `Playbook “${r.data.name ?? s(pl.name)}” is running — its next run is on the card in Campaigns › Playbooks`, undo: { playbook_id: r.data.id, decision_id: decisionOf(r.data) } };
     }
+    case "lead_search": {
+      const plan = (pl.plan ?? {}) as { count?: number; terms?: string[] };
+      const r = await viaAsk(client, "POST lead-searches", { body: pl.plan as never });
+      if (!r.ok) return r;
+      return { ok: true, receipt: `Finding ${plan.count ?? ""} ${plan.terms?.[0] ?? "businesses"}. It carries on if you leave; Leads shows it.`.replace(/\s+/g, " "), undo: { search_id: r.data.search_id } };
+    }
     default:
       return { ok: false, message: "This card cannot be approved from here." };
   }
@@ -205,6 +211,11 @@ export async function undoProposal(win: Window, p: AskProposal, outcome: AskProp
       const r = await viaAsk(client, "PUT settings", { body: { config: u.config, version: st.version } });
       if (!r.ok) return r;
       return { ok: true, receipt: "Previous settings are back", undo: null };
+    }
+    case "lead_search": {
+      const r = await viaAsk(client, "POST lead-searches/[id]/stop", { params: { id: s(u.search_id) } }, undoOf);
+      if (!r.ok) return r;
+      return { ok: true, receipt: "Stopping. Whatever it found is kept, and the emails already found are still checked.", undo: null };
     }
     default:
       return { ok: false, message: "This one has no undo." };

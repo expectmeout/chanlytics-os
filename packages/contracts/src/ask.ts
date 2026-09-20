@@ -376,7 +376,7 @@ export type AskThreadVerb = (typeof ASK_THREAD_VERBS)[number];
 /** A proposal the model made; a card the person may approve. Executed by the client through the verbs. */
 export interface AskProposal {
   id: string;
-  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook";
+  kind: "reply" | "steer" | "thread_verb" | "person_mode" | "policy" | "settings" | "whisper" | "invite" | "broadcast" | "playbook" | "lead_search";
   /** The lowest role that may commit it; the route re-checks on Approve. */
   needs: "operator" | "owner";
   title: string;
@@ -390,7 +390,7 @@ export interface AskProposal {
 }
 
 /** The client gate (data-bits `gate`) a card of this kind checks before Approve; the route re-checks the role. */
-export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" | "settings" | "team"> = {
+export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" | "settings" | "team" | "find"> = {
   reply: "approve",
   steer: "approve",
   thread_verb: "approve",
@@ -401,6 +401,7 @@ export const PROPOSAL_GATE: Record<AskProposal["kind"], "approve" | "autonomy" |
   invite: "team",
   broadcast: "approve",
   playbook: "approve",
+  lead_search: "find",
 };
 
 /** What became of a card, kept with the turn that proposed it. */
