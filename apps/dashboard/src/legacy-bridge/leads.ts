@@ -113,7 +113,8 @@ function publishLeads(failed = false): void {
   (window as unknown as { __LEADS?: LeadsSurface }).__LEADS = {
     searches: L?.searches ?? [],
     counts: L?.counts ?? NO_COUNTS,
-    rows: (L?.rows ?? []).map((r) => toLeadRowVM(r, L?.tz ?? "UTC", now)),
+    // Each row is handed its own search (D5): a review row names what it waits on in the queue's words.
+    rows: (L?.rows ?? []).map((r) => toLeadRowVM(r, L?.tz ?? "UTC", now, (L?.searches ?? []).find((s) => s.id === r.search_id) ?? null)),
     next: L?.next ?? null,
     offered: L?.offered.length ?? 0,
     view,

@@ -11677,6 +11677,33 @@ function leadReviewGroups(rows, search) {
   }
   return [...by.values()].sort((a, b) => REVIEW_GROUP_ORDER.indexOf(a.id) - REVIEW_GROUP_ORDER.indexOf(b.id));
 }
+var LEAD_SLOT_WORDS = { ok: "Checked", part: "Unconfirmed", none: "Nothing found", bad: "Bad", checking: "Still checking" };
+function leadSlots(r) {
+  const phone = !r.phone ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: "No phone on the listing", copy: false } : r.phone_wrong ? { state: "bad", value: r.phone, word: LEAD_SLOT_WORDS.bad, tip: `${r.phone} \u2014 you marked this number wrong`, copy: false } : r.phone_agrees ? { state: "ok", value: r.phone, word: LEAD_SLOT_WORDS.ok, tip: `${r.phone} \u2014 the same number on Google Maps and on their website`, copy: true } : { state: "part", value: r.phone, word: LEAD_SLOT_WORDS.part, tip: `${r.phone} \u2014 one source, their Google Maps listing`, copy: true };
+  const s = r.email_state;
+  const mailbox = !r.email || s === "none" ? { state: "none", value: null, word: LEAD_SLOT_WORDS.none, tip: `${LEAD_MAILBOX_WORDS.none} \u2014 home, contact and about pages checked`, copy: false } : s === "ok" ? { state: "ok", value: r.email, word: LEAD_SLOT_WORDS.ok, tip: `${r.email} \u2014 ${LEAD_MAILBOX_WORDS.ok}`, copy: true } : s === "invalid" ? { state: "bad", value: r.email, word: LEAD_SLOT_WORDS.bad, tip: `${r.email} \u2014 ${LEAD_MAILBOX_WORDS.invalid}`, copy: false } : s === "checking" ? { state: "checking", value: r.email, word: LEAD_SLOT_WORDS.checking, tip: `${r.email} \u2014 ${LEAD_MAILBOX_WORDS.checking}. It resolves itself`, copy: true } : { state: "part", value: r.email, word: LEAD_SLOT_WORDS.part, tip: `${r.email} \u2014 ${LEAD_MAILBOX_WORDS[s]}`, copy: true };
+  return { phone, mailbox };
+}
+function leadTintOf(kind) {
+  let h = 7;
+  for (const ch of kind ?? "") h = h * 31 + ch.charCodeAt(0) >>> 0;
+  return h % 6 + 1;
+}
+function leadBand(search) {
+  const r = search?.round;
+  if (!r) return null;
+  const f = r.fits ?? { strong: 0, look: 0, long: 0 };
+  const fits = ["strong", "look", "long"].map((id) => ({ id, label: LEAD_FIT_WORDS[id], count: f[id] }));
+  return {
+    classes: [
+      { id: "qualified", label: `${r.qualified} qualified`, count: r.qualified },
+      { id: "review", label: `${r.review} need${r.review === 1 ? "s" : ""} a look`, count: r.review },
+      { id: "excluded", label: `${r.excluded} left out`, count: r.excluded }
+    ],
+    fits,
+    mixed: fits.filter((x) => x.count > 0).length > 1
+  };
+}
 var METRES_PER_MILE = 1609.344;
 var keyInWords = (key) => {
   const words2 = key.replace(/_/g, " ").trim();
@@ -11689,7 +11716,7 @@ var milesLabel = (m) => {
 };
 var ratingLabel = (rating, reviews) => rating === null || rating === void 0 ? "" : `${rating.toFixed(1)} \xB7 ${reviews ?? 0}`;
 var stageLabelOf = (stage, closedReason) => stage === "archived" ? LEAD_CLOSED_WORDS[closedReason] ?? LEAD_STAGE_WORDS.archived : LEAD_STAGE_WORDS[stage];
-function toLeadRowVM(r, tz, now) {
+function toLeadRowVM(r, tz, now, search = null) {
   const nowMs = now.getTime();
   const foundMs = Date.parse(r.found_at);
   const m = r.member;
@@ -11698,6 +11725,21 @@ function toLeadRowVM(r, tz, now) {
   const fitLabel = m.class === "excluded" ? excludedBy ?? m.reason : m.class === "review" ? m.reason : m.fit ? LEAD_FIT_WORDS[m.fit] : m.reason;
   const fitTitle = m.class === "excluded" ? `Left out: ${excludedBy ?? m.reason}` : m.class === "qualified" && rating ? `${m.reason} \xB7 ${rating.replace(" \xB7 ", " from ")} reviews` : m.reason;
   const area = [r.postal_code ?? "", [r.city, r.state].filter(Boolean).join(", ")].filter(Boolean).join(" \xB7 ");
+  const sub = [r.category, r.neighborhood ?? null, r.postal_code ?? null, milesLabel(m.distance_m) || null].filter((x) => !!x).join(" \xB7 ");
+  const rated = r.rating === null || r.rating === void 0 ? null : { score: r.rating.toFixed(1), count: (r.reviews ?? 0).toLocaleString("en-US") };
+  const spread2 = r.reviews_dist ? [r.reviews_dist.one, r.reviews_dist.two, r.reviews_dist.three, r.reviews_dist.four, r.reviews_dist.five] : null;
+  const waitsOn = m.class === "review" ? leadReviewGroups([{ id: r.id, cls: "review", reasons: m.reasons ?? [] }], search)[0]?.label ?? m.reason : null;
+  const state = m.class === "excluded" ? "out" : m.class === "review" ? "review" : r.stage === "nurture" ? "contacted" : r.stage === "converted" ? "talking" : r.stage === "archived" ? "out" : "ready";
+  const stateTag = state === "contacted" ? `${LEAD_STAGE_WORDS.nurture}${r.contacted_at ? ` \xB7 ${agoShort(Date.parse(r.contacted_at), nowMs)}` : ""}` : state === "talking" ? LEAD_STAGE_WORDS.converted : state === "out" ? m.class === "excluded" ? LEAD_LEFT_OUT_WORD : stageLabelOf(r.stage, r.closed_reason) : null;
+  const term = search?.plan.terms[0] ?? null;
+  const card = {
+    about: r.about ?? null,
+    today: leadTodayLine(r.hours ?? [], tz, now),
+    where: leadWhere(r),
+    site: r.website ? { label: siteHost(r.website) ?? r.website, href: `https://${r.website}` } : null,
+    maps: r.maps_url ? { label: "Google Maps", href: r.maps_url } : null,
+    found: [{ at: clockIn(tz, r.found_at, now), what: term ? r.rank ? `On Google Maps, #${r.rank} for \u201C${term}\u201D` : `On Google Maps, searching \u201C${term}\u201D` : "On a Google Maps listing" }]
+  };
   return {
     id: r.id,
     searchId: r.search_id,
@@ -11708,6 +11750,7 @@ function toLeadRowVM(r, tz, now) {
     category: r.category ?? "",
     area,
     cls: m.class,
+    fit: m.class === "qualified" ? m.fit : null,
     fitLabel,
     fitTitle,
     email: r.email,
@@ -11736,7 +11779,17 @@ function toLeadRowVM(r, tz, now) {
     source: LEAD_SOURCE_WORD,
     host: siteHost(r.website) ?? "",
     excludedBy,
-    version: r.version
+    version: r.version,
+    sub,
+    slots: leadSlots(r),
+    rated,
+    spread: spread2,
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null },
+    waitsOn,
+    state,
+    stateTag,
+    card,
+    point: typeof r.lat === "number" && typeof r.lng === "number" ? { lat: r.lat, lng: r.lng } : null
   };
 }
 var roundIsLive = (state) => state !== "ended" && state !== "waiting_on_owner";
@@ -12233,6 +12286,7 @@ export {
   LEAD_RUN_STATES,
   LEAD_SEARCH_VIAS,
   LEAD_SENT_QUESTION,
+  LEAD_SLOT_WORDS,
   LEAD_SORTS,
   LEAD_SOURCE_WORD,
   LEAD_STAGES,
@@ -12629,6 +12683,7 @@ export {
   lastChangedWords,
   leadAllowanceFact,
   leadAnd,
+  leadBand,
   leadDraftFooter,
   leadEndingLine,
   leadExclusionWord,
@@ -12645,7 +12700,9 @@ export {
   leadReachLine,
   leadReviewGroups,
   leadSearchWords,
+  leadSlots,
   leadSuppressionHash,
+  leadTintOf,
   leadTodayLine,
   leadUndoable,
   leadWhere,

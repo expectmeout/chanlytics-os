@@ -429,6 +429,7 @@ test("a row says what was seen and what Claude read, and wears the name of the s
   );
   assert.deepEqual(r.member.other_emails, [{ email: "careers@travisheightscoaching.example", why: "for job seekers" }]);
   assert.deepEqual(r.member.reasons, ["fit"], "the class rule's own reason tokens ride the row, for the Needs review queue (D3)");
+  assert.deepEqual([r.neighborhood, r.lat, r.lng], [null, 30.24, -97.75], "D5: the neighbourhood and the coordinates ride the row");
   const checks = Object.fromEntries(r.member.checks.map((c) => [c.key, [c.how, c.answer]]));
   assert.deepEqual(checks.on_maps, ["seen", "yes"]);
   assert.deepEqual(checks.mailbox, ["seen", "yes"]);
