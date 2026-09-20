@@ -40232,7 +40232,11 @@ function isPlatformDefault(url) {
   const bare = url.slice(url.indexOf("//") + 2).split(/[?#]/)[0].toLowerCase();
   return PLATFORM_DEFAULTS.has(bare) || /(^|\/)default-favicon\.[a-z0-9]+$/.test(bare);
 }
-var UNSAFE_IN_AN_ADDRESS = /[\s"'<>\`{}|^]/;
+var UNSAFE_IN_AN_ADDRESS = ` "'<>{}|^` + String.fromCharCode(92, 96, 9, 10, 13);
+function holdsUnsafe(url) {
+  for (const ch of url) if (UNSAFE_IN_AN_ADDRESS.includes(ch) || ch.charCodeAt(0) < 32 || ch.charCodeAt(0) === 127) return true;
+  return false;
+}
 function decodeEntities(s) {
   if (!s.includes("&")) return s;
   const chr = (n, had) => n > 0 && n < 1114112 ? String.fromCodePoint(n) : had;
@@ -40242,13 +40246,16 @@ function absolute(href, origin) {
   const raw = decodeEntities(href.trim());
   if (!raw || raw.length > HREF_MAX) return null;
   if (/^data:|^javascript:/i.test(raw)) return null;
+  if (raw.startsWith("#")) return null;
   let url = raw;
   if (raw.startsWith("//")) url = `https:${raw}`;
   else if (raw.startsWith("/")) url = `${origin}${raw}`;
   else if (!/^https?:\/\//i.test(raw)) url = `${origin}/${raw.replace(/^\.\//, "")}`;
   if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
   const secure = url.replace(/^http:\/\//i, "https://");
-  if (UNSAFE_IN_AN_ADDRESS.test(secure)) return null;
+  if (holdsUnsafe(secure)) return null;
+  const slash = secure.indexOf("/", "https://".length);
+  if (slash === -1 || slash === secure.length - 1) return null;
   return isPlatformDefault(secure) ? null : secure;
 }
 function scoreOf(rel, type, href, side) {
