@@ -523,7 +523,7 @@ const ClientsASeed = ({ onOpenProfile = () => {}, initialSegment = null }) => {
             <span>
               <b>{(window.LEADS_AGGREGATES || {}).convertedThisWeek?.count ?? 6} new clients from Leads</b> this week · ${((window.LEADS_AGGREGATES || {}).convertedThisWeek?.value ?? 2870).toLocaleString()} est. first-year value
             </span>
-            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("leads")}>
+            <button className="cl-bucket-link" onClick={() => window.CHANLY.nav("clients/leads")}>
               Open Leads <Icon name="arrow-right" size={10} />
             </button>
           </div>
@@ -1808,12 +1808,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // the cursor here itself (onFocus). It was a scroll inside the state updater, and the row never took focus.
   React.useEffect(() => {
     if (!cursor || !document.getElementById) return;
-    const row = document.getElementById(`person-${cursor}`);
+    // The row's id wears the table's own noun (people-table.jsx), so the cursor and the peek's focus rule find the
+    // same element under Leads as under People.
+    const row = document.getElementById(`${onLeads ? "lead" : "person"}-${cursor}`);
     const active = document.activeElement;
     if (!row || row === active || (active && row.contains && row.contains(active))) return;
     if (row.focus) row.focus({ preventScroll: true });
     if (row.scrollIntoView) row.scrollIntoView({ block: "nearest" });
-  }, [cursor]);
+  }, [cursor]);   // eslint-disable-line react-hooks/exhaustive-deps
   // The peek follows the row cursor while it is open, so J and K walk the leads behind it -- unless it is asking
   // a question or holding a draft, which keeps it on its own lead (leadPeekFollows, leads-peek.jsx, Task 12).
   React.useEffect(() => {
@@ -1921,6 +1923,48 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     plFlash({ msg: <>Copied {usable.length} email{usable.length === 1 ? "" : "s"}{none ? `; ${none} had none you can use` : ""}</> });
   };
   const bulkLeads = (body) => leadAct(() => window.__leadsBulk(body), body.action === "contacted" ? <>Marked contacted.</> : <>Not a fit.</>);
+  /* ------------------------------------------------ a search, kept (PRD 8.10) */
+  const renameSearch = async (s, name) => {
+    const n = (name || "").trim();
+    if (!n || leadBusy) return;
+    setLeadBusy(true);
+    const r = await window.__leadSearchRename(s.id, n);
+    setLeadBusy(false);
+    if (!r.ok) { plFlash(window.refusalToast(r, `${s.name} was not renamed`)); return; }
+    setRenaming(null);
+    plFlash({ msg: <>Renamed to <b>{n}</b></> });
+  };
+  // Removing keeps the leads already worked, and the sentence says how many; the rail loses the row, so the view
+  // goes back to all the leads rather than a search that is no longer there.
+  const removeSearch = async (s) => {
+    if (leadBusy) return;
+    setLeadBusy(true);
+    setRemoveError(null);
+    const r = await window.__leadSearchRemove(s.id);
+    setLeadBusy(false);
+    if (!r.ok) { setRemoveError(r.message || "The search could not be removed."); return; }
+    setRemoving(null);
+    plFlash({ msg: <>Removed. The {r.data.kept} you contacted or are talking to are kept.</> });
+    nav("clients/leads");
+  };
+  // Find new ones runs the same plan again, and only places not already in your leads count (P3).
+  const findNewOnes = (s) => {
+    const dto = searchById(s.id);
+    if (!dto) return;
+    return leadAct(() => window.__leadSearchMore(dto.id, "renew", dto.plan), <>Looking for new ones. Only places not already in your leads count.</>);
+  };
+  // Search again, changed opens the plan card with what was asked, so the owner edits it before anything runs.
+  const searchAgain = (s) => {
+    const dto = searchById(s.id);
+    if (!dto) return;
+    setFinderWords(dto.asked);
+    setFinderProposal({ searchId: dto.id, plan: dto.plan, purpose: "renew" });
+    setFinderRefusal(null);
+    setFinderStage("plan");
+    setFinderOpen(true);
+  };
+  const searchWordsFor = (id) => (window.__leadSearchWords ? window.__leadSearchWords(searchById(id), leads.tz) : { askedLine: "", keepsLine: "" });
+  const exportHrefFor = (s) => (window.__href ? window.__href("GET leads/export", undefined, { search: s.id, list: "all", sort: "fit", dir: "asc" }) : null);
 
   // What the keyboard's one listener reads: this render's rows, cursor and doors.
   keys.current = {
@@ -1967,10 +2011,19 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       canFind,
     };
     const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
+    // What the phone's bar says it is showing: the search that is open, or the list, with its count (Task 18).
+    const openList = rail.lists.find((l) => l.id === leadView.list);
+    const railLabel = openSearch
+      ? `${openSearch.name} · ${openSearch.round.counted}`
+      : openList ? `${openList.label} · ${openList.count}` : "All leads";
     return (
       <LeadsScope
         surface={leads}
         rail={rail}
+        railLabel={railLabel}
+        listsOpen={listsOpen}
+        onLists={() => setListsOpen(true)}
+        onCloseLists={() => setListsOpen(false)}
         standing={standing}
         view={leadView}
         search={openSearch}
@@ -2018,6 +2071,20 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         chip={chip}
         onPickChip={setChip}
         onNeedsYou={(id) => nav(window.__leadsRouteOf({ searchId: id, list: "all", cls: null }))}
+        exportHrefFor={exportHrefFor}
+        searchWordsFor={searchWordsFor}
+        renaming={renaming}
+        onRename={setRenaming}
+        onRenameSave={renameSearch}
+        onRenameCancel={() => setRenaming(null)}
+        removing={removing}
+        onRemoveAsk={(s) => { setRemoveError(null); setRemoving(s); }}
+        onRemoveYes={removeSearch}
+        onRemoveNo={() => { setRemoving(null); setRemoveError(null); }}
+        removeBusy={leadBusy}
+        removeError={removeError}
+        onFindNewOnes={findNewOnes}
+        onSearchAgain={searchAgain}
         onFind={() => { setFinderRefusal(null); setFinderStage("compose"); setFinderOpen(true); }}
         finderOpen={finderOpen}
         finderStage={finderStage}
@@ -2219,4 +2286,4 @@ const ClientsA = (props) => ((props.scope === "leads" ? window.__LEADS : window.
 window.ClientsA = ClientsA;
 // Drawn on their own by refusals-on-the-page.test.mjs; the rail, the standing line and the table's noun are the
 // Leads scope's too (leads-scope.jsx draws them with scope="leads").
-Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs });
+Object.assign(window, { NewListRow, AddPersonButton, DeleteListButton, PeopleRail, PeopleStanding, PeopleScopeTabs, PeopleListsSheet });

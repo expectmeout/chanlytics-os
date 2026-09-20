@@ -13,8 +13,8 @@
  * found, where they append after what is already read.
  */
 import {
-  leadRail, leadsRoute, leadsStanding, parseLeadsRoute, toLeadRowVM,
-  type LeadChips, type LeadClass, type LeadCounts, type LeadList, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
+  leadRail, leadSearchWords, leadsRoute, leadsStanding, parseLeadsRoute, toLeadPeekVM, toLeadRowVM,
+  type LeadChips, type LeadClass, type LeadCounts, type LeadList, type LeadPeekVM, type LeadRowDto, type LeadRowVM, type LeadSearchDto, type LeadSearchPlan, type LeadSort, type LeadStageInput, type LeadSuggestionsDto, type LeadsBulkInput,
 } from "@chanlytics/contracts";
 import { api } from "./api";
 import { workspaceZone } from "./zone";
@@ -240,6 +240,15 @@ export async function renameSearch(id: string, name: string) { return call<{ nam
 export async function removeSearch(id: string) { return call<{ archived: number; kept: number }>("DELETE lead-searches/[id]", { params: { id } }); }
 export async function setBusinessLine(business_line: string) { return call<{ business_line: string }>("PUT lead-suggestions", { body: { business_line } }); }
 
+/** The peek's view model for one loaded lead: the DTO, its search, the workspace's zone (§9.2). */
+export function peekVMFor(leadId: string): LeadPeekVM | null {
+  const L = leadsLoaded;
+  if (!L) return null;
+  const row = L.rows.find((r) => r.id === leadId);
+  if (!row) return null;
+  return toLeadPeekVM(row, L.searches.find((s) => s.id === row.search_id) ?? null, L.tz, new Date());
+}
+
 export function installLeadsCourier(): void {
   window.__leadsView = leadsView;
   window.__leadsMore = leadsMore;
@@ -249,6 +258,11 @@ export function installLeadsCourier(): void {
   window.__leadsRouteParse = parseLeadsRoute;
   window.__leadRail = leadRail;
   window.__leadsStanding = leadsStanding;
+  // And what the peek draws one lead from, built from the rows already loaded: contracts' too (Task 12).
+  window.__leadPeekVM = peekVMFor;
+  // What a kept search says it asked for, in the owner's words (§8.10): the rail's menu and the question before
+  // Remove read the same sentence.
+  window.__leadSearchWords = leadSearchWords;
   window.__leadStage = setLeadStage;
   window.__leadKeep = keepLead;
   window.__leadExclude = excludeLead;
@@ -264,9 +278,8 @@ export function installLeadsCourier(): void {
   window.__leadSearchRename = renameSearch;
   window.__leadSearchRemove = removeSearch;
   window.__leadBusinessLine = setBusinessLine;
-  // Two more view models join this list, each in the task that writes what it
-  // carries: `__leadPeekVM` (contracts' `toLeadPeekVM`, Task 12) and
-  // `__leadSearchWords` (contracts' `leadSearchWords`, Task 16). The words
+  // The two view models above joined this list each in the task that wrote what it
+  // carries (`__leadPeekVM`, Task 12; `__leadSearchWords`, Task 16). The words
   // themselves never come through the courier: `window.__LEAD_WORDS` and
   // `window.__LEAD_VM` are seeded in `seed-globals.ts` beside `__FACT_WORDS`.
 }
@@ -278,9 +291,11 @@ declare global {
     __leadsMore?: typeof leadsMore;
     __leadsTakeOffered?: typeof leadsTakeOffered;
     __leadsRouteOf?: typeof leadsRoute;
+    __leadPeekVM?: typeof peekVMFor;
     __leadsRouteParse?: typeof parseLeadsRoute;
     __leadRail?: typeof leadRail;
     __leadsStanding?: typeof leadsStanding;
+    __leadSearchWords?: typeof leadSearchWords;
     __leadStage?: typeof setLeadStage;
     __leadKeep?: typeof keepLead;
     __leadExclude?: typeof excludeLead;

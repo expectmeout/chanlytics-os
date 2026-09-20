@@ -8,7 +8,11 @@
  */
 import * as React from "react";
 import * as ReactDOM from "react-dom";
-import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords, csvCell } from "@chanlytics/contracts";
+import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords, csvCell, LEAD_WORDS } from "@chanlytics/contracts";
+import {
+  LEAD_COUNT_CHOICES, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords,
+  leadPlanAsk, leadPlanFacts, leadPlanLikely,
+} from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -27,6 +31,13 @@ declare global {
     __brokenConfigWords: typeof BROKEN_CONFIG_WORDS;
     __hardLimits: typeof hardLimitsWords;
     __csvCell: typeof csvCell;
+    __LEAD_WORDS: typeof LEAD_WORDS;
+    __LEAD_VM: {
+      planWords: typeof planWords; planSaid: typeof planSaid; planSentence: typeof planSentence; planWho: typeof planWho;
+      planWhere: typeof planWhere; planArea: typeof planArea; planMinutes: typeof planMinutes; planVersionOf: typeof planVersionOf;
+      LEAD_COUNT_CHOICES: typeof LEAD_COUNT_CHOICES; leadPlanLikely: typeof leadPlanLikely; leadPlanFacts: typeof leadPlanFacts;
+      leadPlanAsk: typeof leadPlanAsk;
+    };
   }
 }
 
@@ -73,6 +84,16 @@ if (typeof window !== "undefined") {
   // One CSV cell, as the route's export spells it: the page's export of a selection quoted and nothing more, so a
   // WhatsApp name of "=HYPERLINK(...)" ran in whoever opened that file while the whole-workspace export was safe.
   window.__csvCell = csvCell;
+  // Every word the Leads scope says, from contracts. The legacy pages are
+  // classic scripts and cannot import; without this each page would spell the
+  // stage, the email state and the questions again, and a word spelled twice is
+  // a word that drifts (contracts leads.ts LEAD_WORDS; Task 19 adds the facts'
+  // own words to the same record, Task 17 the ways beside it).
+  window.__LEAD_WORDS = LEAD_WORDS;
+  // One derivation per fact: __LEAD_WORDS holds the words, __LEAD_VM holds what
+  // derives them, and the pages spell neither. Task 10 adds `leadStrip` to this
+  // object and Task 19 adds `leadEndingLine`, each where the function is written.
+  window.__LEAD_VM = { planWords, planSaid, planSentence, planWho, planWhere, planArea, planMinutes, planVersionOf, LEAD_COUNT_CHOICES, leadPlanLikely, leadPlanFacts, leadPlanAsk };
 }
 
 export {};

@@ -15,7 +15,7 @@
 import { z } from "zod";
 import {
   LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
-  LeadSearchPlanSchema, siteHost, stateCode,
+  LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
@@ -59,32 +59,116 @@ export const LEAD_DRAFT_NOTE = "Your business address and a way to say no are ad
 export const LEAD_NO_ADDRESS = "Add your business address in Settings first. US law asks for it at the foot of every email you send a business.";
 /** Both consent doors say this, permanently, for a person a lead is linked to (decision 19). */
 export const LEAD_CONSENT_REFUSAL = "This person came from a lead you found. A yes has to come from them: their own message, or your yes page.";
+/* --------------------------------------------- release B, tasks 12-15 ---- */
 
-/** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
-export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
-/** How long a workspace's suggestions stand before Claude is asked again (4.4's suggestionsFor). */
-export const LEAD_SUGGEST_DAYS = 7;
+/** Not a fit's five whys, in the order the peek and the bulk bar offer them (§9.5). */
+export const LEAD_NOT_A_FIT_WORDS: Record<LeadNotAFitWhy, string> = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else",
+};
+export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+/** The one why that hides the place from every future search; the rest teach nothing in this release. */
+export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
+export const LEAD_REVIEW_WORD = "Needs review";
+export const LEAD_LEFT_OUT_WORD = "Left out";
+/** The peek's two groups of checks (P2, §0.1). Nothing read wears a plain check mark. */
+export const LEAD_CHECK_GROUP_WORDS: Record<"seen" | "read", string> = { seen: "Seen", read: "Claude's read" };
+export const LEAD_CHECK_UNSURE = "Couldn't tell";
+// LEAD_CHECK_KEYS and LeadCheckKey are 4.6's, written with the DTOs below; the
+// seven are four seen and three read. Nothing here declares them again.
+/** One label per check and answer; the particulars are the check's own reason. */
+export const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unknown", string>> = {
+  on_maps: { yes: "Open for business", no: "Not open for business", unknown: LEAD_CHECK_UNSURE },
+  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: LEAD_CHECK_UNSURE },
+  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: LEAD_CHECK_UNSURE },
+  mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: LEAD_CHECK_UNSURE },
+  independent: { yes: "Not a chain", no: "Part of a chain", unknown: LEAD_CHECK_UNSURE },
+  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: LEAD_CHECK_UNSURE },
+  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: LEAD_CHECK_UNSURE },
+};
+/** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
+export const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string> = {
+  none: "No email found on their site",
+  checking: "Checking the mailbox",
+  ok: "Mailbox exists",
+  catch_all: "Their server accepts every address, so the check can't tell",
+  unknown: "Their mail server wouldn't answer",
+  invalid: "That mailbox doesn't exist",
+};
+/** What the peek says under the email, from the plan's own contact standard (§0.1). */
+export const LEAD_CONTACT_STANDARD_WORDS: Record<"phone" | "email", string> = {
+  phone: "This search counts a phone as enough.",
+  email: "This search asked for a checked email.",
+};
+/** The note under the email of a lead that came with none, and the one thing left to do. */
+export const LEAD_NO_EMAIL_LINE = "Checked their home, contact and about pages. Call instead.";
+/** Both questions the peek asks when the owner comes back to the tab (§9.3, §9.4). */
+export const LEAD_SENT_QUESTION = "Did you send it?";
+export const LEAD_CALL_QUESTION = "How did the call go?";
+export const LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
+export const LEAD_NOTE_MAX = 280;
+/** A stage click never converts (§9.6): the control says where the yes comes from. */
+export const LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
 
-/** The platform-wide prior for a kind of business, as `lead_niche_prior()` answers it. */
-export interface LeadNichePrior { places: number; matched: number; with_email: number }
-/** Under this many judged matches the share is noise, and the line says so instead. */
-export const LEAD_PRIOR_MIN = 25;
+/** How much of the note is left, said in the field (§9.4). */
+export function leadNoteLeft(left: number, max: number): string {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
 
 /**
- * How reachable a kind of business is, in tenths, from what past searches
- * measured (`lead_niche_priors`, A1's calibration). Never a percentage and
- * never a promise: a kind nobody has searched says so, and the plan card says
- * the same thing ("checked after the first 25").
+ * Every word the Leads scope's own markup says, spelled once here and seeded onto the window as `window.__LEAD_WORDS`
+ * by `seed-globals.ts`, because the legacy pages import nothing. A words record is a global seeded once at boot, like
+ * `__FACT_WORDS`, not a courier's -- the courier carries acts. Task 19 adds the facts' own words (the stages, the
+ * endings, the guardrail sentences) to THIS record; there is one `LEAD_WORDS` and nothing else holds a lead's words.
+ * A sentence the server also says is not here: the routes' toasts are the routes' own.
  */
-export function leadReachLine(prior: LeadNichePrior | null | undefined): string {
-  if (!prior || prior.matched < LEAD_PRIOR_MIN) return "New kind of search · checked after 25";
-  const tenths = Math.round((prior.with_email / prior.matched) * 10);
-  if (tenths <= 1) return "Most list a phone · few have an email";
-  if (tenths >= 9) return "Nearly all have an email";
-  if (tenths === 5) return "About half have an email";
-  if (tenths === 7) return "About 2 in 3 have an email";
-  return `About ${tenths} in 10 have an email`;
-}
+export const LEAD_WORDS = {
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE,
+  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE,
+  sentQuestion: LEAD_SENT_QUESTION,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
+  noteMax: LEAD_NOTE_MAX,
+  noteLeft: leadNoteLeft,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  draftWriting: "Writing it…",
+  draftNote: LEAD_DRAFT_NOTE,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email.",
+} as const;
+
 
 /** When the suggestions cannot be written at all: a note on the page, never a page that fails (4.4's suggestionsFor). */
 export const LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
@@ -450,6 +534,165 @@ export const LeadSuggestAnswerSchema = z.object({
 export function leadDraftFooter(business: string, address: string): string {
   return `\n\n—\n${business} · ${address}\nNot interested? Reply "no thanks" and I won't write again.`;
 }
+/* ---------------------------------------------------------------- the peek */
+
+export interface LeadPeekReach {
+  phone: { value: string; note: string; tel: string | null; wrong: boolean } | null;
+  email: { value: string; note: string; standard: string; state: LeadEmailState; word: string; address: string | null; canDraft: boolean };
+  locked: { title: string; line: string };
+}
+export interface LeadPeekVM {
+  id: string;
+  searchId: string | null;
+  mark: string;
+  name: string;
+  /** The first two words of the name, for "Back to Zilker Strength". */
+  short: string;
+  sub: string;
+  cls: LeadClass;
+  stage: LeadStage;
+  stages: { id: "ready" | "nurture" | "converted"; label: string; on: boolean }[];
+  canStage: boolean;
+  notFitWord: string;
+  fit: { word: string; cls: string; sentence: string };
+  reach: LeadPeekReach;
+  groups: { how: "seen" | "read"; label: string; checks: { key: LeadCheckKey; label: string; answer: "yes" | "no" | "unknown"; source: string; reason: string | null }[] }[];
+  others: { summary: string; picked: string | null; items: { email: string; why: string }[] } | null;
+  found: { at: string; what: string }[];
+  links: { website: { label: string; href: string } | null; instagram: { label: string; href: string } | null };
+  version: number;
+}
+
+/** The owner's own word for the criterion a place was left out by; the plan holds it. */
+export function leadExclusionWord(search: LeadSearchDto | null, key: string | null): string {
+  if (!key) return LEAD_LEFT_OUT_WORD;
+  const plan = search?.plan;
+  const ex = plan?.exclusions.find((e) => e.key === key);
+  if (ex) return ex.text;
+  const cr = plan?.criteria.find((c) => c.key === key);
+  return cr ? cr.text : LEAD_LEFT_OUT_WORD;
+}
+/** A clock time on the day it happened, and the date too once it is not today (the peek is read weeks later). */
+function clockIn(tz: string, iso: string | null, now: Date): string {
+  if (!iso) return "—";
+  const at = new Date(iso);
+  if (Number.isNaN(at.getTime())) return "—";
+  const day = (d: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).format(d);
+  const clock = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "numeric", minute: "2-digit" }).format(at);
+  if (day(at) === day(now)) return clock;
+  return `${new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(at)}, ${clock}`;
+}
+
+/**
+ * The peek (§9.2, P2, S12): the sub-line, the fit sentence, how to reach them, the checks in two groups (what was
+ * seen, and what Claude read), the other addresses, Found, the site. Every sentence here, so the page says nothing
+ * of its own. The mark is `initialsOf`, the same derivation the row wears, never a second one.
+ */
+export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: string, now: Date): LeadPeekVM {
+  const m = r.member;
+  const area = [r.city, r.state].filter(Boolean).join(", ");
+  const sub = [r.category, area].filter(Boolean).join(" · ") + (r.places > 1 ? ` · ${r.places} locations` : "");
+  const fitWord = m.class === "qualified"
+    ? (m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look)
+    : m.class === "review" ? LEAD_REVIEW_WORD : leadExclusionWord(search, m.excluded_by);
+  const fitCls = m.class === "qualified" ? (m.fit ?? "look") : m.class === "review" ? "review" : "out";
+  const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
+  const emailNote = r.email
+    ? r.email_state === "ok" ? `${LEAD_MAILBOX_WORDS.ok} · checked ${clockIn(tz, r.email_checked_at, now)}`
+      : r.email_state === "checking" ? LEAD_MAILBOX_WORDS.checking
+      : r.email_state === "invalid" ? `${LEAD_MAILBOX_WORDS.invalid}. Call instead.`
+      : LEAD_MAILBOX_WORDS[r.email_state]
+    : LEAD_NO_EMAIL_LINE;
+  const mailboxLabel = LEAD_MAILBOX_WORDS[r.email_state];
+  const seen: LeadPeekVM["groups"][number]["checks"] = [];
+  const read: LeadPeekVM["groups"][number]["checks"] = [];
+  for (const c of m.checks) {
+    const label = c.key === "mailbox" ? mailboxLabel : LEAD_CHECK_WORDS[c.key][c.answer];
+    (c.how === "seen" ? seen : read).push({ key: c.key, label, answer: c.answer, source: c.source, reason: c.reason });
+  }
+  const others = m.other_emails.length
+    ? {
+        summary: `${m.other_emails.length} other address${m.other_emails.length === 1 ? "" : "es"} on their site`,
+        picked: m.checks.find((c) => c.key === "own_address")?.reason ?? null,
+        items: m.other_emails,
+      }
+    : null;
+  const host = r.website;
+  const siteLine = host
+    ? r.email_state === "none"
+      ? `Their website, ${host}: no email on the home, contact or about pages`
+      : `Their website, ${host}: an email on the contact page`
+    : "No website to check";
+  const term = search?.plan.terms[0] ?? null;
+  return {
+    id: r.id,
+    searchId: r.search_id ?? null,
+    mark: initialsOf(r.business_name),
+    name: r.business_name,
+    short: r.business_name.split(/\s+/).slice(0, 2).join(" "),
+    sub,
+    cls: m.class,
+    stage: r.stage,
+    stages: (["ready", "nurture", "converted"] as const).map((id) => ({ id, label: LEAD_STAGE_WORDS[id], on: r.stage === id })),
+    canStage: m.class !== "excluded",
+    notFitWord: LEAD_CLOSED_WORDS.not_a_fit,
+    fit: { word: fitWord, cls: fitCls, sentence: m.reason },
+    reach: {
+      phone: r.phone
+        ? {
+            value: r.phone,
+            note: r.phone_wrong ? "You marked this number wrong." : r.phone_agrees ? "The same number on Google Maps and their website" : "From their Google Maps listing",
+            tel: r.phone_wrong ? null : `tel:${r.phone}`,
+            wrong: r.phone_wrong,
+          }
+        : null,
+      email: {
+        value: r.email ?? "No email on their site",
+        note: emailNote,
+        standard,
+        state: r.email_state,
+        word: LEAD_EMAIL_WORDS[r.email_state],
+        address: r.email,
+        canDraft: !!r.email && r.email_state !== "invalid" && r.email_state !== "none",
+      },
+      locked: { title: "Texts and WhatsApp", line: LEAD_LOCKED_LINE },
+    },
+    groups: [
+      { how: "seen", label: LEAD_CHECK_GROUP_WORDS.seen, checks: seen },
+      { how: "read", label: LEAD_CHECK_GROUP_WORDS.read, checks: read },
+    ].filter((g) => g.checks.length > 0) as LeadPeekVM["groups"],
+    others,
+    found: [
+      { at: clockIn(tz, r.found_at, now), what: term ? `On Google Maps, searching “${term}”` : "On a Google Maps listing" },
+      { at: clockIn(tz, r.found_at, now), what: siteLine },
+      { at: clockIn(tz, r.email_checked_at ?? r.found_at, now), what: `Mailbox check: ${mailboxLabel}` },
+    ],
+    links: {
+      website: host ? { label: host, href: `https://${host}` } : null,
+      instagram: r.instagram ? { label: "Instagram", href: r.instagram } : null,
+    },
+    version: r.version,
+  };
+}
+
+
+/** What removing a search keeps: the leads already worked. Said before the press; the number comes after it. */
+export const LEAD_REMOVE_KEEPS = "Keeps the ones you contacted or are talking to.";
+
+/**
+ * A kept search, in the owner's own words (§8.10): what they asked for, the day they asked, and what the plan
+ * leaves out. One derivation, because the rail's menu and the question before Remove both say it.
+ */
+export function leadSearchWords(s: { asked: string; asked_on: string; plan?: LeadSearchPlan } | null, tz: string): { askedLine: string; keepsLine: string } {
+  if (!s) return { askedLine: "", keepsLine: LEAD_REMOVE_KEEPS };
+  const day = new Intl.DateTimeFormat("en-US", { timeZone: tz, month: "short", day: "numeric" }).format(new Date(s.asked_on));
+  // Release A spells an exclusion `exclusions[]: { key, text, origin }` and a criterion
+  // `criteria[]: { key, text, standard, required }` (lead-search.ts, LeadSearchPlanSchema):
+  // what is left out is the exclusions list, and its words are `text`.
+  const left = (s.plan?.exclusions ?? []).map((c) => c.text).filter(Boolean);
+  const leaving = left.length ? ` Leaving out ${left.join(" and ")}.` : "";
+  return { askedLine: `You asked on ${day}: “${s.asked}”.${leaving}`, keepsLine: LEAD_REMOVE_KEEPS };
+}
 
 /* ------------------------------------------------- what the doors answer -- */
 
@@ -489,8 +732,25 @@ export interface LeadSearchRoundDto {
 export interface LeadSearchDto { id: string; name: string; asked: string; asked_on: string; plan: LeadSearchPlan; plan_version: number; round: LeadSearchRoundDto | null }
 export interface LeadCounts { all: number; ready: number; nurture: number; converted: number; said_no: number; not_a_fit: number }
 export interface LeadSuggestionsDto { business_line: string; by_owner: boolean; made_at: string; items: { words: string; who_for: string; category_key: string; reach: string | null }[]; note?: string }
-/** What the plan card is given beside the plan (Task 9); `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
-export interface LeadPlanFacts { dupes: number; leadsLeft: number; bound: "month" | "budget" | null; prior: { places: number; matched: number; with_email: number } | null; priorOf: string | null; cannotSee: string[]; renewsOn: string; nearby: string[] }
+/** What the card knows beyond the plan: the reads release A's doors answer, folded into one unit (§0.2). `planFacts` in `server/leads.ts` (4.4) builds exactly this. */
+export interface LeadPlanFacts {
+  /** Places already in People or Leads this plan would skip: "Skips the 14 already yours". */
+  dupes: number;
+  /** Leads this month still covers, every limit folded in. */
+  leadsLeft: number;
+  /** Which limit made that number, when one of them binds before the plan's own count. A's counter kinds, never a word of its own. */
+  bound: "allowance" | "budget" | null;
+  /** The platform-wide prior for this kind of business (lead_niche_prior), or null when it was never searched. */
+  prior: { places: number; matched: number; with_email: number } | null;
+  /** The kind of business the prior is for, in the owner's words: "trainers". */
+  priorOf: string | null;
+  /** A must-be-seen criterion the chosen card cannot see (§0.1), with the likely version offered. */
+  cannotSee: { key: string; text: string; likely: string } | null;
+  /** The day the month's leads renew, in the workspace's zone: "Oct 1". */
+  renewsOn: string;
+  /** Claude's nearby areas, for the card's area picker and for a round further out. */
+  nearby: LeadArea[];
+}
 
 /* ------------------------------------------------ what the page is given -- */
 
@@ -603,4 +863,54 @@ export function leadsStanding(counts: LeadCounts, searches: LeadSearchDto[]): { 
     parts: [`${counts.ready} ready`, `${searches.length} ${searches.length === 1 ? "search" : "searches"}`],
     needsYou: waiting.length ? { count: waiting.length, searchId: waiting[0]!.id } : null,
   };
+}
+
+
+/* --------------------------------------------- the plan card (Task 9) -- */
+
+/** Under this many places judged, a prior is too thin to say a number from. */
+export const LEAD_PRIOR_MIN_PLACES = 50;
+
+/**
+ * The Likely line and its two-part bar (§8.3): what past searches for this
+ * kind of business found, never a promise about this one. A kind never
+ * searched says the share is checked after the first 25 (P3).
+ */
+export function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts): { emailPct: number | null; phonePct: number | null; line: string } {
+  const p = facts.prior;
+  if (!p || p.places < LEAD_PRIOR_MIN_PLACES || p.matched <= 0) {
+    return { emailPct: null, phonePct: null, line: "How many have an email is checked after the first 25." };
+  }
+  const share = Math.min(1, p.with_email / p.matched);
+  const emailPct = Math.round(share * 100);
+  const withEmail = Math.round(plan.count * share);
+  const of = facts.priorOf ? ` · from past searches for ${facts.priorOf}` : "";
+  return { emailPct, phonePct: 100 - emailPct, line: `About ${withEmail} will have an email; the rest you call${of}` };
+}
+
+/** The facts under the sentence (§8.3), in the one unit the owner has: leads. No dollar meter. */
+export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): string[] {
+  return [
+    `About ${planMinutes(plan)} minutes — leave the page if you like`,
+    `Skips the ${facts.dupes} already yours`,
+    `Counts only matches you can reach · ${leadAllowanceFact(facts.leadsLeft)}`,
+  ];
+}
+
+/**
+ * What the card asks for, and how it says why it is not what was typed (§0.2,
+ * decision 27). When a limit binds the count is clamped to what is left, the
+ * button says that number, and one sentence says which limit and what else
+ * would fit. There is no dollar meter, and the word is always leads.
+ */
+export function leadPlanAsk(plan: LeadSearchPlan, facts: LeadPlanFacts): { count: number; label: string; covers: string | null } {
+  const binds = facts.bound !== null && facts.leadsLeft < plan.count;
+  const count = binds ? Math.max(0, facts.leadsLeft) : plan.count;
+  const label = `Find ${count} lead${count === 1 ? "" : "s"}`;
+  if (!binds) return { count, label, covers: null };
+  const who = planWho(plan);
+  const covers = facts.bound === "budget"
+    ? `Emails for ${who} are hard to find, so this month covers about ${count} more. Find ${count} now?`
+    : `You have ${count} lead${count === 1 ? "" : "s"} left this month. Your leads renew on ${facts.renewsOn}.`;
+  return { count, label, covers };
 }
