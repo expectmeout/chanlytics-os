@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { isRetryableAuthError } from "@/server/auth-errors";
 import { contentSecurityPolicy, CSP_HEADER } from "@/csp";
+import { writeAuthCookies } from "@/server/auth-cookies";
 
 /**
  * The complete set of paths reachable without a session. Everything else — every
@@ -109,12 +110,14 @@ export async function proxy(request: NextRequest) {
         getAll() {
           return request.cookies.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, headers) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
           response = nextWithPolicy();
-          cookiesToSet.forEach(({ name, value, options }) =>
-            response.cookies.set(name, value, options),
-          );
+          // A refreshed token rides out on THIS response, so the headers that
+          // keep it out of every cache in front of us ride with it. Dropping
+          // them lets a shared cache hand one operator's Set-Cookie to the
+          // next person who asks for the URL -- see src/server/auth-cookies.ts.
+          writeAuthCookies(response, cookiesToSet, headers);
         },
       },
     },
