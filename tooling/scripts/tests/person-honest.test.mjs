@@ -180,6 +180,8 @@ Object.assign(globalThis.window, {
 const { installPeopleCourier } = await import("../../../apps/dashboard/src/legacy-bridge/people-detail.ts");
 installPeopleCourier();
 delete globalThis.window.__saveView;
+await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 

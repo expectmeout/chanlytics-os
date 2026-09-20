@@ -59,6 +59,7 @@ import "@/legacy/pages/inbox-thread.jsx";
 import "@/legacy/pages/inbox-rail.jsx";
 import "@/legacy/pages/inbox.jsx";
 import "@/legacy/pages/clients-bits.jsx";
+import "@/legacy/pages/people-table.jsx";
 import "@/legacy/pages/clients-a.jsx";
 import "@/legacy/pages/client-profile.jsx";
 // leads, agent-store, agent-fleet, agent-studio, content-cal, pipeline and tasks

@@ -216,6 +216,8 @@ Object.assign(globalThis.window, {
   __offersYesSources: CONSENT_SOURCES.filter((s) => offersYesRefusal(s.id) === null),
   __mayReceive: mayReceive,
 });
+await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
+for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/client-profile.jsx");
 // The shell's ? sheet, whose Esc is heard before People's.

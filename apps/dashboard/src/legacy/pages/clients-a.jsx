@@ -1,5 +1,7 @@
 /* global React, Icon, CLIENTS, CLIENT_BUCKETS, CLIENT_SEGMENTS, CLIENTS_AGGREGATES,
-   ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead */
+   ChannelGlyph, TempBar, ClientTag, AgentChip, BucketPill, FailedRead,
+   PeopleTable, PeopleColumnsMenu, plLocked, plShows, plSortKeys, plDrawnColumns, plColumnChoices, plColumnOptions,
+   PL_NO_SEL */
 // Chanlytics — Clients · Direction A: Relationship Portfolio
 // Triage-first hybrid: bucket hero up top, dense table below.
 
@@ -1144,132 +1146,6 @@ const PL_COLUMNS = [
   { key: "lists", label: "Lists", sortable: false, on: false, cell: (p, x) => <td key="lists" className="dim cl-lists-cell" data-testid="row-lists">{(x.listsOf[p.id] || []).join(", ")}</td> },
   { key: "actions", label: "", sortable: false, fixed: true, cell: (p, x) => <td key="actions" className="shrink cl-actions-cell"><PeopleRowActions p={p} bookingLink={x.bookingLink} drop={x.drop} /></td> },
 ];
-// The keys a view may sort by: the columns whose headings sort.
-const PL_SORT_KEYS = PL_COLUMNS.filter((c) => c.sortable).map((c) => c.key);
-
-// Person and the row's actions are not the member's to hide.
-const plLocked = (c) => !!(c.pinned || c.fixed);
-// Whether a column shows on a desktop: Person and the row's actions always; any other by the member's own choice, else
-// its default.
-const plShows = (c, choices, x) => plLocked(c) || (typeof choices[c.key] === "boolean" ? choices[c.key] : typeof c.on === "function" ? c.on(x) : c.on !== false);
-// The columns drawn, in their order: every one this workspace can show (Visits needs a calendar). A member's choices are
-// a desktop's: one they turned off is drawn all the same, `off`, and only a desktop hides it (clients.css, pl-col-off),
-// so a phone's cards keep the facts they draw by default. Hidden cells were gone from the cards too, and the Columns menu
-// that could put them back is not drawn on a phone.
-const plDrawnColumns = (choices, x) => PL_COLUMNS.filter((c) => !c.needs || c.needs(x)).map((c) => (plShows(c, choices, x) ? c : { ...c, off: true }));
-
-// The table, for any rows: the columns it is given (one that is `off` drawn with pl-col-off on its heading and every
-// cell, which only a desktop hides), what a cell needs (`ctx`), a selection, a keyboard cursor and a way to open a
-// row. People draws it; Leads, a scope of People in Phase 1, will draw it with columns of its own. It
-// stays in this file until then: a legacy file of its own must join the manifest, Chanlytics.html and every test that
-// loads the page, and nothing else draws it yet. Still a <table class="cl-table">, so the page's selectors and the
-// phone's card rules hold. On a desktop it scrolls in its own box (pl-table-scroll): the header sticks to its top and
-// the pinned column to its left, and the hairline beside that column shows once it has scrolled sideways (`scrolled`,
-// the page's state). Hookless on purpose: the tests' stub React keys state by call order, and a list's own controls
-// above the table come and go.
-const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {} }) => {
-  const selecting = rows.some((p) => sel.has(p.id));
-  return (
-    <div className={`cl-table-wrap pl-table-wrap ${selecting ? "selecting" : ""}`}>
-      <div className={`pl-table-scroll ${scrolled ? "scrolled" : ""}`} onScroll={(e) => { const on = e.currentTarget.scrollLeft > 0; if (on !== scrolled) onScrolled(on); }} data-testid="people-table-scroll">
-        {/* pl-table is the phone's hook: on a narrow screen these rows stop being a
-            sideways scroll and stack, so the state is on the row instead of off the
-            right edge. The seeded page, Leads and Lists keep the table. */}
-        <table className="cl-table pl-table">
-          <thead>
-            <tr>
-              {selectable && (
-                <th className="cl-sel">
-                  <input type="checkbox" className="cl-check" checked={rows.length > 0 && rows.every((p) => sel.has(p.id))} onChange={onToggleAll} aria-label="Select everyone shown" title="Select everyone shown" data-testid="select-all" />
-                </th>
-              )}
-              {columns.map((c) => (
-                <th key={c.key} className={`${c.sortable ? "sortable" : ""} ${c.pinned ? "pl-pin" : ""} ${c.key === "actions" ? "cl-actions-head" : ""} ${c.off ? "pl-col-off" : ""}`} aria-sort={sortBy === c.key ? (sortDir === "asc" ? "ascending" : "descending") : undefined}>
-                  {/* A heading that sorts is a button, so a keyboard reaches it: the sort was the cell's own click, which Tab never found. */}
-                  {c.sortable
-                    ? <button type="button" className="cl-th-sort" onClick={() => onSort(c.key)}>{c.label}{sortBy === c.key && <span className="sort-arr">{sortDir === "asc" ? "▲" : "▼"}</span>}</button>
-                    : c.label}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {/* The cursor's row is the table's one tab stop (the first row until there is a cursor), and a row focused --
-                by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
-                J and K move focus with the cursor (the page's effect on `cursor`). */}
-            {rows.map((p, i) => (
-              <tr key={p.id} id={`person-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} tabIndex={cursor === p.id || (!cursor && i === 0) ? 0 : -1} onFocus={() => { if (cursor !== p.id) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
-                {selectable && (
-                  <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
-                    <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
-                  </td>
-                )}
-                {columns.map((c) => {
-                  const td = c.cell(p, ctx);
-                  return c.off ? React.cloneElement(td, { className: `${td.props.className || ""} pl-col-off` }) : td;
-                })}
-              </tr>
-            ))}
-            {rows.length === 0 && (
-              <tr>
-                <td colSpan={columns.length + (selectable ? 1 : 0)}>
-                  <EmptyState kind="line" className="empty-center" glyph="search" title={empty ? empty.title : total === 0 ? "Nobody has written or phoned yet." : "No one matches this view."} body={empty ? empty.body : undefined} action={empty ? empty.action : total > 0 && filtered ? { label: "Clear filters", onClick: onClearFilters } : null} />
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-      <div className="cl-table-foot">
-        <span>{filtered ? `Showing ${rows.length} of ${total}` : `${total} ${total === 1 ? "person" : "people"}`}</span>
-        <span className="cl-table-keys"><kbd>J</kbd><kbd>K</kbd> move · {selectable && <><kbd>x</kbd> selects · <kbd>esc</kbd> clears · </>}<kbd>↵</kbd> opens · <kbd>/</kbd> searches</span>
-      </div>
-    </div>
-  );
-};
-
-// A saved `columns` value, read with care: only the columns a member may hide, and only true or false. A view is the
-// member's own JSON, and an older page or another device may have written anything into it.
-const plColumnChoices = (raw) => {
-  const out = {};
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
-  for (const c of PL_COLUMNS) if (!plLocked(c) && typeof raw[c.key] === "boolean") out[c.key] = raw[c.key];
-  return out;
-};
-// The Columns menu's rows: every column this workspace can show, whether it shows, and Person, which always does.
-const plColumnOptions = (choices, x) => PL_COLUMNS
-  .filter((c) => !c.fixed && (!c.needs || c.needs(x)))
-  .map((c) => ({ key: c.key, label: c.label, on: plShows(c, choices, x), locked: !!c.pinned }));
-
-// Which columns show, as a menu that stays open while they are switched: MoreMenu closes on every item, which is right
-// for an action and wrong for a set of switches. Hookless, with its open state the page's, whose one keyboard listener
-// closes it on Esc and puts focus back on its button (`buttonRef`, the page's); pl-cols-menu keeps it out of
-// PL_OVERLAY, what is open over the page and not the page's. A phone draws cards, not columns, and a member's choices
-// are a desktop's (plDrawnColumns): the cards keep what they draw by default, so the menu is hidden there (clients.css).
-const PeopleColumnsMenu = ({ open, onOpenChange, options, onPick, buttonRef = null }) => (
-  <div className="more-wrap pl-cols">
-    <button type="button" ref={buttonRef} className="btn btn-ghost btn-sm" aria-haspopup="menu" aria-expanded={open} onClick={(e) => { e.stopPropagation(); onOpenChange(!open); }} data-testid="people-columns">
-      <Icon name="eye" size={12} /> Columns
-    </button>
-    {open && (
-      <>
-        <div className="more-backdrop" onClick={(e) => { e.stopPropagation(); onOpenChange(false); }} />
-        <div className="more-menu align-right pl-cols-menu" role="menu" aria-label="Columns" data-testid="people-columns-menu" onClick={(e) => e.stopPropagation()}>
-          <div className="more-header">Show on the table</div>
-          {options.map((c) => (
-            <button key={c.key} type="button" className="more-item" role="menuitemcheckbox" aria-checked={c.on} aria-disabled={c.locked ? true : undefined} onClick={() => { if (!c.locked) onPick(c.key); }} data-testid={`column-${c.key}`}>
-              <Icon name="check" size={13} />
-              <span className="more-item-label">{c.label}</span>
-              {c.locked && <span className="more-item-meta">Always</span>}
-            </button>
-          ))}
-        </div>
-      </>
-    )}
-  </div>
-);
-
-const PL_NO_SEL = new Set();
 // The batch doors take fifty people at a time (contacts/consent, /receptionist, /notes).
 const PL_BATCH = 50;
 // The loaded rows and what a search found past them, each person once.
@@ -1611,18 +1487,18 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const remembered = React.useMemo(() => ({ ...plLoadView(), ...((people.views && people.views.people) || {}) }), []); // eslint-disable-line react-hooks/exhaustive-deps
   const [tab, setTab] = useState(initialState && PL_TABS.includes(initialState) ? initialState : "all");
   React.useEffect(() => { if (initialState && PL_TABS.includes(initialState)) setTab(initialState); }, [initialState]);
-  const [sortBy, setSortBy] = useState(PL_SORT_KEYS.includes(remembered.sortBy) ? remembered.sortBy : "last");
+  const [sortBy, setSortBy] = useState(plSortKeys(PL_COLUMNS).includes(remembered.sortBy) ? remembered.sortBy : "last");
   const [sortDir, setSortDir] = useState(remembered.sortDir === "asc" ? "asc" : "desc");
   // The columns this member chose to show or hide with the Columns menu; a column they never touched keeps its
   // default (PL_COLUMNS). The menu's open state is the page's, so its one keyboard listener closes it on Esc.
-  const [colChoices, setColChoices] = useState(() => plColumnChoices(remembered.columns));
+  const [colChoices, setColChoices] = useState(() => plColumnChoices(PL_COLUMNS, remembered.columns));
   const [colsOpen, setColsOpen] = useState(false);
   // Whether the table has scrolled sideways, for the hairline beside Person: kept here so the table stays hookless.
   const [scrolledX, setScrolledX] = useState(false);
   // A view is the sort and the columns. The strip's tab was remembered too; a view saved before it went carries an
   // attentionTab this ignores, and the next save drops it. Every save sends every key the page owns, because
   // member_view_set replaces the page's whole object (00113): a save of the sort alone would lose the columns.
-  const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir, columns: plColumnChoices(remembered.columns) }));
+  const savedView = React.useRef(JSON.stringify({ sortBy: remembered.sortBy, sortDir: remembered.sortDir, columns: plColumnChoices(PL_COLUMNS, remembered.columns) }));
   // One saver for the page's life, so its saves go one at a time (plViewSaver).
   const viewSaver = React.useRef(null);
   if (!viewSaver.current) viewSaver.current = plViewSaver();
@@ -1761,8 +1637,8 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // to hide), and what a cell needs to draw itself: the booking link, each row's words, the list open for taking people
   // off, their lists, and which columns a desktop shows.
   const colCtx = { withCalendar };
-  const columns = plDrawnColumns(colChoices, colCtx);
-  const colOptions = plColumnOptions(colChoices, colCtx);
+  const columns = plDrawnColumns(PL_COLUMNS, colChoices, colCtx);
+  const colOptions = plColumnOptions(PL_COLUMNS, colChoices, colCtx);
   // Show or hide one column; Person and the row's actions are not the member's to hide. A column put back the way its
   // default has it is no choice any more, so it follows the default again: a receptionist turned off and on again
   // gives way to Visits once a calendar connects, as it does for everyone.
@@ -1966,6 +1842,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
           </div>
 
           <PeopleTable
+            noun="person"
             columns={columns}
             ctx={cellCtx}
             selectable={canEditLists || canExport}
