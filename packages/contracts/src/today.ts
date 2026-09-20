@@ -596,9 +596,15 @@ function figuresOf(
         : newWires.length === 1
           ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}`
           : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
+    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS
+    // the answer to what an owner is asking -- the count is every way somebody new reaches you, and the page
+    // only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
+    // under it, so a hover that worked three times in a row did nothing on the fourth.
     receipt: said.length
       ? { text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } }
-      : null,
+      : p.new_contacts > 0
+        ? { text: `Counted however they reached you — a message, a call, or a booking${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`, door: { label: "Open People", to: "clients/seg:new_week" } }
+        : null,
   };
   return [messages, answered, calls, newPeople];
 }
