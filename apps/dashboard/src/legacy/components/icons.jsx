@@ -70,6 +70,18 @@ const Icon = ({ name, size = 16, className = "", style = {} }) => {
     case "user":     return <svg {...props}><circle cx="8" cy="5.5" r="2.5"/><path d="M2.5 14a5.5 5.5 0 0111 0"/></svg>;
     case "sidebar":  return <svg {...props}><rect x="1.5" y="2.5" width="13" height="11" rx="1.5"/><path d="M6 2.5v11"/></svg>;
     case "download": return <svg {...props}><path d="M8 2.5v8M4.5 7L8 10.5 11.5 7"/><path d="M3 13h10"/></svg>;
+    // The lead finder's own (release B): a held mic, the stop and undo of a
+    // round, the lock on what a found lead may receive, a fact that could not
+    // be confirmed, and the row acts the peek and the table draw.
+    case "mic":      return <svg {...props}><rect x="6" y="2" width="4" height="7" rx="2"/><path d="M3.5 7.5a4.5 4.5 0 009 0M8 12v2"/></svg>;
+    case "stop":     return <svg {...props}><rect x="4" y="4" width="8" height="8" rx="1.5"/></svg>;
+    case "undo":     return <svg {...props}><path d="M3 7h7a3.5 3.5 0 010 7H6"/><path d="M5.5 4.5L3 7l2.5 2.5"/></svg>;
+    case "lock":     return <svg {...props}><rect x="3.5" y="7" width="9" height="6.5" rx="1.5"/><path d="M5.5 7V5a2.5 2.5 0 015 0v2"/></svg>;
+    case "dashring": return <svg {...props}><path d="M8 2a6 6 0 013.2 1M14 6.2a6 6 0 010 3.6M11.2 13A6 6 0 018 14M4.8 13A6 6 0 012 9.8M2 6.2A6 6 0 014.8 3"/></svg>;
+    case "copy":     return <svg {...props}><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5v-2a1 1 0 00-1-1h-6a1 1 0 00-1 1v6a1 1 0 001 1h2"/></svg>;
+    case "pencil":   return <svg {...props}><path d="M11 2.5l2.5 2.5-7.5 7.5H3.5V10z"/><path d="M9.5 4l2.5 2.5"/></svg>;
+    case "ban":      return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M4.1 11.9l7.8-7.8"/></svg>;
+    case "globe":    return <svg {...props}><circle cx="8" cy="8" r="5.5"/><path d="M2.5 8h11M8 2.5c1.6 1.7 2.4 3.6 2.4 5.5S9.6 12.3 8 13.5C6.4 12.3 5.6 10.4 5.6 8S6.4 4.2 8 2.5z"/></svg>;
     default: return <svg {...props}><circle cx="8" cy="8" r="3"/></svg>;
   }
 };

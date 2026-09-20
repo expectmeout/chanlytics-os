@@ -1,4 +1,4 @@
-/* The 18 legacy stylesheets in the EXACT Chanlytics.html cascade order —
+/* The 19 legacy stylesheets in the EXACT Chanlytics.html cascade order —
    Next.js does not guarantee cross-import CSS order, so one entry file does. */
 @import "../legacy/styles/tokens.css";
 @import "../legacy/styles/components.css";
@@ -7,6 +7,7 @@
 @import "../legacy/styles/inbox.css";
 @import "../legacy/styles/clients.css";
 @import "../legacy/styles/people.css";
+@import "../legacy/styles/leads.css";
 @import "../legacy/styles/store.css";
 @import "../legacy/styles/fleet.css";
 @import "../legacy/styles/pipeline.css";
