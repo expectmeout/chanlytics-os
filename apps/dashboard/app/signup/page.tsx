@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
+import AuthShell from "@/auth/AuthShell";
 
 /**
  * Sign-up: a business name, a work email and a password. The account exists
@@ -106,25 +107,29 @@ export default function SignupPage() {
 
   if (unsent) {
     return (
-      <main className="auth-card" data-testid="signup-unsent">
-        <h1>{SIGNUP_WORDS.notSentTitle}</h1>
-        <p>{unsent}</p>
-        <div className="hint">
-          <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.
+      <AuthShell>
+        <div className="auth-card" data-testid="signup-unsent">
+          <h1>{SIGNUP_WORDS.notSentTitle}</h1>
+          <p>{unsent}</p>
+          <div className="hint">
+            <a href={`/login?email=${encodeURIComponent(email.trim())}`}>Go to sign-in</a> and ask for the code there.
+          </div>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
   if (joined) {
     return (
-      <main className="auth-card" data-testid="signup-joined">
-        <h1>{SIGNUP_WORDS.waitlistTitle}</h1>
-        <p>{SIGNUP_WORDS.waitlistSent(email.trim())}</p>
-        <div className="hint">
-          Already have a workspace? <a href="/login">Sign in</a>
+      <AuthShell>
+        <div className="auth-card" data-testid="signup-joined">
+          <h1>{SIGNUP_WORDS.waitlistTitle}</h1>
+          <p>{SIGNUP_WORDS.waitlistSent(email.trim())}</p>
+          <div className="hint">
+            Already have a workspace? <a href="/login">Sign in</a>
+          </div>
         </div>
-      </main>
+      </AuthShell>
     );
   }
 
@@ -133,83 +138,85 @@ export default function SignupPage() {
   // again.
   if (stage === "confirm") {
     return (
-      <main className="auth-card" data-testid="signup-confirm">
-        <h1>{SIGNUP_WORDS.confirmTitle}</h1>
-        <p>{SIGNUP_WORDS.confirmLead(email.trim())}</p>
-        <CodeStep
-          email={email.trim()}
-          label="6-digit code"
-          submitLabel={SIGNUP_WORDS.confirmSubmit}
-          onSubmit={async (typed) => {
-            const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
-            if (error) return verifyCodeWords(error.message);
-            clearSurfaceCache();
-            // No workspace exists yet: the create screen opens next, with the
-            // name and clock from this form already in it.
-            window.location.assign("/");
-            return null;
-          }}
-          onResend={async () => {
-            // A confirmation is resent as a confirmation. Asking for a sign-in
-            // code instead would be a different credential for a different
-            // door, on an account that is not confirmed yet.
-            const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
-            return error ? requestCodeWords(error) : null;
-          }}
-          onBack={() => { setStage("form"); setError(null); }}
-        />
-        {/* The cost of answering a known address exactly as a new one: somebody
-            who already had an account is standing at a code screen waiting for
-            a code nobody sent. This is the way out, and it gives nothing away —
-            it is shown to everyone who reaches this step. */}
-        <div className="hint">{SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a></div>
-        <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
-      </main>
+      <AuthShell>
+        <div className="auth-card" data-testid="signup-confirm">
+          <h1>{SIGNUP_WORDS.confirmTitle}</h1>
+          <p>{SIGNUP_WORDS.confirmLead(email.trim())}</p>
+          <CodeStep
+            email={email.trim()}
+            label="6-digit code"
+            submitLabel={SIGNUP_WORDS.confirmSubmit}
+            onSubmit={async (typed) => {
+              const { error } = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "email" });
+              if (error) return verifyCodeWords(error.message);
+              clearSurfaceCache();
+              // No workspace exists yet: the create screen opens next, with the
+              // name and clock from this form already in it.
+              window.location.assign("/");
+              return null;
+            }}
+            onResend={async () => {
+              // A confirmation is resent as a confirmation. Asking for a sign-in
+              // code instead would be a different credential for a different
+              // door, on an account that is not confirmed yet.
+              const { error } = await supabase.auth.resend({ type: "signup", email: email.trim() });
+              return error ? requestCodeWords(error) : null;
+            }}
+            onBack={() => { setStage("form"); setError(null); }}
+          />
+          {/* The cost of answering a known address exactly as a new one: somebody
+              who already had an account is standing at a code screen waiting for
+              a code nobody sent. This is the way out, and it gives nothing away —
+              it is shown to everyone who reaches this step. */}
+          <div className="hint">{SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a></div>
+        </div>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="auth-card" data-testid="signup" data-posture={posture ?? "unknown"}>
-      <h1>{waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title}</h1>
-      <p>{waiting ? SIGNUP_WORDS.waitlistLead : SIGNUP_WORDS.lead}</p>
-      {/* Google makes the account and the create screen names the workspace --
-          and asks the invite code there, when sign-up is by invitation. Not on
-          the waitlist: a list takes details, not accounts. */}
-      {posture !== null && !waiting && <GoogleSignIn next="/" hint={SIGNUP_WORDS.googleNext} />}
-      <form onSubmit={submit}>
-        <label htmlFor="name">Business name</label>
-        <input id="name" type="text" autoComplete="organization" required minLength={2} maxLength={120} ref={fieldRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Luna Studio" />
-        <label htmlFor="email">Work email</label>
-        <input id="email" name="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
-        {/* Not on the waitlist, which makes no account to hold one. */}
-        {!waiting && (
-          <>
-            <label htmlFor="password">{PASSWORD_WORDS.chooseLabel}</label>
-            <input id="password" name="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" />
-            <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
-          </>
-        )}
-        {posture === "invite" && (
-          <>
-            <label htmlFor="code">Invite code</label>
-            <input id="code" type="text" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="From your Chanlytics contact" />
-          </>
-        )}
-        <button disabled={busy || posture === null}>
-          {busy ? (waiting ? "Adding you…" : "Creating your workspace…") : waiting ? SIGNUP_WORDS.waitlistCta : "Create workspace"}
-        </button>
-      </form>
-      {/* The device clock is read to set the workspace's timezone. On the
-          waitlist there is no workspace yet, so saying so would be noise. */}
-      {tz && !waiting && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
-      {posture === "invite" && <div className="hint">{SIGNUP_WORDS.codeRequired}</div>}
-      <div role="alert" aria-live="assertive">
-        {error && <div className="error">{error}</div>}
+    <AuthShell>
+      <div className="auth-card" data-testid="signup" data-posture={posture ?? "unknown"}>
+        <h1>{waiting ? SIGNUP_WORDS.waitlistTitle : SIGNUP_WORDS.title}</h1>
+        <p>{waiting ? SIGNUP_WORDS.waitlistLead : SIGNUP_WORDS.lead}</p>
+        {/* Google makes the account and the create screen names the workspace --
+            and asks the invite code there, when sign-up is by invitation. Not on
+            the waitlist: a list takes details, not accounts. */}
+        {posture !== null && !waiting && <GoogleSignIn next="/" hint={SIGNUP_WORDS.googleNext} />}
+        <form onSubmit={submit}>
+          <label htmlFor="name">Business name</label>
+          <input id="name" type="text" autoComplete="organization" required minLength={2} maxLength={120} ref={fieldRef} value={name} onChange={(e) => setName(e.target.value)} placeholder="Luna Studio" />
+          <label htmlFor="email">Work email</label>
+          <input id="email" name="email" type="email" autoComplete="username" required value={email} onChange={(e) => setEmail(e.target.value)} placeholder="you@business.com" />
+          {/* Not on the waitlist, which makes no account to hold one. */}
+          {!waiting && (
+            <>
+              <label htmlFor="password">{PASSWORD_WORDS.chooseLabel}</label>
+              <input id="password" name="password" type="password" autoComplete="new-password" required value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••••••" />
+              <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
+            </>
+          )}
+          {posture === "invite" && (
+            <>
+              <label htmlFor="code">Invite code</label>
+              <input id="code" type="text" autoComplete="off" required value={code} onChange={(e) => setCode(e.target.value)} placeholder="From your Chanlytics contact" />
+            </>
+          )}
+          <button disabled={busy || posture === null}>
+            {busy ? (waiting ? "Adding you…" : "Creating your workspace…") : waiting ? SIGNUP_WORDS.waitlistCta : "Create workspace"}
+          </button>
+        </form>
+        {/* The device clock is read to set the workspace's timezone. On the
+            waitlist there is no workspace yet, so saying so would be noise. */}
+        {tz && !waiting && <div className="hint">{SIGNUP_WORDS.clock(tz)}</div>}
+        {posture === "invite" && <div className="hint">{SIGNUP_WORDS.codeRequired}</div>}
+        <div role="alert" aria-live="assertive">
+          {error && <div className="error">{error}</div>}
+        </div>
+        <div className="hint">
+          {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
+        </div>
       </div>
-      <div className="hint">
-        {SIGNUP_WORDS.haveOne} <a href="/login">Sign in</a>
-      </div>
-      <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
-    </main>
+    </AuthShell>
   );
 }

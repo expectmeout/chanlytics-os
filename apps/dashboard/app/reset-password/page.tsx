@@ -5,6 +5,7 @@ import { PASSWORD_WORDS, passwordProblem, requestCodeWords } from "@chanlytics/c
 import { createClient } from "@/lib/supabase/client";
 import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import CodeStep from "@/auth/CodeStep";
+import AuthShell from "@/auth/AuthShell";
 
 /**
  * Forgetting a password: a code, then the new password, on one public page.
@@ -67,93 +68,95 @@ export default function ResetPasswordPage() {
 
   if (stage === "ask") {
     return (
-      <main className="auth-card" data-testid="reset-ask">
-        <h1>{PASSWORD_WORDS.resetTitle}</h1>
-        <p>{PASSWORD_WORDS.resetLead}</p>
-        <form onSubmit={ask}>
-          <label htmlFor="email">Work email</label>
-          <input
-            id="email"
-            name="email"
-            type="email"
-            autoComplete="username"
-            required
-            ref={fieldRef}
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            placeholder="you@business.com"
-          />
-          <button disabled={busy}>{busy ? "Sending code…" : "Email me a code"}</button>
-        </form>
-        <div role="alert" aria-live="assertive">
-          {error && <div className="error">{error}</div>}
+      <AuthShell>
+        <div className="auth-card" data-testid="reset-ask">
+          <h1>{PASSWORD_WORDS.resetTitle}</h1>
+          <p>{PASSWORD_WORDS.resetLead}</p>
+          <form onSubmit={ask}>
+            <label htmlFor="email">Work email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autoComplete="username"
+              required
+              ref={fieldRef}
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              placeholder="you@business.com"
+            />
+            <button disabled={busy}>{busy ? "Sending code…" : "Email me a code"}</button>
+          </form>
+          <div role="alert" aria-live="assertive">
+            {error && <div className="error">{error}</div>}
+          </div>
+          <div className="hint"><a href="/login">{PASSWORD_WORDS.backToSignIn}</a></div>
         </div>
-        <div className="hint"><a href="/login">{PASSWORD_WORDS.backToSignIn}</a></div>
-        <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
-      </main>
+      </AuthShell>
     );
   }
 
   return (
-    <main className="auth-card" data-testid="reset-set">
-      <h1>{PASSWORD_WORDS.resetTitle}</h1>
-      <p>{PASSWORD_WORDS.resetSent(email.trim())}</p>
-      <CodeStep
-        email={email.trim()}
-        label="6-digit code"
-        submitLabel={PASSWORD_WORDS.resetSubmit}
-        onSubmit={async (typed) => {
-          // Checked here so the answer is instant and names the field, and
-          // again by Supabase, where the floor and the breach list are the
-          // rule rather than a courtesy.
-          const weak = passwordProblem(password);
-          if (weak) return weak;
-          // The code is what creates the session; the new password is written
-          // on it. A code that does not verify has changed nothing -- but one
-          // that DOES is spent, and the session it made is ours from then on.
-          // Verifying again on every submit stranded anyone whose password
-          // passed the check above and was then refused by Supabase (the breach
-          // list, or a project floor higher than ours): they were signed in,
-          // facing a code box, and every retry failed at verifyOtp and blamed
-          // the code. Once it is accepted, retries go straight to the password.
-          if (!codeAccepted.current) {
-            const verified = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "recovery" });
-            if (verified.error) return PASSWORD_WORDS.resetBadCode;
-            codeAccepted.current = true;
-          }
-          const saved = await supabase.auth.updateUser({ password });
-          // Signed in but the password did not take (too short for the
-          // project, or on the breach list). Say so rather than landing them
-          // inside believing it changed.
-          if (saved.error) return saved.error.message;
-          clearSurfaceCache();
-          window.location.assign("/");
-          return null;
-        }}
-        onResend={async () => {
-          const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
-          // A fresh code is a fresh verification.
-          if (!error) codeAccepted.current = false;
-          return error ? requestCodeWords(error) : null;
-        }}
-        onBack={() => { setStage("ask"); setError(null); }}
-        backLabel="Use a different email"
-      >
-        <label htmlFor="new-password">{PASSWORD_WORDS.newLabel}</label>
-        <input
-          id="new-password"
-          name="new-password"
-          type="password"
-          autoComplete="new-password"
-          required
-          value={password}
-          onChange={(e) => setPassword(e.target.value)}
-          placeholder="••••••••••••"
-        />
-        <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
-      </CodeStep>
-      <div className="hint"><a href="/login">{PASSWORD_WORDS.backToSignIn}</a></div>
-      <div className="hint auth-legal"><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></div>
-    </main>
+    <AuthShell>
+      <div className="auth-card" data-testid="reset-set">
+        <h1>{PASSWORD_WORDS.resetTitle}</h1>
+        <p>{PASSWORD_WORDS.resetSent(email.trim())}</p>
+        <CodeStep
+          email={email.trim()}
+          label="6-digit code"
+          submitLabel={PASSWORD_WORDS.resetSubmit}
+          onSubmit={async (typed) => {
+            // Checked here so the answer is instant and names the field, and
+            // again by Supabase, where the floor and the breach list are the
+            // rule rather than a courtesy.
+            const weak = passwordProblem(password);
+            if (weak) return weak;
+            // The code is what creates the session; the new password is written
+            // on it. A code that does not verify has changed nothing -- but one
+            // that DOES is spent, and the session it made is ours from then on.
+            // Verifying again on every submit stranded anyone whose password
+            // passed the check above and was then refused by Supabase (the breach
+            // list, or a project floor higher than ours): they were signed in,
+            // facing a code box, and every retry failed at verifyOtp and blamed
+            // the code. Once it is accepted, retries go straight to the password.
+            if (!codeAccepted.current) {
+              const verified = await supabase.auth.verifyOtp({ email: email.trim(), token: typed, type: "recovery" });
+              if (verified.error) return PASSWORD_WORDS.resetBadCode;
+              codeAccepted.current = true;
+            }
+            const saved = await supabase.auth.updateUser({ password });
+            // Signed in but the password did not take (too short for the
+            // project, or on the breach list). Say so rather than landing them
+            // inside believing it changed.
+            if (saved.error) return saved.error.message;
+            clearSurfaceCache();
+            window.location.assign("/");
+            return null;
+          }}
+          onResend={async () => {
+            const { error } = await supabase.auth.resetPasswordForEmail(email.trim());
+            // A fresh code is a fresh verification.
+            if (!error) codeAccepted.current = false;
+            return error ? requestCodeWords(error) : null;
+          }}
+          onBack={() => { setStage("ask"); setError(null); }}
+          backLabel="Use a different email"
+        >
+          <label htmlFor="new-password">{PASSWORD_WORDS.newLabel}</label>
+          <input
+            id="new-password"
+            name="new-password"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            placeholder="••••••••••••"
+          />
+          <div className="auth-field-hint">{PASSWORD_WORDS.hint}</div>
+        </CodeStep>
+        <div className="hint"><a href="/login">{PASSWORD_WORDS.backToSignIn}</a></div>
+      </div>
+    </AuthShell>
   );
 }
