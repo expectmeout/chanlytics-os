@@ -12,8 +12,8 @@
  *
  * So: no-store, everything, always. This serves a design review, not traffic.
  *
- * One file is built rather than read: `data/reports-sample.js`, the demo's
- * Reports (see reportsSampleBundle below).
+ * Two files are built rather than read: `data/reports-sample.js` and `data/today-sample.js`, the demo's Reports and
+ * Today (see SAMPLES below).
  *
  *   node tooling/scripts/serve-legacy.mjs [port] [dir]
  */
@@ -40,36 +40,46 @@ const TYPES = {
   ".woff2": "font/woff2",
 };
 
-const SAMPLE = path.join(REPO, "apps/dashboard/src/legacy-bridge/reports-sample.ts");
 const CONTRACTS = path.join(REPO, "packages/contracts/dist/index.js");
-let built = { stamp: "", js: "" };
 
 /**
- * The demo's Reports, for the mockup: legacy-bridge/reports-sample.ts (a sample business through the same contracts
- * functions a real workspace's numbers go through) bundled for the browser, with contracts from its dist as the app
- * reads it. Chanlytics.html loads it as data/reports-sample.js; it publishes window.__reportsSample, which Reports
- * draws in a demo session, so the mockup shows the one Reports page there is. Built on the first request, and again
- * when the sample or the contracts dist changes.
+ * The demo's samples, for the mockup: legacy-bridge/reports-sample.ts and legacy-bridge/today-sample.ts (a sample
+ * business through the same contracts functions a real workspace's numbers go through) bundled for the browser,
+ * with contracts from its dist as the app reads it. Chanlytics.html loads them as data/*-sample.js; each publishes
+ * its function on window (`__reportsSample`, `__todaySample`), and Today's installs its surfaces where the app's
+ * globals are absent, so the mockup shows the one Reports page and the one Today page there are. Built on the first
+ * request, and again when the sample or the contracts dist changes.
  */
-export async function reportsSampleBundle() {
-  const stamp = [SAMPLE, CONTRACTS].map((f) => fs.statSync(f).mtimeMs).join(":");
-  if (built.stamp === stamp) return built.js;
+const SAMPLES = {
+  "/data/reports-sample.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/reports-sample.ts"), globalName: "__RS", footer: "window.__reportsSample = __RS.reportsSample;" },
+  "/data/today-sample.js": { entry: path.join(REPO, "apps/dashboard/src/legacy-bridge/today-sample.ts"), globalName: "__TS", footer: "window.__todaySample = __TS.todaySample; __TS.installTodaySample(window);" },
+};
+const built = new Map();
+
+async function sampleBundle(route) {
+  const s = SAMPLES[route];
+  const stamp = [s.entry, CONTRACTS].map((f) => fs.statSync(f).mtimeMs).join(":");
+  const hit = built.get(route);
+  if (hit && hit.stamp === stamp) return hit.js;
   const { build } = await import("esbuild");
   const out = await build({
-    entryPoints: [SAMPLE],
+    entryPoints: [s.entry],
     bundle: true,
     format: "iife",
-    globalName: "__RS",
+    globalName: s.globalName,
     platform: "browser",
     target: "es2020",
     write: false,
     logLevel: "silent",
     alias: { "@chanlytics/contracts": CONTRACTS },
-    footer: { js: "window.__reportsSample = __RS.reportsSample;" },
+    footer: { js: s.footer },
   });
-  built = { stamp, js: out.outputFiles[0].text };
-  return built.js;
+  built.set(route, { stamp, js: out.outputFiles[0].text });
+  return built.get(route).js;
 }
+
+export const reportsSampleBundle = () => sampleBundle("/data/reports-sample.js");
+export const todaySampleBundle = () => sampleBundle("/data/today-sample.js");
 
 const send = (res, status, type, body) => {
   res.writeHead(status, { "content-type": type, "cache-control": "no-store, must-revalidate" });
@@ -81,10 +91,10 @@ function serve(port, root) {
     .createServer((req, res) => {
       // The query string is the cache-buster, never part of the path.
       const rel = decodeURIComponent((req.url || "/").split("?")[0]);
-      if (rel === "/data/reports-sample.js") {
-        reportsSampleBundle().then(
+      if (SAMPLES[rel]) {
+        sampleBundle(rel).then(
           (js) => send(res, 200, TYPES[".js"], js),
-          (e) => send(res, 500, "text/plain", `reports-sample.js could not be built: ${e.message}`),
+          (e) => send(res, 500, "text/plain", `${rel.slice("/data/".length)} could not be built: ${e.message}`),
         );
         return;
       }

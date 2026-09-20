@@ -100,13 +100,8 @@
 
   /* ---------- Today ---------- */
   .dash-a-v2 { padding: 16px 16px 96px; }
-  .dash-a-v2-core { grid-template-columns: 1fr; }
+  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }
   .rail { position: static; }
-  .brief-body { grid-template-columns: 1fr; }
-  .brief-pulse { display: none; }
-  .ac-rail { flex-direction: column; }
-  .ac-buckets { border-right: none; border-bottom: 1px solid var(--line); overflow-x: auto; }
-  .dec-outcomes { grid-template-columns: 1fr; }
   .fleet-grid { grid-template-columns: 1fr 1fr; }
   /* The real queue's head and its call in progress wrap on a phone; they held one line and cut the words off. */
   .tq-head { flex-wrap: wrap; }

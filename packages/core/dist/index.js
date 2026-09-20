@@ -3770,9 +3770,9 @@ function questionAfterProbe(plan, members) {
   const excluded = members.filter((m) => m.class === "excluded").length;
   if (excluded / n <= 1 - LEAD_QUESTION_THRESHOLD) return { ask: false };
   const exclusionKeys = new Set(plan.exclusions.map((e) => e.key));
-  const tally = /* @__PURE__ */ new Map();
-  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally.set(m.excluded_by, (tally.get(m.excluded_by) ?? 0) + 1);
-  const top = [...tally.entries()].sort((a, b) => b[1] - a[1])[0];
+  const tally2 = /* @__PURE__ */ new Map();
+  for (const m of members) if (m.class === "excluded" && m.excluded_by && exclusionKeys.has(m.excluded_by)) tally2.set(m.excluded_by, (tally2.get(m.excluded_by) ?? 0) + 1);
+  const top = [...tally2.entries()].sort((a, b) => b[1] - a[1])[0];
   if (!top) return { ask: false };
   const textOf2 = (key) => lowerFirst2(plan.exclusions.find((e) => e.key === key)?.text ?? plan.criteria.find((c) => c.key === key)?.text ?? key);
   const namedShare = top[1] / n;

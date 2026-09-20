@@ -189,6 +189,8 @@ test("a row's main button takes a gate, and Enter on a button inside a row does 
 /* ------------------------------------ Today ------------------------------------ */
 
 await import("../../../apps/dashboard/src/legacy/pages/dashboard-a-command.jsx");
+const { TODAY_HELPERS } = await import("../../../apps/dashboard/src/legacy-bridge/today.ts");
+globalThis.window.__today = TODAY_HELPERS;
 
 const metrics = {
   workspace: { name: "Melany's Beauty Salon", timezone: "America/New_York", status: "active" },
@@ -205,7 +207,7 @@ test("REGRESSION (D8): Today's Approve on a waiting run is gated for a viewer, w
   Object.assign(globalThis.window, {
     AttnRow: (p) => { rows.push(p); return null; },
     usePPToast: () => [null, () => {}],
-    __BROADCASTS: { rows: [{ id: "b1", state: "pending_approval", recipient_count: 3, audience: { label: "Win-back" }, playbook_id: "p1", scheduled_for: null }] },
+    __BROADCASTS: { rows: [{ id: "b1", state: "pending_approval", recipient_count: 3, audience: { label: "Win-back" }, playbook_id: "p1", scheduled_for: null, when: "today 6:00 PM", counts: { sent: 0, replied: 0 } }] },
     __broadcasts: { approve: async () => ({ ok: true, data: {} }), cancel: async () => ({ ok: true, data: {} }) },
     TODAY_DATA: toTodayVM(metrics, [], [], [], new Date("2026-09-06T14:00:00Z")),
   });

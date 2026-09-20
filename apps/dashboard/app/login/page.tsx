@@ -7,6 +7,7 @@ import { clearSurfaceCache } from "@/legacy-bridge/surface-cache";
 import GoogleSignIn from "@/auth/GoogleSignIn";
 import CodeStep from "@/auth/CodeStep";
 import AuthShell from "@/auth/AuthShell";
+import { authErrorInHash, OAUTH_CANCELLED } from "@/auth/hash-error";
 
 // The words for each failure and the resend wait live in contracts
 // (requestCodeWords, verifyCodeWords, resendLeft), where they are executed;
@@ -49,6 +50,17 @@ export default function LoginPage() {
 
   // Back from Google without a session: the callback says so once, here.
   useEffect(() => {
+    // The provider's own refusal arrives in the FRAGMENT, which no server ever
+    // saw (src/auth/hash-error.ts). It rode the callback's redirect to get
+    // here, so this is the first code that can read it -- and it must come off
+    // the address before the branches below, which deliberately KEEP the hash.
+    const refused = authErrorInHash(window.location.hash);
+    if (refused) {
+      // Pressing Cancel is not a failure to apologise for.
+      if (refused.error !== OAUTH_CANCELLED) setError(SIGNUP_WORDS.googleFailed);
+      console.warn("oauth_provider_refused", JSON.stringify(refused));
+      window.history.replaceState(null, "", window.location.pathname + window.location.search);
+    }
     const q = new URLSearchParams(window.location.search);
     if (q.get("error") === "oauth") {
       setError(SIGNUP_WORDS.googleFailed);

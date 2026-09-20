@@ -321,6 +321,19 @@ test("an address is CONFIRMED, in both of the two places that decide it", () => 
   assert.equal(toml("auth.sms", "enable_signup"), "false", "nobody signs up by phone");
 });
 
+test("Sign in with Google is on HERE too, because config push is a loaded gun", () => {
+  // The hosted project has the provider on; this file said false, so a
+  // `supabase config push` would have switched Sign in with Google off in
+  // production while pushing something unrelated, and the only symptom would
+  // be the button quietly not drawing.
+  assert.equal(toml("auth.external.google", "enabled"), "true");
+  // Neither half of the credential is in git. The secret being wrong or stale
+  // in the dashboard is the one thing that can fail this flow silently, which
+  // is why it lives in the environment and not here.
+  assert.match(toml("auth.external.google", "client_id"), /^"env\(/, "the client id comes from the environment");
+  assert.match(toml("auth.external.google", "secret"), /^"env\(/, "and so does the secret");
+});
+
 test("a password has a floor, and the floor is length rather than punctuation", () => {
   assert.equal(toml("auth", "minimum_password_length"), "12");
   // Empty on purpose: composition classes push people toward Passw0rd!. The

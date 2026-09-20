@@ -11,6 +11,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { resolveTheme, isThemePref, isSidebarPref, type PendingWorkspace, type ThemePref, type SidebarPref } from "@chanlytics/contracts";
+import { authErrorInHash } from "@/auth/hash-error";
 import "./seed-globals"; // must evaluate before the manifest
 import "./manifest";
 // legacy.css is NOT imported here: it lives in app/(os)/layout.tsx so the
@@ -158,6 +159,28 @@ function installSurfaceRefresh(): void {
   };
 }
 installSurfaceRefresh();
+/**
+ * A refused sign-in is not a route.
+ *
+ * Supabase returns a failed provider sign-in in the URL fragment, and the
+ * browser carries it through the callback's redirect AND through the
+ * middleware's bounce off /login when the person does have a session. It
+ * arrives here, where the shell's parseHash reads window.location.hash, and
+ * the shell drew `No surface at "error=server_error&error_code=..."` -- a
+ * sign-in failure wearing a routing error's clothes.
+ *
+ * Module scope for the same reason as the route gate above: the shell reads
+ * the hash during its FIRST render, so anything that runs in an effect is
+ * already too late and shows the wrong page for a frame. Replaced rather than
+ * pushed, because that address is not somewhere to go Back to.
+ */
+function installAuthHashScrub(): void {
+  const refused = authErrorInHash(window.location.hash);
+  if (!refused) return;
+  console.warn("oauth_provider_refused", JSON.stringify(refused));
+  window.history.replaceState(null, "", window.location.pathname + window.location.search);
+}
+installAuthHashScrub();
 // Same ordering argument as the route gate: the shell decides real-vs-demo
 // during its FIRST render, so the classification must exist before React does.
 installSurfaceRegistry();

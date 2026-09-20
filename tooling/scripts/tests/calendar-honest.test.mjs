@@ -27,7 +27,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { hoursLines, shiftKey, stateOf, toBookingReportVM, toCalendarVM, todayDay, todayDayFacts } from "@chanlytics/contracts";
+import { hoursLines, shiftKey, stateOf, toBookingReportVM, toCalendarVM, todayDay } from "@chanlytics/contracts";
 
 const TZ = "America/New_York";
 // Tuesday noon in New York, the week calendar.test.mjs draws.
@@ -604,7 +604,7 @@ test("REGRESSION (C3): the times the receptionist would offer are open times whe
   assert.equal(stats(tree)[2].props.value, "today 3:30 PM");
   assert.equal(byTestId(tree, "cal-service").props["aria-label"], "Open times that fit a service", "REGRESSION: 'Windows that fit a service'");
   const vm = toCalendarVM(withNext(), NOW);
-  assert.equal(todayDayFacts(vm, null)[0].hint, "next open time today 3:30 PM", "REGRESSION: Today's fact said 'next opening'");
+  assert.equal(todayDay(vm, null).nextOpening, "today 3:30 PM", "REGRESSION: Today's day said 'next opening'");
   const was = { cal: globalThis.window.__CALENDAR, today: globalThis.window.__today };
   Object.assign(globalThis.window, { __CALENDAR: { vm }, __today: { day: todayDay } });
   try {

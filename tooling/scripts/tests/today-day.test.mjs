@@ -1,11 +1,11 @@
 /**
  * The day on Today: today and tomorrow from the calendar the receptionist
- * reads, the visit playbooks' line, and two facts beside the recap's —
+ * reads and the visit playbooks' line, capped at the rows the card draws —
  * computed in contracts from the surfaces the page already holds.
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { todayDay, todayDayFacts } from "@chanlytics/contracts";
+import { todayDay, TODAY_DAY_MAX } from "@chanlytics/contracts";
 import { readCode, readRaw } from "./_source.mjs";
 
 const person = (id, name) => ({ id, name, via: "phone" });
@@ -55,32 +55,37 @@ test("without a feed the day says nothing; with one and no visit playbook it off
   assert.match(paused.reminders.text, /^No visit reminders yet/, "a paused playbook is not a reminder going out");
 });
 
-test("the facts beside the recap's: appointments today with the next open time or the closure, and what is booked ahead", () => {
-  const c = cal([day("2026-09-06", { today: true, blocks: [block("b1", 10, "10 – 11 AM", "Gloss")], allDay: [block("a1", 0, "", "Stock")] })]);
-  assert.deepEqual(todayDayFacts(c, { booked: 3, reachedWeek: 4 }), [
-    { label: "Appointments today", value: "2", hint: "next open time Mon 9:30 AM" },
-    { label: "Booked ahead", value: "3", hint: "4 reached this week" },
-  ]);
-  const closed = cal([day("2026-09-06", { today: true, closed: { yes: true, note: "holiday" } })]);
-  assert.equal(todayDayFacts(closed, null)[0].hint, "closed today · holiday");
-  assert.deepEqual(todayDayFacts(null, { booked: 3, reachedWeek: 4 }), [], "no calendar, no invented count");
-  assert.deepEqual(todayDayFacts(cal([], { feed: { present: true, state: "unavailable", line: "", events: 0, source: "x" } }), null), []);
+
+test("five rows on Today, the rest a line to the Calendar: what is over goes first, what is coming stays", () => {
+  const blocks = [8, 9, 10, 11, 13, 14, 16, 18].map((h) => block(`b${h}`, h, `${h}:00`, `Slot ${h}`));
+  const vm = todayDay(cal([day("2026-09-06", { today: true, blocks })]), [], null);
+  const [today] = vm.frames;
+  assert.equal(TODAY_DAY_MAX, 5);
+  assert.deepEqual(today.items.map((i) => i.title), ["Slot 10", "Slot 11", "Slot 13", "Slot 14", "Slot 16"], "at ten: what is on now and the four coming; the two over and the last of the evening are the three cut");
+  const noon = todayDay(cal([day("2026-09-06", { today: true, blocks })], { now: 12 }), [], null).frames[0];
+  assert.deepEqual(noon.items.map((i) => i.title), ["Slot 11", "Slot 13", "Slot 14", "Slot 16", "Slot 18"], "at noon: the four coming, then the most recent of what is over, back in the day's order");
+  assert.equal(today.more, 3);
+  assert.equal(today.moreLine, "3 more on the Calendar");
+  assert.equal(today.summary.booked, "8 booked", "the summary counts the day, not the rows drawn");
+  const few = todayDay(cal([day("2026-09-06", { today: true, blocks: blocks.slice(0, 3) })]), [], null).frames[0];
+  assert.deepEqual([few.more, few.moreLine], [0, null]);
 });
 
 test("the wiring: the bridge publishes the helpers, the page composes the module, the hero adds the facts and drops its one-line calendar, the core shows both", () => {
-  assert.ok(readCode("apps/dashboard/src/legacy-bridge/today.ts").includes("window.__today = { day: todayDay, facts: todayDayFacts, dayLine: todayDayLine, week: todayWeek, journey: todayJourney, away: todayAway, awayGrouped: todayAwayGrouped, leaks: todayLeaks };"));
+  const bridge = readCode("apps/dashboard/src/legacy-bridge/today.ts");
+  assert.ok(bridge.includes("export const TODAY_HELPERS = { day: todayDay, periodLine: todayPeriodLine, runs: todayRunWords, runsSub: todayRunsSub, runApproved: todayRunApproved, leaks: todayLeaks, awayGrouped: todayAwayGrouped };"), "the helpers, in order");
+  assert.ok(bridge.includes("window.__today = TODAY_HELPERS;"), "installed, not re-listed");
   const app = readCode("apps/dashboard/src/legacy-bridge/LegacyApp.tsx");
   assert.ok(app.includes('import { installToday } from "./today";') && app.includes("installToday();"));
   const page = readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx");
-  for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null, window.__PEOPLE || null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"', 'className="td-item-rail"', "data-phase={b.phase}", 'className="td-item-flag"', "b.person ? b.person.name : b.title"]) assert.ok(page.includes(s), s);
+  for (const s of ['data-testid="today-day"', 'C.vm.feed.state !== "ok" || !window.__today) return null;', "window.__today.day(C.vm, P ? P.rows : null, people || null)", 'data-testid="today-day-frame"', 'data-testid="today-day-item"', "nav(b.person ? `clients/${b.person.id}` : \"calendar\")", 'data-testid="today-day-reminders"', 'className="td-item-rail"', "data-phase={b.phase}", 'className="td-item-flag"', "b.person ? b.person.name : b.title", 'data-testid="today-day-more"', "d.moreLine"]) assert.ok(page.includes(s), s);
   const brief = readCode("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes("window.__today.dayLine(C ? C.vm : null, P ? P.aggregates : null)"), "the day's numbers ride the recap's one sentence");
-  assert.ok(!brief.includes("<DayFacts />"), "the strip of stat cards above the work is that sentence now");
+  assert.ok(!brief.includes("__today.dayLine") && !brief.includes("<DayFacts />"), "the day's numbers are the card's figures now, not a sentence or a strip of stat cards");
   assert.ok(!brief.includes("CalendarLine") && !brief.includes('data-testid="brief-calendar"'), "the one-line calendar beat is the module now");
   const dash = readCode("apps/dashboard/src/legacy/pages/dashboard-a.jsx");
   assert.ok(dash.indexOf("<AgentCommand />") < dash.indexOf("<TodayDay />"), "the queue, then the day, in the core");
   const manifest = readCode("apps/dashboard/src/legacy-bridge/manifest.ts");
   assert.ok(manifest.indexOf('"@/legacy/pages/dashboard-a-day.jsx"') < manifest.indexOf('"@/legacy/pages/dashboard-a.jsx"'));
   const css = readRaw("apps/dashboard/src/legacy/styles/dashboard-a-v2.css");
-  assert.ok(css.includes(".td-day {") && css.includes(".td-frame.today .td-frame-label") && css.includes(".td-items::before {") && css.includes("grid-template-columns: 56px 12px minmax(0, 1fr) auto;") && css.includes("-webkit-line-clamp: 2;") && css.includes(".td-item.now .td-item-rail::after") && !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") && css.includes("@media (max-width: 900px) {\n  .dash-a-v2-core { grid-template-columns: 1fr; }"));
+  assert.ok(css.includes(".td-day {") && css.includes(".td-frame.today .td-frame-label") && css.includes(".td-items::before {") && css.includes("grid-template-columns: 56px 12px minmax(0, 1fr) auto;") && css.includes("-webkit-line-clamp: 2;") && css.includes(".td-item.now .td-item-rail::after") && !readCode("apps/dashboard/src/legacy/pages/dashboard-a-day.jsx").includes("cal-agenda") && css.includes("@media (max-width: 1180px) {\n  .dash-a-v2-core, .dash-a-v2-foot { grid-template-columns: 1fr; }"));
 });
