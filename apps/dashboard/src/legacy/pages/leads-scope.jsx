@@ -50,54 +50,165 @@ const LeadShape = ({ state, word, size = 13 }) => {
   return null;
 };
 
-// The identity cell: the mark, the name (which peeks), a second location said, and the kind and the area.
-const ldBusinessCell = (l, x) => (
-  <td key="business" className="cl-name-cell pl-pin ld-biz-cell">
-    <div className="cl-row-name">
-      <span className="ld-mark" aria-hidden="true">{l.image ? <img src={l.image} alt="" loading="lazy" /> : l.mark}</span>
-      <div className="cl-row-name-block">
-        <div className="cl-row-fullname">
-          <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} data-testid="lead-name">{l.name}</button>
-          {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} locations</span>}
-        </div>
-        <div className="cl-row-meta"><span>{l.category}</span><span className="dot" /><span>{l.area}</span></div>
+/* --------------------------------------------------- the hover vocabulary (D5) */
+// Two tiers only. A tip is a chip of a line or two you can never click; a card is raised, holds links and buttons,
+// and stays open while the pointer is inside it. Both are in the DOM always (so a test reads them and a screen
+// reader can reach them through aria-describedby) and shown by CSS on the trigger's :hover and :focus-within --
+// tips after 200ms, cards after 400ms, one at a time by nature, and hidden while the list scrolls (the page marks
+// its scroller data-scrolling). Nothing a person must act on hides in either: a hover only confirms what the row
+// already said.
+const LeadTip = ({ id, children, testid }) => <span className="ld-tip" role="tooltip" id={id} data-testid={testid}>{children}</span>;
+const LeadCard = ({ id, label, children, testid }) => <div className="ld-card" role="group" id={id} aria-label={label} data-testid={testid} onClick={(e) => e.stopPropagation()}>{children}</div>;
+
+// The tile (D5): the listing's photo at 48px, a button that expands it; without a photo (or when the photo fails
+// to load), initials on a tint the kind of business decides, so a lead from any source looks designed, never broken.
+const LeadTile = ({ l, size = 48, onExpand }) => {
+  const cls = `ld-tile tint-${l.tile.tint}${l.tile.image ? " has-img" : ""}`;
+  const img = l.tile.image
+    ? <img src={l.tile.image} alt="" loading="lazy" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} />
+    : null;
+  if (!onExpand) return <span className={cls} style={{ width: size, height: size }} aria-hidden="true"><span className="ld-tile-initials">{l.tile.initials}</span>{img}</span>;
+  return (
+    <button type="button" className={cls} style={{ width: size, height: size }} aria-label={`Photos of ${l.name}`} data-testid="lead-photo" onClick={(e) => { e.stopPropagation(); onExpand(l.id); }}>
+      <span className="ld-tile-initials" aria-hidden="true">{l.tile.initials}</span>
+      {img}
+      <span className="ld-tile-expand" aria-hidden="true"><Icon name="external" size={8} /></span>
+    </button>
+  );
+};
+
+// One reach slot (D5): five shapes -- a filled circle (checked), a half circle (unconfirmed), a dashed ring
+// (nothing found), a ring with a slash (bad), a turning arc (still checking) -- so the column survives greyscale;
+// colour repeats the meaning. The word and the value are the control's name; the sentence is its tip. Pressing a
+// phone dials, pressing a mailbox copies; a slot with nothing to press is a plain focusable span.
+const LD_SLOT_SHAPES = {
+  ok: <circle cx="8" cy="8" r="5.5" fill="currentColor" stroke="none" />,
+  part: <><circle cx="8" cy="8" r="5.5" /><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor" stroke="none" /></>,
+  none: <circle cx="8" cy="8" r="5.5" strokeDasharray="2.5 2.5" />,
+  bad: <><circle cx="8" cy="8" r="5.5" /><path d="M5 11l6-6" /></>,
+  checking: <circle cx="8" cy="8" r="5.5" strokeDasharray="17 17" />,
+};
+const LeadSlot = ({ id, kind, slot, values, onPress, pressLabel }) => {
+  const tipId = `${id}-${kind}-tip`;
+  const p = { width: 14, height: 14, viewBox: "0 0 16 16", fill: "none", stroke: "currentColor", strokeWidth: 1.5, strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": "true" };
+  const who = kind === "phone" ? "Phone" : "Email";
+  const label = slot.value ? `${who}: ${slot.word}, ${slot.value}${onPress ? ` — ${pressLabel}` : ""}` : `${who}: ${slot.word}`;
+  const body = (
+    <>
+      <span className={`ld-slot-shape${slot.state === "checking" ? " spin" : ""}`}><svg {...p}>{LD_SLOT_SHAPES[slot.state]}</svg></span>
+      {values && slot.value ? <span className="ld-slot-value">{slot.value}</span> : null}
+    </>
+  );
+  return (
+    <span className={`ld-hover ld-slot ld-slot-${slot.state}`} data-testid={`lead-slot-${kind}`}>
+      {onPress
+        ? <button type="button" className="ld-slot-btn" aria-label={label} aria-describedby={tipId} onClick={(e) => { e.stopPropagation(); onPress(); }}>{body}</button>
+        : <span className="ld-slot-btn" tabIndex={0} aria-label={label} aria-describedby={tipId}>{body}</span>}
+      <LeadTip id={tipId}>{slot.tip}</LeadTip>
+    </span>
+  );
+};
+
+// The name's card: enough to decide without opening the peek, and the one hover that carries links, because it is
+// the one you can keep the pointer inside.
+const LeadNameCard = ({ l, x }) => (
+  <LeadCard id={`${l.id}-card`} label={`About ${l.name}`} testid="lead-card-name">
+    <div className="ld-card-head">
+      <LeadTile l={l} size={40} />
+      <div className="ld-card-titles">
+        <div className="ld-card-name">{l.name}</div>
+        <div className="ld-card-sub">{[l.sub, l.card.today].filter(Boolean).join(" · ")}</div>
       </div>
-      <LeadRowActions l={l} onCall={x.onCall} onCopy={x.onCopy} onKeep={x.onKeep} onExclude={x.onExclude} onPutBack={x.onPutBack} canFind={x.canFind} />
+    </div>
+    {l.card.about ? <p className="ld-card-about">{l.card.about}</p> : null}
+    <p className="ld-card-why">{l.why}</p>
+    <div className="ld-card-foot">
+      {l.card.site ? <a href={l.card.site.href} target="_blank" rel="noopener noreferrer">{l.card.site.label}</a> : null}
+      {l.card.maps ? <a href={l.card.maps.href} target="_blank" rel="noopener noreferrer">{l.card.maps.label}</a> : null}
+      <span className="sp" />
+      {l.phone && !l.phoneWrong ? <button type="button" className="btn btn-sm btn-primary" onClick={() => x.onCall(l.id)}><Icon name="phone" size={11} /> Call</button> : null}
+    </div>
+  </LeadCard>
+);
+
+// What people say: the spread the row only hints at, one bar a star.
+const LeadRatedCard = ({ l }) => {
+  const total = l.spread.reduce((a, b) => a + b, 0) || 1;
+  return (
+    <LeadCard label={`How ${l.name} is rated`} testid="lead-card-rated">
+      <div className="ld-card-rated"><span className="ld-card-score">{l.rated.score}</span><span className="ld-card-count">{l.rated.count} reviews</span></div>
+      {[5, 4, 3, 2, 1].map((star) => {
+        const n = l.spread[star - 1];
+        return (
+          <div key={star} className="ld-bar-row">
+            <span className="k">{star}</span>
+            <span className="ld-bar"><span style={{ width: `${Math.round((n / total) * 100)}%` }} /></span>
+            <span className="n">{n.toLocaleString("en-US")}</span>
+          </div>
+        );
+      })}
+    </LeadCard>
+  );
+};
+
+// The identity cell (D5): the tile, the name (which peeks) with its card, the tags the row's state and its fit
+// wear, and one quiet line about where -- or, for a row that waits, what would resolve it; for a left-out row,
+// what left it out.
+const ldBusinessCell = (l, x) => (
+  <td key="business" className={`cl-name-cell pl-pin ld-biz-cell ${l.cls}`}>
+    <div className="cl-row-name ld-row-name">
+      <LeadTile l={l} onExpand={x.onExpand} />
+      <div className="cl-row-name-block ld-hover">
+        <div className="cl-row-fullname">
+          <button type="button" className="ld-biz-name" onClick={(e) => { e.stopPropagation(); x.onOpen(l.id); }} aria-describedby={`${l.id}-card`} data-testid="lead-name">{l.name}</button>
+          {l.places > 1 && <span className="ld-badge" title="Two listings on the map for one business">{l.places} listings</span>}
+          {x.mixedFits && l.fit ? <span className={`ld-fit-tag ${l.fit}`} data-testid="lead-fit-tag">{l.fitLabel}</span> : null}
+          {l.stateTag ? <span className={`ld-state-tag ${l.state}`} data-testid="lead-state-tag">{l.stateTag}</span> : null}
+        </div>
+        <div className={`cl-row-meta ld-sub${l.waitsOn ? " waits" : ""}`} data-testid="lead-sub">{l.cls === "excluded" ? l.fitLabel : (l.waitsOn || l.sub)}</div>
+        <LeadNameCard l={l} x={x} />
+      </div>
     </div>
   </td>
 );
 
-// PRD §6.2's Leads columns, in the shape the table takes (people-table.jsx): { key, label, sortable, pinned,
-// fixed, on, needs, cell(l, x) }. The six that sort are the six `leads_page` takes (Task 4).
+// PRD §6.2's Leads columns as the redesign cuts them (D5): three that differ row to row -- who they are, whether
+// you can reach them, how well they are rated -- and when they were found, whose cell holds the row's acts on
+// hover. Fit, Why it fits and Stage stay in the Columns menu, off: the band bar says the fits, the name's card
+// and the peek say why, and the row wears its stage as a tag. In the shape the table takes (people-table.jsx):
+// { key, label, sortable, pinned, fixed, on, needs, cell(l, x) }. The six that sort are the six `leads_page` takes.
 const LEAD_COLUMNS = [
   { key: "business", label: "Business", sortable: true, pinned: true, cell: ldBusinessCell },
-  { key: "fit", label: "Fit", sortable: true, cell: (l) => <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">{l.fitLabel}</td> },
-  // Both contacts in one glance (D2): the email's state as its shape and word, the number with its double tick, so
-  // "has both" is scannable down fifty rows. Hover for the address; click copies it. A left-out place shows neither.
   { key: "reach", label: "Reach", sortable: false, cell: (l, x) => (
     <td key="reach" className="shrink ld-reach-cell" data-testid="lead-reach">
       {l.cls === "excluded" ? <span className="dim">Not checked</span> : (
-        <>
-          {l.reach.email
-            ? <button type="button" className="ld-reach-email" title={`${l.reach.email.address} · ${l.reach.email.word}`} onClick={(e) => { e.stopPropagation(); x.onCopy(l.id); }} data-testid="lead-reach-email"><LeadShape state={l.reach.email.state} word={l.reach.email.word} />{l.reach.email.word}</button>
-            : <span className="dim" data-testid="lead-reach-email">No email</span>}
-          <span className="dot" />
-          {l.reach.phone
-            ? <span className={`ld-reach-phone ${l.phoneWrong ? "wrong" : ""}`} data-testid="lead-reach-phone">{l.reach.phone.number}{l.reach.phone.agrees && <span className="ld-tick2" title="Maps and their website agree">✓✓</span>}</span>
-            : <span className="dim" data-testid="lead-reach-phone">No phone</span>}
-        </>
+        <span className={`ld-slots${x.values ? " values" : ""}`}>
+          <LeadSlot id={l.id} kind="phone" slot={l.slots.phone} values={x.values} onPress={l.slots.phone.value && l.slots.phone.state !== "bad" ? () => x.onCall(l.id) : null} pressLabel="press to call" />
+          <LeadSlot id={l.id} kind="mailbox" slot={l.slots.mailbox} values={x.values} onPress={l.slots.mailbox.copy ? () => x.onCopy(l.id) : null} pressLabel="press to copy" />
+        </span>
       )}
     </td>
   ) },
-  { key: "why", label: "Why it fits", sortable: false, cell: (l) => <td key="why" className="dim ld-why-cell" title={l.why}>{l.why}</td> },
-  { key: "rating", label: "Rating", sortable: true, cell: (l) => <td key="rating" className="shrink ld-rating-cell" title={l.reviewsTitle || undefined}>{l.rating}</td> },
-  { key: "stage", label: "Stage", sortable: true, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <><span className={`ld-dot ${l.stage}`} aria-hidden="true" />{l.stageLabel}</>}</td> },
-  { key: "found", label: "Found", sortable: true, cell: (l) => <td key="found" className="shrink dim ld-found-cell" title={l.foundAt}>{l.foundLabel}</td> },
-  { key: "distance", label: "Distance", sortable: true, needs: (x) => x.hasCenter, on: (x) => x.hasCenter, cell: (l) => <td key="distance" className="shrink dim ld-distance-cell">{l.distance}</td> },
+  { key: "rating", label: "Rated", sortable: true, cell: (l) => (
+    <td key="rating" className="shrink ld-rated-cell ld-hover" data-testid="lead-rated">
+      {l.rated ? <><span className="ld-rated-score">{l.rated.score}</span><span className="ld-rated-count">{l.rated.count}</span>{l.spread ? <LeadRatedCard l={l} /> : null}</> : null}
+    </td>
+  ) },
+  { key: "found", label: "Found", sortable: true, cell: (l) => (
+    <td key="found" className="shrink dim ld-found-cell ld-hover" data-testid="lead-found">
+      <span tabIndex={0} aria-describedby={`${l.id}-found-tip`}>{l.foundLabel}</span>
+      <LeadTip id={`${l.id}-found-tip`} testid="lead-tip-found">{l.foundAt}{l.card.found[0] ? ` · ${l.card.found[0].what}` : ""}</LeadTip>
+    </td>
+  ) },
+  { key: "fit", label: "Fit", sortable: true, on: false, cell: (l) => <td key="fit" className={`shrink ld-fit-cell ${l.cls}`} title={l.fitTitle} data-testid="lead-fit">{l.fitLabel}</td> },
+  { key: "why", label: "Why it fits", sortable: false, on: false, cell: (l) => <td key="why" className="dim ld-why-cell" title={l.why}>{l.why}</td> },
+  { key: "stage", label: "Stage", sortable: true, on: false, cell: (l) => <td key="stage" className="shrink ld-stage-cell" data-testid="lead-stage">{l.cls !== "excluded" && <><span className={`ld-dot ${l.stage}`} aria-hidden="true" />{l.stageLabel}</>}</td> },
+  { key: "distance", label: "Distance", sortable: true, needs: (x) => x.hasCenter, on: false, cell: (l) => <td key="distance" className="shrink dim ld-distance-cell">{l.distance}</td> },
   { key: "source", label: "Source", sortable: false, on: false, cell: (l) => <td key="source" className="shrink dim ld-source-cell">{l.source}</td> },
   { key: "website", label: "Website", sortable: false, on: false, cell: (l) => <td key="website" className="shrink dim ld-website-cell">{l.host}</td> },
   { key: "search", label: "Search", sortable: false, on: false, cell: (l) => <td key="search" className="shrink dim ld-search-cell">{l.searchName}</td> },
-  { key: "actions", label: "", sortable: false, fixed: true, cell: () => <td key="actions" className="shrink cl-actions-cell" /> },
+  // The row's acts, where the eye ends: on hover and on the keyboard's cursor (clients.css shows .cl-row-actions then).
+  { key: "actions", label: "", sortable: false, fixed: true, cell: (l, x) => <td key="actions" className="shrink cl-actions-cell"><LeadRowActions l={l} onCall={x.onCall} onCopy={x.onCopy} onKeep={x.onKeep} onExclude={x.onExclude} onPutBack={x.onPutBack} canFind={x.canFind} /></td> },
 ];
 // business, fit, rating, stage, found, distance: what a saved Leads view may sort by.
 const LEAD_SORT_KEYS = plSortKeys(LEAD_COLUMNS);
@@ -180,13 +291,24 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
 // Qualified · Needs review · Excluded, under the search that is open: each a count and a view (c-qualified,
 // c-review, c-excluded). The class is not a stage (§9.1): it says whether the place met the plan.
 const LEAD_CLASS_WORDS = { qualified: "Qualified", review: "Needs review", excluded: "Excluded" };
-const LeadClassTabs = ({ counts, cls, onPick }) => (
-  <div className="ld-classes" role="tablist" aria-label="What the search made of each place" data-testid="lead-classes">
-    {["qualified", "review", "excluded"].map((k) => (
-      <button key={k} type="button" role="tab" aria-selected={cls === k} className={`ld-class ${k} ${cls === k ? "on" : ""}`} onClick={() => onPick(cls === k ? null : k)} data-testid={`lead-class-${k}`}>
-        {LEAD_CLASS_WORDS[k]} <span className="count">{counts[k]}</span>
-      </button>
-    ))}
+// The band (D5): one element that says the search's whole shape and filters it. The three classes with their
+// counts are the tabs; the qualified split by fit band draws only when the fits differ (contracts leadBand), and a
+// fit narrows the rows on screen the way an Excluded chip does.
+const LeadBand = ({ band, cls, onPick, fit, onPickFit }) => (
+  <div className="ld-band" data-testid="lead-band">
+    <div className="ld-classes" role="tablist" aria-label="What the search made of each place" data-testid="lead-classes">
+      {band.classes.map((c) => (
+        <button key={c.id} type="button" role="tab" aria-selected={cls === c.id} className={`ld-class ${c.id} ${cls === c.id ? "on" : ""}`} onClick={() => onPick(cls === c.id ? null : c.id)} data-testid={`lead-class-${c.id}`}>{c.label}</button>
+      ))}
+    </div>
+    {band.mixed && (!cls || cls === "qualified") ? (
+      <div className="ld-band-fits" role="group" aria-label="Qualified, by fit" data-testid="lead-band-fits">
+        <span className="ld-band-bar" aria-hidden="true">{band.fits.map((f) => <span key={f.id} className={`seg ${f.id}`} style={{ flexGrow: f.count }} />)}</span>
+        {band.fits.filter((f) => f.count > 0).map((f) => (
+          <button key={f.id} type="button" className={`ld-band-fit ${f.id}${fit === f.id ? " on" : ""}`} aria-pressed={fit === f.id} onClick={() => onPickFit(fit === f.id ? null : f.id)} data-testid={`lead-band-fit-${f.id}`}>{f.label} <span className="count">{f.count}</span></button>
+        ))}
+      </div>
+    ) : null}
   </div>
 );
 
@@ -387,6 +509,8 @@ const LeadsScope = (p) => {
                   <span className="kbd">/</span>
                 </div>
                 <div className="cl-controls-right">
+                  {/* Values ⁄ Signals (D5): the number and the address in the row, for anyone who dials from a desk phone; kept per viewer. */}
+                  <button type="button" className={`btn btn-ghost btn-sm ld-values${p.values ? " on" : ""}`} aria-pressed={!!p.values} onClick={() => p.onValues(!p.values)} data-testid="leads-values" title="Show the numbers and addresses in the rows">{p.values ? "Signals" : "Values"}</button>
                   <PeopleColumnsMenu open={p.colsOpen} onOpenChange={p.onColsOpen} options={p.colOptions} onPick={p.onPickColumn} buttonRef={p.colsButton} />
                   {p.canExport
                     ? <a className="btn btn-ghost btn-sm" href={p.exportHref} download title="Download these leads as a CSV file" data-testid="leads-export"><Icon name="external" size={12} /> Export</a>
@@ -431,7 +555,7 @@ const LeadsScope = (p) => {
 
           {search && <LeadStrip vm={p.strip} onAction={p.onStripAction} />}
 
-          {search && <LeadClassTabs counts={{ qualified: search.round.qualified, review: search.round.review, excluded: search.round.excluded }} cls={p.view.cls} onPick={p.onPickClass} />}
+          {search && p.band && <LeadBand band={p.band} cls={p.view.cls} onPick={p.onPickClass} fit={p.fit} onPickFit={p.onPickFit} />}
           {p.view.cls === "excluded" && <LeadExcludedChips chips={chips} active={p.chip} onPick={p.onPickChip} />}
           {p.view.cls === "review" && window.__LEAD_VM && window.__LEAD_VM.leadReviewGroups && <LeadReviewGroups groups={window.__LEAD_VM.leadReviewGroups(L.rows, search)} onPick={p.onSelectIds} />}
 
@@ -485,6 +609,7 @@ const LeadsScope = (p) => {
                 columns={p.columns}
                 ctx={p.cellCtx}
                 rows={p.rows}
+                rowClass={(l) => `ld-row-${l.state}`}
                 total={p.total}
                 sortBy={p.sortBy}
                 sortDir={p.sortDir}
@@ -570,4 +695,4 @@ const LeadsScope = (p) => {
   );
 };
 
-Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadClassTabs, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });
+Object.assign(window, { LeadsScope, LeadsBulkBar, LeadRowActions, LeadShape, LeadSearchMenu, LeadsRailRows, LeadsPhoneBar, LeadFinderSheet, LeadBand, LeadTile, LeadSlot, LeadTip, LeadCard, LeadExcludedChips, ldExcludedChips, LEAD_COLUMNS, LEAD_SORT_KEYS, LEAD_CLASS_WORDS });

@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
-import { leadEndingLine, leadReviewGroups, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadEndingLine, leadReviewGroups, leadBand, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -257,7 +257,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsStanding: leadsStanding,
     // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
     // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
-    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups },
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip , leadReviewGroups, leadBand },
     __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
@@ -329,19 +329,24 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   fresh();
   const tree = draw();
   assert.deepEqual(names(tree), ["Zilker Strength Lab", "Barton Creek Coaching", "Lamar Strength Co.", "GigaFit Austin", "Pflugerville Training"], "the surface's order, strongest fit first; the page never re-sorts what it was given");
-  assert.deepEqual(headings(tree), ["Business", "Fit", "Reach", "Why it fits", "Rating", "Stage", "Found"], "PRD 6.2's Leads columns with D2's one Reach column for both contacts; Distance waits for a search with a center, and Source, Website and Search are off");
-  // D2: both contacts in one Reach cell; the email's state is its word, the address rides the title.
-  const email = (id) => byTestId(rowOf(tree, id), "lead-reach-email");
-  assert.match(email("l1").props.title, / · Checked$/);
-  assert.match(email("l2").props.title, / · Unconfirmed$/, "a catch-all server accepts anything, so the check cannot tell (S12)");
-  assert.match(email("l3").props.title, / · Couldn't check$/);
-  assert.ok(find(email("l2"), (n) => /\bld-shape\b/.test(String(n.props?.className || ""))), "the state is a shape as well as a word, never colour alone");
+  assert.deepEqual(headings(tree), ["Business", "Reach", "Rated", "Found"], "D5's three columns and when it was found; Fit, Why it fits, Stage, Distance, Source, Website and Search are the Columns menu's, off");
+  // D5: both contacts as two slots, phone then mailbox: the shape carries the state, the control's name carries the
+  // word and the value, and the sentence behind the shape is a tip in the DOM the control names.
+  const slot = (id, kind) => byTestId(rowOf(tree, id), `lead-slot-${kind}`);
+  const labelOf = (n) => (find(n, (x) => x.props && x.props["aria-label"]) || { props: {} }).props["aria-label"];
+  const tipOf = (n) => textOf(find(n, (x) => x.props?.role === "tooltip"));
+  assert.match(labelOf(slot("l1", "mailbox")), /^Email: Checked, hello@/);
+  assert.match(labelOf(slot("l2", "mailbox")), /^Email: Unconfirmed, /, "a catch-all server accepts anything, so the check cannot tell (S12)");
+  assert.match(labelOf(slot("l3", "mailbox")), /^Email: Unconfirmed, /);
+  assert.match(tipOf(slot("l3", "mailbox")), /mail server wouldn't answer/, "the same shape as a catch-all, its own sentence in the tip");
+  assert.ok(find(slot("l2", "mailbox"), (n) => /\bld-slot-shape\b/.test(String(n.props?.className || ""))), "the state is a shape as well as a word, never colour alone");
   assert.match(textOf(byTestId(rowOf(tree, "l4"), "lead-reach")), /Not checked/, "a left-out place's contacts were never checked, and the row says so");
-  assert.ok(byTestId(rowOf(tree, "l1"), "lead-reach-phone"), "and the number stands beside the email in the same glance");
-  assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-stage")).trim(), "", "an excluded place has no stage: the class is not a stage");
-  assert.ok(find(rowOf(tree, "l1"), (n) => n.props?.className === "ld-tick2"), "Maps and their website agree on the number");
+  assert.match(labelOf(slot("l1", "phone")), /^Phone: Checked, \+1/, "Maps and their website agree on the number: Checked");
+  assert.match(String(byTestId(rowOf(tree, "l4"), "lead-stage").props.className), /pl-col-off/, "Stage is a column off by default (D5): a row wears its state as a tag instead");
   assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")).startsWith("322 leads"), true, "the table calls its rows leads");
-  assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-fit")), "Chain", "Excluded wears the criterion that left it out, in the owner's words");
+  assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-sub")), "Chain", "Excluded's one line is the criterion that left it out, in the owner's words");
+  assert.ok(byTestId(rowOf(tree, "l1"), "lead-photo"), "the tile is a button that expands the photo");
+  assert.ok(byTestId(rowOf(tree, "l1"), "lead-card-name"), "the name's card is in the DOM, shown on hover");
 });
 
 // The first day is what every workspace opens Leads on, and it is what nothing drew: the component this file
@@ -478,7 +483,7 @@ test("the Leads view is saved with its list, sort and columns every time, throug
   assert.equal(held.length, 1);
   assert.deepEqual(held[0], { page: "leads", view: { list: "all", sortBy: "fit", sortDir: "asc", columns: { website: true, source: true } }, land: held[0].land }, "every key the page owns, the list included");
   // A second change while the first is out waits for it: two in flight could land out of order.
-  sortByHeading(tree, "Rating");
+  sortByHeading(tree, "Rated");
   draw();
   assert.equal(held.length, 1, "one save at a time");
   held[0].land({ ok: true, data: {} });
@@ -494,7 +499,7 @@ test("a sort is the surface's to read, not the page's to re-order: the rows hold
   fresh();
   let tree = draw();
   assert.deepEqual(calls.filter((c) => c[0] === "view").length, 1, "one read for the view the address names");
-  sortByHeading(tree, "Rating");
+  sortByHeading(tree, "Rated");
   tree = draw();
   const views = calls.filter((c) => c[0] === "view");
   assert.equal(views.length, 2, "the new sort is one more read, keyed by the whole view");
@@ -751,7 +756,7 @@ test("the Excluded view's chips count by criterion, and each narrows the rows", 
   click(byTestId(tree, "lead-chip-Chain"));
   tree = draw({ leadsRoute: `leads:s-${SEARCH_A}:c-excluded` });
   assert.deepEqual(names(tree), ["GigaFit Austin"]);
-  assert.deepEqual(all(byTestId(tree, "lead-classes"), (n) => n.props?.role === "tab").map((n) => [textOf(n).trim(), n.props["aria-selected"]]), [["Qualified 2", false], ["Needs review 1", false], ["Excluded 1", true]], "the three classes, each a view of the search");
+  assert.deepEqual(all(byTestId(tree, "lead-classes"), (n) => n.props?.role === "tab").map((n) => [textOf(n).trim(), n.props["aria-selected"]]), [["2 qualified", false], ["1 needs a look", false], ["1 left out", true]], "the three classes, each a view of the search");
 });
 
 /* --------------------------------- a search, kept --------------------------------- */

@@ -31,7 +31,7 @@ const PL_NOUNS = { person: { one: "person", many: "people", all: "Select everyon
 // the header sticks to its top and the pinned column to its left, and the hairline beside that column shows once it
 // has scrolled sideways (`scrolled`, the page's state). Hookless on purpose: the tests' stub React keys state by call
 // order, and a list's own controls above the table come and go.
-const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person" }) => {
+const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpen, filtered, onClearFilters, selectable = false, sel = PL_NO_SEL, onToggle = () => {}, onToggleAll = () => {}, cursor = null, onCursor = () => {}, empty = null, scrolled = false, onScrolled = () => {}, noun = "person", rowClass = null }) => {
   const words = PL_NOUNS[noun] || PL_NOUNS.person;
   const selecting = rows.some((p) => sel.has(p.id));
   return (
@@ -63,7 +63,7 @@ const PeopleTable = ({ columns, ctx, rows, total, sortBy, sortDir, onSort, onOpe
                 by Tab, or by a click -- takes the cursor, so what a screen reader hears and what the keys act on agree.
                 J and K move focus with the cursor (the page's effect on `cursor`). */}
             {rows.map((p, i) => (
-              <tr key={p.id} id={`${words.one}-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} tabIndex={cursor === p.id || (!cursor && i === 0) ? 0 : -1} onFocus={() => { if (cursor !== p.id) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
+              <tr key={p.id} id={`${words.one}-${p.id}`} className={`${sel.has(p.id) ? "selected" : ""} ${cursor === p.id ? "focused" : ""} ${rowClass ? rowClass(p) : ""}`} aria-selected={selectable ? sel.has(p.id) : undefined} tabIndex={cursor === p.id || (!cursor && i === 0) ? 0 : -1} onFocus={() => { if (cursor !== p.id) onCursor(p.id); }} onClick={() => onOpen(p.id)}>
                 {selectable && (
                   <td className="cl-sel" onClick={(e) => e.stopPropagation()}>
                     <input type="checkbox" className="cl-check" checked={sel.has(p.id)} onChange={() => onToggle(p.id)} aria-label={`Select ${p.name}`} data-testid="row-select" />
