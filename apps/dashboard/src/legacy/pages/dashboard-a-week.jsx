@@ -102,8 +102,14 @@ const TodayAway = () => {
   }, [api]);
   if (!api || !window.__today) return null;
   const T = window.TODAY_DATA;
-  // What each queue row is about: its thread, its call, or both (contracts AwayQueueRef).
-  const inQueue = T ? T.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })) : [];
+  // What each queue row is about: its thread, its call, or both (contracts AwayQueueRef), and the runs the
+  // queue draws, by name: a run held for a word is a row up there, and the bell's "is ready" is about the same run.
+  const B = window.todaySurface ? window.todaySurface("__BROADCASTS") : null;
+  const runsDrawn = ((B && B.rows) || []).filter((r) => r.state === "pending_approval").slice(0, 3);
+  const inQueue = [
+    ...(T ? T.queue.rows.map((r) => ({ conversationId: r.conversationId, callId: r.callId })) : []),
+    ...runsDrawn.map((r) => ({ runLabel: r.audience.label })),
+  ];
   const { groups, total, foot, empty } = window.__today.awayGrouped(rows, inQueue, 5);
   // A group is read and dismissed whole: its rows say one thing, so they go together.
   const open = (g, to) => { g.ids.forEach((id) => api.read(id)); twNav(to); };

@@ -1665,7 +1665,14 @@ export interface AwayRowLike {
 }
 
 /** What a queue row is about, for the away card's dedupe: its thread, its call, or both. A bare string is a thread. */
-export type AwayQueueRef = string | { conversationId?: string | null; callId?: string | null };
+export type AwayQueueRef = string | { conversationId?: string | null; callId?: string | null; runLabel?: string | null };
+
+/**
+ * The title the edge gives a run held for a word: `Playbook “Win-back · quiet 30 days” is ready: 1 person`
+ * (core run-playbook.ts). The row carries no `about` and its door is `outbound`, so the run's own name is
+ * the only thing it shares with the queue's row about the same run.
+ */
+const readyRunTitle = (label: string) => `Playbook “${label}” is ready`;
 
 export interface AwayGroupVM<T extends AwayRowLike> {
   /** The row itself when it stands alone; the newest of the group otherwise. */
@@ -1784,6 +1791,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
 ): TodayAwayVM<T> {
   const convs = new Set(inQueue.flatMap((q) => { const id = typeof q === "string" ? q : q.conversationId; return id ? [id] : []; }));
   const callsQueued = new Set(inQueue.flatMap((q) => (typeof q === "string" || !q.callId ? [] : [q.callId])));
+  const runsQueued = inQueue.flatMap((q) => (typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]));
   const idOf = (r: T) => r.id ?? r.key ?? "";
   // A row about a conversation says so in three different ways, and only one of
   // them is `about`. A KEPT row (the edge wrote it) carries the subject; a
@@ -1796,6 +1804,8 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   // printed again and a call's row never could be covered.
   const door = (r: T) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : undefined);
   const aboutQueued = (r: T) => {
+    // A run waiting for a word is a row of the queue; the bell's "is ready" about the same run says it again.
+    if (r.kind === "playbook" && runsQueued.some((title) => r.title.startsWith(title))) return true;
     if (r.about && r.about.type === "conversation" && convs.has(r.about.id)) return true;
     if (r.about && r.about.type === "call" && callsQueued.has(r.about.id)) return true;
     const cv = conversationOfNeedsKey(idOf(r));

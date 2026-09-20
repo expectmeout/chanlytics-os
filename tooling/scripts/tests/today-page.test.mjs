@@ -347,15 +347,18 @@ test("while you were away: drawn wherever the bell is, deduped over every queue 
     bellRow("needs:th-cv-a", "needs_you", "Ana Reyes needs you", "warn"),
     bellRow("call:k3", "missed_call", "Missed call · +1 (347) 555-0188", "warn", null, "conversations/cv-k3"),
     bellRow("n:1", "review", "1 new rating on Google", "ok"),
+    // The run the queue holds for a word, said again by the bell: the fifth queue kind the away card hides.
+    bellRow("n:2", "playbook", "Playbook “Win-back” is ready: 3 people", "ok", null, "outbound"),
   ];
   const api = { feed: () => rows, onChange: () => () => {}, read() {}, dismiss() {}, seenAll() {}, unread: () => unreadCount(rows) };
-  set({ TODAY_DATA: vm, __notifs: api });
+  // The queue draws the Win-back run held for a word (broadcasts()), so the bell's "is ready" about it is the queue's.
+  set({ TODAY_DATA: vm, __notifs: api, __BROADCASTS: broadcasts() });
   W.__DEMO_MODE = true;
   const tree = draw(W.TodayAway);
   assert.ok(byTestId(tree, "today-away"), "the mockup's sample publishes a bell too: the card no longer hides in a demo");
   assert.deepEqual(all(tree, (n) => n.props?.["data-testid"] === "today-away-row").map((n) => textOf(find(n, (m) => classes(m).includes("ta-title")))), ["1 new rating on Google"], "the handoff's row and the missed call are the queue's");
-  assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "3", "the bell's own number");
-  assert.match(textOf(find(tree, (n) => classes(n).includes("tq-foot"))), /2 more in the bell, already in the queue above/);
+  assert.equal(textOf(find(tree, (n) => classes(n).includes("tq-count"))).trim(), "4", "the bell's own number");
+  assert.match(textOf(find(tree, (n) => classes(n).includes("tq-foot"))), /3 more in the bell, already in the queue above/);
   assert.ok(buttons(tree, "Mark all read").length === 1);
   W.__DEMO_MODE = false;
 });
