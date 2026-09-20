@@ -275,3 +275,22 @@ test("the mark a site declares: an href is decoded as HTML before it is read as 
   assert.equal(leadMarkFrom(head(`<link rel="icon" href="/a&lt;b.png">`), O), null);
   assert.equal(leadMarkFrom(head(`<link rel="icon" href="/two words.png">`), O), null, "a space is not in an address a server would answer");
 });
+
+// Checking the 221 marks read from live sites found two that answered with a page instead of an image. Both came
+// from schema.org: one site wrote `"logo":"#logo"`, which is a reference to another node in its own graph and not
+// an address at all, and one wrote a logo that resolved to its own front door.
+test("the mark a site declares: a reference into the page's own graph is not an address, and neither is the front door", () => {
+  const O = "https://zilkerstrength.example";
+  const head = (inner) => `<!doctype html><html><head>${inner}</head><body></body></html>`;
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"logo":"#logo"}</script>`), O), null, "a graph reference points at JSON, not an image");
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="#brand">`), O), null);
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"logo":{"@id":"#logo"}}</script>`), O), null);
+  // A mark that resolves to the site itself is the home page: HTML, never an image.
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"logo":"/"}</script>`), O), null);
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="${O}">`), O), null, "the front door is not the mark on it");
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="${O}/">`), O), null);
+  // Falling through, as every refusal in this reader does.
+  assert.equal(leadMarkFrom(head(`<script type="application/ld+json">{"logo":"#logo"}</script><link rel="apple-touch-icon" href="/mine.png">`), O), `${O}/mine.png`);
+  // A fragment hanging off a real path is still a real path: the server ignores what follows the hash.
+  assert.equal(leadMarkFrom(head(`<link rel="icon" href="/mark.svg#a">`), O), `${O}/mark.svg#a`);
+});

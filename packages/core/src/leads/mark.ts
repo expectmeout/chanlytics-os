@@ -100,6 +100,9 @@ function absolute(href: string, origin: string): string | null {
   const raw = decodeEntities(href.trim());
   if (!raw || raw.length > HREF_MAX) return null;
   if (/^data:|^javascript:/i.test(raw)) return null;
+  // A lone fragment is a reference into the page's own JSON-LD graph, not an address: one dental practice wrote
+  // its logo as "#logo". The server never sees what follows a hash, so this asks for the page itself.
+  if (raw.startsWith("#")) return null;
   let url = raw;
   if (raw.startsWith("//")) url = `https:${raw}`;
   else if (raw.startsWith("/")) url = `${origin}${raw}`;
@@ -111,6 +114,9 @@ function absolute(href: string, origin: string): string | null {
   const secure = url.replace(/^http:\/\//i, "https://");
   // A builder's own default is refused here, so BOTH readings below fall through to whatever else the page declares.
   if (UNSAFE_IN_AN_ADDRESS.test(secure)) return null;
+  // `https://host` and `https://host/` are the site's own front door: its home page is HTML, never an image.
+  const slash = secure.indexOf("/", "https://".length);
+  if (slash === -1 || slash === secure.length - 1) return null;
   return isPlatformDefault(secure) ? null : secure;
 }
 

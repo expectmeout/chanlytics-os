@@ -40236,6 +40236,7 @@ function absolute(href, origin) {
   const raw = decodeEntities(href.trim());
   if (!raw || raw.length > HREF_MAX) return null;
   if (/^data:|^javascript:/i.test(raw)) return null;
+  if (raw.startsWith("#")) return null;
   let url = raw;
   if (raw.startsWith("//")) url = `https:${raw}`;
   else if (raw.startsWith("/")) url = `${origin}${raw}`;
@@ -40243,6 +40244,8 @@ function absolute(href, origin) {
   if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
   const secure = url.replace(/^http:\/\//i, "https://");
   if (UNSAFE_IN_AN_ADDRESS.test(secure)) return null;
+  const slash = secure.indexOf("/", "https://".length);
+  if (slash === -1 || slash === secure.length - 1) return null;
   return isPlatformDefault(secure) ? null : secure;
 }
 function scoreOf(rel, type, href, side) {
