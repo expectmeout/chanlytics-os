@@ -1122,6 +1122,10 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_FIRST_DAY_TITLE = "Your people gather here";
+var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_WORDS = {
   close: "Close",
   open: "Open",
@@ -1163,7 +1167,9 @@ var LEAD_WORDS = {
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
 var LeadsQuerySchema = z7.object({
   list: z7.enum(LEAD_LISTS).default("all"),
@@ -7225,6 +7231,10 @@ var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a
 function leadNoteLeft2(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE2 = "Suggestions are not available right now.";
 var LEAD_WORDS2 = {
   close: "Close",
   open: "Open",
@@ -7266,7 +7276,9 @@ var LEAD_WORDS2 = {
   draftNote: LEAD_DRAFT_NOTE2,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE2, sub: LEAD_FIRST_DAY_SUB2, foot: LEAD_FIRST_DAY_FOOT2 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2
 };
 var LeadsQuerySchema2 = z72.object({
   list: z72.enum(LEAD_LISTS2).default("all"),
@@ -9416,6 +9428,10 @@ var LEAD_TALKING_NOTE3 = "They join People when they write or call in, or when a
 function leadNoteLeft3(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE3 = "Suggestions are not available right now.";
 var LEAD_WORDS3 = {
   close: "Close",
   open: "Open",
@@ -9457,7 +9473,9 @@ var LEAD_WORDS3 = {
   draftNote: LEAD_DRAFT_NOTE3,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE3, sub: LEAD_FIRST_DAY_SUB3, foot: LEAD_FIRST_DAY_FOOT3 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE3
 };
 var LeadsQuerySchema3 = z73.object({
   list: z73.enum(LEAD_LISTS3).default("all"),
@@ -10697,6 +10715,10 @@ var LEAD_TALKING_NOTE22 = "They join People when they write or call in, or when 
 function leadNoteLeft22(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_FIRST_DAY_TITLE22 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB22 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT22 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE22 = "Suggestions are not available right now.";
 var LEAD_WORDS22 = {
   close: "Close",
   open: "Open",
@@ -10738,7 +10760,9 @@ var LEAD_WORDS22 = {
   draftNote: LEAD_DRAFT_NOTE22,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE22, sub: LEAD_FIRST_DAY_SUB22, foot: LEAD_FIRST_DAY_FOOT22 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE22
 };
 var LeadsQuerySchema22 = z722.object({
   list: z722.enum(LEAD_LISTS22).default("all"),
@@ -11849,6 +11873,10 @@ var LEAD_TALKING_NOTE32 = "They join People when they write or call in, or when 
 function leadNoteLeft32(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_FIRST_DAY_TITLE32 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB32 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT32 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE32 = "Suggestions are not available right now.";
 var LEAD_WORDS32 = {
   close: "Close",
   open: "Open",
@@ -11890,7 +11918,9 @@ var LEAD_WORDS32 = {
   draftNote: LEAD_DRAFT_NOTE32,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE32, sub: LEAD_FIRST_DAY_SUB32, foot: LEAD_FIRST_DAY_FOOT32 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE32
 };
 var LeadsQuerySchema32 = z732.object({
   list: z732.enum(LEAD_LISTS32).default("all"),
@@ -13489,6 +13519,10 @@ var LEAD_TALKING_NOTE4 = "They join People when they write or call in, or when a
 function leadNoteLeft4(left2, max) {
   return left2 >= max ? `Up to ${max} characters` : `${left2} left`;
 }
+var LEAD_FIRST_DAY_TITLE4 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB4 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT4 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE4 = "Suggestions are not available right now.";
 var LEAD_WORDS4 = {
   close: "Close",
   open: "Open",
@@ -13530,7 +13564,9 @@ var LEAD_WORDS4 = {
   draftNote: LEAD_DRAFT_NOTE4,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE4, sub: LEAD_FIRST_DAY_SUB4, foot: LEAD_FIRST_DAY_FOOT4 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE4
 };
 var LeadsQuerySchema4 = z74.object({
   list: z74.enum(LEAD_LISTS4).default("all"),

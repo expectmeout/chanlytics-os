@@ -24,6 +24,40 @@
   overflow-y: auto;
 }
 
+/* People | Leads: the one switch between the page's two scopes, at the head of
+   the rail (clients-a.jsx PeopleScopeTabs). A segmented control, because which
+   scope you are on has to be visible at a glance; the phone draws the same
+   control in the slim bar (leads.css). Until this rule existed the two buttons
+   were bare text at the same colour and ran together as one word. */
+.pt-scope {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 2px;
+  margin: 12px 12px 2px;
+  padding: 2px;
+  background: var(--bg-active);
+  border-radius: var(--radius-md);
+  flex: none;
+}
+.pt-scope button {
+  height: 30px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+}
+.pt-scope button:hover { color: var(--ink); }
+.pt-scope button.on {
+  background: var(--bg-raised);
+  color: var(--ink);
+  box-shadow: var(--shadow-sm);
+}
+.pt-scope button:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+
 .cl-rail-section {
   padding: 14px 12px 8px;
 }

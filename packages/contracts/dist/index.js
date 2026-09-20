@@ -11108,6 +11108,10 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_FIRST_DAY_TITLE = "Your people gather here";
+var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_WORDS = {
   close: "Close",
   open: "Open",
@@ -11149,9 +11153,10 @@ var LEAD_WORDS = {
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
-var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_SUGGEST_DAYS = 7;
 var LEAD_PRIOR_MIN = 25;
 function leadReachLine(prior) {
@@ -11162,6 +11167,34 @@ function leadReachLine(prior) {
   if (tenths === 5) return "About half have an email";
   if (tenths === 7) return "About 2 in 3 have an email";
   return `About ${tenths} in 10 have an email`;
+}
+function leadsFirstDayWays(f) {
+  const live = !!(f.voice && f.voice.active && f.voice.number);
+  const reachDoors = [{ id: "line", label: live ? "Your number" : "Set up your number", to: "admin/setup" }];
+  if (!f.whatsapp || !f.whatsapp.active) reachDoors.push({ id: "whatsapp", label: "Connect WhatsApp", to: "admin/integrations" });
+  return [
+    {
+      id: "reach",
+      title: "They reach you",
+      line: live ? `Calls and texts to ${f.voice.number} are answered, and each person lands here.` : "Calls and texts to your number are answered, and each person lands here.",
+      status: live ? "Your number is live" : null,
+      doors: reachDoors
+    },
+    {
+      id: "calendar",
+      title: "Your calendar",
+      line: "Anyone with an appointment is added, with their visits, so regulars aren't strangers.",
+      status: f.calendar === "ok" ? "Your calendar is connected" : null,
+      doors: f.calendar === "ok" ? [{ id: "calendar", label: "Open the calendar", to: "calendar" }] : [{ id: "calendar", label: "Connect your calendar", to: "admin/integrations" }]
+    },
+    {
+      id: "yours",
+      title: "Clients you already have",
+      line: "Add them one at a time, and they gather here with everyone else.",
+      status: f.people > 0 ? `${f.people} ${f.people === 1 ? "person" : "people"} here already` : null,
+      doors: [{ id: "add", label: "Add someone", to: "clients" }]
+    }
+  ];
 }
 var LEAD_NO_CARD_LINE = "I can find local businesses for now.";
 var LEAD_OUTSIDE_US_LINE = "I can only find businesses in the US for now. The rules for emailing businesses in Canada, the UK and the EU are different, and Chanlytics follows the US ones.";
@@ -11984,6 +12017,9 @@ export {
   LEAD_ENDING_WORDS,
   LEAD_ESTIMATE_MARGIN,
   LEAD_FACT_MAX,
+  LEAD_FIRST_DAY_FOOT,
+  LEAD_FIRST_DAY_SUB,
+  LEAD_FIRST_DAY_TITLE,
   LEAD_FITS,
   LEAD_FIT_WORDS,
   LEAD_FREE_MAIL,
@@ -12436,6 +12472,7 @@ export {
   leadReachLine,
   leadSearchWords,
   leadSuppressionHash,
+  leadsFirstDayWays,
   leadsRoute,
   leadsStanding,
   lineCredentialFailure,

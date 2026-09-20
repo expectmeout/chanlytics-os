@@ -15,7 +15,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
-import { leadEndingLine, leadRail, leadsRoute, leadsStanding, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { leadEndingLine, leadRail, leadsRoute, leadsStanding, leadsFirstDayWays, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
 import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
@@ -80,6 +80,14 @@ const ROW_DTOS = [
 const ROWS = ROW_DTOS.map((r) => toLeadRowVM(r, TZ, NOW));
 
 /** The Leads surface, as legacy-bridge/leads.ts publishes it (Task 3's LeadsSurface). */
+// What the server wrote for this workspace from its own business line (4.4's suggestionsFor).
+const SUGGESTIONS = {
+  business_line: "a personal training studio in Denver",
+  by_owner: false,
+  made_at: "2026-09-16T10:00:00.000Z",
+  items: [{ words: "gyms in Denver", who_for: "owners who refer clients out", category_key: "gym", reach: "About 6 in 10 have an email" }],
+};
+
 const surface = (over = {}) => ({
   searches: [search(), waiting],
   counts: COUNTS,
@@ -169,15 +177,17 @@ await import("../../../apps/dashboard/src/legacy/pages/people-table.jsx");
 for (const k of ["PeopleTable", "PeopleColumnsMenu", "plLocked", "plShows", "plSortKeys", "plDrawnColumns", "plColumnChoices", "plColumnOptions", "PL_NO_SEL"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/clients-a.jsx");
 for (const k of ["PeopleRail", "PeopleStanding", "PeopleScopeTabs"]) globalThis[k] = globalThis.window[k];
-// The boards this task does not write: the finder (Task 8), the strip (Task 10), the peek (Task 12) and the
-// first day (Task 17). Drawn here as their props, so what THIS task hands them is what is pinned.
+// The boards this task does not write: the finder (Task 8), the strip (Task 10) and the peek (Task 12). Drawn
+// here as their props, so what THIS task hands them is what is pinned. The first day is NOT among them: it is
+// Task 17's own component, loaded below with leads-finder.jsx, because a stub of it is what let the Leads scope
+// ship referencing a component nothing declared -- every test here green, and "LeadsFirstDay is not defined"
+// in the browser for every workspace that had not yet kept a search, which on the first day is all of them.
 const finders = [];
 const strips = [];
 const peeks = [];
 globalThis.LeadFinder = (p) => { finders.push(p); return null; };
 globalThis.LeadStrip = (p) => { strips.push(p); return null; };
 globalThis.LeadPeek = (p) => { peeks.push(p); return null; };
-globalThis.LeadsFirstDay = () => null;
 // The peek's own file (Task 12's leads-peek.jsx), for real: its acts (LeadPeekActions) are what the page must
 // build and hand over, and its four seams are what the page reads -- Esc backing out one step, the peek following
 // the row cursor, the focus rule, and the watcher that asks once the owner is back at the tab. Only the DRAWING is
@@ -209,6 +219,7 @@ await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
 for (const k of ["LeadPeekActions", "LeadNotFitWhy", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
 for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_SORT_KEYS", "LeadShape"]) globalThis[k] = globalThis.window[k];
+for (const k of ["LeadsFirstDay", "LeadSuggestion", "LeadWayCard"]) globalThis[k] = globalThis.window[k];
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
 const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
@@ -268,6 +279,7 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     // Every word the Leads scope says, from contracts (seed-globals.ts): the five whys the bulk bar and the
     // peek both draw are read off it, so neither spells them.
     __LEAD_WORDS: LEAD_WORDS,
+    __leadWays: leadsFirstDayWays,
     __roleGate: roleGate,
     __ME: { role },
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
@@ -328,6 +340,42 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.ok(find(rowOf(tree, "l1"), (n) => n.props?.className === "ld-tick2"), "Maps and their website agree on the number");
   assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")).startsWith("322 leads"), true, "the table calls its rows leads");
   assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-fit")), "Chain", "Excluded wears the criterion that left it out, in the owner's words");
+});
+
+// The first day is what every workspace opens Leads on, and it is what nothing drew: the component this file
+// used to stub did not exist, so the scope threw "LeadsFirstDay is not defined" for anyone without a search.
+test("with no search kept the first day stands where the table would, and claims only what this tab has read", () => {
+  fresh({ leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
+  const tree = draw();
+  const fd = byTestId(tree, "leads-first-day");
+  assert.ok(fd, "the first day is drawn");
+  assert.equal(find(tree, (n) => n.type === "table"), null, "and the table is not: there is nothing to put in it");
+
+  assert.deepEqual(
+    all(fd, (n) => /^ld-way-[a-z]+$/.test(String(n.props?.["data-testid"] || ""))).map((n) => n.props["data-testid"]),
+    ["ld-way-reach", "ld-way-calendar", "ld-way-yours"],
+    "the three ways people arrive, People first",
+  );
+  assert.equal(byTestId(fd, "ld-way-status-reach"), null, "this tab never read the setup surface, so nothing says a number is live");
+  assert.equal(byTestId(fd, "ld-way-status-calendar"), null, "and nothing says a calendar is connected");
+  assert.match(textOf(byTestId(fd, "ld-way-reach")), /Set up your number/, "what it says instead is the door to set one up");
+
+  assert.ok(byTestId(fd, "ld-sug-gym"), "the suggestion Claude wrote for this workspace is offered");
+  assert.match(textOf(byTestId(fd, "ld-sug-gym")), /About 6 in 10 have an email/, "with how reachable that kind is, measured, never promised");
+  assert.match(textOf(byTestId(fd, "ld-line")), /a personal training studio in Denver/, "and what they were written from");
+  assert.ok(byTestId(fd, "ld-line-edit"), "with the one control that renews them");
+  assert.match(textOf(byTestId(fd, "ld-first-day-foot")), /not people at home/, "the foot says what the finder does not do");
+});
+
+test("a suggestion picked on the first day fills the composer, and the composer is inside the first day", () => {
+  fresh({ leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
+  let tree = draw();
+  // The composer is a recorder here (globalThis.LeadFinder), so what this pins is that it is drawn once with
+  // nobody having opened it -- on the first day it is part of the page, not a fold-out over an empty table.
+  assert.equal(finders.length, 1, "the composer is drawn without the owner opening anything");
+  find(byTestId(tree, "leads-first-day"), (n) => n.type === "button" && n.props?.className === "q").props.onClick();
+  tree = draw();
+  assert.equal(finders[finders.length - 1].words, "gyms in Denver", "the words land in the composer the owner then edits");
 });
 
 test("the rail counts what the lists hold, a waiting search wears a question mark, and the standing line says who needs you", () => {

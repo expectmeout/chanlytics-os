@@ -11,6 +11,112 @@
 // The words a lead wears live once, in contracts; the bridge hands them over
 // as window.__LEAD_VM (legacy-bridge/seed-globals.ts). Read at draw time, never
 // at load time: the page's scripts load before the bridge installs anything.
+/* --------------------------------------------------------- the first day */
+
+// The words the first day says live once, in contracts, and arrive as
+// window.__LEAD_WORDS (legacy-bridge/seed-globals.ts). Read at draw time: the
+// page's scripts load before the bridge installs anything.
+const ldWords = () => window.__LEAD_WORDS;
+
+// One suggestion: what to search, who it is for, and how reachable that kind is.
+const LeadSuggestion = ({ item, onPick, canFind }) => (
+  <div className="fr-sug" data-testid={`ld-sug-${item.category_key}`}>
+    <button
+      type="button"
+      className="q"
+      onClick={() => onPick(item.words)}
+      {...(canFind ? {} : window.gate("find", "find businesses for you"))}
+    >
+      {item.words}
+    </button>
+    <span className="w">{item.who_for}</span>
+    {item.reach ? <span className="reach">{item.reach}</span> : null}
+  </div>
+);
+
+// One way people arrive. The status is drawn only when this tab has read the
+// fact behind it: a way never says a line is live that nobody looked at.
+const LeadWayCard = ({ way, onGo }) => (
+  <div className="fr-way" data-testid={`ld-way-${way.id}`}>
+    <b>{way.title}</b>
+    <span>{way.line}</span>
+    {way.status ? (
+      <span className="fr-status" data-testid={`ld-way-status-${way.id}`}>
+        <Icon name="check" size={12} />
+        {way.status}
+      </span>
+    ) : null}
+    {way.doors.map((d) => (
+      <button key={d.id} type="button" className="fr-door" onClick={() => onGo(d.to)}>{d.label}</button>
+    ))}
+  </div>
+);
+
+/**
+ * The first day of Leads: no search kept yet. People first -- the three ways
+ * they arrive, each claiming only what this tab has read -- then the composer
+ * and the suggestions Claude wrote from this workspace's own business line.
+ * Never a seeded example: the items are the server's, from this workspace's
+ * line, and a refused read is a note beside a composer that still works.
+ *
+ * Hookless, like everything else here, because it comes and goes with the
+ * workspace's first search and the stub React keys state by call order.
+ */
+const LeadsFirstDay = ({
+  ways = [], suggestions = null, canFind = false, lineOpen = false, lineDraft = "", lineError = null, lineBusy = false,
+  onPick = () => {}, onGo = () => {}, onOpenLine = () => {}, onLineDraft = () => {}, onSaveLine = () => {},
+  onCancelLine = () => {}, composer = null,
+}) => {
+  const items = (suggestions && suggestions.items) || [];
+  const note = suggestions && suggestions.note ? suggestions.note : null;
+  return (
+    <div className="fr" data-testid="leads-first-day">
+      <h1 className="fr-h">{ldWords().firstDay.title}</h1>
+      <p className="fr-p">Everyone who calls, messages or books you shows up on this page by themselves, with what they asked and what they booked.</p>
+      <div className="fr-ways">
+        {ways.map((w) => <LeadWayCard key={w.id} way={w} onGo={onGo} />)}
+      </div>
+      <div className="fr-sub">{ldWords().firstDay.sub}</div>
+      {composer}
+      <div>
+        <div className="fr-sugs-h">
+          {suggestions ? <span data-testid="ld-line">{`For ${suggestions.business_line}`}</span> : <span data-testid="ld-line" />}
+          {canFind && suggestions ? (
+            <button type="button" className="fr-line-edit" onClick={onOpenLine} data-testid="ld-line-edit">Not right? Change it</button>
+          ) : null}
+        </div>
+        {lineOpen ? (
+          <form
+            className="fr-line-form"
+            data-testid="ld-line-form"
+            onSubmit={(e) => { e.preventDefault(); onSaveLine(); }}
+          >
+            <input
+              className="inp"
+              type="text"
+              value={lineDraft}
+              aria-label="What this business does"
+              data-testid="ld-line-input"
+              onChange={(e) => onLineDraft(e.target.value)}
+            />
+            <button type="submit" className="btn btn-primary btn-sm" disabled={lineBusy} data-testid="ld-line-save">Save</button>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={onCancelLine}>Cancel</button>
+            <window.FieldError id="ld-line-error" message={lineError} testid="ld-line-error" />
+          </form>
+        ) : null}
+        {note ? <p className="fr-sugs-note" data-testid="ld-sugs-note">{note}</p> : null}
+        <div className="fr-sugs">
+          {items.map((it) => <LeadSuggestion key={it.category_key} item={it} onPick={onPick} canFind={canFind} />)}
+        </div>
+      </div>
+      <div className="fr-foot" data-testid="ld-first-day-foot">
+        <Icon name="lock" size={12} />
+        <span>{ldWords().firstDay.foot}</span>
+      </div>
+    </div>
+  );
+};
+
 /* ------------------------------------------------------ the one Ask turn */
 
 /**
@@ -544,4 +650,4 @@ const LeadStrip = ({ vm, onAction }) => {
   );
 };
 
-Object.assign(window, { LeadFinder, LeadPlanCard, LeadStrip, LeadPick, leadStrip, leadFinderPlan, leadFinderApprove, leadFinderAsk, LEAD_ROUND_MAKERS });
+Object.assign(window, { LeadFinder, LeadPlanCard, LeadStrip, LeadPick, LeadsFirstDay, LeadSuggestion, LeadWayCard, leadStrip, leadFinderPlan, leadFinderApprove, leadFinderAsk, LEAD_ROUND_MAKERS });

@@ -11,7 +11,7 @@ import * as ReactDOM from "react-dom";
 import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords, csvCell, LEAD_WORDS } from "@chanlytics/contracts";
 import {
   LEAD_COUNT_CHOICES, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords,
-  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadEndingLine } from "@chanlytics/contracts";
+  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadEndingLine, leadsFirstDayWays } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -31,6 +31,7 @@ declare global {
     __hardLimits: typeof hardLimitsWords;
     __csvCell: typeof csvCell;
     __LEAD_WORDS: typeof LEAD_WORDS;
+    __leadWays: typeof leadsFirstDayWays;
     __LEAD_VM: {
       planWords: typeof planWords; planSaid: typeof planSaid; planSentence: typeof planSentence; planWho: typeof planWho;
       planWhere: typeof planWhere; planArea: typeof planArea; planMinutes: typeof planMinutes; planVersionOf: typeof planVersionOf;
@@ -89,6 +90,10 @@ if (typeof window !== "undefined") {
   // a word that drifts (contracts leads.ts LEAD_WORDS; Task 19 adds the facts'
   // own words to the same record, Task 17 the ways beside it).
   window.__LEAD_WORDS = LEAD_WORDS;
+  // The first day's three ways (Task 17). Beside the words rather than inside
+  // __LEAD_VM: it takes facts the page reads from two surfaces and answers what
+  // may be said about each way, so a way never claims a line nobody looked at.
+  window.__leadWays = leadsFirstDayWays;
   // One derivation per fact: __LEAD_WORDS holds the words, __LEAD_VM holds what
   // derives them, and the pages spell neither. Task 10 adds `leadStrip` to this
   // object; `leadEndingLine` is here, so the strip never spells an ending itself.

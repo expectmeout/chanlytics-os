@@ -1589,6 +1589,11 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [finderWords, setFinderWords] = useState("");
   const [finderProposal, setFinderProposal] = useState(null);
   const [finderRefusal, setFinderRefusal] = useState(null);
+  // The first day's "Not right? Change it" (Task 17): the line the owner is
+  // rewriting, or null when the form is closed. Saving it keeps the line with
+  // no items, so the read that follows asks Claude again -- which is the only
+  // control that renews the suggestions, and why their age is never drawn.
+  const [leadLine, setLeadLine] = useState(null);
   // The plan the card is showing and the owner is editing, the trace line while Claude reads, and which of the
   // sentence's words has its picker open (Task 9). A plan opened from a strip's next step carries whose round it
   // belongs to and what approving it does -- `answer: true` answers the question that is still waiting, else it
@@ -2037,6 +2042,17 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     plFlash({ msg: <>Removed. The {r.data.kept} you contacted or are talking to are kept.</> });
     nav("clients/leads");
   };
+  // The first day's business line. The courier's PUT keeps it with no items, so
+  // the refresh that follows writes new suggestions from the owner's own words.
+  const saveBusinessLine = async () => {
+    const line = String((leadLine && leadLine.draft) || "").trim();
+    if (!line) { setLeadLine((l) => ({ ...l, error: "Say what this business does." })); return; }
+    setLeadLine((l) => ({ ...l, busy: true, error: null }));
+    const r = await window.__leadBusinessLine(line);
+    if (!r.ok) { setLeadLine((l) => ({ ...l, busy: false, error: r.message || "That could not be saved." })); return; }
+    setLeadLine(null);
+    plFlash({ msg: <>Saved. New suggestions from what you said.</> });
+  };
   // Find new ones runs the same plan again, and only places not already in your leads count (P3).
   const findNewOnes = (s) => {
     const dto = searchById(s.id);
@@ -2245,6 +2261,24 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onMore={() => window.__leadsMore && window.__leadsMore()}
         loadingMore={leadBusy}
         firstDay={leads.searches.length === 0 && !leads.readFailed}
+        // The three ways claim only what THIS tab has read: the line is the setup
+        // surface's, which this route does not load on a cold open, so it is passed
+        // only when the owner came from Setup in this tab (Task 17, decision 2).
+        ways={window.__leadWays ? window.__leadWays({
+          voice: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.voice : null,
+          whatsapp: window.__SETUP && window.__SETUP.dto ? window.__SETUP.dto.channels.whatsapp : null,
+          calendar: (people.calendar && people.calendar.state) || "none",
+          people: (people.aggregates && people.aggregates.total) || 0,
+        }) : []}
+        lineOpen={!!leadLine}
+        lineDraft={leadLine ? leadLine.draft : ""}
+        lineError={leadLine ? leadLine.error : null}
+        lineBusy={!!(leadLine && leadLine.busy)}
+        onOpenLine={() => setLeadLine({ draft: leads.suggestions ? leads.suggestions.business_line : "", error: null, busy: false })}
+        onLineDraft={(draft) => setLeadLine((l) => ({ ...l, draft, error: null }))}
+        onSaveLine={saveBusinessLine}
+        onCancelLine={() => setLeadLine(null)}
+        onGo={(to) => nav(to)}
         onBusinessLine={(line) => window.__leadBusinessLine && window.__leadBusinessLine(line)}
         toastNode={toastNode}
       />

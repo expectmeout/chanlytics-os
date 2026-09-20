@@ -1904,6 +1904,10 @@ var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a 
 function leadNoteLeft(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_FIRST_DAY_TITLE = "Your people gather here";
+var LEAD_FIRST_DAY_SUB = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE = "Suggestions are not available right now.";
 var LEAD_WORDS = {
   close: "Close",
   open: "Open",
@@ -1945,7 +1949,9 @@ var LEAD_WORDS = {
   draftNote: LEAD_DRAFT_NOTE,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE, sub: LEAD_FIRST_DAY_SUB, foot: LEAD_FIRST_DAY_FOOT },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE
 };
 var LeadsQuerySchema = z7.object({
   list: z7.enum(LEAD_LISTS).default("all"),
@@ -4123,6 +4129,10 @@ var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a
 function leadNoteLeft2(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_FIRST_DAY_TITLE2 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB2 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT2 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE2 = "Suggestions are not available right now.";
 var LEAD_WORDS2 = {
   close: "Close",
   open: "Open",
@@ -4164,7 +4174,9 @@ var LEAD_WORDS2 = {
   draftNote: LEAD_DRAFT_NOTE2,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE2, sub: LEAD_FIRST_DAY_SUB2, foot: LEAD_FIRST_DAY_FOOT2 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE2
 };
 var LeadsQuerySchema2 = z72.object({
   list: z72.enum(LEAD_LISTS2).default("all"),
@@ -5335,6 +5347,10 @@ var LEAD_TALKING_NOTE3 = "They join People when they write or call in, or when a
 function leadNoteLeft3(left, max) {
   return left >= max ? `Up to ${max} characters` : `${left} left`;
 }
+var LEAD_FIRST_DAY_TITLE3 = "Your people gather here";
+var LEAD_FIRST_DAY_SUB3 = "Or have Claude find businesses worth reaching";
+var LEAD_FIRST_DAY_FOOT3 = "Claude finds businesses, not people at home.";
+var LEAD_SUGGEST_UNAVAILABLE3 = "Suggestions are not available right now.";
 var LEAD_WORDS3 = {
   close: "Close",
   open: "Open",
@@ -5376,7 +5392,9 @@ var LEAD_WORDS3 = {
   draftNote: LEAD_DRAFT_NOTE3,
   draftOpen: "Open in your email",
   draftFrom: "Sent from your own inbox",
-  copiedDraft: "Copied the email."
+  copiedDraft: "Copied the email.",
+  firstDay: { title: LEAD_FIRST_DAY_TITLE3, sub: LEAD_FIRST_DAY_SUB3, foot: LEAD_FIRST_DAY_FOOT3 },
+  suggestUnavailable: LEAD_SUGGEST_UNAVAILABLE3
 };
 var LeadsQuerySchema3 = z73.object({
   list: z73.enum(LEAD_LISTS3).default("all"),

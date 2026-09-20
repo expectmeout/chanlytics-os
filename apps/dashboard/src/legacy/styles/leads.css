@@ -331,6 +331,43 @@
 .ld-search-renaming input { flex: 1; min-width: 0; }
 .ld-search-row .confirm { flex-basis: 100%; }
 
+/* ======================================================= the first day ====
+   No search kept yet (Task 17, §8.9): people first, then the composer and the
+   suggestions Claude wrote from this workspace's own line. It stands where the
+   table stands, so it keeps the table's column of measure. */
+
+.fr { max-width: 760px; padding: 8px 0 40px; display: flex; flex-direction: column; gap: 10px; }
+.fr-h { font-size: var(--text-xl); font-weight: var(--weight-semibold); color: var(--ink); margin: 0; }
+.fr-p { font-size: var(--text-md); color: var(--ink-muted); margin: 0; max-width: 62ch; line-height: 1.5; }
+
+.fr-ways { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 6px 0 4px; }
+.fr-way { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
+.fr-way b { font-size: var(--text-sm); font-weight: var(--weight-semibold); color: var(--ink); }
+.fr-way > span { font-size: var(--text-sm); color: var(--ink-muted); line-height: 1.45; }
+.fr-status { display: inline-flex; align-items: center; gap: 4px; font-size: var(--text-xs); color: var(--ok-ink); }
+.fr-status .icon { color: var(--ok-ink); }
+.fr-door { margin-top: auto; padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; text-align: left; }
+.fr-door:hover { text-decoration: underline; }
+
+.fr-sub { margin-top: 10px; font-size: var(--text-md); font-weight: var(--weight-semibold); color: var(--ink); }
+
+.fr-sugs-h { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; font-size: var(--text-xs); color: var(--ink-dim); }
+.fr-line-edit { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-xs); color: var(--accent); cursor: pointer; }
+.fr-line-edit:hover { text-decoration: underline; }
+.fr-line-form { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.fr-line-form .inp { flex: 1; min-width: 220px; height: 32px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--bg-raised); padding: 0 8px; font: inherit; font-size: var(--text-sm); color: var(--ink); }
+.fr-sugs-note { margin: 0 0 8px; font-size: var(--text-sm); color: var(--ink-dim); }
+
+.fr-sugs { display: flex; flex-direction: column; gap: 6px; }
+.fr-sug { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); }
+.fr-sug .q { padding: 0; border: 0; background: none; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--accent); cursor: pointer; text-align: left; }
+.fr-sug .q:hover { text-decoration: underline; }
+.fr-sug .w { font-size: var(--text-sm); color: var(--ink-muted); }
+.fr-sug .reach { margin-left: auto; font-size: var(--text-xs); color: var(--ink-dim); white-space: nowrap; }
+
+.fr-foot { display: flex; align-items: center; gap: 5px; margin-top: 16px; font-size: var(--text-xs); color: var(--ink-dim); }
+.fr-foot .icon { color: var(--ink-faint); }
+
 /* ========================================================== the phone ====
    900px and under: cards, one bar, and the work first. Nothing above the rows
    but the bar and the strip. */
