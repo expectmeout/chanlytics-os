@@ -271,7 +271,8 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   failed.add("broadcasts");
   const broke = draw(W.AgentCommand);
   assert.match(textOf(byTestId(broke, "today-runs-failed")), /Couldn't read the playbook runs/);
-  assert.equal(all(broke, (n) => classes(n).includes("cl-attn-row")).length, rows.length, "the rows themselves stand");
+  // `rows` above counted the two run rows too (they are AttnRows as well); the runs are a FailedRead now, so what must stand is the queue's own.
+  assert.equal(all(broke, (n) => classes(n).includes("cl-attn-row")).length, busy().queue.rows.length, "the rows themselves stand");
 });
 
 /* ------------------------------------ the day ------------------------------------ */
