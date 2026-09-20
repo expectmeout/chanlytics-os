@@ -163,7 +163,7 @@ test("the seeded leads page is retired: no file, no script tag, no import, and n
   assert.equal(fs.existsSync(path.join(ROOT, LEGACY, "pages/leads.jsx")), false);
   assert.equal(manifest.includes("pages/leads.jsx"), false);
   assert.equal(html.includes("pages/leads.jsx"), false);
-  assert.equal(/LeadsPage/.test(shell), false, "app-shell draws no LeadsPage");
+  assert.equal(new RegExp(String.raw`\bLeadsPage\b`).test(shell), false, "app-shell draws no LeadsPage");
 });
 
 test("the mockup draws Reports and Today from their samples, loaded right after the stand-ins (serve-legacy.mjs builds them)", () => {

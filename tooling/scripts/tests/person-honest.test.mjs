@@ -166,6 +166,10 @@ for (const k of ["StatStrip", "StatCell", "EmptyState", "FailedRead", "StatePill
 // Menus and questions as their props, and hookless stand-ins, so the stub's hook order holds.
 for (const k of ["MoreMenu", "Confirm", "ChannelGlyph", "TempBar", "ClientTag"]) globalThis[k] = () => null;
 globalThis.useHotkey = () => {};
+// The page People and Leads share names these two; People never opens a lead's peek, and each returns its own
+// cleanup, so a no-op keeps the hook order the stub React counts on.
+globalThis.leadArmOnReturn = () => () => undefined;
+globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
   usePPToast: () => [null, () => {}],
   AttnRow: () => null,

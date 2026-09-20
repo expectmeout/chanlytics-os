@@ -1854,6 +1854,7 @@ var LeadSearchPlanSchema = z6.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var US_NAMES = Object.fromEntries(Object.entries(US_STATES).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS = [...DECISION_VERBS, ...EVENT_KINDS];
 var PASSWORD_MIN = 12;
 var PASSWORD_WORDS = {
@@ -1884,6 +1885,68 @@ var LEAD_LISTS = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit"
 var LEAD_SORTS = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_CLOSED_WORDS = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_WORDS = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_DRAFT_NOTE = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NOT_A_FIT_WORDS = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
+var LEAD_SENT_QUESTION = "Did you send it?";
+var LEAD_CALL_QUESTION = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER = "A note for next time, if you like";
+var LEAD_NOTE_MAX = 280;
+var LEAD_TALKING_NOTE = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_WORDS = {
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE,
+  whys: LEAD_NOT_A_FIT_WHYS.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE,
+  sentQuestion: LEAD_SENT_QUESTION,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS[id] })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER,
+  noteMax: LEAD_NOTE_MAX,
+  noteLeft: leadNoteLeft,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email."
+};
 var LeadsQuerySchema = z7.object({
   list: z7.enum(LEAD_LISTS).default("all"),
   search: z7.string().uuid().optional(),
@@ -3721,6 +3784,7 @@ var LeadSearchPlanSchema2 = z62.object({
 });
 var isLowerLetter = (ch) => ch !== void 0 && ch === ch.toLowerCase() && ch !== ch.toUpperCase();
 var lowerFirst2 = (s) => s && isLowerLetter(s[1]) ? s.charAt(0).toLowerCase() + s.slice(1) : s;
+var US_NAMES2 = Object.fromEntries(Object.entries(US_STATES2).map(([name, code2]) => [code2, name]));
 function endingOfRound(x) {
   if (x.counted >= x.target) return "target_reached";
   if (x.paused) return "paused";
@@ -3754,6 +3818,7 @@ var LEAD_CARDS = [
     checkPerEmailUsd: 89e-5,
     startUsd: 5e-5,
     maxPerTerm: 120,
+    placesPerMinute: 50,
     examples: [
       "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
@@ -4039,6 +4104,68 @@ var LEAD_LISTS2 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit
 var LEAD_SORTS2 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES2 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS2 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_CLOSED_WORDS2 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_WORDS2 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_DRAFT_NOTE2 = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NOT_A_FIT_WORDS2 = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE2 = "What makes it not a fit?";
+var LEAD_SENT_QUESTION2 = "Did you send it?";
+var LEAD_CALL_QUESTION2 = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER2 = "A note for next time, if you like";
+var LEAD_NOTE_MAX2 = 280;
+var LEAD_TALKING_NOTE2 = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft2(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_WORDS2 = {
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS2.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE2,
+  whys: LEAD_NOT_A_FIT_WHYS2.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS2[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE2,
+  sentQuestion: LEAD_SENT_QUESTION2,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION2,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES2.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS2[id] })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER2,
+  noteMax: LEAD_NOTE_MAX2,
+  noteLeft: leadNoteLeft2,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE2,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email."
+};
 var LeadsQuerySchema2 = z72.object({
   list: z72.enum(LEAD_LISTS2).default("all"),
   search: z72.string().uuid().optional(),
@@ -5158,6 +5285,7 @@ var LeadSearchPlanSchema3 = z63.object({
   if (p.area.kind === "zip" && !p.area.zip) ctx.addIssue({ code: "custom", message: "a ZIP ask needs a zip code (A2 derives its center from the ZCTA table)", path: ["area", "zip"] });
   if (!US_CODES3.has(p.area.state)) ctx.addIssue({ code: "custom", message: "state is not a real US state or DC", path: ["area", "state"] });
 });
+var US_NAMES3 = Object.fromEntries(Object.entries(US_STATES3).map(([name, code2]) => [code2, name]));
 var ACTIVITY_KINDS3 = [...DECISION_VERBS3, ...EVENT_KINDS3];
 var PASSWORD_MIN3 = 12;
 var PASSWORD_WORDS3 = {
@@ -5188,6 +5316,68 @@ var LEAD_LISTS3 = ["all", "ready", "nurture", "converted", "said_no", "not_a_fit
 var LEAD_SORTS3 = ["fit", "found", "distance", "business", "rating", "stage"];
 var LEAD_CALL_OUTCOMES3 = ["interested", "call_back", "not_interested", "voicemail", "no_answer", "wrong_number"];
 var LEAD_NOT_A_FIT_WHYS3 = ["chain", "wrong_kind", "too_far", "customer", "other"];
+var LEAD_CLOSED_WORDS3 = { said_no: "Said no", not_a_fit: "Not a fit", customer: "Already a customer", stale: "Went quiet", search_removed: "Search removed" };
+var LEAD_CALL_OUTCOME_WORDS3 = { interested: "Interested", call_back: "Call back later", not_interested: "Not interested", voicemail: "Left a voicemail", no_answer: "No answer", wrong_number: "Wrong number" };
+var LEAD_DRAFT_NOTE3 = "Your business address and a way to say no are added at the foot, as US law asks.";
+var LEAD_NOT_A_FIT_WORDS3 = {
+  chain: "A chain or franchise",
+  wrong_kind: "The wrong kind of business",
+  too_far: "Too far away",
+  customer: "Already a customer",
+  other: "Something else"
+};
+var LEAD_NOT_A_FIT_TITLE3 = "What makes it not a fit?";
+var LEAD_SENT_QUESTION3 = "Did you send it?";
+var LEAD_CALL_QUESTION3 = "How did the call go?";
+var LEAD_NOTE_PLACEHOLDER3 = "A note for next time, if you like";
+var LEAD_NOTE_MAX3 = 280;
+var LEAD_TALKING_NOTE3 = "They join People when they write or call in, or when a call goes well.";
+function leadNoteLeft3(left, max) {
+  return left >= max ? `Up to ${max} characters` : `${left} left`;
+}
+var LEAD_WORDS3 = {
+  close: "Close",
+  open: "Open",
+  stageLabel: "Stage",
+  notFit: LEAD_CLOSED_WORDS3.not_a_fit,
+  notFitTitle: LEAD_NOT_A_FIT_TITLE3,
+  whys: LEAD_NOT_A_FIT_WHYS3.map((id) => ({ id, label: LEAD_NOT_A_FIT_WORDS3[id] })),
+  keep: "Keep",
+  exclude: "Exclude",
+  putBack: "Put back",
+  leftOut: "Left out of this search. It doesn't count.",
+  reach: "How you can reach them",
+  checked: "Checked",
+  found: "Found",
+  call: "Call",
+  copy: "Copy",
+  copyAria: "Copy the email",
+  draft: "Draft",
+  noWebsite: "No website listed",
+  instagram: "Instagram",
+  talkingNote: LEAD_TALKING_NOTE3,
+  sentQuestion: LEAD_SENT_QUESTION3,
+  sentYes: "Yes, mark contacted",
+  sentNo: "Not yet",
+  callQuestion: LEAD_CALL_QUESTION3,
+  callSave: "Save",
+  callCancel: "I didn't call",
+  outcomes: LEAD_CALL_OUTCOMES3.map((id) => ({ id, label: LEAD_CALL_OUTCOME_WORDS3[id] })),
+  noteLabel: "A note about the call",
+  notePlaceholder: LEAD_NOTE_PLACEHOLDER3,
+  noteMax: LEAD_NOTE_MAX3,
+  noteLeft: leadNoteLeft3,
+  backTo: "Back to",
+  to: "To",
+  subject: "Subject",
+  draftRewrite: "Rewrite",
+  tones: [{ id: "shorter", label: "Shorter" }, { id: "warmer", label: "Warmer" }],
+  draftWriting: "Writing it\u2026",
+  draftNote: LEAD_DRAFT_NOTE3,
+  draftOpen: "Open in your email",
+  draftFrom: "Sent from your own inbox",
+  copiedDraft: "Copied the email."
+};
 var LeadsQuerySchema3 = z73.object({
   list: z73.enum(LEAD_LISTS3).default("all"),
   search: z73.string().uuid().optional(),

@@ -754,7 +754,7 @@ test("the finder's sheet is the page's own dialog and registers no listener of i
   fresh();
   cells = []; seq = 0;
   const before = seq;
-  const t = globalThis.window.LeadFinderSheet({ onClose() {}, children: React.createElement("div", { "data-testid": "hold-to-talk" }, "Hold to talk, or type") });
+  const t = globalThis.window.LeadFinderSheet({ onClose() {}, children: globalThis.React.createElement("div", { "data-testid": "hold-to-talk" }, "Hold to talk, or type") });
   assert.equal(seq, before, "hookless: the page's listener owns Esc, and a second one would take the key twice");
   const sheet = byTestId(t, "leads-finder-sheet");
   assert.equal(sheet.props.role, "dialog");

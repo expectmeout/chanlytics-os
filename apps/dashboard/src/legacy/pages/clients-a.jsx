@@ -1506,7 +1506,7 @@ const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [
 // "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so the page keeps
 // one hook call order either way and the finder simply offers no mic.
 const PL_NO_TALK = { canTalk: false, listening: false, start: () => {}, stop: () => {} };
-const plNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); return PL_NO_TALK; };
+const usePlNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); return PL_NO_TALK; };
 
 const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
 
@@ -1620,7 +1620,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   // back what it heard. Nothing is recorded and nothing is uploaded -- the words go into the finder's input, and
   // the owner still presses Plan it. It is off for anyone who may not find, and while a plan is on the screen.
   const talkLang = window.__ask && window.__ask.language ? window.__ask.language() : "en";
-  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || plNoTalk)({
+  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || usePlNoTalk)({
     lang: talkLang,
     disabled: !onLeads || finderStage !== "compose" || (!!window.canDo && !window.canDo("find")),
     onWords: setFinderWords,

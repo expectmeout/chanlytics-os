@@ -205,6 +205,11 @@ globalThis.MoreMenu = () => null;
 globalThis.Confirm = () => null;
 globalThis.ChannelGlyph = () => null;
 globalThis.useHotkey = () => {};
+// People never opens a lead's peek, but the page it shares with Leads names these two: an effect that arms
+// "Did you send it?" when the tab comes back, and the one that moves focus into the peek. Each returns its
+// own cleanup, so a no-op here keeps the hook order the stub React counts on.
+globalThis.leadArmOnReturn = () => () => undefined;
+globalThis.leadPeekFocus = () => () => undefined;
 Object.assign(globalThis.window, {
   usePPToast: () => [null, (t) => flashes.push(t)],
   AttnRow: () => null,

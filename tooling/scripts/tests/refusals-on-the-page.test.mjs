@@ -57,6 +57,10 @@ for (const k of ["StatePill", "Confirm", "EmptyState", "FailedRead", "FieldError
 globalThis.StatStrip = globalThis.window.StatStrip || (({ children }) => children);
 globalThis.StatCell = globalThis.window.StatCell || ((p) => p.value);
 globalThis.useHotkey = () => {};
+// The page People and Leads share names these two; People never opens a lead's peek, and each returns its own
+// cleanup, so a no-op keeps the hook order the stub React counts on.
+globalThis.leadArmOnReturn = () => () => undefined;
+globalThis.leadPeekFocus = () => () => undefined;
 
 /** The words of a tree in reading order. */
 const say = (n) => {

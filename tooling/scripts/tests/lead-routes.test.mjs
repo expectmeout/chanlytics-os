@@ -489,6 +489,7 @@ test("the first day's suggestions are asked once a week, carry how reachable eac
   const stale = [{ ...kept[0], made_at: "2026-09-01T00:00:00Z" }];
   await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner", suggestions: stale }), {}, rpcs));
   assert.equal(modelCalls.length, 1, "eight days old, so it is asked again");
+  // eslint-disable-next-line require-yield -- the gateway refuses before it streams a first block
   setModelStream(async function* () { throw new GatewayRefused({ kind: "budget", used: 1, cap: 1 }); });
   const note = await suggestions.GET.run(get(inA), ctxOf(world({ role: "owner" }), {}, rpcs));
   assert.deepEqual([note.items, note.note], [[], "Suggestions are not available right now."], "the page still draws");
