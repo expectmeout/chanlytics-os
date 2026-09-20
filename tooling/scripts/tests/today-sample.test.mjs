@@ -120,3 +120,27 @@ test("at any hour the figures agree with the rows under them", () => {
     for (const f of t.figures) if (f.receipt) assert.doesNotMatch(f.receipt.text, new RegExp(`\\b${f.value}\\b`), `${iso}: ${f.id}: the receipt repeats the figure`);
   }
 });
+
+/**
+ * The day the clocks move: the window is still local midnight. The sample used to take the offset at `now` and apply
+ * it to midnight, so on the spring-forward day it opened the day an hour early (04:00Z, which is 11 PM the night
+ * before) and every figure counted from the wrong hour. Contracts' `zoneMidnight` reads the offset at midnight.
+ */
+test("on both daylight-saving days the day still opens at local midnight", () => {
+  const wall = (ms) => {
+    const p = Object.fromEntries(
+      new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", hourCycle: "h23", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })
+        .formatToParts(new Date(ms)).map((x) => [x.type, x.value]),
+    );
+    return `${p.year}-${p.month}-${p.day} ${p.hour}:${p.minute}`;
+  };
+  // 2026: forward on 8 March, back on 1 November.
+  for (const [iso, day] of [["2026-03-08T12:00:00Z", "2026-03-08"], ["2026-11-01T12:00:00Z", "2026-11-01"]]) {
+    const s = todaySample(Date.parse(iso));
+    const since = Date.parse(s.metrics.window.since);
+    assert.equal(wall(since), `${day} 00:00`, `${iso}: the window opens at local midnight, not ${wall(since)}`);
+    assert.equal(s.metrics.window.since_local, `${day}T00:00:00`);
+    const inbound = s.conversations.flatMap((c) => c.messages).filter((m) => m.direction === "inbound" && m.sender === "customer" && Date.parse(m.created_at) >= since);
+    assert.equal(s.metrics.period.messages_in, inbound.length, `${iso}: the figures count from that midnight`);
+  }
+});
