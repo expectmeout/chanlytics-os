@@ -128,6 +128,7 @@ let a2Started = 0;
  * provider and the judge faked (_lead-fixtures.mjs), scheduleJobOnce for the next job, and
  * the webhook token derived as the edge derives it, under the test secret _lead-world.mjs holds.
  */
+const pages = {};
 function a2World(base) {
   const apify = fakeApify();
   apify.state.started = a2Started;
@@ -141,7 +142,7 @@ function a2World(base) {
   };
   const wires = { apify, judge, webhookBase: "https://edge.example", webhookToken };
   const ports = (owner) => ({
-    db: leadDb(db), apify, judge, now: () => new Date(), webhookBase: wires.webhookBase, webhookToken: wires.webhookToken,
+    db: leadDb(db), apify, judge, now: () => new Date(), webhookBase: wires.webhookBase, webhookToken: wires.webhookToken, fetchText: async (url) => pages[url] ?? null,
     schedule: async (kind, payload, secs) => { await scheduleJobOnce(db, { tenantId: A, kind, dueAt: new Date(Date.now() + secs * 1000), payload }); },
     deadline: Date.now() + 45_000, owner,
   });
@@ -1099,4 +1100,26 @@ test("the row reads the neighbourhood and the band reads the fit split: written 
   assert.deepEqual([lead1.neighborhood, lead2.neighborhood], ["Hawthorne", "Irvington"], "kept where it was said, filled where it was empty");
   ok(await db.rpc("lead_blank", { p_lead_id: lead1.id }));
   assert.equal(ok(await db.from("leads").select("neighborhood").eq("id", lead1.id).single()).neighborhood, null, "blanked with the rest");
+});
+
+// D6 (00147): the business's own mark rides the same commit as every other fact about it, comes back from
+// leads_page, fills a known place only where it was empty, and goes with the rest when the lead is blanked.
+test("the lead wears its own mark: written by the commit, returned by the page, filled where empty, blanked with the rest", { skip }, async () => {
+  const search = ok(await db.from("lead_searches").insert({ tenant_id: A, created_by: owner.userId, via: "people", card: "local_businesses", name: "barbers", asked: "barbers in Austin", plan: plan(5) }).select("id").single()).id;
+  const round = ok(await db.from("lead_rounds").insert({ tenant_id: A, search_id: search, seq: 1, purpose: "probe", plan: plan(5), plan_version: 1, target: 5, state: "queued", allowance_reserved: 5, cost_reserved_usd: 1, month: leadMonth(TZ, new Date()), day: "2026-09-20", platform_day: "2026-09-20" }).select("id").single()).id;
+  const run = await runOf(round, "barber", "w-m6");
+  const marked = (n, logo) => { const x = place(n, "qualified"); x.place = { ...x.place, logo_url: logo }; return x; };
+  let r = ok(await commit(run.id, "w-m6", run.gen, 0, 1, { judgment: null, places: [marked(931, "https://cdn.example/mark.png"), marked(932, null)], usage_usd: 0, items_seen: 2, run_state: null, next: null, round: { state: "probing", question: null, ending: null } }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const rows = ok(await owner.client.rpc("leads_page", { p_tenant_id: A, p_search_id: search, p_class: "qualified", p_sort: "found", p_after_key: null, p_limit: 50 }));
+  assert.equal(rows.find((x) => x.place_id === "ChIJfixture0931").logo_url, "https://cdn.example/mark.png", "the page returns what the commit wrote");
+  assert.equal(rows.find((x) => x.place_id === "ChIJfixture0932").logo_url, null, "a site that declared none keeps none");
+  // The same place found again: a mark it already wears stays, and one it was missing is filled.
+  r = ok(await commit(run.id, "w-m6", run.gen, 1, 2, { judgment: null, places: [marked(931, "https://cdn.example/other.png"), marked(932, "https://place932.example/icon.svg")], usage_usd: 0, items_seen: 2, run_state: null, next: null, round: null }));
+  assert.equal(r.ok, true, JSON.stringify(r));
+  const one = await leadByPlace("ChIJfixture0931");
+  const two = await leadByPlace("ChIJfixture0932");
+  assert.deepEqual([one.logo_url, two.logo_url], ["https://cdn.example/mark.png", "https://place932.example/icon.svg"], "kept where it was worn, filled where it was empty");
+  ok(await db.rpc("lead_blank", { p_lead_id: one.id }));
+  assert.equal(ok(await db.from("leads").select("logo_url").eq("id", one.id).single()).logo_url, null, "blanked with the rest");
 });

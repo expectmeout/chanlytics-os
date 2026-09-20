@@ -32,6 +32,7 @@ function portsFor(wires: LeadWires, ctx: JobContext, job: ClaimedJob): LeadPorts
     db: leadDb(ctx.db),
     apify: wires.apify,
     judge: wires.judge,
+    fetchText: wires.fetchText,
     now: () => new Date(),
     webhookBase: wires.webhookBase,
     webhookToken: wires.webhookToken,

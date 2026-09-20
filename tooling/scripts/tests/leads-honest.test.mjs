@@ -71,7 +71,7 @@ const leadRow = (over = {}) => ({
   ...over,
 });
 const ROW_DTOS = [
-  leadRow({ lat: 30.2672, lng: -97.7431 }),
+  leadRow({ lat: 30.2672, lng: -97.7431, logo_url: "https://zilkerstrength.example/mark.png" }),
   leadRow({ id: "l2", lat: 30.3122, lng: -97.7431, place_id: "ChIJfixture0002", business_name: "Barton Creek Coaching", email: "team@bartoncreekcoaching.example", email_state: "catch_all", phone: "+15125550102", phone_agrees: false, website: "bartoncreekcoaching.example", rating: 4.8, reviews: 61, found_at: minsAgo(12), member: member({ fit: "look", reason: "Coaching studio, one location" }) }),
   leadRow({ id: "l3", lat: 30.2672, lng: -97.6912, place_id: "ChIJfixture0003", business_name: "Lamar Strength Co.", email: "info@lamarstrength.example", email_state: "unknown", phone: "+15125550103", phone_agrees: false, website: "lamarstrength.example", rating: 4.6, reviews: 22, found_at: minsAgo(20), member: member({ class: "review", fit: "look", reason: "Couldn't check the email", reasons: ["email:unknown"] }) }),
   leadRow({ id: "l4", lat: 30.2272, lng: -97.7431, place_id: "ChIJfixture0004", business_name: "GigaFit Austin", email: null, email_state: "none", email_checked_at: null, phone: "+15125550104", phone_agrees: false, website: "gigafit.example", rating: 4.1, reviews: 903, found_at: minsAgo(22), member: member({ class: "excluded", fit: null, reason: "A chain with 40 locations", excluded_by: "chain" }) }),
@@ -347,6 +347,10 @@ test("the Leads scope draws the rows the surface read, in the order it read them
   assert.equal(textOf(find(tree, (n) => n.props?.className === "cl-table-foot")).startsWith("322 leads"), true, "the table calls its rows leads");
   assert.equal(textOf(byTestId(rowOf(tree, "l4"), "lead-sub")), "Chain", "Excluded's one line is the criterion that left it out, in the owner's words");
   assert.ok(byTestId(rowOf(tree, "l1"), "lead-photo"), "the tile is a button that expands the photo");
+  // D6: the business own mark sits over the listing photo, so a mark that fails to load uncovers what is under it.
+  const tile = byTestId(rowOf(tree, "l1"), "lead-photo");
+  assert.deepEqual(all(tile, (n) => n.type === "img").map((n) => [n.props.className, n.props.src]), [["lg", "https://zilkerstrength.example/mark.png"]], "the mark, over the tint of its kind");
+  assert.equal(all(byTestId(rowOf(tree, "l2"), "lead-photo"), (n) => n.type === "img").length, 0, "a lead with neither wears its initials, never a broken frame");
   assert.ok(byTestId(rowOf(tree, "l1"), "lead-card-name"), "the name's card is in the DOM, shown on hover");
 });
 

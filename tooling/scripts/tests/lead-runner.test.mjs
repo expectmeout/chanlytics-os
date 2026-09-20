@@ -391,3 +391,42 @@ test("the checks decide the email standard: a review held only for its email bec
   assert.deepEqual([member(1).class, member(2).class, member(3).class, member(3).counted], ["review", "review", "qualified", true]);
   assert.equal(w.round().state, "ended");
 });
+
+// D6: the lead wears its own mark, read off its own home page as the collect decides about it.
+test("the mark: a lead keeps the logo its own site declares, a left-out place keeps none, and a collect short of time simply commits leads without one", async () => {
+  const { w, p } = await probed();
+  const [r1] = w.runs();
+  // Two of the fixture's sites answer: one declares a logo, one only an icon. The rest answer nothing at all.
+  w.pages["https://place0001.example"] = `<head><script type="application/ld+json">{"@type":"Organization","logo":"https://cdn.example/one.png"}</script></head>`;
+  w.pages["https://place0002.example"] = `<head><link rel="apple-touch-icon" sizes="180x180" href="/mark.png"></head>`;
+  const out = await collect(p("c1"), r1.id, "p0", "c1");
+  assert.equal(out.kind, "committed", JSON.stringify(out));
+  const markOf = (n) => (w.T.leads.find((l) => l.place_id === `ChIJfixture000${n}`) || {}).logo_url;
+  assert.equal(markOf(1), "https://cdn.example/one.png", "what the site says is its logo");
+  assert.equal(markOf(2), "https://place0002.example/mark.png", "else the icon it made for a home screen, resolved against its own site");
+  assert.equal(markOf(3), null, "a site that declared none keeps none");
+  const leftOut = w.T.leads.filter((l) => w.members().some((m) => m.lead_id === l.id && m.class === "excluded"));
+  assert.ok(leftOut.length > 0, "the fixture leaves places out");
+  assert.deepEqual([...new Set(leftOut.map((l) => l.logo_url))], [null], "a left-out place is never marked, as it stores none of the rest");
+
+  // A collect with no time left marks nothing, and commits everything else just the same.
+  const { w: w2, p: p2 } = await probed();
+  w2.pages["https://place0001.example"] = `<head><link rel="icon" href="/i.svg"></head>`;
+  // Enough time for the page and the judge, and none for the marks: the last thing the collect does is the first it gives up.
+  const tight = { ...p2("c2"), deadline: w2.clock.ms + JUDGE_MARGIN_MS + 100 };
+  const done = await collect(tight, w2.runs()[0].id, "p0", "c2");
+  assert.equal(done.kind, "committed", JSON.stringify(done));
+  assert.equal((w2.T.leads.find((l) => l.place_id === "ChIJfixture0001") || {}).logo_url, null, "no time for a mark is a lead without one, never a lead that did not land");
+  assert.ok(w2.T.leads.length > 0, "and the page committed");
+});
+
+test("the mark: a page that does not answer, or answers something that is not a page, leaves the lead unmarked", async () => {
+  const { w, p } = await probed();
+  w.pages["https://place0001.example"] = "<html><body>no head here</body></html>";
+  w.wires.fetchText = async (url) => { if (url === "https://place0002.example") throw new Error("refused"); return w.pages[url] ?? null; };
+  const ports = { ...p("c1"), fetchText: w.wires.fetchText };
+  const out = await collect(ports, w.runs()[0].id, "p0", "c1");
+  assert.equal(out.kind, "committed", JSON.stringify(out));
+  const markOf = (n) => (w.T.leads.find((l) => l.place_id === `ChIJfixture000${n}`) || {}).logo_url;
+  assert.deepEqual([markOf(1), markOf(2)], [null, null], "neither a page with nothing in it nor a site that refused us leaves a mark");
+});

@@ -40196,6 +40196,71 @@ function discoveryEnding(round, runs, x) {
   });
 }
 
+// src/leads/mark.ts
+var HEAD_MAX = 64e3;
+var HREF_MAX = 500;
+function headOf(html) {
+  const start = html.slice(0, HEAD_MAX);
+  const end = start.search(/<\/head\s*>/i);
+  return end === -1 ? start : start.slice(0, end);
+}
+function attrsOf(tag) {
+  const out = {};
+  const re = /([a-zA-Z-]+)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s">]+))/g;
+  for (let m = re.exec(tag); m; m = re.exec(tag)) out[m[1].toLowerCase()] = (m[2] ?? m[3] ?? m[4] ?? "").trim();
+  return out;
+}
+function sideOf(sizes) {
+  if (!sizes) return 0;
+  if (/\bany\b/i.test(sizes)) return 512;
+  let best = 0;
+  const re = /(\d+)\s*[x×]\s*(\d+)/gi;
+  for (let m = re.exec(sizes); m; m = re.exec(sizes)) best = Math.max(best, Math.min(Number(m[1]), Number(m[2])));
+  return best;
+}
+function absolute(href, origin) {
+  const raw = href.trim();
+  if (!raw || raw.length > HREF_MAX) return null;
+  if (/^data:|^javascript:/i.test(raw)) return null;
+  let url = raw;
+  if (raw.startsWith("//")) url = `https:${raw}`;
+  else if (raw.startsWith("/")) url = `${origin}${raw}`;
+  else if (!/^https?:\/\//i.test(raw)) url = `${origin}/${raw.replace(/^\.\//, "")}`;
+  if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
+  return url;
+}
+function scoreOf(rel, type, href, side) {
+  const rels = rel.toLowerCase().split(/\s+/);
+  const ext = (href.split("?")[0].match(/\.([a-z0-9]+)$/i)?.[1] ?? "").toLowerCase();
+  if (rels.includes("mask-icon")) return 0;
+  const svg = type.toLowerCase().includes("svg") || ext === "svg";
+  let tier = 0;
+  if (rels.some((r) => r === "apple-touch-icon" || r === "apple-touch-icon-precomposed")) tier = 3;
+  else if (rels.includes("icon") || rels.includes("shortcut")) tier = svg ? 3 : ext === "ico" ? 1 : 2;
+  if (!tier) return 0;
+  return tier * 1e3 + Math.min(side || (svg ? 512 : 32), 999);
+}
+function leadMarkFrom(html, origin) {
+  if (!html || !/^https?:\/\/[^/]+$/i.test(origin)) return null;
+  const head = headOf(html);
+  const said2 = head.match(/"logo"\s*:\s*"([^"]+)"/i) ?? head.match(/"logo"\s*:\s*\{[^{}]*"url"\s*:\s*"([^"]+)"/i);
+  if (said2) {
+    const url = absolute(said2[1].replace(/\\\//g, "/"), origin);
+    if (url) return url;
+  }
+  let best = null;
+  const tags = head.match(/<link\b[^>]*>/gi) ?? [];
+  for (const tag of tags) {
+    const a = attrsOf(tag);
+    if (!a.rel || !a.href) continue;
+    const score = scoreOf(a.rel, a.type ?? "", a.href, sideOf(a.sizes));
+    if (!score) continue;
+    const url = absolute(a.href, origin);
+    if (url && (!best || score > best.score)) best = { url, score };
+  }
+  return best?.url ?? null;
+}
+
 // src/leads/runner.ts
 var LEASE_SECONDS = 90;
 var FIRST_COLLECT_SECONDS = 20;
@@ -40400,7 +40465,9 @@ function memberOf(plan, term, c, a, opId, model, rule, geo, shares, duplicateOf)
       tiktok_url: excluded ? null : c.raw.tiktok,
       claimed: excluded ? null : c.raw.claimed,
       maps_url: excluded ? null : c.raw.mapsUrl,
-      rank: excluded ? null : c.raw.rank
+      rank: excluded ? null : c.raw.rank,
+      // The business's own mark (D6): read from its home page after the judge has decided, by markPlaces below.
+      logo_url: null
     },
     member: {
       judgment: { op_id: opId, term, answer: a, model, reasons: verdict.reasons },
@@ -40533,6 +40600,7 @@ async function collectHeld(p, round, run, owner, gen) {
       const rule = r.duplicateOf && !r.prep.rule ? { class: "excluded", reason: DUPLICATE_REASON, token: "duplicate", excluded_by: "duplicate" } : r.prep.rule;
       return memberOf(plan, run.term ?? "", r.prep.clean, answer, judged.judgment?.op_id ?? null, judged.model, rule, geo, r.shares, r.duplicateOf);
     });
+    await markPlaces(p, places);
     newMembers.push(...places);
     const to = base + end;
     const runDone = isLastOfPage && pageShort && remoteFinal;
@@ -40639,6 +40707,30 @@ async function stopRun(p, round, run, owner) {
   }
 }
 var isAgainRun = (run) => run.purpose === "check" && (run.term ?? "").startsWith("again:");
+var MARK_ALLOWANCE_MS = 5e3;
+var MARK_AT_ONCE = 6;
+async function markPlaces(p, places) {
+  const fetchText = p.fetchText;
+  if (!fetchText) return 0;
+  const want = places.filter((x) => x.member.class !== "excluded" && !!x.place.website_host);
+  const until = Math.min(p.deadline - JUDGE_MARGIN_MS, p.now().getTime() + MARK_ALLOWANCE_MS);
+  let marked = 0;
+  for (let i = 0; i < want.length; i += MARK_AT_ONCE) {
+    const left = until - p.now().getTime();
+    if (left <= 250) break;
+    await Promise.all(want.slice(i, i + MARK_AT_ONCE).map(async (x) => {
+      const origin = `https://${x.place.website_host}`;
+      const html = await fetchText(origin, left).catch(() => null);
+      if (!html) return;
+      const mark = leadMarkFrom(html, origin);
+      if (mark) {
+        x.place.logo_url = mark;
+        marked += 1;
+      }
+    }));
+  }
+  return marked;
+}
 function checkable(members) {
   return members.filter((m) => m.email !== null && m.email_state === "checking").sort((a, b) => a.lead_id < b.lead_id ? -1 : a.lead_id > b.lead_id ? 1 : 0);
 }
@@ -40785,6 +40877,8 @@ export {
   MAPS_CAP_FLOOR_USD,
   MAPS_FIELDS,
   MAPS_RUN_TIMEOUT_SECS,
+  MARK_ALLOWANCE_MS,
+  MARK_AT_ONCE,
   MAX_SNOOZE_MS,
   NEEDS_UNTIL,
   NO_LOCATION_REASON,
@@ -40830,6 +40924,7 @@ export {
   isFreeMail,
   judgeBatch,
   mainAsk,
+  markPlaces,
   medianCenter,
   memberOf,
   nearbyFor,

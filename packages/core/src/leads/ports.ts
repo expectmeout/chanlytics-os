@@ -104,6 +104,8 @@ export interface LeadColumns {
   instagram_url: string | null;
   /** The neighbourhood the listing names (D5, 00146): "Hawthorne", for the row's one line about where. */
   neighborhood: string | null;
+  /** The business's own mark (D6, 00147): the logo its home page declares. Null without a site, or when it declared none. */
+  logo_url: string | null;
   /** What the listing shows about the business (D2, 00144): written for a lead, null or empty for a left-out place. */
   about: string | null;
   hours: { day: string; hours: string }[];
@@ -222,6 +224,12 @@ export interface LeadPorts {
   webhookToken(runRowId: string): Promise<string>;
   /** scheduleJobOnce for this workspace: a second row for the same key is an answer, not an error. */
   schedule(kind: "lead_round_start" | "lead_collect" | "lead_check", payload: Record<string, unknown>, runAfterSeconds: number): Promise<void>;
+  /**
+   * One GET of a page as text, for the engine's own reading -- today the business's home page, for its mark (D6).
+   * Answers null rather than throwing on anything that is not a page we can read. Absent in a runtime that has no
+   * business fetching (a test world that models none): the collect then simply marks nothing.
+   */
+  fetchText?(url: string, timeoutMs: number): Promise<string | null>;
   /** Epoch ms: no provider or model call is started after this. */
   deadline: number;
 }

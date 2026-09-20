@@ -60,18 +60,23 @@ const LeadShape = ({ state, word, size = 13 }) => {
 const LeadTip = ({ id, children, testid }) => <span className="ld-tip" role="tooltip" id={id} data-testid={testid}>{children}</span>;
 const LeadCard = ({ id, label, children, testid }) => <div className="ld-card" role="group" id={id} aria-label={label} data-testid={testid} onClick={(e) => e.stopPropagation()}>{children}</div>;
 
-// The tile (D5): the listing's photo at 48px, a button that expands it; without a photo (or when the photo fails
-// to load), initials on a tint the kind of business decides, so a lead from any source looks designed, never broken.
+// The tile (D5, D6): the business's own mark where it has one, else the listing's photo, else initials on a tint
+// the kind of business decides. The three are stacked rather than chosen, so a mark that fails to load simply
+// uncovers the photo under it and a photo that fails uncovers the initials -- no state, and never a broken frame.
 const LeadTile = ({ l, size = 48, onExpand }) => {
-  const cls = `ld-tile tint-${l.tile.tint}${l.tile.image ? " has-img" : ""}`;
-  const img = l.tile.image
-    ? <img src={l.tile.image} alt="" loading="lazy" onError={(e) => { const t = e && e.currentTarget; if (t && t.parentNode && t.parentNode.classList) t.parentNode.classList.add("no-img"); }} />
-    : null;
-  if (!onExpand) return <span className={cls} style={{ width: size, height: size }} aria-hidden="true"><span className="ld-tile-initials">{l.tile.initials}</span>{img}</span>;
+  const hide = (e) => { const t = e && e.currentTarget; if (t && t.style) t.style.display = "none"; };
+  const cls = `ld-tile tint-${l.tile.tint}${l.tile.image || l.tile.logo ? " has-img" : ""}`;
+  const layers = (
+    <>
+      {l.tile.image ? <img className="ph" src={l.tile.image} alt="" loading="lazy" onError={hide} /> : null}
+      {l.tile.logo ? <img className="lg" src={l.tile.logo} alt="" loading="lazy" onError={hide} /> : null}
+    </>
+  );
+  if (!onExpand) return <span className={cls} style={{ width: size, height: size }} aria-hidden="true"><span className="ld-tile-initials">{l.tile.initials}</span>{layers}</span>;
   return (
     <button type="button" className={cls} style={{ width: size, height: size }} aria-label={`Photos of ${l.name}`} data-testid="lead-photo" onClick={(e) => { e.stopPropagation(); onExpand(l.id); }}>
       <span className="ld-tile-initials" aria-hidden="true">{l.tile.initials}</span>
-      {img}
+      {layers}
       <span className="ld-tile-expand" aria-hidden="true"><Icon name="external" size={8} /></span>
     </button>
   );

@@ -20,6 +20,8 @@ const DEFAULT_ORIGIN = "https://chanlytics-messaging.vercel.app";
 export interface LeadWires {
   apify: ApifyClient;
   judge: LeadJudge;
+  /** One GET of a page as text, for the engine's own reading (D6: a lead's mark). Null on anything we cannot read. */
+  fetchText(url: string, timeoutMs: number): Promise<string | null>;
   webhookBase: string;
   webhookToken(runRowId: string): Promise<string>;
 }
@@ -65,5 +67,31 @@ export function leadWires(fetchImpl: typeof fetch = fetch): LeadWires | undefine
     judge: leadJudge(judgeClientFor(), leadJudgeModel(), leadJudgeFallbacks()),
     webhookBase: leadWebhookBase(),
     webhookToken: leadWebhookToken,
+    fetchText: (url, timeoutMs) => pageText(fetchImpl, url, timeoutMs),
   };
+}
+
+/** How much of a page is worth reading for a mark: a head is at the top, and a megabyte of body is not ours to hold. */
+const PAGE_MAX_BYTES = 96_000;
+/**
+ * One GET of a page as text, for the engine's own reading (D6). It is a business's own home page, asked for once
+ * while we are already deciding about them: no redirect chain beyond the platform's own, no cookie kept, nothing
+ * followed off the page, and the first ninety kilobytes only -- the head is at the top and the rest is not ours.
+ * Anything that is not a page we can read answers null, because a lead without a mark is an ordinary lead.
+ */
+async function pageText(fetchImpl: typeof fetch, url: string, timeoutMs: number): Promise<string | null> {
+  const stop = AbortSignal.timeout(Math.max(500, Math.min(timeoutMs, 8_000)));
+  try {
+    const res = await fetchImpl(url, {
+      signal: stop,
+      redirect: "follow",
+      headers: { accept: "text/html,application/xhtml+xml", "user-agent": "ChanlyticsBot/1.0 (+https://chanlytics.com/bot)" },
+    });
+    if (!res.ok) return null;
+    if (!(res.headers.get("content-type") ?? "").toLowerCase().includes("html")) return null;
+    const body = await res.text();
+    return body.slice(0, PAGE_MAX_BYTES);
+  } catch {
+    return null;
+  }
 }

@@ -144,7 +144,7 @@ test("one row is words and shapes, never a stored value: the fit band, the email
       mailbox: { state: "ok", value: "hello@zilkerstrength.example", word: "Checked", tip: "hello@zilkerstrength.example — Mailbox exists", copy: true },
     },
     rated: { score: "5.0", count: "16" }, spread: null,
-    tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null },
+    tile: { initials: "ZS", tint: leadTintOf("Personal trainer"), image: null, logo: null },
     waitsOn: null, state: "ready", stateTag: null,
     card: { about: null, today: null, where: { line: "1200 Barton Springs Rd, Austin, TX 78704", href: null }, site: { label: "zilkerstrength.example", href: "https://zilkerstrength.example" }, maps: null, found: [{ at: "2:14 PM", what: "On a Google Maps listing" }] },
     point: null,
@@ -373,7 +373,7 @@ test("D5: the week's hours as bars, and the peek's own additions -- the tile, th
     { key: "mailbox", how: "seen", answer: "unknown", source: "Mailbox check", reason: null },
     { key: "independent", how: "read", answer: "no", source: "Claude", reason: "a franchise" },
   ] } }), SEARCH_DONE, TZ, NOW);
-  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer") }, { score: "5.0", count: "16" }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
+  assert.deepEqual([vm.tile, vm.rated, vm.distance, vm.checksSummary], [{ initials: "ZS", tint: leadTintOf("Personal trainer"), logo: null }, { score: "5.0", count: "16" }, "1.2 mi", "1 check passed · 1 couldn't tell · 1 failed"]);
   assert.deepEqual(vm.week.map((d) => [d.day, d.today, d.bar]), [["Friday", true, { x: 25, w: 58.3 }]]);
   assert.deepEqual(vm.facts, [{ k: "Kind", v: "Personal trainer" }, { k: "Price", v: "$$" }, { k: "Rated", v: "5.0 from 16 reviews" }, { k: "Listing", v: "Not claimed by the owner" }, { k: "Found at", v: "#3 for “personal trainer”" }, { k: "Other listings", v: "2 listings for this business" }]);
   assert.deepEqual([vm.slots.phone.state, vm.slots.mailbox.state], ["ok", "ok"]);

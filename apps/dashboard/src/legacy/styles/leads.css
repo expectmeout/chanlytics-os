@@ -540,7 +540,8 @@
 button.ld-tile { cursor: pointer; }
 button.ld-tile:focus-visible { box-shadow: var(--focus-ring); }
 .ld-tile img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
-.ld-tile.no-img img { display: none; }
+/* The mark sits over the photo on its own ground, held clear of the edges: a logo cropped to a square is a smudge. */
+.ld-tile img.lg { object-fit: contain; padding: 16%; background: var(--tint); }
 .ld-tile-initials { position: relative; z-index: 0; }
 .ld-tile-expand { position: absolute; right: 3px; bottom: 3px; width: 14px; height: 14px; border-radius: 4px; background: oklch(0 0 0 / 0.55); color: oklch(1 0 0); display: grid; place-items: center; opacity: 0; transition: opacity var(--duration-fast) var(--ease-out); }
 .ld-tile:hover .ld-tile-expand, .ld-tile:focus-visible .ld-tile-expand { opacity: 1; }
@@ -668,6 +669,8 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-band img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
 .pk-band.no-img img { display: none; }
 .pk-band-initials { font-family: var(--font-mono); font-size: 40px; font-weight: 500; letter-spacing: .04em; opacity: .9; }
+.pk-band-mark { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); width: 96px; height: 96px; object-fit: contain; display: block; }
+.pk-band.has-img img:not(.pk-band-mark) ~ .pk-band-mark { display: none; }
 .pk-band-expand { position: absolute; right: 12px; bottom: 12px; height: 28px; padding: 0 10px; border: 0; border-radius: 8px; background: oklch(0 0 0 / 0.6); color: oklch(1 0 0); font: inherit; font-size: var(--text-xs); display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
 .pk-band-expand:hover { background: oklch(0 0 0 / 0.75); }
 .pk-band-x { position: absolute; right: 10px; top: 10px; background: oklch(from var(--bg-raised) l c h / 0.9); color: var(--ink); }

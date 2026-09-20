@@ -678,8 +678,8 @@ export interface LeadPeekVM {
   reviewsDist: [number, number, number, number, number] | null;
   claimedNote: string | null;
   /* ---- D5: the peek re-cut ---- */
-  /** The tile behind the photo band: initials on the kind's tint, drawn when there is no photo or it fails to load. */
-  tile: { initials: string; tint: number };
+  /** The tile behind the photo band: the mark, else initials on the kind's tint, drawn when there is no photo. */
+  tile: { initials: string; tint: number; logo: string | null };
   /** "4.7" and "1,284", apart; null where the source does not rate. */
   rated: { score: string; count: string } | null;
   /** The two reach slots, as the row wears them. */
@@ -852,7 +852,7 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
     id: r.id,
     searchId: r.search_id ?? null,
     mark: initialsOf(r.business_name),
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category) },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), logo: r.logo_url ?? null },
     rated,
     slots: leadSlots(r),
     week: leadWeekBars(r.hours ?? [], tz, now),
@@ -958,6 +958,8 @@ export interface LeadRowDto {
   facebook_url?: string | null; linkedin_url?: string | null; tiktok_url?: string | null; claimed?: boolean | null; maps_url?: string | null; rank?: number | null;
   /** D5 (00146): the neighbourhood the listing names, and the coordinates leads_page returns, for the row's line about where and the map. */
   neighborhood?: string | null; lat?: number | null; lng?: number | null;
+  /** D6 (00147): the business's own mark, from its home page. */
+  logo_url?: string | null;
   stage: LeadStage; closed_reason: string | null; contact_id: string | null;
   /** How the lead has been worked, from `leads_page` (4.2): a fixture copies the real shape even where B draws none of it. */
   last_outcome: string | null; last_note: string | null; contacted_at: string | null; converted_at: string | null;
@@ -1283,8 +1285,8 @@ export interface LeadRowVM {
   rated: { score: string; count: string } | null;
   /** The spread of reviews, one to five stars, or null when the listing did not say. */
   spread: [number, number, number, number, number] | null;
-  /** The tile: the listing's photo, else initials on a tint the kind decides. */
-  tile: { initials: string; tint: number; image: string | null };
+  /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
+  tile: { initials: string; tint: number; image: string | null; logo: string | null };
   /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
   waitsOn: string | null;
   /** The row's state mark: Ready is silent; the rest wear an edge and a tag. */
@@ -1395,7 +1397,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date, search: LeadSe
     slots: leadSlots(r),
     rated,
     spread,
-    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null },
+    tile: { initials: initialsOf(r.business_name), tint: leadTintOf(r.category), image: r.image_url ?? null, logo: r.logo_url ?? null },
     waitsOn,
     state,
     stateTag,

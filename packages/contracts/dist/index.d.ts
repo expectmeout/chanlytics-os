@@ -10710,10 +10710,11 @@ interface LeadPeekVM {
     image: string | null;
     reviewsDist: [number, number, number, number, number] | null;
     claimedNote: string | null;
-    /** The tile behind the photo band: initials on the kind's tint, drawn when there is no photo or it fails to load. */
+    /** The tile behind the photo band: the mark, else initials on the kind's tint, drawn when there is no photo. */
     tile: {
         initials: string;
         tint: number;
+        logo: string | null;
     };
     /** "4.7" and "1,284", apart; null where the source does not rate. */
     rated: {
@@ -10925,6 +10926,8 @@ interface LeadRowDto {
     neighborhood?: string | null;
     lat?: number | null;
     lng?: number | null;
+    /** D6 (00147): the business's own mark, from its home page. */
+    logo_url?: string | null;
     stage: LeadStage;
     closed_reason: string | null;
     contact_id: string | null;
@@ -11268,11 +11271,12 @@ interface LeadRowVM {
     } | null;
     /** The spread of reviews, one to five stars, or null when the listing did not say. */
     spread: [number, number, number, number, number] | null;
-    /** The tile: the listing's photo, else initials on a tint the kind decides. */
+    /** The tile: the business's own mark, else the listing's photo, else initials on a tint the kind decides. */
     tile: {
         initials: string;
         tint: number;
         image: string | null;
+        logo: string | null;
     };
     /** A review row's line: what would resolve it, in the queue's own words; null for any other row. */
     waitsOn: string | null;
