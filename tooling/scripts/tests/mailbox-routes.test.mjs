@@ -23,6 +23,7 @@ const { setRateStore, memoryStore } = await import(at("apps/dashboard/src/server
 const mailboxes = await import(at("apps/dashboard/app/api/v1/mailboxes/route.ts"));
 const mailbox = await import(at("apps/dashboard/app/api/v1/mailboxes/[id]/route.ts"));
 const { emailSetupFor, freezeReply } = await import(at("apps/dashboard/src/server/email.ts"));
+const { metricsSummaryFor } = await import(at("apps/dashboard/src/server/metrics.ts"));
 
 beforeEach(() => setRateStore(memoryStore()));
 
@@ -127,4 +128,35 @@ test("an email reply's request is frozen from the workspace's own mailbox: it le
   assert.deepEqual(frozen.request.headers, { "In-Reply-To": "<q1@customer.example>", References: "<q0@customer.example> <q1@customer.example>" }, "a person's own reply carries no Auto-Submitted mark");
   assert.deepEqual(frozen.request.tags, [{ name: "cl_message", value: "id-1" }, { name: "cl_tenant", value: A }]);
   assert.equal(await freezeReply(ctx, { tenantId: "cccccccc-cccc-4ccc-8ccc-cccccccccccc", messageId: "id-2", to: "ana@example.com", parent, body: "Hi" }), null, "no mailbox, no request");
+});
+
+test("Today counts the workspace's email line beside the routing rows, and only where the channel is real", async () => {
+  const summary = {
+    workspace: { name: "Best Movers", timezone: "America/New_York", status: "active" },
+    channels: [{ kind: "voice", status: "active", number: "+13083368109" }],
+  };
+  const rpcs = { metrics_summary: () => summary };
+  const withBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [row(A)] }, {}, rpcs);
+  const m = await metricsSummaryFor(withBox, A, 1);
+  assert.deepEqual(m.channels, [
+    { kind: "voice", status: "active", number: "+13083368109" },
+    { kind: "email", status: "active", number: null, address: "bestmovers@mail.chanlytics.com" },
+  ], "REGRESSION: Today said '1 of 1 line connected' on a workspace with two");
+  assert.equal(m.linesRead, undefined, "every line was read");
+
+  // A workspace that has not made its mailbox has no email line...
+  const noBox = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [] }, {}, rpcs);
+  assert.deepEqual((await metricsSummaryFor(noBox, A, 1)).channels, summary.channels);
+
+  // ...and neither has one on a deployment without the channel at all.
+  delete process.env.EMAIL_DOMAIN;
+  try {
+    assert.deepEqual((await metricsSummaryFor(withBox, A, 1)).channels, summary.channels);
+  } finally { process.env.EMAIL_DOMAIN = "mail.chanlytics.com"; }
+
+  // A mailbox that cannot be read is a line that cannot be counted: Today still draws, and says the count is short.
+  const broken = fakeDb({ memberships: [membership(A, "owner", "a")], mailboxes: [row(A)] }, { "mailboxes.select": { message: "permission denied" } }, rpcs);
+  const short = await metricsSummaryFor(broken, A, 1);
+  assert.deepEqual(short.channels, summary.channels, "what WAS read still stands");
+  assert.equal(short.linesRead, false, "never a blank Today, never '1 of 1' on a workspace with two");
 });

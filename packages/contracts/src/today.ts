@@ -33,11 +33,55 @@ import { waWindow } from "./policy";
 import { ANALYSIS_GRACE_MS } from "./live";
 import { reasonShort } from "./people";
 import { clipAtWord } from "./viewmodels";
-import { conversationOfNeedsKey } from "./notifications";
+import { conversationOfNeedsKey, unreadCount } from "./notifications";
+import { channelKindWords, CHANNEL_ANSWERED } from "./channels";
+import { EMAIL_NOT_ANSWERED_SENTENCE, type EmailSetupDto } from "./mailbox";
+
+/**
+ * One wire a workspace can be reached on.
+ *
+ * `metrics_summary` answers the ROUTING rows (tenant_channels, 00087). Email
+ * is not one of them: a workspace's email line is its `mailboxes` row plus the
+ * deployment's mail domain (mailbox.ts), and the domain lives in EMAIL_DOMAIN,
+ * which the database cannot see. `emailWires` below puts it in the same list,
+ * from the same read Setup and Connections use, so the three cannot disagree.
+ */
+export interface MetricsChannelDto {
+  kind: string;
+  /** `tenant_channels.status`: "active" or "disabled"; "active" for a mailbox that exists. */
+  status: string;
+  /** The phone number customers reach this wire on; null on a wire that is not a number. */
+  number: string | null;
+  /** Where customers reach a wire that is not a number: the workspace's email address. */
+  address?: string | null;
+}
+
+/**
+ * The email wire, for that list.
+ *
+ * A workspace HAS email when this deployment has it and the owner has made the
+ * mailbox (00129), the judgement `emailSetupFor` already makes for Setup and
+ * Connections. Nothing switches a mailbox off, so a mailbox that exists is a
+ * wire that is connected: `last_error` is an intake that failed, which
+ * Connections tells as "Waiting on us", and a failed intake is not a wire that
+ * is down.
+ */
+export function emailWires(email: EmailSetupDto | null | undefined): MetricsChannelDto[] {
+  return email?.ready && email.mailbox
+    ? [{ kind: "email", status: "active", number: null, address: email.mailbox.address }]
+    : [];
+}
 
 export interface MetricsSummaryDto {
   workspace: { name: string; timezone: string; status: string };
-  channels: Array<{ kind: string; status: string; number: string | null }>;
+  channels: MetricsChannelDto[];
+  /**
+   * False when the workspace's email line could not be read (server/metrics.ts
+   * caught the mailbox read): the count above the work is short by a wire it
+   * cannot name, and says so rather than printing a smaller whole. Absent is
+   * true, as every payload the database answers is.
+   */
+  linesRead?: boolean;
   window: { days: number; since: string; since_local: string; now_local: string };
   now: {
     escalations_open: number;
@@ -150,10 +194,27 @@ export const TODAY_QUEUE_MAX = 6;
  */
 export const QUOTE_MAX = 240;
 
+/** What an empty queue MEANS for this workspace: the colour rides with a glyph and the words. */
+export interface TodayQueueEmptyVM {
+  title: string;
+  /** The queue heading's own words when nothing is waiting: "nothing needs you" only where the receptionist is holding the floor. */
+  sub: "nothing in the queue" | "nothing needs you";
+  glyph: "alert" | "phone" | "mail" | "check";
+  tone: "warn" | "ok" | "";
+  testid: string;
+}
+
 export interface TodayVM {
   standing: {
     eyebrow: string;
     chips: Array<{ text: string; ok: boolean }>;
+    /**
+     * The wires, counted, in one sentence: "2 of 3 lines connected", "no lines
+     * connected yet". `down` is true when one of them is off, the dot beside
+     * it. The PAGE counted the chips, so the count could not be told about a
+     * wire that is not a tenant_channels row, and email was invisible in it.
+     */
+    lines: { text: string; down: boolean };
     alert: string | null;
     greeting: string;
     headline: string;
@@ -178,7 +239,7 @@ export interface TodayVM {
   callsRead: boolean;
   /** Everything that asks for a person, in one row grammar, longest wait first. */
   /** The rows, the rest as a count, and what the rows hold in words: "2 need you", "1 reply window closing", "1 call worth a listen". */
-  queue: { rows: TodayQueueRowVM[]; more: number; parts: string[] };
+  queue: { rows: TodayQueueRowVM[]; more: number; parts: string[]; empty: TodayQueueEmptyVM };
   launchpad: Array<{ label: string; to: string }>;
   updatedAt: string;
   quiet: {
@@ -189,7 +250,10 @@ export interface TodayVM {
   } | null;
 }
 
-const CHANNEL_LABEL: Record<string, string> = { whatsapp: "WhatsApp", voice: "Phone line" };
+/** "Email", "WhatsApp and Email", "WhatsApp, Texting and Email". (calendar.ts, config.ts and
+ *  reports.ts each hold their own copy of this join; one home for it is a tidy of its own.) */
+const andList = (xs: readonly string[]): string =>
+  xs.length < 3 ? xs.join(" and ") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`;
 
 /** Wall-clock time AT THE SALON, whatever clock the reader is holding. */
 /**
@@ -311,22 +375,59 @@ export function toTodayVM(
     : "";
   const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
 
-  const chips = m.channels.map((c) => ({
-    text: `${CHANNEL_LABEL[c.kind] ?? c.kind} ${c.status === "active" ? "connected" : "disconnected"}`,
-    ok: c.status === "active",
+  // One normalisation of the wires for the five things Today says about them:
+  // the chips, the count above the work, the alert, the empty queue and the
+  // quiet day's proof. The label is channels.ts's, so "sms" cannot reach a page.
+  const wires = m.channels.map((c) => ({
+    kind: c.kind,
+    label: channelKindWords(c.kind),
+    on: c.status === "active",
+    where: c.address ?? c.number ?? null,
   }));
+  const chips = wires.map((w) => ({ text: `${w.label} ${w.on ? "connected" : "disconnected"}`, ok: w.on }));
+  const down = wires.filter((w) => !w.on);
+  const on = wires.filter((w) => w.on);
+  const up = on.length;
+  // The count lives here because the sentence has a number in it. The page
+  // counted its own chips, which is why "2 of 2 lines connected" was said on a
+  // workspace with three. A wire that could not be read is not a smaller
+  // whole: the line says so instead of a count that is short by one.
+  const lines = {
+    text: m.linesRead === false
+      ? "the email line could not be counted"
+      : wires.length
+        ? `${up} of ${wires.length} ${wires.length === 1 ? "line" : "lines"} connected`
+        : "no lines connected yet",
+    down: down.length > 0,
+  };
 
   // The alert is the one place Today raises its voice, and it SUPPRESSES every
   // reassuring line — "nothing needs you" is a lie while the number is dark.
-  const down = m.channels.filter((c) => c.status !== "active");
   const alert =
     m.workspace.status === "paused"
       ? "This workspace is paused — the receptionist is not answering anything."
       : down.length
-        ? `${down.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ")} ${
-            down.length > 1 ? "are" : "is"
-          } disconnected — messages coming in are not being answered.`
+        ? `${andList(down.map((w) => w.label))} ${down.length > 1 ? "are" : "is"} disconnected — messages coming in are not being answered.`
         : null;
+
+  // What an empty queue means HERE. The page chose between three of these by
+  // counting chips: an email-only workspace was told nothing could come in,
+  // and counting email would have told it the receptionist was answering on
+  // its own, which it does not do for email. The heading's own words ride
+  // with it, so the two are decided once.
+  const answered = on.filter((w) => CHANNEL_ANSWERED.has(w.kind));
+  const queueEmpty: TodayQueueEmptyVM =
+    m.workspace.status === "paused"
+      ? { title: "Nothing in the queue — the workspace is paused, so nothing is being answered.", sub: "nothing in the queue", glyph: "alert", tone: "warn", testid: "today-queue-empty-paused" }
+      : down.length
+        ? { title: "Nothing in the queue — new messages go unanswered until the line is back.", sub: "nothing in the queue", glyph: "alert", tone: "warn", testid: "today-queue-empty-down" }
+        : wires.length === 0
+          ? { title: "Nothing in the queue — nothing can come in until a line is connected.", sub: "nothing in the queue", glyph: "phone", tone: "", testid: "today-queue-empty-unconnected" }
+          : answered.length === 0
+            ? on.every((w) => w.kind === "email")
+              ? { title: `Nothing in the queue. ${EMAIL_NOT_ANSWERED_SENTENCE}`, sub: "nothing in the queue", glyph: "mail", tone: "", testid: "today-queue-empty-unanswered" }
+              : { title: "Nothing in the queue — no line the receptionist answers is connected.", sub: "nothing in the queue", glyph: "phone", tone: "", testid: "today-queue-empty-unanswered" }
+            : { title: "All caught up — the receptionist is answering on its own.", sub: "nothing needs you", glyph: "check", tone: "ok", testid: "today-queue-empty-ok" };
 
   const byConv = new Map(conversations.map((c) => [c.id, c]));
   const openEsc = escalations
@@ -446,12 +547,13 @@ export function toTodayVM(
             (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1000,
           )
         : null;
-    const names = m.channels.map((c) => CHANNEL_LABEL[c.kind] ?? c.kind).join(" and ");
-    const plural = m.channels.length > 1 ? "are" : "is";
-    // A workspace with no channel yet is a new owner's first Today — it must
-    // not read " is connected." with nothing in front of it.
-    const sub = m.channels.length === 0
-      ? "No phone line or WhatsApp number is connected yet, so nothing can come in."
+    const names = andList(wires.map((w) => w.label));
+    const plural = wires.length > 1 ? "are" : "is";
+    // A workspace with no wire yet is a new owner's first Today — it must not
+    // read " is connected." with nothing in front of it, and it must not name
+    // the only two wires this sentence used to know about.
+    const sub = wires.length === 0
+      ? "No line is connected yet, so nothing can come in."
       : lastIn
         ? `${names} ${plural} connected. The last message arrived ${lastIn}${
             gap !== null && gap > 0 && gap < 3600
@@ -463,6 +565,7 @@ export function toTodayVM(
       standing: {
         eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
         chips,
+        lines,
         alert: null,
         greeting,
         headline: "Nothing has come in yet today.",
@@ -475,18 +578,20 @@ export function toTodayVM(
       pulse: null,
       calls: null,
       callsRead,
-      queue: { rows: [], more: 0, parts: [] },
+      queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
       launchpad: [{ label: "Conversations", to: "conversations" }],
       updatedAt: clock,
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
         proof: [
-          ...(m.channels.length === 0 ? [{ label: "Channels", value: "none connected yet" }] : []),
-          ...m.channels.map((c) => ({
-            label: CHANNEL_LABEL[c.kind] ?? c.kind,
-            // "on" / "off" in the owner's words, never the column's value.
-            value: `${c.number ?? "connected"} · ${c.status === "active" ? "on" : "off"}`,
+          ...(wires.length === 0 ? [{ label: "Lines", value: "none connected yet" }] : []),
+          ...wires.map((w) => ({
+            label: w.label,
+            // "on" / "off" in the owner's words, never the column's value. A
+            // wire with nothing to name it by says only that: "connected · on"
+            // was two words for one fact.
+            value: w.where ? `${w.where} · ${w.on ? "on" : "off"}` : w.on ? "on" : "off",
           })),
           { label: "Checked", value: "just now" },
         ],
@@ -560,7 +665,11 @@ export function toTodayVM(
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (p.answered_by_ai && !headlineCoversTraffic) {
     sentences.push({
-      text: `The WhatsApp receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${
+      // Not "the WhatsApp receptionist": answered_by_ai is first_replies with
+      // no channel predicate (00037_hygiene.sql), so an email it answered is
+      // in this count. Every other sentence in this file already says just
+      // "the receptionist".
+      text: `The receptionist answered ${p.answered_by_ai} message${p.answered_by_ai === 1 ? "" : "s"}${
         p.conversations_active
           ? ` from ${p.conversations_active} ${p.conversations_active === 1 ? "person" : "people"}`
           : ""
@@ -733,6 +842,10 @@ export function toTodayVM(
     const last = [...c.messages].reverse().find((x) => x.sender === "customer");
     const who = contactName(c);
     queueAll.push({
+      // "WhatsApp" is right here even when the last written message came by
+      // email: the row is about WhatsApp's window (waWindow on the thread's
+      // last WhatsApp inbound), which is the one wire that has one. The
+      // handoff row above names the wire the reply would go out on instead.
       id: `q-w-${c.id}`, kind: "window", who, initials: initialsOf(who), channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
       sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
@@ -765,12 +878,13 @@ export function toTodayVM(
     winN ? `${winN} reply window${winN === 1 ? "" : "s"} closing` : "",
     earN ? `${earN} call${earN === 1 ? "" : "s"} worth a listen` : "",
   ].filter(Boolean);
-  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts };
+  const queue = { rows: queueAll.slice(0, TODAY_QUEUE_MAX), more: Math.max(0, queueAll.length - TODAY_QUEUE_MAX), parts, empty: queueEmpty };
 
   return {
     standing: {
       eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
       chips,
+      lines,
       alert,
       greeting,
       headline,
@@ -1013,7 +1127,8 @@ export interface ReportsLike {
     /** Why the receptionist stopped, most common first — the period's "driven by". */
     reasons?: Array<{ id: string; label: string; value: number }>;
   };
-  campaigns: { tiles: WeekTileLike[]; empty: boolean };
+  /** Null: the offers' read failed on its own and the receptionist's own numbers still stand (the bridge's D9 catch). */
+  campaigns: { tiles: WeekTileLike[]; empty: boolean } | null;
   booking: { present: boolean; headline: string; sub: string; pct: number | null; asked?: number; booked?: number };
 }
 
@@ -1027,6 +1142,8 @@ export interface TodayWeekViewVM {
   chips: Array<{ label: string; value: string }>;
   /** Said when there is nothing to draw, or what the numbers mean when there is. */
   note: string | null;
+  /** False when the read behind this view failed: its numbers are missing, not zero, and the page says so with the one FailedRead. */
+  numbersRead: boolean;
   /** Where the full version of this view lives. */
   to: string;
 }
@@ -1055,9 +1172,15 @@ export interface TodayWeekVM {
  */
 export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
   if (!r) return null;
-  const find = (id: string) => r.campaigns.tiles.find((t) => t.id === id);
+  // The offers are their own read and can fail on their own (surface-data's D9
+  // catch publishes `campaigns: null`). Reading through it threw here, and the
+  // shell's boundary replaced the WHOLE page -- queue, day and report all read
+  // and on screen -- and the failed snapshot is cached, so a reload landed on
+  // the same error pane.
+  const cm = r.campaigns;
+  const find = (id: string) => (cm ? cm.tiles.find((t) => t.id === id) : undefined);
   const sent = find("sent");
-  const noCampaign = r.campaigns.empty || !sent || sent.value === "0";
+  const noCampaign = !cm || cm.empty || !sent || sent.value === "0";
 
   // Why the receptionist stopped: the period's escalation reasons, as Reports
   // counts them. The chips say what the "Needed you" tile above them is made of.
@@ -1070,6 +1193,10 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
     // No "N never got an answer" line here: the Receptionist answered tile
     // already carries "4 unanswered" in its own meta, and todayLeaks says it in
     // words above. A third printing on one page is what this pass is removing.
+    // `r.vm` cannot be missing: when the main report read fails the surface is
+    // unavailable and this function is never reached, so the field is total
+    // without a second rule on the page.
+    numbersRead: true,
     note: r.vm.empty ? "Nobody wrote or called in this period." : null,
     to: "reports",
   };
@@ -1077,9 +1204,15 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
   const campaigns: TodayWeekViewVM = {
     id: "campaigns",
     label: "Campaigns",
-    tiles: noCampaign ? [] : r.campaigns.tiles,
+    tiles: cm && !noCampaign ? cm.tiles : [],
     chips: [],
-    note: noCampaign ? "No campaign message went out in this period." : null,
+    numbersRead: !!cm,
+    // A read that failed is NOT "nothing went out": that sentence is a fact
+    // about the business, and nothing in this path knows whether it is true.
+    // The page says the one "couldn't read" instead -- and the note stays null
+    // on purpose, so a browser still holding the old page (no `numbersRead`
+    // branch) degrades to silence rather than to the false sentence.
+    note: cm ? (noCampaign ? "No campaign message went out in this period." : null) : null,
     to: "broadcasts",
   };
 
@@ -1096,11 +1229,13 @@ export function todayWeek(r: ReportsLike | null): TodayWeekVM | null {
     label: "Booking",
     tiles: bookingTiles,
     chips: [],
+    numbersRead: true,
     note: bookingTiles.length ? null : b.present ? "Nobody wrote or called, so there was nothing to book." : b.sub,
     to: b.present ? "reports" : "calendar",
   };
 
   const views = [conversations, campaigns, booking];
+  // A view whose read failed has no tiles, so the card never opens on one.
   const full = views.find((v) => v.tiles.length > 0);
   return {
     label: `Last ${r.vm.rangeLabel}`,
@@ -1314,6 +1449,11 @@ const AWAY_NOUN: Record<string, [one: string, many: string]> = {
   // problem with the wording, not as five separate pieces of news.
   template_ready: ["template is ready to send", "templates are ready to send"],
   template_blocked: ["template cannot be sent", "templates cannot be sent"],
+  // "A broadcast finished" is already this repo's word for the event
+  // (activity.ts, kind broadcast.sent), so the bell and the Activity log say
+  // the same thing about the same fact.
+  broadcast_sent: ["broadcast finished", "broadcasts finished"],
+  broadcast_stopped: ["broadcast did not go out", "broadcasts did not go out"],
 };
 
 /** A warning outranks good news, whatever their clocks say. */
@@ -1321,6 +1461,64 @@ const AWAY_TONE_RANK: Record<string, number> = { warn: 0, "": 1, ok: 2 };
 
 /** Two of a kind is already a pattern; one is news. */
 const AWAY_GROUP_MIN = 2;
+
+/** Nothing unread anywhere: the one state this card may congratulate. */
+const AWAY_EMPTY_CLEAR = "All caught up.";
+
+/**
+ * Nothing to draw, but the bell is not empty: every unread row is a
+ * conversation the queue at the top of this page is already showing.
+ *
+ * Beside a bell of 4 this card printed a green check and "All caught up."
+ * -- a congratulation over four unread things, and the plainest untrue
+ * sentence on the page.
+ */
+const AWAY_EMPTY_QUEUED = "Everything new is already in the queue above.";
+
+/**
+ * The foot.
+ *
+ * Every row it counts IS in the bell -- the ones under the cap and the ones
+ * this card dropped because the queue above already has them -- which is
+ * what makes the sentence true. It used to count only the first kind and say
+ * "in the bell" about it, so a card showing five of seven unread rows, two of
+ * them queued, drew no foot at all while the bell held two more.
+ *
+ * The number comes first in every wording: the head is this number plus what
+ * is on screen, and that is what a reader (and e2e/signals.ts) adds up. With
+ * no row drawn there is no foot: the head has said the number and the empty
+ * line has said where they are, and a card says each number once.
+ */
+function awayFoot(more: number, queued: number, drew: boolean): string | null {
+  if (more <= 0 || !drew) return null;
+  const head = `${more} more in the bell`;
+  if (queued <= 0) return head;
+  return queued === more
+    ? `${head}, already in the queue above`
+    : `${head}, ${queued} of them already in the queue above`;
+}
+
+/** The away card: the rows it draws, the numbers beside them, and every sentence it says. */
+export interface TodayAwayVM<T extends AwayRowLike> {
+  /** What it draws, grouped and capped. */
+  groups: Array<AwayGroupVM<T>>;
+  /**
+   * The head's number: EVERY unread row the bell holds, including the ones
+   * this card does not draw. The card and the badge are two readings of one
+   * set, and a head counting only what survived the queue rule read 0 beside
+   * a bell of 4. "Mark all read" sits against this number and clears exactly
+   * this set.
+   */
+  total: number;
+  /** Of `total`, how many are not on screen: under the cap, or in the queue above. */
+  more: number;
+  /** Of `more`, the ones dropped because their conversation is in the queue above. */
+  queued: number;
+  /** The foot, when a row is drawn and something unread is not on screen. */
+  foot: string | null;
+  /** What the card says when it draws no row, and the glyph beside it. */
+  empty: { icon: string; text: string } | null;
+}
 
 /**
  * What happened while the owner was away, as Today reads it rather than as
@@ -1337,7 +1535,7 @@ export function todayAwayGrouped<T extends AwayRowLike>(
   rows: readonly T[],
   inQueue: readonly string[] = [],
   max = 5,
-): { groups: Array<AwayGroupVM<T>>; more: number; total: number } {
+): TodayAwayVM<T> {
   const covered = new Set(inQueue);
   const idOf = (r: T) => r.id ?? r.key ?? "";
   // A row about a conversation says so in two different ways, and only one of
@@ -1379,10 +1577,26 @@ export function todayAwayGrouped<T extends AwayRowLike>(
     .map((g, i) => ({ g, i }))
     .sort((x, y) => (rank(x.g) - rank(y.g)) || (x.i - y.i))
     .map((x) => x.g);
-  // The head says how many unread things there are and the foot how many are
-  // not on screen, so the two must add up: a group of twelve stands for twelve,
-  // not for one. Counting groups here read as "22 ... and 2 more".
+  // The head says how many unread things the BELL holds and the foot how many
+  // of them are not on screen, so the two add up: a group of twelve stands for
+  // twelve, not for one (counting groups read as "22 ... and 2 more").
+  //
+  // The head is the bell's own number, not what is left after the queue rule.
+  // A row this card drops because the queue above already shows it is still a
+  // row in the bell, so it is counted in BOTH numbers rather than in neither:
+  // the card said 0 and "All caught up." while the badge two inches away said
+  // 4, and no foot was drawn at all while the bell held four.
   const shown = sorted.slice(0, max);
   const stoodFor = shown.reduce((n, g) => n + g.count, 0);
-  return { groups: shown, more: Math.max(0, fresh.length - stoodFor), total: fresh.length };
+  const total = unreadCount(rows);
+  const queued = total - fresh.length;
+  const more = Math.max(0, total - stoodFor);
+  // Keyed on `fresh`, not on what the cap left: a card with nothing to draw is
+  // empty because the queue holds everything, and that is only true of `fresh`.
+  const empty = fresh.length
+    ? null
+    : total === 0
+      ? { icon: "check", text: AWAY_EMPTY_CLEAR }
+      : { icon: "arrow-up", text: AWAY_EMPTY_QUEUED };
+  return { groups: shown, total, more, queued, foot: awayFoot(more, queued, shown.length > 0), empty };
 }

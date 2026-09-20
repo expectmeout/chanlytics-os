@@ -111,7 +111,8 @@ test.describe("Today on a real workspace", () => {
       await control.click();
       await expect(control).toHaveAttribute("aria-pressed", "true");
       await expect(week.locator('.tw-seg [aria-pressed="true"]')).toHaveCount(1);
-      await expect(week.getByTestId(`today-week-tiles-${id}`).or(week.getByTestId("today-week-note"))).toBeVisible();
+      // Its tiles, why it has none, or that it could not be read: the third is the one that matters the day it happens.
+      await expect(week.getByTestId(`today-week-tiles-${id}`).or(week.getByTestId("today-week-note")).or(week.getByTestId("today-week-failed"))).toBeVisible();
     }
   });
 

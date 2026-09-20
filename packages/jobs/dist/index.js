@@ -770,6 +770,23 @@ var PERSON_CAME_FROM_WORDS = {
   lead: "A lead you found"
 };
 var DAY_MS4 = 24 * 3600 * 1e3;
+var DAY_MS5 = 864e5;
+var QUIET_AFTER_MS2 = 7 * DAY_MS5;
+var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
 var ASK_CAPS = {
   threads: 20,
   messages: 30,
@@ -876,7 +893,7 @@ var LIMIT_TIERS = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS5 = 864e5;
+var DAY_MS6 = 864e5;
 var PLAYBOOK_HOURS = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS = {
   min: PLAYBOOK_HOURS.min,
@@ -885,18 +902,15 @@ var SENDING_HOURS_WORDS = {
   range: `${PLAYBOOK_HOURS.min}:00\u2013${PLAYBOOK_HOURS.max}:59`,
   between: `between ${PLAYBOOK_HOURS.min}:00 and ${PLAYBOOK_HOURS.max}:59`
 };
-var PLAYBOOK_BREATH_MS = 7 * DAY_MS5;
+var PLAYBOOK_BREATH_MS = 7 * DAY_MS6;
 var PLAYBOOK_VETO_DELAY_MS = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL = {
   reengage: POLICY_CLASS_WORDS.reengage.short,
   campaign: POLICY_CLASS_WORDS.campaign.short,
   booking: POLICY_CLASS_WORDS.booking.short
 };
-var DATE_FMT = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS6 = 864e5;
-var QUIET_AFTER_MS2 = 7 * DAY_MS6;
 var DATE_FMT2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN2 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS = 14 * 864e5;
 var REVIEW_NEWS_MS = 36 * 3600 * 1e3;
@@ -6730,6 +6744,23 @@ var PERSON_CAME_FROM_WORDS2 = {
   lead: "A lead you found"
 };
 var DAY_MS42 = 24 * 3600 * 1e3;
+var DAY_MS52 = 864e5;
+var QUIET_AFTER_MS22 = 7 * DAY_MS52;
+var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS2 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META2 = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS2.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS2.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS2.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS2.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS2.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
 var ASK_CAPS2 = {
   threads: 20,
   messages: 30,
@@ -6836,7 +6867,7 @@ var LIMIT_TIERS2 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS52 = 864e5;
+var DAY_MS62 = 864e5;
 var PLAYBOOK_HOURS2 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS2 = {
   min: PLAYBOOK_HOURS2.min,
@@ -6845,18 +6876,15 @@ var SENDING_HOURS_WORDS2 = {
   range: `${PLAYBOOK_HOURS2.min}:00\u2013${PLAYBOOK_HOURS2.max}:59`,
   between: `between ${PLAYBOOK_HOURS2.min}:00 and ${PLAYBOOK_HOURS2.max}:59`
 };
-var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS52;
+var PLAYBOOK_BREATH_MS2 = 7 * DAY_MS62;
 var PLAYBOOK_VETO_DELAY_MS2 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL2 = {
   reengage: POLICY_CLASS_WORDS2.reengage.short,
   campaign: POLICY_CLASS_WORDS2.campaign.short,
   booking: POLICY_CLASS_WORDS2.booking.short
 };
-var DATE_FMT5 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS62 = 864e5;
-var QUIET_AFTER_MS22 = 7 * DAY_MS62;
 var DATE_FMT22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN22 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS2 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS2 = 14 * 864e5;
 var REVIEW_NEWS_MS2 = 36 * 3600 * 1e3;
@@ -8776,6 +8804,23 @@ var PERSON_CAME_FROM_WORDS3 = {
   lead: "A lead you found"
 };
 var DAY_MS43 = 24 * 3600 * 1e3;
+var DAY_MS53 = 864e5;
+var QUIET_AFTER_MS23 = 7 * DAY_MS53;
+var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS3 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META3 = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS3.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS3.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS3.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS3.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS3.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
 var ASK_CAPS3 = {
   threads: 20,
   messages: 30,
@@ -8882,7 +8927,7 @@ var LIMIT_TIERS3 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS53 = 864e5;
+var DAY_MS63 = 864e5;
 var PLAYBOOK_HOURS3 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS3 = {
   min: PLAYBOOK_HOURS3.min,
@@ -8891,18 +8936,15 @@ var SENDING_HOURS_WORDS3 = {
   range: `${PLAYBOOK_HOURS3.min}:00\u2013${PLAYBOOK_HOURS3.max}:59`,
   between: `between ${PLAYBOOK_HOURS3.min}:00 and ${PLAYBOOK_HOURS3.max}:59`
 };
-var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS53;
+var PLAYBOOK_BREATH_MS3 = 7 * DAY_MS63;
 var PLAYBOOK_VETO_DELAY_MS3 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL3 = {
   reengage: POLICY_CLASS_WORDS3.reengage.short,
   campaign: POLICY_CLASS_WORDS3.campaign.short,
   booking: POLICY_CLASS_WORDS3.booking.short
 };
-var DATE_FMT6 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS63 = 864e5;
-var QUIET_AFTER_MS23 = 7 * DAY_MS63;
 var DATE_FMT23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN23 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS3 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS3 = 14 * 864e5;
 var REVIEW_NEWS_MS3 = 36 * 3600 * 1e3;
@@ -9866,6 +9908,23 @@ var PERSON_CAME_FROM_WORDS22 = {
   lead: "A lead you found"
 };
 var DAY_MS422 = 24 * 3600 * 1e3;
+var DAY_MS522 = 864e5;
+var QUIET_AFTER_MS222 = 7 * DAY_MS522;
+var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS22 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META22 = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS22.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS22.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS22.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS22.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS22.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
 var ASK_CAPS22 = {
   threads: 20,
   messages: 30,
@@ -10021,7 +10080,7 @@ var LIMIT_TIERS22 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS522 = 864e5;
+var DAY_MS622 = 864e5;
 var PLAYBOOK_HOURS22 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS22 = {
   min: PLAYBOOK_HOURS22.min,
@@ -10030,18 +10089,15 @@ var SENDING_HOURS_WORDS22 = {
   range: `${PLAYBOOK_HOURS22.min}:00\u2013${PLAYBOOK_HOURS22.max}:59`,
   between: `between ${PLAYBOOK_HOURS22.min}:00 and ${PLAYBOOK_HOURS22.max}:59`
 };
-var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS522;
+var PLAYBOOK_BREATH_MS22 = 7 * DAY_MS622;
 var PLAYBOOK_VETO_DELAY_MS22 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL22 = {
   reengage: POLICY_CLASS_WORDS22.reengage.short,
   campaign: POLICY_CLASS_WORDS22.campaign.short,
   booking: POLICY_CLASS_WORDS22.booking.short
 };
-var DATE_FMT52 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS622 = 864e5;
-var QUIET_AFTER_MS222 = 7 * DAY_MS622;
 var DATE_FMT222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN222 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS22 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS22 = 14 * 864e5;
 var REVIEW_NEWS_MS22 = 36 * 3600 * 1e3;
@@ -10925,6 +10981,23 @@ var PERSON_CAME_FROM_WORDS32 = {
   lead: "A lead you found"
 };
 var DAY_MS432 = 24 * 3600 * 1e3;
+var DAY_MS532 = 864e5;
+var QUIET_AFTER_MS232 = 7 * DAY_MS532;
+var DATE_FMT62 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS32 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META32 = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS32.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS32.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS32.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS32.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS32.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
 var ASK_CAPS32 = {
   threads: 20,
   messages: 30,
@@ -11031,7 +11104,7 @@ var LIMIT_TIERS32 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS532 = 864e5;
+var DAY_MS632 = 864e5;
 var PLAYBOOK_HOURS32 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS32 = {
   min: PLAYBOOK_HOURS32.min,
@@ -11040,18 +11113,15 @@ var SENDING_HOURS_WORDS32 = {
   range: `${PLAYBOOK_HOURS32.min}:00\u2013${PLAYBOOK_HOURS32.max}:59`,
   between: `between ${PLAYBOOK_HOURS32.min}:00 and ${PLAYBOOK_HOURS32.max}:59`
 };
-var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS532;
+var PLAYBOOK_BREATH_MS32 = 7 * DAY_MS632;
 var PLAYBOOK_VETO_DELAY_MS32 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL32 = {
   reengage: POLICY_CLASS_WORDS32.reengage.short,
   campaign: POLICY_CLASS_WORDS32.campaign.short,
   booking: POLICY_CLASS_WORDS32.booking.short
 };
-var DATE_FMT62 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS632 = 864e5;
-var QUIET_AFTER_MS232 = 7 * DAY_MS632;
 var DATE_FMT232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN232 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS32 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS32 = 14 * 864e5;
 var REVIEW_NEWS_MS32 = 36 * 3600 * 1e3;
@@ -11556,7 +11626,13 @@ async function sendQueued(ports, cmd) {
   const cause = out.reason === "no_credentials" ? notConnected : out.reason === "no_sender_for_channel" ? `this runtime has no ${channel} line` : out.reason === "wire_unreadable" ? "the thread could not be read at the wire" : out.status === 0 ? "it never reached the provider" : `HTTP ${out.status}`;
   const receptionist = msg.sender === "ai";
   await ports.escalate(p.conversation_id, "send_failed", `${receptionist ? "The receptionist's reply" : "Dashboard reply"} could not be delivered (${cause}).`);
-  await ports.alert(`Reply delivery failed: ${to}`, `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`);
+  await ports.alert({
+    kind: "handoff",
+    route: `inbox/th-${p.conversation_id}`,
+    about: { type: "conversation", id: p.conversation_id },
+    subject: `Reply delivery failed: ${to}`,
+    body: `${receptionist ? "A reply the receptionist queued" : "A reply queued from the dashboard"} could not be sent (${cause}). The thread is flagged in the Inbox.`
+  });
 }
 async function eraseBlobThread(ports, cmd) {
   const p = cmd.payload;
@@ -11662,14 +11738,14 @@ async function sendBroadcastBatch(ports, cmd) {
   if (b.state !== "scheduled" && b.state !== "sending") return;
   if (await ports.workspacePaused()) {
     await ports.fail(b.id, "paused");
-    await ports.alert(`Broadcast \u201C${b.name}\u201D not sent`, "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again.");
+    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D not sent`, body: "The workspace is paused until billing resumes, so nothing went out. Resume from Settings \u203A Billing and send it again." });
     return;
   }
   if (b.state === "scheduled" && !await ports.startSending(b.id)) return;
   const tpl = await ports.template(b.template_name, b.template_language);
   if (!tpl || tpl.meta_status !== "approved") {
     await ports.fail(b.id, "template_not_approved");
-    await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.`);
+    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D stopped`, body: `The template \u201C${b.template_name}\u201D is no longer approved by WhatsApp, so nothing was sent.` });
     return;
   }
   const purpose = purposeOfTemplate(tpl.category);
@@ -11763,7 +11839,7 @@ async function sendBroadcastBatch(ports, cmd) {
     if (!wireIsDown(out)) return "go on";
     const cause = out.reason === "no_credentials" ? "the number is not connected" : out.reason === "no_sender_for_channel" ? "this runtime has no WhatsApp wire" : `WhatsApp answered HTTP ${out.status}`;
     await ports.fail(b.id, "wire_unavailable");
-    await ports.alert(`Broadcast \u201C${b.name}\u201D stopped`, `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.`);
+    await ports.alert({ kind: "broadcast_stopped", route: "broadcasts", about: { type: "broadcast", id: b.id }, subject: `Broadcast \u201C${b.name}\u201D stopped`, body: `WhatsApp could not be reached on this workspace's number (${cause}), so the rest was not sent. Reconnect the number in Settings \u203A Channels and send it again.` });
     return "stop";
   };
   for (const [i, r2] of batch.entries()) {
@@ -11790,10 +11866,13 @@ async function sendBroadcastBatch(ports, cmd) {
   }
   const { sent, held } = await ports.tally(b.id);
   await ports.finish(b.id, { sent, held });
-  await ports.alert(
-    `Broadcast \u201C${b.name}\u201D sent`,
-    `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
-  );
+  await ports.alert({
+    kind: "broadcast_sent",
+    route: "broadcasts",
+    about: { type: "broadcast", id: b.id },
+    subject: `Broadcast \u201C${b.name}\u201D sent`,
+    body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
+  });
 }
 
 // ../db/dist/index.js
@@ -12409,6 +12488,23 @@ var PERSON_CAME_FROM_WORDS4 = {
   lead: "A lead you found"
 };
 var DAY_MS44 = 24 * 3600 * 1e3;
+var DAY_MS54 = 864e5;
+var QUIET_AFTER_MS24 = 7 * DAY_MS54;
+var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var CHANNEL_KIND_WORDS4 = {
+  whatsapp: "WhatsApp",
+  voice: "Phone line",
+  sms: "Texting",
+  email: "Email",
+  instagram: "Instagram"
+};
+var KIND_META4 = {
+  whatsapp: { name: `${CHANNEL_KIND_WORDS4.whatsapp} Business`, what: "Customers text this number; the receptionist answers", icon: "chat", noun: "message" },
+  voice: { name: CHANNEL_KIND_WORDS4.voice, what: "Customers call this number; the receptionist picks up", icon: "phone", noun: "call" },
+  sms: { name: CHANNEL_KIND_WORDS4.sms, what: "Text messages", icon: "chat", noun: "message" },
+  email: { name: CHANNEL_KIND_WORDS4.email, what: "Email", icon: "mail", noun: "email" },
+  instagram: { name: CHANNEL_KIND_WORDS4.instagram, what: "Direct messages", icon: "instagram", noun: "message" }
+};
 var ASK_CAPS4 = {
   threads: 20,
   messages: 30,
@@ -12515,7 +12611,7 @@ var LIMIT_TIERS4 = {
   TIER_100K: 1e5,
   TIER_UNLIMITED: Number.POSITIVE_INFINITY
 };
-var DAY_MS54 = 864e5;
+var DAY_MS64 = 864e5;
 var PLAYBOOK_HOURS4 = { min: 9, max: 20 };
 var SENDING_HOURS_WORDS4 = {
   min: PLAYBOOK_HOURS4.min,
@@ -12524,18 +12620,15 @@ var SENDING_HOURS_WORDS4 = {
   range: `${PLAYBOOK_HOURS4.min}:00\u2013${PLAYBOOK_HOURS4.max}:59`,
   between: `between ${PLAYBOOK_HOURS4.min}:00 and ${PLAYBOOK_HOURS4.max}:59`
 };
-var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS54;
+var PLAYBOOK_BREATH_MS4 = 7 * DAY_MS64;
 var PLAYBOOK_VETO_DELAY_MS4 = 30 * 6e4;
 var PLAYBOOK_CLASS_LABEL4 = {
   reengage: POLICY_CLASS_WORDS4.reengage.short,
   campaign: POLICY_CLASS_WORDS4.campaign.short,
   booking: POLICY_CLASS_WORDS4.booking.short
 };
-var DATE_FMT7 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
-var DAY_MS64 = 864e5;
-var QUIET_AFTER_MS24 = 7 * DAY_MS64;
 var DATE_FMT24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
+var WHEN24 = new Intl.DateTimeFormat([], { month: "short", day: "numeric" });
 var FORWARDING_TEST_WINDOW_MS4 = 30 * 6e4;
 var REVIEW_AUTO_REPLY_MAX_AGE_MS4 = 14 * 864e5;
 var REVIEW_NEWS_MS4 = 36 * 3600 * 1e3;
@@ -13477,9 +13570,9 @@ async function conclude(ports, job, reason, certain, subject, lead) {
   }
   ports.log.info("job_failed", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, reason });
   try {
-    await ports.alert(job, subject, wreckage ? `${lead}
+    await ports.alert(job, { kind: "job_failed", route: "inbox", subject, body: wreckage ? `${lead}
 
-${wreckage}` : lead);
+${wreckage}` : lead });
   } catch (e2) {
     ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e2) });
   }

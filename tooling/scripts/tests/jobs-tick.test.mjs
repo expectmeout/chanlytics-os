@@ -57,9 +57,9 @@ function fakes(jobs, o = {}) {
       calls.settle.push([j.id, certain]);
       return o.settled ?? [{ what: "message", changed: true }];
     },
-    alert: async (j, subject, body) => {
+    alert: async (j, news) => {
       if (o.alertThrows) throw new Error("mail down");
-      calls.alert.push({ id: j.id, subject, body });
+      calls.alert.push({ id: j.id, ...news });
     },
     log: {
       info: (e, f) => calls.log.push(["info", e, f]),
@@ -173,6 +173,7 @@ test("a send whose run died is never run a second time", async () => {
     assert.deepEqual(calls.fail, [["a", RUN_INTERRUPTED]]);
     assert.deepEqual(calls.settle, [["a", false]]);
     assert.match(calls.alert[0].subject, /did not finish/);
+    assert.deepEqual([calls.alert[0].kind, calls.alert[0].route], ["job_failed", "inbox"], "the one alert that IS a job not finishing says so itself");
     assert.equal(counts.gaveUp, 1);
   }
   const { ports, calls } = fakes([job("a", "outbound_send", 2)]);

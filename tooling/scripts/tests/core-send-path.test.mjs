@@ -72,8 +72,10 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
   await core.sendQueued(failed.ports, send());
   assert.deepEqual(failed.ops(), ["deliver", "escalate", "alert"]);
   assert.deepEqual(failed.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (HTTP 500)."]);
-  assert.match(failed.log[2][1], /Reply delivery failed: \+13475550101/);
-  assert.match(failed.log[2][2], /HTTP 500/);
+  assert.match(failed.log[2][1].subject, /Reply delivery failed: \+13475550101/);
+  assert.match(failed.log[2][1].body, /HTTP 500/);
+  // A reply that could not be delivered is a thread that needs a person, and its button opens THAT thread; the job itself finished.
+  assert.deepEqual([failed.log[2][1].kind, failed.log[2][1].route, failed.log[2][1].about], ["handoff", "inbox/th-c1", { type: "conversation", id: "c1" }]);
   const creds = fakes({ deliver: { outcome: "failed", reason: "provider", status: 401, errorBody: "bad token", messageId: "m1" } });
   await core.sendQueued(creds.ports, send());
   assert.deepEqual(creds.ops(), ["deliver", "page", "escalate", "alert"]);
@@ -86,11 +88,11 @@ test("a wire that could not carry it flags the thread and tells the owner; a pro
   await core.sendQueued(noWire.ports, send());
   assert.deepEqual(noWire.ops(), ["deliver", "escalate", "alert"], "no credentials is the thread's problem to show, not the pager's");
   assert.deepEqual(noWire.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the WhatsApp number is not connected)."], "and it is shown as what it is, never as an HTTP status");
-  assert.match(noWire.log[2][2], /the WhatsApp number is not connected/);
+  assert.match(noWire.log[2][1].body, /the WhatsApp number is not connected/);
   const noLine = fakes({ queued: { status: "queued", body: "See you at 3", channel: "sms", sender: "human" }, deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
   await core.sendQueued(noLine.ports, send());
   assert.deepEqual(noLine.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (the texting line is not connected)."], "a text is told as a text: its line, never a WhatsApp number it was not sent on");
-  assert.match(noLine.log[2][2], /the texting line is not connected/);
+  assert.match(noLine.log[2][1].body, /the texting line is not connected/);
   const draft = fakes({ queued: { status: "queued", body: "Hi!", channel: "whatsapp", sender: "ai" }, deliver: { outcome: "failed", reason: "provider", status: 500, errorBody: "x", messageId: "m1" } });
   await core.sendQueued(draft.ports, send());
   assert.equal(draft.log[1][3], "The receptionist's reply could not be delivered (HTTP 500).", "a draft the receptionist queued is not 'a dashboard reply'");
@@ -119,7 +121,7 @@ test("an email's queued row leaves as the request it was frozen with, to the add
   await core.sendQueued(bare.ports, byEmail());
   assert.equal("email" in bare.log[0][1], false);
   assert.deepEqual(bare.log[1], ["escalate", "c1", "send_failed", "Dashboard reply could not be delivered (it never reached the provider)."]);
-  assert.match(bare.log[2][1], /Reply delivery failed: ana@example\.com/);
+  assert.match(bare.log[2][1].subject, /Reply delivery failed: ana@example\.com/);
   const unset = fakes({ queued: row, deliver: { outcome: "failed", reason: "no_credentials", status: 503, errorBody: "no_credentials", messageId: "m1" } });
   await core.sendQueued(unset.ports, byEmail());
   assert.equal(unset.log[1][3], "Dashboard reply could not be delivered (the email channel is not connected).");

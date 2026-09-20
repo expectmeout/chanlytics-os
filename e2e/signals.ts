@@ -95,16 +95,27 @@ export async function expectNoQueueRepeat(page: Page): Promise<void> {
 }
 
 /**
- * The card's head says how many unread things there are and its foot how many
+ * The card's head is the bell's own number and its foot says how many of them
  * are not on screen, so they must add up: a group of twelve calls stands for
  * twelve, not for one. Counting groups read as "22 ... and 2 more".
+ *
+ * With no row drawn there is no foot (the head says the number once), and the
+ * empty line may congratulate only when the head is 0: a card that read
+ * "All caught up." beside a bell of 4 is the defect this guards.
  */
 export async function expectAwayAddsUp(page: Page): Promise<void> {
   const away = page.getByTestId("today-away");
   await expect(away).toBeVisible();
   const head = Number((await away.locator(".tq-count").innerText()).trim());
-  const shown = (await away.getByTestId("today-away-row").evaluateAll((rows) => rows.map((r) => Number(r.getAttribute("data-count") ?? "1"))))
-    .reduce((a, n) => a + n, 0);
+  const rows = away.getByTestId("today-away-row");
+  if ((await rows.count()) === 0) {
+    const empty = away.getByTestId("today-away-empty");
+    await expect(empty).toBeVisible();
+    await expect(away.locator(".tq-foot")).toHaveCount(0);
+    expect((await empty.innerText()).includes("All caught up"), `head ${head} with "${await empty.innerText()}"`).toBe(head === 0);
+    return;
+  }
+  const shown = (await rows.evaluateAll((els) => els.map((r) => Number(r.getAttribute("data-count") ?? "1")))).reduce((a, n) => a + n, 0);
   const foot = away.locator(".tq-foot");
   const more = (await foot.count()) ? Number(/(\d+) more/.exec(await foot.innerText())?.[1] ?? "0") : 0;
   expect(head, `head ${head} = ${shown} on screen + ${more} more`).toBe(shown + more);

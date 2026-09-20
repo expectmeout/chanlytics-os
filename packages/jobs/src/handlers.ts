@@ -5,7 +5,7 @@
  * adapter that builds the ports from the job's context (no env reads here).
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { parseTenantConfig, type JobKind } from "@chanlytics/contracts";
+import { parseTenantConfig, type JobKind, type JobNews } from "@chanlytics/contracts";
 import { classifyReceived, emailPlainText, isEmailRequest, messageIdsIn, type ReceivedEmail } from "@chanlytics/channels";
 import { deliver, eraseBlobThread, ingestEmail, provisionLine, type EmailIngestPorts, type IncomingEmail, sendBroadcastBatch, sendQueued, templatePurpose, type EraseThreadCommand, type SendQueuedCommand, type Wire } from "@chanlytics/core";
 import { ingestInboundEmail, mailboxById, markProcessed, resolveOutboundTarget, sentEmailWithMessageId, stampMailboxReceived, type Database, type Json } from "@chanlytics/db";
@@ -20,7 +20,8 @@ export interface JobContext {
    * from the environment.
    */
   wire: Wire;
-  alert: (subject: string, body: string) => Promise<void>;
+  /** Tell this job's tenant. The news carries its own kind and door (contracts JobNews); the runtime that addresses it never chooses them. */
+  alert: (news: JobNews) => Promise<void>;
   /**
    * The platform's own pager, for a condition that is the platform's: a
    * provider refusing sends with 401 or 403 is credentials, not content.

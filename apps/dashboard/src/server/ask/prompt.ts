@@ -20,7 +20,7 @@ export const ASK_DEFINITIONS: Record<string, string> = {
   "answering": "The receptionist is replying on its own on that thread.",
   "snoozed": "A thread put aside until a chosen time; it wakes on its own.",
   "opted out": "The customer asked not to be messaged. Nothing goes out to them except a reply to something they send.",
-  "24-hour window": "WhatsApp delivers a free-form reply only within 24 hours of the customer's last message. Outside it, only an approved template can be sent.",
+  "24-hour window": "WhatsApp delivers a free-form reply only within 24 hours of the customer's last message. Outside it, only an approved template can be sent. Only WhatsApp has a window — a text or an email may be answered whenever, so `window_open` on a thread is this question answered for that thread's own wire.",
   "escalation": "The record that a thread needed a person, with the reason. Resolving it closes the record; the thread itself stays.",
   "confidence dial": "The minimum confidence the receptionist needs to send a reply alone. Below it, the reply is held for a person.",
   "token budget": "A daily cap on the receptionist's model usage. When spent, the receptionist holds replies for a person instead of answering.",

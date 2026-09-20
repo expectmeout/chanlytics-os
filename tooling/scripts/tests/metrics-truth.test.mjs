@@ -91,12 +91,12 @@ test("Today's quiet day dates the last message by the tenant's calendar, not by 
 
 test("Today: a workspace with no channel says so, and statuses are words", () => {
   const vm = toTodayVM(metrics({ channels: [] }), [], [], [], NOW);
-  assert.equal(vm.quiet.sub, "No phone line or WhatsApp number is connected yet, so nothing can come in.");
+  assert.equal(vm.quiet.sub, "No line is connected yet, so nothing can come in.");
   assert.ok(vm.quiet.proof.some((p) => p.value === "none connected yet"));
   const on = toTodayVM(metrics(), [], [], [], NOW);
   assert.ok(on.quiet.proof.some((p) => /· on$/.test(p.value)), "never the raw column value 'active'");
   const brief = readRaw("apps/dashboard/src/legacy/pages/dashboard-a-brief.jsx");
-  assert.ok(brief.includes('"no channels connected yet"'), "never '0 of 0 agents live'");
+  assert.ok(brief.includes("standing.lines.text"), "the page draws the counted sentence; contracts counts the wires, so never '0 of 0 agents live'");
 });
 
 test("Today claims 'handled everything' only when the receptionist did", () => {

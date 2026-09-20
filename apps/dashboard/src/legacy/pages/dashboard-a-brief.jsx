@@ -164,14 +164,14 @@ const TodayRecapBody = () => {
 // count, an arc and six stat cards -- and on a phone the first thing that needed a person started 679px down.
 const TodayStanding = ({ vm }) => {
   const { standing } = vm;
-  const up = standing.chips.filter((c) => c.ok).length;
-  const total = standing.chips.length;
   return (
     <header className="today-standing" data-testid="today-standing">
       <span>{standing.eyebrow}</span>
+      {/* Counted in contracts: this page counted its own chips, and the chips
+          are the routing rows, so an email line was never in the total. */}
       <span className="today-standing-lines">
-        <span className="live-dot" style={up < total ? { background: "var(--danger)" } : undefined} />
-        {total > 0 ? `${up} of ${total} ${total === 1 ? "line" : "lines"} connected` : "no channels connected yet"}
+        <span className="live-dot" style={standing.lines.down ? { background: "var(--danger)" } : undefined} />
+        {standing.lines.text}
       </span>
       {/* A line that is down is the one thing here that cannot wait for the recap under the work. */}
       {standing.alert && <span className="today-standing-alert">{standing.alert}</span>}

@@ -324,4 +324,25 @@ test("every kind the table accepts is kept as itself -- a new kind is not turned
   }
   assert.deepEqual(rows.map((r) => r.kind), [...SERVER_NOTIFICATION_KINDS], "REGRESSION: a kind the table accepts was stored as 'alert'");
   assert.ok(SERVER_NOTIFICATION_KINDS.includes("template_ready") && SERVER_NOTIFICATION_KINDS.includes("template_blocked"), "the two template kinds are among them");
+  assert.ok(SERVER_NOTIFICATION_KINDS.includes("broadcast_sent") && SERVER_NOTIFICATION_KINDS.includes("broadcast_stopped"), "and the two broadcast kinds (00141); the database in memory has no CHECK, so the replay proves the table");
+});
+
+test("REGRESSION: a job's alert is kept as what the job said it is -- a completed broadcast was kept as job_failed", async () => {
+  // apps/edge/lib/job-alert.ts hard-coded `kind: "job_failed", route: "inbox"` for every one of its six callers,
+  // so "Broadcast “Spring offer” sent, 38 people got it" reached the bell as a job that did not finish.
+  const { alertFor } = await import(pathToFileURL(path.join(ROOT, "apps/edge/lib/job-alert.ts")).href);
+  const rows = [];
+  const t = transport();
+  const log = capture();
+  try {
+    await withEnv(PLATFORM_ENV, () =>
+      alertFor(null, { tenant_id: TENANT, kind: "broadcast_send" }, { db: fakeDb({ notifications: rows }), send: t.send })({
+        kind: "broadcast_sent", route: "broadcasts", about: { type: "broadcast", id: "b1" },
+        subject: "Broadcast “Spring offer” sent", body: "38 people got it. Replies land in the Inbox.",
+      }));
+  } finally {
+    log.restore();
+  }
+  assert.deepEqual([rows[0].kind, rows[0].route, rows[0].subject_type, rows[0].subject_id], ["broadcast_sent", "broadcasts", "broadcast", "b1"], "REGRESSION: a completed broadcast was kept as job_failed, pointing at the Inbox");
+  assert.equal(rows[0].title, "Broadcast “Spring offer” sent");
 });

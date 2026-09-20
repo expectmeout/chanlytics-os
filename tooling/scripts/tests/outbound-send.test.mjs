@@ -44,7 +44,7 @@ function ctxFor(db, over = {}) {
   return {
     ctx: {
       db, wire: { whatsapp: whatsappSender({ phoneId: "p1", accessToken: "tok" }), sms: null },
-      alert: async (subject, body) => { alerts.push({ subject, body }); },
+      alert: async (news) => { alerts.push(news); },
       eraseThread: async () => true, schedule: async () => {}, deadline: Date.now() + 60_000,
       ...over,
     },

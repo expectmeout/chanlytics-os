@@ -156,7 +156,7 @@ const TodayQueue = ({ vm }) => {
         <span className="tq-title">Your queue</span>
         <span className={`tq-count tabular ${total ? "" : "calm"}`}>{total}</span>
         <span className="tq-sub">
-          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || (vm.standing.alert || vm.standing.chips.length === 0 ? "nothing in the queue" : "nothing needs you")}
+          {[...vm.queue.parts, runs.length ? `${runs.length} run${runs.length === 1 ? "" : "s"} waiting` : ""].filter(Boolean).join(" · ") || vm.queue.empty.sub}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>
@@ -180,13 +180,17 @@ const TodayQueue = ({ vm }) => {
           />
         ))}
         {runs}
-        {total === 0 && (vm.standing.alert
-          // A dark line: an empty queue is not "the receptionist is answering".
-          ? <EmptyState kind="line" glyph="alert" tone="warn" title="Nothing in the queue — new messages go unanswered until the line is back." testid="today-queue-empty-down" />
-          : vm.standing.chips.length === 0
-            // No line at all: nothing can come in, so nobody is answering. The door to Setup is the brief's one line.
-            ? <EmptyState kind="line" glyph="phone" title="Nothing in the queue — nothing can come in until a line is connected." testid="today-queue-empty-unconnected" />
-            : <EmptyState kind="line" glyph="check" tone="ok" title="All caught up — the receptionist is answering on its own." />
+        {/* What an empty queue means is a sentence about the wires, so contracts
+            says it: a dark line, no line, a line the receptionist does not
+            answer (email), or the receptionist holding the floor. */}
+        {total === 0 && (
+          <EmptyState
+            kind="line"
+            glyph={vm.queue.empty.glyph}
+            tone={vm.queue.empty.tone || undefined}
+            title={vm.queue.empty.title}
+            testid={vm.queue.empty.testid}
+          />
         )}
       </div>
       {vm.queue.more > 0 && (

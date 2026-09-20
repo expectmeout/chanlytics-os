@@ -35,6 +35,7 @@ import {
   SERVER_KEY_PREFIX,
   dedupeFeed,
   serverNotificationRows,
+  unreadCount,
 } from "@chanlytics/contracts";
 import { api as client } from "./api";
 import type { Input } from "../client/api";
@@ -231,7 +232,7 @@ export function installNotifications(
 
   const api: BellApi = {
     feed: () => toRows(rows(), Date.now()),
-    unread: () => rows().filter((r) => r.unread).length,
+    unread: () => unreadCount(rows()),
     seenAll: () => { save({ seenAt: Date.now() }); void mark({ seen: true }); },
     read: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), read: true }); return; } save({ read: [...new Set([...state().read, key])] }); },
     dismiss: (key) => { if (isKept(key)) { void mark({ id: key.slice(SERVER_KEY_PREFIX.length), dismissed: true }); return; } save({ dismissed: [...new Set([...state().dismissed, key])] }); },

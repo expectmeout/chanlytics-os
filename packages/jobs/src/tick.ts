@@ -14,6 +14,7 @@
  * at a time keeps "claimed" meaning "started", which is the fact verdictFor
  * stands on.
  */
+import type { JobNews } from "@chanlytics/contracts";
 import { verdictFor, retryWait, RUN_INTERRUPTED, type LedgerRow } from "./ledger";
 import { saySettled, type Settled } from "./settle";
 
@@ -36,7 +37,7 @@ export interface TickPorts {
   defer(job: LedgerRow, untilIso: string, reason: string): Promise<boolean>;
   /** Never throws: a write that failed comes back as a row with its error. */
   settle(job: LedgerRow, certain: boolean): Promise<Settled[]>;
-  alert(job: LedgerRow, subject: string, body: string): Promise<void>;
+  alert(job: LedgerRow, news: JobNews): Promise<void>;
   log: TickLog;
   now(): number;
 }
@@ -173,7 +174,9 @@ async function conclude(
   ports.log.info("job_failed", { job_id: job.id, tenant_id: job.tenant_id, kind: job.kind, attempts: job.attempts, reason });
 
   try {
-    await ports.alert(job, subject, wreckage ? `${lead}\n\n${wreckage}` : lead);
+    // conclude() is only ever reached for a job that failed or never came
+    // back, so this is the one place job_failed is the truth.
+    await ports.alert(job, { kind: "job_failed", route: "inbox", subject, body: wreckage ? `${lead}\n\n${wreckage}` : lead });
   } catch (e) {
     ports.log.error("job_alert_failed", { job_id: job.id, error: errText(e) });
   }
