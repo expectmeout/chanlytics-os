@@ -1224,6 +1224,7 @@ var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
   items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -7333,6 +7334,7 @@ var LeadSuggestAnswerSchema2 = z72.object({
   line: z72.string().trim().min(3).max(160),
   items: z72.array(z72.object({ words: z72.string().trim().min(3).max(80), who_for: z72.string().trim().min(3).max(120), category_key: z72.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA2 = {
   type: "object",
@@ -9530,6 +9532,7 @@ var LeadSuggestAnswerSchema3 = z73.object({
   line: z73.string().trim().min(3).max(160),
   items: z73.array(z73.object({ words: z73.string().trim().min(3).max(80), who_for: z73.string().trim().min(3).max(120), category_key: z73.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA3 = {
   type: "object",
@@ -10817,6 +10820,7 @@ var LeadSuggestAnswerSchema22 = z722.object({
   line: z722.string().trim().min(3).max(160),
   items: z722.array(z722.object({ words: z722.string().trim().min(3).max(80), who_for: z722.string().trim().min(3).max(120), category_key: z722.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS22 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS22 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA22 = {
   type: "object",
@@ -11975,6 +11979,7 @@ var LeadSuggestAnswerSchema32 = z732.object({
   line: z732.string().trim().min(3).max(160),
   items: z732.array(z732.object({ words: z732.string().trim().min(3).max(80), who_for: z732.string().trim().min(3).max(120), category_key: z732.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS32 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS32 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA32 = {
   type: "object",
@@ -13621,6 +13626,7 @@ var LeadSuggestAnswerSchema4 = z74.object({
   line: z74.string().trim().min(3).max(160),
   items: z74.array(z74.object({ words: z74.string().trim().min(3).max(80), who_for: z74.string().trim().min(3).max(120), category_key: z74.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS4 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS4 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA4 = {
   type: "object",

@@ -1148,6 +1148,7 @@ var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
   items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",

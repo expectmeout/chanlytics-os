@@ -15,7 +15,7 @@
 import { z } from "zod";
 import {
   LEAD_CLOSED_REASONS, LEAD_EMAIL_STATES, LEAD_ENDING_WORDS, LEAD_FITS, LEAD_MAX_PLACES, LEAD_MEMBER_CLASSES, LEAD_OPERATION_KINDS, LEAD_STAGES,
-  LEAD_KIND_KEY, leadKindWord, LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
+  LEAD_KIND_KEY, LEAD_UNREACHABLE_KEY, leadKindWord, LeadSearchPlanSchema, planMinutes, planWho, siteHost, stateCode,
   type LeadArea, type LeadEmailState, type LeadFit, type LeadMemberClass, type LeadRoundEnding, type LeadSearchPlan,
 } from "./lead-search";
 import { initialsOf } from "./viewmodels";
@@ -74,6 +74,8 @@ export const LEAD_NOT_A_FIT_TITLE = "What makes it not a fit?";
 export const LEAD_SUPPRESSING_WHY: LeadNotAFitWhy = "customer";
 export const LEAD_REVIEW_WORD = "Needs review";
 export const LEAD_LEFT_OUT_WORD = "Left out";
+/** The Excluded chip for a place with no phone and no email (lead-search.ts LEAD_UNREACHABLE_KEY). */
+export const LEAD_UNREACHABLE_WORD = "No way to reach them";
 /** The peek's two groups of checks (P2, §0.1). Nothing read wears a plain check mark. */
 export const LEAD_CHECK_GROUP_WORDS: Record<"seen" | "read", string> = { seen: "Seen", read: "Claude's read" };
 export const LEAD_CHECK_UNSURE = "Couldn't tell";
@@ -81,13 +83,14 @@ export const LEAD_CHECK_UNSURE = "Couldn't tell";
 // seven are four seen and three read. Nothing here declares them again.
 /** One label per check and answer; the particulars are the check's own reason. */
 export const LEAD_CHECK_WORDS: Record<LeadCheckKey, Record<"yes" | "no" | "unknown", string>> = {
-  on_maps: { yes: "Open for business", no: "Not open for business", unknown: LEAD_CHECK_UNSURE },
-  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: LEAD_CHECK_UNSURE },
-  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: LEAD_CHECK_UNSURE },
-  mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: LEAD_CHECK_UNSURE },
-  independent: { yes: "Not a chain", no: "Part of a chain", unknown: LEAD_CHECK_UNSURE },
-  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: LEAD_CHECK_UNSURE },
-  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: LEAD_CHECK_UNSURE },
+  // Each unknown names what could not be told: four rows of "Couldn't tell" told the owner nothing.
+  on_maps: { yes: "Open for business", no: "Not open for business", unknown: "Open for business: couldn't tell" },
+  in_area: { yes: "In the area you asked for", no: "Outside the area you asked for", unknown: "In the area: couldn't tell" },
+  phone_two_sources: { yes: "Phone matches on two sources", no: "Phone from one source only", unknown: "Phone on two sources: couldn't tell" },
+  mailbox: { yes: "Mailbox exists", no: "Mailbox doesn't exist", unknown: "Mailbox: couldn't tell" },
+  independent: { yes: "Not a chain", no: "Part of a chain", unknown: "Independent: couldn't tell" },
+  right_kind: { yes: "The kind you asked for", no: "Not the kind you asked for", unknown: "The kind you asked for: couldn't tell" },
+  own_address: { yes: "The business's own address", no: "Not the business's own address", unknown: "Their own address: couldn't tell" },
 };
 /** The mailbox check says the state it saw, never a word for it (§10.4, S12). */
 export const LEAD_MAILBOX_WORDS: Record<LeadEmailState, string> = {
@@ -368,8 +371,9 @@ export function leadEndingLine(ending: LeadRoundEnding, f: LeadEndingFacts): Lea
     case "few_new_matches":
       return {
         mark,
-        title: `All ${plural(f.seen, one, f.name)} in ${f.area} are already yours.`,
-        parts: f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : [],
+        // "already yours" read as dedupe. "Found all" says what happened: the area ran dry.
+        title: `Found all ${plural(f.seen, one, f.name)} in ${f.area}`,
+        parts: [yours, ...(f.nearby.length ? [`Look further out, in ${leadAnd(f.nearby)}?`] : [])],
         step: f.nearby.length ? { id: "look_further", label: "Look further out" } : null,
       };
     case "stopped":
@@ -652,10 +656,24 @@ export interface LeadPeekVM {
 }
 
 /** The owner's own word for the criterion a place was left out by; the plan holds it. */
+/** A day, from the round's end, in which the untouched leads may be removed and the month credited (§8.6). */
+export const LEAD_UNDO_MS = 24 * 60 * 60_000;
+/**
+ * Whether a search's latest round may still be undone: ended within the day,
+ * and not undone already. Read by the rail's menu, which is where the removal
+ * lives -- not the strip, where "Undo" beside "yours" read as deleting what was
+ * just paid for.
+ */
+export function leadUndoable(s: { round: { undo_op_id: string | null; ended_at: string | null } | null } | null, now: Date): boolean {
+  const r = s?.round;
+  return !!r && !r.undo_op_id && !!r.ended_at && now.getTime() - Date.parse(r.ended_at) < LEAD_UNDO_MS;
+}
+
 export function leadExclusionWord(search: LeadSearchDto | null, key: string | null): string {
   if (!key) return LEAD_LEFT_OUT_WORD;
   const plan = search?.plan;
   if (key === LEAD_KIND_KEY) return plan ? leadKindWord(plan.name) : LEAD_LEFT_OUT_WORD;
+  if (key === LEAD_UNREACHABLE_KEY) return LEAD_UNREACHABLE_WORD;
   const ex = plan?.exclusions.find((e) => e.key === key);
   if (ex) return ex.text;
   const cr = plan?.criteria.find((c) => c.key === key);
@@ -683,7 +701,8 @@ export function toLeadPeekVM(r: LeadRowDto, search: LeadSearchDto | null, tz: st
   const sub = [r.category, area].filter(Boolean).join(" · ") + (r.places > 1 ? ` · ${r.places} locations` : "");
   const fitWord = m.class === "qualified"
     ? (m.fit ? LEAD_FIT_WORDS[m.fit] : LEAD_FIT_WORDS.look)
-    : m.class === "review" ? LEAD_REVIEW_WORD : leadExclusionWord(search, m.excluded_by);
+    // "venues. Venue brand on 828venues host." glued the chip to the reason; say what happened first.
+    : m.class === "review" ? LEAD_REVIEW_WORD : `${LEAD_LEFT_OUT_WORD} — ${leadExclusionWord(search, m.excluded_by)}`;
   const fitCls = m.class === "qualified" ? (m.fit ?? "look") : m.class === "review" ? "review" : "out";
   const standard = LEAD_CONTACT_STANDARD_WORDS[search?.plan.contact === "email" ? "email" : "phone"];
   const emailNote = r.email
@@ -929,7 +948,7 @@ export function toLeadRowVM(r: LeadRowDto, tz: string, now: Date): LeadRowVM {
 const roundIsLive = (state: string): boolean => state !== "ended" && state !== "waiting_on_owner";
 
 /** The rail's rows under Leads (§6.1): the six lists with counts, then the searches with their marks. */
-export function leadRail(counts: LeadCounts, searches: LeadSearchDto[]): { lists: { id: LeadList; label: string; count: number }[]; searches: { id: string; name: string; count: number; mark: "live" | "question" | null }[] } {
+export function leadRail(counts: LeadCounts, searches: LeadSearchDto[], now: Date = new Date()): { lists: { id: LeadList; label: string; count: number }[]; searches: { id: string; name: string; count: number; mark: "live" | "question" | null; undoable: boolean }[] } {
   // Said no is a list only when somebody said no: an empty row in the rail
   // teaches the owner nothing and costs them a line every day.
   const ids: LeadList[] = ["all", "ready", "nurture", "converted", ...(counts.said_no > 0 ? (["said_no"] as LeadList[]) : []), "not_a_fit"];
@@ -939,6 +958,7 @@ export function leadRail(counts: LeadCounts, searches: LeadSearchDto[]): { lists
       id: s.id,
       name: s.name,
       count: s.round?.counted ?? 0,
+      undoable: leadUndoable(s, now),
       mark: !s.round ? null : s.round.state === "waiting_on_owner" ? "question" : roundIsLive(s.round.state) ? "live" : null,
     })),
   };
@@ -981,7 +1001,8 @@ export function leadPlanLikely(plan: LeadSearchPlan, facts: LeadPlanFacts): { em
 export function leadPlanFacts(plan: LeadSearchPlan, facts: LeadPlanFacts): string[] {
   return [
     `About ${planMinutes(plan)} minutes — leave the page if you like`,
-    `Skips the ${facts.dupes} already yours`,
+    // No number: the card cannot know how many of THIS search's places are already here until it has looked.
+    "Anything already yours is skipped",
     `Counts only matches you can reach · ${leadAllowanceFact(facts.leadsLeft)}`,
   ];
 }

@@ -91,7 +91,7 @@ const LEAD_SORT_KEYS = plSortKeys(LEAD_COLUMNS);
 
 // A kept search says what was asked (§8.10). The menu closes after each item (MoreMenu), and every item is a
 // route: nothing here renames or removes on the spot.
-const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove, exportHref }) => (
+const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove, onUndo, exportHref }) => (
   <MoreMenu
     align="left"
     title={`What ${s.name} asked for`}
@@ -102,6 +102,9 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
       { label: "Find new ones", icon: "refresh", meta: "Only places not already in your leads count", onClick: () => onMore(s), gate: canFind ? undefined : window.gate("find", "search again") },
       { label: "Search again, changed", icon: "sparkle", meta: "Opens the plan with what you asked", onClick: () => onAgain(s), gate: canFind ? undefined : window.gate("find", "search again") },
       { label: `Export these ${s.count}`, icon: "external", onClick: () => { if (exportHref) window.open(exportHref, "_self"); }, gate: canFind ? undefined : window.gate("find", "export these leads") },
+      // For a day after a round ends: the leads nobody has touched leave and the month is credited (§8.6). Named
+      // for what it does; the toast it answers with carries its own Undo, which puts them back.
+      ...(s.undoable ? [{ label: "Remove the ones you haven't touched", icon: "undo", meta: `Up to ${s.count} given back this month`, onClick: () => onUndo(s), gate: canFind ? undefined : window.gate("find", "remove these leads") }] : []),
       { divider: true },
       { label: "Remove this search", icon: "x", danger: true, meta: words.keepsLine, onClick: () => onRemove(s), gate: canFind ? undefined : window.gate("find", "remove this search") },
     ]}
@@ -111,7 +114,7 @@ const LeadSearchMenu = ({ s, words, canFind, onRename, onMore, onAgain, onRemove
 // The rail under Leads: the lists, then the searches, each with its count, a live dot while it runs and a "?" in
 // the accent while it waits on the owner. Renaming and removing are asked where the search is, so the rail never
 // loses the row that is being named.
-const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, hrefFor, onNew }) => (
+const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, onPickSearch, renaming, onRename, onRenameSave, onRenameCancel, removing, onRemoveAsk, onRemoveYes, onRemoveNo, removeBusy, removeError, onMore, onAgain, onUndo, hrefFor, onNew }) => (
   <>
     <div className="cl-rail-section" data-testid="leads-lists">
       <div className="cl-rail-group-label">Leads</div>
@@ -139,7 +142,7 @@ const LeadsRailRows = ({ rail, list, searchId, canFind, wordsFor, onPickList, on
                 <span className="label">{s.name}</span>
                 <span className="count">{s.count}</span>
               </button>
-              <LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} exportHref={hrefFor(s)} />
+              <LeadSearchMenu s={s} words={wordsFor(s.id)} canFind={canFind} onRename={onRename} onMore={onMore} onAgain={onAgain} onRemove={onRemoveAsk} onUndo={onUndo} exportHref={hrefFor(s)} />
             </>
           )}
           {removing && removing.id === s.id && (
@@ -302,6 +305,7 @@ const LeadsScope = (p) => {
           onRenameCancel={p.onRenameCancel}
           removing={p.removing}
           onRemoveAsk={p.onRemoveAsk}
+          onUndo={p.onUndo}
           onRemoveYes={p.onRemoveYes}
           onRemoveNo={p.onRemoveNo}
           removeBusy={p.removeBusy}

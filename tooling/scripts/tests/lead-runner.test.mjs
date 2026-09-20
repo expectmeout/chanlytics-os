@@ -153,6 +153,12 @@ test("ACCEPTANCE: the probe fixture, 12 of 24 fitting, stops to ask from the mos
   const byClass = (c) => members.filter((m) => m.class === c).length;
   assert.deepEqual([byClass("qualified"), byClass("review"), byClass("excluded")], [11, 1, 13], "a fit place with a placeholder phone is Needs review under a phone standard");
   assert.deepEqual(members.find((m) => m.class === "review").judgment.reasons, ["phone:none"], "the reason token contracts' classify spells");
+  // "Ideally both": this plan asks for a phone, and every email it found is still sent to the mailbox check
+  // (0.09 cents each), so most leads arrive with both, each with its own state. Pinned so it cannot be
+  // "optimised" away as spend the standard did not ask for.
+  const withEmail = w.T.leads.filter((l) => l.email);
+  assert.ok(withEmail.length > 0);
+  assert.ok(withEmail.every((l) => l.email_state === "checking"), "a found email is checked whatever the standard asked for");
   assert.equal(members.find((m) => m.excluded_by === "closed").reason, CLOSED_REASON);
   const closed = members.find((m) => m.excluded_by === "closed");
   assert.equal(w.T.leads.find((l) => l.id === closed.lead_id).email, null, "a left-out place never stores its candidate email");

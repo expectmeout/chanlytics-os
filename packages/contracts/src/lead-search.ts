@@ -88,6 +88,14 @@ export const LEAD_REASON_MAX_WORDS = 12;
 export const LEAD_KIND_KEY = "kind";
 /** What the Excluded chip says for a place that was the wrong kind: "Not a wedding planner". */
 export const leadKindWord = (name: string): string => `Not one of the ${name}`;
+
+/**
+ * A place with no phone and no email is not a lead. It used to reach Needs
+ * review as "phone:none" or "email:none" -- work dressed as a lead, and the
+ * largest share of the review pile on the first five real searches. It is
+ * left out under this key, and the chip says why (leads.ts leadExclusionWord).
+ */
+export const LEAD_UNREACHABLE_KEY = "unreachable";
 /** The yield assumed before a probe has measured one: half the places asked for qualify. The card's minutes and the route's estimate both read it. */
 export const LEAD_ASSUMED_YIELD = 0.5;
 /** A round's estimate is reserved with this much room (§13.3: the cap is the estimate with room). */
@@ -300,6 +308,11 @@ export const LEAD_COUNT_CHOICES = [50, 100, 200, 500] as const;
  * a probe has measured one, the probe's own 25, and the card's rate. Never
  * under two minutes: a search that answers faster still reads as a moment.
  */
+/** The most one area's terms can yield at the assumed rate: terms × the card's per-term cap × the yield. Above it the picker says so. */
+export function planCeiling(plan: LeadSearchPlan): number {
+  return Math.floor(plan.terms.length * cardOf(plan).maxPerTerm * LEAD_ASSUMED_YIELD);
+}
+
 export function planMinutes(plan: LeadSearchPlan): number {
   const places = LEAD_PROBE_PLACES + placesToAsk(plan, plan.count, LEAD_ASSUMED_YIELD).total;
   return Math.max(2, Math.round(places / cardOf(plan).placesPerMinute));
@@ -404,7 +417,8 @@ export const LEAD_CARDS: readonly LeadCardBrief[] = [
     checkPerEmailUsd: 0.00089,
     startUsd: 0.00005,
     maxPerTerm: 120,
-    placesPerMinute: 50,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
     examples: [
       "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
@@ -497,6 +511,9 @@ export const LEAD_EMAIL_REASON = /^email:/;
  * review. Everything else qualifies. A fit band is derived for ordering.
  */
 export function classify(plan: LeadSearchPlan, answer: JudgePlaceAnswer, facts: PlaceFacts, emailState: LeadEmailState, inArea: boolean): LeadClassification {
+  // Nothing to call and nothing to write to: not a lead, whatever the judge said. A null phone match is the
+  // place having no phone at all (the phone:none reason below reads it the same way).
+  if (facts.phone_matches_site === null && facts.emails.length === 0) return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons: string[] = [];
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely" as const, required: true },

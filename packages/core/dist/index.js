@@ -2006,6 +2006,7 @@ var LeadSuggestAnswerSchema = z7.object({
   line: z7.string().trim().min(3).max(160),
   items: z7.array(z7.object({ words: z7.string().trim().min(3).max(80), who_for: z7.string().trim().min(3).max(120), category_key: z7.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA = {
   type: "object",
@@ -3700,6 +3701,7 @@ var LEAD_JUDGE_BATCH = 25;
 var LEAD_MAX_PLACES2 = 1e3;
 var LEAD_FACT_MAX = 120;
 var LEAD_KIND_KEY = "kind";
+var LEAD_UNREACHABLE_KEY = "unreachable";
 var LEAD_ESTIMATE_MARGIN = 1.3;
 var LEAD_ASK_MIN_FACTOR = 1.2;
 var LEAD_ASK_MAX_FACTOR = 4;
@@ -3825,7 +3827,8 @@ var LEAD_CARDS = [
     checkPerEmailUsd: 89e-5,
     startUsd: 5e-5,
     maxPerTerm: 120,
-    placesPerMinute: 50,
+    // Measured over five real searches on 20 September 2026: 10 to 25 minutes for 50 with checks, five in flight.
+    placesPerMinute: 8,
     examples: [
       "200 personal trainers in Austin, TX with a website, email checked, leaving out chain gyms",
       "50 independent pharmacies in ZIP 78704 that could stock an OTC product, a phone is enough",
@@ -3868,6 +3871,7 @@ function placesToAsk(plan, remaining, yieldSoFar) {
   return { total: perTerm.reduce((a, b) => a + b, 0), perTerm };
 }
 function classify(plan, answer, facts, emailState, inArea2) {
+  if (facts.phone_matches_site === null && facts.emails.length === 0) return { class: "excluded", excluded_by: LEAD_UNREACHABLE_KEY, fit: null, reasons: [LEAD_UNREACHABLE_KEY] };
   const reasons = [];
   const rubric = [
     { key: LEAD_KIND_KEY, standard: "likely", required: true },
@@ -4233,6 +4237,7 @@ var LeadSuggestAnswerSchema2 = z72.object({
   line: z72.string().trim().min(3).max(160),
   items: z72.array(z72.object({ words: z72.string().trim().min(3).max(80), who_for: z72.string().trim().min(3).max(120), category_key: z72.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS2 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS2 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA2 = {
   type: "object",
@@ -5451,6 +5456,7 @@ var LeadSuggestAnswerSchema3 = z73.object({
   line: z73.string().trim().min(3).max(160),
   items: z73.array(z73.object({ words: z73.string().trim().min(3).max(80), who_for: z73.string().trim().min(3).max(120), category_key: z73.string().regex(/^[a-z_]{2,40}$/) })).min(1).max(4)
 });
+var LEAD_UNDO_MS3 = 24 * 60 * 6e4;
 var JUDGE_FACT_KEYS3 = ["name", "category", "city", "state", "host", "rating", "reviews", "emails", "phone_matches_site"];
 var JUDGE_OUTPUT_SCHEMA3 = {
   type: "object",
