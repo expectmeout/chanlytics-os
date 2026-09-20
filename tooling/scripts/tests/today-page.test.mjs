@@ -259,8 +259,11 @@ test("the queue: no count badge over the rows, one primary verb, the runs in con
   const waiting = byTestId(queue, "brief-run-row");
   const w = todayRunWords(broadcasts().rows[0]);
   assert.ok(textOf(waiting).includes(w.waiting.sentence) && textOf(waiting).includes(w.waiting.status[0]), textOf(waiting));
-  const soon = byTestId(queue, "brief-run-soon");
-  assert.ok(textOf(soon).includes(todayRunWords(broadcasts().rows[1]).soon.meta));
+  // Three rows on the card: two people and the run waiting for a word. The run that is only scheduled
+  // does not fit, so it is counted in the foot rather than drawn — nothing is dropped in silence.
+  assert.equal(byTestId(queue, "brief-run-soon"), null, "the scheduled run is past the card's three");
+  assert.match(textOf(find(queue, (n) => classes(n).includes("tq-foot"))), /1 more run in Campaigns/);
+  assert.equal(all(queue, (n) => classes(n).includes("cl-attn-row")).length, 3, "the card is three rows");
   await press(buttons(waiting, "Approve")[0]);
   const t = todayRunApproved("Win-back", 3, "scheduled for Mon 9:00 AM");
   assert.equal(textOf(flashes.at(-1).msg), `${t.lead} ${t.rest}`);

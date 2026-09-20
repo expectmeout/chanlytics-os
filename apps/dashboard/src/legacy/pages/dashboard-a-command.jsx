@@ -62,9 +62,16 @@ const LiveRail = ({ nav }) => {
 // Runs the queue draws before it counts the rest: a run waiting for a word needs a decision, so those come first; a
 // run about to send is news. On a busy day four runs under six people put "Nothing sends until you say so" three
 // hundred pixels below the fold, said four times.
-const RUNS_MAX = 3;
+/**
+ * What the card draws, people and runs together. Today is a summary: past three rows it stops being one.
+ *
+ * The CAP IS HERE, not in contracts: TodayVM.queue.rows stays the whole queue the view model built, so the
+ * four kinds still merge into one list by longest wait, and While you were away still knows every row the
+ * queue holds when it decides what not to say twice. This only decides how many of them fit on the card.
+ */
+const CARD_MAX = 3;
 
-const runRows = (nav, flash, verbKind) => {
+const runRows = (nav, flash, verbKind, room) => {
   const B = tqSurface("__BROADCASTS");
   const all = (B && B.rows) || [];
   const api = tqSurface("__broadcasts");
@@ -92,7 +99,7 @@ const runRows = (nav, flash, verbKind) => {
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
   const count = waiting.length + soon.length;
   const drawn = [
-    ...waiting.slice(0, RUNS_MAX).map((r) => (
+    ...waiting.slice(0, room).map((r) => (
       <window.AttnRow
         key={`run-${r.id}`}
         initials="▶"
@@ -108,7 +115,7 @@ const runRows = (nav, flash, verbKind) => {
         testid="brief-run-row"
       />
     )),
-    ...soon.slice(0, Math.max(0, RUNS_MAX - Math.min(waiting.length, RUNS_MAX))).map((r) => (
+    ...soon.slice(0, Math.max(0, room - Math.min(waiting.length, room))).map((r) => (
       <window.AttnRow
         key={`run-${r.id}`}
         initials="▶"
@@ -147,7 +154,7 @@ const TodayQueue = ({ vm }) => {
   // One primary verb on the page: the first row's. Every other verb is drawn, quietly.
   let primaryLeft = true;
   const verbKind = () => { const k = primaryLeft ? "primary" : "ghost"; primaryLeft = false; return k; };
-  const drawn = rows.map((r) => (
+  const drawn = rows.slice(0, CARD_MAX).map((r) => (
     <window.AttnRow
       key={r.id}
       initials={r.initials}
@@ -164,7 +171,11 @@ const TodayQueue = ({ vm }) => {
       testid={`queue-${r.kind}`}
     />
   ));
-  const { drawn: runs, count: runsCount, cut: runsCut } = runRows(nav, ppFlash, verbKind);
+  // A person who has been waiting comes before a run waiting for a word, so runs take only what is left.
+  const { drawn: runs, count: runsCount, cut: runsCut } = runRows(nav, ppFlash, verbKind, Math.max(0, CARD_MAX - drawn.length));
+  // What the card could not hold is counted, never dropped: the rows past the cap and the ones the view
+  // model already counted for the Inbox are the same kind of thing to a reader.
+  const rowsCut = rows.length - drawn.length + vm.queue.more;
   const total = rows.length + runsCount + vm.queue.more;
   return (
     <section className="tq" data-testid="today-queue">
@@ -196,10 +207,10 @@ const TodayQueue = ({ vm }) => {
           />
         )}
       </div>
-      {(vm.queue.more > 0 || runsCut > 0) && (
+      {(rowsCut > 0 || runsCut > 0) && (
         <div className="tq-foot">
-          <span>{[vm.queue.more > 0 ? `${vm.queue.more} more in the Inbox` : "", runsCut > 0 ? `${runsCut} more run${runsCut === 1 ? "" : "s"} in Campaigns` : ""].filter(Boolean).join(" · ")}</span>
-          <button className="cl-attn-cta ghost" onClick={() => nav(vm.queue.more > 0 ? "inbox" : "broadcasts")}>See all</button>
+          <span>{[rowsCut > 0 ? `${rowsCut} more in the Inbox` : "", runsCut > 0 ? `${runsCut} more run${runsCut === 1 ? "" : "s"} in Campaigns` : ""].filter(Boolean).join(" · ")}</span>
+          <button className="cl-attn-cta ghost" onClick={() => nav(rowsCut > 0 ? "inbox" : "broadcasts")}>See all</button>
         </div>
       )}
       {toastNode}
