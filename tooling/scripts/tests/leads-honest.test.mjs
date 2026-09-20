@@ -14,8 +14,9 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { ROLE_PERMS, roleGate } from "@chanlytics/contracts";
-import { leadRail, leadsRoute, leadsStanding, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { LEAD_WORDS, ROLE_PERMS, roleGate } from "@chanlytics/contracts";
+import { leadEndingLine, leadRail, leadsRoute, leadsStanding, parseLeadsRoute, toLeadRowVM } from "../../../packages/contracts/src/leads.ts";
+import { planArea, planMinutes, planVersionOf, planWhere, planWho } from "../../../packages/contracts/src/lead-search.ts";
 
 /* ------------------------------------------------------------- the fixtures */
 
@@ -183,8 +184,29 @@ globalThis.LeadsFirstDay = () => null;
 // a recorder (globalThis.LeadPeek, above); a hand-written stub of the acts would pin the page against a shape of
 // this file's own making, which is how every control in the peek came to be undefined on the page with 18 green
 // unit tests behind it.
+// Hold to talk is Ask's own hook and Ask's own words (ask-hooks.jsx, ask-text.jsx), loaded before this page in
+// both lists (manifest.ts:52, Chanlytics.html:90); the finder is handed its answer, so the page is drawn here the
+// way it is served. leads-finder.jsx is imported for the STRIP'S OWN FILE -- its component and its view model are
+// published on `window`, which is what leads-scope.jsx draws and what the page reads, so a strip that nothing
+// declares fails here rather than at an owner's first open search.
+await import("../../../apps/dashboard/src/legacy/pages/ask-text.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/ask-hooks.jsx");
+await import("../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
+// The browser's own recogniser, and every way a page could record or upload: each one a recorder, so
+// "hold to talk sends nothing" is a fact this file can check rather than a sentence it repeats.
+const recs = [];
+const uploads = [];
+class FakeRecognition {
+  constructor() { this.started = 0; this.stopped = 0; recs.push(this); }
+  start() { this.started += 1; }
+  stop() { this.stopped += 1; }
+}
+globalThis.window.SpeechRecognition = FakeRecognition;
+globalThis.window.navigator = { language: "en-US", mediaDevices: { getUserMedia: () => { uploads.push("getUserMedia"); return Promise.reject(new Error("no")); } } };
+globalThis.window.fetch = (u) => { uploads.push(`fetch ${u}`); return Promise.reject(new Error("no")); };
+globalThis.window.MediaRecorder = function MediaRecorderSpy() { uploads.push("MediaRecorder"); };
 await import("../../../apps/dashboard/src/legacy/pages/leads-peek.jsx");
-for (const k of ["LeadPeekActions", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
+for (const k of ["LeadPeekActions", "LeadNotFitWhy", "leadPeekEscape", "leadPeekFollows", "leadPeekFocus", "leadArmOnReturn"]) globalThis[k] = globalThis.window[k];
 await import("../../../apps/dashboard/src/legacy/pages/leads-scope.jsx");
 for (const k of ["LeadsScope", "LEAD_COLUMNS", "LEAD_SORT_KEYS", "LeadShape"]) globalThis[k] = globalThis.window[k];
 
@@ -222,8 +244,10 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadsRouteParse: parseLeadsRoute,
     __leadRail: leadRail,
     __leadsStanding: leadsStanding,
-    // The derivations bag (seed-globals.ts): Task 9 installs it, Task 10 puts `leadStrip` in it.
-    __LEAD_VM: { leadStrip: (s) => ({ state: "ended", alert: false, title: `Found ${s.round.counted} personal trainers`, parts: [], progress: 1, actions: [] }) },
+    // The derivations bag seed-globals.ts publishes. Every word in it is contracts' own -- including
+    // `leadEndingLine`, which is where all nine of the strip's ending sentences come from.
+    __LEAD_VM: { leadEndingLine, planArea, planMinutes, planVersionOf, planWhere, planWho, leadStrip: globalThis.window.leadStrip },
+    __ask: { language: () => "en", send: async () => { uploads.push("ask.send"); }, commit: async () => { uploads.push("ask.commit"); return { ok: false, message: "no" }; } },
     __leadPeekVM: (id) => { const r = ROWS.find((x) => x.id === id); return r ? { id: r.id, name: r.name } : null; },
     __leadSearchWords: (s) => (s ? { askedLine: `You asked on Sep 18: “${s.asked}”.`, keepsLine: "Keeps the ones you contacted or are talking to." } : { askedLine: "", keepsLine: "" }),
     __leadsView: async (v) => { calls.push(["view", v]); },
@@ -237,7 +261,13 @@ const install = ({ role = "owner", refuse = null } = {}) => {
     __leadSearchRename: async (id, name) => { calls.push(["rename", { id, name }]); return refuse || ok({ name }); },
     __leadSearchRemove: async (id) => { calls.push(["remove", { id }]); return refuse || ok({ archived: 143, kept: 18 }); },
     __leadSearchMore: async (id, purpose, plan) => { calls.push(["more_round", { id, purpose, plan }]); return ok({ round_id: "r9" }); },
+    __leadSearchStop: async (id) => { calls.push(["stop_search", { id }]); return refuse || ok({}); },
+    __leadSearchAnswer: async (id, answer, plan) => { calls.push(["answer", { id, answer, ...(plan ? { plan } : {}) }]); return refuse || ok({}); },
+    __leadSearchUndo: async (id) => { calls.push(["search_undo", { id }]); return refuse || ok({ removed: 160, credited: 160, op_id: "op-u", version: 2 }); },
     __href: (key, params, query) => `/api/v1/${key.split(" ")[1]}?${new URLSearchParams(Object.entries(query || {}).filter(([, v]) => v !== undefined)).toString()}`,
+    // Every word the Leads scope says, from contracts (seed-globals.ts): the five whys the bulk bar and the
+    // peek both draw are read off it, so neither spells them.
+    __LEAD_WORDS: LEAD_WORDS,
     __roleGate: roleGate,
     __ME: { role },
     ST_STORE: { myRole: () => role, can: (a) => !!(ROLE_PERMS[role] || {})[a] },
@@ -264,6 +294,8 @@ const fresh = ({ leads = surface(), views = {}, role = "owner", refuse = null, p
   finders.length = 0;
   strips.length = 0;
   peeks.length = 0;
+  recs.length = 0;
+  uploads.length = 0;
   for (const k of Object.keys(listeners)) delete listeners[k];
   globalThis.document.activeElement = null;
   overlayOpen = null;
@@ -510,7 +542,7 @@ test("the peek is handed acts, not setters: every control it draws has a functio
   // your email, Copy, the two answers to "Did you send it?", the way back and the way out. Handed the page's raw
   // setters instead, every one of them is undefined -- a pane of dead controls that the peek's own unit tests
   // never see, because those build the acts themselves and this page did not.
-  const dead = ["onStage", "onNotAFit", "onDraft", "onTone", "onOpenMail", "onCopyDraft", "onSaidSent", "onNotYet", "onBack", "onClose", "onKeep", "onExclude", "onPutBack", "onCopy", "onCall"]
+  const dead = ["onStage", "onNotAFit", "onWhy", "onDraft", "onTone", "onOpenMail", "onCopyDraft", "onSaidSent", "onNotYet", "onOutcome", "onNote", "onSaveCall", "onCancelCall", "onBack", "onClose", "onKeep", "onExclude", "onPutBack", "onCopy", "onCall"]
     .filter((k) => typeof peek[k] !== "function");
   assert.deepEqual(dead, [], "every act the peek draws a control for");
   // And they are built from the page's own state, not from any function that would do: Not a fit turns the
@@ -542,8 +574,12 @@ test("the bulk bar acts on the leads loaded and selected; Select all N that matc
   tree = draw();
   assert.match(textOf(byTestId(tree, "leads-bulk-bar")), /322 selected/, "every lead the view matches, not every id");
   click(byTestId(tree, "leads-bulk-not-a-fit"));
+  tree = draw();
+  assert.equal(byTestId(tree, "peek-why").props.role, "menu", "the same five whys the peek asks, asked once for the whole selection");
+  click(byTestId(tree, "peek-why-chain"));
   await settle();
   assert.deepEqual(calls.at(-1), ["bulk", { by: "view", action: "not_a_fit", view: { list: "all", sort: "fit", dir: "asc" } }], "the view's filters go to the server, never 1,240 ids");
+  assert.equal(byTestId(draw(), "peek-why"), null, "the list closes on the pick");
   click(byTestId(draw(), "leads-bulk-copy"));
   assert.equal(textOf(flashes.at(-1).msg), "Copied 3 emails; 2 had none you can use", "what was copied, and what could not be");
 });
@@ -737,4 +773,155 @@ test("at a phone's width the page draws the bar instead of the rail and the cont
   const above = all(t, (n) => n.props?.["data-testid"] === "leads-phone-bar" || n.type === globalThis.LeadStrip || /\bpl-table-wrap\b/.test(String(n.props?.className || "")));
   assert.deepEqual(above.map((n) => n.props["data-testid"] || (n.type === globalThis.LeadStrip ? "lead-strip" : "table")), ["leads-phone-bar", "lead-strip", "table"], "the bar, the strip, the work");
   globalThis.__phone = false;
+});
+
+/* ------------------------------- the strip's controls ------------------------------- */
+
+const running = (over = {}) => ({ ...search(), round: { ...search().round, state: "running", ending: null, ended_at: null, undo_op_id: null, undo_version: null, counted: 12, question: null, ...over } });
+
+test("the strip above the table is a component that exists, with a view model behind it and one seam back to the page", () => {
+  fresh();
+  assert.equal(typeof globalThis.window.LeadStrip, "function", "leads-scope.jsx draws <LeadStrip/>: a name nothing declares throws the moment a search is opened");
+  assert.equal(typeof globalThis.window.leadStrip, "function", "and what it says is a view model, never words the page spells");
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const s = strips.at(-1);
+  assert.equal(s.vm.title, "Found 161 personal trainers", "the ended round's own sentence, from contracts");
+  assert.deepEqual(s.vm.parts, ["88 you can email", "72 by phone", "1 left out"]);
+  assert.equal(typeof s.onAction, "function", "one onAction, and it is the page's");
+});
+
+test("the running strip's Stop reaches the stop route, and the question's Yes and Stop here reach the answer route carrying no plan", async () => {
+  fresh({ leads: surface({ searches: [running(), waiting] }) });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const strip = strips.at(-1);
+  assert.deepEqual(strip.vm.actions.map((a) => a.id), ["stop"], "a running round offers one thing to press");
+  await strip.onAction("stop");
+  await settle();
+  assert.deepEqual(calls.at(-1), ["stop_search", { id: SEARCH_A }], "POST lead-searches/[id]/stop, and nothing else rides with it");
+  assert.match(textOf(flashes.at(-1).msg), /still being checked/, "and the page says what is still happening, not that it is done");
+  fresh();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  const q = strips.at(-1);
+  assert.deepEqual(q.vm.actions.map((a) => a.id), ["keep", "include", "stop_here"]);
+  await q.onAction("keep");
+  await settle();
+  assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "keep" }], "Keep carries no plan (PRD 7.2)");
+  fresh();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  await strips.at(-1).onAction("stop_here");
+  await settle();
+  assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "stop" }]);
+});
+
+test("Include opens the plan with that exclusion taken back and starts nothing; approving it answers with the version the owner saw", async () => {
+  fresh();
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  strips.at(-1).onAction("include", "chain");
+  draw({ leadsRoute: `leads:s-${SEARCH_B}` });
+  assert.deepEqual(calls.filter((c) => c[0] !== "view"), [], "a press starts nothing that costs: the owner approves the plan first");
+  const f = finders.at(-1);
+  assert.equal(f.stage, "plan");
+  assert.deepEqual(f.plan.exclusions, [], "the thing it asked about is taken out of the plan");
+  assert.equal(f.plan.version, 2, "which is a new version, and that is the one the route is given");
+  await f.onApprove(f.plan);
+  await settle();
+  assert.deepEqual(calls.at(-1), ["answer", { id: SEARCH_B, answer: "include", plan: f.plan }]);
+});
+
+test("an ending's one next step opens the plan and starts nothing until it is approved; Sort by fit and the new ones go to the surface", async () => {
+  const justNow = new Date(Date.now() - 60_000).toISOString();
+  const done = { ...search(), round: { ...search().round, state: "ended", ending: "stopped", counted: 61, ended_at: justNow, undo_op_id: null, undo_version: null } };
+  fresh({ leads: surface({ searches: [done, waiting] }) });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const s = strips.at(-1);
+  assert.deepEqual(s.vm.actions.map((a) => a.id), ["carry_on", "undo"], "one next step, and the day's Undo");
+  s.onAction("carry_on", s.vm.actions[0].arg);
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  assert.deepEqual(calls.filter((c) => c[0] !== "view"), [], "Carry on opens the plan; nothing runs until it is approved");
+  assert.equal(finders.at(-1).stage, "plan");
+  await finders.at(-1).onApprove(finders.at(-1).plan);
+  await settle();
+  assert.deepEqual(calls.at(-1), ["more_round", { id: SEARCH_A, purpose: "topup", plan: search().plan }], "and then it is POST lead-searches/[id]/more");
+  fresh({ leads: surface({ searches: [done, waiting], offered: 12 }) });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const off = strips.at(-1);
+  assert.equal(off.vm.actions[0].label, "12 new", "what a refresh found is offered, never sorted in");
+  await off.onAction("take_offered");
+  await settle();
+  assert.deepEqual(calls.at(-1), ["takeOffered", null], "the new ones are taken in the order they were read, on the owner's press");
+  off.onAction("sort_fit");
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  await settle();
+  const view = calls.filter((c) => c[0] === "view").at(-1);
+  assert.deepEqual([view[1].sort, view[1].dir], ["fit", "asc"], "Sort by fit is a new read of the same view, never a re-order of the rows on the page");
+});
+
+test("Undo on an ended strip removes the untouched leads and credits the month, and its own toast puts them back", async () => {
+  const justNow = new Date(Date.now() - 60_000).toISOString();
+  const done = { ...search(), round: { ...search().round, ended_at: justNow, undo_op_id: null, undo_version: null } };
+  fresh({ leads: surface({ searches: [done, waiting] }) });
+  draw({ leadsRoute: `leads:s-${SEARCH_A}` });
+  const undo = strips.at(-1).vm.actions.find((a) => a.id === "undo");
+  assert.deepEqual(undo.arg, { searchId: SEARCH_A }, "POST lead-searches/[id]/undo takes the search");
+  await strips.at(-1).onAction("undo", undo.arg);
+  await settle();
+  assert.deepEqual(calls.at(-1), ["search_undo", { id: SEARCH_A }]);
+  assert.equal(textOf(flashes.at(-1).msg), "Removed 160 · 160 given back");
+  await flashes.at(-1).undo();
+  assert.deepEqual(calls.at(-1), ["undo", { op: "op-u", version: 2 }], "the toast's own Undo names the operation and the version it saw");
+});
+
+/* ------------------------------------ hold to talk ------------------------------------ */
+
+test("the composer's mic is held to talk: it fills the input with what the browser heard, and uploads nothing", () => {
+  fresh();
+  draw();
+  press("f");
+  draw();
+  const talk = finders.at(-1).talk;
+  assert.ok(talk && talk.canTalk, "a browser with a recogniser is offered the mic; `talk: null` offers nothing");
+  talk.start({ preventDefault() {} });
+  draw();
+  assert.equal(recs.length, 1, "press starts the browser's own recogniser");
+  assert.deepEqual([recs[0].interimResults, recs[0].continuous, recs[0].started], [true, true, 1]);
+  recs[0].onresult({ results: [{ isFinal: false, 0: { transcript: "wedding planners" } }] });
+  draw();
+  assert.equal(finders.at(-1).words, "wedding planners", "interim words land in the input as they come");
+  recs[0].onresult({ results: [{ isFinal: true, 0: { transcript: "wedding planners around Austin" } }] });
+  talk.stop();
+  assert.equal(recs[0].stopped, 1, "release stops the recogniser; nothing is left listening");
+  recs[0].onend();
+  draw();
+  assert.equal(finders.at(-1).words, "wedding planners around Austin", "and what was finally heard is what stays there");
+  assert.equal(finders.at(-1).stage, "compose", "releasing the mic plans nothing and starts nothing: the owner still presses Plan it");
+  assert.deepEqual(uploads, [], "nothing recorded and nothing sent: no fetch, no getUserMedia, no MediaRecorder, no Ask turn");
+  assert.deepEqual(calls.filter((c) => c[0] !== "view"), [], "and no route was called: holding the mic asks nothing and starts nothing");
+});
+
+test("with no recogniser there is no mic, and a page drawn without Ask's hooks keeps one hook order", () => {
+  fresh();
+  draw();
+  press("f");
+  draw();
+  const SR = globalThis.window.SpeechRecognition;
+  const H = globalThis.window.AskHooks;
+  try {
+    delete globalThis.window.SpeechRecognition;
+    fresh();
+    draw();
+    press("f");
+    draw();
+    assert.equal(finders.at(-1).talk.canTalk, false, "a browser that cannot hear is offered nothing");
+    fresh();
+    draw();
+    const withHooks = seq;
+    delete globalThis.window.AskHooks;
+    fresh();
+    const tree = draw();
+    assert.equal(seq, withHooks, "the stand-in declares the same hooks, so the page's one call order does not move");
+    assert.ok(byTestId(tree, "leads-standing"), "and the page still draws");
+  } finally {
+    globalThis.window.SpeechRecognition = SR;
+    globalThis.window.AskHooks = H;
+  }
 });

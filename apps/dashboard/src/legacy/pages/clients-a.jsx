@@ -1501,6 +1501,13 @@ const PL_CONTROL = 'button, a[href], input, select, textarea, [role="button"], [
 // menu, the phone's drawer. Only the app's (every one sits inside .app-root), so a hidden dialog a browser extension
 // adds cannot silence the page. Not the page's own overlays, the lists sheet (.pl-sheet) and the Columns menu
 // (.pl-cols-menu), which the listener names apart.
+// Hold to talk is Ask's own hook (ask-hooks.jsx), loaded before this file in both lists (manifest.ts:52,
+// Chanlytics.html:90). Where it is not -- a unit harness that draws this page on its own -- the stand-in answers
+// "no recogniser", and declares the SAME THREE HOOKS the real one does (one state, two refs) so the page keeps
+// one hook call order either way and the finder simply offers no mic.
+const PL_NO_TALK = { canTalk: false, listening: false, start: () => {}, stop: () => {} };
+const plNoTalk = () => { useState(false); React.useRef(null); React.useRef(""); return PL_NO_TALK; };
+
 const PL_OVERLAY = '.app-root [role="menu"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder), .app-root [role="dialog"]:not(.pl-sheet):not(.pl-cols-menu):not(.pl-peek):not(.pl-finder)';
 
 const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initialSaved = null, initialState = null, scope = "people", leadsRoute = null, onNavigate = null }) => {
@@ -1582,6 +1589,16 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [finderWords, setFinderWords] = useState("");
   const [finderProposal, setFinderProposal] = useState(null);
   const [finderRefusal, setFinderRefusal] = useState(null);
+  // The plan the card is showing and the owner is editing, the trace line while Claude reads, and which of the
+  // sentence's words has its picker open (Task 9). A plan opened from a strip's next step carries whose round it
+  // belongs to and what approving it does -- `answer: true` answers the question that is still waiting, else it
+  // is another round on the same search (Task 10 step 6).
+  const [finderPlan, setFinderPlan] = useState(null);
+  const [finderTrace, setFinderTrace] = useState(null);
+  const [finderPick, setFinderPick] = useState(null);
+  const [finderMore, setFinderMore] = useState(null);
+  // The five whys, asked once for a whole selection (Task 15).
+  const [bulkWhy, setBulkWhy] = useState(false);
   // The peek's own pane ("info" while it is just showing the lead; "why" and "draft" are Tasks 15 and 13) and
   // the draft it is holding.
   const [peekMode, setPeekMode] = useState("info");
@@ -1599,6 +1616,23 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const [removing, setRemoving] = useState(null);
   const [leadBusy, setLeadBusy] = useState(false);
   const [removeError, setRemoveError] = useState(null);
+  // Hold to talk, as Ask does it: the browser's own recogniser, started on press and stopped on release, handing
+  // back what it heard. Nothing is recorded and nothing is uploaded -- the words go into the finder's input, and
+  // the owner still presses Plan it. It is off for anyone who may not find, and while a plan is on the screen.
+  const talkLang = window.__ask && window.__ask.language ? window.__ask.language() : "en";
+  const talk = ((window.AskHooks && window.AskHooks.useAskTalk) || plNoTalk)({
+    lang: talkLang,
+    disabled: !onLeads || finderStage !== "compose" || (!!window.canDo && !window.canDo("find")),
+    onWords: setFinderWords,
+    onHeard: (heard, error) => {
+      if (heard) { setFinderWords(heard); return; }
+      // The two things a browser can say about a microphone, in Ask's own words (ask-text.jsx): one spelling.
+      const t = window.askText ? window.askText(talkLang) : null;
+      if (!t) return;
+      if (error === "not-allowed") plFlash({ msg: <>{t.micDenied}</> });
+      else if (error && error !== "aborted" && error !== "no-speech") plFlash({ msg: <>{t.micFailed}</> });
+    },
+  });
   // A view is the sort and the columns. The strip's tab was remembered too; a view saved before it went carries an
   // attentionTab this ignores, and the next save drops it. Every save sends every key the page owns, because
   // member_view_set replaces the page's whole object (00113): a save of the sort alone would lose the columns.
@@ -1910,10 +1944,14 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
   const excludeLead = (id) => leadAct(() => window.__leadExclude(searchOf(leadById(id)), id), <>Excluded. Nothing counted.</>);
   const putBackLead = (id) => leadAct(() => window.__leadPutBack(searchOf(leadById(id)), id), <>Put back. It counts as a lead now.</>);
   // The owner's own phone dials; coming back to the tab asks how it went (Task 14).
+  // The owner's own phone dials, and the peek opens on that lead: "How did the call go?" and its six outcomes
+  // are drawn there, so a call from a row and a call from the peek end in the same place (Task 14 step 4).
   const callLead = (id) => {
     const l = leadById(id);
     if (!l || !l.phone) return;
-    setArmed({ kind: "call", leadId: id, asked: false });
+    setArmed({ kind: "call", leadId: id, asked: false, outcome: null, note: "" });
+    setPeekMode("info");
+    setPeekId(id);
     plDial(l.phone);
   };
   const copyLead = (id) => {
@@ -1930,6 +1968,51 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
     plFlash({ msg: <>Copied {usable.length} email{usable.length === 1 ? "" : "s"}{none ? `; ${none} had none you can use` : ""}</> });
   };
   const bulkLeads = (body) => leadAct(() => window.__leadsBulk(body), body.action === "contacted" ? <>Marked contacted.</> : <>Not a fit.</>);
+  // Not a fit, for everything selected: the same five whys the peek asks, asked once, one operation, one Undo
+  // (Task 15 step 4). The why is the owner's pick; the route records not_a_fit for every row it touched.
+  const bulkNotAFit = (why, body) => {
+    setBulkWhy(false);
+    // The pick closes the list; the body is the one LeadsBulkSchema takes, which carries no reason -- the route
+    // records not_a_fit for every row it touched, and release C reads the why.
+    return leadAct(() => window.__leadsBulk(body), <>Not a fit.</>);
+  };
+  /* -------------------------------------------- the finder (Tasks 8, 9, 10) */
+  // The setters leadFinderPlan and leadFinderApprove take (leads-finder.jsx), and `more`, which says whose round
+  // an approval belongs to when the plan was opened from a strip rather than typed.
+  const finderSet = {
+    open: setFinderOpen, stage: setFinderStage, words: setFinderWords, trace: setFinderTrace,
+    refusal: setFinderRefusal, proposal: setFinderProposal, plan: setFinderPlan, pick: setFinderPick,
+    more: finderMore,
+  };
+  const finderPlanIt = (words) => window.leadFinderPlan(words, finderSet);
+  const finderApprove = async (plan) => {
+    const r = await window.leadFinderApprove(finderProposal, plan, finderSet);
+    if (r && r.ok) setFinderMore(null);
+    return r;
+  };
+  // A next step opens the plan card with what would run; nothing starts until the owner approves it there.
+  const openPlanFor = (s, plan, how) => {
+    setFinderWords(s.asked);
+    setFinderProposal(null);
+    setFinderPlan(plan);
+    setFinderMore({ searchId: s.id, purpose: "topup", answer: how === "answer" });
+    setFinderRefusal(null);
+    setFinderPick(null);
+    setFinderStage("plan");
+    setFinderOpen(true);
+  };
+  // Undo removes the leads nobody has touched and gives their month back; the toast says both numbers and offers
+  // the operation the door answered, which is the only thing an undo names (E9).
+  const undoRound = async (searchId) => {
+    if (leadBusy || !searchId) return;
+    setLeadBusy(true);
+    const r = await window.__leadSearchUndo(searchId);
+    setLeadBusy(false);
+    if (!r.ok) { plFlash(window.refusalToast(r, "Nothing was removed")); return; }
+    const d = r.data || {};
+    if (!d.removed) { plFlash({ msg: <>Nothing to remove — you have worked every one of them.</> }); return; }
+    plFlash({ msg: <>Removed {d.removed} · {d.credited} given back</>, ...leadUndo(r) });
+  };
   /* ------------------------------------------------ a search, kept (PRD 8.10) */
   const renameSearch = async (s, name) => {
     const n = (name || "").trim();
@@ -2018,6 +2101,34 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
       canFind,
     };
     const goto = (patch) => nav(window.__leadsRouteOf({ searchId: leadView.searchId, list: leadView.list, cls: leadView.cls, ...patch }));
+    // What each strip control does (Task 10 step 6). Every act goes out through its route; the six that would
+    // make a new round open the plan card instead, because nothing that counts against the month may start
+    // without the owner approving what runs.
+    // The strip's view model: contracts' where contracts has it (Task 10 step 7a puts `leadStrip` in the
+    // derivations bag), and until then the page's own file, published beside the component that draws it.
+    const ldStrip = (window.__LEAD_VM && window.__LEAD_VM.leadStrip) || window.leadStrip;
+    const onStripAction = (id, arg) => {
+      const s = openSearch;
+      if (!s) return;
+      if (id === "stop") return leadAct(() => window.__leadSearchStop(s.id), <>Stopping. The emails of what was found are still being checked.</>);
+      if (id === "keep") return leadAct(() => window.__leadSearchAnswer(s.id, "keep"), <>Carrying on.</>);
+      if (id === "stop_here") return leadAct(() => window.__leadSearchAnswer(s.id, "stop"), <>Stopped. The ones already found are yours.</>);
+      // Include takes the thing it asked about back out of the plan, which planVersionOf makes a new version of:
+      // the route is given the version the owner approved, not the one the round started on.
+      if (id === "include") {
+        const V = window.__LEAD_VM || {};
+        const plan = V.planVersionOf ? V.planVersionOf(s.plan, { exclusions: s.plan.exclusions.filter((x) => x.key !== arg) }) : s.plan;
+        return openPlanFor(s, plan, "answer");
+      }
+      if (id === "excluded" || id === "review") return goto({ cls: arg });
+      if ((window.LEAD_ROUND_MAKERS || []).indexOf(id) >= 0) return openPlanFor(s, arg && arg.version ? arg : s.plan, "more");
+      if (id === "undo") return undoRound(arg && arg.searchId);
+      // Sort by fit is a new read of the same view, not a re-order of the rows on the page: the sort is the
+      // page's own state and the effect above asks the surface for it (E8).
+      if (id === "sort_fit") { setSortBy("fit"); setSortDir("asc"); return undefined; }
+      if (id === "take_offered") return window.__leadsTakeOffered && window.__leadsTakeOffered();
+      return undefined;
+    };
     // What the phone's bar says it is showing: the search that is open, or the list, with its count (Task 18).
     const openList = rail.lists.find((l) => l.id === leadView.list);
     const railLabel = openSearch
@@ -2034,7 +2145,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         standing={standing}
         view={leadView}
         search={openSearch}
-        strip={openSearch && window.__LEAD_VM ? window.__LEAD_VM.leadStrip(openSearch, new Date()) : null}
+        strip={ldStrip ? ldStrip(openSearch, new Date(), { offered: leads.offered }) : null}
         rows={rowsShown}
         total={leads.counts[leadView.list] ?? leads.counts.all}
         columns={columns}
@@ -2065,6 +2176,9 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         bulkView={{ list: leadView.list, ...(leadView.searchId ? { search: leadView.searchId } : {}), ...(leadView.cls ? { class: leadView.cls } : {}), sort: sortBy, dir: sortDir }}
         bulkBusy={leadBusy}
         onBulk={bulkLeads}
+        bulkWhy={bulkWhy}
+        onBulkWhy={setBulkWhy}
+        onBulkNotAFit={bulkNotAFit}
         onCopyEmails={copyEmails}
         cursor={cursor}
         onCursor={setCursor}
@@ -2099,12 +2213,17 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         finderProposal={finderProposal}
         finderRefusal={finderRefusal}
         finderBusy={leadBusy}
+        finderPlan={finderPlan}
+        finderTrace={finderTrace}
+        finderPick={finderPick}
         onFinderWords={setFinderWords}
-        onFinderPlan={setFinderProposal}
-        onFinderApprove={setFinderStage}
+        onFinderPlan={finderPlanIt}
+        onFinderApprove={finderApprove}
+        onFinderChangePlan={setFinderPlan}
+        onFinderPick={setFinderPick}
         onFinderBack={() => setFinderStage("compose")}
-        onCloseFinder={() => setFinderOpen(false)}
-        talk={null}
+        onCloseFinder={() => { setFinderOpen(false); setFinderMore(null); }}
+        talk={talk}
         peek={peekId && window.__leadPeekVM ? window.__leadPeekVM(peekId) : null}
         peekMode={peekMode}
         onPeekMode={setPeekMode}
@@ -2122,7 +2241,7 @@ const ClientsAReal = ({ onOpenProfile = () => {}, initialSegment = null, initial
         onExclude={excludeLead}
         onPutBack={putBackLead}
         onCopy={copyLead}
-        onStripAction={() => {}}
+        onStripAction={onStripAction}
         onMore={() => window.__leadsMore && window.__leadsMore()}
         loadingMore={leadBusy}
         firstDay={leads.searches.length === 0 && !leads.readFailed}

@@ -66,8 +66,10 @@ const leadFinderPlan = async (words, set) => {
  * Find N leads. An Ask card goes through commitProposal (legacy-bridge
  * ask/commit.ts), which posts the plan to POST lead-searches marked as Ask's;
  * a plan the finder opened from a strip's next step goes through
- * __leadSearchMore on that search. Either way the route's own sentence on a
- * refusal (402, 409, 429) is said under the button, in its words.
+ * __leadSearchMore on that search, or, when that step was Include on a round
+ * still waiting for its answer, through __leadSearchAnswer. Either way the
+ * route's own sentence on a refusal (402, 409, 429) is said under the button,
+ * in its words, and nothing on the page says it started.
  */
 const leadFinderApprove = async (proposal, plan, set) => {
   set.stage("starting");
@@ -78,6 +80,10 @@ const leadFinderApprove = async (proposal, plan, set) => {
     r = A && typeof A.commit === "function"
       ? await A.commit({ ...proposal, payload: { ...(proposal.payload || {}), plan } })
       : { ok: false, message: "Claude isn't available here yet — try again in a moment." };
+  } else if (set.more && set.more.answer && window.__leadSearchAnswer) {
+    // Include amends the plan of a round that is still waiting, so the answer carries the version the owner
+    // approved (section 7.2). If it stopped waiting meanwhile the route says so, and that is what is shown.
+    r = await window.__leadSearchAnswer(set.more.searchId, "include", plan);
   } else if (set.more && window.__leadSearchMore) {
     r = await window.__leadSearchMore(set.more.searchId, set.more.purpose || "topup", plan);
   } else {
@@ -356,4 +362,186 @@ const LeadFinder = ({
   );
 };
 
-Object.assign(window, { LeadFinder, LeadPlanCard, LeadPick, leadFinderPlan, leadFinderApprove, leadFinderAsk });
+/* ----------------------------------------------------------- the strip -- */
+
+/**
+ * How long a finished round's Undo stays true to offer (section 8.6), and the
+ * six next steps that make a new round: a strip offers one of them, never two.
+ *
+ * NOTE (release B, Task 10): the plan writes `leadStrip` in
+ * packages/contracts/src/leads.ts (step 4) and puts it in `window.__LEAD_VM`
+ * (step 7a). Neither is on this branch, and neither file is this run's to
+ * touch, so the view model is built here, beside the component that draws it,
+ * and published on window for the page. The NINE ENDING SENTENCES stay
+ * contracts' own -- `leadEndingLine`, read off the bag at draw time -- so no
+ * word is spelled twice; with no `leadEndingLine` in the bag an ended round
+ * draws no strip at all, rather than a sentence of this file's own making.
+ */
+const LEAD_UNDO_MS = 24 * 3600000;
+const LEAD_ROUND_MAKERS = ["more", "nearby", "look_further", "carry_on", "try_again", "answer_now"];
+/** The first 25 size the rest of a round (S6): contracts' LEAD_PROBE_PLACES. */
+const LEAD_PROBE_SEEN = 25;
+
+const ldLowerFirst = (s) => (s && s[1] && s[1] === s[1].toLowerCase() && s[1] !== s[1].toUpperCase() ? s.charAt(0).toLowerCase() + s.slice(1) : s);
+
+// What the plan leaves out, by key: "chain gyms" for Include, and for the
+// sentence that says nothing matched.
+const ldLeftOut = (plan, key) => {
+  const e = (plan.exclusions || []).filter((x) => x.key === key)[0] || (plan.criteria || []).filter((x) => x.key === key)[0];
+  return e ? ldLowerFirst(e.text) : null;
+};
+
+// What leadEndingLine needs, read off the search's latest round and its plan.
+const ldEndingFacts = (C, s, nearby) => {
+  const r = s.round;
+  const only = s.plan.exclusions.length === 1 ? ldLowerFirst(s.plan.exclusions[0].text) : null;
+  return {
+    name: C.planWho(s.plan),
+    area: C.planArea(s.plan.area),
+    counted: r.counted,
+    target: r.target,
+    emails: r.emails_checked,
+    phones: r.with_phone,
+    excluded: r.excluded,
+    checking: r.state === "checking",
+    foundBefore: r.counted,
+    nearby,
+    // What the source returned at all: every place this round judged, however it was classed.
+    seen: r.qualified + r.review + r.excluded,
+    leftOutBy: only,
+  };
+};
+
+const ldStripOf = (s, now, nearby) => {
+  const C = window.__LEAD_VM || {};
+  if (!s || !s.plan || !C.planWho || !C.planWhere || !C.planArea || !C.planMinutes) return null;
+  const r = s.round;
+  const plan = s.plan;
+  const who = C.planWho(plan);
+  const where = C.planWhere(plan.area);
+  if (!r) return { state: "ended", alert: false, title: `Nothing has run for ${who} yet`, parts: [], progress: null, actions: [] };
+  const counted = r.counted;
+  const progress = r.target > 0 ? Math.min(1, counted / r.target) : null;
+  // Undo removes the leads the owner has not touched and gives their month back
+  // (POST lead-searches/[id]/undo). It is offered for a day after the round
+  // ended, and not once it has been used: the view then carries the operation
+  // the toast's own Undo puts back (undo_op_id, undo_version).
+  const undoable = !r.undo_op_id && !!r.ended_at && now.getTime() - Date.parse(r.ended_at) < LEAD_UNDO_MS;
+  const undo = undoable ? [{ id: "undo", label: "Undo", arg: { searchId: s.id } }] : [];
+
+  if (r.state === "waiting_on_owner" && r.question) {
+    const out = ldLeftOut(plan, r.question.criterion_key);
+    return {
+      state: "question",
+      alert: true,
+      title: r.question.sentence,
+      parts: ["Nothing is spent while this waits. Answer and it carries on."],
+      progress,
+      actions: [
+        { id: "keep", label: "Yes, keep going", primary: true },
+        { id: "include", label: out ? `Include ${out}` : "Include what I left out", arg: r.question.criterion_key },
+        { id: "stop_here", label: "Stop here" },
+      ],
+    };
+  }
+
+  if (r.state === "checking") {
+    // After Stop the emails of what was already found are still checked, and the
+    // strip says so in the ending's own words, with `checking` true (S12, 17).
+    if (r.ending_pending === "stopped") {
+      if (!C.leadEndingLine) return null;
+      const line = C.leadEndingLine("stopped", ldEndingFacts(C, s, nearby));
+      return { state: "checking", alert: false, title: line.title, parts: line.parts, progress, actions: [] };
+    }
+    return { state: "checking", alert: false, title: `Checking the emails of the ${counted} found`, parts: [], progress, actions: [] };
+  }
+
+  if (r.state !== "ended") {
+    const minutesLeft = Math.max(1, Math.round(C.planMinutes(plan) * (1 - (progress || 0))));
+    const parts = [`${counted} of ${r.target}`, `${r.emails_checked} emails checked`, `about ${minutesLeft} min left`];
+    // The first 25 size the rest of the round (S6), so until they are in the estimate is an assumption and says so (P3).
+    if (counted < LEAD_PROBE_SEEN) parts.push("estimates update after the first 25");
+    return { state: "running", alert: false, title: `Finding ${who} ${where}`, parts, progress, actions: [{ id: "stop", label: "Stop" }] };
+  }
+
+  // Every ending is said once, by contracts' leadEndingLine. The strip composes:
+  // the sentence's own next step, then Sort by fit where the table is worth
+  // re-ordering, then Undo while the round's operation is still open.
+  if (!C.leadEndingLine) return null;
+  const line = C.leadEndingLine(r.ending || "paused", ldEndingFacts(C, s, nearby));
+  const step = line.step
+    ? [{ id: line.step.id, label: line.step.label, primary: line.step.id !== "excluded" && line.step.id !== "sort_fit", arg: line.step.id === "excluded" ? "excluded" : plan }]
+    : [];
+  const sorts = counted > 0 && (r.ending === "target_reached" || r.ending === "searched_everything") && (!line.step || line.step.id !== "sort_fit")
+    ? [{ id: "sort_fit", label: "Sort by fit" }]
+    : [];
+  return { state: "ended", alert: false, title: line.title, parts: line.parts, progress: 1, actions: [...step, ...sorts, ...undo] };
+};
+
+/**
+ * One search's strip: what is true of its latest round, in the owner's words
+ * (sections 8.4, 8.5, 8.8; P3, S12). Every open state and all nine endings,
+ * each saying what happened, what was kept and what was counted, and offering
+ * one next step. Nothing here says a number nothing measured, and nothing says
+ * a price: the owner's unit is leads (section 0.2).
+ *
+ * `offered` is what a refresh found and the surface is holding back, because
+ * the owner is not reading in the order found (E8): the strip says the count,
+ * and nothing re-sorts under them until it is pressed.
+ */
+const leadStrip = (s, now, extra) => {
+  const vm = ldStripOf(s, now, (extra && extra.nearby) || []);
+  if (!vm) return null;
+  const n = (extra && extra.offered) || 0;
+  return n > 0 ? { ...vm, actions: [{ id: "take_offered", label: `${n} new` }, ...vm.actions] } : vm;
+};
+
+/**
+ * The strip above the table: running, checking, the question after 25 in the
+ * accent with role="alert", or one of the nine endings (sections 8.4, 8.5,
+ * 8.8). Every word it says is leadStrip's, so nothing is spelled here; every
+ * button hands its id and its argument back through the one onAction the page
+ * gives it, and presses nothing itself.
+ */
+const LeadStrip = ({ vm, onAction }) => {
+  if (!vm) return null;
+  const tone = vm.state === "question" ? "ask" : vm.state === "ended" ? "done" : "";
+  const quiet = ["undo", "excluded", "review", "stop", "stop_here", "sort_fit", "take_offered", "not_now"];
+  return (
+    <div className={`lf-strip ${tone}`} role={vm.alert ? "alert" : "status"} data-testid="lead-strip">
+      {vm.state === "running" ? <span className="live-dot" aria-hidden="true" /> : null}
+      {vm.state === "question" ? <span className="qmark" aria-hidden="true">?</span> : null}
+      {vm.state === "ended" ? <span className="ok-mark"><Icon name="check" size={16} /></span> : null}
+      {vm.state === "question" ? (
+        <span className="lf-ask-text">
+          <span className="lf-q" data-testid="strip-title">{vm.title}</span>
+          <span className="lf-q-sub" data-testid="strip-parts">{vm.parts.join(" \u00b7 ")}</span>
+        </span>
+      ) : (
+        <>
+          <span className="lf-strip-title" data-testid="strip-title">{vm.title}</span>
+          {vm.parts.length ? <span className="lf-strip-parts" data-testid="strip-parts">{vm.parts.map((t) => ` \u00b7 ${t}`).join("")}</span> : null}
+        </>
+      )}
+      <span className="sp" />
+      {/* .lf-acts is what the stylesheet already stacks at a phone's width (styles/leads.css:317), so the
+          actions are one group here rather than loose buttons in the strip's flex row. */}
+      <span className="lf-acts">
+        {vm.actions.map((a) => (
+          <button
+            key={a.id}
+            type="button"
+            className={a.id === "excluded" || a.id === "review" ? "lnk" : `btn btn-sm ${a.primary ? "btn-primary" : quiet.indexOf(a.id) >= 0 ? "btn-ghost" : ""}`}
+            data-testid={`strip-${a.id}`}
+            onClick={() => onAction(a.id, a.arg)}
+          >
+            {a.label}
+          </button>
+        ))}
+      </span>
+      {vm.progress === null ? null : <span className="lf-strip-bar" style={{ width: `${Math.round(vm.progress * 100)}%` }} aria-hidden="true" />}
+    </div>
+  );
+};
+
+Object.assign(window, { LeadFinder, LeadPlanCard, LeadStrip, LeadPick, leadStrip, leadFinderPlan, leadFinderApprove, leadFinderAsk, LEAD_ROUND_MAKERS });

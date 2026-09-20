@@ -9,7 +9,7 @@
  */
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { LeadSearchPlanSchema, LEAD_COUNT_CHOICES, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords } from "../../../packages/contracts/src/lead-search.ts";
+import { LeadSearchPlanSchema, LEAD_COUNT_CHOICES, LEAD_ROUND_ENDINGS, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords } from "../../../packages/contracts/src/lead-search.ts";
 import { leadEndingLine, leadPlanAsk, leadPlanFacts, leadPlanLikely } from "../../../packages/contracts/src/leads.ts";
 
 let cells = [];
@@ -38,6 +38,13 @@ Object.assign(globalThis.window, {
 });
 await import("../../../apps/dashboard/src/legacy/components/icons.jsx");
 await import("../../../apps/dashboard/src/legacy/pages/leads-finder.jsx");
+
+// Task 10's view model. The plan writes `leadStrip` in contracts (step 4) and
+// seeds it on `__LEAD_VM` (step 7a); on this branch neither is there, so it is
+// the page's own, published by leads-finder.jsx beside the strip that draws
+// it. Its NINE ENDING SENTENCES are still contracts' `leadEndingLine`, read off
+// the bag above -- which is what the last test in this file pins.
+const leadStrip = (...a) => globalThis.window.leadStrip(...a);
 
 const walk = (n, fn) => { if (n == null || typeof n !== "object") return; fn(n); for (const k of n.props?.children ?? []) walk(k, fn); if (n.rendered) walk(n.rendered, fn); };
 const all = (tree, pred) => { const out = []; walk(tree, (n) => { if (pred(n)) out.push(n); }); return out; };
@@ -320,4 +327,145 @@ test("near the month's limit the card offers what is left and says when the lead
   click(byTestId(drawCard(st, { facts: { ...FACTS, leadsLeft: 36, bound: "allowance" }, onApprove: (p) => { approved = p; } }), "plan-approve"));
   assert.deepEqual([approved.count, approved.version], [36, 2], "the clamped count is what is approved, as a new version");
   assert.equal(byTestId(drawCard(st), "plan-covers"), null, "nothing to say when nothing binds");
+});
+
+/* --------------------------------------------------- Task 10: the strip */
+
+const SEARCH = {
+  id: "5e000000-0000-4000-8000-000000000001", name: "Personal trainers \u00b7 Austin", asked: PLAN.asked, asked_on: "2026-09-18T10:00:00Z",
+  plan: PLAN, plan_version: 1,
+  round: {
+    id: "5e000000-0000-4000-8000-0000000000a1", seq: 1, purpose: "probe", state: "running", ending: null, ending_pending: null,
+    question: null, target: 200, counted: 86, qualified: 80, review: 4, excluded: 40, emails_checked: 41, with_phone: 45,
+    cost_usd: 0.4, ended_at: null, undo_op_id: null, undo_version: null,
+  },
+};
+const NOW = new Date("2026-09-19T15:00:00Z");
+const withRound = (over) => ({ ...SEARCH, round: { ...SEARCH.round, ...over } });
+const ended = (ending, over = {}) => withRound({ state: "ended", ending, counted: 61, excluded: 40, emails_checked: 34, with_phone: 27, qualified: 0, review: 0, ended_at: "2026-09-19T14:00:00Z", ...over });
+const ids = (vm) => vm.actions.map((a) => a.id);
+const drawStrip = (search, acted, extra = {}) => {
+  seq = 0;
+  return globalThis.window.LeadStrip({ vm: leadStrip(search, NOW, extra), onAction: (id, arg) => acted.push([id, arg]) });
+};
+
+test("the running strip says what is true, and its Stop is the only thing to press", () => {
+  const acted = [];
+  const tree = drawStrip(SEARCH, acted);
+  assert.equal(textOf(byTestId(tree, "strip-title")), "Finding personal trainers in Austin, TX");
+  assert.equal(textOf(byTestId(tree, "strip-parts")), " \u00b7 86 of 200 \u00b7 41 emails checked \u00b7 about 5 min left");
+  assert.equal(byTestId(tree, "lead-strip").props.role, "status");
+  assert.equal(all(tree, (n) => n.type === "button").length, 1, "nothing else on a running round is the owner's to press");
+  click(byTestId(tree, "strip-stop"));
+  assert.deepEqual(acted, [["stop", undefined]], "Stop carries nothing: the search it belongs to is the page's");
+  const bar = find(tree, (n) => n.props?.className === "lf-strip-bar");
+  assert.equal(bar.props.style.width, "43%");
+  const early = drawStrip(withRound({ counted: 12 }), []);
+  assert.match(textOf(byTestId(early, "strip-parts")), /estimates update after the first 25$/, "until the first 25 are in the estimate is an assumption and says so");
+  assert.equal(/estimates update/.test(textOf(byTestId(tree, "strip-parts"))), false, "past them it is measured, so it stops saying it will change");
+});
+
+test("the question strip is the accent with role alert, and its three answers hand back what they say", () => {
+  const acted = [];
+  const q = withRound({ state: "waiting_on_owner", counted: 9, question: { sentence: "Half of the first 25 are chain gyms, which I'm leaving out. Keep going this way?", criterion_key: "chain" } });
+  const tree = drawStrip(q, acted);
+  const strip = byTestId(tree, "lead-strip");
+  assert.equal(strip.props.role, "alert");
+  assert.match(strip.props.className, /\bask\b/, "the accent tint");
+  assert.equal(textOf(byTestId(tree, "strip-title")), "Half of the first 25 are chain gyms, which I'm leaving out. Keep going this way?");
+  assert.equal(textOf(byTestId(tree, "strip-parts")), "Nothing is spent while this waits. Answer and it carries on.");
+  assert.deepEqual(all(tree, (n) => n.type === "button").map((n) => textOf(n)), ["Yes, keep going", "Include chain gyms", "Stop here"]);
+  click(byTestId(tree, "strip-keep"));
+  click(byTestId(tree, "strip-include"));
+  click(byTestId(tree, "strip-stop_here"));
+  assert.deepEqual(acted, [["keep", undefined], ["include", "chain"], ["stop_here", undefined]], "Include carries the criterion the owner is taking back");
+  const unknown = leadStrip(withRound({ state: "waiting_on_owner", question: { sentence: "Keep going?", criterion_key: "gone" } }), NOW);
+  assert.equal(unknown.actions[1].label, "Include what I left out", "a key the plan no longer holds never puts a stored word on the screen");
+});
+
+test("after Stop the strip says the emails of the found are still being checked, then that the found are the owner's", () => {
+  const stopping = drawStrip(withRound({ state: "checking", ending_pending: "stopped", counted: 61 }), []);
+  assert.equal(`${textOf(byTestId(stopping, "strip-title"))}${textOf(byTestId(stopping, "strip-parts"))}`, "Stopping \u00b7 checking the emails of the 61 found \u00b7 nothing else was counted");
+  assert.equal(all(stopping, (n) => n.type === "button").length, 0, "nothing to press while it finishes");
+  const checking = drawStrip(withRound({ state: "checking", ending_pending: "target_reached", counted: 200 }), []);
+  assert.equal(textOf(byTestId(checking, "strip-title")), "Checking the emails of the 200 found", "a round that finished is not Stopping");
+  const acted = [];
+  const done = drawStrip(withRound({ state: "ended", ending: "stopped", counted: 61, ended_at: "2026-09-19T14:30:00Z" }), acted);
+  assert.equal(textOf(byTestId(done, "strip-title")), "Stopped at 61");
+  click(byTestId(done, "strip-carry_on"));
+  click(byTestId(done, "strip-undo"));
+  assert.deepEqual([acted[0][0], acted[0][1].count, acted[1]], ["carry_on", 200, ["undo", { searchId: "5e000000-0000-4000-8000-000000000001" }]], "Carry on hands back the plan to approve; Undo hands back the search");
+});
+
+test("every ending is one strip with one next step, and each draws its own words", () => {
+  for (const ending of LEAD_ROUND_ENDINGS) {
+    const acted = [];
+    const tree = drawStrip(withRound({ state: "ended", ending, counted: 61, ended_at: "2026-09-19T14:30:00Z" }), acted);
+    const strip = byTestId(tree, "lead-strip");
+    assert.match(strip.props.className, /\bdone\b/, ending);
+    assert.equal(strip.props.role, "status", ending);
+    assert.ok(textOf(byTestId(tree, "strip-title")).length > 0, ending);
+    const buttons = all(tree, (n) => n.type === "button");
+    assert.ok(buttons.length <= 3, `${ending}: ${buttons.length} buttons`);
+    assert.ok(leadStrip(withRound({ state: "ended", ending, counted: 61, ended_at: "2026-09-19T14:30:00Z" }), NOW).actions.filter((a) => globalThis.window.LEAD_ROUND_MAKERS.includes(a.id)).length <= 1, `${ending} offers more than one next step`);
+    assert.equal(/\$|apify|compass|bounceverify/i.test(textOf(tree)), false, `${ending} says something it must not: ${textOf(tree)}`);
+    assert.equal(/undefined|NaN|null/.test(textOf(tree)), false, `${ending}: ${textOf(tree)}`);
+    for (const b of buttons) click(b);
+    assert.equal(acted.length, buttons.length, ending);
+  }
+  const reached = drawStrip(withRound({ state: "ended", ending: "target_reached", counted: 200, emails_checked: 88, with_phone: 112, excluded: 40 }), []);
+  assert.equal(textOf(byTestId(reached, "strip-title")), "Found 200 personal trainers");
+  assert.equal(textOf(byTestId(reached, "strip-parts")), " \u00b7 88 you can email \u00b7 112 by phone \u00b7 40 left out");
+  assert.equal(byTestId(reached, "strip-excluded").props.className, "lnk", "40 left out is a link into the view, not a button beside the next step");
+  assert.equal(textOf(byTestId(reached, "strip-excluded")), "40 left out");
+});
+
+test("each ending says contracts' own sentence, with this round's numbers in it, and Undo goes once it is a day old or has been used", () => {
+  assert.deepEqual(
+    LEAD_ROUND_ENDINGS.map((e) => { const v = leadStrip(ended(e), NOW); return [e, [v.title, ...v.parts].join(" \u00b7 "), ids(v)]; }),
+    [
+      ["target_reached", "Found 61 personal trainers \u00b7 34 you can email \u00b7 27 by phone \u00b7 40 left out", ["excluded", "sort_fit", "undo"]],
+      ["searched_everything", "Found 61 personal trainers \u00b7 everything these searches returned in Austin, TX", ["nearby", "sort_fit", "undo"]],
+      ["month_leads_used", "Stopped at 61 \u00b7 this month's leads are used \u00b7 the 61 found are yours", ["undo"]],
+      ["budget_used", "Stopped at 61 \u00b7 this month's searching is used up \u00b7 the 61 found are yours", ["undo"]],
+      ["few_new_matches", "All 40 personal trainers in Austin, TX are already yours.", ["undo"]],
+      ["stopped", "Stopped at 61 \u00b7 the 61 found are yours \u00b7 nothing else was counted", ["carry_on", "undo"]],
+      ["source_failed", "Stopped at 40: the source stopped answering \u00b7 the 61 found are yours \u00b7 nothing more was counted", ["try_again", "undo"]],
+      ["question_unanswered", "Stopped after a day without your answer \u00b7 the 61 found before it asked are yours", ["answer_now", "undo"]],
+      ["paused", "Lead searches are paused for now \u00b7 your leads are all here \u00b7 nothing is being counted", ["undo"]],
+    ],
+  );
+  assert.equal(leadStrip(ended("target_reached"), NOW).actions[0].label, "40 left out");
+  assert.equal(leadStrip(ended("searched_everything"), NOW).actions[0].label, "Find 139 more nearby");
+  const nearby = leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW, { nearby: ["Alpine", "Fort Davis"] });
+  assert.equal(nearby.title, "There are 3 personal trainers in Austin, TX, and all of them are chain gyms, which you asked me to leave out.");
+  assert.deepEqual([nearby.parts, ids(nearby)], [["Nothing was counted."], ["nearby", "undo"]], "nothing was counted, so nothing is worth re-sorting");
+  assert.deepEqual(ids(leadStrip(ended("searched_everything", { counted: 0, excluded: 3 }), NOW)), ["undo"], "with nowhere else to look there is no next step to offer");
+  assert.equal(ids(leadStrip(ended("target_reached", { ended_at: "2026-09-18T10:00:00Z" }), NOW)).includes("undo"), false, "over a day later there is nothing to undo");
+  assert.equal(ids(leadStrip(ended("target_reached", { undo_op_id: "5e000000-0000-4000-8000-0000000000b1", undo_version: 1 }), NOW)).includes("undo"), false, "already undone: the view carries the operation the toast puts back");
+  assert.equal(ids(leadStrip(SEARCH, NOW)).includes("undo"), false, "a round still going has nothing to undo");
+});
+
+test("an ending never re-sorts by itself: it offers Sort by fit, and says how many new ones are waiting", () => {
+  const acted = [];
+  const tree = drawStrip(withRound({ state: "ended", ending: "target_reached", counted: 200, emails_checked: 88, with_phone: 112 }), acted, { offered: 12 });
+  assert.equal(textOf(byTestId(tree, "strip-take_offered")), "12 new");
+  click(byTestId(tree, "strip-take_offered"));
+  click(byTestId(tree, "strip-sort_fit"));
+  assert.deepEqual(acted, [["take_offered", undefined], ["sort_fit", undefined]]);
+  assert.equal(byTestId(drawStrip(withRound({ state: "ended", ending: "target_reached" }), []), "strip-take_offered"), null, "nothing waiting, nothing said");
+  assert.equal(globalThis.window.LeadStrip({ vm: null, onAction() {} }), null);
+});
+
+test("the nine ending sentences are contracts' leadEndingLine, never the strip's own: with no leadEndingLine there is no ended strip", () => {
+  const bag = globalThis.window.__LEAD_VM;
+  try {
+    globalThis.window.__LEAD_VM = { ...bag, leadEndingLine: undefined };
+    assert.equal(leadStrip(ended("target_reached"), NOW), null, "a word this file cannot read from contracts is a word it does not say");
+    assert.equal(globalThis.window.LeadStrip({ vm: leadStrip(ended("target_reached"), NOW), onAction() {} }), null);
+    const running = leadStrip(SEARCH, NOW);
+    assert.equal(running.title, "Finding personal trainers in Austin, TX", "the running, checking and question lines are the strip's own and still draw");
+  } finally {
+    globalThis.window.__LEAD_VM = bag;
+  }
 });

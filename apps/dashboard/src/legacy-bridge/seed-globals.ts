@@ -11,8 +11,7 @@ import * as ReactDOM from "react-dom";
 import { ROLE_PERMS, SOURCE_WORDS, roleGate, samePhone, whyNotAPhone, whyNotAnEmail, whyNotAHandoff, handoffE164, formatPhoneDisplay, BROKEN_CONFIG_WORDS, hardLimitsWords, csvCell, LEAD_WORDS } from "@chanlytics/contracts";
 import {
   LEAD_COUNT_CHOICES, planArea, planMinutes, planSaid, planSentence, planVersionOf, planWhere, planWho, planWords,
-  leadPlanAsk, leadPlanFacts, leadPlanLikely,
-} from "@chanlytics/contracts";
+  leadPlanAsk, leadPlanFacts, leadPlanLikely, leadEndingLine } from "@chanlytics/contracts";
 
 declare global {
   interface Window {
@@ -36,7 +35,7 @@ declare global {
       planWords: typeof planWords; planSaid: typeof planSaid; planSentence: typeof planSentence; planWho: typeof planWho;
       planWhere: typeof planWhere; planArea: typeof planArea; planMinutes: typeof planMinutes; planVersionOf: typeof planVersionOf;
       LEAD_COUNT_CHOICES: typeof LEAD_COUNT_CHOICES; leadPlanLikely: typeof leadPlanLikely; leadPlanFacts: typeof leadPlanFacts;
-      leadPlanAsk: typeof leadPlanAsk;
+      leadPlanAsk: typeof leadPlanAsk; leadEndingLine: typeof leadEndingLine;
     };
   }
 }
@@ -92,8 +91,8 @@ if (typeof window !== "undefined") {
   window.__LEAD_WORDS = LEAD_WORDS;
   // One derivation per fact: __LEAD_WORDS holds the words, __LEAD_VM holds what
   // derives them, and the pages spell neither. Task 10 adds `leadStrip` to this
-  // object and Task 19 adds `leadEndingLine`, each where the function is written.
-  window.__LEAD_VM = { planWords, planSaid, planSentence, planWho, planWhere, planArea, planMinutes, planVersionOf, LEAD_COUNT_CHOICES, leadPlanLikely, leadPlanFacts, leadPlanAsk };
+  // object; `leadEndingLine` is here, so the strip never spells an ending itself.
+  window.__LEAD_VM = { planWords, planSaid, planSentence, planWho, planWhere, planArea, planMinutes, planVersionOf, LEAD_COUNT_CHOICES, leadPlanLikely, leadPlanFacts, leadPlanAsk, leadEndingLine };
 }
 
 export {};

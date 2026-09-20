@@ -102,6 +102,51 @@
 .lf-fact .i { color: var(--ink-faint); }
 .lf-actions { display: flex; align-items: center; gap: 8px; padding-top: 2px; }
 
+/* ----------------------------------------------------------- the strip -- */
+/* One line above the table for the search that is open: running, checking,
+   the question in the accent, or one of the nine endings. The phone's own
+   stacking of these is in the 900px block at the foot of this file. */
+
+.lf-strip {
+  position: relative; margin: 12px 28px 0; display: flex; align-items: center; gap: 10px;
+  padding: 0 6px 0 14px; height: 42px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg-raised); font-size: 12.5px; overflow: hidden; flex: none;
+  animation: lf-in 200ms var(--ease-out) backwards;
+}
+.lf-strip-title { font-weight: 500; white-space: nowrap; }
+.lf-strip-parts {
+  display: flex; align-items: center; gap: 6px; color: var(--ink-dim);
+  font-variant-numeric: tabular-nums; white-space: nowrap; min-width: 0; overflow: hidden;
+}
+.lf-strip .sp { flex: 1; }
+.lf-strip .lf-acts { display: inline-flex; align-items: center; gap: 8px; flex: none; }
+.lf-strip .ok-mark { color: var(--ok-ink); display: inline-flex; }
+.lf-strip .lnk {
+  border: 0; background: none; padding: 0 2px; font: inherit; color: var(--ink-muted);
+  text-decoration: underline; text-decoration-color: var(--line-strong); text-underline-offset: 3px;
+  cursor: pointer; white-space: nowrap;
+}
+.lf-strip .lnk:hover { color: var(--ink); }
+.lf-strip-bar { position: absolute; left: 0; bottom: 0; height: 2px; background: var(--accent); transition: width 300ms var(--ease-out); }
+.lf-strip.done .lf-strip-bar { background: var(--ok); }
+.lf-strip.ask {
+  height: auto; min-height: 48px; padding: 8px 8px 8px 14px; flex-wrap: wrap; row-gap: 6px;
+  border-color: oklch(from var(--accent) l c h / 0.45);
+  background: oklch(from var(--accent) l c h / 0.06);
+}
+.lf-strip.ask .lf-q { font-weight: 500; color: var(--ink); }
+.lf-strip.ask .lf-q-sub { color: var(--ink-dim); font-size: 12px; }
+.lf-strip .qmark {
+  width: 20px; height: 20px; border-radius: 999px; display: grid; place-items: center;
+  background: var(--accent); color: var(--accent-fg); font-size: 12px; font-weight: 600; flex: none;
+}
+.lf-ask-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; flex: 1 1 360px; }
+
+/* The bulk bar's Not a fit opens the peek's own five-why list above the bar,
+   which is the only thing this rule moves: the list itself is .pk-nf's. */
+.ld-bulk-nf { position: relative; display: inline-flex; }
+.ld-bulk-nf .pk-nf { right: 0; left: auto; top: auto; bottom: calc(100% + 8px); }
+
 /* ---------------------------------------------------------------- the peek */
 /* Beside the table on a desktop, the page's own overlay: PL_OVERLAY names .pl-peek apart, so J and K keep walking
    the rows behind it. The phone's full-height sheet is in the phone block (Task 18). The classes are the canvas's

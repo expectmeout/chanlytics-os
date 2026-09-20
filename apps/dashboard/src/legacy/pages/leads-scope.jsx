@@ -1,6 +1,6 @@
 /* global React, Icon, MoreMenu, Confirm, EmptyState, FailedRead, PeopleRail, PeopleStanding, PeopleTable,
    PeopleColumnsMenu, plSortKeys, plDrawnColumns, plColumnOptions, PL_NO_SEL, LeadFinder, LeadStrip, LeadPeek,
-   LeadPeekActions, LeadsFirstDay */
+   LeadPeekActions, LeadNotFitWhy, LeadsFirstDay */
 // The Leads scope of People: the rail's lead rows and its kept searches, the standing line, the controls, the
 // table drawn with LEAD_COLUMNS, the bulk bar, and the three classes (Qualified · Needs review · Excluded).
 //
@@ -197,7 +197,7 @@ const LeadExcludedChips = ({ chips, active, onPick }) => (
 // What a selection of leads can become (§6.4, S13): their emails on the clipboard, all contacted, all not a fit,
 // a file. Each acts on the rows shown AND selected; the header box's "Select all N that match" hands the view's
 // filters to the server instead of a list of ids, so a view of 1,240 does not become 1,240 ids in a request.
-const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, exportHref }) => {
+const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot, onClear, onSelectAllMatching, allMatching, onCopyEmails, onContacted, onNotAFit, whyOpen, onWhyOpen, exportHref }) => {
   const picked = rows.filter((l) => sel.has(l.id));
   const ids = picked.map((l) => l.id);
   const count = allMatching ? total : ids.length;
@@ -209,7 +209,12 @@ const LeadsBulkBar = ({ sel, rows, total, view, canFind, canExport, busy, whyNot
       )}
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onCopyEmails(picked)} data-testid="leads-bulk-copy"><Icon name="copy" size={12} /> Copy emails</button>
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onContacted(allMatching ? { by: "view", action: "contacted", view } : { by: "ids", action: "contacted", ids })} data-testid="leads-bulk-contacted" {...(canFind ? {} : window.gate("find", "mark these leads contacted"))}><Icon name="check" size={12} /> Mark contacted</button>
-      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => onNotAFit(allMatching ? { by: "view", action: "not_a_fit", view } : { by: "ids", action: "not_a_fit", ids })} data-testid="leads-bulk-not-a-fit" {...(canFind ? {} : window.gate("find", "mark these leads not a fit"))}><Icon name="ban" size={12} /> Not a fit</button>
+      {/* The same five whys the peek asks, asked once for the whole selection: LeadNotFitWhy is leads-peek.jsx's
+          own list, published for this bar, so the words are spelled in one place (Task 15 step 4). */}
+      <span className="ld-bulk-nf">
+        <button type="button" className="btn btn-sm" disabled={busy} aria-haspopup="menu" aria-expanded={!!whyOpen} onClick={() => onWhyOpen(!whyOpen)} data-testid="leads-bulk-not-a-fit" {...(canFind ? {} : window.gate("find", "mark these leads not a fit"))}><Icon name="ban" size={12} /> Not a fit</button>
+        {whyOpen ? <LeadNotFitWhy busy={busy} on={{ onWhy: (why) => onNotAFit(why, allMatching ? { by: "view", action: "not_a_fit", view } : { by: "ids", action: "not_a_fit", ids }) }} /> : null}
+      </span>
       {canExport
         ? <a className="btn btn-sm" href={exportHref} download title="Download these leads as a CSV file" data-testid="leads-bulk-export"><Icon name="external" size={12} /> Export</a>
         : <button type="button" className="btn btn-sm" {...window.gate("export", "export these leads")} data-testid="leads-bulk-export"><Icon name="external" size={12} /> Export</button>}
@@ -363,12 +368,17 @@ const LeadsScope = (p) => {
                 stage={p.finderStage}
                 words={p.finderWords}
                 proposal={p.finderProposal}
+                plan={p.finderPlan}
+                trace={p.finderTrace}
+                pick={p.finderPick}
                 refusal={p.finderRefusal}
                 busy={p.finderBusy}
                 suggestions={L.suggestions}
                 talk={p.talk}
                 onWords={p.onFinderWords}
                 onPlan={p.onFinderPlan}
+                onChangePlan={p.onFinderChangePlan}
+                onPick={p.onFinderPick}
                 onApprove={p.onFinderApprove}
                 onBack={p.onFinderBack}
                 onClose={p.onCloseFinder}
@@ -430,7 +440,9 @@ const LeadsScope = (p) => {
             onClear={p.onClearSel}
             onCopyEmails={p.onCopyEmails}
             onContacted={p.onBulk}
-            onNotAFit={p.onBulk}
+            onNotAFit={p.onBulkNotAFit}
+            whyOpen={p.bulkWhy}
+            onWhyOpen={p.onBulkWhy}
             exportHref={p.exportHref}
           />
         )}
@@ -451,14 +463,15 @@ const LeadsScope = (p) => {
             putBack: p.onPutBack,
             copyEmail: p.onCopy,
             draft: p.draft,
+            armed: p.armed,
             setMode: p.onPeekMode,
             setArmed: p.onArmed,
             setDraft: p.onDraftState,
             setPeekId: p.onPeekId,
           });
-          // Call stays the page's (clients-a.jsx): it arms "How did the call go?" before it hands the tel: to
-          // the browser, which is what C over the rows does and what the peek's own onCall does not do yet.
-          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} {...acts} onCall={p.onCall} />;
+          // Call is the acts' own: it arms "How did the call go?" and then hands the tel: to the browser, which
+          // is exactly what C over the rows does (clients-a.jsx's callLead), so both end in the same place.
+          return <LeadPeek vm={p.peek} mode={p.peekMode} armed={p.armed} draft={p.draft} busy={p.bulkBusy} {...acts} />;
         })()}
         {p.firstDay && <LeadsFirstDay suggestions={L.suggestions} onPick={p.onFinderWords} onFind={p.onFind} onBusinessLine={p.onBusinessLine} />}
         {/* The phone's rail, as a sheet from the bar's list button: the same rows, the same counts, the same
