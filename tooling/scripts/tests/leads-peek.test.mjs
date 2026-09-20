@@ -660,7 +660,19 @@ test("D5: the peek opens on a photo band with Expand, decides with a verdict car
   assert.equal(textOf(byTestId(rated, "peek-claimed")), "Listing not claimed by the owner", "whether anyone watches the listing sits with what people say");
   assert.equal(textOf(byTestId(tree, "peek-checks-summary")), "7 checks passed", "the strip and the words, with the label gone: the head is the summary");
   assert.equal(byTestId(tree, "peek-checks").props.open, undefined, "folded away, so the act at the foot is reachable without scrolling past seven rows");
-  assert.equal(all(byTestId(tree, "peek-check-dots"), (n) => String(n.props?.className || "").startsWith("pk-dot ")).length, 7, "one mark a check, in the order they were made");
+  // The strip is ONE svg with its size in its own attributes, not a row of empty spans that take theirs from the
+  // cascade: on production those drew at two sizes on one line, and a circle in a viewBox cannot do that.
+  const strip = byTestId(tree, "peek-check-dots");
+  assert.equal(strip.type, "svg", "the strip carries its own geometry");
+  const marks = all(strip, (n) => n.type === "circle");
+  assert.equal(marks.length, 7, "one mark a check, in the order they were made");
+  assert.deepEqual(marks.map((c) => c.props.className), ["pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes", "pk-dot yes"], "and each says which answer it is");
+  assert.deepEqual([...new Set(marks.map((c) => c.props.r))], [3.5], "every mark is the same circle; none of them can become a lozenge");
+  assert.equal(strip.props.width, 7 * 10 - 3, "the svg is exactly as wide as the marks it holds");
+  // The row that lays these out is the span INSIDE the summary, never the summary itself.
+  const head = byTestId(tree, "peek-checks-summary");
+  assert.ok(find(head, (n) => n.props?.className === "pk-box-line"), "a <summary> is a disclosure widget before it is a flex box, so it is not asked to be one");
+  assert.equal(find(head, (n) => n.props?.className === "pk-box-line" && find(n, (m) => m === strip)), find(head, (n) => n.props?.className === "pk-box-line"), "and the strip sits inside that row, not beside it");
   assert.equal(textOf(byTestId(tree, "peek-found-summary")), "Found 3 ways, 2:14 PM · #3 for “personal trainer”", "and the trace folds under one line that says it");
   const act = byTestId(tree, "peek-act");
   assert.equal(tree.props.children.at(-1).rendered.props.children.at(-1), act, "the act bar is the peek's last child: it never scrolls away");

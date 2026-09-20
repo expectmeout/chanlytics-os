@@ -100,6 +100,27 @@ const LeadPeekHead = ({ vm, onClose, onExpand, deck }) => {
 };
 
 /** What people say (D5): the score large, the count, one bar a star, and whether anyone watches the listing. */
+/**
+ * The shape of the evidence, at a glance: one mark a check, in the order they were made.
+ *
+ * It is ONE svg, not a row of sized spans, and that is the whole point. An empty span gets its size only from the
+ * cascade, so any parent that lays out differently than the stylesheet expects -- a flex line that stretches it, a
+ * rule that arrives without its width -- turns a 7px dot into a lozenge, and on production these drew at two
+ * different sizes on the same line. An svg carries its geometry in its own attributes and its circles keep their
+ * aspect ratio inside the viewBox, so there is nothing here for a parent to stretch.
+ */
+const LeadCheckDots = ({ dots }) => {
+  if (!dots || !dots.length) return null;
+  const R = 3.5;
+  const STEP = 10;
+  const w = dots.length * STEP - (STEP - 2 * R);
+  return (
+    <svg className="pk-dots" width={w} height={2 * R} viewBox={`0 0 ${w} ${2 * R}`} aria-hidden="true" focusable="false" data-testid="peek-check-dots">
+      {dots.map((d, i) => <circle key={`${d}-${i}`} className={`pk-dot ${d}`} cx={i * STEP + R} cy={R} r={R} />)}
+    </svg>
+  );
+};
+
 const LeadPeekRated = ({ vm }) => {
   const W = window.__LEAD_WORDS;
   return (
@@ -366,10 +387,15 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
         {/* The checks fold away (D5): the strip says the shape of the evidence and the head says it in words, so the
             act at the foot is reachable without scrolling past seven rows nobody is reading twice. */}
         <details className="pk-box" data-testid="peek-checks">
+          {/* The flex row is the span INSIDE the summary, never the summary itself: a <summary> is a disclosure
+              widget before it is a box, and where one declines `display: flex` its children stack -- which is how
+              this head shipped to production with the strip on a line of its own above the words. */}
           <summary className="pk-box-head" data-testid="peek-checks-summary">
-            <span className="pk-dots" aria-hidden="true" data-testid="peek-check-dots">{vm.checkDots.map((d, i) => <span key={`${d}-${i}`} className={`pk-dot ${d}`} />)}</span>
-            <span className="pk-box-sum">{vm.checksSummary}</span>
-            <Icon name="chevron-down" size={12} />
+            <span className="pk-box-line">
+              <LeadCheckDots dots={vm.checkDots} />
+              <span className="pk-box-sum">{vm.checksSummary}</span>
+              <Icon name="chevron-down" size={12} />
+            </span>
           </summary>
           {vm.groups.map((g) => (
             <div key={g.how} className={`pk-group pk-group-${g.how}`} data-testid={`peek-checks-${g.how}`}>
@@ -396,9 +422,11 @@ const LeadPeekInfo = ({ vm, mode, armed, busy, on, deck }) => {
         {/* How it was found folds the same way: one line says it, and the three steps are behind it. */}
         <details className="pk-box" data-testid="peek-found">
           <summary className="pk-box-head" data-testid="peek-found-summary">
-            <Icon name="clock" size={12} />
-            <span className="pk-box-sum">{vm.foundSummary}</span>
-            <Icon name="chevron-down" size={12} />
+            <span className="pk-box-line">
+              <Icon name="clock" size={12} />
+              <span className="pk-box-sum">{vm.foundSummary}</span>
+              <Icon name="chevron-down" size={12} />
+            </span>
           </summary>
           <div className="pk-tl">
             {vm.found.map((f) => (

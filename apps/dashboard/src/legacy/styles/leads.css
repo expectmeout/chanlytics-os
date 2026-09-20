@@ -701,15 +701,21 @@ button.ld-slot-btn:hover { background: var(--bg-active); }
 .pk-rated-note { margin-top: 10px; padding-top: 8px; border-top: 1px solid var(--line); }
 .pk-rated-note .pk-quiet { display: inline-flex; align-items: center; gap: 6px; font-size: var(--text-xs); color: var(--ink-dim); }
 .pk-box { border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 0 13px 11px; }
-.pk-box-head { display: flex; align-items: center; gap: 9px; padding: 11px 0 8px; cursor: pointer; list-style: none; }
-.pk-box-head > .icon { color: var(--ink-dim); flex: none; }
-.pk-box-head > .icon:last-child { margin-left: auto; transition: transform var(--duration-fast) var(--ease-out); }
-.pk-box[open] .pk-box-head > .icon:last-child { transform: rotate(180deg); }
+/* The head is the summary; the ROW is the span inside it. A <summary> is a disclosure widget before it is a box and
+   not every engine lets it be a flex container, so nothing here depends on that: the summary only hides its marker
+   and holds the padding, and the span does the laying out. */
+.pk-box-head { display: block; padding: 11px 0 8px; cursor: pointer; list-style: none; }
+.pk-box-line { display: flex; flex-wrap: nowrap; align-items: center; gap: 9px; width: 100%; }
+.pk-box-line > .icon { color: var(--ink-dim); flex: none; }
+.pk-box-line > .icon:last-child { margin-left: auto; transition: transform var(--duration-fast) var(--ease-out); }
+.pk-box[open] .pk-box-line > .icon:last-child { transform: rotate(180deg); }
 /* The shape of the evidence, at a glance: one mark a check, in the order they were made. */
-.pk-dots { display: inline-flex; gap: 3px; flex: none; }
-.pk-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--ok); display: block; }
-.pk-dot.unknown { background: var(--warn); }
-.pk-dot.no { background: var(--ink-faint); }
+/* One svg, sized by its own attributes: `flex: none` so no line can stretch it, and the circles inside keep their
+   shape whatever happens to the box. This was a row of empty spans and they drew at two sizes on the same line. */
+.pk-dots { flex: none; display: block; overflow: visible; }
+.pk-dot { fill: var(--ok); }
+.pk-dot.unknown { fill: var(--warn); }
+.pk-dot.no { fill: var(--ink-faint); }
 .pk-box-head::-webkit-details-marker { display: none; }
 .pk-box-head .pk-label { margin: 0; }
 .pk-box-sum { font-size: var(--text-sm); font-weight: var(--weight-medium); color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
