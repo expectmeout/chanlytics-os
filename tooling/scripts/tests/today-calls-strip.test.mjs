@@ -31,7 +31,7 @@ test("Today draws the call in progress first, then the people who need you, the 
   assert.ok(rail > 0 && rail < rows, "REGRESSION: a customer on the line was invisible on Today");
   assert.ok(queue.includes('data-testid="brief-live-call"') && queue.includes("nav(`live/${c.callId}`)"), "the call's own door, not Live's list");
   const vm = readRaw("packages/contracts/src/today.ts");
-  const esc = vm.indexOf("for (const e of openEsc) {");
+  const esc = vm.indexOf("for (const r of escRecords) {");
   const win = vm.indexOf("for (const c of closingConvs) {");
   const ear = vm.indexOf("for (const r of callRows) {");
   assert.ok(esc > 0 && esc < win && win < ear && vm.includes("waitedMs: Number.NEGATIVE_INFINITY"), "a voicemail is worth an ear, after the people waiting on you");

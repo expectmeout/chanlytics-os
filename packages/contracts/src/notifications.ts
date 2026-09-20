@@ -327,6 +327,14 @@ export function conversationOfNeedsKey(key: string): string | null {
   return key.startsWith(NEEDS_KEY_PREFIX) ? key.slice(NEEDS_KEY_PREFIX.length) : null;
 }
 
+/** A derived missed-call row's key: this prefix plus the call's id (buildNotificationFeed). */
+export const CALL_KEY_PREFIX = "call:";
+
+/** The call a derived missed-call row stands for, or null. */
+export function callOfKey(key: string): string | null {
+  return key.startsWith(CALL_KEY_PREFIX) ? key.slice(CALL_KEY_PREFIX.length) : null;
+}
+
 /**
  * The kept rows as the bell shows them: dismissed ones gone, unread decided
  * by the person's seen moment and their own read mark — the same on every

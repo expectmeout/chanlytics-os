@@ -161,6 +161,10 @@ export interface TodaySentenceVM {
 export interface TodayQueueRowVM {
   id: string;
   kind: "handoff" | "callback" | "window" | "call";
+  /** The thread this row is about; null for a call with no thread. The away card drops a bell row about the same thread. */
+  conversationId: string | null;
+  /** The call this row is about: a call-back's newest call, a call worth a listen; null otherwise. */
+  callId: string | null;
   who: string;
   initials: string;
   /** The wire, in the words a row shows. It was `"WhatsApp" | "Phone"`, which is
@@ -204,6 +208,32 @@ export interface TodayQueueEmptyVM {
   testid: string;
 }
 
+export type TodayFigureId = "messages" | "answered" | "calls" | "new";
+
+/**
+ * One of the day's four figures: the number, its word, the clause always drawn under it, and the why behind it with
+ * one door. A receipt adds to its figure and never repeats its number or its clause, so nothing is said twice and
+ * nothing an owner needs lives only behind a hover.
+ */
+export interface TodayFigureVM {
+  id: TodayFigureId;
+  label: string;
+  value: number;
+  meta: string;
+  receipt: { text: string; door: { label: string; to: string } | null } | null;
+}
+
+/** A thread where the customer wrote last and nothing went back for an hour or more, and nobody was handed it. */
+export interface TodayNoReplyVM {
+  conversationId: string;
+  who: string;
+  sinceMs: number;
+  to: string;
+}
+
+/** A message with nothing back for this long is one nobody answered; the receptionist answers in seconds. */
+export const NO_REPLY_AFTER_MS = 3_600_000;
+
 export interface TodayVM {
   standing: {
     eyebrow: string;
@@ -216,32 +246,33 @@ export interface TodayVM {
      */
     lines: { text: string; down: boolean };
     alert: string | null;
-    greeting: string;
+    /** Ask reads these three; the page draws none of them. */
     headline: string;
     detail: string | null;
     tone: "needs" | "calm" | "alert";
   };
+  /** Ask's rows: the same escalations the queue draws, read once. */
   needsYou: { count: number; hint: string; rows: TodayNeedsRowVM[]; empty: string | null } | null;
   windowClosing: { label: string; hint: string; rows: Array<{ id: string; text: string; to: string }> } | null;
+  /** Ask reads the sentences and the facts; the page draws the sentences that are not numbers and the receipts. */
   recap: {
     label: string;
-    /** The day's numbers in one sentence. They were six stat cards over two sentences that said them again. */
     line: string;
     sentences: TodaySentenceVM[];
     facts: TodayFactVM[];
     receipts: Array<{ at: string; text: string; to: string }>;
   } | null;
-  /** Answered-by-AI ratio for the hero arc — null when nothing came in
-   *  (an arc of 0/0 is a gauge with no needle). */
-  pulse: { num: number; den: number } | null;
+  /** The day's own figures, in order: customer messages, answered by the receptionist, calls, new people. Null on a day with nothing at all. */
+  figures: TodayFigureVM[] | null;
+  /** When the last message arrived and how long the answer took. Always said: on a day with traffic it is the messages figure's clause, on a quiet day the card's line. */
+  proof: string;
+  /** Who is waiting with nothing back, oldest first, for Worth a look to name. */
+  noReply: TodayNoReplyVM[];
   calls: { line: string; rows: TodayCallRowVM[] } | null;
-  /** Whether the calls read succeeded; false means the rows above omit the phone, and the brief says so. */
+  /** Whether the calls read succeeded; false means the rows above omit the phone, and the card says so. */
   callsRead: boolean;
-  /** Everything that asks for a person, in one row grammar, longest wait first. */
-  /** The rows, the rest as a count, and what the rows hold in words: "2 need you", "1 reply window closing", "1 call worth a listen". */
+  /** Everything that asks for a person, in one row grammar, longest wait first: the rows, the rest as a count, and what the rows hold in words. */
   queue: { rows: TodayQueueRowVM[]; more: number; parts: string[]; empty: TodayQueueEmptyVM };
-  launchpad: Array<{ label: string; to: string }>;
-  updatedAt: string;
   quiet: {
     headline: string;
     sub: string;
@@ -339,7 +370,7 @@ function tzDayAndTime(iso: string | null, tz: string, now: Date): string | null 
   }
 }
 
-/** "41s" / "1m 12s". Seconds are exact here — this is a measured median. */
+/** "41s" / "1m 12s". Seconds are exact here: this is a measured median. */
 function secondsPhrase(s: number): string {
   if (s < 60) return `${s}s`;
   const m = Math.floor(s / 60);
@@ -347,7 +378,137 @@ function secondsPhrase(s: number): string {
   return r ? `${m}m ${r}s` : `${m}m`;
 }
 
+/** "once", "twice", "3 times". */
+const timesWord = (n: number): string => (n === 1 ? "once" : n === 2 ? "twice" : `${n} times`);
+
+const plural = (n: number, one: string, many = `${one}s`): string => `${n} ${n === 1 ? one : many}`;
+
+const capitalize = (s: string): string => (s ? s[0].toUpperCase() + s.slice(1) : s);
+
+/** A wire's word inside a sentence: "by WhatsApp", "by email", "by text". */
+const wireWord = (w: string): string => (w === "WhatsApp" ? w : w.toLowerCase());
+
+const tally = (xs: readonly string[]): Array<[string, number]> => {
+  const out = new Map<string, number>();
+  for (const x of xs) out.set(x, (out.get(x) ?? 0) + 1);
+  return [...out.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+};
+
+/** How long after the last message the last reply went out, when it did within the hour; null otherwise. */
+function replyGapSeconds(live: { last_inbound_at: string | null; last_outbound_at: string | null }): number | null {
+  if (!live.last_outbound_at || !live.last_inbound_at) return null;
+  const gap = Math.round((new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1000);
+  return gap > 0 && gap < 3600 ? gap : null;
+}
+
+/**
+ * The proof the lines are listening: when the last message arrived and how long the receptionist took to answer it.
+ * Always said, never gated on the queue: on this workspace (no traffic, three open escalations) it was suppressed
+ * exactly when an owner needed it. On a day with traffic it is the messages figure's clause; on a quiet day the
+ * card's line, and the quiet card's own sentence ends with it, so the two cannot drift.
+ */
+export function todayProof(live: { last_inbound_at: string | null; last_outbound_at: string | null }, tz: string, now: Date): string {
+  const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
+  if (!lastIn) return "No messages have arrived yet.";
+  const gap = replyGapSeconds(live);
+  return `The last message arrived ${lastIn}${gap !== null ? `, and the receptionist answered ${secondsPhrase(gap)} later` : ""}.`;
+}
+
 const SENT = ["sent", "delivered", "read"];
+
+/**
+ * The day's four figures, from the fields Today has fetched on every load and never read (period.new_contacts,
+ * call_sentiments, calls_voicemail, escalation_reasons, messages_out_ai) and from the threads and calls the page
+ * holds. Null on a day with nothing at all: a row of zeros is a product that died overnight, not a fact.
+ */
+function figuresOf(
+  p: MetricsSummaryDto["period"],
+  live: MetricsSummaryDto["now"],
+  conversations: ConversationDto[],
+  callsInWindow: CallDto[],
+  tz: string,
+  now: Date,
+  sinceMs: number,
+): TodayFigureVM[] | null {
+  if (p.messages_in + p.calls + p.new_contacts === 0) return null;
+  const fresh = (x: { created_at: string; meta: Record<string, unknown> | null }) => x.meta?.backfill !== true && new Date(x.created_at).getTime() >= sinceMs;
+
+  // Customer messages: the proof as the clause, the wires as the why. A message with no wire named is WhatsApp,
+  // which is what every row was before the column said (viewmodels.ts writtenChannelOf); the receipt splits the
+  // messages the page holds, and says nothing when the read holds none.
+  const gap = replyGapSeconds(live);
+  const lastAt = tzClock(live.last_inbound_at, tz, now);
+  const wires = tally(conversations.flatMap((c) => c.messages.filter((x) => x.direction === "inbound" && x.sender === "customer" && fresh(x)).map((x) => threadChannelWords([x]))));
+  const messages: TodayFigureVM = {
+    id: "messages",
+    label: "customer messages",
+    value: p.messages_in,
+    meta: lastAt ? `last at ${lastAt}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}` : "none yet",
+    receipt: wires.length
+      ? { text: wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${andList(wires.map(([w, n]) => `${n} by ${wireWord(w)}`))}.`, door: { label: "Open the Inbox", to: "inbox" } }
+      : null,
+  };
+
+  // Answered by the receptionist: how fast and how often it stopped as the clause; why it stopped and what it sent as the why.
+  const reasons = tally(Object.entries(p.escalation_reasons ?? {}).flatMap(([r, n]) => Array.from({ length: Math.max(0, Number(n) || 0) }, () => r)));
+  const answeredMeta = [
+    p.median_reply_seconds_ai !== null ? `typically in ${secondsPhrase(p.median_reply_seconds_ai)}` : "",
+    p.escalations_new ? `${p.escalations_new} handed over` : p.answered_by_ai ? "none handed over" : "",
+  ].filter(Boolean).join(", ") || "nothing to answer yet";
+  const sentNote = p.messages_out_ai > p.answered_by_ai ? `It sent ${plural(p.messages_out_ai, "message")} in all.` : p.messages_out_ai ? "One reply each." : "";
+  // One sentence, so only its first reason is capitalised: "Asked for a person: once; sent something the receptionist can't read: once."
+  const whyStopped = reasons.length ? `${reasons.map(([r, n], i) => `${i === 0 ? capitalize(reasonShort(r) || r) : reasonShort(r) || r}: ${timesWord(n)}`).join("; ")}.` : "";
+  const answeredWhy = [whyStopped, sentNote].filter(Boolean);
+  const answered: TodayFigureVM = {
+    id: "answered",
+    label: "answered by the receptionist",
+    value: p.answered_by_ai,
+    meta: answeredMeta,
+    receipt: answeredWhy.length
+      ? { text: answeredWhy.join(" "), door: reasons.length || p.escalations_new ? { label: "See the handovers", to: "inbox" } : null }
+      : null,
+  };
+
+  // Calls: the time and the voicemails as the clause; the moods and who reached voicemail as the why.
+  const moods = tally(Object.entries(p.call_sentiments ?? {}).flatMap(([m, n]) => Array.from({ length: Math.max(0, Number(n) || 0) }, () => m)));
+  const moodWords = moods.length
+    ? `The voice provider read ${andList(moods.map(([m, n]) => (n === p.calls ? `all of them as ${m.toLowerCase()}` : `${n} as ${m.toLowerCase()}`)))}.`
+    : "";
+  const voicemail = callsInWindow.filter((c) => c.in_voicemail).map((c) => toCallVM(c, tz, now).who);
+  const voicemailWords = voicemail.length ? `${andList(voicemail)} reached voicemail.` : "";
+  const calls: TodayFigureVM = {
+    id: "calls",
+    label: "calls",
+    value: p.calls,
+    meta: p.calls
+      ? `${p.call_seconds < 60 ? "under a minute on the phone" : `${Math.round(p.call_seconds / 60)} min on the phone`}${p.calls_voicemail ? `, ${p.calls_voicemail} to voicemail` : ""}`
+      : "none yet",
+    receipt: moodWords || voicemailWords ? { text: [moodWords, voicemailWords].filter(Boolean).join(" "), door: { label: "Open the calls", to: "conversations/phone" } } : null,
+  };
+
+  // New people: the threads whose first real message is the customer's and today.
+  const newThreads = conversations.filter((c) => {
+    const first = [...c.messages].filter((x) => x.meta?.backfill !== true).sort((a, b) => a.created_at.localeCompare(b.created_at))[0];
+    return !!first && first.sender === "customer" && fresh(first);
+  });
+  const newWires = tally(newThreads.map((c) => threadChannelWords(c.messages)));
+  const names = newThreads.map((c) => contactName(c));
+  const fresh3 = names.slice(0, 3);
+  const newPeople: TodayFigureVM = {
+    id: "new",
+    label: "new people",
+    value: p.new_contacts,
+    meta: !p.new_contacts
+      ? "nobody new yet"
+      : newWires.length === 1
+        ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${newWires[0][0]}`
+        : newWires.length ? `on ${andList(newWires.map(([w]) => wireWord(w)))}` : "first contact today",
+    receipt: names.length
+      ? { text: `${andList(fresh3)}${names.length > 3 ? ` and ${names.length - 3} more` : ""} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } }
+      : null,
+  };
+  return [messages, answered, calls, newPeople];
+}
 
 export function toTodayVM(
   m: MetricsSummaryDto,
@@ -359,7 +520,7 @@ export function toTodayVM(
   const tz = m.workspace.timezone;
   const p = m.period;
   const live = m.now;
-  // Null: the calls read failed. The brief says so rather than counting none.
+  // Null: the calls read failed. The card says so rather than counting none.
   const callsRead = calls !== null;
   const callDtos = calls ?? [];
 
@@ -367,13 +528,10 @@ export function toTodayVM(
   // parsing it as a local Date yields the salon's own hour and weekday.
   const localNow = new Date(m.window.now_local);
   const valid = !Number.isNaN(localNow.getTime());
-  const hour = valid ? localNow.getHours() : now.getHours();
   const clock = valid ? localNow.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }) : "";
-  // The mockup's eyebrow rhythm: "Saturday · April 26 · 12:04"
   const datePart = valid
     ? `${localNow.toLocaleDateString("en-US", { weekday: "long" })} · ${localNow.toLocaleDateString("en-US", { month: "long", day: "numeric" })}`
     : "";
-  const greeting = hour < 12 ? "Good morning." : hour < 17 ? "Good afternoon." : "Good evening.";
 
   // One normalisation of the wires for the five things Today says about them:
   // the chips, the count above the work, the alert, the empty queue and the
@@ -448,28 +606,59 @@ export function toTodayVM(
   // the same threads by the same rule.
   const needsYouCount = openEsc.length;
 
-  const needsRows: TodayNeedsRowVM[] = openEsc.map((e) => {
-    const conv = byConv.get(e.conversation_id);
+  const sinceMs = new Date(m.window.since).getTime();
+  const callsInWindow = callDtos.filter(
+    (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs,
+  );
+  const callMinutes = Math.round(p.call_seconds / 60);
 
+  // The newest call a thread holds: a call-back's row opens it, and a call-back with no thread is named by it.
+  const callByConv = new Map<string, CallDto>();
+  for (const c of callDtos) {
+    if (!c.conversation_id) continue;
+    const prev = callByConv.get(c.conversation_id);
+    if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
+  }
+  const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
+
+  // ONE reading of each open escalation. Ask's rows (needsYou) and the queue's handoff and call-back rows were two
+  // derivations of the same list, and they disagreed on a call-back: Ask never saw the to-do the phone receptionist
+  // left, and named a caller with no thread "Unknown" where the queue named the call.
+  const escRecords = openEsc.map((e) => {
+    const conv = byConv.get(e.conversation_id);
+    const call = e.reason === "callback" ? callByConv.get(e.conversation_id) ?? null : null;
     const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
     const waitedMs = now.getTime() - new Date(e.created_at).getTime();
     const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     return {
-      id: `th-${e.conversation_id}`,
-      conversationId: e.conversation_id,
-      escalationId: e.id,
-      who: conv ? contactName(conv) : "Unknown",
-      reason: ESCALATION_REASON_LABELS[e.reason] ?? e.reason,
-      waited: formatWaited(waitedMs),
+      e,
+      conv,
+      call,
+      waitedMs,
       warn: waitedMs > 30 * 60000,
+      since: tzSince(e.created_at, tz, now) ?? "",
       // her own words, never a generated characterization of them
       quote: lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "",
-      meta: conv ? contactMeta(conv, threadChannelWords(conv.messages)) : "WhatsApp",
-      windowNote: closes ? `Reply window closes ${closes}` : null,
-      to: `inbox/th-${e.conversation_id}`,
+      who: conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : e.reason === "callback" ? "Unknown caller" : "Unknown",
+      closes: win?.open ? tzClock(win.closesAtIso, tz, now) : null,
     };
   });
+
+  const needsRows: TodayNeedsRowVM[] = escRecords.map((r) => ({
+    id: `th-${r.e.conversation_id}`,
+    conversationId: r.e.conversation_id,
+    escalationId: r.e.id,
+    who: r.who,
+    reason: ESCALATION_REASON_LABELS[r.e.reason] ?? r.e.reason,
+    waited: formatWaited(r.waitedMs),
+    warn: r.warn,
+    // The customer's words; for a call-back with none, the to-do the phone receptionist left.
+    quote: r.quote || (r.e.reason === "callback" ? say(r.e.details) : ""),
+    // A call-back is the phone's, whatever wire the thread's words travelled; the queue's row says "Phone" too.
+    meta: r.e.reason === "callback" ? (r.conv ? contactMeta(r.conv, "Phone") : "Phone") : r.conv ? contactMeta(r.conv, threadChannelWords(r.conv.messages)) : "WhatsApp",
+    windowNote: r.closes ? `Reply window closes ${r.closes}` : null,
+    to: `inbox/th-${r.e.conversation_id}`,
+  }));
 
   // Threads where the customer spoke last and the free-reply window is running
   // out. Rendered ONLY when at least one qualifies — an empty deadline board
@@ -497,20 +686,30 @@ export function toTodayVM(
       };
     });
 
-  const sinceMs = new Date(m.window.since).getTime();
-  const callsInWindow = callDtos.filter(
-    (c) => c.started_at && new Date(c.started_at).getTime() >= sinceMs,
-  );
-  const callMinutes = Math.round(p.call_seconds / 60);
+  // Who is waiting with nothing back: the customer wrote last an hour ago or more, nobody replied, the thread is
+  // not snoozed or archived, and no queue row is about it (an escalation's thread and a closing window's thread are
+  // the queue's; nothing on this page is said twice). The identity was in the conversations read all along and
+  // only the count survived into the view model.
+  const closingSet = new Set(closingConvs.map((c) => c.id));
+  const noReply: TodayNoReplyVM[] = conversations
+    .flatMap((c) => {
+      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "snoozed" || c.state === "archived") return [];
+      const last = c.messages[c.messages.length - 1];
+      if (!last || last.sender !== "customer") return [];
+      const sinceMs = new Date(last.created_at).getTime();
+      if (now.getTime() - sinceMs < NO_REPLY_AFTER_MS) return [];
+      return [{ conversationId: c.id, who: contactName(c), sinceMs, to: `inbox/th-${c.id}` }];
+    })
+    .sort((a, b) => a.sinceMs - b.sinceMs);
+
+  const proof = todayProof(live, tz, now);
+  const figures = figuresOf(p, live, conversations, callsInWindow, tz, now, sinceMs);
 
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
 
-  // The hero's stat strip is part of the design and always renders — a zero
-  // is a real measurement, and "—" is a real "not enough data yet". What
-  // never appears is a delta, a percentage, or a sparkline: a jump from 1
-  // message to 3 is not "+200%", and the mockup's own delta logic painted a
-  // FASTER reply time red.
+  // Ask's four facts. A zero is a real measurement, and "—" is a real "not enough data yet"; never a delta, a
+  // percentage or a sparkline: a jump from 1 message to 3 is not "+200%".
   const facts: TodayFactVM[] = [
     { label: "Messages in", value: String(p.messages_in) },
     { label: "Answered by the receptionist", value: `${p.answered_by_ai} of ${p.messages_in}` },
@@ -519,9 +718,7 @@ export function toTodayVM(
       : { label: "Typical reply time", value: secondsPhrase(p.median_reply_seconds_ai) },
     { label: "Calls", value: p.calls ? `${p.calls}${callMinutes ? ` · ${callMinutes} min` : ""}` : "0" },
   ];
-  const pulse = p.messages_in > 0 ? { num: p.answered_by_ai, den: p.messages_in } : null;
-  // The day's traffic as one sentence, for the line under the work. The hero said these numbers three times: a strip
-  // of stat cards, two of the sentences beneath it, and the arc's own ratio.
+  // The day's traffic as one sentence, for Ask; the page draws the figures instead.
   const trafficParts: string[] = [];
   if (p.messages_in > 0) {
     trafficParts.push(
@@ -539,35 +736,20 @@ export function toTodayVM(
 
   /* ---- the quiet day: prove we are listening, don't show a row of zeroes ---- */
   if (isQuiet) {
-    const lastIn = tzDayAndTime(live.last_inbound_at, tz, now);
-    const gap =
-      live.last_outbound_at && live.last_inbound_at &&
-      new Date(live.last_outbound_at) > new Date(live.last_inbound_at)
-        ? Math.round(
-            (new Date(live.last_outbound_at).getTime() - new Date(live.last_inbound_at).getTime()) / 1000,
-          )
-        : null;
     const names = andList(wires.map((w) => w.label));
-    const plural = wires.length > 1 ? "are" : "is";
+    const pluralVerb = wires.length > 1 ? "are" : "is";
     // A workspace with no wire yet is a new owner's first Today — it must not
     // read " is connected." with nothing in front of it, and it must not name
     // the only two wires this sentence used to know about.
     const sub = wires.length === 0
       ? "No line is connected yet, so nothing can come in."
-      : lastIn
-        ? `${names} ${plural} connected. The last message arrived ${lastIn}${
-            gap !== null && gap > 0 && gap < 3600
-              ? `, and the receptionist answered ${secondsPhrase(gap)} later.`
-              : "."
-          }`
-        : `${names} ${plural} connected. No messages have arrived yet.`;
+      : `${names} ${pluralVerb} connected. ${proof}`;
     return {
       standing: {
         eyebrow: `${datePart} · ${clock} · ${m.workspace.name}`,
         chips,
         lines,
         alert: null,
-        greeting,
         headline: "Nothing has come in yet today.",
         detail: null,
         tone: "calm",
@@ -575,12 +757,12 @@ export function toTodayVM(
       needsYou: null,
       windowClosing: null,
       recap: { label: "Today so far", line: "Nothing has come in yet today.", sentences: [], facts, receipts: [] },
-      pulse: null,
+      figures: null,
+      proof,
+      noReply,
       calls: null,
       callsRead,
       queue: { rows: [], more: 0, parts: [], empty: queueEmpty },
-      launchpad: [{ label: "Conversations", to: "conversations" }],
-      updatedAt: clock,
       quiet: {
         headline: "Nothing has come in yet today.",
         sub,
@@ -652,15 +834,9 @@ export function toTodayVM(
     }
   }
 
-  /* ---- recap: four facts, no deltas, no sparklines ----
-     A jump from 1 message yesterday to 3 today is not "+200%", and the
-     mockup's own delta logic painted a FASTER reply time red.
-
-     Sentences carry only what the HEADLINE does not already say. When nothing
-     needs you, the headline is "The receptionist handled everything — N
-     messages and M calls", so repeating those counts here would be the brief
-     reading its own first line back. When something DOES need you, the
-     headline is spent on that, and the narrative belongs here instead. */
+  /* ---- Ask's recap sentences: only what the HEADLINE does not already say. When nothing needs you, the headline
+     is "The receptionist handled everything — N messages and M calls", so repeating those counts here would be the
+     brief reading its own first line back. When something DOES need you, the headline is spent on that. ---- */
   const sentences: TodaySentenceVM[] = [];
   const headlineCoversTraffic = tone === "calm" && !alert;
   if (p.answered_by_ai && !headlineCoversTraffic) {
@@ -688,10 +864,9 @@ export function toTodayVM(
   if (p.messages_out_you) {
     sentences.push({ text: `You sent ${p.messages_out_you} repl${p.messages_out_you === 1 ? "y" : "ies"} yourself.` });
   }
-  // A reply that never reached the customer is the one recap line that must
-  // never be quiet — the send already escalated, but the brief saying
-  // "handled everything" while a message died in transit would be a lie of
-  // omission.
+  // A reply that never reached the customer is the one line that must never be
+  // quiet — the send already escalated, but a card saying "handled everything"
+  // while a message died in transit would be a lie of omission.
   if (p.send_failures) {
     // The thread of the newest reply that failed, when the conversations read holds it: "See the thread"
     // opened the Inbox list, where the owner had to go looking.
@@ -791,49 +966,34 @@ export function toTodayVM(
   /* ---- the queue: everything that asks for a person, in one row grammar.
      The longest wait first; a closing window by how soon it closes; a call
      worth an ear last. Six on Today, the rest a count for the Inbox link. ---- */
-  const callByConv = new Map<string, CallDto>();
-  for (const c of callDtos) {
-    if (!c.conversation_id) continue;
-    const prev = callByConv.get(c.conversation_id);
-    if (!prev || String(c.started_at ?? "") > String(prev.started_at ?? "")) callByConv.set(c.conversation_id, c);
-  }
-  const say = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : "");
   const queueAll: TodayQueueRowVM[] = [];
-  for (const e of openEsc) {
-    const conv = byConv.get(e.conversation_id);
-    const waitedMs = now.getTime() - new Date(e.created_at).getTime();
-    const since = tzSince(e.created_at, tz, now) ?? "";
-    const warn = waitedMs > 30 * 60000;
+  for (const r of escRecords) {
+    const e = r.e;
     if (e.reason === "callback") {
       // The phone receptionist could not finish it: the to-do it left is the
       // sentence, the call itself is where the verb goes, Done resolves it.
-      const call = callByConv.get(e.conversation_id) ?? null;
-      const who = conv ? contactName(conv) : call ? toCallVM(call, tz, now).who : "Unknown caller";
       queueAll.push({
-        id: `q-${e.id}`, kind: "callback", who, initials: initialsOf(who), channel: "Phone",
-        when: `waited ${formatWaited(waitedMs)}`,
+        id: `q-${e.id}`, kind: "callback", conversationId: e.conversation_id, callId: r.call ? r.call.id : null,
+        who: r.who, initials: initialsOf(r.who), channel: "Phone",
+        when: `waited ${formatWaited(r.waitedMs)}`,
         sentence: say(e.details) || "The caller needs a call back.", quoted: false,
-        status: ["Needs a call back", `since ${since}`], tone: "escalated", warn,
-        cta: { label: "Open the call", to: call ? `conversations/cv-${call.id}` : `inbox/th-${e.conversation_id}` },
+        status: ["Needs a call back", `since ${r.since}`], tone: "escalated", warn: r.warn,
+        cta: { label: "Open the call", to: r.call ? `conversations/cv-${r.call.id}` : `inbox/th-${e.conversation_id}` },
         also: { label: "Done", verb: "resolve", conversationId: e.conversation_id, escalationId: e.id },
-        waitedMs,
+        waitedMs: r.waitedMs,
       });
       continue;
     }
-    const lastCustomer = conv ? [...conv.messages].reverse().find((x) => x.sender === "customer") : undefined;
-    const quote = lastCustomer ? clipAtWord(messageText(lastCustomer), QUOTE_MAX) : "";
-    const who = conv ? contactName(conv) : "Unknown";
-    const win = conv ? waWindow(conv.last_wa_inbound_at, now) : null;
-    const closes = win?.open ? tzClock(win.closesAtIso, tz, now) : null;
     queueAll.push({
-      id: `q-${e.id}`, kind: "handoff", who, initials: initialsOf(who), channel: conv ? threadChannelWords(conv.messages) : "WhatsApp",
-      when: `waited ${formatWaited(waitedMs)}`,
-      sentence: quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!quote,
-      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${since}`, ...(closes ? [`reply window closes ${closes}`] : [])],
-      tone: "escalated", warn,
+      id: `q-${e.id}`, kind: "handoff", conversationId: e.conversation_id, callId: null,
+      who: r.who, initials: initialsOf(r.who), channel: r.conv ? threadChannelWords(r.conv.messages) : "WhatsApp",
+      when: `waited ${formatWaited(r.waitedMs)}`,
+      sentence: r.quote || (ESCALATION_REASON_LABELS[e.reason] ?? e.reason), quoted: !!r.quote,
+      status: ["Escalated", reasonShort(e.reason) || e.reason, `since ${r.since}`, ...(r.closes ? [`reply window closes ${r.closes}`] : [])],
+      tone: "escalated", warn: r.warn,
       cta: { label: "Open and reply", to: `inbox/th-${e.conversation_id}` },
       also: { label: "Snooze", verb: "snooze", conversationId: e.conversation_id, escalationId: e.id },
-      waitedMs,
+      waitedMs: r.waitedMs,
     });
   }
   for (const c of closingConvs) {
@@ -846,7 +1006,7 @@ export function toTodayVM(
       // email: the row is about WhatsApp's window (waWindow on the thread's
       // last WhatsApp inbound), which is the one wire that has one. The
       // handoff row above names the wire the reply would go out on instead.
-      id: `q-w-${c.id}`, kind: "window", who, initials: initialsOf(who), channel: "WhatsApp",
+      id: `q-w-${c.id}`, kind: "window", conversationId: c.id, callId: null, who, initials: initialsOf(who), channel: "WhatsApp",
       when: `closes ${tzClock(w.closesAtIso, tz, now) ?? "soon"} · in ${formatWaited(leftMs)}`,
       sentence: last ? clipAtWord(messageText(last), QUOTE_MAX) : "They wrote last, and the free reply window is closing.", quoted: !!last,
       status: ["Reply window closing", "they wrote last"], tone: "warn", warn: leftMs < 2 * 3600000,
@@ -860,7 +1020,7 @@ export function toTodayVM(
     const c = callsInWindow.find((k) => k.id === r.id);
     const wanted = say(c?.wanted);
     queueAll.push({
-      id: `q-c-${r.id}`, kind: "call", who: r.who, initials: initialsOf(r.who), channel: "Phone",
+      id: `q-c-${r.id}`, kind: "call", conversationId: c?.conversation_id ?? null, callId: r.id, who: r.who, initials: initialsOf(r.who), channel: "Phone",
       when: `${r.at}${r.duration ? ` · ${r.duration}` : ""}`,
       sentence: wanted || r.note, quoted: false,
       status: [wanted ? r.note : "Worth a listen"], tone: "warn", warn: false,
@@ -886,7 +1046,6 @@ export function toTodayVM(
       chips,
       lines,
       alert,
-      greeting,
       headline,
       detail,
       tone,
@@ -909,7 +1068,9 @@ export function toTodayVM(
         }
       : null,
     recap: { label: "Today so far", line: trafficLine, sentences, facts, receipts },
-    pulse,
+    figures,
+    proof,
+    noReply,
     callsRead,
     calls: p.calls
       ? {
@@ -919,13 +1080,7 @@ export function toTodayVM(
           rows: callRows,
         }
       : null,
-    launchpad: [
-      { label: `Inbox — ${needsYouCount} need you`, to: "inbox" },
-      { label: "Conversations", to: "conversations" },
-      ...(p.calls ? [{ label: `Calls — ${p.calls} today`, to: "conversations/phone" }] : []),
-    ],
     queue,
-    updatedAt: clock,
     quiet: null,
   };
 }
