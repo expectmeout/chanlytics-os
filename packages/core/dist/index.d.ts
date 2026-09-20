@@ -1,6 +1,6 @@
 import { SupabaseClient } from '@supabase/supabase-js';
-import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig } from '@chanlytics/channels';
-import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass } from '@chanlytics/contracts';
+import { EmailRequest, SendResult, ResendConfig, EmailSendsAs, WaConfig, ApifyClient, LeadJudge } from '@chanlytics/channels';
+import { SendPurpose, DecisionSubject, DecisionVerb, JobNews, ParamSpec, Audience, PersonRowVM, NumberHealth, PersonVisitsDto, PlaybookTrigger, PlaybookPolicyClass, LeadRoundState, LeadEmailState, JudgePlaceAnswer, LeadMemberClass, LeadFit, LeadRunState, LeadRoundEnding, LeadRoundPurpose, LeadSearchPlan, PlaceFacts, LeadContactStandard, ProbeMember } from '@chanlytics/contracts';
 import { Json, Database } from '@chanlytics/db';
 
 /**
@@ -1169,4 +1169,696 @@ interface PlaybookInput {
  */
 declare function checkPlaybook(ports: TemplateValuesPorts, body: Record<string, unknown> | null): Promise<PlaybookInput>;
 
-export { type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, type IncomingEmail, MAX_SNOOZE_MS, NEEDS_UNTIL, type NewBroadcast, type NewRecipient, PERSON_CONTROL_MAX_S, type PlaybookInput, type PlaybookRow, type ProvisionLinePorts, type QueuedReply, type RecipientMark, type RecipientRow, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type Thread, type ThreadPorts, type WakePorts, type Wire, type WirePayload, approveRun, archive, assembleRun, cancelBroadcast, cancelSend, checkPlaybook, createBroadcast, deliver, deliverSafely, emailSender, eraseBlobThread, handBack, ingestEmail, provisionLine, replyToConversation, resolveEscalation, runPlaybook, sendBroadcastBatch, sendQueued, snooze, takeOver, templatePurpose, templateValues, wake, whatsappSender };
+/**
+ * The lead finder's view of the world (PRD §12.5): what the runner needs,
+ * named for what each means. The database half is one method per service
+ * RPC of migration 00140 plus a few reads (apps/edge/lib/lead-db.ts, service
+ * role); the provider and the judge are the channels package's clients, bound
+ * by the edge where the keys are (apps/edge/lib/lead-wires.ts). Every verb
+ * here runs over fakes in a test: no network, no database.
+ */
+
+/** The question after the probe, as lead_rounds.question keeps it (PRD §7.2, P4): contracts' LeadQuestion with when it was asked. */
+interface RoundQuestion {
+    sentence: string;
+    criterionKey: string;
+    dropTerm: string | null;
+    asked_at: string;
+}
+interface LeadRoundRow {
+    id: string;
+    tenant_id: string;
+    search_id: string;
+    seq: number;
+    purpose: LeadRoundPurpose;
+    plan: LeadSearchPlan;
+    plan_version: number;
+    target: number;
+    state: LeadRoundState;
+    ending: LeadRoundEnding | null;
+    /** The ending the collect left for lead_check_commit to apply on the last batch. */
+    ending_pending: LeadRoundEnding | null;
+    question: RoundQuestion | null;
+    answered: "keep" | "include" | "stop" | null;
+    waiting_since: string | null;
+    allowance_reserved: number;
+    allowance_used: number;
+    cost_reserved_usd: number;
+    cost_usd: number;
+    judge_tokens: number;
+    /** The counter rows this round reserved in: the workspace's month and day, and the platform's day in UTC. */
+    month: string;
+    day: string;
+    platform_day: string;
+}
+interface LeadRunRow {
+    id: string;
+    tenant_id: string;
+    round_id: string;
+    purpose: "discover" | "check";
+    term: string | null;
+    actor: string;
+    build: string;
+    apify_run_id: string | null;
+    dataset_id: string | null;
+    state: LeadRunState;
+    claimed_by: string | null;
+    claimed_at: string | null;
+    lease_owner: string | null;
+    lease_gen: number;
+    lease_until: string | null;
+    read_offset: number;
+    items_seen: number;
+    cap_usd: number | null;
+    usage_usd: number;
+    created_at: string;
+    finished_at: string | null;
+}
+/** A member of the round with the facts of its lead the runner reads back (the probe's yield, the center, the emails to check). */
+interface LeadMemberRow {
+    lead_id: string;
+    class: LeadMemberClass;
+    excluded_by: string | null;
+    fit: LeadFit | null;
+    reason: string | null;
+    distance_m: number | null;
+    counted: boolean;
+    judgment: unknown;
+    lat: number | null;
+    lng: number | null;
+    /** What the contact standard reads: the phone kept, and the address picked for the mailbox check. */
+    phone: string | null;
+    email: string | null;
+    email_state: LeadEmailState;
+    /** The term of the run that found it, from the judgment. */
+    term: string | null;
+}
+/** The columns of `leads` the runner writes (PRD §12.4, Appendix B). */
+interface LeadColumns {
+    place_id: string;
+    business_name: string;
+    category: string | null;
+    street: string | null;
+    city: string | null;
+    region: string | null;
+    postal_code: string | null;
+    country: string;
+    lat: number | null;
+    lng: number | null;
+    website_host: string | null;
+    instagram_url: string | null;
+    phone_e164: string | null;
+    phone_sources: number;
+    email: string | null;
+    email_alternates: {
+        email: string;
+        why: string;
+    }[];
+    email_state: LeadEmailState;
+    rating: number | null;
+    reviews: number | null;
+}
+/** A shared detail, looked up and marked, never merged on (decision 25): with a lead, a person, or a place found in the same batch. */
+interface LeadShare {
+    kind: "phone" | "email" | "host";
+    lead_id?: string;
+    contact_id?: string;
+    place_id?: string;
+}
+/**
+ * What a member's judgment jsonb holds: the judge's answer for this place, the
+ * operation that paid for it, the term that found it, and the reason tokens
+ * code decided the class from (contracts' LeadClassification.reasons, which
+ * lead_check_commit reads to find "the email was the only reason").
+ */
+interface MemberJudgment {
+    op_id: string | null;
+    term: string;
+    answer: JudgePlaceAnswer | null;
+    model: string | null;
+    reasons: string[];
+}
+interface CollectPlace {
+    place: LeadColumns;
+    member: {
+        judgment: MemberJudgment;
+        class: LeadMemberClass;
+        excluded_by: string | null;
+        fit: LeadFit | null;
+        reason: string;
+        distance_m: number | null;
+    };
+    duplicate_of_place_id: string | null;
+    shares: LeadShare[];
+}
+interface CollectJudgment {
+    op_id: string;
+    batch: number;
+    request_hash: string;
+    answer: unknown;
+    model: string;
+    tokens: number;
+}
+/**
+ * One page, as lead_collect_commit takes it: everything a commit writes, in
+ * one call (E4). `round.ending` ends the round inline; `round.ending_pending`
+ * leaves the ending for lead_check_commit's last batch; `round.target` raises
+ * the round's target once the probe passed.
+ */
+interface CollectPage {
+    judgment: CollectJudgment | null;
+    places: CollectPlace[];
+    /** The run's usage as the provider reports it now; the commit settles the difference from the row. */
+    usage_usd: number;
+    items_seen: number;
+    run_state: LeadRunState | null;
+    next: {
+        kind: "lead_collect";
+        seq: string;
+        run_after_seconds: number;
+    } | null;
+    round: {
+        state: LeadRoundState | null;
+        question: RoundQuestion | null;
+        ending: LeadRoundEnding | null;
+        ending_pending?: LeadRoundEnding;
+        target?: number;
+    } | null;
+}
+type CollectCommitResult = {
+    ok: true;
+    counted: number;
+    qualified: number;
+    review: number;
+    excluded: number;
+    round_state: LeadRoundState;
+} | {
+    ok: false;
+    why: "lease" | "offset" | "run" | "ended";
+};
+interface LeadDb {
+    runClaim(runId: string, owner: string): Promise<boolean>;
+    runRecordStart(runId: string, owner: string, apifyRunId: string, datasetId: string, capUsd: number): Promise<boolean>;
+    runMarkUnknown(runId: string, owner: string): Promise<boolean>;
+    runReconcile(runId: string, apifyRunId: string | null, datasetId: string | null, state: LeadRunState): Promise<boolean>;
+    /** Takes or renews the lease; the generation, or null when another holds it. */
+    runLease(runId: string, owner: string, seconds: number): Promise<number | null>;
+    runRelease(runId: string, owner: string, gen: number): Promise<boolean>;
+    collectCommit(runId: string, owner: string, gen: number, fromOffset: number, toOffset: number, page: CollectPage): Promise<CollectCommitResult>;
+    /** usageUsd is the CHECK RUN's total so far, never this batch's delta: only what is new settles, so a job tried again charges once. */
+    checkCommit(roundId: string, runId: string | null, results: {
+        lead_id: string;
+        email_state: LeadEmailState;
+        checked_at: string;
+    }[], usageUsd: number, last: boolean): Promise<{
+        ok: boolean;
+    }>;
+    roundEnd(roundId: string, ending: LeadRoundEnding): Promise<boolean>;
+    /** Insert the run rows that are not there yet, by their deterministic ids, and answer every row of the round. */
+    runsEnsure(rows: {
+        id: string;
+        tenant_id: string;
+        round_id: string;
+        purpose: "discover" | "check";
+        term: string | null;
+        actor: string;
+        build: string;
+        webhook_token_hash: string;
+        cap_usd: number;
+    }[]): Promise<LeadRunRow[]>;
+    round(id: string): Promise<LeadRoundRow | null>;
+    run(id: string): Promise<LeadRunRow | null>;
+    runsOfRound(roundId: string): Promise<LeadRunRow[]>;
+    membersOfRound(roundId: string): Promise<LeadMemberRow[]>;
+    /** place id -> lead id, for the place ids this workspace already holds (leads and folded listings). */
+    placeIdsHeld(tenantId: string, placeIds: string[]): Promise<Map<string, string>>;
+    sharesOf(tenantId: string, keys: {
+        phones: string[];
+        emails: string[];
+        hosts: string[];
+    }): Promise<{
+        key: string;
+        share: LeadShare;
+    }[]>;
+    suppressed(tenantId: string, keys: {
+        emails: string[];
+        placeIds: string[];
+    }): Promise<{
+        emails: Set<string>;
+        placeIds: Set<string>;
+    }>;
+    zoneOf(tenantId: string): Promise<string>;
+    leadSearchesOn(tenantId: string): Promise<boolean>;
+}
+interface LeadPorts {
+    db: LeadDb;
+    apify: ApifyClient;
+    judge: LeadJudge;
+    now(): Date;
+    /** The edge's own origin, where the provider's webhook lands. */
+    webhookBase: string;
+    /** A run row's webhook token, derived from its id by the edge: made once (its sha256 on the row), never rewritten, rebuilt by any later job of ours. */
+    webhookToken(runRowId: string): Promise<string>;
+    /** scheduleJobOnce for this workspace: a second row for the same key is an answer, not an error. */
+    schedule(kind: "lead_round_start" | "lead_collect" | "lead_check", payload: Record<string, unknown>, runAfterSeconds: number): Promise<void>;
+    /** Epoch ms: no provider or model call is started after this. */
+    deadline: number;
+}
+/** The token that identifies a claim or a lease: the job's own id, so a retried job finds its own claim. */
+type Owner = string;
+
+/**
+ * The half of a source card the code holds (PRD §0.3, decision 23): the
+ * actors with their pinned builds, the input builder from the validated plan
+ * (never from Claude's words), the output mapper from an item to a lead
+ * (Appendix B), and the checker beside it. The half Claude reads is
+ * contracts' LEAD_CARDS.
+ *
+ * The Maps input asks for exactly what a lead needs: contacts from the
+ * business's own site, no reviewer data, no images, no detail pages. A ZIP or
+ * radius ask is a circle around its center; a city ask is the actor's own
+ * location query (decision 31). Every field read from an item is in
+ * MAPS_FIELDS, including `location` (E7); an item without a name does not
+ * read, and its offset still counts.
+ */
+
+/** The Maps item fields a lead is built from. Nothing else is asked for. */
+declare const MAPS_FIELDS: readonly ["title", "categoryName", "neighborhood", "street", "city", "state", "postalCode", "countryCode", "phoneUnformatted", "phone", "phones", "website", "domain", "emails", "instagrams", "placeId", "totalScore", "reviewsCount", "permanentlyClosed", "temporarilyClosed", "location"];
+declare const CHECKER_FIELDS: readonly ["email", "status", "is_catch_all"];
+/** This actor refuses a cap under $0.50 (PRD §10.1). */
+declare const MAPS_CAP_FLOOR_USD = 0.5;
+/** A run may hold the provider this long before the sweep aborts it (PRD §12.5). */
+declare const MAPS_RUN_TIMEOUT_SECS: number;
+declare const CHECKER_RUN_TIMEOUT_SECS: number;
+interface MapsPlace {
+    placeId: string;
+    title: string;
+    category: string | null;
+    neighborhood: string | null;
+    street: string | null;
+    city: string | null;
+    state: string | null;
+    postalCode: string | null;
+    countryCode: string | null;
+    phoneRaw: string | null;
+    sitePhones: string[];
+    website: string | null;
+    emails: string[];
+    instagram: string | null;
+    rating: number | null;
+    reviews: number | null;
+    closed: boolean;
+    location: {
+        lat: number;
+        lng: number;
+    } | null;
+}
+interface LeadCardRunner {
+    actor: string;
+    build: string;
+    buildInput(plan: LeadSearchPlan, term: string, places: number): unknown;
+    mapItem(item: unknown): MapsPlace | null;
+    fields: readonly string[];
+    checker: {
+        actor: string;
+        build: string;
+        buildInput(emails: string[]): unknown;
+        mapItem(item: unknown): {
+            email: string;
+            state: Exclude<LeadEmailState, "none" | "checking">;
+        } | null;
+        fields: readonly string[];
+    };
+}
+/** The circle a ZIP or radius ask searches: the plan's center, else the ZIP table's. Null for a city ask. */
+declare function areaCenter(plan: LeadSearchPlan): {
+    lat: number;
+    lng: number;
+} | null;
+declare const CARDS: Record<"local_businesses", LeadCardRunner>;
+
+interface CleanPlace {
+    raw: MapsPlace;
+    phone: string | null;
+    /** 0 none, 1 the listing, 2 the listing's number is on their site too. */
+    phoneSources: 0 | 1 | 2;
+    host: string | null;
+    region: string | null;
+    emails: string[];
+    dropped: {
+        email: string;
+        why: string;
+    }[];
+}
+declare function cleanPlace(raw: MapsPlace): CleanPlace;
+
+/** A personal inbox at a free-mail domain (contracts' one list): never an identity. */
+declare function isFreeMail(email: string): boolean;
+/** Same name, same street and same phone: one place listed twice. The later listing folds into the first. */
+declare function foldDuplicates(places: CleanPlace[]): {
+    kept: CleanPlace[];
+    folded: Map<string, string>;
+};
+/** The details a place could share with a lead or a person: its phone, its own-domain emails, its host. */
+declare function shareKeysOf(p: CleanPlace): {
+    phones: string[];
+    emails: string[];
+    hosts: string[];
+};
+/**
+ * The details places in ONE batch share with each other: the second place with
+ * a number is marked as sharing it with the first, by place id, since neither
+ * is a lead yet when the workspace is asked (sharesOf finds the ones that are).
+ */
+declare function sharesWithin(places: CleanPlace[]): Map<string, LeadShare[]>;
+type Identity = {
+    kind: "already_yours";
+    leadId: string;
+} | {
+    kind: "hidden";
+} | {
+    kind: "new";
+    shares: LeadShare[];
+};
+/**
+ * What the workspace already knows of this place. Held by its place id: already
+ * yours, skipped. Suppressed by its place id: hidden. Otherwise new, with the
+ * shared details marked from what was looked up.
+ */
+declare function identityOf(p: CleanPlace, held: Map<string, string>, suppressedPlaceIds: Set<string>, shares: {
+    key: string;
+    share: LeadShare;
+}[]): Identity;
+
+interface LatLng {
+    lat: number;
+    lng: number;
+}
+declare function haversineM(a: LatLng, b: LatLng): number;
+/** The ZCTA's internal point, or null for a ZIP the table does not have (a PO-box-only ZIP, a typo). */
+declare function zctaCenter(zip: string): LatLng | null;
+/** The median of the points, coordinate by coordinate: robust to one listing geocoded on the wrong coast. */
+declare function medianCenter(points: LatLng[]): LatLng | null;
+declare const RADIUS_MIN_M = 5000;
+declare const RADIUS_MAX_M = 60000;
+/** A radius from the spread: twice the distance within which three quarters of the probe's places fall, clamped. */
+declare function radiusFromSpread(center: LatLng, points: LatLng[]): number;
+/** Inside the circle; a place with no location is never inside (PRD §0.1: Needs review). */
+declare function inArea(center: LatLng | null, radiusM: number, point: LatLng | null): boolean;
+
+/**
+ * The identities the runner makes for itself, over Web Crypto so this package
+ * knows no runtime: a run row's id is derived from what it is (the round, the
+ * phase, the term), so two starters of one round make the same row and the
+ * second insert meets the first (E1: the row is made once, then claimed once).
+ */
+declare function sha256Hex(s: string): Promise<string>;
+/** A uuid, version 5-shaped, from the SHA-1 of its parts: stable across invocations, unique across rounds. */
+declare function runIdFor(roundId: string, phase: "probe" | "main" | "check", term: string): Promise<string>;
+
+/**
+ * The judge, as the runner uses it (PRD §7.1, E4): one structured call per
+ * batch of at most 25 places, the facts capped and quoted, the answer kept by
+ * operation id so a replayed page pays nothing twice. A refusal is asked once
+ * more; refused twice, the batch is Needs review with the reason "the judge
+ * could not read these". A 429, a 5xx or no answer throws, and the ledger's
+ * waits retry the job.
+ */
+
+declare const JUDGE_REFUSED_REASON = "the judge could not read these";
+declare const FACT_MAX = 120;
+/**
+ * How long one judge call may take, said once here: apps/edge/lib/lead-wires.ts
+ * binds it on the client (with no retry of the SDK's own, so this is the real
+ * bound), and the runner's JUDGE_MARGIN_MS covers it, so a call is never
+ * started with less time left than it may take.
+ */
+declare const JUDGE_TIMEOUT_MS = 40000;
+/** A fact as the judge sees it: one line, no control characters, at most 120 characters. */
+declare function fact(v: string | null): string | null;
+/** Listing facts only, never a page's words (PRD §7.1). */
+declare function factsOf(ref: number, p: CleanPlace): PlaceFacts;
+interface JudgedBatch {
+    answers: Map<number, JudgePlaceAnswer>;
+    judgment: CollectJudgment | null;
+    model: string | null;
+    refused: boolean;
+    /** Why the judge refused, in its own word ("max_tokens", "stop"): the members say the plan's sentence, and this is what the collect's line logs. */
+    why: string | null;
+}
+declare function opIdFor(runId: string, fromOffset: number, batch: number): string;
+/** One batch, asked once and once more; a throw is the provider's trouble and propagates. */
+declare function judgeBatch(judge: LeadJudge, plan: LeadSearchPlan, places: PlaceFacts[], opId: string): Promise<JudgedBatch>;
+
+/**
+ * How much a round asks the provider for, and what each run may charge (PRD
+ * §0.5 "size from yield", S6, §13.3). contracts' placesToAsk sizes the ask
+ * and estimateRoundUsd prices it with room; this turns them into one cap per
+ * run: the term's estimate, scaled down when the sum would pass what the
+ * round still has reserved, never under the actor's floor.
+ */
+
+/** The probe: LEAD_PROBE_PLACES spread across every term (E10). */
+declare function probeAsk(plan: LeadSearchPlan): {
+    terms: string[];
+    perTerm: number[];
+};
+/** The main phase: the remainder over the probe's yield, without the term the question dropped. */
+declare function mainAsk(plan: LeadSearchPlan, remaining: number, yieldSoFar: number, dropTerm: string | null): {
+    terms: string[];
+    perTerm: number[];
+};
+/** A share of what was judged, floored so one bad probe never asks for everything. */
+declare function yieldOf(judged: number, usable: number): number;
+/** What the contact standard needs on a place: a phone, or a candidate email the cleaner kept. */
+declare function hasContact(contact: LeadContactStandard, place: {
+    phone: string | null;
+    email: string | null;
+}): boolean;
+/**
+ * The probe's yield, the one number that sizes the main round (S6, A1's
+ * review): the share of the probe's places that are NOT left out and hold
+ * what the contact standard needs. Never the Qualified share -- under an
+ * email standard that is zero until the mailbox checks land, and a round
+ * sized from zero asks the provider for everything it is allowed to.
+ */
+declare function probeYield(contact: LeadContactStandard, members: {
+    class: LeadMemberClass;
+    phone: string | null;
+    email: string | null;
+}[]): number;
+/**
+ * One cap per run: the estimate for its places (with the estimate's own
+ * room); when the sum would pass what the round still has reserved, every
+ * cap is scaled to fit. The actor refuses a cap under $0.50, so none goes
+ * under it.
+ */
+declare function runCaps(plan: LeadSearchPlan, perTerm: number[], reservedLeftUsd: number): number[];
+
+/**
+ * After the probe (PRD §7.2, §0.5, P4): an intent check, from the most common
+ * exclusion, when fewer than 60% of the first places pass; else the main
+ * phase, sized from the probe's yield. contracts' questionAfterProbe holds
+ * the words and the threshold; this holds what the runner does with its
+ * answer.
+ */
+
+/** A probe member as this reads it: contracts' own shape, with what the contact standard would need. */
+type ProbeYieldMember = ProbeMember & {
+    phone: string | null;
+    email: string | null;
+};
+type AfterProbe = {
+    kind: "ask";
+    question: RoundQuestion;
+} | {
+    kind: "go";
+    yield: number;
+};
+declare function afterProbe(plan: LeadSearchPlan, members: ProbeYieldMember[], now: Date): AfterProbe;
+
+/**
+ * How a round ends (PRD §0.5, S7): one closed set, decided by contracts'
+ * endingOfRound from facts the runner gathers here. "Searched everything"
+ * only when every term returned fewer places than it was asked for; a run
+ * that returned what it was asked for ended at its limit, and the round says
+ * "few new matches" so the next step is another round in the same area.
+ */
+
+declare const FINAL_RUN_STATES: ReadonlySet<string>;
+/** The provider's status as the row's state; anything else is still running. */
+declare function runStateOf(status: string): "running" | "succeeded" | "failed" | "aborted" | "timed_out";
+/** A term is short when its run saw fewer places than it asked for. Unknown asks read as not short. */
+declare function termsShortOf(runs: LeadRunRow[], askedOf: (run: LeadRunRow) => number | null): boolean[];
+declare function discoveryEnding(round: LeadRoundRow, runs: LeadRunRow[], x: {
+    counted: number;
+    target: number;
+    termsShort: boolean[];
+    stopped: boolean;
+}): LeadRoundEnding;
+
+/**
+ * The runner (PRD §0.5, §12.5): the three jobs of the lead finder and the
+ * sweep's reconciliation, over ports.
+ *
+ *   startRound   lead_round_start  a run row per term, made by its deterministic
+ *                                  id, claimed, and only then started at the
+ *                                  provider; a lost answer stays unknown
+ *   collect      lead_collect      one batch of a run's items per commit: clean,
+ *                                  identity, judge, classify, distance, commit
+ *   check        lead_check        one checker run per batch of addresses
+ *   reconcileUnknownRuns           the provider's own list, by our run row id
+ *
+ * The rules the verbs keep: a claim before any provider call (E1); a lease
+ * with an owner and a generation, and one commit per batch that inserts,
+ * settles, advances the offset by compare-and-set and inserts the next job
+ * (E3, E4); the judge's answer kept by operation id; code deciding the class
+ * (§0.1); the deadline checked before every provider or model call, and the
+ * offset committed before yielding. A provider's 429 or 5xx throws for the
+ * ledger's waits; a refusal is an answer.
+ *
+ * The webhook token of a run row is derived from the row's id by the edge
+ * (ports.webhookToken), so a job tried again can rebuild the URL its earlier
+ * try sent without the row's stored hash ever being rewritten (E1).
+ */
+
+declare const LEASE_SECONDS = 90;
+declare const FIRST_COLLECT_SECONDS = 20;
+declare const POLL_SECONDS = 15;
+declare const PAGE_ITEMS = 100;
+declare const CHECK_BATCH = 500;
+/** No provider call starts with less than this left before the function is killed. */
+declare const DEADLINE_MARGIN_MS = 8000;
+/**
+ * The judge's own margin: it may take its whole timeout to answer, so it is
+ * never started with less than that left. A margin shorter than the call it
+ * guards buys nothing -- the function is killed mid-call, the page is never
+ * committed, and the batch is paid for twice when the job is tried again.
+ */
+declare const JUDGE_MARGIN_MS = 40000;
+/** An unknown start with no run at the provider after this long is failed. */
+declare const UNKNOWN_START_GRACE_MS: number;
+/** The key our runs carry in their input, so the sweep can tell ours from anyone else's. */
+declare const INPUT_MARKER = "chanlyticsRunId";
+/**
+ * How far into the provider's own list a lost start is looked for: the list
+ * answers a hundred runs since a time (channels apify.ts), and ours can be
+ * anywhere in it -- a round starting three terms, or another search on the
+ * same account, pushes it down. The list carries no input, so there is no
+ * cheaper way than reading each run's input key until ours is found; stopping
+ * at twenty failed a run the provider was still charging for.
+ */
+declare const PROVIDER_RUN_PAGE = 100;
+declare const OUT_OF_AREA_REASON = "outside the area you asked for";
+declare const NO_LOCATION_REASON = "no location on the listing";
+declare const CLOSED_REASON = "closed on Google Maps";
+declare const DUPLICATE_REASON = "the same place, listed twice";
+type Phase = "probe" | "main";
+/** A condition worth trying again that is not the provider's: the ledger's waits take it. */
+declare class LeadRetry extends Error {
+    constructor(message: string);
+}
+/** Round 1 runs to the plan's count (its probe asks for 25 of it); a later round to what lead_search_more set as its target. */
+declare const targetOf: (round: LeadRoundRow) => number;
+type TermOutcome = "started" | "reconciled" | "refused" | "unknown" | "someone_elses" | "already";
+type StartOutcome = {
+    kind: "not_open";
+} | {
+    kind: "paused";
+} | {
+    kind: "spent";
+} | {
+    kind: "started";
+    phase: Phase;
+    runs: {
+        term: string;
+        kind: TermOutcome;
+    }[];
+};
+declare function startRound(p: LeadPorts, roundId: string, owner: string, resume?: boolean): Promise<StartOutcome>;
+type CollectOutcome = {
+    kind: "gone";
+} | {
+    kind: "not_started";
+} | {
+    kind: "round_ended";
+} | {
+    kind: "round_closing";
+} | {
+    kind: "busy";
+} | {
+    kind: "lost";
+    why: Exclude<CollectCommitResult, {
+        ok: true;
+    }>["why"];
+} | {
+    kind: "committed";
+    commits: number;
+    toOffset: number;
+    runState: LeadRunState | null;
+    roundState: LeadRoundState | null;
+    judgeRefused: string | null;
+} | {
+    kind: "checked";
+    results: number;
+    last: boolean;
+} | {
+    kind: "stopped";
+} | {
+    kind: "polling";
+};
+interface Prepared {
+    index: number;
+    clean: CleanPlace;
+    /** Left out or held by rule before any judging; null means the judge decides. `token` is the reason as contracts spells it. */
+    rule: null | {
+        class: "excluded" | "review";
+        reason: string;
+        token: string;
+        excluded_by: string | null;
+    };
+}
+/** Where a round's places are measured from: the plan's center, or for a city ask the median of the probe's places (E7, decision 31). */
+declare function centerOf(plan: LeadSearchPlan, members: LeadMemberRow[]): {
+    center: LatLng | null;
+    radiusM: number;
+};
+/** One place as the commit takes it: the lead's columns, the member's class decided by code (§0.1), its shares. */
+declare function memberOf(plan: LeadSearchPlan, term: string, c: CleanPlace, a: JudgePlaceAnswer | null, opId: string | null, model: string | null, rule: Prepared["rule"], geo: {
+    center: LatLng | null;
+    radiusM: number;
+}, shares: LeadShare[], duplicateOf: string | null): CollectPlace;
+/** The next batch of items from `cursor`: at most LEAD_JUDGE_BATCH places the judge must see, with the items around them. */
+declare function takeBatch(card: LeadCardRunner, items: unknown[], cursor: number): {
+    end: number;
+    prepared: Prepared[];
+};
+declare function collect(p: LeadPorts, runId: string, seq: string, owner: string): Promise<CollectOutcome>;
+type CheckOutcome = {
+    kind: "not_open";
+} | {
+    kind: "paused";
+} | {
+    kind: "nothing_to_check";
+} | {
+    kind: "started";
+    emails: number;
+    more: boolean;
+} | {
+    kind: "already";
+} | {
+    kind: "unknown";
+} | {
+    kind: "refused";
+};
+/** The members whose picked address still waits for its check, in one fixed order. */
+declare function checkable(members: LeadMemberRow[]): LeadMemberRow[];
+declare function check(p: LeadPorts, roundId: string, batch: number, owner: string): Promise<CheckOutcome>;
+type ReconcileOutcome = {
+    runId: string;
+    kind: "reconciled" | "failed" | "waiting";
+};
+/** An unknown start is reconciled against the provider's own list; ours carry the run row id in their input (PRD §0.5, E1). */
+declare function reconcileUnknownRuns(p: LeadPorts, unknownRuns: LeadRunRow[]): Promise<ReconcileOutcome[]>;
+
+export { type AfterProbe, type ApproveReceipt, type ApproveRunPorts, type ArchivePorts, type AssembleCommand, type AssemblePorts, type Assembled, BROADCAST_STALL_RETRY_MS, type BroadcastBatchCommand, type BroadcastBatchPorts, type BroadcastReceipt, type BroadcastRef, type BroadcastRow, CARDS, CHECKER_FIELDS, CHECKER_RUN_TIMEOUT_SECS, CHECK_BATCH, CLOSED_REASON, type CancelBroadcastPorts, type CancelReceipt, type CancelSendPorts, type Channel, type CheckOutcome, type CleanPlace, type CollectCommitResult, type CollectJudgment, type CollectOutcome, type CollectPage, type CollectPlace, type ContactRow, type CreateBroadcastCommand, type CreateBroadcastPorts, DEADLINE_MARGIN_MS, DUPLICATE_REASON, type Db, type DeliverPorts, type Delivered, type Delivery, type DeliveryRefusal, type Door, EMAIL_BODY_MAX, EMAIL_REVIEW_WORDS, type EmailClaim, type EmailIngestOutcome, type EmailIngestPorts, type EmailParentFacts, type EmailReplyPorts, type EraseThreadCommand, type EraseThreadPorts, type EscalationPorts, FACT_MAX, FINAL_RUN_STATES, FIRST_COLLECT_SECONDS, type HandBackPorts, IDEMPOTENCY_WINDOW_MS, INPUT_MARKER, type Identity, type IncomingEmail, JUDGE_MARGIN_MS, JUDGE_REFUSED_REASON, JUDGE_TIMEOUT_MS, type JudgedBatch, LEASE_SECONDS, type LatLng, type LeadCardRunner, type LeadColumns, type LeadDb, type LeadMemberRow, type LeadPorts, LeadRetry, type LeadRoundRow, type LeadRunRow, type LeadShare, MAPS_CAP_FLOOR_USD, MAPS_FIELDS, MAPS_RUN_TIMEOUT_SECS, MAX_SNOOZE_MS, type MapsPlace, type MemberJudgment, NEEDS_UNTIL, NO_LOCATION_REASON, type NewBroadcast, type NewRecipient, OUT_OF_AREA_REASON, type Owner, PAGE_ITEMS, PERSON_CONTROL_MAX_S, POLL_SECONDS, PROVIDER_RUN_PAGE, type Phase, type PlaybookInput, type PlaybookRow, type ProbeYieldMember, type ProvisionLinePorts, type QueuedReply, RADIUS_MAX_M, RADIUS_MIN_M, type RecipientMark, type RecipientRow, type ReconcileOutcome, type ReplyBody, type ReplyCommand, type ReplyPorts, type ReplyReceipt, type ReplyThread, type ResolveResult, type RoundQuestion, type RunBy, type RunContext, type RunOutcome, type RunPlaybookCommand, type RunPlaybookPorts, SEND_GRACE_MS, type SendKind, type SendPayload, type SendQueuedCommand, type SendQueuedPorts, type Sender, type SnoozePorts, type SnoozeResult, type StartOutcome, type TakeOverPorts, type TakeOverResult, type TemplateRow, type TemplateSend, type TemplateValuesPorts, type TermOutcome, type Thread, type ThreadPorts, UNKNOWN_START_GRACE_MS, type WakePorts, type Wire, type WirePayload, afterProbe, approveRun, archive, areaCenter, assembleRun, cancelBroadcast, cancelSend, centerOf, check, checkPlaybook, checkable, cleanPlace, collect, createBroadcast, deliver, deliverSafely, discoveryEnding, emailSender, eraseBlobThread, fact, factsOf, foldDuplicates, handBack, hasContact, haversineM, identityOf, inArea, ingestEmail, isFreeMail, judgeBatch, mainAsk, medianCenter, memberOf, opIdFor, probeAsk, probeYield, provisionLine, radiusFromSpread, reconcileUnknownRuns, replyToConversation, resolveEscalation, runCaps, runIdFor, runPlaybook, runStateOf, sendBroadcastBatch, sendQueued, sha256Hex, shareKeysOf, sharesWithin, snooze, startRound, takeBatch, takeOver, targetOf, templatePurpose, templateValues, termsShortOf, wake, whatsappSender, yieldOf, zctaCenter };

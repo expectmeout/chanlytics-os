@@ -141,6 +141,12 @@ export const RATE = {
   export: { limit: 10, windowMs: 60_000, noun: "exports" },
   /** A page remembering its view: a sort, a tab. One small write per click at most. */
   view_set: { limit: 60, windowMs: 60_000, noun: "view changes" },
+  /** A lead search: a provider run and a judge on the platform's account (the door reserves the month; this stops a loop). */
+  lead_search: { limit: 10, windowMs: 3_600_000, noun: "lead searches" },
+  /** An answer to the question after 25, or a Stop. */
+  lead_answer: { limit: 30, windowMs: 3_600_000, noun: "search answers" },
+  /** Keep, exclude, put back, undo: one click each, many in a session. */
+  lead_member: { limit: 120, windowMs: 60_000, noun: "lead changes" },
   /** A question to the workspace assistant: a model turn, tools and all. */
   ask: { limit: 20, windowMs: 60_000, noun: "questions" },
 } as const satisfies Record<string, RateRule>;

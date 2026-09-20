@@ -39,6 +39,9 @@ export const ROUTES = {
   "GET google/callback": { method: "GET", path: "/api/v1/google/callback" },
   "GET google/connect": { method: "GET", path: "/api/v1/google/connect" },
   "GET google/locations": { method: "GET", path: "/api/v1/google/locations" },
+  "GET lead-searches": { method: "GET", path: "/api/v1/lead-searches" },
+  "GET lead-searches/[id]": { method: "GET", path: "/api/v1/lead-searches/[id]" },
+  "GET leads": { method: "GET", path: "/api/v1/leads" },
   "GET messages/[id]/media": { method: "GET", path: "/api/v1/messages/[id]/media" },
   "GET metrics": { method: "GET", path: "/api/v1/metrics" },
   "GET notifications": { method: "GET", path: "/api/v1/notifications" },
@@ -86,6 +89,14 @@ export const ROUTES = {
   "POST google/reviews/[id]/draft": { method: "POST", path: "/api/v1/google/reviews/[id]/draft" },
   "POST google/reviews/[id]/reply": { method: "POST", path: "/api/v1/google/reviews/[id]/reply" },
   "POST google/search": { method: "POST", path: "/api/v1/google/search" },
+  "POST lead-operations/[id]/undo": { method: "POST", path: "/api/v1/lead-operations/[id]/undo" },
+  "POST lead-searches": { method: "POST", path: "/api/v1/lead-searches" },
+  "POST lead-searches/[id]/answer": { method: "POST", path: "/api/v1/lead-searches/[id]/answer" },
+  "POST lead-searches/[id]/more": { method: "POST", path: "/api/v1/lead-searches/[id]/more" },
+  "POST lead-searches/[id]/stop": { method: "POST", path: "/api/v1/lead-searches/[id]/stop" },
+  "POST leads/[id]/exclude": { method: "POST", path: "/api/v1/leads/[id]/exclude" },
+  "POST leads/[id]/keep": { method: "POST", path: "/api/v1/leads/[id]/keep" },
+  "POST leads/[id]/put-back": { method: "POST", path: "/api/v1/leads/[id]/put-back" },
   "POST lines/buy": { method: "POST", path: "/api/v1/lines/buy" },
   "POST lines/forwarding": { method: "POST", path: "/api/v1/lines/forwarding" },
   "POST lines/forwarding/test": { method: "POST", path: "/api/v1/lines/forwarding/test" },
@@ -169,6 +180,9 @@ export type Routes = {
   "GET google/callback": typeof import("../../app/api/v1/google/callback/route").GET;
   "GET google/connect": typeof import("../../app/api/v1/google/connect/route").GET;
   "GET google/locations": typeof import("../../app/api/v1/google/locations/route").GET;
+  "GET lead-searches": typeof import("../../app/api/v1/lead-searches/route").GET;
+  "GET lead-searches/[id]": typeof import("../../app/api/v1/lead-searches/[id]/route").GET;
+  "GET leads": typeof import("../../app/api/v1/leads/route").GET;
   "GET messages/[id]/media": typeof import("../../app/api/v1/messages/[id]/media/route").GET;
   "GET metrics": typeof import("../../app/api/v1/metrics/route").GET;
   "GET notifications": typeof import("../../app/api/v1/notifications/route").GET;
@@ -216,6 +230,14 @@ export type Routes = {
   "POST google/reviews/[id]/draft": typeof import("../../app/api/v1/google/reviews/[id]/draft/route").POST;
   "POST google/reviews/[id]/reply": typeof import("../../app/api/v1/google/reviews/[id]/reply/route").POST;
   "POST google/search": typeof import("../../app/api/v1/google/search/route").POST;
+  "POST lead-operations/[id]/undo": typeof import("../../app/api/v1/lead-operations/[id]/undo/route").POST;
+  "POST lead-searches": typeof import("../../app/api/v1/lead-searches/route").POST;
+  "POST lead-searches/[id]/answer": typeof import("../../app/api/v1/lead-searches/[id]/answer/route").POST;
+  "POST lead-searches/[id]/more": typeof import("../../app/api/v1/lead-searches/[id]/more/route").POST;
+  "POST lead-searches/[id]/stop": typeof import("../../app/api/v1/lead-searches/[id]/stop/route").POST;
+  "POST leads/[id]/exclude": typeof import("../../app/api/v1/leads/[id]/exclude/route").POST;
+  "POST leads/[id]/keep": typeof import("../../app/api/v1/leads/[id]/keep/route").POST;
+  "POST leads/[id]/put-back": typeof import("../../app/api/v1/leads/[id]/put-back/route").POST;
   "POST lines/buy": typeof import("../../app/api/v1/lines/buy/route").POST;
   "POST lines/forwarding": typeof import("../../app/api/v1/lines/forwarding/route").POST;
   "POST lines/forwarding/test": typeof import("../../app/api/v1/lines/forwarding/test/route").POST;

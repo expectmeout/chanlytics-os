@@ -20,6 +20,13 @@ import { test, before, after } from "node:test";
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import { ROLE_PERMS, leadMonth, leadSuppressionHash } from "@chanlytics/contracts";
+import { at } from "./_cron-doors-world.mjs";
+import { sha256, webhookToken } from "./_lead-world.mjs";
+import { fakeApify, fakeJudge, checkerItem, probeItems } from "./_lead-fixtures.mjs";
+import { startRound, collect, check, OUT_OF_AREA_REASON } from "../../../packages/core/src/leads/runner.ts";
+import { runIdFor } from "../../../packages/core/src/leads/ids.ts";
+import { scheduleJobOnce } from "../../../packages/jobs/src/schedule.ts";
+import { leadDb } from "../../../apps/edge/lib/lead-db.ts";
 
 const URL_ = process.env.SUPABASE_URL;
 const KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -100,6 +107,49 @@ const counter = async (kind, period) => {
 };
 const member = async (searchId, leadId) => ok(await db.from("lead_search_members").select("*").eq("search_id", searchId).eq("lead_id", leadId).single());
 const leadByPlace = async (placeId) => ok(await db.from("leads").select("*").eq("tenant_id", A).eq("place_id", placeId).single());
+
+/**
+ * The Maps fixtures under place ids and numbers no case of this file has
+ * used. A1's cases above leave this very workspace holding ChIJfixture0001 to
+ * 0301 on 555-0101 to 0120, and a place the workspace already holds is never
+ * a lead a second time (core identityOf), nor is an erased number ever
+ * inserted (lead_collect_commit's suppressions) -- so each A2 case below
+ * discovers its own stretch of the fixtures, and only its own. The titles are
+ * left alone: they are what the labelled fake judge answers from.
+ */
+const pad4 = (n) => String(n).padStart(4, "0");
+const unseen = (item, n) => ({ ...item, placeId: `ChIJfixture${pad4(n)}`, phoneUnformatted: `+1512555${pad4(n)}`, phone: `(512) 555-${pad4(n)}`, phones: [`(512) 555-${pad4(n)}`] });
+const a2Items = (base) => probeItems().slice(0, 13).map((item, i) => unseen(item, base + i));
+/** lead_runs.apify_run_id is unique across the table, so every world of this file carries on from the last one's count. */
+let a2Started = 0;
+
+/**
+ * A2's runtime world over THIS database: the real adapter (apps/edge/lib/lead-db.ts), the
+ * provider and the judge faked (_lead-fixtures.mjs), scheduleJobOnce for the next job, and
+ * the webhook token derived as the edge derives it, under the test secret _lead-world.mjs holds.
+ */
+function a2World(base) {
+  const apify = fakeApify();
+  apify.state.started = a2Started;
+  const judge = fakeJudge();
+  const realStart = apify.startRun;
+  apify.startRun = async (actor, input, opts) => {
+    const out = await realStart(actor, input, opts);
+    a2Started = apify.state.started;
+    apify.state.datasets[out.datasetId] = actor.includes("email-verifier") ? (input.emails ?? []).map((e) => checkerItem(e, "valid")) : a2Items(base);
+    return out;
+  };
+  const wires = { apify, judge, webhookBase: "https://edge.example", webhookToken };
+  const ports = (owner) => ({
+    db: leadDb(db), apify, judge, now: () => new Date(), webhookBase: wires.webhookBase, webhookToken: wires.webhookToken,
+    schedule: async (kind, payload, secs) => { await scheduleJobOnce(db, { tenantId: A, kind, dueAt: new Date(Date.now() + secs * 1000), payload }); },
+    deadline: Date.now() + 45_000, owner,
+  });
+  return {
+    apify, judge, wires, db: leadDb(db), ports,
+    finishRuns: () => { for (const r of Object.values(apify.state.runs)) if (r.status === "RUNNING") apify.finish(r.id, "SUCCEEDED", 0.05); },
+  };
+}
 
 before(async () => {
   if (skip) return;
@@ -757,4 +807,139 @@ test("the clock asks the edge exactly when the database holds lead work, and rec
   assert.ok(turn.open >= 1, "this suite's own round is open");
   assert.equal(turn.asked, turn.open > 0 || turn.live > 0, `the clock answered the database: ${JSON.stringify(turn)}`);
   assert.equal(turn.asked, true, "a round that has not ended is work, whether or not anything has run for it");
+});
+
+/* =========================================================================
+ * Release A2 (gate G3, the runtime cases): the runner's verbs over the real
+ * database adapter (apps/edge/lib/lead-db.ts) on this Postgres, with the
+ * provider and the judge faked. Appended to A1's file; it shares its world
+ * (db, A, owner, plan) and its skip. Every case below is one of the
+ * interface's G3 items that only the runtime can show: two starts of one
+ * round reach the provider once; a late webhook schedules the final collect
+ * once; Stop during the checks ends the round 'stopped' only after the last
+ * check commits; a place erased between the read and the commit is never
+ * inserted; an out-of-area place is Needs review by rule with its distance;
+ * a stale generation loses its commit.
+ * ========================================================================= */
+
+test("A2: two starts of one round make one set of run rows and reach the provider once; the loser sees the rows already taken", { skip }, async () => {
+  const made = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: plan(20), p_via: "people", p_estimate_usd: 1 }));
+  const w = a2World(126);
+  // At the same time, not one after the other: run them in turn and the second
+  // reads the rows already started and never reaches lead_run_claim at all.
+  // Together, the claim itself is what decides, one row at a time.
+  const [first, second] = await Promise.all([
+    startRound(w.ports("job-a"), made.round_id, "job-a"),
+    startRound(w.ports("job-b"), made.round_id, "job-b"),
+  ]);
+  const kinds = [...first.runs, ...second.runs].map((r) => r.kind);
+  assert.equal(kinds.filter((k) => k === "started").length, 2, `one start per term across both jobs: ${kinds}`);
+  assert.ok(kinds.every((k) => ["started", "already", "someone_elses"].includes(k)), `whoever loses a row is refused by the claim, never by a throw: ${kinds}`);
+  assert.equal(w.apify.calls.filter((c) => c.op === "startRun").length, 2, "one provider run per term, whoever wins the claim");
+  const runs = ok(await db.from("lead_runs").select("id, state, claimed_by, apify_run_id, webhook_token_hash").eq("round_id", made.round_id).order("term"));
+  assert.equal(runs.length, 2);
+  assert.ok(runs.every((r) => r.state === "running" && ["job-a", "job-b"].includes(r.claimed_by) && r.apify_run_id));
+  assert.deepEqual(runs.map((r) => r.id),
+    [await runIdFor(made.round_id, "probe", "personal trainer"), await runIdFor(made.round_id, "probe", "strength coach")],
+    "each row's id is derived from the round, the phase and the term");
+  assert.equal(runs[0].webhook_token_hash, sha256(await w.wires.webhookToken(runs[0].id)), "and the token the door will be shown is the row's, hashed");
+  ids.a2 = { round: made.round_id, search: made.search_id, runs: runs.map((r) => r.id), world: w };
+});
+
+test("A2: a late webhook schedules the final collect once: three deliveries, one job; a wrong token writes nothing", { skip }, async () => {
+  const { runs, world: w } = ids.a2;
+  const runRow = ok(await db.from("lead_runs").select("id, apify_run_id").eq("id", runs[0]).single());
+  const { setPg } = await import(at("apps/edge/lib/pg.ts"));
+  const door = await import(at("apps/edge/api/apify-webhook.ts"));
+  setPg(db);
+  try {
+    const body = JSON.stringify({ eventType: "ACTOR.RUN.SUCCEEDED", eventData: { actorRunId: runRow.apify_run_id }, resource: { id: runRow.apify_run_id, status: "SUCCEEDED" } });
+    const deliver = async (token) => (await door.POST(new Request(`https://edge.example/api/apify-webhook?run=${runRow.id}&token=${token}`, { method: "POST", headers: { "content-type": "application/json" }, body }), { waitUntil: () => {} })).status;
+    const token = await w.wires.webhookToken(runRow.id);
+    const finals = async () => ok(await db.from("jobs").select("payload").eq("tenant_id", A).eq("kind", "lead_collect").in("state", ["scheduled", "fired"]))
+      .filter((j) => j.payload.run_id === runRow.id && j.payload.seq === "final").length;
+    assert.equal(await deliver(await w.wires.webhookToken(ids.a2.runs[1])), 401, "another row's token");
+    // Counted here, before any good delivery: after one, the once-per-key index would hide a job the 401 had written.
+    assert.equal(await finals(), 0, "a wrong token writes nothing");
+    assert.deepEqual([await deliver(token), await deliver(token), await deliver(token)], [200, 200, 200]);
+    assert.equal(await finals(), 1);
+  } finally {
+    setPg(null);
+  }
+});
+
+test("A2: a collect commits one batch of the probe through the real adapter; a stale generation loses its commit", { skip }, async () => {
+  const { runs, world: w, round } = ids.a2;
+  w.finishRuns();
+  const out = await collect(w.ports("collect-1"), runs[0], "p0", "collect-1");
+  assert.equal(out.kind, "committed", JSON.stringify(out));
+  const members = ok(await db.from("lead_search_members").select("class, judgment").eq("round_id", round));
+  assert.ok(members.length >= 12, `one member per place of the page: ${members.length}`);
+  assert.ok(members.every((m) => Array.isArray(m.judgment.reasons)), "the reason tokens ride the judgment, for lead_check_commit to read");
+  ok(await owner.client.rpc("lead_round_stop", { p_search_id: ids.a2.search }));
+  // Stop left an ending pending on the round. The poll the door never
+  // cancelled arrives now: it commits nothing and decides nothing, or it would
+  // write over the ending the owner asked for and start the next phase.
+  const stale = await collect(w.ports("collect-2"), runs[1], "p0", "collect-2");
+  assert.equal(stale.kind, "round_closing", "a poll that lands after Stop is refused, not committed");
+  const gen = ok(await db.rpc("lead_run_lease", { p_run_id: runs[1], p_owner: "collect-3", p_seconds: 60 }));
+  // The row's own offset, so only the generation is wrong: 00140 checks the
+  // lease before the offset, and a made-up offset would answer "lease" here
+  // whatever the generation was.
+  const at = ok(await db.from("lead_runs").select("read_offset").eq("id", runs[1]).single()).read_offset;
+  const page = { judgment: null, places: [], usage_usd: 0, items_seen: 0, run_state: null, next: null, round: null };
+  assert.deepEqual(await w.db.collectCommit(runs[1], "collect-3", gen - 1, at, at, page), { ok: false, why: "lease" });
+});
+
+test("A2: Stop during the checks: the round ends 'stopped' only after the last check commits", { skip }, async () => {
+  const made = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: { ...plan(20), criteria: [{ key: "website", text: "With a website", standard: "likely", required: false }], exclusions: [] }, p_via: "people", p_estimate_usd: 1 }));
+  const w = a2World(140);
+  await startRound(w.ports("s1"), made.round_id, "s1");
+  w.finishRuns();
+  const runs = ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id));
+  for (const r of runs) await collect(w.ports(`c-${r.id}`), r.id, "p0", `c-${r.id}`);
+  await startRound(w.ports("s2"), made.round_id, "s2", true);
+  w.finishRuns();
+  for (const r of ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id).eq("state", "running"))) await collect(w.ports(`m-${r.id}`), r.id, "p0", `m-${r.id}`);
+  let round = ok(await db.from("lead_rounds").select("state, ending_pending").eq("id", made.round_id).single());
+  assert.equal(round.state, "checking", JSON.stringify(round));
+  await check(w.ports("k1"), made.round_id, 0, "k1");
+  ok(await owner.client.rpc("lead_round_stop", { p_search_id: made.search_id }));
+  round = ok(await db.from("lead_rounds").select("state, ending, ending_pending").eq("id", made.round_id).single());
+  assert.deepEqual([round.state, round.ending, round.ending_pending], ["checking", null, "stopped"], "still checking the emails");
+  w.finishRuns();
+  const checkRun = ok(await db.from("lead_runs").select("id").eq("round_id", made.round_id).eq("purpose", "check").single());
+  const done = await collect(w.ports("kc"), checkRun.id, "final", "kc");
+  assert.deepEqual([done.kind, done.last], ["checked", true]);
+  round = ok(await db.from("lead_rounds").select("state, ending").eq("id", made.round_id).single());
+  assert.deepEqual(round, { state: "ended", ending: "stopped" });
+});
+
+test("A2: erasure mid-run: a place suppressed between the read and the commit is never inserted; an out-of-area place is Needs review by rule, with its distance", { skip }, async () => {
+  const zipPlan = { ...plan(20), area: { kind: "zip", label: "near 78704", state: "TX", center: null, radius_m: 8000, zip: "78704", query: "78704, TX, USA" } };
+  const made = ok(await owner.client.rpc("lead_search_create", { p_tenant_id: A, p_plan: zipPlan, p_via: "people", p_estimate_usd: 1 }));
+  const w = a2World(180);
+  await startRound(w.ports("s1"), made.round_id, "s1");
+  const runs = ok(await db.from("lead_runs").select("id, dataset_id").eq("round_id", made.round_id).order("term"));
+  const src = probeItems();
+  const erased = unseen(src[0], 160);
+  const far = { ...unseen(src[1], 161), location: { lat: 32.7767, lng: -96.797 }, city: "Dallas" };
+  const near = unseen(src[2], 162);
+  w.apify.state.datasets[runs[0].dataset_id] = [erased, far, near];
+  // The erasure lands after the runner has read the items and before it commits: the judge's port is where the two meet.
+  const judge = w.judge.judge.bind(w.judge);
+  w.judge.judge = async (p, places) => {
+    ok(await db.from("lead_suppressions").insert({ tenant_id: A, kind: "place", hash: await leadSuppressionHash(A, erased.placeId), what: "erased" }));
+    return judge(p, places);
+  };
+  w.finishRuns();
+  const out = await collect(w.ports("c1"), runs[0].id, "p0", "c1");
+  assert.equal(out.kind, "committed", JSON.stringify(out));
+  const leads = ok(await db.from("leads").select("place_id, city").eq("tenant_id", A).in("place_id", [erased.placeId, far.placeId, near.placeId]));
+  assert.deepEqual(leads.map((l) => [l.place_id, l.city]).sort(), [[far.placeId, "Dallas"], [near.placeId, "Austin"]].sort(), "the erased place was never inserted");
+  const members = ok(await db.from("lead_search_members").select("lead_id, class, reason, distance_m, judgment").eq("round_id", made.round_id));
+  const farLead = await leadByPlace(far.placeId);
+  const held = members.find((m) => m.lead_id === farLead.id);
+  assert.ok(held, JSON.stringify(members));
+  assert.deepEqual([held.class, held.reason, held.judgment.reasons, held.distance_m > 250_000], ["review", OUT_OF_AREA_REASON, ["out_of_area"], true]);
 });

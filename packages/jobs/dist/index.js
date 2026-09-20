@@ -7578,28 +7578,28 @@ var EntityDecoder2 = class {
    * @param offset The offset at which the entity begins. Should be 0 if this is not the first call.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  write(str, offset) {
+  write(str2, offset) {
     switch (this.state) {
       case EntityDecoderState2.EntityStart: {
-        if (str.charCodeAt(offset) === CharCodes3.NUM) {
+        if (str2.charCodeAt(offset) === CharCodes3.NUM) {
           this.state = EntityDecoderState2.NumericStart;
           this.consumed += 1;
-          return this.stateNumericStart(str, offset + 1);
+          return this.stateNumericStart(str2, offset + 1);
         }
         this.state = EntityDecoderState2.NamedEntity;
-        return this.stateNamedEntity(str, offset);
+        return this.stateNamedEntity(str2, offset);
       }
       case EntityDecoderState2.NumericStart: {
-        return this.stateNumericStart(str, offset);
+        return this.stateNumericStart(str2, offset);
       }
       case EntityDecoderState2.NumericDecimal: {
-        return this.stateNumericDecimal(str, offset);
+        return this.stateNumericDecimal(str2, offset);
       }
       case EntityDecoderState2.NumericHex: {
-        return this.stateNumericHex(str, offset);
+        return this.stateNumericHex(str2, offset);
       }
       case EntityDecoderState2.NamedEntity: {
-        return this.stateNamedEntity(str, offset);
+        return this.stateNamedEntity(str2, offset);
       }
     }
   }
@@ -7612,22 +7612,22 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericStart(str, offset) {
-    if (offset >= str.length) {
+  stateNumericStart(str2, offset) {
+    if (offset >= str2.length) {
       return -1;
     }
-    if ((str.charCodeAt(offset) | TO_LOWER_BIT2) === CharCodes3.LOWER_X) {
+    if ((str2.charCodeAt(offset) | TO_LOWER_BIT2) === CharCodes3.LOWER_X) {
       this.state = EntityDecoderState2.NumericHex;
       this.consumed += 1;
-      return this.stateNumericHex(str, offset + 1);
+      return this.stateNumericHex(str2, offset + 1);
     }
     this.state = EntityDecoderState2.NumericDecimal;
-    return this.stateNumericDecimal(str, offset);
+    return this.stateNumericDecimal(str2, offset);
   }
-  addToNumericResult(str, start, end, base) {
+  addToNumericResult(str2, start, end, base) {
     if (start !== end) {
       const digitCount = end - start;
-      this.result = this.result * Math.pow(base, digitCount) + parseInt(str.substr(start, digitCount), base);
+      this.result = this.result * Math.pow(base, digitCount) + parseInt(str2.substr(start, digitCount), base);
       this.consumed += digitCount;
     }
   }
@@ -7640,18 +7640,18 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericHex(str, offset) {
+  stateNumericHex(str2, offset) {
     const startIdx = offset;
-    while (offset < str.length) {
-      const char = str.charCodeAt(offset);
+    while (offset < str2.length) {
+      const char = str2.charCodeAt(offset);
       if (isNumber3(char) || isHexadecimalCharacter2(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str, startIdx, offset, 16);
+        this.addToNumericResult(str2, startIdx, offset, 16);
         return this.emitNumericEntity(char, 3);
       }
     }
-    this.addToNumericResult(str, startIdx, offset, 16);
+    this.addToNumericResult(str2, startIdx, offset, 16);
     return -1;
   }
   /**
@@ -7663,18 +7663,18 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNumericDecimal(str, offset) {
+  stateNumericDecimal(str2, offset) {
     const startIdx = offset;
-    while (offset < str.length) {
-      const char = str.charCodeAt(offset);
+    while (offset < str2.length) {
+      const char = str2.charCodeAt(offset);
       if (isNumber3(char)) {
         offset += 1;
       } else {
-        this.addToNumericResult(str, startIdx, offset, 10);
+        this.addToNumericResult(str2, startIdx, offset, 10);
         return this.emitNumericEntity(char, 2);
       }
     }
-    this.addToNumericResult(str, startIdx, offset, 10);
+    this.addToNumericResult(str2, startIdx, offset, 10);
     return -1;
   }
   /**
@@ -7719,12 +7719,12 @@ var EntityDecoder2 = class {
    * @param offset The current offset.
    * @returns The number of characters that were consumed, or -1 if the entity is incomplete.
    */
-  stateNamedEntity(str, offset) {
+  stateNamedEntity(str2, offset) {
     const { decodeTree } = this;
     let current = decodeTree[this.treeIndex];
     let valueLength = (current & BinTrieFlags2.VALUE_LENGTH) >> 14;
-    for (; offset < str.length; offset++, this.excess++) {
-      const char = str.charCodeAt(offset);
+    for (; offset < str2.length; offset++, this.excess++) {
+      const char = str2.charCodeAt(offset);
       this.treeIndex = determineBranch2(decodeTree, current, this.treeIndex + Math.max(1, valueLength), char);
       if (this.treeIndex < 0) {
         return this.result === 0 || // If we are parsing an attribute
@@ -7809,15 +7809,15 @@ var EntityDecoder2 = class {
 };
 function getDecoder2(decodeTree) {
   let ret = "";
-  const decoder = new EntityDecoder2(decodeTree, (str) => ret += fromCodePoint2(str));
-  return function decodeWithTrie(str, decodeMode) {
+  const decoder = new EntityDecoder2(decodeTree, (str2) => ret += fromCodePoint2(str2));
+  return function decodeWithTrie(str2, decodeMode) {
     let lastIndex = 0;
     let offset = 0;
-    while ((offset = str.indexOf("&", offset)) >= 0) {
-      ret += str.slice(lastIndex, offset);
+    while ((offset = str2.indexOf("&", offset)) >= 0) {
+      ret += str2.slice(lastIndex, offset);
       decoder.startEntity(decodeMode);
       const len = decoder.write(
-        str,
+        str2,
         // Skip the "&"
         offset + 1
       );
@@ -7828,7 +7828,7 @@ function getDecoder2(decodeTree) {
       lastIndex = offset + len;
       offset = len === 0 ? lastIndex + 1 : lastIndex;
     }
-    const result = ret + str.slice(lastIndex);
+    const result = ret + str2.slice(lastIndex);
     ret = "";
     return result;
   };
@@ -7954,7 +7954,7 @@ var xmlCodeMap2 = /* @__PURE__ */ new Map([
 ]);
 var getCodePoint2 = (
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition
-  String.prototype.codePointAt != null ? (str, index) => str.codePointAt(index) : (
+  String.prototype.codePointAt != null ? (str2, index) => str2.codePointAt(index) : (
     // http://mathiasbynens.be/notes/javascript-encoding#surrogate-formulae
     ((c2, index) => (c2.charCodeAt(index) & 64512) === 55296 ? (c2.charCodeAt(index) - 55296) * 1024 + c2.charCodeAt(index + 1) - 56320 + 65536 : c2.charCodeAt(index))
   )
@@ -11874,6 +11874,10 @@ async function sendBroadcastBatch(ports, cmd) {
     body: `${sent} ${sent === 1 ? "person" : "people"} got it${held ? `; ${held} held back (no recorded yes, asked to stop, no number, a person had the thread, or a run that did not finish)` : ""}. Replies land in the Inbox.`
   });
 }
+var MAPS_RUN_TIMEOUT_SECS = 45 * 60;
+var CHECKER_RUN_TIMEOUT_SECS = 15 * 60;
+var enc32 = new TextEncoder();
+var UNKNOWN_START_GRACE_MS = 10 * 6e4;
 
 // ../db/dist/index.js
 import { z as z10 } from "zod";

@@ -41,6 +41,12 @@
     },
     "api/jobs/tick.ts": {
       "maxDuration": 60
+    },
+    "api/apify-webhook.ts": {
+      "maxDuration": 30
+    },
+    "api/cron/leads.ts": {
+      "maxDuration": 60
     }
   }
 }

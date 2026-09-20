@@ -23,6 +23,7 @@ import { deleteThread } from "../../lib/store.js";
 import { whatsappSender } from "../../lib/workspace/core.js";
 import { pageOperator } from "../../lib/page-operator.js";
 import { provisionLineJob } from "../../lib/line-provision-job.js";
+import { leadPipeline } from "../../lib/lead-pipeline.js";
 import {
   runTick, claimNext, completeJob, failJob, deferJob, settleJob, dispatchJob, scheduleJob,
   CLAIM_FOR_MS, YIELD_AT_MS, LEASE_SECONDS,
@@ -69,6 +70,8 @@ export async function POST(request: Request): Promise<Response> {
           const email = await emailWireFor(db, job.tenant_id);
           // Email's intake: the provider fetch and the mail domain live here. Absent where email is off.
           const intake = emailIntake(db);
+          // The lead finder's pipeline: absent without APIFY_TOKEN, and a lead job then fails by name.
+          const leads = leadPipeline();
           const wire = {
             whatsapp: whatsappSender(await waCredentialsForTenant(db, job.tenant_id)),
             sms: line ? (to: string, p: { body: string }) => line.send(to.startsWith("+") ? to : `+${to}`, p.body) : null,
@@ -84,6 +87,7 @@ export async function POST(request: Request): Promise<Response> {
               eraseThread: deleteThread,
               provisionLine: (lineId, by) => provisionLineJob(db, lineId, by),
               ...(intake ? { email: intake } : {}),
+              ...(leads ? { leads } : {}),
               // A job that continues itself (a broadcast's next batch) is one
               // more row, as this job's tenant.
               schedule: async (kind, dueAt, payload) => {

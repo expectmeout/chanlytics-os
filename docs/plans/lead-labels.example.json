@@ -1,0 +1,10 @@
+{
+  "$comment": "The labelled set for gate G2 (PRD decision 29): a person's answer for each place a search may find, under the plan's own contract. `category_key` is the kind of business the precision is reported by; `qualified` is whether the place meets the plan as written (a likely buyer is not a confirmed stockist, and is labelled as the promise the plan makes). Place ids here are the fixtures' invented ones; a real set names real places and stays out of the repository.",
+  "plan": "personal trainers in Austin, independent, a phone is enough",
+  "labelled_on": "2026-09-19",
+  "places": {
+    "ChIJfixture0001": { "category_key": "personal_trainer", "qualified": true, "note": "an independent studio with its own site" },
+    "ChIJfixture0013": { "category_key": "personal_trainer", "qualified": false, "note": "a chain gym" },
+    "ChIJfixture0022": { "category_key": "personal_trainer", "qualified": false, "note": "a dog trainer: another kind of business" }
+  }
+}
