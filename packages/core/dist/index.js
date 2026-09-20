@@ -1241,6 +1241,8 @@ function feedProblemWords(reason, status) {
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
       return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
     default:
       return null;
   }
@@ -2716,6 +2718,8 @@ function feedProblemWords2(reason, status) {
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
       return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
     default:
       return null;
   }
@@ -4751,6 +4755,8 @@ function feedProblemWords3(reason, status) {
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
       return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
     default:
       return null;
   }

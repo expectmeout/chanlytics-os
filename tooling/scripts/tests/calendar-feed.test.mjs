@@ -146,6 +146,7 @@ test("one sentence per way a feed fails, naming what to do", () => {
   assert.equal(feedProblemWords("http"), "The calendar answered an error. It is usually the private iCal address, not the calendar's web page.");
   assert.equal(feedProblemWords("too_large"), "That feed is too large to read (over 2 MB).");
   assert.match(feedProblemWords("not_ical"), /^That address is not an iCal feed\. In Google Calendar it is Settings/);
+  assert.equal(feedProblemWords("settings"), "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.");
   assert.equal(feedProblemWords(null), null);
   assert.equal(feedProblemWords(undefined), null);
 });
@@ -206,6 +207,24 @@ test("the preview refuses in the same words: an address, an answer, a web page, 
   assert.equal(ok.events, 1);
   assert.deepEqual(ok.next.map((n) => n.title), ["Ana Ruiz · Balayage"]);
   assert.match(ok.next[0].start, /Tue, Sep 8, 2:00 PM/);
+});
+
+test("settings that will not parse are a calendar that could not be read, never a workspace without one", async () => {
+  // The row that actually shipped. TenantConfigSchema is strict, so ONE extra key refuses the whole config and
+  // takes the address down with it — and the board then said "no calendar connected", which is what a workspace
+  // that never had one says. Today's card drew nothing at all, so there was no news and nothing to retry.
+  const broken = tables("https://cal.example/ok.ics");
+  broken.tenant_config[0].config.calendar.ical_url_before_filler = "https://cal.example/old.ics";
+  const lost = await calendarWeek(ctxFor(broken), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.deepEqual([lost.feed.state, lost.feed.present, lost.feed.reason, lost.feed.problem], ["unavailable", true, "settings", feedProblemWords("settings")]);
+  assert.equal(toCalendarVM(lost, NOW).feed.problem, feedProblemWords("settings"), "and the card has a sentence to show, not an empty space");
+
+  // Narrower than "the config did not parse", on purpose: a row refused over something that is not the calendar,
+  // in a workspace that never connected one, has lost nothing. It stays silent — no calendar is not a fault.
+  const noCalendar = tables(null);
+  delete noCalendar.tenant_config[0].config.brain.system_prompt;
+  const quiet = await calendarWeek(ctxFor(noCalendar), T, { from: "2026-09-07", days: 7 }, NOW);
+  assert.deepEqual([quiet.feed.state, quiet.feed.present, quiet.feed.problem], ["none", false, null]);
 });
 
 test("the board's module: no feed says none; a failed feed says why; a good feed carries its items and the receptionist's windows", async () => {

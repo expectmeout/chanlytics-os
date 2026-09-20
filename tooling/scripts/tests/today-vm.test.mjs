@@ -466,9 +466,18 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   // A person who existed before and wrote for the first time today is not new: no name beside "nobody new yet".
   const notNew = toTodayVM(metrics({ period: { messages_in: 1, messages_out_ai: 1, answered_by_ai: 1, conversations_active: 1, new_contacts: 0 } }), busyThreads().slice(0, 1), [], [], NOW).figures.find((f) => f.id === "new");
   assert.deepEqual([notNew.meta, notNew.receipt], ["nobody new yet", null], "REGRESSION: 'nobody new yet' beside a named person");
-  // Two new people counted, one thread held: no wire claimed for two from one, no name for the one the page cannot see.
+  // Two new people counted, one thread held: no wire claimed for two from one, no name for the one the page
+  // cannot see. The figure still OPENS, though: why the two disagree is exactly what an owner is asking when
+  // the count is larger than the threads under it, and a stat with no receipt was the only one on the card.
   const partial = toTodayVM(metrics({ period: { messages_in: 2, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 2, new_contacts: 2 } }), busyThreads().slice(0, 1), [], [], NOW).figures.find((f) => f.id === "new");
-  assert.deepEqual([partial.meta, partial.receipt], ["first contact today", null]);
+  assert.equal(partial.meta, "first contact today");
+  assert.equal(partial.receipt.text, "Counted however they reached you — a message, a call, or a booking, so not everyone here has a thread to open yet.");
+  assert.equal(partial.receipt.door.to, "clients/seg:new_week", "and the door that answers it");
+  for (const n of ["Renata", "Solís", "Marco", "Ibáñez"]) assert.ok(!partial.receipt.text.includes(n), `REGRESSION: named ${n} for a figure the page cannot account for`);
+  // More first-time threads than new people: somebody who wrote today was already in People, so "not everyone
+  // has a thread" would be false here — and it is not said.
+  const over = toTodayVM(metrics({ period: { messages_in: 2, conversations_active: 2, new_contacts: 1 } }), busyThreads().slice(0, 2), [], [], NOW).figures.find((f) => f.id === "new");
+  assert.equal(over.receipt.text, "Counted however they reached you — a message, a call, or a booking.");
   // Four new people, all held: three named, the fourth counted.
   const four = busyThreads().slice(0, 2).concat([thread("cv-n3", "Noor Haddad", [at("2026-08-27T10:00:00Z")]), thread("cv-n4", "Iris Kowalski", [at("2026-08-27T10:30:00Z")])]);
   const many = toTodayVM(metrics({ period: { messages_in: 4, conversations_active: 4, new_contacts: 4 } }), four, [], [], NOW).figures.find((f) => f.id === "new");

@@ -7324,8 +7324,15 @@ declare function followupsToShow(followups: string[], citations: Array<{
 declare function feedUrlOk(raw: string | null | undefined): string | null;
 /** The most a feed may weigh: two megabytes of text, a season of a busy salon several times over. */
 declare const FEED_MAX_BYTES = 2000000;
-/** Why the last read of a feed failed. */
-type FeedFailure = "address" | "unreachable" | "http" | "too_large" | "not_ical";
+/**
+ * Why the last read of a feed failed.
+ *
+ * "settings" is the one that is not about the address but about where the address is kept: a config row that
+ * will not parse loses the calendar with it. It is here rather than off on its own because the owner is in the
+ * same position either way -- their calendar could not be read -- and every reader of this union already knows
+ * how to say that.
+ */
+type FeedFailure = "address" | "unreachable" | "http" | "too_large" | "not_ical" | "settings";
 /** One sentence per way a feed fails, naming what to do; null when nothing failed. */
 declare function feedProblemWords(reason: FeedFailure | null | undefined, status?: number | null): string | null;
 /**

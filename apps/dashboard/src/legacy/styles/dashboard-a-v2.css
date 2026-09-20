@@ -1381,10 +1381,12 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
 .td-item-flag::before { display: none; }
 .td-item.now .td-item-time { font-weight: 500; }
 
-/* The page starts higher: 28px of gutter over the standing line's own 12px put the
-   first words 44px under the bar; the canvas sits about 20px under its own. The
-   sides keep the gutter. */
-.dash-a-v2 { padding-top: 10px; }
+/* The page owns no top gutter; the first thing on it owns its own breathing room.
+   That is the Inbox's rule: .stabs sits flush under the bar with 6px of its own and
+   the tab's 7px, so its first words land 13px down. The standing line's own 12px
+   lands ours in the same place. 28px of page gutter put them at 44px, and 10px at
+   22px -- both of them lower than every other page. The sides keep the gutter. */
+.dash-a-v2 { padding-top: 0; }
 
 /* A run is not a customer's words: it reads in one glance, verbs on the right,
    and that shape is what tells a run from a person in the same list. On a phone

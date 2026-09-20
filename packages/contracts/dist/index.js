@@ -2073,6 +2073,8 @@ function feedProblemWords(reason, status) {
       return "That feed is too large to read (over 2 MB).";
     case "not_ical":
       return "That address is not an iCal feed. In Google Calendar it is Settings \u203A your calendar \u203A Secret address in iCal format.";
+    case "settings":
+      return "Your workspace settings could not be read, so the calendar address could not be found. Save it again in Settings.";
     default:
       return null;
   }
@@ -4892,7 +4894,11 @@ function figuresOf(m, conversations, callsInWindow, escalations, tz, now) {
     label: "new people",
     value: p.new_contacts,
     meta: !p.new_contacts ? "nobody new yet" : !agree ? "first contact today" : newWires.length === 1 ? `${p.new_contacts === 1 ? "on" : p.new_contacts === 2 ? "both on" : "all on"} ${wireWord(newWires[0][0])}` : `on ${andList(newWires.map(([w]) => wireWord(w)))}`,
-    receipt: said.length ? { text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } } : null
+    // Named when the two counts agree. When they do not, the figure still opens: the reason they disagree IS
+    // the answer to what an owner is asking -- the count is every way somebody new reaches you, and the page
+    // only holds the ones who wrote. Without this the fourth figure was the one stat on the card with nothing
+    // under it, so a hover that worked three times in a row did nothing on the fourth.
+    receipt: said.length ? { text: `${andList(names.length > 3 ? [...said, `${names.length - 3} more`] : said)} wrote for the first time today.`, door: { label: "Open People", to: "clients/seg:new_week" } } : p.new_contacts > 0 ? { text: `Counted however they reached you \u2014 a message, a call, or a booking${newThreads.length < p.new_contacts ? ", so not everyone here has a thread to open yet" : ""}.`, door: { label: "Open People", to: "clients/seg:new_week" } } : null
   };
   return [messages, answered, calls, newPeople];
 }

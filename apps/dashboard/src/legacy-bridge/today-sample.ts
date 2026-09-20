@@ -15,6 +15,7 @@
 import {
   toTodayVM,
   toCalendarVM,
+  feedProblemWords,
   toPersonRowVM,
   peopleAggregates,
   peopleListAction,
@@ -86,11 +87,16 @@ function naiveLocal(ms: number, zone: string): string {
 
 const phone = (last4: string) => `+1305555${last4}`;
 
-/** Which day the sample is: the usual one the tests walk, or a busy one that overflows every cap on the page. */
-export type SampleDay = "usual" | "busy";
+/**
+ * Which day the sample is: the usual one the tests walk, a busy one that overflows every cap on the page, or
+ * a day whose calendar could not be read — the state that used to draw nothing at all, so there was nothing
+ * to look at and no way to find out.
+ */
+export type SampleDay = "usual" | "busy" | "unreadable";
 
 function build(nowMs: number, day: SampleDay): TodaySample {
   const busy = day === "busy";
+  const unreadable = day === "unreadable";
   const now = new Date(nowMs);
   const today = zoneDayKey(nowMs, ZONE);
   const midnight = zoneMidnight(ZONE, today);
@@ -262,6 +268,14 @@ function build(nowMs: number, day: SampleDay): TodaySample {
     calendarDto.days[1].items.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
   }
   calendarDto.feed.events = calendarDto.days.reduce((n, d) => n + d.items.length, 0);
+  // A calendar that is connected and could not be read: no day, no next open time, and the sentence the owner
+  // gets. "settings" is the one that was invisible — a config row the schema refused, which took the address
+  // with it and used to come back as "no calendar connected".
+  if (unreadable) {
+    calendarDto.feed = { present: true, state: "unavailable", source: "Google Calendar", events: 0, recurring_expanded: 0, skipped_recurring: 0, reason: "settings", status: null, problem: feedProblemWords("settings"), read_at: null, checked_at: now.toISOString(), stale: false, dropped: 0 };
+    calendarDto.next_opening = null;
+    calendarDto.days.forEach((d) => { d.items = []; d.windows = []; });
+  }
 
   // People: the eight above, and six who have gone quiet. Everyone here said yes to messages and nobody to offers,
   // which is the Worth-a-look row the nightly pins on the sample's own workspace.
@@ -365,10 +379,11 @@ export function todaySample(nowMs: number = Date.now(), day: SampleDay = "usual"
   return built;
 }
 
-/** The mockup picks its day from the page's query, `Chanlytics.html?day=busy#/today`; anything else is the usual day. */
+/** The mockup picks its day from the page's query, `Chanlytics.html?day=busy#/today` or `?day=unreadable`; anything else is the usual day. */
 export function sampleDayOf(win: Record<string, unknown>): SampleDay {
   const search = (win.location as { search?: string } | undefined)?.search ?? "";
-  return /[?&]day=busy(&|$)/.test(search) ? "busy" : "usual";
+  const m = /[?&]day=(busy|unreadable)(&|$)/.exec(search);
+  return m ? (m[1] as SampleDay) : "usual";
 }
 
 /** The bell as Today and the topbar read it, over the sample's rows, with this page's read marks kept in memory. */
