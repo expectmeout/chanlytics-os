@@ -2075,6 +2075,7 @@ interface AwayRowLike {
 type AwayQueueRef = string | {
     conversationId?: string | null;
     callId?: string | null;
+    runLabel?: string | null;
 };
 interface AwayGroupVM<T extends AwayRowLike> {
     /** The row itself when it stands alone; the newest of the group otherwise. */

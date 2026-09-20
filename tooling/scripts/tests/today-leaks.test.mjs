@@ -215,6 +215,12 @@ test("a template that can be sent does not wear a warning's colour, and neither 
 
 test("several templates at once are one row each way -- a sync can approve a batch", () => {
   const t = (id, kind, title) => ({ id, kind, title, message: "", tone: kind === "template_ready" ? "ok" : "warn", icon: "check", unread: true, about: null });
+  // A run the queue holds for a word is not said again here; a run it does not hold is news.
+  const readyRun = (id, name) => t(id, "playbook", `Playbook “${name}” is ready: 1 person`);
+  const withRun = todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days"), readyRun("r2", "Birthday offer")], [{ runLabel: "Win-back · quiet 30 days" }], 5);
+  assert.deepEqual(withRun.groups.map((g) => g.row.id), ["r2"], "the queued run's row is the queue's; the other stands");
+  assert.equal(withRun.queued, 1);
+  assert.equal(todayAwayGrouped([readyRun("r1", "Win-back · quiet 30 days")], [], 5).groups.length, 1, "nothing queued, nothing hidden");
   const ready = todayAwayGrouped([t("1", "template_ready", "a"), t("2", "template_ready", "b"), t("3", "template_ready", "c")]);
   assert.equal(ready.groups[0].title, "3 templates are ready to send");
   const blocked = todayAwayGrouped([t("4", "template_blocked", "a"), t("5", "template_blocked", "b")]);

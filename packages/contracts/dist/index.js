@@ -5503,6 +5503,7 @@ function todayLeaks(reports, people, noReply = [], max = TODAY_LEAK_MAX) {
   const more = Math.max(0, all.length - max);
   return { rows: all.slice(0, max), more, moreLine: more ? `and ${more} more` : null };
 }
+var readyRunTitle = (label) => `Playbook \u201C${label}\u201D is ready`;
 var AWAY_NOUN = {
   call: ["call", "calls"],
   job_failed: ["job did not finish", "jobs did not finish"],
@@ -5536,9 +5537,11 @@ function todayAwayGrouped(rows, inQueue = [], max = 5) {
     return id ? [id] : [];
   }));
   const callsQueued = new Set(inQueue.flatMap((q) => typeof q === "string" || !q.callId ? [] : [q.callId]));
+  const runsQueued = inQueue.flatMap((q) => typeof q === "string" || !q.runLabel ? [] : [readyRunTitle(q.runLabel)]);
   const idOf = (r) => r.id ?? r.key ?? "";
   const door = (r) => r.to ?? (r.actions && r.actions[0] ? r.actions[0].to : void 0);
   const aboutQueued = (r) => {
+    if (r.kind === "playbook" && runsQueued.some((title) => r.title.startsWith(title))) return true;
     if (r.about && r.about.type === "conversation" && convs.has(r.about.id)) return true;
     if (r.about && r.about.type === "call" && callsQueued.has(r.about.id)) return true;
     const cv = conversationOfNeedsKey(idOf(r));
