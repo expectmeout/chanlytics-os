@@ -2710,7 +2710,7 @@ const quietDay = () => toTodayVM(metrics({ now: { escalations_open: 0, oldest_op
 
 const tile = (id, value, compare = null) => ({ id, label: id, value, meta: "", delta: null, spark: [], compare });
 const reports = () => ({
-  vm: { days: 7, rangeLabel: "7 days", since: "Sep 12", until: "Sep 18", empty: false, tiles: [tile("messages", "24", "up from 19"), tile("calls", "4")], answered: { totals: { in: 24, ai: 21, you: 1, none: 2 } }, replyTime: { count: 21, medianLabel: "34s" }, reasons: [] },
+  vm: { days: 7, rangeLabel: "7 days", since: "Sep 12", until: "Sep 18", empty: false, tiles: [tile("messages", "24", "up from 19"), tile("calls", "4")], answered: { totals: { in: 24, ai: 21, you: 1, none: 2 }, share: 0.875 }, replyTime: { count: 21, medianLabel: "34s" }, calls: { total: 4 }, reasons: [] },
   campaigns: null,
   booking: { present: true, headline: "2 of 18 booked", sub: "", pct: 11, asked: 18, booked: 2 },
 });
