@@ -44,7 +44,7 @@ Names and wording here are final; a task that needs something else says so in it
 - `TodayVM` loses `standing.greeting`, `pulse`, the top-level `launchpad` and `updatedAt`. It gains:
   - `figures: TodayFigureVM[] | null`: the day's four figures in this order: `messages`, `answered`, `calls`, `new`; null when `messages_in + calls + new_contacts === 0` (a day with nothing at all draws no row of zeros).
   - `proof: string`: `todayProof(m.now, tz, now)`, always computed, never gated on the queue: `"The last message arrived yesterday at 5:39 PM, and the receptionist answered 1m 18s later."`, `"The last message arrived 4:52 PM."`, or `"No messages have arrived yet."`.
-  - `noReply: TodayNoReplyVM[]`: threads where the customer wrote last, nothing went back for `NO_REPLY_AFTER_MS` (one hour) or more, the thread is `open` or `needs_human`, and no open escalation names it (those are the queue's); oldest first; `{ conversationId, who, sinceMs, to: "inbox/th-<id>" }`.
+  - `noReply: TodayNoReplyVM[]`: threads where the customer wrote last, nothing went back for `NO_REPLY_AFTER_MS` (one hour) or more, nobody holds the thread (`standingOf` says `quiet` or `needs_you`: a snoozed thread, a paused one and one a teammate claimed are excluded), and no queue row is about it (an escalation's thread and a closing window's thread are the queue's); oldest first; `{ conversationId, who, sinceMs, to: "inbox/th-<id>" }`.
 - `TodayFigureVM = { id: "messages" | "answered" | "calls" | "new"; label; value: number; meta: string; receipt: { text: string; door: { label: string; to: string } | null } | null }`. The words:
 
 | id | label | value | meta (always under the figure) | receipt text (hover, focus, tap) | door |
@@ -223,6 +223,13 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   const many = toTodayVM(metrics({ period: { messages_in: 4, conversations_active: 4, new_contacts: 4 } }), four, [], [], NOW).figures.find((f) => f.id === "new");
   assert.equal(many.receipt.text, "Renata Solís, Marco Ibáñez, Noor Haddad and 1 more wrote for the first time today.", "one 'and', as andList says it");
   assert.equal(many.meta, "on WhatsApp and email", "three on WhatsApp, one by email: most first");
+  // A handover opened today that a teammate has taken over is still open: named by its reason, never counted as resolved.
+  const claimed = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, assignee_user_id: "u-teammate", assignee_is_me: false } : c));
+  const taken = toTodayVM(metrics({ period: { messages_in: 2, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 2, escalations_new: 1 } }), claimed, [busyEsc()[0]], [], NOW).figures.find((f) => f.id === "answered");
+  assert.equal(taken.receipt.text, "Asked for a person: once. One reply each.", "REGRESSION: '1 handover already resolved' over a colleague mid-reply");
+  // Two of nine held, both by WhatsApp: what the page holds, said once.
+  const twoHeld = toTodayVM(busyDay(), [busyThreads()[0], thread("cv-b", "Bea Lind", [at("2026-08-27T12:30:00Z")])], [], [], NOW).figures.find((f) => f.id === "messages");
+  assert.equal(twoHeld.receipt.text, "The 2 the Inbox holds both came by WhatsApp.", "REGRESSION: 'Of the 2 in the Inbox: 2 by WhatsApp.'");
 });
 
 test("a figure with nothing to add has no receipt; a day with nothing at all has no figures, and the proof is still said", () => {
@@ -261,6 +268,8 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
   assert.deepEqual(toTodayVM(busyDay(), theirs, [], busyCalls(), NOW).noReply, [], "REGRESSION: a thread a colleague is answering, listed as ignored");
   const paused = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, paused_until: "2026-08-27T18:00:00Z" } : c));
   assert.deepEqual(toTodayVM(busyDay(), paused, [], busyCalls(), NOW).noReply, [], "a person is on it");
+  const archived = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, state: "archived" } : c));
+  assert.deepEqual(toTodayVM(busyDay(), archived, [], busyCalls(), NOW).noReply, [], "REGRESSION: a filed-away thread listed as waiting");
   const two = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, state: "open", messages: [at("2026-08-27T09:00:00Z"), at("2026-08-27T11:30:00Z")] } : c));
   assert.deepEqual(toTodayVM(busyDay(), two, [], busyCalls(), NOW).noReply.map((r) => r.who), ["Ana Reyes", "Dulce Amaro"], "oldest wait first");
 });
@@ -461,7 +470,8 @@ function figuresOf(
   m: MetricsSummaryDto,
   conversations: ConversationDto[],
   callsInWindow: CallDto[],
-  openEsc: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+  /** The escalations read as it came (state=open): not `openEsc`, which drops the ones a person has taken over. */
+  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
   tz: string,
   now: Date,
 ): TodayFigureVM[] | null {
@@ -486,8 +496,13 @@ function figuresOf(
     meta: lastAt ? `last at ${lastAt}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}` : "none yet",
     receipt: wires.length
       ? {
+          // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
           text: held !== p.messages_in
-            ? held === 1 ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.` : `Of the ${held} in the Inbox: ${split}.`
+            ? held === 1
+              ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+              : wires.length === 1
+                ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
+                : `Of the ${held} in the Inbox: ${split}.`
             : wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${split}.`,
           door: { label: "Open the Inbox", to: "inbox" },
         }
@@ -499,7 +514,8 @@ function figuresOf(
   // holds them (the open ones: the read is state=open), so a handover already resolved is counted, not named.
   // period.escalation_reasons is every OPEN escalation whatever its age (00037_hygiene.sql), so it is not read here:
   // a clause about today with a breakdown about all time contradicted itself on the first workspace that opened it.
-  const todays = openEsc.filter((e) => new Date(e.created_at).getTime() >= windowMs);
+  // The raw read, not the queue's list: a handover a teammate has taken over is still open, not resolved.
+  const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
   const reasons = tally(todays.map((e) => e.reason));
   const resolved = Math.max(0, p.escalations_new - todays.length);
   const answeredMeta = [
@@ -761,7 +777,8 @@ export function toTodayVM(
   const closingSet = new Set(closingConvs.map((c) => c.id));
   const noReply: TodayNoReplyVM[] = conversations
     .flatMap((c) => {
-      if (escSet.has(c.id) || closingSet.has(c.id)) return [];
+      // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
+      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
       const { standing } = standingOf({
         state: c.state, paused_until: c.paused_until, assignee_user_id: c.assignee_user_id,
         assignee_is_me: c.assignee_is_me, open_escalation: false,
@@ -776,7 +793,7 @@ export function toTodayVM(
     .sort((a, b) => a.sinceMs - b.sinceMs);
 
   const proof = todayProof(live, tz, now);
-  const figures = figuresOf(m, conversations, callsInWindow, openEsc, tz, now);
+  const figures = figuresOf(m, conversations, callsInWindow, escalations, tz, now);
 
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;
