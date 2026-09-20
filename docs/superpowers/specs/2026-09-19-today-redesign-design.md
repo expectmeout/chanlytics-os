@@ -70,11 +70,12 @@ Capped at five rows with an "Open Calendar" tail, and the two columns stop shari
 
 The card the page is named after, at the scale the seven-day tiles have now.
 
-- **The day's own numbers**: four figures in one row, each 22px in proportional figures with its word beneath, in this order: customer messages, answered by the receptionist, calls, anyone new. A figure whose count is zero is drawn as 0 only while the day has traffic; on a day with nothing at all the row does not render (see the quiet day below). Under the figures, one sentence for the rest: how fast it typically answered, what the receptionist sent, what stopped it today, and voicemail if any. All of it comes from fields Today already fetches on every load and has never read (`today.ts:38-69`: `period.new_contacts`, `period.call_sentiments`, `period.calls_voicemail`, `period.escalation_reasons`, `period.messages_out_ai`).
-- **The proof, always.** Which lines are listening, when the last message arrived and how long the receptionist took to answer it. Today this is gated on the queue being empty as well as the day being quiet, so on this workspace (no traffic, three or four open escalations) it is suppressed exactly when an owner needs it.
+- **The day's own numbers**: four figures in one row, each 22px in proportional figures with its word beneath, in this order: customer messages, answered by the receptionist, calls, anyone new. A figure whose count is zero is drawn as 0 only while the day has traffic; on a day with nothing at all the row does not render (see the quiet day below). All of it comes from fields Today already fetches on every load and has never read (`today.ts:38-69`: `period.new_contacts`, `period.call_sentiments`, `period.calls_voicemail`, `period.escalation_reasons`, `period.messages_out_ai`).
+- **Each figure carries its own receipt.** Under every figure, one clause that is always there, in 12px dim: "last at 4:52 PM, answered in 41s" under the messages, "typically in 34s, 2 handed over" under the answered, "1 to voicemail" under the calls, "both on WhatsApp" under the new. Behind the figure, on hover, focus or tap, the why and one door: "Handed over twice: once because a customer asked for a person, once for a photo it can't read. The rest it answered itself. See the handovers". On a desktop it is a popover anchored under the figure; on a phone it is a panel that opens under the row of figures. A receipt adds to its figure and never repeats its number or its clause, so nothing on the card is said twice and nothing lives only behind a hover. This replaces the sentence that sat under the figures (four facts in one paragraph, the same facts the figures were about) and the "listening" line, which said what the standing line already says.
+- **The proof, always.** When the last message arrived and how long the receptionist took to answer it rides the customer-messages figure as its clause. Today this proof is gated on the queue being empty as well as the day being quiet, so on this workspace (no traffic, three or four open escalations) it is suppressed exactly when an owner needs it. Which lines are listening is the standing line's to say, once.
 - **What is not a number**, as today: a reply that failed to deliver with its door, what Setup still wants, a review that landed, what ran, what was sent.
 - **One line for the last seven days** at the foot, with a door to Reports: the messages, the share the receptionist answered and its median reply. It replaces the three-way control and the six tiles.
-- **A quiet day** is the proof, "No customer has written yet today.", and that one line. There is no congratulation and nothing invented to fill the space.
+- **A quiet day** is "No customer has written yet today." and the proof as a line (there is no figure to hang it on), and that one line. There is no congratulation and nothing invented to fill the space.
 
 ### 4.6 Worth a look
 
@@ -84,6 +85,9 @@ Unchanged in spirit: at most two problems, in a fixed order, each one sentence w
 - It says when it dropped a third problem ("and 1 more"), instead of silently showing two of three.
 - The unanswered row names who was ignored, up to two people, and opens them. The identity is returned by the query today and discarded one layer up (`today.ts`), so only the count survives.
 - Severity stops being carried by colour alone: each row's tone rides with a word or an icon (today it is a 3px bar hidden from assistive tech, and under forced colours all three rows look identical).
+- Each row gains an Ask door beside its own ("Ask why"), which opens Ask with the row's facts as the prompt through the shell's `askAbout`. Ask already grounds every citation in what it read, so "why did 17 people never book" is answered from the people themselves, not composed.
+
+The rows stay deterministic: rules with floors, the arithmetic printed under each sentence, tested on fixtures. A model does not write them. Every sentence on this page is checked by `the-pages-say-only-what-is-true`, and a generated sentence is a new way to be untrue that no test can pin; the analysis that produced this spec found the page's problem was exactly untrue sentences. A generated read of the week ("This week, read for you": one cached paragraph a day per workspace, every number in it required to appear in the fact list it was given, else the deterministic sentence stands) is a follow-on to decide after the redesign ships, not part of it (section 12).
 
 ### 4.7 While you were away
 
@@ -100,7 +104,8 @@ Grouped as today, with three corrections: the dedupe covers all four row kinds (
 | "3 booked" and "3 appointments today" (`today.ts:948` and `:984`) | The schedule keeps it |
 | The queue's badge, always the sum of the line beside it | The sub-line keeps it; the badge goes |
 | The unanswered count and its three companions, printed in Worth a look and again in the next card's tiles | Worth a look keeps them |
-| "The lines are connected", said three times in three fonts plus a fourth in the queue's empty state | The standing line keeps it; the day's proof names the channels |
+| "The lines are connected", said three times in three fonts plus a fourth in the queue's empty state | The standing line keeps it, once |
+| The sentence under the figures ("Typically answered in 34s. The receptionist sent 11 messages and handed over twice ... 1 call went to voicemail.") | Each fact becomes the clause under the figure it explains; the why lives in that figure's receipt |
 | "Asked, never booked 17" in Worth a look and again in Where people are | Worth a look keeps it |
 
 ## 5. Copy and colour
@@ -108,14 +113,14 @@ Grouped as today, with three corrections: the dedupe covers all four row kinds (
 - Sentences with numbers come from contracts. Two of the seven the page writes today are pure relocations (the words already exist in the view model); the rest need an input the view model has never had, so contracts exports a pure helper the page calls with the runs it holds (`todayRunsLine(runs)`), rather than the page composing the words.
 - Two sentences say WhatsApp over a count that spans every channel (`today.ts:563`, `ask/tools.ts:94`); both name the channel only when the count is one channel's.
 - Coral: the queue count in ink, one solid verb per card, the standing dot quiet unless a call is live.
-- No em dashes in new UI strings; sentence case; each number once.
+- No em dashes in new UI strings; sentence case; each number once. A figure's receipt adds to the figure: it never repeats the figure's number or its clause.
 
 ## 6. Data (contracts, `packages/contracts/src/today.ts`)
 
-- `todayDay(metrics, calls, ...)`: the day's figures and its one sentence, reading the five fields already fetched and never read. Returns nulls, never zeros dressed as facts, when the day has nothing.
-- `todayProof(...)`: which lines are listening, when the last message arrived, how long the answer took. Always returned, not gated on the queue.
+- `todayDay(metrics, calls, ...)`: the day's four figures, each `{ id, label, value, meta, receipt }` where `meta` is the clause always drawn under it and `receipt` is `{ text, door: { label, to } } | null`, reading the five fields already fetched and never read. Returns nulls, never zeros dressed as facts, when the day has nothing; a figure with nothing to add has no receipt and is not a button.
+- `todayProof(...)`: when the last message arrived and how long the answer took. Always returned, not gated on the queue; on a day with traffic it is the messages figure's `meta`, on a quiet day the card's line.
 - `todayPeriodLine(reports)`: the seven days in one sentence, from the same numbers Reports draws, using its own words (`vm.lines`, `compareWords`).
-- `todayLeaks(...)`: gains the reach rule, a `more` count, the unanswered row's people, and a tone carried by a word.
+- `todayLeaks(...)`: gains the reach rule, a `more` count, the unanswered row's people, a tone carried by a word, and each row's `ask` prompt (the row's sentence and arithmetic, for `askAbout`).
 - `todayAwayGrouped(...)`: dedupe over all four row kinds through `conversationOfNeedsKey` and the call rows' own key; `more` counts the bell's remainder; a distinct empty state for "all of it is in your queue".
 - `todayRunsLine(runs)`: the playbook-run sentences the page writes today.
 - Removed: `standing.greeting`, `pulse`, the top-level `launchpad` and `updatedAt` (no reader anywhere), and the two stale comments describing the hero #556 deleted.
@@ -132,12 +137,12 @@ Grouped as today, with three corrections: the dedupe covers all four row kinds (
 
 ## 8. Accessibility
 
-The queue's state line wraps rather than truncates on a phone. Every touch target keeps the shell's 44px floor. Severity carries a word or an icon, never colour alone. The day's card is a `section` with its own heading. Focus rings on every control. Reduced motion stops the standing dot's pulse.
+The queue's state line wraps rather than truncates on a phone. Every touch target keeps the shell's 44px floor. Severity carries a word or an icon, never colour alone. The day's card is a `section` with its own heading. Focus rings on every control. Reduced motion stops the standing dot's pulse. A figure with a receipt is a `button` with `aria-expanded` and `aria-controls` naming the receipt; hover shows it, Enter or Space toggles it, Escape closes it, and a tap toggles it on touch. The clause under the figure is always drawn, so nothing an owner needs lives only behind a hover.
 
 ## 9. Testing
 
-- **Contracts:** every new helper and every branch of every sentence, on fixtures that copy the real payload shape.
-- **Page:** the three bands drawn from a view model on the shared stub React (`_legacy-react.mjs`, which the Reports work added), including the quiet day, a failed borrowed read for each of the five, the empty-because-queued away card, and the phone's wrapping state line.
+- **Contracts:** every new helper and every branch of every sentence, on fixtures that copy the real payload shape; and one test over every figure that its receipt repeats neither its number nor its clause.
+- **Page:** the three bands drawn from a view model on the shared stub React (`_legacy-react.mjs`, which the Reports work added), including the quiet day, a failed borrowed read for each of the five, the empty-because-queued away card, a figure's receipt opened and closed, and the phone's wrapping state line.
 - **The pins move, they do not multiply.** Thirty-two places read Today's files as raw text and a ratchet forbids a thirty-third anywhere in the repo; a new test file gets a budget of zero, so the new tests read no source at all, the existing reads move with the code they pin, and the baseline is re-banked in the same PR. Eighteen exact CSS strings are pinned (including a grid template and a two-line media block whose newline and indent are part of the match), the card order is pinned as substring positions, and four unrelated suites use `today-standing` as their signed-in signal: that test id survives.
 - **e2e:** `e2e/today.spec.ts` rewritten; `e2e/signals.ts` updated; the twelve specs that navigate to the route checked.
 - **Look:** the mockup at 1440, 1180 and 390, light and dark, against the `today-sample`.
@@ -154,4 +159,4 @@ The queue's state line wraps rather than truncates on a phone. Every touch targe
 
 ## 12. Out of scope
 
-Charts on Today. Business hours. Any new metric or new migration. The Calendar page, the Inbox, the bell's own surface. A second Today for a busy workspace: the page is designed for a business that receives a handful of messages a day, and its emptiness is a fact about the business, not a hole to fill.
+Charts on Today. Business hours. Any new metric or new migration. The Calendar page, the Inbox, the bell's own surface. A second Today for a busy workspace: the page is designed for a business that receives a handful of messages a day, and its emptiness is a fact about the business, not a hole to fill. A generated read of the week (section 4.6): a decision for after the redesign ships, with its own spec, because it needs a validation rule, a cache and a cost ceiling that this page does not.
