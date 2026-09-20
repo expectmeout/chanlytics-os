@@ -401,7 +401,7 @@ test("the day's four figures, each with the clause under it and the why behind i
   // The threads the page holds carry four of today's nine: the receipt says what it counted, by wire, most first.
   assert.deepEqual(by.messages.receipt, { text: "Of the 4 in the Inbox: 2 by WhatsApp, 1 by email and 1 by text.", door: { label: "Open the Inbox", to: "inbox" } }, "never an absolute claim from a partial read");
   assert.equal(by.answered.meta, "typically in 34s, 2 handed over");
-  assert.deepEqual(by.answered.receipt, { text: "Asked for a person: once; sent something the receptionist can't read: once. It sent 11 messages in all.", door: { label: "See the handovers", to: "inbox" } }, "the reasons are today's escalations as the page holds them, never period.escalation_reasons, which counts every open one whatever its age");
+  assert.deepEqual(by.answered.receipt, { text: "Handed over twice: once because a customer asked for a person, once for something it can't read. The rest it answered itself. It sent 11 messages in all.", door: { label: "See the handovers", to: "inbox" } }, "the reasons are today's escalations as the page holds them, never period.escalation_reasons, which counts every open one whatever its age");
   assert.equal(by.calls.meta, "7 min on the phone, 1 to voicemail");
   assert.deepEqual(by.calls.receipt, { text: "The voice provider read 2 as positive and 1 as neutral. Kenia Duarte reached voicemail.", door: { label: "Open the calls", to: "conversations/phone" } });
   assert.equal(by.new.meta, "on email and WhatsApp", "the wires the new people wrote on: most first, then by name, the one rule every split here follows");
@@ -431,11 +431,26 @@ test("a receipt adds to its figure: it never says the figure's own number again"
   assert.equal(held.figures.find((f) => f.id === "new").meta, "on WhatsApp");
 });
 
+test("the answered receipt is a sentence at every count: both times, each time, all resolved, never a digit", () => {
+  const esc = (id, reason, min) => ({ id, conversation_id: `cv-${id}`, reason, details: null, state: "open", created_at: new Date(NOW.getTime() - min * 60_000).toISOString() });
+  const fig = (m, escs) => toTodayVM(metrics({ period: m }), [], escs, [], NOW).figures.find((f) => f.id === "answered").receipt.text;
+  assert.equal(fig({ messages_in: 6, messages_out_ai: 4, answered_by_ai: 4, conversations_active: 6, escalations_new: 2 }, [esc("a", "human_token", 10), esc("b", "human_token", 20)]),
+    "Handed over twice, both times because a customer asked for a person. The rest it answered itself.");
+  assert.equal(fig({ messages_in: 6, messages_out_ai: 3, answered_by_ai: 3, conversations_active: 6, escalations_new: 3 }, [esc("a", "non_text", 10), esc("b", "non_text", 20), esc("c", "non_text", 30)]),
+    "Handed over three times, each time for something it can't read. The rest it answered itself.");
+  assert.equal(fig({ messages_in: 6, messages_out_ai: 3, answered_by_ai: 3, conversations_active: 6, escalations_new: 3 }, [esc("a", "human_token", 10), esc("b", "human_token", 20), esc("c", "refusal", 30)]),
+    "Handed over three times: twice because a customer asked for a person, once because it declined to answer. The rest it answered itself.");
+  assert.equal(fig({ messages_in: 6, messages_out_ai: 3, answered_by_ai: 3, conversations_active: 6, escalations_new: 3 }, [esc("a", "human_token", 10)]),
+    "Handed over three times: once because a customer asked for a person. Two are already resolved. The rest it answered itself.");
+  assert.equal(fig({ messages_in: 3, messages_out_ai: 0, answered_by_ai: 0, conversations_active: 3, escalations_new: 1 }, [esc("a", "manual", 10)]),
+    "Handed over once, because you flagged it.", "nothing answered: no 'rest' to speak of");
+});
+
 test("the sentences stay true where the SQL's counts and the page's rows disagree", () => {
   // Two handovers opened today, both resolved since: the read (state=open) holds neither, and the receipt counts them rather than naming a reason it cannot see.
   const resolved = toTodayVM(busyDay(), busyThreads(), [], busyCalls(), NOW).figures.find((f) => f.id === "answered");
   assert.equal(resolved.meta, "typically in 34s, 2 handed over");
-  assert.equal(resolved.receipt.text, "2 handovers already resolved. It sent 11 messages in all.");
+  assert.equal(resolved.receipt.text, "Handed over twice, both already resolved. The rest it answered itself. It sent 11 messages in all.");
   // One reply answered three asks: nothing to say about it.
   const grouped = toTodayVM(metrics({ period: { messages_in: 3, messages_out_ai: 1, answered_by_ai: 3, conversations_active: 1 } }), [], [], [], NOW).figures.find((f) => f.id === "answered");
   assert.equal(grouped.meta, "none handed over");
@@ -462,7 +477,7 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   // A handover opened today that a teammate has taken over is still open: named by its reason, never counted as resolved.
   const claimed = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, assignee_user_id: "u-teammate", assignee_is_me: false } : c));
   const taken = toTodayVM(metrics({ period: { messages_in: 2, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 2, escalations_new: 1 } }), claimed, [busyEsc()[0]], [], NOW).figures.find((f) => f.id === "answered");
-  assert.equal(taken.receipt.text, "Asked for a person: once. One reply each.", "REGRESSION: '1 handover already resolved' over a colleague mid-reply");
+  assert.equal(taken.receipt.text, "Handed over once, because a customer asked for a person. The rest it answered itself.", "REGRESSION: '1 handover already resolved' over a colleague mid-reply");
   // Two of nine held, both by WhatsApp: what the page holds, said once.
   const twoHeld = toTodayVM(busyDay(), [busyThreads()[0], thread("cv-b", "Bea Lind", [at("2026-08-27T12:30:00Z")])], [], [], NOW).figures.find((f) => f.id === "messages");
   assert.equal(twoHeld.receipt.text, "The 2 the Inbox holds both came by WhatsApp.", "REGRESSION: 'Of the 2 in the Inbox: 2 by WhatsApp.'");
