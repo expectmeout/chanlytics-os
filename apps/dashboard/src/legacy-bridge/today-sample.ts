@@ -86,7 +86,11 @@ function naiveLocal(ms: number, zone: string): string {
 
 const phone = (last4: string) => `+1305555${last4}`;
 
-function build(nowMs: number): TodaySample {
+/** Which day the sample is: the usual one the tests walk, or a busy one that overflows every cap on the page. */
+export type SampleDay = "usual" | "busy";
+
+function build(nowMs: number, day: SampleDay): TodaySample {
+  const busy = day === "busy";
   const now = new Date(nowMs);
   const today = zoneDayKey(nowMs, ZONE);
   const midnight = zoneMidnight(ZONE, today);
@@ -116,10 +120,28 @@ function build(nowMs: number): TodaySample {
     thread("cv-bea", contact("k-bea", "Bea Lind", "0107"), [msg("m-b0", "in", "Do you have anything this week for a gloss?", at(9, 0, -20)), msg("m-b0r", "ai", "Thursday 9:00 works. See you then.", at(9, 1, -20)), msg("m-b1", "in", "Thanks, see you tomorrow!", ago(20)), msg("m-b2", "ai", "See you tomorrow at 9:00, Bea.", ago(19))], { last_wa_inbound_at: ago(20) }),
     thread("cv-sofia", contact("k-sofia", "Sofía Mendes", "0108"), [msg("m-s1", "in", "Can you hold the 3 PM for me? I'll confirm tonight.", ago(21 * 60))], { last_wa_inbound_at: ago(21 * 60) }),
   ];
+  // A busy day: eight more threads that ask for a person, a call back or a reply before a window closes, all older
+  // than today so the "new people" figure is untouched. With these the queue holds twelve and draws six.
+  if (busy) conversations.push(
+    thread("cv-lucia", contact("k-lucia", "Lucía Ferreira", "0111"), [msg("m-l0", "in", "Is the 2 PM still open tomorrow?", at(9, 0, -3)), msg("m-l1", "ai", "It is. Shall I hold it?", at(9, 1, -3)), msg("m-l2", "in", "I need to speak to someone about my deposit.", ago(160))], { state: "needs_human", last_wa_inbound_at: ago(160) }),
+    thread("cv-noor", contact("k-noor", "Noor Haddad", "0112"), [msg("m-n0", "in", "Do you do cuts for kids?", at(11, 0, -4)), msg("m-n1", "ai", "We do, from age five. Want a time?", at(11, 1, -4)), msg("m-n2", "in", "Can a person call me? It's about an allergy.", ago(75))], { state: "needs_human", last_wa_inbound_at: ago(75) }),
+    thread("cv-iris", contact("k-iris", "Iris Kowalski", "0113"), [msg("m-i0", "in", "How much is a gloss?", at(10, 0, -5)), msg("m-i1", "ai", "From 60, depending on length.", at(10, 1, -5)), msg("m-i2", "in", "I sent a photo of what I want, did you get it?", ago(55))], { state: "needs_human", last_wa_inbound_at: ago(55) }),
+    thread("cv-camila", contact("k-camila", "Camila Duarte", "0114"), [msg("m-c0", "in", "Booking for two on Friday?", at(9, 30, -6)), msg("m-c1", "ai", "Friday 3:00 and 3:15 are open side by side.", at(9, 31, -6)), msg("m-c2", "in", "My friend wants a refund for last time first.", ago(35))], { state: "needs_human", last_wa_inbound_at: ago(35) }),
+    thread("cv-zoe", contact("k-zoe", "Zoe Martin", "0115"), [msg("m-z0", "in", "Any openings Thursday evening?", at(12, 0, -2)), msg("m-z1", "ai", "Thursday 5:30 PM is open.", at(12, 1, -2)), msg("m-z2", "in", "Hold it, I'll confirm by tonight.", ago(22 * 60 + 30))], { last_wa_inbound_at: ago(22 * 60 + 30) }),
+    thread("cv-emily", contact("k-emily", "Emily Chen", "0116"), [msg("m-e0", "in", "Do you have a cut and gloss together?", at(13, 0, -7)), msg("m-e1", "ai", "We do. It takes about two hours.", at(13, 1, -7)), msg("m-e2", "in", "Saturday morning if you can.", ago(23 * 60))], { last_wa_inbound_at: ago(23 * 60) }),
+    thread("cv-omar", contact("k-omar", "Omar Haddad", "0117"), [msg("m-o0", "in", "Is there parking?", at(15, 0, -9)), msg("m-o1", "ai", "Yes, behind the building.", at(15, 1, -9)), msg("m-o2", "in", "Thanks, see you at 12.", ago(200)), msg("m-o3", "ai", "See you at 12, Omar.", ago(199))], { last_wa_inbound_at: ago(200) }),
+    thread("cv-alejandra", contact("k-alejandra", "Alejandra Peña", "0118"), [msg("m-x0", "in", "Color consultation this week?", at(10, 0, -11)), msg("m-x1", "ai", "Wednesday 10:00 is open.", at(10, 1, -11)), msg("m-x2", "in", "Booked, thank you!", ago(240)), msg("m-x3", "ai", "See you Wednesday.", ago(239))], { last_wa_inbound_at: ago(240) }),
+  );
   const escalations: Array<EscalationDto & { conversation_id: string }> = [
     { id: "e-ana", conversation_id: "cv-ana", reason: "human_token", details: null, state: "open", created_at: ago(94) },
     { id: "e-kenia", conversation_id: "cv-kenia", reason: "callback", details: "Call back to confirm Saturday 10:00.", state: "open", created_at: ago(40) },
   ];
+  if (busy) escalations.push(
+    { id: "e-lucia", conversation_id: "cv-lucia", reason: "human_token", details: null, state: "open", created_at: ago(160) },
+    { id: "e-noor", conversation_id: "cv-noor", reason: "callback", details: "Call Noor about an allergy before Thursday.", state: "open", created_at: ago(75) },
+    { id: "e-iris", conversation_id: "cv-iris", reason: "non_text", details: null, state: "open", created_at: ago(55) },
+    { id: "e-camila", conversation_id: "cv-camila", reason: "human_token", details: null, state: "open", created_at: ago(35) },
+  );
   const call = (id: string, startedMin: number, durationS: number, over: Partial<CallDto> = {}): CallDto => ({
     id, retell_call_id: `r-${id}`, direction: "inbound", call_type: "phone_call", status: "ended", from_e164: phone("0199"), from_raw: null, to_e164: "+13055550100",
     started_at: ago(startedMin), ended_at: new Date(nowMs - startedMin * MIN + durationS * 1000).toISOString(), updated_at: new Date(nowMs - startedMin * MIN + durationS * 1000).toISOString(),
@@ -132,6 +154,12 @@ function build(nowMs: number): TodaySample {
     call("k-kenia", 45, 125, { from_e164: phone("0105"), sentiment: "Neutral", conversation_id: "cv-kenia", contact_id: "k-kenia", contact: { display_name: "Kenia Duarte", wa_profile_name: null, phone_e164: phone("0105") }, summary: "The caller asked for a gel manicure on Saturday and wants a call back to confirm.", wanted: "Asked for a gel manicure Saturday.", outcome: "callback_needed", follow_up: "Call back to confirm Saturday 10:00.", caller_name: "Kenia" }),
     call("k-voicemail", 25, 30, { from_e164: "+13475550188", sentiment: null, in_voicemail: true, summary: null, wanted: null, outcome: "voicemail", disconnection_reason: "voicemail_reached" }),
   ];
+  if (busy) calls.push(
+    call("k-omar", 210, 95, { from_e164: phone("0117"), contact: { display_name: "Omar Haddad", wa_profile_name: null, phone_e164: phone("0117") }, contact_id: "k-omar", conversation_id: "cv-omar", summary: "The caller confirmed his noon appointment and asked about parking.", wanted: "Confirmed noon.", outcome: "handled" }),
+    call("k-noor", 80, 340, { from_e164: phone("0112"), contact: { display_name: "Noor Haddad", wa_profile_name: null, phone_e164: phone("0112") }, contact_id: "k-noor", conversation_id: "cv-noor", sentiment: "Neutral", summary: "The caller asked whether the products are safe with a nut allergy and wants someone to call her back before Thursday.", wanted: "Asked about a nut allergy.", outcome: "callback_needed", follow_up: "Call Noor about an allergy before Thursday.", caller_name: "Noor" }),
+    call("k-voicemail-2", 130, 45, { from_e164: "+13475550142", sentiment: null, in_voicemail: true, summary: null, wanted: null, outcome: "voicemail", disconnection_reason: "voicemail_reached" }),
+    call("k-hangup", 15, 8, { from_e164: "+17865550177", sentiment: null, summary: null, wanted: null, outcome: "hung_up", disconnection_reason: "user_hangup", call_successful: false }),
+  );
 
   // The metrics as metrics_summary would count them, from the same rows, windowed to the business's day: every count
   // below is derived, so the figures agree with their receipts whatever hour the mockup is opened, not only at 4 PM.
@@ -218,6 +246,22 @@ function build(nowMs: number): TodaySample {
       ...[2, 3, 4, 5, 6].map((d) => ({ key: dayKey(d), items: [], windows: [] })),
     ],
   };
+  // Busy: twelve on the calendar today, seven tomorrow, one open time left. The feed's count is the rows'.
+  if (busy) {
+    calendarDto.days[0].items.push(
+      item("a7", 9, 30, 30, "Consultation", person("k-lucia", "Lucía Ferreira")), item("a8", 11, 0, 60, "Cut", person("k-noor", "Noor Haddad")),
+      item("a9", 12, 0, 60, "Cut and gloss", person("k-omar", "Omar Haddad")), item("a10", 13, 30, 90, "Color", person("k-iris", "Iris Kowalski")),
+      item("a11", 16, 0, 45, "Gel manicure", person("k-camila", "Camila Duarte")), item("a12", 18, 30, 60, "Gloss", person("k-zoe", "Zoe Martin")),
+    );
+    calendarDto.days[0].items.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+    calendarDto.days[0].windows = [{ start: at(13, 0), end: at(13, 30) }];
+    calendarDto.days[1].items.push(
+      item("b4", 10, 30, 90, "Color treatment", person("k-emily", "Emily Chen"), 1), item("b5", 13, 0, 60, "Cut", person("k-alejandra", "Alejandra Peña"), 1),
+      item("b6", 14, 0, 45, "Consultation", null, 1), item("b7", 16, 30, 60, "Gloss", person("k-dulce", "Dulce Amaro"), 1),
+    );
+    calendarDto.days[1].items.sort((a, b) => Date.parse(a.start) - Date.parse(b.start));
+  }
+  calendarDto.feed.events = calendarDto.days.reduce((n, d) => n + d.items.length, 0);
 
   // People: the eight above, and six who have gone quiet. Everyone here said yes to messages and nobody to offers,
   // which is the Worth-a-look row the nightly pins on the sample's own workspace.
@@ -260,6 +304,10 @@ function build(nowMs: number): TodaySample {
     broadcast("b-winback", `Win-back · ${today}`, "Win-back", "pending_approval", 6, { playbook_id: "pb-quiet", audience: { kind: "playbook", id: "pb-quiet", label: "Win-back" } }),
     broadcast("b-visit", `Visit reminder · ${today}`, "Visit reminder", "scheduled", 3, { playbook_id: "pb-visit", audience: { kind: "playbook", id: "pb-visit", label: "Visit reminder" }, scheduled_for: ago(-90) }),
     broadcast("b-number", "Save our number", "Everyone who said yes", "sent", 8, { playbook_id: null, audience: { kind: "everyone", id: null, label: "Everyone who said yes" }, scheduled_for: ago(185), started_at: ago(180), finished_at: ago(178), counts: { queued: 0, sent: 8, skipped: 0, failed: 0, delivered: 8, read: 5, replied: 1 } }),
+    ...(busy ? [
+      broadcast("b-birthday", `Birthday offer · ${today}`, "Birthday offer", "pending_approval", 4, { playbook_id: "pb-birthday", audience: { kind: "playbook", id: "pb-birthday", label: "Birthday offer" } }),
+      broadcast("b-after", `After the visit · ${today}`, "After the visit", "scheduled", 5, { playbook_id: "pb-after", audience: { kind: "playbook", id: "pb-after", label: "After the visit" }, scheduled_for: ago(-240) }),
+    ] : []),
   ];
 
   const playbooks: PlaybookCardLike[] = [
@@ -276,6 +324,14 @@ function build(nowMs: number): TodaySample {
     bellRow(`${SERVER_KEY_PREFIX}n-2`, "number", "Your WhatsApp number's quality rating was flagged", "Meta rates the number medium. Nothing is blocked; sends go on.", "warn", "shield", 320, "admin/integrations", "Open Connections"),
     bellRow(`${SERVER_KEY_PREFIX}n-3`, "broadcast_sent", "Save our number went out to 8 people", "1 replied so far.", "ok", "bolt", 178, "broadcasts/run:b-number", "Open the run", { type: "broadcast", id: "b-number" }),
     bellRow(`${NEEDS_KEY_PREFIX}cv-ana`, "needs_you", "Ana Reyes needs you", "I'd rather talk to a person about a refund for last time.", "warn", "alert", 94, "inbox/th-cv-ana", "Open"),
+    ...(busy ? [
+      bellRow(`${NEEDS_KEY_PREFIX}cv-lucia`, "needs_you", "Lucía Ferreira needs you", "I need to speak to someone about my deposit.", "warn", "alert", 160, "inbox/th-cv-lucia", "Open"),
+      bellRow(`${NEEDS_KEY_PREFIX}cv-camila`, "needs_you", "Camila Duarte needs you", "My friend wants a refund for last time first.", "warn", "alert", 35, "inbox/th-cv-camila", "Open"),
+      bellRow(`${SERVER_KEY_PREFIX}n-4`, "review", "1 new rating on Google", "Four stars from Omar H.: \"Easy to book, a bit of a wait.\"", "ok", "star", 95, "reports", "Open Reports"),
+      bellRow(`${SERVER_KEY_PREFIX}n-5`, "line", "Your email line reconnected", "Nothing was lost while it was down.", "ok", "mail", 260, "admin/integrations", "Open Connections"),
+      bellRow(`${CALL_KEY_PREFIX}k-voicemail-2`, "missed_call", "Missed call · +1 (347) 555-0142", "Reached voicemail, 45s.", "warn", "phone", 130, "conversations/cv-k-voicemail-2", "See the call"),
+      bellRow(`${SERVER_KEY_PREFIX}n-6`, "broadcast_sent", "Visit reminder went out to 3 people", "All three delivered.", "ok", "bolt", 400, "broadcasts/run:b-visit", "Open the run", { type: "broadcast", id: "b-visit" }),
+    ] : []),
     bellRow(`${NEEDS_KEY_PREFIX}cv-kenia`, "needs_you", "Kenia Duarte needs a call back", "Call back to confirm Saturday 10:00.", "warn", "alert", 40, "inbox/th-cv-kenia", "Open"),
     bellRow(`${CALL_KEY_PREFIX}k-voicemail`, "missed_call", "Missed call · +1 (347) 555-0188", "Reached voicemail, 30s.", "warn", "phone", 25, "conversations/cv-k-voicemail", "See the call"),
   ];
@@ -297,15 +353,22 @@ function build(nowMs: number): TodaySample {
   };
 }
 
-const kept = new Map<number, TodaySample>();
+const kept = new Map<string, TodaySample>();
 
 /** The sample as of `nowMs`: the same moment gives the same day, kept rather than rebuilt on every draw. */
-export function todaySample(nowMs: number = Date.now()): TodaySample {
-  const hit = kept.get(nowMs);
+export function todaySample(nowMs: number = Date.now(), day: SampleDay = "usual"): TodaySample {
+  const key = `${nowMs}:${day}`;
+  const hit = kept.get(key);
   if (hit) return hit;
-  const built = build(nowMs);
-  kept.set(nowMs, built);
+  const built = build(nowMs, day);
+  kept.set(key, built);
   return built;
+}
+
+/** The mockup picks its day from the page's query, `Chanlytics.html?day=busy#/today`; anything else is the usual day. */
+export function sampleDayOf(win: Record<string, unknown>): SampleDay {
+  const search = (win.location as { search?: string } | undefined)?.search ?? "";
+  return /[?&]day=busy(&|$)/.test(search) ? "busy" : "usual";
 }
 
 /** The bell as Today and the topbar read it, over the sample's rows, with this page's read marks kept in memory. */
@@ -356,8 +419,8 @@ export interface TodaySampleSurfaces {
  * sample is a day, not a workspace, so it must not look like one to a page that is not Today. PR B's Today page
  * reads `__TODAY_SAMPLE` through one accessor, in a demo session only.
  */
-export function installTodaySample(win: Record<string, unknown>, nowMs: number = Date.now()): void {
-  const s = todaySample(nowMs);
+export function installTodaySample(win: Record<string, unknown>, nowMs: number = Date.now(), day: SampleDay = sampleDayOf(win)): void {
+  const s = todaySample(nowMs, day);
   const put = (key: string, value: unknown) => { if (win[key] === undefined) win[key] = value; };
   put("TODAY_DATA", s.TODAY_DATA);
   put("__today", TODAY_HELPERS);

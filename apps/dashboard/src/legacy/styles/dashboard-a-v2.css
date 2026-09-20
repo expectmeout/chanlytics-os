@@ -1385,3 +1385,15 @@ button.tc-fig-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); 
    first words 44px under the bar; the canvas sits about 20px under its own. The
    sides keep the gutter. */
 .dash-a-v2 { padding-top: 10px; }
+
+/* A run is not a customer's words: it reads in one glance, verbs on the right,
+   and that shape is what tells a run from a person in the same list. On a phone
+   the verbs would squeeze the sentence to a sliver, so there a run stacks like
+   a person does. */
+.tq .cl-attn-row[data-testid="brief-run-row"], .tq .cl-attn-row[data-testid="brief-run-soon"] { padding: 10px 18px; }
+.tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-body, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-body { gap: 2px; }
+.tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-sentence, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-sentence { font-size: 12.5px; color: var(--ink-muted); }
+@media (min-width: 700px) {
+  .tq .cl-attn-row[data-testid="brief-run-row"], .tq .cl-attn-row[data-testid="brief-run-soon"] { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+  .tq .cl-attn-row[data-testid="brief-run-row"] .cl-attn-acts, .tq .cl-attn-row[data-testid="brief-run-soon"] .cl-attn-acts { grid-column: 2; grid-row: 1; padding-top: 0; }
+}

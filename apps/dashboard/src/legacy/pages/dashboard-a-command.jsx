@@ -59,6 +59,11 @@ const LiveRail = ({ nav }) => {
 // A playbook's run that waits for a person, or one under the veto window (scheduled, not yet sending) as rows of the
 // same grammar, with Approve or Stop where the button goes. What already went out is a line of the day's card. The
 // page keeps deciding WHICH rows wait or are scheduled; the words are contracts' (todayRunWords).
+// Runs the queue draws before it counts the rest: a run waiting for a word needs a decision, so those come first; a
+// run about to send is news. On a busy day four runs under six people put "Nothing sends until you say so" three
+// hundred pixels below the fold, said four times.
+const RUNS_MAX = 3;
+
 const runRows = (nav, flash, verbKind) => {
   const B = tqSurface("__BROADCASTS");
   const all = (B && B.rows) || [];
@@ -85,8 +90,9 @@ const runRows = (nav, flash, verbKind) => {
     flash(res.ok ? { msg: <><b>{t.lead}</b> {t.rest}</> } : window.refusalToast(res, "Not approved"));
   };
   // Each row opens its own run (broadcasts/run:<id>): who is on it, and what it has done so far.
-  return [
-    ...waiting.map((r) => (
+  const count = waiting.length + soon.length;
+  const drawn = [
+    ...waiting.slice(0, RUNS_MAX).map((r) => (
       <window.AttnRow
         key={`run-${r.id}`}
         initials="▶"
@@ -102,7 +108,7 @@ const runRows = (nav, flash, verbKind) => {
         testid="brief-run-row"
       />
     )),
-    ...soon.map((r) => (
+    ...soon.slice(0, Math.max(0, RUNS_MAX - Math.min(waiting.length, RUNS_MAX))).map((r) => (
       <window.AttnRow
         key={`run-${r.id}`}
         initials="▶"
@@ -119,6 +125,7 @@ const runRows = (nav, flash, verbKind) => {
       />
     )),
   ];
+  return { drawn, count, cut: count - drawn.length };
 };
 
 const TodayQueue = ({ vm }) => {
@@ -157,15 +164,15 @@ const TodayQueue = ({ vm }) => {
       testid={`queue-${r.kind}`}
     />
   ));
-  const runs = runRows(nav, ppFlash, verbKind);
-  const total = rows.length + runs.length + vm.queue.more;
+  const { drawn: runs, count: runsCount, cut: runsCut } = runRows(nav, ppFlash, verbKind);
+  const total = rows.length + runsCount + vm.queue.more;
   return (
     <section className="tq" data-testid="today-queue">
       {/* No count over the rows: the sentence says what they hold, and the rows are right under it. */}
       <div className="tq-head">
         <span className="tq-title">Your queue</span>
         <span className="tq-sub">
-          {[...vm.queue.parts, window.__today.runsSub(runs.length)].filter(Boolean).join(" · ") || vm.queue.empty.sub}
+          {[...vm.queue.parts, window.__today.runsSub(runsCount)].filter(Boolean).join(" · ") || vm.queue.empty.sub}
         </span>
         <button className="btn btn-ghost btn-sm" onClick={() => nav("inbox")}>Open Inbox <Icon name="arrow-right" size={11} /></button>
       </div>
@@ -189,10 +196,10 @@ const TodayQueue = ({ vm }) => {
           />
         )}
       </div>
-      {vm.queue.more > 0 && (
+      {(vm.queue.more > 0 || runsCut > 0) && (
         <div className="tq-foot">
-          <span>{vm.queue.more} more in the Inbox</span>
-          <button className="cl-attn-cta ghost" onClick={() => nav("inbox")}>See all</button>
+          <span>{[vm.queue.more > 0 ? `${vm.queue.more} more in the Inbox` : "", runsCut > 0 ? `${runsCut} more run${runsCut === 1 ? "" : "s"} in Campaigns` : ""].filter(Boolean).join(" · ")}</span>
+          <button className="cl-attn-cta ghost" onClick={() => nav(vm.queue.more > 0 ? "inbox" : "broadcasts")}>See all</button>
         </div>
       )}
       {toastNode}
