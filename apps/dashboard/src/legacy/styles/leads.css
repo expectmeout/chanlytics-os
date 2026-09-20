@@ -382,9 +382,8 @@
      controls row at this width is People's business. */
   .leads-scope .cl-controls { display: none; }
   .ld-bar { display: flex; align-items: center; gap: 8px; padding: 8px var(--gutter-page) 10px; flex: none; }
-  .ld-bar .pt-scope { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; margin: 0; background: var(--bg-active); border-radius: var(--radius-md); flex: none; }
-  .ld-bar .pt-scope button { height: 32px; min-width: 62px; border: 0; border-radius: var(--radius-sm); background: transparent; color: var(--ink-muted); font: inherit; font-size: var(--text-sm); font-weight: var(--weight-medium); cursor: pointer; }
-  .ld-bar .pt-scope button.on { background: var(--bg-raised); color: var(--ink); box-shadow: var(--shadow-sm); }
+  .ld-bar .pt-scope { margin: 0; }
+  .ld-bar .pt-scope button { height: 32px; min-width: 62px; }
   .ld-bar-lists { height: 32px; padding: 0 8px; display: inline-flex; align-items: center; gap: 4px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); font: inherit; font-size: var(--text-sm); color: var(--ink); white-space: nowrap; cursor: pointer; }
   .ld-bar-search { flex: 1; min-width: 0; height: 40px; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); padding: 0 10px; font: inherit; font-size: var(--text-md); color: var(--ink); }
   .ld-bar-find { width: 44px; height: 44px; flex: none; display: grid; place-items: center; border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg-raised); color: var(--accent); cursor: pointer; }

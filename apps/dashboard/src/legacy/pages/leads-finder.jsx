@@ -68,7 +68,9 @@ const LeadsFirstDay = ({
   onCancelLine = () => {}, composer = null,
 }) => {
   const items = (suggestions && suggestions.items) || [];
-  const note = suggestions && suggestions.note ? suggestions.note : null;
+  // The server says why it could not write them (suggestions.note); a read that
+  // never landed says so itself, rather than leaving the space blank.
+  const note = suggestions ? suggestions.note || null : ldWords().suggestUnavailable;
   return (
     <div className="fr" data-testid="leads-first-day">
       <h1 className="fr-h">{ldWords().firstDay.title}</h1>

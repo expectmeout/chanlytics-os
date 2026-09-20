@@ -367,6 +367,15 @@ test("with no search kept the first day stands where the table would, and claims
   assert.match(textOf(byTestId(fd, "ld-first-day-foot")), /not people at home/, "the foot says what the finder does not do");
 });
 
+test("suggestions the page could not read say so, and the composer still works", () => {
+  fresh({ leads: surface({ searches: [], rows: [], suggestions: null }) });
+  const fd = byTestId(draw(), "leads-first-day");
+  assert.ok(fd, "the first day is still drawn");
+  assert.equal(textOf(byTestId(fd, "ld-sugs-note")), LEAD_WORDS.suggestUnavailable, "the space where they go says why it is empty");
+  assert.equal(textOf(byTestId(fd, "ld-line")), "", "and nothing claims a business line that was never read");
+  assert.equal(finders.length, 1, "the composer is drawn either way: the owner can still describe what they want");
+});
+
 test("a suggestion picked on the first day fills the composer, and the composer is inside the first day", () => {
   fresh({ leads: surface({ searches: [], rows: [], suggestions: SUGGESTIONS }) });
   let tree = draw();
