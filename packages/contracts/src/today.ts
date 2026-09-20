@@ -435,7 +435,8 @@ function figuresOf(
   m: MetricsSummaryDto,
   conversations: ConversationDto[],
   callsInWindow: CallDto[],
-  openEsc: ReadonlyArray<EscalationDto & { conversation_id: string }>,
+  /** The escalations read as it came (state=open): not `openEsc`, which drops the ones a person has taken over. */
+  escalations: ReadonlyArray<EscalationDto & { conversation_id: string }>,
   tz: string,
   now: Date,
 ): TodayFigureVM[] | null {
@@ -460,8 +461,13 @@ function figuresOf(
     meta: lastAt ? `last at ${lastAt}${gap !== null ? `, answered in ${secondsPhrase(gap)}` : ""}` : "none yet",
     receipt: wires.length
       ? {
+          // What the page holds, said once: never "Of the 4 in the Inbox: 4 by WhatsApp."
           text: held !== p.messages_in
-            ? held === 1 ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.` : `Of the ${held} in the Inbox: ${split}.`
+            ? held === 1
+              ? `The one the Inbox holds came by ${wireWord(wires[0][0])}.`
+              : wires.length === 1
+                ? `The ${held} the Inbox holds ${held === 2 ? "both" : "all"} came by ${wireWord(wires[0][0])}.`
+                : `Of the ${held} in the Inbox: ${split}.`
             : wires.length === 1 ? `All by ${wireWord(wires[0][0])}.` : `${split}.`,
           door: { label: "Open the Inbox", to: "inbox" },
         }
@@ -473,7 +479,8 @@ function figuresOf(
   // holds them (the open ones: the read is state=open), so a handover already resolved is counted, not named.
   // period.escalation_reasons is every OPEN escalation whatever its age (00037_hygiene.sql), so it is not read here:
   // a clause about today with a breakdown about all time contradicted itself on the first workspace that opened it.
-  const todays = openEsc.filter((e) => new Date(e.created_at).getTime() >= windowMs);
+  // The raw read, not the queue's list: a handover a teammate has taken over is still open, not resolved.
+  const todays = escalations.filter((e) => e.state === "open" && new Date(e.created_at).getTime() >= windowMs);
   const reasons = tally(todays.map((e) => e.reason));
   const resolved = Math.max(0, p.escalations_new - todays.length);
   const answeredMeta = [
@@ -729,7 +736,8 @@ export function toTodayVM(
   const closingSet = new Set(closingConvs.map((c) => c.id));
   const noReply: TodayNoReplyVM[] = conversations
     .flatMap((c) => {
-      if (escSet.has(c.id) || closingSet.has(c.id)) return [];
+      // Archived is filed away, which standingOf reads as quiet; it is not waiting on anybody.
+      if (escSet.has(c.id) || closingSet.has(c.id) || c.state === "archived") return [];
       const { standing } = standingOf({
         state: c.state, paused_until: c.paused_until, assignee_user_id: c.assignee_user_id,
         assignee_is_me: c.assignee_is_me, open_escalation: false,
@@ -744,7 +752,7 @@ export function toTodayVM(
     .sort((a, b) => a.sinceMs - b.sinceMs);
 
   const proof = todayProof(live, tz, now);
-  const figures = figuresOf(m, conversations, callsInWindow, openEsc, tz, now);
+  const figures = figuresOf(m, conversations, callsInWindow, escalations, tz, now);
 
   const traffic = p.messages_in + p.calls + p.messages_out_you;
   const isQuiet = traffic === 0 && needsYouCount === 0 && !alert;

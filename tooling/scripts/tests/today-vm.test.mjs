@@ -459,6 +459,13 @@ test("the sentences stay true where the SQL's counts and the page's rows disagre
   const many = toTodayVM(metrics({ period: { messages_in: 4, conversations_active: 4, new_contacts: 4 } }), four, [], [], NOW).figures.find((f) => f.id === "new");
   assert.equal(many.receipt.text, "Renata Solís, Marco Ibáñez, Noor Haddad and 1 more wrote for the first time today.", "one 'and', as andList says it");
   assert.equal(many.meta, "on WhatsApp and email", "three on WhatsApp, one by email: most first");
+  // A handover opened today that a teammate has taken over is still open: named by its reason, never counted as resolved.
+  const claimed = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, assignee_user_id: "u-teammate", assignee_is_me: false } : c));
+  const taken = toTodayVM(metrics({ period: { messages_in: 2, messages_out_ai: 2, answered_by_ai: 2, conversations_active: 2, escalations_new: 1 } }), claimed, [busyEsc()[0]], [], NOW).figures.find((f) => f.id === "answered");
+  assert.equal(taken.receipt.text, "Asked for a person: once. One reply each.", "REGRESSION: '1 handover already resolved' over a colleague mid-reply");
+  // Two of nine held, both by WhatsApp: what the page holds, said once.
+  const twoHeld = toTodayVM(busyDay(), [busyThreads()[0], thread("cv-b", "Bea Lind", [at("2026-08-27T12:30:00Z")])], [], [], NOW).figures.find((f) => f.id === "messages");
+  assert.equal(twoHeld.receipt.text, "The 2 the Inbox holds both came by WhatsApp.", "REGRESSION: 'Of the 2 in the Inbox: 2 by WhatsApp.'");
 });
 
 test("a figure with nothing to add has no receipt; a day with nothing at all has no figures, and the proof is still said", () => {
@@ -497,6 +504,8 @@ test("who is waiting with nothing back: the customer wrote last an hour ago or m
   assert.deepEqual(toTodayVM(busyDay(), theirs, [], busyCalls(), NOW).noReply, [], "REGRESSION: a thread a colleague is answering, listed as ignored");
   const paused = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, paused_until: "2026-08-27T18:00:00Z" } : c));
   assert.deepEqual(toTodayVM(busyDay(), paused, [], busyCalls(), NOW).noReply, [], "a person is on it");
+  const archived = busyThreads().map((c) => (c.id === "cv-d" ? { ...c, state: "archived" } : c));
+  assert.deepEqual(toTodayVM(busyDay(), archived, [], busyCalls(), NOW).noReply, [], "REGRESSION: a filed-away thread listed as waiting");
   const two = busyThreads().map((c) => (c.id === "cv-a" ? { ...c, state: "open", messages: [at("2026-08-27T09:00:00Z"), at("2026-08-27T11:30:00Z")] } : c));
   assert.deepEqual(toTodayVM(busyDay(), two, [], busyCalls(), NOW).noReply.map((r) => r.who), ["Ana Reyes", "Dulce Amaro"], "oldest wait first");
 });
