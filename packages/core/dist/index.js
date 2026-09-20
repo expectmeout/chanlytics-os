@@ -40227,7 +40227,7 @@ function absolute(href, origin) {
   else if (raw.startsWith("/")) url = `${origin}${raw}`;
   else if (!/^https?:\/\//i.test(raw)) url = `${origin}/${raw.replace(/^\.\//, "")}`;
   if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
-  return url;
+  return url.replace(/^http:\/\//i, "https://");
 }
 function scoreOf(rel, type, href, side) {
   const rels = rel.toLowerCase().split(/\s+/);

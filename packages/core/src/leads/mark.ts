@@ -65,7 +65,10 @@ function absolute(href: string, origin: string): string | null {
   else if (raw.startsWith("/")) url = `${origin}${raw}`;
   else if (!/^https?:\/\//i.test(raw)) url = `${origin}/${raw.replace(/^\.\//, "")}`;
   if (!/^https?:\/\//i.test(url) || url.length > HREF_MAX) return null;
-  return url;
+  // A mark served over plain http cannot draw on a page served over https -- the browser blocks it -- so an address
+  // we could never show is no better than none. Every site that answers on http answers on https today; ask for the
+  // one that can be seen, and the photo takes over if it turns out it cannot.
+  return url.replace(/^http:\/\//i, "https://");
 }
 
 /** Higher is better; 0 is "not a mark". The tier decides first, the size only breaks a tie inside it. */
