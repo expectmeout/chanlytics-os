@@ -1638,7 +1638,8 @@ export const TODAY_LEAK_MAX = 2;
  */
 const LEAK_ORDER: readonly TodayLeakId[] = ["never-booked", "unanswered", "unreachable", "quiet"];
 
-const askWhy = (text: string, math: string): string => `${text} ${math}. Why is that?`;
+// The arithmetic was written to sit under the sentence ("of 21 in the last 30 days"); as a sentence of its own it takes a capital.
+const askWhy = (text: string, math: string): string => `${text} ${capitalize(math)}. Why is that?`;
 
 export function todayLeaks(
   reports: ReportsLike | null,

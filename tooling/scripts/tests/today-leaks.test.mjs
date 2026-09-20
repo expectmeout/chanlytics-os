@@ -300,7 +300,7 @@ test("each row wears a word and an icon for its tone, and offers Ask its own fac
   const { rows } = todayLeaksV2(reports(), people());
   assert.deepEqual(rows.map((l) => [l.id, l.tag, l.icon]), [["never-booked", "Booking gap", "calendar"], ["unanswered", "No reply", "alert"]]);
   assert.equal(rows[0].ask, "18 people wrote or called in the last 30 days. Not one of them is on the calendar. 0 of 18 booked · 17 on Asked, never booked. Why is that?", "the sentence and the arithmetic under it, so Ask grounds the answer in the same numbers");
-  assert.equal(rows[1].ask, "4 customer messages never got an answer at all. of 21 in the last 30 days · the receptionist answered 16, you answered 1. Why is that?");
+  assert.equal(rows[1].ask, "4 customer messages never got an answer at all. Of 21 in the last 30 days · the receptionist answered 16, you answered 1. Why is that?", "the arithmetic takes a capital once it is a sentence of its own");
   const { rows: reach } = todayLeaksV2(reports({ vm: { answered: { totals: { in: 9, ai: 9, you: 0, none: 0 } } }, booking: { present: true, headline: "8 of 9 booked", sub: "", pct: 89, asked: 9, booked: 8 } }), people());
   assert.deepEqual(reach.map((l) => [l.id, l.tag, l.icon]), [["unreachable", "Reach", "users"], ["quiet", "Gone quiet", "clock"]]);
   assert.equal(reach[0].text, "7 people have said yes to messages, but nobody has said yes to offers.", "the sentence the nightly pins stays");
