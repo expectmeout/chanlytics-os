@@ -260,7 +260,9 @@ test("asked, then booked: the share's other side sits on the card's foot, with t
   const ok = card(page(), "chart-booking");
   const rest = byTestId(ok, "booked-rest");
   assert.ok(textOf(rest).includes("5 of the 8 who asked have nothing on the calendar yet."));
-  // People keeps them as a list already, so the door lands on that list and not on the page of everyone.
+  // People keeps a list of these people already, so the door lands on that list and not on the page of everyone, and
+  // it wears the list's name: the list counts its own month, this card counts the period above.
+  assert.equal(textOf(byTestId(ok, "booked-rest-door")), "Asked, never booked");
   globalThis.__listRoute = (id) => `clients/seg:${id}`;
   try {
     press(byTestId(card(page(), "chart-booking"), "booked-rest-door"));

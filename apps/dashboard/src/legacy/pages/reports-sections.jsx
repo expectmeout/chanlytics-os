@@ -156,9 +156,11 @@ const RptBooked = ({ bk, phone }) => {
           <Icon name={bk.unbooked ? "calendar" : "check"} size={13} />
           <span>
             {bk.rest}
-            {/* People already keeps them as a list of its own ("Asked, never booked"), so the door is the list, not
-                the page: __listRoute lands on it, or on People itself where the lists have not loaded. */}
-            {bk.unbooked > 0 && <button type="button" className="cl-bucket-link" onClick={() => rptNav(window.__listRoute ? window.__listRoute("asked_never_booked") : "clients")} data-testid="booked-rest-door">See them</button>}
+            {/* People already keeps a list of its own for these people, so the door is that list and not the page of
+                everyone: __listRoute lands on it, or on People itself where the lists have not loaded. The door wears
+                the list's name rather than "See them", because the list counts its own month and this card counts the
+                period above: the same people, near enough to go and look, not the same set to the person. */}
+            {bk.unbooked > 0 && <button type="button" className="cl-bucket-link" title="People's own list of who wrote or called this month and has never been on the calendar" onClick={() => rptNav(window.__listRoute ? window.__listRoute("asked_never_booked") : "clients")} data-testid="booked-rest-door">Asked, never booked</button>}
           </span>
         </p>
       )}
